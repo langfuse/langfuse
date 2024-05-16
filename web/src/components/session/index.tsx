@@ -21,10 +21,11 @@ import {
   type RowHeight,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
 
 // do not use the usual table row heights here
 const rowHeightMapping: Record<RowHeight, number> = {
-  s: 250,
+  s: 200,
   m: 350,
   l: 700,
 };
@@ -181,28 +182,32 @@ const TraceCardList = ({
                 transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
               }}
             >
-              <SessionIO traceId={trace.id} />
-              <div className="-mt-1 overflow-y-auto p-1 opacity-50 transition-opacity group-hover:opacity-100">
-                <Link
-                  href={`/project/${projectId}/traces/${trace.id}`}
-                  className="text-xs hover:underline"
-                >
-                  Trace: {trace.name} ({trace.id})&nbsp;↗
-                </Link>
-                <div className="text-xs text-gray-500">
-                  {trace.timestamp.toLocaleString()}
+              <ScrollArea className="col-span-2 pr-3">
+                <SessionIO traceId={trace.id} />
+              </ScrollArea>
+              <ScrollArea>
+                <div className="-mt-1 overflow-y-auto p-1 opacity-50 transition-opacity group-hover:opacity-100">
+                  <Link
+                    href={`/project/${projectId}/traces/${trace.id}`}
+                    className="text-xs hover:underline"
+                  >
+                    Trace: {trace.name} ({trace.id})&nbsp;↗
+                  </Link>
+                  <div className="text-xs text-gray-500">
+                    {trace.timestamp.toLocaleString()}
+                  </div>
+                  <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
+                  <div className="flex flex-wrap content-start items-start gap-1">
+                    <GroupedScoreBadges scores={trace.scores} />
+                  </div>
+                  <ManualScoreButton
+                    projectId={projectId}
+                    traceId={trace.id}
+                    scores={trace.scores}
+                    variant="badge"
+                  />
                 </div>
-                <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
-                <div className="flex flex-wrap content-start items-start gap-1">
-                  <GroupedScoreBadges scores={trace.scores} />
-                </div>
-                <ManualScoreButton
-                  projectId={projectId}
-                  traceId={trace.id}
-                  scores={trace.scores}
-                  variant="badge"
-                />
-              </div>
+              </ScrollArea>
             </Card>
           ))}
       </div>
@@ -225,7 +230,7 @@ const SessionIO = ({ traceId }: { traceId: string }) => {
   );
 
   return (
-    <div className="col-span-2 flex flex-col gap-2 overflow-x-hidden overflow-y-scroll p-0">
+    <div className="flex flex-col gap-2 overflow-x-hidden overflow-y-scroll p-0">
       {!trace.data ? (
         <JsonSkeleton
           className="h-full w-full overflow-hidden px-2 py-1"
