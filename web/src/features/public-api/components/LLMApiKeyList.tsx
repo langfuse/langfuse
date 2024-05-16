@@ -34,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
@@ -63,6 +64,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
   );
 
   if (!hasAccess) return null;
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
   return (
     <div>
