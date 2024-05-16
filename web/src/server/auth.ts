@@ -1,33 +1,33 @@
+import { env } from "@/src/env.mjs";
+import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
+import { parseFlags } from "@/src/features/feature-flags/utils";
+import { prisma } from "@langfuse/shared/src/db";
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { type GetServerSidePropsContext } from "next";
 import {
   getServerSession,
-  type User,
   type NextAuthOptions,
   type Session,
+  type User,
 } from "next-auth";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@langfuse/shared/src/db";
-import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
-import { parseFlags } from "@/src/features/feature-flags/utils";
-import { env } from "@/src/env.mjs";
-import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { type Adapter } from "next-auth/adapters";
 
 // Providers
-import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
-import GitHubProvider from "next-auth/providers/github";
-import OktaProvider from "next-auth/providers/okta";
-import Auth0Provider from "next-auth/providers/auth0";
-import AzureADProvider from "next-auth/providers/azure-ad";
-import KeycloakProvider from "next-auth/providers/keycloak";
-import { type Provider } from "next-auth/providers/index";
-import { getCookieName, cookieOptions } from "./utils/cookies";
 import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@langfuse/ee/sso";
+import Auth0Provider from "next-auth/providers/auth0";
+import AzureADProvider from "next-auth/providers/azure-ad";
+import CredentialsProvider from "next-auth/providers/credentials";
+import GitHubProvider from "next-auth/providers/github";
+import GoogleProvider from "next-auth/providers/google";
+import { type Provider } from "next-auth/providers/index";
+import KeycloakProvider from "next-auth/providers/keycloak";
+import OktaProvider from "next-auth/providers/okta";
 import { z } from "zod";
+import { cookieOptions, getCookieName } from "./utils/cookies";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -260,7 +260,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             image: true,
             featureFlags: true,
             admin: true,
-            memberships: {
+            projectMemberships: {
               include: {
                 project: true,
               },
@@ -275,6 +275,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
             disableExpensivePostgresQueries:
               env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
+            defaultTableDateTimeOffset:
+              env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
           },
           user:
             dbUser !== null
@@ -285,7 +287,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                 email: dbUser.email,
                 image: dbUser.image,
                 admin: dbUser.admin,
-                projects: dbUser.memberships.map((membership) => ({
+                projects: dbUser.projectMemberships.map((membership) => ({
                   id: membership.project.id,
                   name: membership.project.name,
                   role: membership.role,

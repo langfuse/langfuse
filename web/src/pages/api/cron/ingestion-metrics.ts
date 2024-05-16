@@ -46,7 +46,7 @@ export default async function handler(
         id: true,
         name: true,
         createdAt: true,
-        members: {
+        projectMembers: {
           select: {
             user: {
               select: {
@@ -72,7 +72,7 @@ export default async function handler(
         groupKey: project.id,
         properties: {
           project_name: project.name,
-          project_owner: project.members
+          project_owner: project.projectMembers
             .map((member) => member.user.email)
             .join(","),
           created_at: project.createdAt,
@@ -212,18 +212,17 @@ export default async function handler(
       }>
     >`
       SELECT
-        t.project_id,
+        s.project_id,
         count(s.*)::integer count_scores
       FROM
         scores s
-        JOIN traces t ON t.id = s.trace_id
-          WHERE
-            s.timestamp < ${endTimeframe}
-            ${
-              startTimeframe
-                ? Prisma.sql`AND s.timestamp >= ${startTimeframe}`
-                : Prisma.empty
-            }
+        WHERE
+          s.timestamp < ${endTimeframe}
+          ${
+            startTimeframe
+              ? Prisma.sql`AND s.timestamp >= ${startTimeframe}`
+              : Prisma.empty
+          }
       GROUP BY
         1
     `;

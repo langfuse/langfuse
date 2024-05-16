@@ -51,6 +51,11 @@ export default function UsersPage() {
     },
     {
       enabled: users.isSuccess,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
     },
   );
 
@@ -197,7 +202,7 @@ export default function UsersPage() {
   ];
 
   return (
-    <div>
+    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden lg:h-[calc(100vh-2rem)]">
       <Header
         title="Users"
         help={{

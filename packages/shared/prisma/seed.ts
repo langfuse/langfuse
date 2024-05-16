@@ -51,7 +51,7 @@ async function main() {
     create: {
       id: seedProjectId,
       name: "llm-app",
-      members: {
+      projectMembers: {
         create: {
           role: "OWNER",
           userId: user.id,
@@ -110,7 +110,7 @@ async function main() {
       create: {
         id: "239ad00f-562f-411d-af14-831c75ddd875",
         name: "demo-app",
-        members: {
+        projectMembers: {
           create: {
             role: "OWNER",
             userId: user.id,
@@ -459,7 +459,7 @@ function createObjects(
     const session =
       Math.random() > 0.3
         ? {
-            id: `session-${i % 10}`,
+            id: `session-${i % 3}`,
             projectId: projectId,
           }
         : undefined;
@@ -592,7 +592,9 @@ function createObjects(
         const model = models[Math.floor(Math.random() * models.length)];
         const promptId =
           promptIds.get(projectId)![
-            Math.floor(Math.random() * promptIds.get(projectId)!.length)
+            Math.floor(
+              Math.random() * Math.floor(promptIds.get(projectId)!.length / 2)
+            )
           ];
 
         const generation = {
