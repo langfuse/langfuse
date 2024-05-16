@@ -47,7 +47,7 @@ export const getPromptsMeta = async (
 
   return {
     data: promptsMeta,
-    pagination: { page, limit, totalPages, totalItems },
+    meta: { page, limit, totalPages, totalItems },
   };
 };
 
@@ -60,7 +60,7 @@ type PromptsMeta = {
 
 export type PromptsMetaResponse = {
   data: PromptsMeta[];
-  pagination: {
+  meta: {
     page: number;
     limit: number;
     totalPages: number;
