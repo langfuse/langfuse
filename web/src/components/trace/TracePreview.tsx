@@ -23,6 +23,8 @@ import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { useState } from "react";
 
 export const TracePreview = ({
   trace,
@@ -33,6 +35,9 @@ export const TracePreview = ({
   observations: ObservationReturnType[];
   scores: Score[];
 }) => {
+  const [selectedTab, setSelectedTab] = useState("details");
+  const isScoreAttached = scores.some((s) => s.observationId === null);
+
   return (
     <Card className="flex-1">
       <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
@@ -59,7 +64,7 @@ export const TracePreview = ({
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <ManualScoreButton
             projectId={trace.projectId}
             traceId={trace.id}
@@ -73,20 +78,32 @@ export const TracePreview = ({
             metadata={trace.metadata}
             key={trace.id}
           />
+          {isScoreAttached && (
+            <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+              <TabsList>
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="scores">Scores</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <IOPreview
-          key={trace.id + "-io"}
-          input={trace.input ?? undefined}
-          output={trace.output ?? undefined}
-        />
-        <JSONView
-          key={trace.id + "-metadata"}
-          title="Metadata"
-          json={trace.metadata}
-        />
-        {scores.find((s) => s.observationId === null) ? (
+        {selectedTab === "details" && (
+          <>
+            <IOPreview
+              key={trace.id + "-io"}
+              input={trace.input ?? undefined}
+              output={trace.output ?? undefined}
+            />
+            <JSONView
+              key={trace.id + "-metadata"}
+              title="Metadata"
+              json={trace.metadata}
+            />
+          </>
+        )}
+        {selectedTab === "scores" && isScoreAttached ? (
           <div className="mt-5 flex flex-col gap-2">
             <h3>Scores</h3>
             <Table>

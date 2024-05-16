@@ -25,6 +25,8 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { useState } from "react";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -33,6 +35,8 @@ export const ObservationPreview = (props: {
   currentObservationId: string;
   traceId: string;
 }) => {
+  const [selectedTab, setSelectedTab] = useState("details");
+
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: props.currentObservationId,
     traceId: props.traceId,
@@ -47,6 +51,11 @@ export const ObservationPreview = (props: {
   );
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
+
+  const isScoreAttached = props.scores.some(
+    (s) => s.observationId === preloadedObservation.id,
+  );
+
   return (
     <Card className="flex-1">
       <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
@@ -120,7 +129,7 @@ export const ObservationPreview = (props: {
               : null}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <ManualScoreButton
             projectId={props.projectId}
             traceId={preloadedObservation.traceId}
@@ -138,34 +147,43 @@ export const ObservationPreview = (props: {
               key={preloadedObservation.id}
             />
           ) : null}
+          {isScoreAttached && (
+            <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+              <TabsList>
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="scores">Scores</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <IOPreview
-          key={preloadedObservation.id + "-input"}
-          input={observationWithInputAndOutput.data?.input ?? undefined}
-          output={observationWithInputAndOutput.data?.output ?? undefined}
-          isLoading={observationWithInputAndOutput.isLoading}
-        />
-        {preloadedObservation.statusMessage ? (
-          <JSONView
-            key={preloadedObservation.id + "-status"}
-            title="Status Message"
-            json={preloadedObservation.statusMessage}
-          />
-        ) : null}
+        {selectedTab === "details" && (
+          <>
+            <IOPreview
+              key={preloadedObservation.id + "-input"}
+              input={observationWithInputAndOutput.data?.input ?? undefined}
+              output={observationWithInputAndOutput.data?.output ?? undefined}
+              isLoading={observationWithInputAndOutput.isLoading}
+            />
+            {preloadedObservation.statusMessage ? (
+              <JSONView
+                key={preloadedObservation.id + "-status"}
+                title="Status Message"
+                json={preloadedObservation.statusMessage}
+              />
+            ) : null}
+            {observationWithInputAndOutput.data?.metadata ? (
+              <JSONView
+                key={observationWithInputAndOutput.data.id + "-metadata"}
+                title="Metadata"
+                json={observationWithInputAndOutput.data.metadata}
+              />
+            ) : null}
+          </>
+        )}
 
-        {observationWithInputAndOutput.data?.metadata ? (
-          <JSONView
-            key={observationWithInputAndOutput.data.id + "-metadata"}
-            title="Metadata"
-            json={observationWithInputAndOutput.data.metadata}
-          />
-        ) : null}
-
-        {props.scores.find(
-          (s) => s.observationId === preloadedObservation.id,
-        ) ? (
+        {selectedTab === "scores" && isScoreAttached ? (
           <div className="flex flex-col gap-2">
             <h3>Scores</h3>
             <Table>
