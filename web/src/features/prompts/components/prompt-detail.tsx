@@ -228,7 +228,7 @@ export const PromptDetail = () => {
                 Generations using this prompt version
               </AccordionTrigger>
               <AccordionContent>
-                <div className="flex max-h-[calc(100vh-30rem)] flex-col">
+                <div className="flex max-h-[calc(100vh-20rem)] flex-col">
                   <Generations
                     projectId={prompt.projectId}
                     promptName={prompt.name}
