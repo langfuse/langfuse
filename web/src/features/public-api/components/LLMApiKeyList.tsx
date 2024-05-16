@@ -286,7 +286,9 @@ export function CreateLlmApiKeyComponent(props: {
                       <SelectContent>
                         {Array.from(
                           new Set(
-                            evalLLMModels.map((models) => models.provider),
+                            evalLLMModels.map(
+                              (models) => models.provider.value,
+                            ),
                           ),
                         ).map((provider) => (
                           <SelectItem value={provider} key={provider}>

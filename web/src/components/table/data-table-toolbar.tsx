@@ -51,7 +51,7 @@ export function DataTableToolbar<TData, TValue>({
   const capture = usePostHogClientCapture();
 
   return (
-    <div className="my-2 flex flex-1 flex-wrap items-center gap-2 @container">
+    <div className="my-2 flex flex-wrap items-center gap-2 @container">
       {searchConfig && (
         <div className="flex max-w-md items-center">
           <Input
@@ -86,7 +86,7 @@ export function DataTableToolbar<TData, TValue>({
           onChange={setFilterState}
         />
       )}
-      <div className="flex flex-row flex-wrap gap-2 @6xl:ml-auto">
+      <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
         {!!columnVisibility && !!setColumnVisibility && (
           <DataTableColumnVisibilityFilter
             columns={columns}
