@@ -87,34 +87,30 @@ export default function EvalsTemplateTable({
   };
 
   return (
-    <div>
-      <DataTable
-        columns={columns}
-        data={
-          templates.isLoading
-            ? { isLoading: true, isError: false }
-            : templates.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: templates.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: templates.data.templates.map((t) =>
-                    convertToTableRow(t),
-                  ),
-                }
-        }
-        pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-      />
-    </div>
+    <DataTable
+      columns={columns}
+      data={
+        templates.isLoading
+          ? { isLoading: true, isError: false }
+          : templates.isError
+            ? {
+                isLoading: false,
+                isError: true,
+                error: templates.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: templates.data.templates.map((t) => convertToTableRow(t)),
+              }
+      }
+      pagination={{
+        pageCount: Math.ceil(totalCount / paginationState.pageSize),
+        onChange: setPaginationState,
+        state: paginationState,
+      }}
+      columnVisibility={columnVisibility}
+      onColumnVisibilityChange={setColumnVisibility}
+    />
   );
 }

@@ -255,7 +255,7 @@ export default function ScoresTable({
   };
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
@@ -294,6 +294,6 @@ export default function ScoresTable({
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}
       />
-    </div>
+    </>
   );
 }

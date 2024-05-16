@@ -648,7 +648,7 @@ export default function GenerationsTable({
     : [];
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
@@ -722,7 +722,7 @@ export default function GenerationsTable({
         onColumnVisibilityChange={setColumnVisibilityState}
         rowHeight={rowHeight}
       />
-    </div>
+    </>
   );
 }
 

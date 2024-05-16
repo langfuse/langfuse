@@ -12,6 +12,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -49,6 +50,7 @@ interface DataTableProps<TData, TValue> {
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
   rowHeight?: RowHeight;
+  className?: string;
 }
 
 export interface AsyncTableData<T> {
@@ -104,8 +106,8 @@ export function DataTable<TData extends object, TValue>({
 
   return (
     <>
-      <div className="space-y-4">
-        <div className="rounded-md border">
+      <div className="flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto">
+        <div className="w-full overflow-auto rounded-md border">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -190,10 +192,10 @@ export function DataTable<TData extends object, TValue>({
             </TableHeader>
             <TableBody>
               {data.isLoading || !data.data ? (
-                <TableRow>
+                <TableRow className="h-svh">
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 text-center"
+                    className="content-start border-b text-center"
                   >
                     Loading...
                   </TableCell>
@@ -204,7 +206,7 @@ export function DataTable<TData extends object, TValue>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className="overflow-hidden whitespace-nowrap px-2 py-1 text-xs first:pl-2"
+                        className="overflow-hidden whitespace-nowrap border-b px-2 py-1 text-xs first:pl-2"
                       >
                         <div className={cn("flex items-center", rowheighttw)}>
                           {flexRender(
@@ -238,12 +240,15 @@ export function DataTable<TData extends object, TValue>({
             </TableBody>
           </Table>
         </div>
+        <div className="grow"></div>
       </div>
       {pagination !== undefined ? (
-        <DataTablePagination
-          table={table}
-          paginationOptions={pagination.options}
-        />
+        <div className="sticky bottom-0 z-10 flex w-full justify-end bg-white font-medium">
+          <DataTablePagination
+            table={table}
+            paginationOptions={pagination.options}
+          />
+        </div>
       ) : null}
     </>
   );

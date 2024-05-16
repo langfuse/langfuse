@@ -167,7 +167,7 @@ export function DatasetRunsTable(props: {
   );
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
@@ -204,6 +204,6 @@ export function DatasetRunsTable(props: {
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}
       />
-    </div>
+    </>
   );
 }
