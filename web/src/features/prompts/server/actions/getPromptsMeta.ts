@@ -48,6 +48,7 @@ export const getPromptsMeta = async (
   return {
     data: promptsMeta,
     meta: { page, limit, totalPages, totalItems },
+    pagination: { page, limit, totalPages, totalItems }, // backwards compatibility
   };
 };
 
@@ -61,6 +62,13 @@ type PromptsMeta = {
 export type PromptsMetaResponse = {
   data: PromptsMeta[];
   meta: {
+    page: number;
+    limit: number;
+    totalPages: number;
+    totalItems: number;
+  };
+  // necessary for backwards compatibility as we initially released the /v2/prompts endpoint with this structure which did not match the api spec
+  pagination?: {
     page: number;
     limit: number;
     totalPages: number;
