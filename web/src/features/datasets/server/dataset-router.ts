@@ -147,6 +147,7 @@ export const datasetRouter = createTRPCRouter({
             JOIN scores s 
               ON s.trace_id = ri.trace_id 
               AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id) -- only include scores that are linked to the observation if observation is linked
+              AND s.project_id = ${input.projectId}
             JOIN traces t ON t.id = s.trace_id
           WHERE t.project_id = ${input.projectId}
           GROUP BY
@@ -553,13 +554,11 @@ export const datasetRouter = createTRPCRouter({
           observation: {
             select: {
               id: true,
-              scores: true,
             },
           },
           trace: {
             select: {
               id: true,
-              scores: true,
             },
           },
         },
@@ -568,6 +567,27 @@ export const datasetRouter = createTRPCRouter({
         },
         take: input.limit,
         skip: input.page * input.limit,
+      });
+
+      const traceScores = await ctx.prisma.score.findMany({
+        where: {
+          projectId: ctx.session.projectId,
+          traceId: {
+            in: runItems
+              .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
+              .map((ri) => ri.traceId),
+          },
+        },
+      });
+      const observationScores = await ctx.prisma.score.findMany({
+        where: {
+          projectId: ctx.session.projectId,
+          observationId: {
+            in: runItems
+              .filter((ri) => ri.observationId !== null)
+              .map((ri) => ri.observationId) as string[],
+          },
+        },
       });
 
       const totalRunItems = await ctx.prisma.datasetRunItems.count({
@@ -582,14 +602,14 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      const observationIds = runItems
-        .map((ri) => ri.observation?.id)
-        .filter(Boolean) as string[];
       const observations = await ctx.prisma.observationView.findMany({
         where: {
           id: {
-            in: observationIds,
+            in: runItems
+              .map((ri) => ri.observationId)
+              .filter(Boolean) as string[],
           },
+          projectId: ctx.session.projectId,
         },
         select: {
           id: true,
@@ -598,13 +618,10 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      const traceIds = runItems
-        .map((ri) => ri.trace?.id)
-        .filter(Boolean) as string[];
       const traces = await ctx.prisma.traceView.findMany({
         where: {
           id: {
-            in: traceIds,
+            in: runItems.map((ri) => ri.traceId).filter(Boolean) as string[],
           },
           projectId: ctx.session.projectId,
         },
@@ -621,10 +638,14 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: ri.datasetItemId,
           observation: observations.find((o) => o.id === ri.observationId),
           trace: traces.find((t) => t.id === ri.traceId),
-          scores:
-            // use observation scores if run is linked to an observation, otherwise use all trace scores
-            (!!ri.observationId ? ri.observation?.scores : ri.trace?.scores) ??
-            [],
+          scores: [
+            ...traceScores.filter((s) => s.traceId === ri.traceId),
+            ...observationScores.filter(
+              (s) =>
+                s.observationId === ri.observationId &&
+                s.traceId === ri.traceId,
+            ),
+          ],
         };
       });
 

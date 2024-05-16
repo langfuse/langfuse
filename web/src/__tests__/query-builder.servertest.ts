@@ -50,7 +50,7 @@ describe("Build valid SQL queries", () => {
         table: "traces_scores",
         values: ["project-id"],
         strings: [
-          ' FROM  traces t JOIN scores s ON t.id = s.trace_id  WHERE  t."project_id" = ',
+          ' FROM  traces t JOIN scores s ON t.id = s.trace_id AND t.project_id = s.project_id  WHERE  t."project_id" = ',
           ";",
         ],
       } as const,

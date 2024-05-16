@@ -155,6 +155,7 @@ export const userRouter = createTRPCRouter({
             JOIN traces t ON t.id = s.trace_id
           WHERE
             s.trace_id IS NOT NULL
+            AND s.project_id = ${input.projectId}
             AND t.project_id = ${input.projectId}
             AND t.user_id IN (${Prisma.join(users.map((user) => user.userId))})
             AND t.user_id IS NOT NULL
@@ -251,6 +252,7 @@ export const userRouter = createTRPCRouter({
             JOIN traces t ON t.id = s.trace_id
           WHERE
             s.trace_id IS NOT NULL
+            AND s.project_id = ${input.projectId}
             AND t.project_id = ${input.projectId}
             AND t.user_id = ${input.userId}
             AND t.user_id IS NOT NULL
