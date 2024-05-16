@@ -20,11 +20,15 @@ export enum ChatMessageRole {
   Assistant = "assistant",
 }
 export type ModelParams = AnthropicModelParams | OpenAIModelParams;
-export type UIModelParams = Required<
-  AnthropicModelParams | OpenAIModelParams
-> & {
-  maxTemperature: number;
+
+type RecordWithEnabledFlag<T> = {
+  [K in keyof T]: { value: T[K]; enabled: boolean };
 };
+export type UIModelParams = RecordWithEnabledFlag<
+  Required<AnthropicModelParams | OpenAIModelParams> & {
+    maxTemperature: number;
+  }
+>;
 
 // Generic config
 export type ModelConfig = z.infer<typeof ZodModelConfig>;
