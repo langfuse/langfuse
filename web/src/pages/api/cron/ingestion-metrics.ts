@@ -212,18 +212,17 @@ export default async function handler(
       }>
     >`
       SELECT
-        t.project_id,
+        s.project_id,
         count(s.*)::integer count_scores
       FROM
         scores s
-        JOIN traces t ON t.id = s.trace_id
-          WHERE
-            s.timestamp < ${endTimeframe}
-            ${
-              startTimeframe
-                ? Prisma.sql`AND s.timestamp >= ${startTimeframe}`
-                : Prisma.empty
-            }
+        WHERE
+          s.timestamp < ${endTimeframe}
+          ${
+            startTimeframe
+              ? Prisma.sql`AND s.timestamp >= ${startTimeframe}`
+              : Prisma.empty
+          }
       GROUP BY
         1
     `;

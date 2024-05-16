@@ -21,7 +21,7 @@ export default function Dataset() {
   });
 
   return (
-    <div>
+    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden lg:h-[calc(100vh-2rem)]">
       <Header
         title={dataset.data?.name ?? ""}
         breadcrumb={[

@@ -342,6 +342,7 @@ describe("execute evals", () => {
     expect(scores.length).toBe(1);
     expect(scores[0].trace_id).toBe(traceId);
     expect(scores[0].comment).not.toBeNull();
+    expect(scores[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   }, 10_000);
 
   test("fails to eval without llm api key", async () => {

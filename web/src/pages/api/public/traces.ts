@@ -139,7 +139,7 @@ export default async function handler(
             COALESCE(ARRAY_AGG(DISTINCT s.id) FILTER (WHERE s.id IS NOT NULL), ARRAY[]::text[]) AS "scores"
           FROM "traces" AS t
           LEFT JOIN "observations_view" AS o ON t.id = o.trace_id AND o.project_id = ${authCheck.scope.projectId}
-          LEFT JOIN "scores" AS s ON t.id = s.trace_id
+          LEFT JOIN "scores" AS s ON t.id = s.trace_id AND s.project_id = ${authCheck.scope.projectId}
           WHERE t.project_id = ${authCheck.scope.projectId}
           ${userCondition}
           ${nameCondition}

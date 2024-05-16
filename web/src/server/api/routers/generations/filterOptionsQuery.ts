@@ -14,9 +14,7 @@ export const filterOptionsQuery = protectedProjectProcedure
 
     const scores = await ctx.prisma.score.groupBy({
       where: {
-        observation: {
-          projectId: input.projectId,
-        },
+        projectId: input.projectId,
       },
       take: 1000,
       orderBy: {

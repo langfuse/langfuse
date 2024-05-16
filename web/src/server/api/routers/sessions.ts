@@ -166,7 +166,6 @@ export const sessionRouter = createTRPCRouter({
               select: {
                 id: true,
                 userId: true,
-                scores: true,
                 name: true,
                 timestamp: true,
               },
@@ -179,6 +178,15 @@ export const sessionRouter = createTRPCRouter({
             message: "Session not found in project",
           });
         }
+
+        const scores = await ctx.prisma.score.findMany({
+          where: {
+            traceId: {
+              in: session.traces.map((t) => t.id),
+            },
+            projectId: input.projectId,
+          },
+        });
 
         const totalCostQuery = Prisma.sql`
         SELECT
@@ -197,6 +205,10 @@ export const sessionRouter = createTRPCRouter({
 
         return {
           ...session,
+          traces: session.traces.map((t) => ({
+            ...t,
+            scores: scores.filter((s) => s.traceId === t.id),
+          })),
           totalCost: costData?.totalCost ?? 0,
           users: [
             ...new Set(

@@ -32,3 +32,6 @@ types:
       id:
         type: optional<string>
         docs: Dataset items are upserted on their id
+      status:
+        type: optional<commons.DatasetStatus>
+        docs: Defaults to ACTIVE for newly created items
