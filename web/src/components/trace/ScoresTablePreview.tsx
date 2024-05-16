@@ -1,7 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type Score } from "@langfuse/shared";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
@@ -57,12 +56,6 @@ export const ScoresTablePreview = ({ scores }: { scores: Score[] }) => {
     },
   ];
 
-  const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ScoresTablePreviewRow>(
-      "scoresColumnVisibility",
-      columns,
-    );
-
   return (
     <div className="flex max-h-[calc(100vh-20rem)] flex-col gap-1 overflow-hidden">
       <span className="text-sm font-semibold">Scores</span>
@@ -84,8 +77,6 @@ export const ScoresTablePreview = ({ scores }: { scores: Score[] }) => {
           onChange: setPaginationState,
           state: paginationState,
         }}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
       />
     </div>
   );
