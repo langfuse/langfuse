@@ -37,7 +37,7 @@ export const SessionPage: React.FC<{
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "single-session",
-    "s",
+    "m",
   );
   const session = api.sessions.byId.useQuery(
     {
