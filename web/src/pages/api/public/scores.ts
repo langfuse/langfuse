@@ -20,15 +20,6 @@ import { isPrismaException } from "@/src/utils/exceptions";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
-const prismaOperators: Record<(typeof operators)[number], string> = {
-  "<": "lt",
-  ">": "gt",
-  "<=": "lte",
-  ">=": "gte",
-  "!=": "not",
-  "=": "equals",
-};
-
 const ScoresGetSchema = z.object({
   ...paginationZod,
   userId: z.string().nullish(),
@@ -141,8 +132,8 @@ export default async function handler(
             s.observation_id as "observationId",
             json_build_object('userId', t.user_id) as "trace"
           FROM "scores" AS s
-          JOIN "traces" AS t ON t.id = s.trace_id
-          WHERE t.project_id = ${authCheck.scope.projectId}
+          JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
+          WHERE s.project_id = ${authCheck.scope.projectId}
           ${userCondition}
           ${nameCondition}
           ${sourceCondition}
@@ -151,25 +142,23 @@ export default async function handler(
           ORDER BY t."timestamp" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}
           `);
-      const totalItems = await prisma.score.count({
-        where: {
-          name: obj.name ? obj.name : undefined,
-          source: obj.source ? obj.source : undefined,
-          timestamp: obj.fromTimestamp
-            ? { gte: new Date(obj.fromTimestamp) }
-            : undefined,
-          value:
-            obj.operator && obj.value
-              ? {
-                  [prismaOperators[obj.operator]]: obj.value,
-                }
-              : undefined,
-          trace: {
-            projectId: authCheck.scope.projectId,
-            userId: obj.userId ? obj.userId : undefined,
-          },
-        },
-      });
+
+      const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>(
+        Prisma.sql`
+          SELECT COUNT(*) as count
+          FROM "scores" AS s
+          JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
+          WHERE s.project_id = ${authCheck.scope.projectId}
+          ${userCondition}
+          ${nameCondition}
+          ${sourceCondition}
+          ${fromTimestampCondition}
+          ${valueCondition}
+        `,
+      );
+
+      const totalItems =
+        totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
 
       return res.status(200).json({
         data: scores,

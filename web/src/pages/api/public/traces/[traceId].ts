@@ -48,9 +48,6 @@ export default async function handler(
         id: traceId,
         projectId: authCheck.scope.projectId,
       },
-      include: {
-        scores: true,
-      },
     });
 
     if (!trace) {
@@ -58,6 +55,13 @@ export default async function handler(
         message: "Trace not found within authorized project",
       });
     }
+
+    const scores = await prisma.score.findMany({
+      where: {
+        traceId: traceId,
+        projectId: authCheck.scope.projectId,
+      },
+    });
 
     const observations = await prisma.observationView.findMany({
       where: {
@@ -70,6 +74,7 @@ export default async function handler(
 
     return res.status(200).json({
       ...trace,
+      scores,
       htmlPath: `/project/${authCheck.scope.projectId}/traces/${traceId}`,
       totalCost: outObservations.reduce(
         (acc, obs) => acc + (obs.calculatedTotalCost ?? 0),
