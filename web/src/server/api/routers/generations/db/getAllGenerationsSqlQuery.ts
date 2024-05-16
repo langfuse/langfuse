@@ -77,6 +77,8 @@ export async function getAllGenerations({
             comment
           FROM
             scores
+          WHERE
+            project_id = ${input.projectId}
           GROUP BY
             1,
             2,
@@ -118,12 +120,11 @@ export async function getAllGenerations({
         p.name as "promptName",
         p.version as "promptVersion"
       FROM observations_view o
-      JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
+      JOIN traces t ON t.id = o.trace_id AND t.project_id = ${input.projectId}
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
-      LEFT JOIN prompts p ON p.id = o.prompt_id
+      LEFT JOIN prompts p ON p.id = o.prompt_id AND p.project_id = ${input.projectId}
       WHERE
         o.project_id = ${input.projectId}
-        AND t.project_id = ${input.projectId}
         AND o.type = 'GENERATION'
         ${datetimeFilter}
         ${searchCondition}
@@ -138,9 +139,7 @@ export async function getAllGenerations({
 
   const scores = await prisma.score.findMany({
     where: {
-      trace: {
-        projectId: input.projectId,
-      },
+      projectId: input.projectId,
       observationId: {
         in: generations.map((gen) => gen.id),
       },
