@@ -39,6 +39,7 @@
     --muted-orange: 34 100% 91.8%;
     --muted-blue: 214 94.6% 92.7%;
     --muted-indigo: 226 100% 96.7%;
+    --muted-gray: 210 50% 91.1%;
 
     --accent-light-green: 138 76.5% 96.7%;
 
@@ -72,8 +73,8 @@
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 88%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 217.2 32.6% 27.5%;
+    --input: 217.2 32.6% 27.5%;
 
     --primary: 210 40% 88%;
     --primary-foreground: 222.2 47.4% 11.2%;
@@ -95,6 +96,7 @@
     --muted-green: 143 64.2% 24.1%;
     --muted-orange: 15 79.1% 33.7%;
     --muted-indigo: 226 70% 30%;
+    --muted-gray: 210 50% 25%;
 
     --light-red: 0 62.8% 30.6%;
     --dark-red: 0 90.6% 70.8%;
