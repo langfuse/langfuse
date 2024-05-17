@@ -27,6 +27,7 @@ import {
   loadSsoProviders,
 } from "@langfuse/ee/sso";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -215,7 +216,13 @@ const extendedPrismaAdapter: Adapter = {
  * @see https://next-auth.js.org/configuration/options
  */
 export async function getAuthOptions(): Promise<NextAuthOptions> {
-  const dynamicSsoProviders = await loadSsoProviders();
+  let dynamicSsoProviders: Provider[] = [];
+  try {
+    dynamicSsoProviders = await loadSsoProviders();
+  } catch (e) {
+    console.error("Error loading dynamic SSO providers", e);
+    Sentry.captureException(e);
+  }
   const providers = [...staticProviders, ...dynamicSsoProviders];
 
   const data: NextAuthOptions = {
