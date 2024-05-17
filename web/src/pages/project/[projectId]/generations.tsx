@@ -1,13 +1,14 @@
 import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import GenerationsTable from "@/src/components/table/use-cases/generations";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden md:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title="Generations"
         help={{
@@ -17,6 +18,6 @@ export default function Generations() {
         }}
       />
       <GenerationsTable projectId={projectId} />
-    </div>
+    </FullScreenPage>
   );
 }

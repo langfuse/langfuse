@@ -13,6 +13,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -202,7 +203,7 @@ export default function UsersPage() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden lg:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title="Users"
         help={{
@@ -256,7 +257,7 @@ export default function UsersPage() {
           state: paginationState,
         }}
       />
-    </div>
+    </FullScreenPage>
   );
 }
 
