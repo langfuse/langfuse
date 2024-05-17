@@ -334,9 +334,9 @@ export default function Layout(props: PropsWithChildren) {
             </nav>
 
             <Menu as="div" className="relative">
-              <Menu.Button className="flex w-full items-center gap-x-4 overflow-hidden p-1.5 py-3 pl-6 pr-10 text-sm font-semibold text-gray-900 hover:bg-gray-50">
+              <Menu.Button className="flex w-full items-center gap-x-2 overflow-hidden p-1.5 py-3 pl-6 pr-8 text-sm font-semibold text-gray-900 hover:bg-gray-50">
                 <span className="sr-only">Open user menu</span>
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-7 w-7">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
                   <AvatarFallback>
                     {session.data?.user?.name
