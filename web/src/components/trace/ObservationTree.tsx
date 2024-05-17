@@ -188,7 +188,7 @@ const ObservationTreeNode = (props: {
                       observation.endTime) && (
                       <div className="flex gap-2">
                         {observation.endTime ? (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-muted-foreground">
                             {formatIntervalSeconds(
                               (observation.endTime.getTime() -
                                 observation.startTime.getTime()) /
@@ -199,7 +199,7 @@ const ObservationTreeNode = (props: {
                         {observation.promptTokens ||
                         observation.completionTokens ||
                         observation.totalTokens ? (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-muted-foreground">
                             {observation.promptTokens} →{" "}
                             {observation.completionTokens} (∑{" "}
                             {observation.totalTokens})
