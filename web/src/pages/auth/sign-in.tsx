@@ -225,22 +225,28 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
     values: z.infer<typeof credentialAuthForm>,
   ) {
     setCredentialsFormError(null);
-    capture("sign_in:button_click", { provider: "email/password" });
-    const result = await signIn("credentials", {
-      email: values.email,
-      password: values.password,
-      callbackUrl: "/",
-      redirect: false,
-      turnstileToken,
-    });
-    if (result?.error) {
-      setCredentialsFormError(result.error);
+    try {
+      capture("sign_in:button_click", { provider: "email/password" });
+      const result = await signIn("credentials", {
+        email: values.email,
+        password: values.password,
+        callbackUrl: "/",
+        redirect: false,
+        turnstileToken,
+      });
+      if (result?.error) {
+        setCredentialsFormError(result.error);
 
-      // Refresh turnstile as the token can only be used once
-      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
-        setTurnstileCData(new Date().getTime().toString());
-        setTurnstileToken(undefined);
+        // Refresh turnstile as the token can only be used once
+        if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
+          setTurnstileCData(new Date().getTime().toString());
+          setTurnstileToken(undefined);
+        }
       }
+    } catch (error) {
+      captureException(error);
+      console.error(error);
+      setCredentialsFormError("An unexpected error occurred.");
     }
   }
 
