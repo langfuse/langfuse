@@ -595,7 +595,7 @@ const MainNavigation: React.FC<{
                         aria-hidden="true"
                       />
                     </Disclosure.Button>
-                    <Disclosure.Panel as="ul" className="mt-1 px-2">
+                    <Disclosure.Panel as="ul" className="mt-1 space-y-1 px-2">
                       {item.children?.map((subItem) => (
                         <li key={subItem.name}>
                           {/* 44px */}
@@ -605,7 +605,7 @@ const MainNavigation: React.FC<{
                               subItem.current
                                 ? "bg-gray-50 text-indigo-600"
                                 : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                              "flex w-full items-center gap-x-3 rounded-md p-1.5 pl-9 pr-2 text-sm",
+                              "ml-0.5 flex w-full items-center gap-x-3 rounded-md p-1.5 pl-7 pr-2 text-sm",
                             )}
                             target={subItem.newTab ? "_blank" : undefined}
                           >
