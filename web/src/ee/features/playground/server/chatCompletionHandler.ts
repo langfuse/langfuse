@@ -9,7 +9,6 @@ import {
   validateChatCompletionBody,
   type ValidatedChatCompletionBody,
 } from "./validateChatCompletionBody";
-import { getCookieName } from "@/src/server/utils/cookies";
 import { env } from "@/src/env.mjs";
 import { getIsCloudEnvironment } from "@/src/ee/utils/getIsCloudEnvironment";
 
@@ -23,7 +22,6 @@ export default async function chatCompletionHandler(req: NextRequest) {
 
   const token = await getToken({
     req,
-    cookieName: getCookieName("next-auth.session-token"),
     secret: env.NEXTAUTH_SECRET,
   });
 

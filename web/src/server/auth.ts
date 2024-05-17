@@ -21,7 +21,6 @@ import OktaProvider from "next-auth/providers/okta";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
-import { getCookieName, cookieOptions } from "./utils/cookies";
 import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
@@ -310,32 +309,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             newUser: "/onboarding",
           }
         : {}),
-    },
-    cookies: {
-      sessionToken: {
-        name: getCookieName("next-auth.session-token"),
-        options: cookieOptions,
-      },
-      csrfToken: {
-        name: getCookieName("next-auth.csrf-token"),
-        options: cookieOptions,
-      },
-      callbackUrl: {
-        name: getCookieName("next-auth.callback-url"),
-        options: cookieOptions,
-      },
-      state: {
-        name: getCookieName("next-auth.state"),
-        options: cookieOptions,
-      },
-      nonce: {
-        name: getCookieName("next-auth.nonce"),
-        options: cookieOptions,
-      },
-      pkceCodeVerifier: {
-        name: getCookieName("next-auth.pkce.code_verifier"),
-        options: cookieOptions,
-      },
     },
     events: {
       createUser: async ({ user }) => {
