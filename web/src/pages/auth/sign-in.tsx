@@ -234,19 +234,31 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
         redirect: false,
         turnstileToken,
       });
-      if (result?.error) {
-        setCredentialsFormError(result.error);
-
-        // Refresh turnstile as the token can only be used once
-        if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
-          setTurnstileCData(new Date().getTime().toString());
-          setTurnstileToken(undefined);
+      if (result === undefined) {
+        setCredentialsFormError("An unexpected error occurred.");
+        captureException(new Error("Sign in result is undefined"));
+      } else if (!result.ok) {
+        if (!result.error) {
+          captureException(
+            new Error(
+              `Sign in result error is falsy, result: ${JSON.stringify(result)}`,
+            ),
+          );
         }
+        setCredentialsFormError(
+          result?.error ?? "An unexpected error occurred.",
+        );
       }
     } catch (error) {
       captureException(error);
       console.error(error);
       setCredentialsFormError("An unexpected error occurred.");
+    } finally {
+      // Refresh turnstile as the token can only be used once
+      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
+        setTurnstileCData(new Date().getTime().toString());
+        setTurnstileToken(undefined);
+      }
     }
   }
 
