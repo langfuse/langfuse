@@ -1,13 +1,14 @@
 import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function Sessions() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden lg:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title="Sessions"
         help={{
@@ -18,6 +19,6 @@ export default function Sessions() {
       />
 
       <SessionsTable projectId={projectId} />
-    </div>
+    </FullScreenPage>
   );
 }

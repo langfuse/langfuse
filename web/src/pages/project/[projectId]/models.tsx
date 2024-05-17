@@ -7,6 +7,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Lock } from "lucide-react";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function ModelsPage() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function ModelsPage() {
   const hasWriteAccess = useHasAccess({ projectId, scope: "models:CUD" });
   const capture = usePostHogClientCapture();
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden lg:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title="Models"
         help={{
@@ -38,6 +39,6 @@ export default function ModelsPage() {
         }
       />
       <ModelTable projectId={projectId} />
-    </div>
+    </FullScreenPage>
   );
 }
