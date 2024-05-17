@@ -7,13 +7,13 @@ import { env } from "@/src/env.mjs";
 const CrispChat = () => {
   useEffect(() => {
     if (env.NEXT_PUBLIC_CRISP_WEBSITE_ID) {
-      Crisp.configure(env.NEXT_PUBLIC_CRISP_WEBSITE_ID);
+      Crisp.configure(env.NEXT_PUBLIC_CRISP_WEBSITE_ID, { autoload: false });
       const chatVisible = sessionStorage.getItem("lf_support_chat_visible");
       if (chatVisible === null) {
         sessionStorage.setItem("lf_support_chat_visible", "false");
         hideChat();
       } else if (chatVisible === "true") {
-        openChat();
+        showChat();
       } else {
         hideChat();
       }
@@ -65,6 +65,11 @@ export const showChat = () => {
   if (!chatAvailable) return;
   Crisp.chat.show();
   sessionStorage.setItem("lf_support_chat_visible", "true");
+};
+
+export const chatVisible = () => {
+  if (!chatAvailable) return false;
+  return sessionStorage.getItem("lf_support_chat_visible") === "true";
 };
 
 export const openChat = () => {
