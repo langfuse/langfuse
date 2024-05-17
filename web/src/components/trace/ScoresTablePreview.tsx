@@ -2,7 +2,6 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { type Score } from "@langfuse/shared";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 type ScoresTablePreviewRow = {
   name: string;
@@ -13,13 +12,6 @@ type ScoresTablePreviewRow = {
 };
 
 export const ScoresTablePreview = ({ scores }: { scores: Score[] }) => {
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
-  });
-
-  const totalCount = scores.length;
-
   const columns: LangfuseColumnDef<ScoresTablePreviewRow>[] = [
     {
       accessorKey: "name",
@@ -57,7 +49,7 @@ export const ScoresTablePreview = ({ scores }: { scores: Score[] }) => {
   ];
 
   return (
-    <div className="flex max-h-[calc(100vh-20rem)] flex-col gap-1 overflow-hidden">
+    <div className="flex max-h-[calc(100vh-30rem)] flex-col gap-1 overflow-hidden">
       <span className="text-sm font-semibold">Scores</span>
       <DataTable
         columns={columns}
@@ -71,11 +63,6 @@ export const ScoresTablePreview = ({ scores }: { scores: Score[] }) => {
             source: s.source,
             comment: s.comment,
           })),
-        }}
-        pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
-          onChange: setPaginationState,
-          state: paginationState,
         }}
       />
     </div>
