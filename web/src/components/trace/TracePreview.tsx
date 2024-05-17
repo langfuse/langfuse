@@ -28,7 +28,7 @@ export const TracePreview = ({
   observations: ObservationReturnType[];
   scores: Score[];
 }) => {
-  const [selectedTab, setSelectedTab] = useState("details");
+  const [selectedTab, setSelectedTab] = useState("preview");
   const isScoreAttached = scores.some((s) => s.observationId === null);
 
   return (
@@ -74,7 +74,7 @@ export const TracePreview = ({
           {isScoreAttached && (
             <Tabs value={selectedTab} onValueChange={setSelectedTab}>
               <TabsList>
-                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="preview">Preview</TabsTrigger>
                 <TabsTrigger value="scores">Scores</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -82,7 +82,7 @@ export const TracePreview = ({
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {selectedTab === "details" && (
+        {selectedTab === "preview" && (
           <>
             <IOPreview
               key={trace.id + "-io"}

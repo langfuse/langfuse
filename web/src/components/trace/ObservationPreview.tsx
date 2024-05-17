@@ -28,10 +28,10 @@ export const ObservationPreview = (props: {
   currentObservationId: string;
   traceId: string;
 }) => {
-  const [selectedTab, setSelectedTab] = useState("details");
+  const [selectedTab, setSelectedTab] = useState("preview");
 
   useEffect(() => {
-    setSelectedTab("details");
+    setSelectedTab("preview");
   }, [props.currentObservationId]);
 
   const observationWithInputAndOutput = api.observations.byId.useQuery({
@@ -147,7 +147,7 @@ export const ObservationPreview = (props: {
           {isScoreAttached && (
             <Tabs value={selectedTab} onValueChange={setSelectedTab}>
               <TabsList>
-                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="preview">Preview</TabsTrigger>
                 <TabsTrigger value="scores">Scores</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -155,7 +155,7 @@ export const ObservationPreview = (props: {
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {selectedTab === "details" && (
+        {selectedTab === "preview" && (
           <>
             <IOPreview
               key={preloadedObservation.id + "-input"}
