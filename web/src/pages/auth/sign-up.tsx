@@ -170,7 +170,7 @@ export default function SignIn({ authProviders }: PageProps) {
               ) : null}
             </form>
           </Form>
-          <SSOButtons authProviders={authProviders} action="Sign up" />
+          <SSOButtons authProviders={authProviders} action="sign up" />
           {
             // Turnstile exists copy-paste also on sign-up.tsx
             env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
@@ -189,18 +189,18 @@ export default function SignIn({ authProviders }: PageProps) {
               </>
             )
           }
-          <CloudPrivacyNotice action="creating an account" />
+          <p className="mt-10 text-center text-sm text-gray-500">
+            Already have an account?{" "}
+            <Link
+              href="/auth/sign-in"
+              className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+            >
+              Sign in
+            </Link>
+          </p>
         </div>
 
-        <p className="mt-10 text-center text-sm text-gray-500">
-          Already have an account?{" "}
-          <Link
-            href="/auth/sign-in"
-            className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
-          >
-            Sign in
-          </Link>
-        </p>
+        <CloudPrivacyNotice action="creating an account" />
       </div>
     </>
   );

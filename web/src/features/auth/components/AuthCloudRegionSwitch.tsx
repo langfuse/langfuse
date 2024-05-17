@@ -1,13 +1,25 @@
 import { env } from "@/src/env.mjs";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Divider } from "@tremor/react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
 
 const regions =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
     ? [
         {
-          name: "EU (Staging)",
+          name: "STAGING",
           hostname: "staging.langfuse.com",
           flag: "🇪🇺",
         },
@@ -16,6 +28,7 @@ const regions =
       ? [
           {
             name: "DEV",
+            hostname: null,
             flag: "🚧",
           },
         ]
@@ -41,50 +54,103 @@ export function CloudRegionSwitch({
 
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
+  const currentRegion = regions.find(
+    (region) => region.name === env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  );
+
   return (
     <div>
-      <div className="flex w-full flex-col justify-between gap-3 md:flex-row md:items-center">
+      <div className="mb-6 flex w-full flex-col gap-3">
         <div>
-          <span className="text-sm font-medium leading-none">Data Region</span>
-          <p className="text-xs text-gray-500">
-            Regions are strictly separated.
-          </p>
-          {isSignUpPage ? (
+          <span className="text-sm font-medium leading-none">
+            Data Region
+            <DataRegionInfo />
+          </span>
+          {isSignUpPage && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ? (
             <p className="text-xs text-gray-500">
-              {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                ? "✅ Demo project available"
-                : "❌ Choose EU for demo project access"}
+              Demo project is only available in the EU region.
             </p>
           ) : null}
         </div>
-        <Tabs value={env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}>
-          <TabsList>
+        <Select
+          value={currentRegion?.name}
+          onValueChange={(value) => {
+            const region = regions.find((region) => region.name === value);
+            if (!region) return;
+            capture(
+              "sign_in:cloud_region_switch",
+              {
+                region: region.name,
+              },
+              {
+                send_instantly: true,
+              },
+            );
+            if (region.hostname) {
+              window.location.hostname = region.hostname;
+            }
+          }}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
             {regions.map((region) => (
-              <TabsTrigger
-                key={region.name}
-                value={region.name}
-                onClick={() => {
-                  capture(
-                    "sign_in:cloud_region_switch",
-                    {
-                      region: region.name,
-                    },
-                    {
-                      send_instantly: true,
-                    },
-                  );
-                  if ("hostname" in region)
-                    window.location.hostname = region.hostname;
-                }}
-              >
+              <SelectItem key={region.name} value={region.name}>
                 <span className="mr-2 text-xl leading-none">{region.flag}</span>
                 {region.name}
-              </TabsTrigger>
+              </SelectItem>
             ))}
-          </TabsList>
-        </Tabs>
+          </SelectContent>
+        </Select>
       </div>
-      <Divider className="text-gray-400" />
     </div>
   );
 }
+
+const DataRegionInfo = () => (
+  <Dialog>
+    <DialogTrigger asChild>
+      <a
+        href="#"
+        className="ml-1 text-xs text-indigo-600 hover:text-indigo-500"
+        title="What is this?"
+      >
+        (what is this?)
+      </a>
+    </DialogTrigger>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Data Regions</DialogTitle>
+      </DialogHeader>
+      <div className="flex flex-col gap-2">
+        <p>Langfuse Cloud is available in two data regions:</p>
+        <ul className="list-disc pl-5">
+          <li>US: Northern California (us-west-1)</li>
+          <li>EU: Frankfurt, Germany (eu-central-1)</li>
+        </ul>
+        <p>
+          Regions are strictly separated, and no data is shared across regions.
+          Choosing a region close to you can help improve speed and comply with
+          local data residency laws and privacy regulations.
+        </p>
+        <p>
+          You can have accounts in both regions and data migrations are
+          available on Team plans.
+        </p>
+        <p>
+          For more information, visit{" "}
+          <a
+            href="https://langfuse.com/docs/data-security-privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 underline"
+          >
+            langfuse.com/security
+          </a>
+          .
+        </p>
+      </div>
+    </DialogContent>
+  </Dialog>
+);

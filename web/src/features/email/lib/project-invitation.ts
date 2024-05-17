@@ -41,6 +41,7 @@ export const sendProjectInvitation = async (
         projectName: projectName,
         recieverEmail: to,
         inviteLink: authUrl,
+        langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       }),
     );
 

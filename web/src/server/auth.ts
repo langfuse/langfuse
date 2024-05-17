@@ -21,12 +21,12 @@ import OktaProvider from "next-auth/providers/okta";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
-import { getCookieName, cookieOptions } from "./utils/cookies";
 import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@langfuse/ee/sso";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -90,7 +90,10 @@ const staticProviders: Provider[] = [
       });
 
       if (!dbUser) throw new Error("Invalid credentials");
-      if (dbUser.password === null) throw new Error("Invalid credentials");
+      if (dbUser.password === null)
+        throw new Error(
+          "Please sign in with the identity provider that is linked to your account.",
+        );
 
       const isValidPassword = await verifyPassword(
         credentials.password,
@@ -212,7 +215,13 @@ const extendedPrismaAdapter: Adapter = {
  * @see https://next-auth.js.org/configuration/options
  */
 export async function getAuthOptions(): Promise<NextAuthOptions> {
-  const dynamicSsoProviders = await loadSsoProviders();
+  let dynamicSsoProviders: Provider[] = [];
+  try {
+    dynamicSsoProviders = await loadSsoProviders();
+  } catch (e) {
+    console.error("Error loading dynamic SSO providers", e);
+    Sentry.captureException(e);
+  }
   const providers = [...staticProviders, ...dynamicSsoProviders];
 
   const data: NextAuthOptions = {
@@ -300,32 +309,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             newUser: "/onboarding",
           }
         : {}),
-    },
-    cookies: {
-      sessionToken: {
-        name: getCookieName("next-auth.session-token"),
-        options: cookieOptions,
-      },
-      csrfToken: {
-        name: getCookieName("next-auth.csrf-token"),
-        options: cookieOptions,
-      },
-      callbackUrl: {
-        name: getCookieName("next-auth.callback-url"),
-        options: cookieOptions,
-      },
-      state: {
-        name: getCookieName("next-auth.state"),
-        options: cookieOptions,
-      },
-      nonce: {
-        name: getCookieName("next-auth.nonce"),
-        options: cookieOptions,
-      },
-      pkceCodeVerifier: {
-        name: getCookieName("next-auth.pkce.code_verifier"),
-        options: cookieOptions,
-      },
     },
     events: {
       createUser: async ({ user }) => {

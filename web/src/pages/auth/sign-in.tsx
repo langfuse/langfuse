@@ -90,7 +90,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
 // Also used in src/pages/auth/sign-up.tsx
 export function SSOButtons({
   authProviders,
-  action = "Sign in",
+  action = "sign in",
 }: {
   authProviders: PageProps["authProviders"];
   action?: string;
@@ -103,7 +103,9 @@ export function SSOButtons({
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
-        {authProviders.credentials && <Divider className="text-gray-400" />}
+        {authProviders.credentials && (
+          <Divider className="text-gray-400">or {action} with</Divider>
+        )}
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
           {authProviders.google && (
             <Button
@@ -114,7 +116,7 @@ export function SSOButtons({
               variant="secondary"
             >
               <FcGoogle className="mr-3" size={18} />
-              {action} with Google
+              Google
             </Button>
           )}
           {authProviders.github && (
@@ -126,7 +128,7 @@ export function SSOButtons({
               variant="secondary"
             >
               <FaGithub className="mr-3" size={18} />
-              {action} with Github
+              Github
             </Button>
           )}
           {authProviders.azureAd && (
@@ -140,7 +142,7 @@ export function SSOButtons({
               variant="secondary"
             >
               <TbBrandAzure className="mr-3" size={18} />
-              {action} with Azure AD
+              Azure AD
             </Button>
           )}
           {authProviders.okta && (
@@ -152,7 +154,7 @@ export function SSOButtons({
               variant="secondary"
             >
               <SiOkta className="mr-3" size={18} />
-              {action} with Okta
+              Okta
             </Button>
           )}
           {authProviders.auth0 && (
@@ -164,7 +166,7 @@ export function SSOButtons({
               variant="secondary"
             >
               <SiAuth0 className="mr-3" size={18} />
-              {action} with Auth0
+              Auth0
             </Button>
           )}
         </div>
@@ -223,17 +225,35 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
     values: z.infer<typeof credentialAuthForm>,
   ) {
     setCredentialsFormError(null);
-    capture("sign_in:button_click", { provider: "email/password" });
-    const result = await signIn("credentials", {
-      email: values.email,
-      password: values.password,
-      callbackUrl: "/",
-      redirect: false,
-      turnstileToken,
-    });
-    if (result?.error) {
-      setCredentialsFormError(result.error);
-
+    try {
+      capture("sign_in:button_click", { provider: "email/password" });
+      const result = await signIn("credentials", {
+        email: values.email,
+        password: values.password,
+        callbackUrl: "/",
+        redirect: false,
+        turnstileToken,
+      });
+      if (result === undefined) {
+        setCredentialsFormError("An unexpected error occurred.");
+        captureException(new Error("Sign in result is undefined"));
+      } else if (!result.ok) {
+        if (!result.error) {
+          captureException(
+            new Error(
+              `Sign in result error is falsy, result: ${JSON.stringify(result)}`,
+            ),
+          );
+        }
+        setCredentialsFormError(
+          result?.error ?? "An unexpected error occurred.",
+        );
+      }
+    } catch (error) {
+      captureException(error);
+      console.error(error);
+      setCredentialsFormError("An unexpected error occurred.");
+    } finally {
       // Refresh turnstile as the token can only be used once
       if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
         setTurnstileCData(new Date().getTime().toString());
@@ -288,7 +308,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
         </div>
 
         <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
-          <div className="space-y-8">
+          <div className="space-y-6">
             <CloudRegionSwitch />
             {authProviders.credentials ? (
               <Form {...credentialsForm}>
@@ -393,22 +413,22 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
               </>
             )
           }
-          <CloudPrivacyNotice action="signing in" />
-        </div>
 
-        {!signUpDisabled &&
-        env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
-        authProviders.credentials ? (
-          <p className="mt-10 text-center text-sm text-gray-500">
-            No account yet?{" "}
-            <Link
-              href="/auth/sign-up"
-              className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
-            >
-              Sign up
-            </Link>
-          </p>
-        ) : null}
+          {!signUpDisabled &&
+          env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
+          authProviders.credentials ? (
+            <p className="mt-10 text-center text-sm text-gray-500">
+              No account yet?{" "}
+              <Link
+                href="/auth/sign-up"
+                className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+              >
+                Sign up
+              </Link>
+            </p>
+          ) : null}
+        </div>
+        <CloudPrivacyNotice action="signing in" />
       </div>
     </>
   );
