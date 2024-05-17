@@ -727,6 +727,7 @@ describe("/api/public/ingestion API Endpoint", () => {
             metadata: { key: "value" },
             release: "1.0.0",
             version: "2.0.0",
+            tags: ["tag-1", "tag-2"],
           },
         },
       ],
@@ -743,6 +744,7 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-2",
+            tags: ["tag-3", "tag-4"],
           },
         },
       ],
@@ -763,6 +765,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbTrace[0]?.externalId).toBeNull();
     expect(dbTrace[0]?.version).toBe("2.0.0");
     expect(dbTrace[0]?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+    expect(dbTrace[0]?.tags).toEqual(["tag-1", "tag-2", "tag-3", "tag-4"]);
   });
 
   it("should fail for wrong event formats", async () => {
