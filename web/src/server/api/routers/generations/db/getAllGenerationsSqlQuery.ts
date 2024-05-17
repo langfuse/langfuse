@@ -101,6 +101,7 @@ export async function getAllGenerations({
         o.trace_id as "traceId",
         t.name as "traceName",
         o.completion_start_time as "completionStartTime",
+        o.time_to_first_token as "timeToFirstToken",
         o.prompt_tokens as "promptTokens",
         o.completion_tokens as "completionTokens",
         o.total_tokens as "totalTokens",
