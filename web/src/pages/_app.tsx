@@ -17,7 +17,8 @@ import { useRouter } from "next/router";
 
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
-import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
+import { CrispWidget } from "@/src/features/support-chat/component";
+import { chatSetUser } from "@/src/features/support-chat/chat";
 
 // Custom polyfills not yet available in `next-core`:
 // https://github.com/vercel/next.js/issues/58242
