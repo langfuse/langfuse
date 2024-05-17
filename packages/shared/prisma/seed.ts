@@ -528,9 +528,9 @@ function createObjects(
       const spanTsStart = new Date(
         traceTs.getTime() + Math.floor(Math.random() * 30)
       );
-      // random duration of upto 30ms
+      // random duration of upto 5000ms
       const spanTsEnd = new Date(
-        spanTsStart.getTime() + Math.floor(Math.random() * 30)
+        spanTsStart.getTime() + Math.floor(Math.random() * 5000)
       );
 
       const span = {
@@ -574,6 +574,13 @@ function createObjects(
                 (spanTsEnd.getTime() - generationTsStart.getTime())
             )
         );
+        // somewhere in the middle
+        const generationTsCompletionStart = new Date(
+          generationTsStart.getTime() +
+            Math.floor(
+              (generationTsEnd.getTime() - generationTsStart.getTime()) / 3
+            )
+        );
 
         const promptTokens = Math.floor(Math.random() * 1000) + 300;
         const completionTokens = Math.floor(Math.random() * 500) + 100;
@@ -602,6 +609,8 @@ function createObjects(
           id: `generation-${v4()}`,
           startTime: generationTsStart,
           endTime: generationTsEnd,
+          completionStartTime:
+            Math.random() > 0.5 ? generationTsCompletionStart : undefined,
           name: `generation-${i}-${j}-${k}`,
           projectId: trace.projectId,
           promptId: promptId,
