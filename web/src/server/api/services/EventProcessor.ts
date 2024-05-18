@@ -518,9 +518,6 @@ export class TraceProcessor implements EventProcessor {
         table: "traces_raw",
         format: "JSONEachRow",
         values: insert,
-        query_params: {
-          sync: 1,
-        },
       });
     }
 
