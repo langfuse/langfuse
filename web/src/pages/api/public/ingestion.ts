@@ -302,7 +302,7 @@ const handleSingleEvent = async (
       );
       break;
     case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(cleanedEvent);
+      processor = new ScoreProcessor(cleanedEvent, new Date(event.timestamp));
       break;
     }
     case eventTypes.SDK_LOG:

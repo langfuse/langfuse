@@ -603,9 +603,11 @@ export class TraceProcessor implements EventProcessor {
 }
 export class ScoreProcessor implements EventProcessor {
   event: z.infer<typeof scoreEvent>;
+  eventTs: Date;
 
-  constructor(event: z.infer<typeof scoreEvent>) {
+  constructor(event: z.infer<typeof scoreEvent>, eventTs: Date) {
     this.event = event;
+    this.eventTs = eventTs;
   }
 
   async process(
@@ -629,7 +631,7 @@ export class ScoreProcessor implements EventProcessor {
     const id = body.id ?? v4();
 
     // access control via traceId
-    return await prisma.score.upsert({
+    const score = await prisma.score.upsert({
       where: {
         id_traceId: {
           id,
@@ -661,6 +663,33 @@ export class ScoreProcessor implements EventProcessor {
         }),
       },
     });
+
+    if (env.CLICKHOUSE_URL) {
+      const insert = [
+        {
+          id: score.id,
+          timestamp: score.timestamp,
+          project_id: score.projectId,
+          name: score.name,
+          value: score.value,
+          source: score.source,
+          comment: score.comment,
+          trace_id: score.traceId,
+          observation_id: score.observationId ? score.observationId : null,
+          event_ts: this.eventTs,
+        },
+      ];
+
+      console.log(
+        `Inserting observation into clickhouse, ${JSON.stringify(insert)}`,
+      );
+      await clickhouseClient.insert({
+        table: "scores_raw",
+        format: "JSONEachRow",
+        values: insert,
+      });
+    }
+    return score;
   }
 }
 
