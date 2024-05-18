@@ -296,7 +296,10 @@ const handleSingleEvent = async (
     case eventTypes.SPAN_UPDATE:
     case eventTypes.GENERATION_CREATE:
     case eventTypes.GENERATION_UPDATE:
-      processor = new ObservationProcessor(cleanedEvent);
+      processor = new ObservationProcessor(
+        cleanedEvent,
+        new Date(event.timestamp),
+      );
       break;
     case eventTypes.SCORE_CREATE: {
       processor = new ScoreProcessor(cleanedEvent);

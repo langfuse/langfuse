@@ -111,9 +111,11 @@ type ObservationEvent =
 
 export class ObservationProcessor implements EventProcessor {
   event: ObservationEvent;
+  eventTs: Date;
 
-  constructor(event: ObservationEvent) {
+  constructor(event: ObservationEvent, eventTs: Date) {
     this.event = event;
+    this.eventTs = eventTs;
   }
 
   async convertToObservation(
@@ -443,17 +445,18 @@ export class ObservationProcessor implements EventProcessor {
           total_cost: obs.create.totalCost,
           updated_at: Date.now(),
           created_at: Date.now(),
+          event_ts: this.eventTs,
         },
       ];
 
       console.log(
         `Inserting observation into clickhouse, ${JSON.stringify(insert)}`,
       );
-      // await clickhouseClient.insert({
-      //   table: "observations",
-      //   format: "JSONEachRow",
-      //   values: insert,
-      // });
+      await clickhouseClient.insert({
+        table: "observations_raw",
+        format: "JSONEachRow",
+        values: insert,
+      });
     }
     return returnObs;
   }

@@ -30,5 +30,19 @@
   "eslint.workingDirectories": ["./web", "./worker"],
   "[sql]": {
     "editor.defaultFormatter": "mtxr.sqltools"
-  }
+  },
+  "sqltools.connections": [
+    {
+      "server": "https://lqgxehnztv.europe-west4.gcp.clickhouse.cloud",
+      "port": 8443,
+      "useHTTPS": false,
+      "database": "langfuse",
+      "username": "default",
+      "enableTls": false,
+      "previewLimit": 50,
+      "driver": "ClickHouse",
+      "name": "staging",
+      "askForPassword": true
+    }
+  ]
 }
