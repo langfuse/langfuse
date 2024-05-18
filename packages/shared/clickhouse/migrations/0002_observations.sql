@@ -1,4 +1,3 @@
--- ReplacingMergeTree does not work here as values for sorted columns might change with updates and only equal values in all sorting keys are deduped.
 -- +goose Up
 CREATE TABLE observations_raw (
     `id` String,
@@ -278,3 +277,8 @@ SELECT `id`,
 FROM observations
 GROUP BY id,
     project_id;
+-- +goose Down
+DROP TABLE observations_raw;
+DROP TABLE observations;
+DROP TABLE observations_mv;
+DROP VIEW observations_view;

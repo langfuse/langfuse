@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE traces_raw (
     id String,
     `timestamp` DateTime64(6),
@@ -141,3 +142,8 @@ SELECT id,
 FROM traces
 GROUP BY id,
     project_id;
+-- +goose Down
+DROP TABLE traces_raw;
+DROP TABLE traces;
+DROP TABLE traces_mv;
+DROP VIEW traces_view;

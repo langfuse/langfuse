@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE scores_raw (
     id String,
     `timestamp` DateTime64(6),
@@ -66,15 +67,7 @@ SELECT id,
             event_ts,
             toDateTime64(0, 6)
         )
-    ) AS observation_id,
-    argMaxState(
-        event_ts,
-        if(
-            isNotNull(event_ts),
-            event_ts,
-            toDateTime64(0, 6)
-        )
-    ) AS event_ts
+    ) AS observation_id
 FROM scores_raw
 GROUP BY id,
     project_id;
@@ -87,7 +80,12 @@ SELECT id,
     argMaxMerge(source) AS source,
     argMaxMerge(comment) AS comment,
     argMaxMerge(trace_id) AS trace_id,
-    argMaxMerge(observation_id) AS observation_id,
-    FROM scores
+    argMaxMerge(observation_id) AS observation_id
+FROM scores
 GROUP BY id,
     project_id;
+-- +goose Down
+DROP TABLE scores_raw;
+DROP TABLE scores;
+DROP TABLE scores_mv;
+DROP VIEW scores_mv;
