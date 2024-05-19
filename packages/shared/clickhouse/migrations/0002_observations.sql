@@ -113,7 +113,7 @@ SELECT id,
         `name`,
         if(isNotNull(`name`), event_ts, toDateTime64(0, 6))
     ) as `name`,
-    maxMap(metadata),
+    maxMap(metadata) as metadata,
     argMaxState(
         `user_id`,
         if(
@@ -243,8 +243,8 @@ SELECT id,
         )
     ) as `prompt_id`
 FROM observations_raw
-GROUP BY id,
-    project_id;
+GROUP BY project_id,
+    id;
 CREATE OR REPLACE VIEW observations_view AS
 SELECT `id`,
     argMaxMerge(`trace_id`) AS trace_id,
@@ -275,8 +275,8 @@ SELECT `id`,
     argMaxMerge(`completion_start_time`) AS completion_start_time,
     argMaxMerge(`prompt_id`) AS prompt_id
 FROM observations
-GROUP BY id,
-    project_id;
+GROUP BY project_id,
+    `id`;
 -- +goose Down
 DROP TABLE observations_raw;
 DROP TABLE observations;

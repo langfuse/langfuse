@@ -69,8 +69,8 @@ SELECT id,
         )
     ) AS observation_id
 FROM scores_raw
-GROUP BY id,
-    project_id;
+GROUP BY project_id,
+    id;
 CREATE OR REPLACE VIEW scores_view AS
 SELECT id,
     argMaxMerge(`timestamp`) AS timestamp,
@@ -82,8 +82,8 @@ SELECT id,
     argMaxMerge(trace_id) AS trace_id,
     argMaxMerge(observation_id) AS observation_id
 FROM scores
-GROUP BY id,
-    project_id;
+GROUP BY project_id,
+    id;
 -- +goose Down
 DROP TABLE scores_raw;
 DROP TABLE scores;

@@ -56,7 +56,7 @@ SELECT id,
         user_id,
         if(isNotNull(user_id), event_ts, toDateTime64(0, 6))
     ) AS user_id,
-    maxMap(metadata) AS metadata,
+    maxMap(metadata) as metadata,
     argMaxState(
         release,
         if(isNotNull(release), event_ts, toDateTime64(0, 6))
@@ -120,14 +120,14 @@ SELECT id,
         )
     ) AS updated_at
 FROM traces_raw
-GROUP BY id,
-    project_id;
+GROUP BY project_id,
+    id;
 CREATE OR REPLACE VIEW traces_view AS
 SELECT id,
     argMaxMerge(`timestamp`) AS timestamp,
     argMaxMerge(`name`) AS name,
     argMaxMerge(user_id) AS user_id,
-    maxMap(metadata) AS metadata,
+    maxMap(metadata),
     argMaxMerge(release) AS release,
     argMaxMerge(`version`) AS version,
     project_id,
@@ -140,8 +140,8 @@ SELECT id,
     argMaxMerge(created_at) AS created_at,
     argMaxMerge(updated_at) AS updated_at
 FROM traces
-GROUP BY id,
-    project_id;
+GROUP BY project_id,
+    id;
 -- +goose Down
 DROP TABLE traces_raw;
 DROP TABLE traces;
