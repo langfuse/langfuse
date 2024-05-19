@@ -5,6 +5,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
+import { clickhouseClient } from "@langfuse/shared/backend";
+import { env } from "@/src/env.mjs";
 
 const GetTraceSchema = z.object({
   traceId: z.string(),
@@ -43,15 +45,35 @@ export default async function handler(
     }
     // END CHECK ACCESS SCOPE
 
-    const trace = await prisma.trace.findFirst({
-      where: {
-        id: traceId,
-        projectId: authCheck.scope.projectId,
-      },
-      include: {
-        scores: true,
-      },
-    });
+    const queryFromClickhouse = async (): Promise<any> => {
+      const trace = await clickhouseClient.query({
+        query: `SELECT * FROM traces_view where id = '${traceId}' and project_id = '${authCheck.scope.projectId}' LIMIT 1`,
+        format: "JSONEachRow",
+      });
+      const traceJson = await trace.json();
+
+      const score = await clickhouseClient.query({
+        query: `SELECT * FROM scores_view where trace_id = '${traceId}' and project_id = '${authCheck.scope.projectId}'`,
+        format: "JSONEachRow",
+      });
+
+      const scoreJson = await score.json();
+
+      console.log(traceJson, scoreJson);
+      return traceJson;
+    };
+
+    const trace = env.SERVE_FROM_CLICKHOUSE
+      ? queryFromClickhouse()
+      : await prisma.trace.findFirst({
+          where: {
+            id: traceId,
+            projectId: authCheck.scope.projectId,
+          },
+          include: {
+            scores: true,
+          },
+        });
 
     if (!trace) {
       return res.status(404).json({
@@ -59,23 +81,33 @@ export default async function handler(
       });
     }
 
-    const observations = await prisma.observationView.findMany({
-      where: {
-        traceId: traceId,
-        projectId: authCheck.scope.projectId,
-      },
-    });
+    const clickhouseObs = async () => {
+      const observations = await clickhouseClient.query({
+        query: `SELECT * FROM observations_view where trace_id = '${traceId}' and project_id = '${authCheck.scope.projectId}'`,
+        format: "JSONEachRow",
+      });
+      return await observations.json();
+    };
 
-    const outObservations = observations.map(mapUsageOutput);
+    const observations = env.SERVE_FROM_CLICKHOUSE
+      ? await clickhouseObs()
+      : await prisma.observationView.findMany({
+          where: {
+            traceId: traceId,
+            projectId: authCheck.scope.projectId,
+          },
+        });
+
+    // const outObservations = observationsJson.map(mapUsageOutput);
 
     return res.status(200).json({
       ...trace,
       htmlPath: `/project/${authCheck.scope.projectId}/traces/${traceId}`,
-      totalCost: outObservations.reduce(
-        (acc, obs) => acc + (obs.calculatedTotalCost ?? 0),
-        0,
-      ),
-      observations: outObservations,
+      // totalCost: observationsJson.reduce(
+      //   (acc, obs) => acc + (obs.calculatedTotalCost ?? 0),
+      //   0,
+      // ),
+      observations: observations,
     });
   } catch (error: unknown) {
     console.error(error);

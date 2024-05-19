@@ -35,8 +35,8 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { waitUntil } from "@vercel/functions";
 import { instrumentAsync } from "@/src/utils/instrumentation";
+import { ingest } from "@/src/server/api/services/clickhouse-processor";
 
 export const config = {
   api: {
@@ -222,6 +222,12 @@ export const handleBatch = async (
       // For example, push an error object:
       errors.push({ error: error, id: singleEvent.id, type: singleEvent.type });
     }
+  }
+
+  if (env.CLICKHOUSE_URL) {
+    await instrumentAsync({ name: "insert-clickhouse" }, async () => {
+      await ingest(authCheck.scope, events);
+    });
   }
 
   return { results, errors };

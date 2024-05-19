@@ -19,6 +19,8 @@ import { telemetry } from "@/src/features/telemetry";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { tracesTableCols, orderBy } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { clickhouseClient } from "@langfuse/shared/backend";
+import { env } from "@/src/env.mjs";
 
 const GetTracesSchema = z.object({
   ...paginationZod,
@@ -114,41 +116,49 @@ export default async function handler(
         tracesTableCols,
       );
 
-      const traces = await prisma.$queryRaw<
-        Array<Trace & { observations: string[]; scores: string[] }>
-      >(Prisma.sql`
-          SELECT
-            t.id,
-            CONCAT('/project/', t.project_id,'/traces/',t.id) as "htmlPath",
-            t.timestamp,
-            t.name,
-            t.input,
-            t.output,
-            t.project_id as "projectId",
-            t.session_id as "sessionId",
-            t.metadata,
-            t.external_id as "externalId",
-            t.user_id as "userId",
-            t.release,
-            t.version,
-            t.public,
-            t.tags,
-            COALESCE(SUM(o.calculated_total_cost), 0)::DOUBLE PRECISION AS "totalCost",
-            COALESCE(EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"))) - EXTRACT(EPOCH FROM MIN(o."start_time")), 0)::double precision AS "latency",
-            COALESCE(ARRAY_AGG(DISTINCT o.id) FILTER (WHERE o.id IS NOT NULL), ARRAY[]::text[]) AS "observations",
-            COALESCE(ARRAY_AGG(DISTINCT s.id) FILTER (WHERE s.id IS NOT NULL), ARRAY[]::text[]) AS "scores"
-          FROM "traces" AS t
-          LEFT JOIN "observations_view" AS o ON t.id = o.trace_id AND o.project_id = ${authCheck.scope.projectId}
-          LEFT JOIN "scores" AS s ON t.id = s.trace_id
-          WHERE t.project_id = ${authCheck.scope.projectId}
-          ${userCondition}
-          ${nameCondition}
-          ${tagsCondition}
-          ${fromTimestampCondition}
-          GROUP BY t.id
-          ${orderByCondition}
-          LIMIT ${obj.limit} OFFSET ${skipValue}
-          `);
+      const query = `
+      SELECT
+        t.id,
+        CONCAT('/project/', t.project_id,'/traces/',t.id) as "htmlPath",
+        t.timestamp,
+        t.name,
+        t.input,
+        t.output,
+        t.project_id as "projectId",
+        t.session_id as "sessionId",
+        t.metadata,
+        t.external_id as "externalId",
+        t.user_id as "userId",
+        t.release,
+        t.version,
+        t.public,
+        t.tags,
+        COALESCE(SUM(o.calculated_total_cost), 0)::DOUBLE PRECISION AS "totalCost",
+        COALESCE(EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"))) - EXTRACT(EPOCH FROM MIN(o."start_time")), 0)::double precision AS "latency",
+        COALESCE(ARRAY_AGG(DISTINCT o.id) FILTER (WHERE o.id IS NOT NULL), ARRAY[]::text[]) AS "observations",
+        COALESCE(ARRAY_AGG(DISTINCT s.id) FILTER (WHERE s.id IS NOT NULL), ARRAY[]::text[]) AS "scores"
+      FROM "traces" AS t
+      LEFT JOIN "observations_view" AS o ON t.id = o.trace_id AND o.project_id = ${authCheck.scope.projectId}
+      LEFT JOIN "scores" AS s ON t.id = s.trace_id
+      WHERE t.project_id = ${authCheck.scope.projectId}
+      ${userCondition}
+      ${nameCondition}
+      ${tagsCondition}
+      ${fromTimestampCondition}
+      GROUP BY t.id
+      ${orderByCondition}
+      LIMIT ${obj.limit} OFFSET ${skipValue}
+      `;
+
+      const traces = env.SERVE_FROM_CLICKHOUSE
+        ? await clickhouseClient.query({
+            query: query,
+            format: "JSONEachRow",
+          })
+        : await prisma.$queryRaw<
+            Array<Trace & { observations: string[]; scores: string }>
+          >(Prisma.sql([query] as readonly string[]));
+
       const totalItems = await prisma.trace.count({
         where: {
           projectId: authCheck.scope.projectId,

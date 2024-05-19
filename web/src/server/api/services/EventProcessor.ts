@@ -5,14 +5,10 @@ import {
   type legacyObservationCreateEvent,
   eventTypes,
   type scoreEvent,
-  type eventCreateEvent,
-  type spanCreateEvent,
   type generationCreateEvent,
-  type spanUpdateEvent,
-  type generationUpdateEvent,
-  type legacyObservationUpdateEvent,
   type sdkLogEvent,
   type traceEvent,
+  type ObservationEvent,
 } from "@/src/features/public-api/server/ingestion-api-schema";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
@@ -99,15 +95,6 @@ export async function findModel(p: {
 
   return foundModels[0] ?? null;
 }
-
-type ObservationEvent =
-  | z.infer<typeof legacyObservationCreateEvent>
-  | z.infer<typeof legacyObservationUpdateEvent>
-  | z.infer<typeof eventCreateEvent>
-  | z.infer<typeof spanCreateEvent>
-  | z.infer<typeof spanUpdateEvent>
-  | z.infer<typeof generationCreateEvent>
-  | z.infer<typeof generationUpdateEvent>;
 
 export class ObservationProcessor implements EventProcessor {
   event: ObservationEvent;
@@ -410,54 +397,7 @@ export class ObservationProcessor implements EventProcessor {
     console.log(
       `Upserted observation ${obs.id} for project ${apiScope.projectId}`,
     );
-    if (env.CLICKHOUSE_URL) {
-      const insert = [
-        {
-          id: obs.id,
-          trace_id: obs.create.traceId,
-          type: obs.create.type,
-          name: obs.create.name,
-          start_time: obs.create.startTime
-            ? new Date(obs.create.startTime).getTime()
-            : Date.now(),
-          end_time: obs.create.endTime
-            ? new Date(obs.create.endTime).getTime()
-            : Date.now(),
-          completion_start_time: obs.create.completionStartTime,
-          metadata: obs.create.metadata,
-          model: obs.create.model,
-          model_parameters: obs.create.modelParameters,
-          input: obs.create.input,
-          output: obs.create.output,
-          prompt_tokens: obs.create.promptTokens,
-          completion_tokens: obs.create.completionTokens,
-          total_tokens: obs.create.totalTokens,
-          unit: obs.create.unit,
-          level: obs.create.level,
-          status_message: obs.create.statusMessage,
-          parent_observation_id: obs.create.parentObservationId,
-          version: obs.create.version,
-          project_id: apiScope.projectId,
-          prompt_id: obs.create.promptId,
-          internal_model: obs.create.internalModel,
-          input_cost: obs.create.inputCost,
-          output_cost: obs.create.outputCost,
-          total_cost: obs.create.totalCost,
-          updated_at: Date.now(),
-          created_at: Date.now(),
-          event_ts: this.eventTs,
-        },
-      ];
 
-      console.log(
-        `Inserting observation into clickhouse, ${JSON.stringify(insert)}`,
-      );
-      await clickhouseClient.insert({
-        table: "observations_raw",
-        format: "JSONEachRow",
-        values: insert,
-      });
-    }
     return returnObs;
   }
 }
@@ -488,41 +428,6 @@ export class TraceProcessor implements EventProcessor {
       ", id:",
       internalId,
     );
-
-    if (env.CLICKHOUSE_URL) {
-      const insert = [
-        {
-          id: internalId,
-          timestamp: body.timestamp
-            ? new Date(body.timestamp).getTime()
-            : Date.now(),
-          name: body.name,
-          user_id: body.userId,
-          metadata: body.metadata,
-          release: body.release,
-          version: body.version,
-          project_id: apiScope.projectId,
-          public: body.public,
-          bookmarked: false,
-          tags: body.tags ?? [],
-          input: body.input,
-          output: body.output,
-          session_id: body.sessionId,
-          updated_at: Date.now(),
-          created_at: Date.now(),
-          event_ts: this.eventTs,
-        },
-      ];
-
-      console.log(
-        `Inserting trace into clickhouse, ${env.CLICKHOUSE_URL} ${JSON.stringify(insert)}`,
-      );
-      await clickhouseClient.insert({
-        table: "traces_raw",
-        format: "JSONEachRow",
-        values: insert,
-      });
-    }
 
     const existingTrace = await prisma.trace.findFirst({
       where: {
@@ -561,7 +466,7 @@ export class TraceProcessor implements EventProcessor {
 
     // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
     // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
-    const upsertedTrace = await prisma.trace.upsert({
+    return await prisma.trace.upsert({
       where: {
         id: internalId,
       },
@@ -598,7 +503,6 @@ export class TraceProcessor implements EventProcessor {
         tags: body.tags ?? undefined,
       },
     });
-    return upsertedTrace;
   }
 }
 export class ScoreProcessor implements EventProcessor {
@@ -631,7 +535,7 @@ export class ScoreProcessor implements EventProcessor {
     const id = body.id ?? v4();
 
     // access control via traceId
-    const score = await prisma.score.upsert({
+    return await prisma.score.upsert({
       where: {
         id_traceId: {
           id,
@@ -663,33 +567,6 @@ export class ScoreProcessor implements EventProcessor {
         }),
       },
     });
-
-    if (env.CLICKHOUSE_URL) {
-      const insert = [
-        {
-          id: score.id,
-          timestamp: score.timestamp,
-          project_id: score.projectId,
-          name: score.name,
-          value: score.value,
-          source: score.source,
-          comment: score.comment,
-          trace_id: score.traceId,
-          observation_id: score.observationId ? score.observationId : null,
-          event_ts: this.eventTs,
-        },
-      ];
-
-      console.log(
-        `Inserting observation into clickhouse, ${JSON.stringify(insert)}`,
-      );
-      await clickhouseClient.insert({
-        table: "scores_raw",
-        format: "JSONEachRow",
-        values: insert,
-      });
-    }
-    return score;
   }
 }
 

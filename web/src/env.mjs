@@ -30,14 +30,20 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
-    LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET: z.string().optional().refine((v) =>
-      v === undefined || !isNaN(Number.parseInt(v))
-      , {
-        message: "LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET must be a number when set"
-      }).transform((v) =>
-        v === undefined ? undefined : -Number.parseInt(v) // negative offset
+    LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET: z
+      .string()
+      .optional()
+      .refine((v) => v === undefined || !isNaN(Number.parseInt(v)), {
+        message:
+          "LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET must be a number when set",
+      })
+      .transform(
+        (v) => (v === undefined ? undefined : -Number.parseInt(v)), // negative offset
       ),
-    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES: z.enum(["true", "false"]).optional().default("false"),
+    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     SALT: z.string({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
@@ -94,6 +100,7 @@ export const env = createEnv({
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
     CLICKHOUSE_PASSWORD: z.string().optional(),
+    SERVE_FROM_CLICKHOUSE: z.boolean({ coerce: true }).default(false),
   },
 
   /**
@@ -204,6 +211,7 @@ export const env = createEnv({
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
+    SERVE_FROM_CLICKHOUSE: process.env.SERVE_FROM_CLICKHOUSE,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
