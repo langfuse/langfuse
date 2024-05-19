@@ -45,26 +45,44 @@ export default async function handler(
     }
     // END CHECK ACCESS SCOPE
 
+    console.log(
+      `get trace ${traceId} for project ${authCheck.scope.projectId}`,
+    );
+
     const queryFromClickhouse = async (): Promise<any> => {
       const trace = await clickhouseClient.query({
         query: `SELECT * FROM traces_view where id = '${traceId}' and project_id = '${authCheck.scope.projectId}' LIMIT 1`,
         format: "JSONEachRow",
       });
-      const traceJson = await trace.json();
+      const traceJson = (await trace.json()) as unknown[];
 
-      const score = await clickhouseClient.query({
+      const scores = await clickhouseClient.query({
         query: `SELECT * FROM scores_view where trace_id = '${traceId}' and project_id = '${authCheck.scope.projectId}'`,
         format: "JSONEachRow",
       });
 
-      const scoreJson = await score.json();
+      const scoreJson = await scores.json();
 
       console.log(traceJson, scoreJson);
-      return traceJson;
+      const final = traceJson.length > 0 ? (traceJson[0] as object) : {};
+
+      return {
+        ...final,
+        metadata:
+          "metadata" in final &&
+          final.metadata !== null &&
+          typeof final.metadata === "object" &&
+          Object.keys(final.metadata).length === 0
+            ? null
+            : "metadata" in final
+              ? final.metadata
+              : null,
+        scores: scoreJson,
+      };
     };
 
     const trace = env.SERVE_FROM_CLICKHOUSE
-      ? queryFromClickhouse()
+      ? await queryFromClickhouse()
       : await prisma.trace.findFirst({
           where: {
             id: traceId,
@@ -86,7 +104,38 @@ export default async function handler(
         query: `SELECT * FROM observations_view where trace_id = '${traceId}' and project_id = '${authCheck.scope.projectId}'`,
         format: "JSONEachRow",
       });
-      return await observations.json();
+      const obs = await observations.json();
+      const parsedObs = obs.map((observation) => {
+        if (typeof observation === "object" && observation) {
+          if (
+            "model_parameters" in observation &&
+            observation.model_parameters &&
+            typeof observation.model_parameters === "string"
+          ) {
+            observation.model_parameters = JSON.parse(
+              observation.model_parameters,
+            );
+          }
+          if (
+            "input" in observation &&
+            observation.input &&
+            typeof observation.input === "string"
+          ) {
+            observation.input = JSON.parse(observation.input);
+          }
+          if (
+            "output" in observation &&
+            observation.output &&
+            typeof observation.output === "string"
+          ) {
+            try {
+              observation.output = JSON.parse(observation.output);
+            } catch (e) {}
+          }
+        }
+        return observation;
+      });
+      return parsedObs;
     };
 
     const observations = env.SERVE_FROM_CLICKHOUSE
@@ -98,12 +147,12 @@ export default async function handler(
           },
         });
 
-    // const outObservations = observationsJson.map(mapUsageOutput);
-
+    console.log("Got trace:", trace, observations);
     return res.status(200).json({
       ...trace,
       htmlPath: `/project/${authCheck.scope.projectId}/traces/${traceId}`,
-      // totalCost: observationsJson.reduce(
+      totalCost: 0,
+      // observations.reduce(
       //   (acc, obs) => acc + (obs.calculatedTotalCost ?? 0),
       //   0,
       // ),

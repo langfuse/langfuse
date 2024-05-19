@@ -88,4 +88,4 @@ GROUP BY id,
 DROP TABLE scores_raw;
 DROP TABLE scores;
 DROP TABLE scores_mv;
-DROP VIEW scores_mv;
+DROP VIEW scores_view;

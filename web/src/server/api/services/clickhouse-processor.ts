@@ -55,7 +55,7 @@ const storeScores = async (
 ) => {
   const insert = scores.map((score) => ({
     id: score.body.id ?? v4(),
-    timestamp: new Date(score.timestamp).getTime(),
+    timestamp: new Date(score.timestamp).getTime() * 1000,
     name: score.body.name,
     value: score.body.value,
     source: "API",
@@ -63,12 +63,10 @@ const storeScores = async (
     trace_id: score.body.traceId,
     observation_id: score.body.observationId ?? null,
     project_id: apiScope.projectId,
-    event_ts: new Date(score.timestamp).getTime(),
+    event_ts: new Date(score.timestamp).getTime() * 1000,
   }));
 
-  console.log(
-    `Inserting score into clickhouse, ${env.CLICKHOUSE_URL} ${JSON.stringify(insert)}`,
-  );
+  console.log(`Inserting score into clickhouse ${JSON.stringify(insert)}`);
   await clickhouseClient.insert({
     table: "scores_raw",
     format: "JSONEachRow",
@@ -83,8 +81,8 @@ const storeTraces = async (
   const insert = traces.map((trace) => ({
     id: trace.body.id ?? v4(),
     timestamp: trace.body.timestamp
-      ? new Date(trace.body.timestamp).getTime()
-      : Date.now(),
+      ? new Date(trace.body.timestamp).getTime() * 1000
+      : Date.now() * 1000,
     name: trace.body.name,
     user_id: trace.body.userId,
     metadata: trace.body.metadata ?? {},
@@ -97,9 +95,9 @@ const storeTraces = async (
     input: trace.body.input,
     output: trace.body.output,
     session_id: trace.body.sessionId,
-    updated_at: Date.now(),
-    created_at: Date.now(),
-    event_ts: new Date(trace.timestamp).getTime(),
+    updated_at: Date.now() * 1000,
+    created_at: Date.now() * 1000,
+    event_ts: new Date(trace.timestamp).getTime() * 1000,
   }));
 
   console.log(
@@ -144,43 +142,45 @@ const storeObservations = async (
     }
     return {
       id: obs.body.id ?? v4(),
-      traceId: obs.body.traceId ?? v4(),
+      trace_id: obs.body.traceId ?? v4(),
       type: type,
       name: obs.body.name,
-      startTime: obs.body.startTime ? new Date(obs.body.startTime) : undefined,
-      endTime:
+      start_time: obs.body.startTime
+        ? new Date(obs.body.startTime).getTime() * 1000
+        : undefined,
+      end_time:
         "endTime" in obs.body && obs.body.endTime
-          ? new Date(obs.body.endTime)
+          ? new Date(obs.body.endTime).getTime() * 1000
           : undefined,
-      completionStartTime:
+      completion_start_time:
         "completionStartTime" in obs.body && obs.body.completionStartTime
-          ? new Date(obs.body.completionStartTime)
+          ? new Date(obs.body.completionStartTime).getTime() * 1000
           : undefined,
       metadata: obs.body.metadata ?? undefined,
       model: "model" in obs.body ? obs.body.model : undefined,
-      modelParameters:
+      model_parameters:
         "modelParameters" in obs.body
           ? obs.body.modelParameters ?? undefined
           : undefined,
       input: obs.body.input ?? undefined,
       output: obs.body.output ?? undefined,
       // TODO: calculate tokens or ingest observed ons
-      promptTokens: 0,
-      completionTokens: 0,
+      prompt_tokens: 0,
+      completion_tokens: 0,
       // TODO should we still track that?
-      totalTokens: 0,
+      total_tokens: 0,
       unit: "TOKENS",
-      level: obs.body.level ?? undefined,
-      statusMessage: obs.body.statusMessage ?? undefined,
-      parentObservationId: obs.body.parentObservationId ?? undefined,
+      level: obs.body.level ?? "DEFAULT",
+      status_message: obs.body.statusMessage ?? undefined,
+      parent_observation_id: obs.body.parentObservationId ?? undefined,
       version: obs.body.version ?? undefined,
-      projectId: apiScope.projectId,
+      project_id: apiScope.projectId,
       // todo: find prompt from postgres
-      promptId: undefined,
-      inputCost: "usage" in obs.body ? obs.body.usage?.inputCost : undefined,
-      outputCost: "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
-      totalCost: "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
-      event_ts: new Date(obs.timestamp).getTime(),
+      prompt_id: undefined,
+      input_cost: "usage" in obs.body ? obs.body.usage?.inputCost : undefined,
+      output_cost: "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
+      total_cost: "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
+      event_ts: new Date(obs.timestamp).getTime() * 1000,
     };
   });
 

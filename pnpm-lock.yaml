@@ -441,6 +441,9 @@ importers:
       lucide-react:
         specifier: ^0.364.0
         version: 0.364.0(react@18.2.0)
+      microseconds:
+        specifier: ^0.2.0
+        version: 0.2.0
       next:
         specifier: ^14.2.3
         version: 14.2.3(@babel/core@7.24.5)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
@@ -13102,6 +13105,10 @@ packages:
     dependencies:
       braces: 3.0.2
       picomatch: 2.3.1
+
+  /microseconds@0.2.0:
+    resolution: {integrity: sha512-n7DHHMjR1avBbSpsTBj6fmMGh2AGrifVV4e+WYc3Q9lO+xnSZ3NyhcBND3vzzatt05LFhoKFRxrIyklmLlUtyA==}
+    dev: false
 
   /mime-db@1.52.0:
     resolution: {integrity: sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==}
