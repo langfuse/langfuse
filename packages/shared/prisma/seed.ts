@@ -26,37 +26,109 @@ async function main() {
     options,
   }).values.environment;
 
+  const seedOrgId = "seed-org-id";
+  const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  const seedUserId1 = "user-1"; // Owner of org
+  const seedUserId2 = "user-2"; // Member of org, admin of project
+
   const user = await prisma.user.upsert({
-    where: { id: "user-1" },
+    where: { id: seedUserId1 },
     update: {
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
     },
     create: {
-      id: "user-1",
+      id: seedUserId1,
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
     },
   });
+  const user2 = await prisma.user.upsert({
+    where: { id: seedUserId2 },
+    update: {
+      name: "Demo User 2",
+      email: "member@langfuse.com",
+      password: await hash("password", 12),
+    },
+    create: {
+      id: seedUserId2,
+      name: "Demo User 2",
+      email: "member@langfuse.com",
+      password: await hash("password", 12),
+    },
+  });
 
-  const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  await prisma.organization.upsert({
+    where: { id: seedOrgId },
+    update: {
+      name: "Test Org",
+    },
+    create: {
+      id: seedOrgId,
+      name: "Test Org",
+    },
+  });
 
   const project1 = await prisma.project.upsert({
     where: { id: seedProjectId },
     update: {
       name: "llm-app",
+      orgId: seedOrgId,
     },
     create: {
       id: seedProjectId,
       name: "llm-app",
-      projectMembers: {
-        create: {
-          role: "OWNER",
-          userId: user.id,
-        },
+      orgId: seedOrgId,
+    },
+  });
+
+  const orgMembership = await prisma.organizationMembership.upsert({
+    where: {
+      orgId_userId: {
+        userId: user.id,
+        orgId: seedOrgId,
       },
+    },
+    create: {
+      userId: user.id,
+      orgId: seedOrgId,
+      role: "OWNER",
+    },
+    update: {},
+  });
+
+  const orgMembership2 = await prisma.organizationMembership.upsert({
+    where: {
+      orgId_userId: {
+        userId: user2.id,
+        orgId: seedOrgId,
+      },
+    },
+    create: {
+      userId: user2.id,
+      orgId: seedOrgId,
+      role: "MEMBER",
+    },
+    update: {},
+  });
+
+  const projectMembership = await prisma.projectMembership.upsert({
+    where: {
+      projectId_userId: {
+        projectId: project1.id,
+        userId: user2.id,
+      },
+    },
+    create: {
+      userId: user2.id,
+      projectId: project1.id,
+      role: "ADMIN",
+      orgMembershipId: orgMembership2.id,
+    },
+    update: {
+      orgMembershipId: orgMembership2.id,
     },
   });
 
@@ -105,19 +177,15 @@ async function main() {
 
   // Do not run the following for local docker compose setup
   if (environment === "examples" || environment === "load") {
+    const project2Id = "239ad00f-562f-411d-af14-831c75ddd875";
     const project2 = await prisma.project.upsert({
-      where: { id: "239ad00f-562f-411d-af14-831c75ddd875" },
+      where: { id: project2Id },
       create: {
-        id: "239ad00f-562f-411d-af14-831c75ddd875",
+        id: project2Id,
         name: "demo-app",
-        projectMembers: {
-          create: {
-            role: "OWNER",
-            userId: user.id,
-          },
-        },
+        orgId: seedOrgId,
       },
-      update: {},
+      update: { orgId: seedOrgId },
     });
 
     const secondKey = {
