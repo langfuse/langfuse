@@ -200,27 +200,33 @@ export const handleBatch = async (
     type: string;
   }[] = []; // Array to store the errors
 
-  for (const singleEvent of events) {
-    try {
-      const result = await retry(async () => {
-        return await handleSingleEvent(
-          singleEvent,
-          metadata,
-          req,
-          authCheck.scope,
-        );
-      });
-      results.push({
-        result: result,
-        id: singleEvent.id,
-        type: singleEvent.type,
-      }); // Push each result into the array
-    } catch (error) {
-      // Handle or log the error if `handleSingleEvent` fails
-      console.error("Error handling event:", error);
-      // Decide how to handle the error: rethrow, continue, or push an error object to results
-      // For example, push an error object:
-      errors.push({ error: error, id: singleEvent.id, type: singleEvent.type });
+  if (env.TRACE_IN_POSTGRES === "true") {
+    for (const singleEvent of events) {
+      try {
+        const result = await retry(async () => {
+          return await handleSingleEvent(
+            singleEvent,
+            metadata,
+            req,
+            authCheck.scope,
+          );
+        });
+        results.push({
+          result: result,
+          id: singleEvent.id,
+          type: singleEvent.type,
+        }); // Push each result into the array
+      } catch (error) {
+        // Handle or log the error if `handleSingleEvent` fails
+        console.error("Error handling event:", error);
+        // Decide how to handle the error: rethrow, continue, or push an error object to results
+        // For example, push an error object:
+        errors.push({
+          error: error,
+          id: singleEvent.id,
+          type: singleEvent.type,
+        });
+      }
     }
   }
 

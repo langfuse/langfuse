@@ -26,8 +26,6 @@ import { jsonSchema } from "@/src/utils/zod";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";
-import { clickhouseClient } from "@langfuse/shared/backend";
-import { env } from "@/src/env.mjs";
 
 export interface EventProcessor {
   process(

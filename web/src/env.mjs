@@ -100,7 +100,8 @@ export const env = createEnv({
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
     CLICKHOUSE_PASSWORD: z.string().optional(),
-    SERVE_FROM_CLICKHOUSE: z.boolean({ coerce: true }).default(false),
+    SERVE_FROM_CLICKHOUSE: z.enum(["true", "false"]).optional().default("true"),
+    TRACE_IN_POSTGRES: z.enum(["true", "false"]).optional().default("true"),
   },
 
   /**
@@ -212,6 +213,7 @@ export const env = createEnv({
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     SERVE_FROM_CLICKHOUSE: process.env.SERVE_FROM_CLICKHOUSE,
+    TRACE_IN_POSTGRES: process.env.TRACE_IN_POSTGRES,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
