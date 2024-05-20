@@ -2,7 +2,7 @@ import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Lock } from "lucide-react";
 import EvalsTemplateTable from "@/src/ee/features/evals/components/eval-templates-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -11,7 +11,7 @@ export default function TemplatesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
-  const hasWriteAccess = useHasAccess({
+  const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalTemplate:create",
   });

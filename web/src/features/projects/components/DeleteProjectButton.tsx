@@ -17,7 +17,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,9 +30,9 @@ export function DeleteProjectButton(props: { projectId: string }) {
 
   //code for dynamic confirmation message
   const userInfo = session.data?.user;
-  const currentProject = userInfo?.projects.find(
-    (project) => project.id == props.projectId,
-  );
+  const currentProject = userInfo?.organizations
+    .flatMap((org) => org.projects)
+    .find((p) => p.id === props.projectId);
   const confirmMessage =
     userInfo?.name?.replace(" ", "-") +
     "/" +
@@ -44,7 +44,7 @@ export function DeleteProjectButton(props: { projectId: string }) {
     }),
   });
 
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "project:delete",
   });

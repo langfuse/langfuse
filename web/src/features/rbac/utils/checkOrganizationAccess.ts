@@ -1,21 +1,21 @@
 import {
   roleAccessRights,
   type Scope,
-} from "@/src/features/rbac/constants/roleAccessRights";
-import { type ProjectRole } from "@langfuse/shared/src/db";
+} from "@/src/features/rbac/constants/organizationAccessRights";
+import { type OrganizationRole } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 
-type HasAccessParams =
+type HasOrganizationAccessParams =
   | {
-      role: ProjectRole;
+      role: OrganizationRole;
       scope: Scope;
       admin?: boolean; // prop user.admin
     }
   | {
       session: null | Session;
-      projectId: string;
+      organizationId: string;
       scope: Scope;
     };
 
@@ -23,8 +23,8 @@ type HasAccessParams =
  * Check if user has access to the given scope, for use in TRPC resolvers
  * @throws TRPCError("UNAUTHORIZED") if user does not have access
  */
-export const throwIfNoAccess = (p: HasAccessParams) => {
-  if (!hasAccess(p))
+export const throwIfNoOrganizationAccess = (p: HasOrganizationAccessParams) => {
+  if (!hasOrganizationAccess(p))
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message:
@@ -36,29 +36,34 @@ export const throwIfNoAccess = (p: HasAccessParams) => {
  * React hook to check if user has access to the given scope
  * @returns true if user has access, false otherwise or while loading
  */
-export const useHasAccess = (p: {
-  projectId: string | undefined;
+export const useHasOrganizationAccess = (p: {
+  organizationId: string | undefined;
   scope: Scope;
 }) => {
-  const { scope, projectId } = p;
+  const { scope, organizationId } = p;
   const session = useSession();
 
-  if (!projectId) return false;
+  if (!organizationId) return false;
 
-  return hasAccess({ session: session.data, scope, projectId });
+  return hasOrganizationAccess({
+    session: session.data,
+    scope,
+    organizationId,
+  });
 };
 
 // For use in UI components as function, if session is already available
-export function hasAccess(p: HasAccessParams): boolean {
+export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
   const isAdmin = "role" in p ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
 
-  const projectRole: ProjectRole | undefined =
+  const organizationRole: OrganizationRole | undefined =
     "role" in p
       ? p.role
-      : p.session?.user?.projects.find((project) => project.id === p.projectId)
-          ?.role;
-  if (projectRole === undefined) return false;
+      : p.session?.user?.organizations.find(
+          (org) => org.id === p.organizationId,
+        )?.role;
+  if (organizationRole === undefined) return false;
 
-  return roleAccessRights[projectRole].includes(p.scope);
+  return roleAccessRights[organizationRole].includes(p.scope);
 }

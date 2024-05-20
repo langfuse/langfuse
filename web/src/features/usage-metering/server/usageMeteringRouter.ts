@@ -1,14 +1,14 @@
 import {
   createTRPCRouter,
-  protectedProjectProcedure,
+  protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
 
 export const usageMeteringRouter = createTRPCRouter({
-  last30d: protectedProjectProcedure
+  last30d: protectedOrganizationProcedure
     .input(
       z.object({
-        projectId: z.string(),
+        orgId: z.string(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -18,8 +18,9 @@ export const usageMeteringRouter = createTRPCRouter({
 
       const usage = await ctx.prisma.observation.count({
         where: {
-          projectId: input.projectId,
-
+          project: {
+            orgId: input.orgId,
+          },
           startTime: {
             gte: thirtyDaysAgo,
           },

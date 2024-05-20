@@ -3,7 +3,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type Prisma, type Model } from "@langfuse/shared/src/db";
@@ -299,7 +299,7 @@ const DeleteModelButton = ({
     },
   });
 
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId,
     scope: "models:CUD",
   });

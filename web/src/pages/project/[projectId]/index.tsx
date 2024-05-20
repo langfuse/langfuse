@@ -48,9 +48,6 @@ export default function Start() {
   const session = useSession();
   const disableExpensiveDashboardComponents =
     session.data?.environment.disableExpensivePostgresQueries ?? true;
-  const project = session.data?.user?.projects.find(
-    (project) => project.id === projectId,
-  );
 
   const memoizedDate = useMemo(() => new Date(), []);
 
@@ -147,7 +144,7 @@ export default function Start() {
 
   return (
     <div className="md:container">
-      <Header title={project?.name ?? "Dashboard"} />
+      <Header title="Dashboard" />
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
         <div className=" flex flex-col gap-2 lg:flex-row">
           <DatePickerWithRange

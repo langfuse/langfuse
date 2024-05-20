@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
@@ -135,7 +135,10 @@ export function UpdateTemplate({
   isLoading: boolean;
   setIsEditing: (isEditing: boolean) => void;
 }) {
-  const hasAccess = useHasAccess({ projectId, scope: "evalTemplate:create" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:create",
+  });
   const capture = usePostHogClientCapture();
 
   const handlePromptEdit = () => {

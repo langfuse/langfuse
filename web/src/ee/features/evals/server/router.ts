@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DEFAULT_TRACE_JOB_DELAY, EvalTargetObject } from "@langfuse/shared";
 import {
@@ -42,7 +42,7 @@ export const evalRouter = createTRPCRouter({
         throw new Error("Evals available in cloud only");
       }
 
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalJob:read",
@@ -83,7 +83,7 @@ export const evalRouter = createTRPCRouter({
       if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
         throw new Error("Evals available in cloud only");
       }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalJob:read",
@@ -113,7 +113,7 @@ export const evalRouter = createTRPCRouter({
       if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
         throw new Error("Evals available in cloud only");
       }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalTemplate:read",
@@ -140,7 +140,7 @@ export const evalRouter = createTRPCRouter({
       if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
         throw new Error("Evals available in cloud only");
       }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalTemplate:read",
@@ -183,7 +183,7 @@ export const evalRouter = createTRPCRouter({
       if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
         throw new Error("Evals available in cloud only");
       }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalTemplate:read",
@@ -211,7 +211,7 @@ export const evalRouter = createTRPCRouter({
       if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
         throw new Error("Evals available in cloud only");
       }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalTemplate:read",
@@ -257,7 +257,7 @@ export const evalRouter = createTRPCRouter({
         if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
           throw new Error("Evals available in cloud only");
         }
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "evalJob:CUD",
@@ -308,7 +308,7 @@ export const evalRouter = createTRPCRouter({
       if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
         throw new Error("Evals available in cloud only");
       }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalTemplate:create",
@@ -356,7 +356,7 @@ export const evalRouter = createTRPCRouter({
       if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
         throw new Error("Evals available in cloud only");
       }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalJob:CUD",
@@ -393,7 +393,7 @@ export const evalRouter = createTRPCRouter({
       if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
         throw new Error("Evals available in cloud only");
       }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "evalJob:read",

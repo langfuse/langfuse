@@ -1,8 +1,11 @@
 import { prisma as _prisma } from "@langfuse/shared/src/db";
-import { type ProjectRole } from "@langfuse/shared";
+import { type OrganizationRole, type ProjectRole } from "@langfuse/shared";
 
 export type AuditableResource =
-  | "membership"
+  | "organization"
+  | "orgMembership"
+  | "projectMembership"
+  | "membership" // legacy
   | "membershipInvitation"
   | "datasetItem"
   | "dataset"
@@ -27,30 +30,46 @@ type AuditLog = {
   after?: unknown;
 } & (
   | {
-      projectId: string;
       userId: string;
-      userProjectRole: ProjectRole;
+      orgId: string;
+      orgRole: OrganizationRole;
+      projectId?: string;
+      projectRole?: ProjectRole;
     }
   | {
       session: {
         user: {
           id: string;
         };
-        projectRole: ProjectRole;
-        projectId: string;
+        orgId: string;
+        orgRole: OrganizationRole;
+        projectId?: string;
+        projectRole?: ProjectRole;
       };
     }
 );
 
 export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
+  const meta =
+    "session" in log
+      ? {
+          userId: log.session.user.id,
+          orgId: log.session.orgId,
+          userOrgRole: log.session.orgRole,
+          projectId: log.session.projectId,
+          userProjectRole: log.session.projectRole,
+        }
+      : {
+          userId: log.userId,
+          orgId: log.orgId,
+          userOrgRole: log.orgRole,
+          projectId: log.projectId,
+          userProjectRole: log.projectRole,
+        };
+
   await (prisma ?? _prisma).auditLog.create({
     data: {
-      projectId: "projectId" in log ? log.projectId : log.session.projectId,
-      userId: "userId" in log ? log.userId : log.session.user.id,
-      userProjectRole:
-        "userProjectRole" in log
-          ? log.userProjectRole
-          : log.session.projectRole,
+      ...meta,
       resourceType: log.resourceType,
       resourceId: log.resourceId,
       action: log.action,

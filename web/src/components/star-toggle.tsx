@@ -2,7 +2,7 @@ import { StarIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
@@ -53,7 +53,10 @@ export function StarTraceToggle({
   size?: "sm" | "xs";
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "objects:bookmark",
+  });
   const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -138,7 +141,10 @@ export function StarTraceDetailsToggle({
   size?: "sm" | "xs";
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "objects:bookmark",
+  });
   const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -213,7 +219,10 @@ export function StarSessionToggle({
   size?: "sm" | "xs";
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "objects:bookmark",
+  });
   const capture = usePostHogClientCapture();
   const mutBookmarkSession = api.sessions.bookmark.useMutation({
     onSuccess: () => {

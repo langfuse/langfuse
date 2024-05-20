@@ -10,7 +10,7 @@ import {
 } from "@/src/components/ui/table";
 import { Button } from "@/src/components/ui/button";
 import { TrashIcon } from "lucide-react";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
 import { useSession } from "next-auth/react";
 import Header from "@/src/components/layouts/header";
@@ -18,11 +18,11 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 
 export function ProjectMembersTable({ projectId }: { projectId: string }) {
   const capture = usePostHogClientCapture();
-  const hasReadAccess = useHasAccess({
+  const hasReadAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "members:read",
   });
-  const hasDeleteAccess = useHasAccess({
+  const hasDeleteAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "members:delete",
   });

@@ -20,14 +20,14 @@ import {
 } from "@/src/components/ui/table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 
 export function ApiKeyList(props: { projectId: string }) {
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "apiKeys:read",
   });
@@ -98,7 +98,7 @@ export function ApiKeyList(props: { projectId: string }) {
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "apiKeys:delete",
   });

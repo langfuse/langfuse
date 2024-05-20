@@ -16,7 +16,7 @@ import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
@@ -265,7 +265,7 @@ export function UpdatePrompt({
   prompt: Prompt | undefined;
   isLoading: boolean;
 }) {
-  const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
 
   const handlePromptEdit = () => {
     void router.push(

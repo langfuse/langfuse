@@ -18,7 +18,7 @@ import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
@@ -314,7 +314,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "traces:delete",
@@ -365,7 +365,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "objects:bookmark",
@@ -414,7 +414,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "objects:publish",
@@ -463,7 +463,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "objects:tag",

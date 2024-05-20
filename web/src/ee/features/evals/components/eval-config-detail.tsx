@@ -3,7 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { EvalConfigForm } from "@/src/ee/features/evals/components/eval-config-form";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -123,7 +123,7 @@ export function DeactivateConfig({
   isLoading: boolean;
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
 

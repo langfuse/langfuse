@@ -22,7 +22,7 @@ import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const formSchema = z.object({
@@ -34,10 +34,10 @@ export function TransferOwnershipButton(props: { projectId: string }) {
   const capture = usePostHogClientCapture();
 
   const session = useSession();
-  const project = session.data?.user?.projects.find(
-    (project) => project.id == props.projectId,
-  );
-  const hasAccess = useHasAccess({
+  const project = session.data?.user?.organizations
+    .flatMap((org) => org.projects)
+    .find((project) => project.id == props.projectId);
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "project:transfer",
   });

@@ -3,6 +3,7 @@ import { AlertTriangle, Check } from "lucide-react";
 import { VERSION } from "@/src/constants";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
+import Link from "next/link";
 
 export const LangfuseIcon = ({
   size = 32,
@@ -61,15 +62,17 @@ export const LangfuseLogo = ({
     )}
     {/* Langfuse Logo */}
     <div className="flex items-center">
-      <LangfuseIcon size={size === "sm" ? 16 : 20} />
-      <span
-        className={cn(
-          "ml-2 font-mono font-semibold",
-          size === "sm" ? "text-sm" : "text-xl",
-        )}
-      >
-        Langfuse
-      </span>
+      <Link href="/" className="flex items-center">
+        <LangfuseIcon size={size === "sm" ? 16 : 20} />
+        <span
+          className={cn(
+            "ml-2 font-mono font-semibold",
+            size === "sm" ? "text-sm" : "text-xl",
+          )}
+        >
+          Langfuse
+        </span>
+      </Link>
       {version && (
         <a
           href="https://github.com/langfuse/langfuse/releases"

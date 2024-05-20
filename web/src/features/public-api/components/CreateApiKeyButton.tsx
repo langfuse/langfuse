@@ -9,14 +9,14 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "apiKeys:create",
   });

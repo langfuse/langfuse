@@ -7,8 +7,8 @@ import {
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 import { TrashIcon } from "lucide-react";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type Scope } from "@/src/features/rbac/constants/roleAccessRights";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { type Scope } from "@/src/features/rbac/constants/projectAccessRights";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -35,7 +35,7 @@ export function DeleteButton({
   const router = useRouter();
   const capture = usePostHogClientCapture();
 
-  const hasAccess = useHasAccess({ projectId, scope: scope });
+  const hasAccess = useHasProjectAccess({ projectId, scope: scope });
   const traceMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       setIsDeleted(true);

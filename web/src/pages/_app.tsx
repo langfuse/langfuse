@@ -114,7 +114,13 @@ function UserTracking() {
           email: session.data.user?.email ?? undefined,
           name: session.data.user?.name ?? undefined,
           featureFlags: session.data.user?.featureFlags ?? undefined,
-          projects: session.data.user?.projects ?? undefined,
+          projects:
+            session.data.user?.organizations.flatMap((org) =>
+              org.projects.map((project) => ({
+                ...project,
+                organization: org,
+              })),
+            ) ?? undefined,
           LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
       const emailDomain = session.data.user?.email?.split("@")[1];
@@ -134,8 +140,8 @@ function UserTracking() {
         email: session.data.user?.email ?? "undefined",
         data: {
           userId: session.data.user?.id ?? "undefined",
-          projects: session.data.user?.projects
-            ? JSON.stringify(session.data.user.projects)
+          organizations: session.data.user?.organizations
+            ? JSON.stringify(session.data.user.organizations)
             : "undefined",
           featureFlags: session.data.user?.featureFlags
             ? JSON.stringify(session.data.user.featureFlags)

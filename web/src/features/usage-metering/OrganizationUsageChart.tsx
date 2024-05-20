@@ -14,18 +14,22 @@ import {
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
 
-export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
-  projectId,
-}) => {
-  const usage = api.usageMetering.last30d.useQuery({
-    projectId,
-  });
+export const OrganizationUsageChart = () => {
+  const organization = useQueryOrganization();
+  const usage = api.usageMetering.last30d.useQuery(
+    {
+      orgId: organization!.id,
+    },
+    {
+      enabled: organization !== undefined,
+    },
+  );
   const capture = usePostHogClientCapture();
-  const project = api.projects.byId.useQuery({ projectId });
   const planLimit =
-    project.data?.cloudConfig?.monthlyObservationLimit ?? 50_000;
-  const plan = project.data?.cloudConfig?.plan ?? "Hobby";
+    organization?.cloudConfig?.monthlyObservationLimit ?? 50_000;
+  const plan = organization?.cloudConfig?.plan ?? "Hobby";
   const currentMonth = new Date().toLocaleDateString("en-US", {
     month: "short",
   });
@@ -35,7 +39,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   return (
     <div>
       <Header title="Usage" level="h3" />
-      <Card className="p-4 lg:w-1/2">
+      <Card className="p-4">
         {usage.data !== undefined && (
           <>
             <Text>Observations / month</Text>

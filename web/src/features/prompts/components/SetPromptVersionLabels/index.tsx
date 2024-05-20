@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type Prompt } from "@langfuse/shared";
@@ -28,7 +28,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
 
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [labels, setLabels] = useState<string[]>([]);

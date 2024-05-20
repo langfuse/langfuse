@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
@@ -35,7 +35,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
           throw new Error("Evals available in cloud only");
         }
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "llmApiKeys:create",
@@ -72,7 +72,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
         throw new Error("Evals available in cloud only");
       }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "llmApiKeys:delete",
@@ -103,7 +103,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         throw new Error("Evals available in cloud only");
       }
 
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "llmApiKeys:read",

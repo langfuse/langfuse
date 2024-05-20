@@ -3,12 +3,10 @@ import { RocketLaunchIcon } from "@heroicons/react/24/outline";
 import { SiOpenai } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { useRouter } from "next/router";
 import { Code, Bird, GraduationCap } from "lucide-react";
 import { ProjectMembersTable } from "@/src/features/rbac/components/ProjectMembersTable";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
-import { ProjectUsageChart } from "@/src/features/usage-metering/ProjectUsageChart";
 import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { env } from "@/src/env.mjs";
@@ -16,27 +14,73 @@ import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
+import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
+import { useQueryProject } from "@/src/features/projects/utils/useProject";
+import MembersTable from "@/src/components/table/use-cases/members";
+import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
 
 export default function SettingsPage() {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
+  const { project, organization } = useQueryProject();
+  if (!project || !organization) return null;
   return (
     <div className="md:container">
-      <Header title="Settings" />
-      <div className="flex flex-col gap-10">
-        <HostNameProject />
-        <ApiKeyList projectId={projectId} />
-        <LlmApiKeyList projectId={projectId} />
-        <ProjectMembersTable projectId={projectId} />
-        <ProjectUsageChart projectId={projectId} />
-        <Integrations projectId={projectId} />
-        <Instructions />
-        <RenameProject projectId={projectId} />
-        <div className="space-y-3">
-          <DeleteProjectButton projectId={projectId} />
-          <TransferOwnershipButton projectId={projectId} />
-        </div>
-      </div>
+      <Header title="Project Settings" />
+      <PagedSettingsContainer
+        pages={[
+          {
+            title: "General",
+            content: (
+              <div className="flex flex-col gap-10">
+                <HostNameProject />
+                <RenameProject projectId={project.id} />
+                <Instructions />
+                <div className="space-y-3">
+                  <DeleteProjectButton projectId={project.id} />
+                  <TransferOwnershipButton projectId={project.id} />
+                </div>
+              </div>
+            ),
+          },
+          {
+            title: "API Keys",
+            content: (
+              <div className="flex flex-col gap-10">
+                <ApiKeyList projectId={project.id} />
+                <LlmApiKeyList projectId={project.id} />
+              </div>
+            ),
+          },
+          {
+            title: "Members",
+            content: (
+              <div>
+                <Header title="Project Members" level="h3" />
+                <div>
+                  <MembersTable
+                    orgId={organization.id}
+                    projectId={project.id}
+                  />
+                </div>
+                <Header title="Membership Invites" level="h3" />
+                <div>
+                  <InvitesTable
+                    orgId={organization.id}
+                    projectId={project.id}
+                  />
+                </div>
+              </div>
+            ),
+          },
+          {
+            title: "Integrations",
+            content: <Integrations projectId={project.id} />,
+          },
+          {
+            title: "Organization Settings",
+            href: `/organization/${organization.id}/settings`,
+          },
+        ]}
+      />
     </div>
   );
 }
@@ -140,7 +184,7 @@ const Integrations = (props: { projectId: string }) => {
   return (
     <div>
       <Header title="Integrations" level="h3" />
-      <Card className="p-4 lg:w-1/2">
+      <Card className="p-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/images/posthog-logo.svg"

@@ -18,12 +18,12 @@ const authUrl =
     ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
     : env.NEXTAUTH_URL;
 
-export const sendProjectInvitation = async (
-  to: string,
-  inviterName: string,
-  inviterEmail: string,
-  projectName: string,
-) => {
+export const sendProjectInvitation = async (p: {
+  to: string;
+  inviterName: string;
+  inviterEmail: string;
+  orgName: string;
+}) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     console.error(
       "Missing environment variables for sending project invitation email.",
@@ -36,22 +36,22 @@ export const sendProjectInvitation = async (
 
     const htmlTemplate = render(
       ProjectInvitationTemplate({
-        invitedByUsername: inviterName,
-        invitedByUserEmail: inviterEmail,
-        projectName: projectName,
-        recieverEmail: to,
+        invitedByUsername: p.inviterName,
+        invitedByUserEmail: p.inviterEmail,
+        orgName: p.orgName,
+        recieverEmail: p.to,
         inviteLink: authUrl,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       }),
     );
 
     await mailer.sendMail({
-      to: to,
+      to: p.to,
       from: {
         address: env.EMAIL_FROM_ADDRESS,
         name: "Langfuse",
       },
-      subject: `${inviterName} invited you to join "${projectName}"`,
+      subject: `${p.inviterName} invited you to join "${p.orgName}" organization on Langfuse`,
       html: htmlTemplate,
     });
   } catch (error) {

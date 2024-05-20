@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@langfuse/shared";
@@ -132,7 +132,7 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scores:CUD",
@@ -160,11 +160,7 @@ export const scoresRouter = createTRPCRouter({
         },
       });
       await auditLog({
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === input.projectId,
-        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
+        session: ctx.session,
         resourceType: "score",
         resourceId: score.id,
         action: "create",
@@ -182,7 +178,7 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scores:CUD",
@@ -199,11 +195,7 @@ export const scoresRouter = createTRPCRouter({
       }
 
       await auditLog({
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === input.projectId,
-        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
+        session: ctx.session,
         resourceType: "score",
         resourceId: score.id,
         action: "update",
@@ -224,7 +216,7 @@ export const scoresRouter = createTRPCRouter({
   deleteReviewScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scores:CUD",
@@ -242,11 +234,7 @@ export const scoresRouter = createTRPCRouter({
       }
 
       await auditLog({
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === input.projectId,
-        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
+        session: ctx.session,
         resourceType: "score",
         resourceId: score.id,
         action: "delete",

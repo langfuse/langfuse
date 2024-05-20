@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { ModelUsageUnit, Prisma } from "@langfuse/shared";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -71,7 +71,7 @@ export const modelRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "models:CUD",
@@ -88,7 +88,6 @@ export const modelRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "model",
         resourceId: input.modelId,
-        projectId: input.projectId,
         action: "delete",
         before: deletedModel,
       });
@@ -111,7 +110,7 @@ export const modelRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "models:CUD",
@@ -149,7 +148,6 @@ export const modelRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "model",
         resourceId: createdModel.id,
-        projectId: input.projectId,
         action: "create",
         after: createdModel,
       });

@@ -173,9 +173,11 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
 
     // check that the user is a member of this project
     const projectId = result.data.projectId;
-    const sessionProject = ctx.session.user.projects.find(
-      ({ id }) => id === projectId,
-    );
+    const sessionProject = ctx.session.user.organizations
+      .flatMap((org) =>
+        org.projects.map((project) => ({ ...project, organization: org })),
+      )
+      .find((project) => project.id === projectId);
 
     if (!sessionProject && ctx.session.user.admin !== true)
       throw new TRPCError({
@@ -189,6 +191,8 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
         session: {
           ...ctx.session,
           user: ctx.session.user,
+          orgId: sessionProject!.organization.id,
+          orgRole: sessionProject!.organization.role,
           projectRole:
             ctx.session.user.admin === true ? "ADMIN" : sessionProject!.role,
           projectId: projectId,
@@ -200,6 +204,51 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
 
 export const protectedProjectProcedure = withSentryProcedure.use(
   enforceUserIsAuthedAndProjectMember,
+);
+
+const inputOrganizationSchema = z.object({
+  orgId: z.string(),
+});
+
+const enforceIsAuthedAndOrgMember = t.middleware(({ ctx, rawInput, next }) => {
+  if (!ctx.session || !ctx.session.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+
+  const result = inputOrganizationSchema.safeParse(rawInput);
+  if (!result.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid input, orgId is required",
+    });
+  }
+
+  const orgId = result.data.orgId;
+  const sessionOrg = ctx.session.user.organizations.find(
+    (org) => org.id === orgId,
+  );
+
+  if (!sessionOrg && ctx.session.user.admin !== true) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
+  }
+
+  return next({
+    ctx: {
+      session: {
+        ...ctx.session,
+        user: ctx.session.user,
+        orgId: orgId,
+        orgRole: ctx.session.user.admin === true ? "OWNER" : sessionOrg!.role,
+      },
+    },
+  });
+});
+
+export const protectedOrganizationProcedure = withSentryProcedure.use(
+  enforceIsAuthedAndOrgMember,
 );
 
 /*
@@ -238,9 +287,9 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
       message: "Trace not found",
     });
 
-  const sessionProject = ctx.session?.user?.projects.find(
-    ({ id }) => id === trace.projectId,
-  );
+  const sessionProject = ctx.session?.user?.organizations
+    .flatMap((org) => org.projects)
+    .find(({ id }) => id === trace.projectId);
 
   if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true)
     throw new TRPCError({
@@ -300,9 +349,9 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
       message: "Session not found",
     });
 
-  const userSessionProject = ctx.session?.user?.projects.find(
-    ({ id }) => id === projectId,
-  );
+  const userSessionProject = ctx.session?.user?.organizations
+    .flatMap((org) => org.projects)
+    .find(({ id }) => id === projectId);
 
   if (
     !session.public &&

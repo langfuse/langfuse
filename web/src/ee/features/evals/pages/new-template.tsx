@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 import { useRouter } from "next/router";
 
@@ -8,7 +8,10 @@ export default function NewTemplatesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const hasAccess = useHasAccess({ projectId, scope: "evalTemplate:read" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
 
   if (!hasAccess) {
     return null;

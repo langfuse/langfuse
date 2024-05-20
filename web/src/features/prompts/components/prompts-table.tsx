@@ -8,7 +8,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -36,7 +36,7 @@ export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
-  const hasCUDAccess = useHasAccess({
+  const hasCUDAccess = useHasProjectAccess({
     projectId,
     scope: "prompts:CUD",
   });

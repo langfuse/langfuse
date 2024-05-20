@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -14,7 +14,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "integrations:CRUD",
@@ -48,7 +48,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
     .input(posthogIntegrationFormSchema.extend({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "integrations:CRUD",
@@ -90,7 +90,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "integrations:CRUD",

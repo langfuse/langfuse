@@ -1,5 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type Scope } from "@/src/features/rbac/constants/roleAccessRights";
+import { type Scope } from "@/src/features/rbac/constants/projectAccessRights";
 import {
   Database,
   LayoutDashboard,
@@ -12,6 +12,7 @@ import {
   LibraryBig,
   TerminalIcon,
   Lightbulb,
+  Grid2X2,
 } from "lucide-react";
 
 export type Route = {
@@ -28,6 +29,11 @@ export type Route = {
 };
 
 export const ROUTES: Route[] = [
+  {
+    name: "Projects",
+    pathname: "/organization/[organizationId]",
+    icon: Grid2X2,
+  },
   {
     name: "Dashboard",
     pathname: `/project/[projectId]`,
@@ -111,6 +117,12 @@ export const ROUTES: Route[] = [
   {
     name: "Settings",
     pathname: "/project/[projectId]/settings",
+    icon: Settings,
+    bottom: true,
+  },
+  {
+    name: "Settings",
+    pathname: "/organization/[organizationId]/settings",
     icon: Settings,
     bottom: true,
   },

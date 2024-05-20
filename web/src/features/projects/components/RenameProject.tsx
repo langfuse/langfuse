@@ -13,7 +13,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -21,14 +21,15 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 export default function RenameProject(props: { projectId: string }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "project:update",
   });
   const { data: getSessionData, update: updateSession } = useSession();
-  const projectName = getSessionData?.user?.projects.find(
-    (p) => p.id === props.projectId,
-  )?.name;
+
+  const projectName = getSessionData?.user?.organizations
+    .flatMap((org) => org.projects)
+    .find((p) => p.id === props.projectId)?.name;
 
   const form = useForm<z.infer<typeof projectNameSchema>>({
     resolver: zodResolver(projectNameSchema),

@@ -36,7 +36,7 @@ import {
 } from "@/src/components/ui/table";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
@@ -49,7 +49,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 export function LlmApiKeyList(props: { projectId: string }) {
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:read",
   });
@@ -115,7 +115,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:delete",
   });
@@ -184,7 +184,7 @@ export function CreateLlmApiKeyComponent(props: {
 }) {
   const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:create",
   });

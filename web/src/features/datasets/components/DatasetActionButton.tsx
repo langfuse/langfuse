@@ -10,7 +10,7 @@ import {
 import { useState } from "react";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -47,7 +47,7 @@ type DatasetActionButtonProps =
 export const DatasetActionButton = (props: DatasetActionButtonProps) => {
   const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
   });

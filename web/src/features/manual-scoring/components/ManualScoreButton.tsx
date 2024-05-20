@@ -24,7 +24,7 @@ import * as z from "zod";
 
 import { useForm } from "react-hook-form";
 import { Slider } from "@/src/components/ui/slider";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { LockIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -49,7 +49,7 @@ export function ManualScoreButton({
   variant?: "button" | "badge";
 }) {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
   });

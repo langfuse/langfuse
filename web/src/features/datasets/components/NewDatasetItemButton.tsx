@@ -8,7 +8,7 @@ import {
 import { useState } from "react";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const NewDatasetItemButton = (props: {
@@ -17,7 +17,7 @@ export const NewDatasetItemButton = (props: {
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
   });

@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
@@ -234,7 +234,7 @@ export const sessionRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "objects:bookmark",
@@ -287,7 +287,7 @@ export const sessionRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "objects:publish",

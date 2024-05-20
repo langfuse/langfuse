@@ -14,14 +14,13 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { Button } from "@/src/components/ui/button";
 import Head from "next/head";
 import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
-import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Toaster } from "@/src/components/ui/sonner";
 import {
   NOTIFICATIONS,
@@ -29,8 +28,9 @@ import {
 } from "@/src/features/notifications/checkNotifications";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { ProjectNavigation } from "@/src/components/projectNavigation";
 import DOMPurify from "dompurify";
+import { useQueryProject } from "@/src/features/projects/utils/useProject";
+import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
 
 const userNavigation = [
   {
@@ -63,11 +63,17 @@ export default function Layout(props: PropsWithChildren) {
   const enableExperimentalFeatures =
     session.data?.environment.enableExperimentalFeatures ?? false;
 
-  const projectId = router.query.projectId as string | undefined;
+  // project info based on projectId in the URL
+  const { project, organization } = useQueryProject();
+  // org info based on organizationId in the URL
+  const queryOrg = useQueryOrganization();
 
   const mapNavigation = (route: Route): NavigationItem | null => {
     // Project-level routes
-    if (!projectId && route.pathname?.includes("[projectId]")) return null;
+    if (!project && route.pathname?.includes("[projectId]")) return null;
+
+    // Organization-level routes
+    if (!queryOrg && route.pathname?.includes("[organizationId]")) return null;
 
     // Feature Flags
     if (
@@ -90,9 +96,10 @@ export default function Layout(props: PropsWithChildren) {
     // RBAC
     if (
       route.rbacScope !== undefined &&
-      (!projectId ||
-        !hasAccess({
-          projectId,
+      (!project ||
+        !organization ||
+        !hasProjectAccess({
+          projectId: project.id,
           scope: route.rbacScope,
           session: session.data,
         }))
@@ -105,7 +112,9 @@ export default function Layout(props: PropsWithChildren) {
       [];
     return {
       ...route,
-      href: route.pathname?.replace("[projectId]", projectId ?? ""),
+      href: route.pathname
+        ?.replace("[projectId]", project?.id ?? "")
+        .replace("[organizationId]", organization?.id ?? queryOrg?.id ?? ""),
       current: router.pathname === route.pathname,
       children:
         children.length > 0
@@ -122,8 +131,6 @@ export default function Layout(props: PropsWithChildren) {
   const bottomNavigation = navigation.filter(({ bottom }) => bottom);
 
   const currentPathName = navigation.find(({ current }) => current)?.name;
-
-  const projects = session.data?.user?.projects ?? [];
 
   if (session.status === "loading") return <Spinner message="Loading" />;
 
@@ -272,16 +279,6 @@ export default function Layout(props: PropsWithChildren) {
                       <ul role="list">
                         <MainNavigation nav={navigation} />
                       </ul>
-                      <div className="mb-2 flex flex-row place-content-between items-center">
-                        <div className="text-xs font-semibold text-gray-400">
-                          Project
-                        </div>
-                        <NewProjectButton size="xs" />
-                      </div>
-                      <ProjectNavigation
-                        currentProjectId={projectId ?? ""}
-                        projects={projects}
-                      />
                     </nav>
                   </div>
                 </Dialog.Panel>
@@ -320,16 +317,6 @@ export default function Layout(props: PropsWithChildren) {
                     Feedback
                   </li>
                 </FeedbackButtonWrapper>
-                <div className="mb-2 flex flex-row place-content-between items-center">
-                  <div className="text-xs font-semibold text-gray-400">
-                    Project
-                  </div>
-                  <NewProjectButton size="xs" />
-                </div>
-                <ProjectNavigation
-                  currentProjectId={projectId ?? ""}
-                  projects={projects}
-                />
               </ul>
             </nav>
 
@@ -455,7 +442,7 @@ export default function Layout(props: PropsWithChildren) {
         </div>
         <div className="lg:pl-56">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          project?.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
             env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") &&
           !session.data?.user?.email?.endsWith("@langfuse.com") ? (

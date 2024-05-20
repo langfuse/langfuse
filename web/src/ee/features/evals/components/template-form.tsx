@@ -44,7 +44,7 @@ import {
 } from "@/src/components/ui/select";
 import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { Label } from "@/src/components/ui/label";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 
@@ -469,7 +469,7 @@ export const LLMApiKeyComponent = (p: {
   projectId: string;
   modelParams: UIModelParams;
 }) => {
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: p.projectId,
     scope: "llmApiKeys:read",
   });

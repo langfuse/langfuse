@@ -21,7 +21,6 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { chatRunTrigger } from "@/src/features/support-chat/chat";
@@ -29,9 +28,13 @@ import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface NewProjectButtonProps {
-  size?: "xs" | "default";
+  orgId: string;
+  inBreadcrumb?: boolean;
 }
-export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
+export function NewProjectButton({
+  orgId,
+  inBreadcrumb,
+}: NewProjectButtonProps) {
   const [open, setOpen] = useState(false);
   const { update: updateSession } = useSession();
 
@@ -56,7 +59,10 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
     capture("projects:new_form_submit");
     createProjectMutation
-      .mutateAsync(values)
+      .mutateAsync({
+        name: values.name,
+        orgId,
+      })
       .then(() => {
         setOpen(false);
         form.reset();
@@ -79,18 +85,15 @@ export function NewProjectButton({ size = "default" }: NewProjectButtonProps) {
     >
       <DialogTrigger asChild>
         <Button
-          size={size}
-          variant={size === "xs" ? "secondary" : "default"}
+          variant={inBreadcrumb ? "ghost" : undefined}
+          size={inBreadcrumb ? "xs" : undefined}
           data-testid="create-project-btn"
+          className={
+            inBreadcrumb ? "h-8 w-full text-sm font-normal" : undefined
+          }
         >
-          <PlusIcon
-            className={cn(
-              "-ml-0.5 mr-1.5",
-              size === "xs" ? "h-4 w-4" : "h-5 w-5",
-            )}
-            aria-hidden="true"
-          />
-          {size !== "xs" ? "New project" : "New"}
+          <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+          New project
         </Button>
       </DialogTrigger>
       <DialogContent>

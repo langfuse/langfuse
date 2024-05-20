@@ -78,7 +78,6 @@ model User {
     createdAt               DateTime                 @default(now()) @map("created_at")
     updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at")
     featureFlags            String[]                 @default([]) @map("feature_flags")
-    AuditLog                AuditLog[]
 
     @@map("users")
 }
@@ -100,7 +99,6 @@ model Organization {
     cloudConfig             Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
     organizationMemberships OrganizationMembership[]
     projects                Project[]
-    AuditLog                AuditLog[]
     MembershipInvitation    MembershipInvitation[]
 
     @@map("organizations")
@@ -124,7 +122,6 @@ model Project {
     sessions           TraceSession[]
     Prompt             Prompt[]
     Model              Model[]
-    AuditLog           AuditLog[]
     EvalTemplate       EvalTemplate[]
     JobConfiguration   JobConfiguration[]
     JobExecution       JobExecution[]
@@ -180,7 +177,7 @@ model OrganizationMembership {
     userId             String              @map("user_id")
     user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
     role               OrganizationRole    @map("role")
-    defaultProjectRole ProjectRole?        @map("default_project_role")
+    defaultProjectRole ProjectRole?        @map("default_project_role") // all roles except OWNER, these are reserved for org owners
     createdAt          DateTime            @default(now()) @map("created_at")
     updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
     ProjectMemberships ProjectMembership[]
@@ -215,17 +212,19 @@ model ProjectMembership {
 }
 
 model MembershipInvitation {
-    id           String        @id @unique @default(cuid())
-    email        String
-    role         ProjectRole
-    orgId        String?       @map("org_id") // todo: drop nullable
-    organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
-    projectId    String        @map("project_id")
-    project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    senderId     String?       @map("sender_id")
-    sender       User?         @relation(fields: [senderId], references: [id], onDelete: SetNull)
-    createdAt    DateTime      @default(now()) @map("created_at")
-    updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at")
+    id                 String           @id @unique @default(cuid())
+    email              String
+    orgId              String?          @map("org_id") // todo: drop nullable
+    organization       Organization?    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+    orgRole            OrganizationRole
+    defaultProjectRole ProjectRole?     @map("default_project_role")
+    projectId          String?          @map("project_id")
+    project            Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+    projectRole        ProjectRole?     @map("project_role")
+    senderId           String?          @map("sender_id")
+    sender             User?            @relation(fields: [senderId], references: [id], onDelete: SetNull)
+    createdAt          DateTime         @default(now()) @map("created_at")
+    updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at")
 
     @@index([projectId])
     @@index([orgId])
@@ -648,18 +647,16 @@ model Model {
 }
 
 model AuditLog {
-    id              String        @id @default(cuid())
-    createdAt       DateTime      @default(now()) @map("created_at")
-    updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at")
-    userId          String        @map("user_id")
-    user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-    projectId       String        @map("project_id")
-    project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    orgId           String?       @map("org_id")
-    organization    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull) // todo: drop nullable
-    userProjectRole ProjectRole   @map("user_project_role")
-    resourceType    String        @map("resource_type")
-    resourceId      String        @map("resource_id")
+    id              String           @id @default(cuid())
+    createdAt       DateTime         @default(now()) @map("created_at")
+    updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at")
+    userId          String           @map("user_id")
+    orgId           String           @map("org_id")
+    userOrgRole     OrganizationRole @default(OWNER) @map("user_org_role")
+    projectId       String?          @map("project_id")
+    userProjectRole ProjectRole?     @map("user_project_role")
+    resourceType    String           @map("resource_type")
+    resourceId      String           @map("resource_id")
     action          String
     before          String? //stringified JSON
     after           String? // stringified JSON

@@ -1,13 +1,15 @@
 import {
   createTRPCRouter,
+  protectedOrganizationProcedure,
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
@@ -52,32 +54,30 @@ export const projectsRouter = createTRPCRouter({
         cloudConfig: cloudConfig.success ? cloudConfig.data : null,
       };
     }),
-
-  create: protectedProcedure
+  create: protectedOrganizationProcedure
     .input(
       z.object({
         name: z.string(),
+        orgId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "projects:create",
+      });
       const project = await ctx.prisma.project.create({
         data: {
           name: input.name,
-          projectMembers: {
-            create: {
-              userId: ctx.session.user.id,
-              role: "OWNER",
-            },
-          },
+          orgId: input.orgId,
         },
       });
       await auditLog({
+        session: ctx.session,
         resourceType: "project",
         resourceId: project.id,
         action: "create",
-        userId: ctx.session.user.id,
-        projectId: project.id,
-        userProjectRole: "OWNER",
         after: project,
       });
 
@@ -96,7 +96,7 @@ export const projectsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "project:update",
@@ -127,7 +127,7 @@ export const projectsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "project:delete",
@@ -156,7 +156,7 @@ export const projectsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "project:transfer",
