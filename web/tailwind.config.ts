@@ -22,13 +22,11 @@ module.exports = {
     extend: {
       colors: {
         "primary-accent": "hsl(var(--primary-accent))",
-        "muted-primary-accent": "hsl(var(--muted-primary-accent))",
+        "hover-primary-accent": "hsl(var(--hover-primary-accent))",
         "muted-orange": "hsl(var(--muted-orange))",
         "muted-blue": "hsl(var(--muted-blue))",
         "muted-green": "hsl(var(--muted-green))",
-        "muted-indigo": "hsl(var(--muted-indigo))",
         "muted-gray": "hsl(var(--muted-gray))",
-        "muted-violet": "hsl(var(--muted-violet))",
         "accent-light-green": "hsl(var(--accent-light-green))",
         "accent-dark-green": "hsl(var(--accent-dark-green))",
         "light-red": "hsl(var(--light-red))",
