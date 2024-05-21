@@ -56,12 +56,14 @@ export default function ScoresTable({
   traceId,
   observationId,
   omittedFilter = [],
+  hiddenColumns = [],
 }: {
   projectId: string;
   userId?: string;
   traceId?: string;
   observationId?: string;
   omittedFilter?: string[];
+  hiddenColumns?: string[];
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -99,7 +101,7 @@ export default function ScoresTable({
     projectId,
   });
 
-  const columns: LangfuseColumnDef<ScoresTableRow>[] = [
+  const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
     {
       accessorKey: "traceId",
       id: "traceId",
@@ -242,6 +244,10 @@ export default function ScoresTable({
       },
     },
   ];
+
+  const columns = rawColumns.filter(
+    (c) => !!c.id && !hiddenColumns.includes(c.id),
+  );
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<ScoresTableRow>("scoresColumnVisibility", columns);

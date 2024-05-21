@@ -113,6 +113,12 @@ export const TracePreview = ({
             projectId={trace.projectId}
             omittedFilter={["Trace ID"]}
             traceId={trace.id}
+            hiddenColumns={[
+              "traceId",
+              "observationId",
+              "traceName",
+              "jobConfigurationId",
+            ]}
           />
         )}
       </CardContent>

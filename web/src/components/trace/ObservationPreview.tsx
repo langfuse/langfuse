@@ -190,6 +190,12 @@ export const ObservationPreview = (props: {
             projectId={props.projectId}
             omittedFilter={["Observation ID"]}
             observationId={preloadedObservation.id}
+            hiddenColumns={[
+              "traceId",
+              "observationId",
+              "traceName",
+              "jobConfigurationId",
+            ]}
           />
         )}
       </CardContent>
