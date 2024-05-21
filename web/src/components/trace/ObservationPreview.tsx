@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { type Score } from "@langfuse/shared";
+import { type ScoreSource, type Score } from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -51,6 +51,13 @@ export const ObservationPreview = (props: {
   const observationScores = props.scores.filter(
     (s) => s.observationId === preloadedObservation.id,
   );
+  const observationScoresBySource = observationScores.reduce((acc, score) => {
+    if (!acc.get(score.source)) {
+      acc.set(score.source, []);
+    }
+    acc.get(score.source)?.push(score);
+    return acc;
+  }, new Map<ScoreSource, Score[]>());
 
   return (
     <Card className="flex-1">
@@ -192,17 +199,29 @@ export const ObservationPreview = (props: {
                   Scores
                 </span>
                 <div
-                  className={`grid grid-flow-col grid-rows-${observationScores.length === 1 ? "1" : "2"} gap-2 overflow-x-auto`}
+                  className={`grid grid-flow-col grid-rows-${observationScoresBySource.size} gap-2 overflow-x-auto`}
                 >
-                  {observationScores.map((score) => (
-                    <div
-                      key={score.id}
-                      className="ml-3 flex max-w-fit flex-row gap-1 whitespace-nowrap rounded-sm bg-secondary p-1 px-3 text-xs"
-                    >
-                      <span className="font-medium">{`${score.name}:`}</span>
-                      <span>{score.value.toFixed(4)}</span>
-                    </div>
-                  ))}
+                  {Array.from(observationScoresBySource).map(
+                    ([source, scores]) => (
+                      <div
+                        key={source}
+                        className="flex flex-row px-3 align-middle text-xs"
+                      >
+                        <span className="min-w-16 p-1 font-medium">
+                          {source}
+                        </span>
+                        {scores.map((score) => (
+                          <div
+                            key={score.id}
+                            className="ml-3 flex max-w-fit flex-row gap-1 whitespace-nowrap rounded-sm bg-secondary p-1 px-3"
+                          >
+                            <span className="font-medium">{`${score.name}:`}</span>
+                            <span>{score.value.toFixed(4)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             )}
