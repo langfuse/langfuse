@@ -113,7 +113,7 @@ const DataRegionInfo = () => (
     <DialogTrigger asChild>
       <a
         href="#"
-        className="ml-1 text-xs text-indigo-600 hover:text-indigo-500"
+        className="hover:text-muted-primary-accent ml-1 text-xs text-primary-accent"
         title="What is this?"
       >
         (what is this?)
@@ -144,7 +144,7 @@ const DataRegionInfo = () => (
             href="https://langfuse.com/docs/data-security-privacy"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-500 underline"
+            className="text-muted-primary-accent underline"
           >
             langfuse.com/security
           </a>
