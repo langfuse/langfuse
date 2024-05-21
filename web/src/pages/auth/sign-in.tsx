@@ -421,7 +421,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
               No account yet?{" "}
               <Link
                 href="/auth/sign-up"
-                className="font-semibold leading-6 text-primary-accent hover:text-indigo-500"
+                className="hover:text-muted-primary-accent font-semibold leading-6 text-primary-accent"
               >
                 Sign up
               </Link>
