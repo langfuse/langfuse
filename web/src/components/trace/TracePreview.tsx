@@ -155,6 +155,7 @@ export const TracePreview = ({
               "observationId",
               "traceName",
               "jobConfigurationId",
+              "userId",
             ]}
           />
         )}

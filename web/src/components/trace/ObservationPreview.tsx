@@ -233,6 +233,7 @@ export const ObservationPreview = (props: {
               "observationId",
               "traceName",
               "jobConfigurationId",
+              "userId",
             ]}
           />
         )}
