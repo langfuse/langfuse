@@ -157,6 +157,7 @@ export const TracePreview = ({
               "jobConfigurationId",
               "userId",
             ]}
+            tableColumnVisibilityName="scoresColumnVisibilityTracePreview"
           />
         )}
       </CardContent>

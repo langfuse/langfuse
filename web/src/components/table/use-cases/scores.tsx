@@ -4,11 +4,6 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -63,6 +58,7 @@ export default function ScoresTable({
   observationId,
   omittedFilter = [],
   hiddenColumns = [],
+  tableColumnVisibilityName = "scoresColumnVisibility",
 }: {
   projectId: string;
   userId?: string;
@@ -70,6 +66,7 @@ export default function ScoresTable({
   observationId?: string;
   omittedFilter?: string[];
   hiddenColumns?: string[];
+  tableColumnVisibilityName?: string;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -261,7 +258,7 @@ export default function ScoresTable({
   );
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ScoresTableRow>("scoresColumnVisibility", columns);
+    useColumnVisibility<ScoresTableRow>(tableColumnVisibilityName, columns);
 
   const convertToTableRow = (
     score: RouterOutput["scores"]["all"]["scores"][0],
@@ -284,9 +281,10 @@ export default function ScoresTable({
   const transformFilterOptions = (
     traceFilterOptions: ScoreOptions | undefined,
   ) => {
-    return scoresTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name),
-    );
+    return scoresTableColsWithOptions(traceFilterOptions).filter((c) => {
+      console.log({ c });
+      return !omittedFilter?.includes(c.name) && !hiddenColumns.includes(c.id);
+    });
   };
 
   return (

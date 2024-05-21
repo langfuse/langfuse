@@ -235,6 +235,7 @@ export const ObservationPreview = (props: {
               "jobConfigurationId",
               "userId",
             ]}
+            tableColumnVisibilityName="scoresColumnVisibilityObservationPreview"
           />
         )}
       </CardContent>
