@@ -253,7 +253,7 @@ export default function Layout(props: PropsWithChildren) {
                       >
                         <span className="sr-only">Close sidebar</span>
                         <XMarkIcon
-                          className="h-6 w-6 text-white"
+                          className="h-5 w-5 text-white"
                           aria-hidden="true"
                         />
                       </button>
@@ -273,7 +273,7 @@ export default function Layout(props: PropsWithChildren) {
                         <MainNavigation nav={navigation} />
                       </ul>
                       <div className="mb-2 flex flex-row place-content-between items-center">
-                        <div className="text-xs font-semibold leading-6 text-gray-400">
+                        <div className="text-xs font-semibold text-gray-400">
                           Project
                         </div>
                         <NewProjectButton size="xs" />
@@ -291,7 +291,7 @@ export default function Layout(props: PropsWithChildren) {
         </Transition.Root>
 
         {/* Static sidebar for desktop */}
-        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-60 lg:flex-col">
+        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
           <div className="flex h-screen grow flex-col border-r border-gray-200 bg-white pt-7">
             <LangfuseLogo
@@ -312,16 +312,16 @@ export default function Layout(props: PropsWithChildren) {
                   description="What do you think about this project? What can be improved?"
                   type="feedback"
                 >
-                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
                     <MessageSquarePlus
-                      className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                      className="h-5 w-5 shrink-0 text-gray-400 group-hover:text-indigo-600"
                       aria-hidden="true"
                     />
                     Feedback
                   </li>
                 </FeedbackButtonWrapper>
                 <div className="mb-2 flex flex-row place-content-between items-center">
-                  <div className="text-xs font-semibold leading-6 text-gray-400">
+                  <div className="text-xs font-semibold text-gray-400">
                     Project
                   </div>
                   <NewProjectButton size="xs" />
@@ -334,9 +334,9 @@ export default function Layout(props: PropsWithChildren) {
             </nav>
 
             <Menu as="div" className="relative">
-              <Menu.Button className="flex w-full items-center gap-x-4 overflow-hidden p-1.5 py-3 pl-6 pr-10 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
+              <Menu.Button className="flex w-full items-center gap-x-2 overflow-hidden p-1.5 py-3 pl-6 pr-8 text-sm font-semibold text-gray-900 hover:bg-gray-50">
                 <span className="sr-only">Open user menu</span>
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-7 w-7">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
                   <AvatarFallback>
                     {session.data?.user?.name
@@ -348,7 +348,7 @@ export default function Layout(props: PropsWithChildren) {
                       : null}
                   </AvatarFallback>
                 </Avatar>
-                <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
+                <span className="flex-shrink truncate text-sm font-semibold text-gray-900">
                   {session.data?.user?.name}
                 </span>
                 <div className="flex-1" />
@@ -367,7 +367,7 @@ export default function Layout(props: PropsWithChildren) {
                 leaveTo="transform opacity-0 scale-95"
               >
                 <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                  <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+                  <span className="mb-1 block border-b px-3 pb-2 text-sm text-gray-500">
                     {session.data?.user?.email}
                   </span>
                   {userNavigation.map((item) => (
@@ -377,7 +377,7 @@ export default function Layout(props: PropsWithChildren) {
                           onClick={() => void item.onClick()}
                           className={cn(
                             active ? "bg-gray-50" : "",
-                            "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                            "block cursor-pointer px-3 py-1 text-sm text-gray-900",
                           )}
                         >
                           {item.name}
@@ -398,7 +398,7 @@ export default function Layout(props: PropsWithChildren) {
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
-            <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+            <Bars3Icon className="h-5 w-5" aria-hidden="true" />
           </button>
           <LangfuseLogo
             version
@@ -406,7 +406,7 @@ export default function Layout(props: PropsWithChildren) {
             showEnvLabel={session.data?.user?.email?.endsWith("@langfuse.com")}
           />
           <Menu as="div" className="relative">
-            <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
+            <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold text-gray-900">
               <span className="sr-only">Open user menu</span>
               <Avatar className="h-8 w-8">
                 <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -431,7 +431,7 @@ export default function Layout(props: PropsWithChildren) {
               leaveTo="transform opacity-0 scale-95"
             >
               <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+                <span className="mb-1 block border-b px-3 pb-2 text-sm text-gray-500">
                   {session.data?.user?.email}
                 </span>
                 {userNavigation.map((item) => (
@@ -441,7 +441,7 @@ export default function Layout(props: PropsWithChildren) {
                         onClick={() => void item.onClick()}
                         className={cn(
                           active ? "bg-gray-50" : "",
-                          "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                          "block cursor-pointer px-3 py-1 text-sm text-gray-900",
                         )}
                       >
                         {item.name}
@@ -453,7 +453,7 @@ export default function Layout(props: PropsWithChildren) {
             </Transition>
           </Menu>
         </div>
-        <div className="lg:pl-60">
+        <div className="lg:pl-56">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
@@ -525,7 +525,7 @@ const MainNavigation: React.FC<{
                   item.current
                     ? "bg-gray-50 text-indigo-600"
                     : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                  "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
+                  "group flex gap-x-3 rounded-md p-1.5 text-sm font-semibold",
                 )}
                 onClick={onNavitemClick}
                 target={item.newTab ? "_blank" : undefined}
@@ -536,7 +536,7 @@ const MainNavigation: React.FC<{
                       item.current
                         ? "text-indigo-600"
                         : "text-gray-400 group-hover:text-indigo-600",
-                      "h-6 w-6 shrink-0",
+                      "h-5 w-5 shrink-0",
                     )}
                     aria-hidden="true"
                   />
@@ -545,7 +545,7 @@ const MainNavigation: React.FC<{
                 {item.label && (
                   <span
                     className={cn(
-                      "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                      "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                       item.current
                         ? "border-indigo-600 text-indigo-600"
                         : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
@@ -565,12 +565,12 @@ const MainNavigation: React.FC<{
                 {({ open }) => (
                   <>
                     <Disclosure.Button
-                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600"
+                      className="group flex w-full items-center gap-x-3 rounded-md p-1.5 text-left text-sm font-semibold hover:bg-gray-50 hover:text-indigo-600"
                       onClick={() => setIsOpen(!isOpen)}
                     >
                       {item.icon && (
                         <item.icon
-                          className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                          className="h-5 w-5 shrink-0 text-gray-400 group-hover:text-indigo-600"
                           aria-hidden="true"
                         />
                       )}
@@ -578,7 +578,7 @@ const MainNavigation: React.FC<{
                       {item.label && (
                         <span
                           className={cn(
-                            "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                            "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                             item.current
                               ? "border-indigo-600 text-indigo-600"
                               : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
@@ -595,7 +595,7 @@ const MainNavigation: React.FC<{
                         aria-hidden="true"
                       />
                     </Disclosure.Button>
-                    <Disclosure.Panel as="ul" className="mt-1 px-2">
+                    <Disclosure.Panel as="ul" className="mt-1 space-y-1 px-2">
                       {item.children?.map((subItem) => (
                         <li key={subItem.name}>
                           {/* 44px */}
@@ -605,7 +605,7 @@ const MainNavigation: React.FC<{
                               subItem.current
                                 ? "bg-gray-50 text-indigo-600"
                                 : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                              "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
+                              "ml-0.5 flex w-full items-center gap-x-3 rounded-md p-1.5 pl-7 pr-2 text-sm",
                             )}
                             target={subItem.newTab ? "_blank" : undefined}
                           >
