@@ -33,10 +33,6 @@ export type ScoresTableRow = {
   traceName?: string;
   userId?: string;
   jobConfigurationId?: string;
-  user: {
-    image?: string;
-    name?: string;
-  };
 };
 
 export type ScoreFilterInput = Omit<
@@ -224,39 +220,6 @@ export default function ScoresTable({
       },
     },
     {
-      accessorKey: "user",
-      id: "user",
-      header: "User Name",
-      headerTooltip: {
-        description: "The name of the user associated with the trace.",
-      },
-      cell: ({ row }) => {
-        const { name, image } = row.getValue("user") as ScoresTableRow["user"];
-        if (!name) return null;
-
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={name ?? "User Avatar"}
-              />
-              <AvatarFallback>
-                {name
-                  ? name
-                      .split(" ")
-                      .map((word) => word[0])
-                      .slice(0, 2)
-                      .concat("")
-                  : null}
-              </AvatarFallback>
-            </Avatar>
-            <span>{name}</span>
-          </div>
-        );
-      },
-    },
-    {
       accessorKey: "jobConfigurationId",
       header: "Eval Configuration ID",
       id: "jobConfigurationId",
@@ -315,10 +278,6 @@ export default function ScoresTable({
       traceName: score.traceName ?? undefined,
       userId: score.userId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
-      user: {
-        image: score.userImage ?? undefined,
-        name: score.userName ?? undefined,
-      },
     };
   };
 
