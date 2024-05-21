@@ -40,8 +40,10 @@
     --muted-blue: 214 94.6% 92.7%;
     --muted-indigo: 226 100% 96.7%;
     --muted-gray: 210 50% 91.1%;
+    --muted-violet: 251 95.2% 91.8%;
 
     --accent-light-green: 138 76.5% 96.7%;
+    --accent-dark-green: 112 100% 32%;
 
     --light-red: 329 77.8% 94.7%;
     --dark-red: 0 72.2% 50.6%;
@@ -56,7 +58,7 @@
     --dark-blue: 217 91.2% 59.8%;
 
     --accent-light-blue: 226 100% 93.9%;
-    --accent-dark-blue: 224 76.3% 48%;
+    --accent-dark-blue: 224 76.3% 38%;
     --radius: 0.5rem;
   }
 
@@ -90,13 +92,14 @@
 
     --ring: 217.2 32.6% 17.5%;
 
-    --primary-accent: 246 75% 70%;
+    --primary-accent: 246 55% 70%;
 
     --muted-blue: 226 60.7% 30.2%;
     --muted-green: 143 64.2% 24.1%;
     --muted-orange: 15 79.1% 33.7%;
     --muted-indigo: 226 70% 30%;
     --muted-gray: 210 50% 25%;
+    --muted-violet: 263 60% 50.4%;
 
     --light-red: 0 62.8% 30.6%;
     --dark-red: 0 90.6% 70.8%;
@@ -110,7 +113,8 @@
     --light-blue: 224 64.3% 32.9%;
     --dark-blue: 212 96.4% 78.4%;
 
-    --accent-light-green: 222.2 84% 4.9%;
+    --accent-light-green: 192 21% 9%;
+    --accent-dark-green: 124 21.8% 30.6%;
 
     --accent-light-blue: 226 80% 40%;
     --accent-dark-blue: 224 50% 90%;
