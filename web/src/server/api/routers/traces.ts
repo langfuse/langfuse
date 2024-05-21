@@ -257,6 +257,7 @@ export const traceRouter = createTRPCRouter({
           totalTokens: true,
           unit: true,
           completionStartTime: true,
+          timeToFirstToken: true,
           promptId: true,
           modelId: true,
           inputPrice: true,

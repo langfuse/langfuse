@@ -128,12 +128,11 @@ const ChatMlMessageSchema = z
       .optional(),
     name: z.string().optional(),
     content: z
-      .union([z.record(z.any()), z.record(z.any()).array(), z.string()])
+      .union([z.record(z.any()), z.string(), z.array(z.any())])
       .nullish(),
     additional_kwargs: z.record(z.any()).optional(),
   })
   .passthrough()
-
   .refine((value) => value.content !== null || value.role !== undefined)
   .transform(({ additional_kwargs, ...other }) => ({
     ...other,

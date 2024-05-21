@@ -303,6 +303,7 @@ export type ObservationView = {
     calculated_output_cost: string | null;
     calculated_total_cost: string | null;
     latency: number | null;
+    time_to_first_token: number | null;
 };
 export type Organization = {
     id: string;
