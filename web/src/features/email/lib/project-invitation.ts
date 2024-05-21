@@ -47,10 +47,7 @@ export const sendProjectInvitation = async (p: {
 
     await mailer.sendMail({
       to: p.to,
-      from: {
-        address: env.EMAIL_FROM_ADDRESS,
-        name: "Langfuse",
-      },
+      from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
       subject: `${p.inviterName} invited you to join "${p.orgName}" organization on Langfuse`,
       html: htmlTemplate,
     });

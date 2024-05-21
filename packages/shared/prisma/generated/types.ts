@@ -6,7 +6,8 @@ export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
 export const OrganizationRole = {
     OWNER: "OWNER",
-    MEMBER: "MEMBER"
+    MEMBER: "MEMBER",
+    NONE: "NONE"
 } as const;
 export type OrganizationRole = (typeof OrganizationRole)[keyof typeof OrganizationRole];
 export const ProjectRole = {

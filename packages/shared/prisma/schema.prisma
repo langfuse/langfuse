@@ -191,6 +191,7 @@ model OrganizationMembership {
 enum OrganizationRole {
     OWNER
     MEMBER
+    NONE
 }
 
 model ProjectMembership {

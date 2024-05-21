@@ -216,9 +216,9 @@ export const membersRouter = createTRPCRouter({
           });
         }
         await sendProjectInvitation({
-          inviterEmail: input.email,
+          inviterEmail: ctx.session.user.email!,
           inviterName: ctx.session.user.name!,
-          to: ctx.session.user.email!,
+          to: input.email,
           orgName: sessionOrganization.name,
         });
       } else {
@@ -250,9 +250,9 @@ export const membersRouter = createTRPCRouter({
         if (!project) throw new Error("Project not found");
 
         await sendProjectInvitation({
-          inviterEmail: input.email,
+          inviterEmail: ctx.session.user.email!,
           inviterName: ctx.session.user.name!,
-          to: ctx.session.user.email!,
+          to: input.email,
           orgName: sessionOrganization.name,
         });
 
@@ -286,6 +286,23 @@ export const membersRouter = createTRPCRouter({
       });
       if (!hasAccess && membership.userId !== ctx.session.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
+
+      if (membership.role === OrganizationRole.OWNER) {
+        // check if there are other remaining owners
+        const owners = await ctx.prisma.organizationMembership.count({
+          where: {
+            orgId: input.orgId,
+            role: OrganizationRole.OWNER,
+          },
+        });
+        if (owners === 1) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
+          });
+        }
+      }
 
       await auditLog({
         session: ctx.session,

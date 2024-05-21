@@ -105,6 +105,7 @@ export const env = createEnv({
       .enum(["US", "EU", "STAGING", "DEV"])
       .optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
+    NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
@@ -119,6 +120,7 @@ export const env = createEnv({
   runtimeEnv: {
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+    NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,

@@ -6,22 +6,22 @@ export async function createProjectMembershipsOnSignup(user: {
   email: string | null;
 }) {
   try {
-    // Langfuse Cloud: Demo project access
-    const demoProjectId = env.NEXT_PUBLIC_DEMO_PROJECT_ID
+    // Langfuse Cloud: Demo project access via demo org
+    const demoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID
       ? (
-          await prisma.project.findUnique({
+          await prisma.organization.findUnique({
             where: {
-              id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+              id: env.NEXT_PUBLIC_DEMO_ORG_ID,
             },
           })
         )?.id
       : undefined;
-    if (demoProjectId !== undefined) {
-      await prisma.projectMembership.create({
+    if (demoOrgId !== undefined) {
+      await prisma.organizationMembership.create({
         data: {
-          projectId: demoProjectId,
           userId: user.id,
-          role: "VIEWER",
+          orgId: demoOrgId,
+          role: "NONE",
         },
       });
     }
@@ -58,28 +58,45 @@ async function processMembershipInvitations(email: string, userId: string) {
       email: email.toLowerCase(),
     },
   });
+  console.log("invitationsForUser", invitationsForUser);
+  if (invitationsForUser.length === 0) return;
 
-  if (invitationsForUser.length > 0) {
-    const membershipsData = invitationsForUser.map((invitation) => {
-      return {
-        userId: userId,
-        projectId: invitation.projectId,
-        role: invitation.role,
-      };
-    });
+  // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
+  const createOrgMembershipData = invitationsForUser
+    //.filter((invitation) => invitation.orgId !== null) // TODO: drop this filter when we have orgId in all invitations
+    .map((invitation) => ({
+      userId: userId,
+      orgId: invitation.orgId as string, // TODO: drop the as string when we have orgId in all invitations
+      role: invitation.orgRole,
+      defaultProjectRole: invitation.defaultProjectRole,
+      ...(invitation.projectId && invitation.projectRole
+        ? {
+            ProjectMemberships: {
+              create: {
+                userId: userId,
+                projectId: invitation.projectId,
+                role: invitation.projectRole,
+              },
+            },
+          }
+        : {}),
+    }));
 
-    await prisma.$transaction([
-      prisma.projectMembership.createMany({
-        data: membershipsData,
-      }),
-      prisma.membershipInvitation.deleteMany({
-        where: {
-          id: {
-            in: invitationsForUser.map((invitation) => invitation.id),
-          },
-          email: email.toLowerCase(),
+  console.log("createOrgMembershipData", createOrgMembershipData);
+
+  const createOrgMembershipsPromises = createOrgMembershipData.map(
+    (inviteData) => prisma.organizationMembership.create({ data: inviteData }),
+  );
+
+  await prisma.$transaction([
+    ...createOrgMembershipsPromises,
+    prisma.membershipInvitation.deleteMany({
+      where: {
+        id: {
+          in: invitationsForUser.map((invitation) => invitation.id),
         },
-      }),
-    ]);
-  }
+        email: email.toLowerCase(),
+      },
+    }),
+  ]);
 }
