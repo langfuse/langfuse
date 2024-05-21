@@ -466,7 +466,7 @@ export default function Layout(props: PropsWithChildren) {
           (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
             env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") &&
           !session.data?.user?.email?.endsWith("@langfuse.com") ? (
-            <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 lg:sticky lg:top-0 lg:z-40">
+            <div className="border-dark-yellow bg-light-yellow flex w-full items-center  border-b px-4 py-2 lg:sticky lg:top-0 lg:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
                 <div className="flex items-center gap-1">
                   <Info className="h-4 w-4" />
