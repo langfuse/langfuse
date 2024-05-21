@@ -547,7 +547,10 @@ function createObjects(
         id: `user-${i}`,
         email: `user-${Math.random()}@langfuse.com`,
         name: `User ${i}`,
-        image: `https://avatar.iran.liara.run/public/${i}`,
+        image:
+          i % 2 === 0
+            ? "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png"
+            : undefined,
       };
 
       users.push(user);
