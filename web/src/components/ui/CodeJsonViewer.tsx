@@ -21,7 +21,12 @@ export function JSONView(props: {
   return (
     <div className={cn("rounded-md border", props.className)}>
       {props.title ? (
-        <div className="border-b px-3 py-1 text-xs font-medium">
+        <div
+          className={cn(
+            props.title === "Output" ? "border-accent-dark-green" : "",
+            "border-b px-3 py-1 text-xs font-medium",
+          )}
+        >
           {props.title}
         </div>
       ) : undefined}
