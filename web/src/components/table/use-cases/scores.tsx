@@ -227,6 +227,9 @@ export default function ScoresTable({
       accessorKey: "user",
       id: "user",
       header: "User Name",
+      headerTooltip: {
+        description: "The name of the user associated with the trace.",
+      },
       cell: ({ row }) => {
         const { name, image } = row.getValue("user") as ScoresTableRow["user"];
         if (!name) return null;
