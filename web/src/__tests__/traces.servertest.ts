@@ -182,6 +182,32 @@ describe("/api/public/traces API Endpoint", () => {
       endTime: "2021-01-01T00:20:00.000Z",
     });
 
+    // Simulate scores on the trace
+    const scoreId1 = uuidv4();
+    await makeAPICall("POST", "/api/public/scores", {
+      id: scoreId1,
+      name: "score-1",
+      value: 75.0,
+      traceId: traceId,
+      comment: "First score",
+    });
+    const scoreId2 = uuidv4();
+    await makeAPICall("POST", "/api/public/scores", {
+      id: scoreId2,
+      name: "score-2",
+      value: 85.5,
+      traceId: traceId,
+      comment: "Second score",
+    });
+    const scoreId3 = uuidv4();
+    await makeAPICall("POST", "/api/public/scores", {
+      id: scoreId3,
+      name: "score-3",
+      value: 95.0,
+      traceId: traceId,
+      comment: "Third score",
+    });
+
     // GET traces
     // Retrieve the trace with totalCost and latency
     const traces = await makeAPICall<GetTracesAPIResponse>(
