@@ -67,14 +67,10 @@ export const ObservationPreview = (props: {
                 projectId={preloadedObservation.projectId}
               />
             ) : undefined}
-            {preloadedObservation.completionStartTime ? (
+            {preloadedObservation.timeToFirstToken ? (
               <Badge variant="outline">
                 Time to first token:{" "}
-                {formatIntervalSeconds(
-                  (preloadedObservation.completionStartTime.getTime() -
-                    preloadedObservation.startTime.getTime()) /
-                    1000,
-                )}
+                {formatIntervalSeconds(preloadedObservation.timeToFirstToken)}
               </Badge>
             ) : null}
             {preloadedObservation.endTime ? (
