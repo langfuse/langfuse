@@ -246,7 +246,7 @@ langfuse_handler = CallbackHandler(
 # <Your Langchain code here>
  
 # Add handler to run/invoke/call/chat
-chain.invoke({"muted": "<user_muted>"}, config={"callbacks": [langfuse_handler]})`;
+chain.invoke({"input": "<user_input>"}, config={"callbacks": [langfuse_handler]})`;
 
 const LANGCHAIN_JS_CODE = (p: {
   publicKey: string;
@@ -266,7 +266,7 @@ const chain = new LLMChain(...);
  
 // Add handler as callback when running the Langchain agent
 await chain.invoke(
-  { muted: "<user_muted>" },
+  { input: "<user_input>" },
   { callbacks: [langfuseHandler] }
 );`;
 
