@@ -2,6 +2,7 @@ import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer"
 import Header from "@/src/components/layouts/header";
 import MembersTable from "@/src/components/table/use-cases/members";
 import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { env } from "@/src/env.mjs";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
@@ -21,6 +22,12 @@ const OrgSettingsPage = () => {
             content: (
               <div className="flex flex-col gap-10">
                 <RenameOrganization />
+                <div>
+                  <Header title="Debug Information" level="h3" />
+                  <JSONView
+                    json={{ name: organization.name, id: organization.id }}
+                  />
+                </div>
               </div>
             ),
           },

@@ -18,6 +18,7 @@ import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer"
 import { useQueryProject } from "@/src/features/projects/utils/useProject";
 import MembersTable from "@/src/components/table/use-cases/members";
 import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -34,6 +35,15 @@ export default function SettingsPage() {
                 <HostNameProject />
                 <RenameProject projectId={project.id} />
                 <Instructions />
+                <div>
+                  <Header title="Debug Information" level="h3" />
+                  <JSONView
+                    json={{
+                      project: { name: project.name, id: project.id },
+                      org: { name: organization.name, id: organization.id },
+                    }}
+                  />
+                </div>
                 <div className="space-y-3">
                   <DeleteProjectButton projectId={project.id} />
                   <TransferOwnershipButton projectId={project.id} />
