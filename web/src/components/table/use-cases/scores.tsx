@@ -284,9 +284,7 @@ export default function ScoresTable({
       cell: ({ row }) => {
         const value = row.getValue("comment") as ScoresTableRow["comment"];
         return (
-          value !== undefined && (
-            <IOTableCell data={value} singleLine={rowHeight === "s"} />
-          )
+          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
         );
       },
     },
