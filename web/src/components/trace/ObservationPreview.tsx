@@ -55,6 +55,24 @@ export const ObservationPreview = (props: {
 
   return (
     <Card className="flex-1">
+      <div className="flex justify-end border-b">
+        <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+          <TabsList className="bg-white py-0">
+            <TabsTrigger
+              value="preview"
+              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:shadow-none"
+            >
+              Preview
+            </TabsTrigger>
+            <TabsTrigger
+              value="scores"
+              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:shadow-none"
+            >
+              Scores
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
       <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
         <div className="flex flex-col gap-1">
           <CardTitle>
@@ -144,14 +162,6 @@ export const ObservationPreview = (props: {
               key={preloadedObservation.id}
             />
           ) : null}
-          {isScoreAttached && (
-            <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-              <TabsList>
-                <TabsTrigger value="preview">Preview</TabsTrigger>
-                <TabsTrigger value="scores">Scores</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
