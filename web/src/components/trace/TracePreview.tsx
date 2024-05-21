@@ -18,6 +18,7 @@ import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewD
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
+import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 
 export const TracePreview = ({
   trace,
@@ -115,34 +116,7 @@ export const TracePreview = ({
               title="Metadata"
               json={trace.metadata}
             />
-            {Boolean(traceScores.length) && (
-              <div className="flex flex-col gap-2 rounded-md border py-2">
-                <span className="border-b px-3 text-xs font-semibold">
-                  Scores
-                </span>
-                <div
-                  className={`grid grid-flow-col grid-rows-${traceScoresBySource.size} gap-2 overflow-x-auto`}
-                >
-                  {Array.from(traceScoresBySource).map(([source, scores]) => (
-                    <div
-                      key={source}
-                      className="flex flex-row px-3 align-middle text-xs"
-                    >
-                      <span className="min-w-16 p-1 font-medium">{source}</span>
-                      {scores.map((score) => (
-                        <div
-                          key={score.id}
-                          className="ml-3 flex max-w-fit flex-row gap-1 whitespace-nowrap rounded-sm bg-secondary p-1 px-3"
-                        >
-                          <span className="font-medium">{`${score.name}:`}</span>
-                          <span>{score.value.toFixed(4)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <ScoresPreview itemScoresBySource={traceScoresBySource} />
           </>
         )}
         {selectedTab === "scores" && (
