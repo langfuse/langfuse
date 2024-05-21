@@ -171,7 +171,7 @@ const TraceCardList = ({
           }))
           .map(({ virtualItem, trace }) => (
             <Card
-              className="group grid w-full gap-3 overflow-hidden border-border p-2 shadow-none hover:border-border md:grid-cols-3"
+              className="group grid w-full gap-3 overflow-hidden border-border p-2 shadow-none hover:border-ring   md:grid-cols-3"
               key={virtualItem.key}
               data-index={virtualItem.index}
               style={{
