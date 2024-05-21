@@ -7,6 +7,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { clickhouseClient } from "@langfuse/shared/backend";
 import { env } from "@/src/env.mjs";
+import { jsonSchema } from "@/src/utils/zod";
 
 const GetTraceSchema = z.object({
   traceId: z.string(),
@@ -179,3 +180,22 @@ export default async function handler(
     });
   }
 }
+
+// export const getObservations = async (traceId: string, projectId: string) => {
+//   const observations = await clickhouseClient.query({
+//     query: `SELECT * FROM observations_view where trace_id = '${traceId}' and project_id = '${projectId}'`,
+//     format: "JSONEachRow",
+//   });
+//   const jsonRecords = await observations.json();
+//   return jsonRecords.map((record) => {
+//     return {
+//       ...record,
+//       metadata: jsonSchema,
+//       model_parameters: record.model_parameters
+//         ? JSON.parse(record.model_parameters)
+//         : null,
+//       input: record.input ? JSON.parse(record.input) : null,
+//       output: record.output ? JSON.parse(record.output) : null,
+//     };
+//   });
+// };

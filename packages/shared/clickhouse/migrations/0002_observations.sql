@@ -6,7 +6,7 @@ CREATE TABLE observations_raw (
     `type` Nullable(String),
     `parent_observation_id` Nullable(String),
     `created_at` DateTime64(6),
-    `start_time` Nullable(DateTime64(6)),
+    `start_time` DateTime64(6),
     `end_time` Nullable(DateTime64(6)),
     `name` Nullable(String),
     metadata Map(String, String),
@@ -31,14 +31,14 @@ CREATE TABLE observations_raw (
     event_ts DateTime64(6)
 ) ENGINE = MergeTree
 ORDER BY (project_id, id);
-CREATE TABLE observations (
+CREATE TABLE observations_aggregating (
     `id` String,
     `trace_id` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
     `project_id` String,
     `type` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
     `parent_observation_id` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
     `created_at` AggregateFunction(argMax, DateTime64(6), DateTime64(6)),
-    `start_time` AggregateFunction(argMax, Nullable(DateTime64(6)), DateTime64(6)),
+    `start_time` AggregateFunction(argMax, DateTime64(6), DateTime64(6)),
     `end_time` AggregateFunction(argMax, Nullable(DateTime64(6)), DateTime64(6)),
     `name` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
     metadata SimpleAggregateFunction(maxMap, Map(String, String)),
@@ -62,7 +62,7 @@ CREATE TABLE observations (
     `prompt_id` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
 ) ENGINE = AggregatingMergeTree
 ORDER BY (project_id, id);
-CREATE MATERIALIZED VIEW observations_mv TO observations AS
+CREATE MATERIALIZED VIEW observations_raw_to_aggregating_mv TO observations_aggregating AS
 SELECT id,
     argMaxState(
         `trace_id`,
@@ -93,14 +93,7 @@ SELECT id,
             toDateTime64(0, 6)
         )
     ) as `created_at`,
-    argMaxState(
-        `start_time`,
-        if(
-            isNotNull(`start_time`),
-            event_ts,
-            toDateTime64(0, 6)
-        )
-    ) as `start_time`,
+    argMaxState(`start_time`, event_ts) as `start_time`,
     argMaxState(
         `end_time`,
         if(
@@ -245,16 +238,55 @@ SELECT id,
 FROM observations_raw
 GROUP BY project_id,
     id;
-CREATE OR REPLACE VIEW observations_view AS
+CREATE TABLE observations (
+    `id` String,
+    `trace_id` String,
+    `project_id` String,
+    `type` Nullable(String),
+    `parent_observation_id` Nullable(String),
+    `created_at` DateTime64(6),
+    `start_time` DateTime64(6),
+    `end_time` Nullable(DateTime64(6)),
+    `name` String,
+    metadata Map(String, String),
+    `user_id` Nullable(String),
+    `level` Nullable(String),
+    `status_message` Nullable(String),
+    `version` Nullable(String),
+    `input` Nullable(String),
+    `output` Nullable(String),
+    `model` Nullable(String),
+    `internal_model` Nullable(String),
+    `model_parameters` Nullable(String),
+    `prompt_tokens` Nullable(Int32),
+    `completion_tokens` Nullable(Int32),
+    `total_tokens` Nullable(Int32),
+    `unit` Nullable(String),
+    `input_cost` Nullable(Float64),
+    `output_cost` Nullable(Float64),
+    `total_cost` Nullable(Float64),
+    `completion_start_time` Nullable(DateTime64(6)),
+    `prompt_id` Nullable(String),
+) ENGINE = MergeTree
+ORDER BY (project_id, name, start_time, trace_id, id);
+CREATE MATERIALIZED VIEW observations_aggregating_to_ordered_mv TO observations AS
 SELECT `id`,
-    argMaxMerge(`trace_id`) AS trace_id,
+    if(
+        isNotNull(argMaxMerge(`trace_id`)),
+        argMaxMerge(`trace_id`),
+        ''
+    ) AS trace_id,
     project_id,
     argMaxMerge(`type`) AS type,
     argMaxMerge(`parent_observation_id`) AS parent_observation_id,
     argMaxMerge(`created_at`) AS created_at,
     argMaxMerge(`start_time`) AS start_time,
     argMaxMerge(`end_time`) AS end_time,
-    argMaxMerge(`name`) AS name,
+    if(
+        isNotNull(argMaxMerge(`name`)),
+        argMaxMerge(`name`),
+        ''
+    ) AS name,
     maxMap(metadata) AS metadata,
     argMaxMerge(`user_id`) AS user_id,
     argMaxMerge(`level`) AS level,
@@ -274,11 +306,12 @@ SELECT `id`,
     argMaxMerge(`total_cost`) AS total_cost,
     argMaxMerge(`completion_start_time`) AS completion_start_time,
     argMaxMerge(`prompt_id`) AS prompt_id
-FROM observations
+FROM observations_aggregating
 GROUP BY project_id,
     `id`;
 -- +goose Down
 DROP TABLE observations_raw;
+DROP TABLE observations_aggregating;
 DROP TABLE observations;
-DROP TABLE observations_mv;
-DROP VIEW observations_view;
+DROP VIEW observations_raw_to_aggregating_mv;
+DROP VIEW observations_aggregating_to_ordered_mv;
