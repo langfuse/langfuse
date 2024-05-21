@@ -112,7 +112,7 @@ export const IOPreview: React.FC<{
               title="Output"
               json={outputClean}
               isLoading={isLoading}
-              className="flex-1 bg-accent-light-green"
+              className="flex-1 border-accent-dark-green bg-accent-light-green"
             />
           ) : null}
         </>
@@ -190,7 +190,8 @@ export const OpenAiMessageView: React.FC<{
                     className={cn(
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",
-                      message.role === "assistant" && "bg-accent-light-green",
+                      message.role === "assistant" &&
+                        "bg-accent-light-green dark:border-accent-dark-green",
                       message.role === "user" && "bg-background",
                       !!message.json && "rounded-b-none",
                     )}
@@ -205,7 +206,8 @@ export const OpenAiMessageView: React.FC<{
                     className={cn(
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",
-                      message.role === "assistant" && "bg-accent-light-green",
+                      message.role === "assistant" &&
+                        "bg-accent-light-green dark:border-accent-dark-green",
                       message.role === "user" && "bg-foreground",
                       !!message.content && "rounded-t-none border-t-0",
                     )}
