@@ -57,6 +57,7 @@ export const scoresRouter = createTRPCRouter({
           s.name,
           s.value,
           s.timestamp,
+          s.source,
           s.comment,
           s.trace_id as "traceId",
           s.observation_id as "observationId",

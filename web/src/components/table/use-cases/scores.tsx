@@ -20,6 +20,7 @@ export type ScoresTableRow = {
   id: string;
   traceId: string;
   timestamp: string;
+  source: string;
   name: string;
   value: number;
   comment?: string;
@@ -166,6 +167,13 @@ export default function ScoresTable({
       enableSorting: true,
     },
     {
+      accessorKey: "source",
+      header: "Source",
+      id: "source",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
       accessorKey: "name",
       header: "Name",
       id: "name",
@@ -258,6 +266,7 @@ export default function ScoresTable({
     return {
       id: score.id,
       timestamp: score.timestamp.toLocaleString(),
+      source: score.source,
       name: score.name,
       value: score.value,
       comment: score.comment ?? undefined,
