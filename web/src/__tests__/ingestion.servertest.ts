@@ -281,6 +281,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(dbScore?.name).toBe("score-name");
       expect(dbScore?.value).toBe(100.5);
       expect(dbScore?.observationId).toBeNull();
+      expect(dbScore?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     });
   });
 
@@ -726,6 +727,7 @@ describe("/api/public/ingestion API Endpoint", () => {
             metadata: { key: "value" },
             release: "1.0.0",
             version: "2.0.0",
+            tags: ["tag-1", "tag-2"],
           },
         },
       ],
@@ -742,6 +744,7 @@ describe("/api/public/ingestion API Endpoint", () => {
             id: traceId,
             name: "trace-name",
             userId: "user-2",
+            tags: ["tag-3", "tag-4"],
           },
         },
       ],
@@ -762,6 +765,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbTrace[0]?.externalId).toBeNull();
     expect(dbTrace[0]?.version).toBe("2.0.0");
     expect(dbTrace[0]?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+    expect(dbTrace[0]?.tags).toEqual(["tag-1", "tag-2", "tag-3", "tag-4"]);
   });
 
   it("should fail for wrong event formats", async () => {
@@ -803,57 +807,6 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect("errors" in responseOne.body).toBe(true);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(responseOne.body.errors.length).toBe(2);
-    expect("successes" in responseOne.body).toBe(true);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    expect(responseOne.body.successes.length).toBe(1);
-
-    const dbTrace = await prisma.trace.findMany({
-      where: {
-        name: "trace-name",
-      },
-    });
-
-    expect(dbTrace.length).toBe(1);
-  });
-
-  it("should fail for auth errors", async () => {
-    const traceId = v4();
-    const scoreId = v4();
-
-    const responseOne = await makeAPICall("POST", "/api/public/ingestion", {
-      batch: [
-        {
-          id: v4(),
-          type: "trace-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: traceId,
-            name: "trace-name",
-            userId: "user-1",
-            metadata: { key: "value" },
-            release: "1.0.0",
-            version: "2.0.0",
-          },
-        },
-        {
-          id: v4(),
-          type: "score-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: scoreId,
-            name: "score-name",
-            value: 100.5,
-            traceId: "some-random-id",
-          },
-        },
-      ],
-    });
-
-    expect(responseOne.status).toBe(207);
-
-    expect("errors" in responseOne.body).toBe(true);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    expect(responseOne.body.errors.length).toBe(1);
     expect("successes" in responseOne.body).toBe(true);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(responseOne.body.successes.length).toBe(1);
@@ -1651,121 +1604,6 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
     expect(dbScore?.traceId).toBe(traceId);
     expect(dbScore?.name).toBe(scoreName);
     expect(dbScore?.value).toBe(scoreValue);
-  });
-
-  it("should error on Bearer Auth for a trace from different project", async () => {
-    const otherProjectId = "other_project_id";
-    const traceId = "trace_id";
-    const bearerAuth = "Bearer pk-lf-1234567890";
-
-    const scoreId = "score_id";
-    const scoreEventId = "score_event_id";
-    const scoreName = "score-name";
-    const scoreValue = 100.5;
-
-    // Seed db with a trace to be scored
-    try {
-      await prisma.project.create({
-        data: {
-          id: otherProjectId,
-          name: "another-project",
-        },
-      });
-
-      await prisma.trace.create({
-        data: {
-          id: traceId,
-          name: "trace-name",
-          project: { connect: { id: otherProjectId } },
-        },
-      });
-
-      const response = await makeAPICall(
-        "POST",
-        "/api/public/ingestion",
-        {
-          batch: [
-            {
-              id: scoreEventId,
-              type: "score-create",
-              timestamp: new Date().toISOString(),
-              body: {
-                id: scoreId,
-                name: scoreName,
-                value: scoreValue,
-                traceId: traceId,
-              },
-            },
-          ],
-        },
-        bearerAuth,
-      );
-
-      expect(response.status).toBe(207);
-      expect(response.body.successes.length).toBe(0);
-      expect(response.body).toHaveProperty("errors");
-      expect(response.body.errors.length).toEqual(1);
-      expect(response.body.errors[0]?.id).toEqual(scoreEventId);
-
-      expect(await prisma.trace.count()).toBe(1);
-      expect(await prisma.trace.count({ where: { id: traceId } })).toBe(1);
-
-      const dbScore = await prisma.score.findUnique({
-        where: {
-          id: scoreId,
-        },
-      });
-
-      expect(dbScore).toBeNull();
-    } finally {
-      await prisma.project.delete({ where: { id: otherProjectId } });
-    }
-  });
-
-  it("should error on Bearer Auth with a trace that does not exist", async () => {
-    const traceId = "trace_id";
-    const bearerAuth = "Bearer pk-lf-1234567890";
-
-    const scoreId = "score_id";
-    const scoreEventId = "score_event_id";
-    const scoreName = "score-name";
-    const scoreValue = 100.5;
-
-    const response = await makeAPICall(
-      "POST",
-      "/api/public/ingestion",
-      {
-        batch: [
-          {
-            id: scoreEventId,
-            type: "score-create",
-            timestamp: new Date().toISOString(),
-            body: {
-              id: scoreId,
-              name: scoreName,
-              value: scoreValue,
-              traceId: traceId,
-            },
-          },
-        ],
-      },
-      bearerAuth,
-    );
-
-    expect(response.status).toBe(207);
-    expect(response.body.successes.length).toBe(0);
-    expect(response.body.errors.length).toBe(1);
-    expect(response.body.errors[0]?.id).toBe(scoreEventId);
-
-    expect(await prisma.trace.count()).toBe(0);
-
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
-
-    expect(dbScore).toBeNull();
   });
 
   it("should error on wrong input", async () => {

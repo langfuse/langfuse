@@ -12,6 +12,8 @@ import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import useCommandEnter from "@/src/ee/features/playground/page/hooks/useCommandEnter";
+import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ChatMessageListSchema } from "@/src/features/prompts/components/NewPromptForm/validation";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -27,7 +29,6 @@ import {
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
 import type { ModelParamsContext } from "@/src/components/ModelParameters";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
@@ -106,8 +107,8 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   }, [initialPrompt]);
 
   useEffect(() => {
-    setModelParams(getDefaultModelParams(modelParams.provider));
-  }, [modelParams.provider]);
+    setModelParams(getDefaultModelParams(modelParams.provider.value));
+  }, [modelParams.provider.value]);
 
   const updatePromptVariables = useCallback(() => {
     const messageContents = messages.map((m) => m.content).join("\n");
@@ -209,11 +210,22 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   useCommandEnter(!isStreaming, handleSubmit);
 
-  const updateModelParam: PlaygroundContextType["updateModelParam"] = (
+  const updateModelParamValue: PlaygroundContextType["updateModelParamValue"] =
+    (key, value) => {
+      setModelParams((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], value },
+      }));
+    };
+
+  const setModelParamEnabled: PlaygroundContextType["setModelParamEnabled"] = (
     key,
-    value,
+    enabled,
   ) => {
-    setModelParams((prev) => ({ ...prev, [key]: value }));
+    setModelParams((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], enabled },
+    }));
   };
 
   const updatePromptVariableValue = (variable: string, value: string) => {
@@ -239,7 +251,8 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         deleteMessage,
 
         modelParams,
-        updateModelParam,
+        updateModelParamValue,
+        setModelParamEnabled,
 
         output,
         outputJson,
@@ -257,7 +270,10 @@ async function* getChatCompletionStream(
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
 ) {
-  const body = JSON.stringify({ messages, modelParams });
+  const body = JSON.stringify({
+    messages,
+    modelParams: getFinalModelParams(modelParams),
+  });
   const result = await fetch("/api/chatCompletion", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -325,23 +341,29 @@ function getDefaultModelParams(provider: ModelProvider): UIModelParams {
     // Docs: https://platform.openai.com/docs/api-reference/chat/create
     case ModelProvider.OpenAI:
       return {
-        provider,
-        model: "gpt-3.5-turbo",
-        temperature: 1,
-        maxTemperature: 2,
-        max_tokens: 256,
-        top_p: 1,
+        provider: {
+          value: provider,
+          enabled: true,
+        },
+        model: { value: "gpt-3.5-turbo", enabled: true },
+        temperature: { value: 1, enabled: true },
+        maxTemperature: { value: 2, enabled: true },
+        max_tokens: { value: 256, enabled: true },
+        top_p: { value: 1, enabled: true },
       };
 
     // Docs: https://docs.anthropic.com/claude/reference/messages_post
     case ModelProvider.Anthropic:
       return {
-        provider,
-        model: "claude-3-opus-20240229",
-        temperature: 0,
-        maxTemperature: 1,
-        max_tokens: 256,
-        top_p: 1,
+        provider: {
+          value: provider,
+          enabled: true,
+        },
+        model: { value: "claude-3-opus-20240229", enabled: true },
+        temperature: { value: 0, enabled: true },
+        maxTemperature: { value: 1, enabled: true },
+        max_tokens: { value: 256, enabled: true },
+        top_p: { value: 1, enabled: true },
       };
   }
 }
@@ -353,9 +375,9 @@ function getOutputJson(
 ) {
   return JSON.stringify(
     {
-      output,
       input: messages.map((obj) => filterKeyFromObject(obj, "id")),
-      model: filterKeyFromObject(modelParams, "maxTemperature"),
+      output,
+      model: getFinalModelParams(modelParams),
     },
     null,
     2,

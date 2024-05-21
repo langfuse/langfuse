@@ -256,33 +256,31 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div>
-      <DataTable
-        columns={columns}
-        data={
-          models.isLoading
-            ? { isLoading: true, isError: false }
-            : models.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: models.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: models.data.models.map((t) => convertToTableRow(t)),
-                }
-        }
-        pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-      />
-    </div>
+    <DataTable
+      columns={columns}
+      data={
+        models.isLoading
+          ? { isLoading: true, isError: false }
+          : models.isError
+            ? {
+                isLoading: false,
+                isError: true,
+                error: models.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: models.data.models.map((t) => convertToTableRow(t)),
+              }
+      }
+      pagination={{
+        pageCount: Math.ceil(totalCount / paginationState.pageSize),
+        onChange: setPaginationState,
+        state: paginationState,
+      }}
+      columnVisibility={columnVisibility}
+      onColumnVisibilityChange={setColumnVisibility}
+    />
   );
 }
 

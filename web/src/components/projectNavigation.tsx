@@ -32,7 +32,7 @@ export const ProjectNavigation: React.FC<ProjectNavigationProps> = ({
         router.push(`/project/${value}`);
       }}
     >
-      <SelectTrigger className="text-primary ring-transparent focus:ring-0 focus:ring-offset-0">
+      <SelectTrigger className="h-8 text-primary ring-transparent focus:ring-0 focus:ring-offset-0">
         <SelectValue
           className="text-sm font-semibold text-primary"
           placeholder={currentProjectId}

@@ -39,7 +39,7 @@ export const LangfuseLogo = ({
     {showEnvLabel && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && (
       <div
         className={cn(
-          "flex items-center gap-2 self-stretch rounded-md px-3 py-2 text-xs ring-1 lg:-mx-2",
+          "flex items-center gap-2 self-stretch rounded-md px-1 py-1 text-xs ring-1 sm:px-3 sm:py-2 lg:-mx-2",
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
             ? "bg-light-blue text-dark-blue ring-dark-blue"
             : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
@@ -48,9 +48,9 @@ export const LangfuseLogo = ({
         )}
       >
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? (
-          <Check size={16} />
+          <Check size={16} className="hidden sm:block" />
         ) : (
-          <AlertTriangle size={16} />
+          <AlertTriangle size={16} className="hidden sm:block" />
         )}
         <span className="whitespace-nowrap">
           {["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)

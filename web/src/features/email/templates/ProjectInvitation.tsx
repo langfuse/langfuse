@@ -23,6 +23,7 @@ interface ProjectInvitationTemplateProps {
   projectName: string;
   recieverEmail: string;
   inviteLink: string;
+  langfuseCloudRegion?: string;
 }
 
 export const ProjectInvitationTemplate = ({
@@ -31,6 +32,7 @@ export const ProjectInvitationTemplate = ({
   projectName,
   recieverEmail,
   inviteLink,
+  langfuseCloudRegion,
 }: ProjectInvitationTemplateProps) => {
   const previewText = `Join ${invitedByUsername} on Langfuse`;
 
@@ -63,7 +65,10 @@ export const ProjectInvitationTemplate = ({
                 {invitedByUserEmail}
               </Link>
               ) has invited you to the <strong>{projectName}</strong> project on
-              Langfuse.
+              {langfuseCloudRegion
+                ? ` Langfuse (${langfuseCloudRegion} data region)`
+                : " Langfuse"}
+              .
             </Text>
             <Section className="mb-4 mt-8 text-center">
               <Button

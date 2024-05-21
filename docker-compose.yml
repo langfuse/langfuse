@@ -4,7 +4,8 @@ services:
   langfuse-server:
     image: ghcr.io/langfuse/langfuse:latest
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
@@ -18,6 +19,11 @@ services:
   db:
     image: postgres
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres

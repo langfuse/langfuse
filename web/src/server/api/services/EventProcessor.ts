@@ -1,5 +1,4 @@
 import { tokenCount } from "@/src/features/ingest/lib/usage";
-import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import {
   type legacyObservationCreateEvent,
@@ -439,7 +438,7 @@ export class TraceProcessor implements EventProcessor {
 
     if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
       throw new ForbiddenError(
-        `Access denied for trace creation ${existingTrace.projectId} `,
+        `Access denied for trace creation ${existingTrace.projectId}`,
       );
     }
 
@@ -449,6 +448,10 @@ export class TraceProcessor implements EventProcessor {
         : undefined,
       body.metadata ?? undefined,
     );
+
+    const mergedTags = existingTrace?.tags
+      ? existingTrace.tags.concat(body.tags ?? [])
+      : body.tags;
 
     if (body.sessionId) {
       await prisma.traceSession.upsert({
@@ -487,7 +490,7 @@ export class TraceProcessor implements EventProcessor {
         sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
         projectId: apiScope.projectId,
-        tags: body.tags ?? undefined,
+        tags: mergedTags ?? undefined,
       },
       update: {
         name: body.name ?? undefined,
@@ -502,7 +505,7 @@ export class TraceProcessor implements EventProcessor {
         version: body.version ?? undefined,
         sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
-        tags: body.tags ?? undefined,
+        tags: mergedTags ?? undefined,
       },
     });
     return upsertedTrace;
@@ -520,52 +523,53 @@ export class ScoreProcessor implements EventProcessor {
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
-    const accessCheck = await checkApiAccessScope(
-      apiScope,
-      [
-        { type: "trace", id: body.traceId },
-        ...(body.observationId
-          ? [{ type: "observation" as const, id: body.observationId }]
-          : []),
-      ],
-      "score",
-    );
-    if (!accessCheck)
-      throw new ForbiddenError("Access denied for score creation");
+    if (apiScope.accessLevel !== "scores" && apiScope.accessLevel !== "all")
+      throw new ForbiddenError(
+        `Access denied for score creation, ${apiScope.accessLevel}`,
+      );
 
     const id = body.id ?? v4();
 
-    // access control via traceId
+    const existingScore = await prisma.score.findFirst({
+      where: {
+        id: id,
+      },
+      select: {
+        projectId: true,
+      },
+    });
+    if (existingScore && existingScore.projectId !== apiScope.projectId) {
+      throw new ForbiddenError(
+        `Access denied for score creation ${existingScore.projectId}`,
+      );
+    }
+
     return await prisma.score.upsert({
       where: {
-        id_traceId: {
+        id_projectId: {
           id,
-          traceId: body.traceId,
+          projectId: apiScope.projectId,
         },
       },
       create: {
         id,
         projectId: apiScope.projectId,
-        trace: { connect: { id: body.traceId } },
+        traceId: body.traceId,
+        observationId: body.observationId ?? undefined,
         timestamp: new Date(),
         value: body.value,
         name: body.name,
-        source: "API",
         comment: body.comment,
-        ...(body.observationId && {
-          observation: { connect: { id: body.observationId } },
-        }),
+        source: "API",
       },
       update: {
+        traceId: body.traceId,
+        observationId: body.observationId ?? undefined,
         timestamp: new Date(),
-        projectId: apiScope.projectId,
         value: body.value,
         name: body.name,
         comment: body.comment,
         source: "API",
-        ...(body.observationId && {
-          observation: { connect: { id: body.observationId } },
-        }),
       },
     });
   }

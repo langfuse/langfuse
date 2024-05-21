@@ -2,13 +2,14 @@ import Header from "@/src/components/layouts/header";
 
 import { useRouter } from "next/router";
 import ScoresTable from "@/src/components/table/use-cases/scores";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function ScoresPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   return (
-    <div>
+    <FullScreenPage>
       <Header
         title="Scores"
         help={{
@@ -18,6 +19,6 @@ export default function ScoresPage() {
         }}
       />
       <ScoresTable projectId={projectId} />
-    </div>
+    </FullScreenPage>
   );
 }

@@ -65,7 +65,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"datasetName\": \"example\",\n    \"input\": \"UNKNOWN\",\n    \"expectedOutput\": \"UNKNOWN\",\n    \"metadata\": \"UNKNOWN\",\n    \"sourceTraceId\": \"example\",\n    \"sourceObservationId\": \"example\",\n    \"id\": \"example\"\n}",
+              "raw": "{\n    \"datasetName\": \"example\",\n    \"input\": \"UNKNOWN\",\n    \"expectedOutput\": \"UNKNOWN\",\n    \"metadata\": \"UNKNOWN\",\n    \"sourceTraceId\": \"example\",\n    \"sourceObservationId\": \"example\",\n    \"id\": \"example\",\n    \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -599,7 +599,7 @@ export default function TracesTable({
     useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
@@ -661,7 +661,7 @@ export default function TracesTable({
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}
       />
-    </div>
+    </>
   );
 }
 

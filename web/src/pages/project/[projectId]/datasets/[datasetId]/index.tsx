@@ -8,6 +8,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function Dataset() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function Dataset() {
   });
 
   return (
-    <div>
+    <FullScreenPage>
       <Header
         title={dataset.data?.name ?? ""}
         breadcrumb={[
@@ -93,6 +94,6 @@ export default function Dataset() {
         </a>{" "}
         for details.
       </p>
-    </div>
+    </FullScreenPage>
   );
 }

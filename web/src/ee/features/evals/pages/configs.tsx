@@ -6,6 +6,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { Lock } from "lucide-react";
 import EvalConfigTable from "@/src/ee/features/evals/components/eval-config-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function ConfigsPage() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function ConfigsPage() {
   });
 
   return (
-    <div>
+    <FullScreenPage>
       <Header
         title="Eval configs"
         help={{
@@ -43,6 +44,6 @@ export default function ConfigsPage() {
         }
       />
       <EvalConfigTable projectId={projectId} />
-    </div>
+    </FullScreenPage>
   );
 }

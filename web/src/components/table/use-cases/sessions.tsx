@@ -335,7 +335,7 @@ export default function SessionsTable({
     useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         filterColumnDefinition={transformFilterOptions()}
         filterState={userFilterState}
@@ -376,6 +376,6 @@ export default function SessionsTable({
           href: "https://langfuse.com/docs/tracing-features/sessions",
         }}
       />
-    </div>
+    </>
   );
 }

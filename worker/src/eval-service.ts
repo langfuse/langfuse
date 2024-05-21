@@ -1,34 +1,35 @@
+import { randomUUID } from "crypto";
+import Handlebars from "handlebars";
+import { sql } from "kysely";
 import { z } from "zod";
 
 import {
+  ApiError,
+  availableEvalVariables,
   ChatMessageRole,
   EvalExecutionEvent,
+  evalLLMModels,
+  EvalModelNames,
+  evalTableCols,
+  fetchLLMCompletion,
+  ForbiddenError,
+  LangfuseNotFoundError,
+  ModelProvider,
+  Prisma,
   QueueJobs,
   QueueName,
-  fetchLLMCompletion,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
-  tracesTableCols,
-  variableMappingList,
   TraceUpsertEvent,
-  EvalModelNames,
-  evalLLMModels,
-  ZodModelConfig,
-  availableEvalVariables,
-  LangfuseNotFoundError,
-  ForbiddenError,
   ValidationError,
-  ApiError,
-  evalTableCols,
+  variableMappingList,
+  ZodModelConfig,
 } from "@langfuse/shared";
-import { Prisma } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { randomUUID } from "crypto";
-import { evalQueue } from "./redis/consumer";
-import { sql } from "kysely";
-import Handlebars from "handlebars";
+
 import logger from "./logger";
+import { evalQueue } from "./redis/consumer";
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
@@ -249,11 +250,19 @@ export const evaluate = async ({
   });
 
   const evalModel = EvalModelNames.parse(template.model);
-  const provider = evalLLMModels.find((m) => m.model === evalModel)?.provider;
+  const provider = evalLLMModels.find((m) => m.model.value === evalModel)
+    ?.provider.value;
   const modelParams = ZodModelConfig.parse(template.model_params);
 
   if (!provider) {
     throw new LangfuseNotFoundError(`Model ${evalModel} provider not found`);
+  }
+
+  if (provider !== ModelProvider.OpenAI) {
+    // Needed for type checking downstream in the fetchLLMCompletion function
+    throw new ForbiddenError(
+      `Model ${evalModel} provider ${provider} not supported`
+    );
   }
 
   // the apiKey.secret_key must never be printed to the console or returned to the client.
@@ -278,7 +287,7 @@ export const evaluate = async ({
       apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
       messages: [{ role: ChatMessageRole.System, content: prompt }],
       modelParams: {
-        provider: provider,
+        provider,
         model: evalModel,
         ...modelParams,
       },
