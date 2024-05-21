@@ -190,7 +190,7 @@ export const OpenAiMessageView: React.FC<{
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",
                       message.role === "assistant" &&
-                        "bg-accent-light-green dark:border-accent-dark-green",
+                        "border-accent-dark-green bg-accent-light-green",
                       message.role === "user" && "bg-background",
                       !!message.json && "rounded-b-none",
                     )}
@@ -206,7 +206,7 @@ export const OpenAiMessageView: React.FC<{
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",
                       message.role === "assistant" &&
-                        "bg-accent-light-green dark:border-accent-dark-green",
+                        "border-accent-dark-green bg-accent-light-green",
                       message.role === "user" && "bg-foreground",
                       !!message.content && "rounded-t-none border-t-0",
                     )}
