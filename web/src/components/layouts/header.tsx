@@ -1,6 +1,5 @@
-import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/20/solid";
+import { ChevronLeftIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
-import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { type Status, StatusBadge } from "./status-badge";
@@ -14,11 +13,13 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { ChevronDownIcon, Settings, Slash } from "lucide-react";
@@ -40,12 +41,6 @@ export default function Header({
   level?: "h2" | "h3";
   className?: string;
 }) {
-  const router = useRouter();
-  const session = useSession();
-
-  const currentPath = router.pathname;
-  const projectId = router.query.projectId;
-
   const backHref =
     props.breadcrumb &&
     [...props.breadcrumb.map((i) => i.href).filter(Boolean)].pop();
@@ -136,6 +131,8 @@ const BreadcrumbComponent = ({
               <ChevronDownIcon className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+              <DropdownMenuSeparator />
               {session.data?.user?.organizations.map((org) => (
                 <DropdownMenuItem key={org.id} asChild>
                   <Link
@@ -156,6 +153,7 @@ const BreadcrumbComponent = ({
                   </Link>
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <NewOrganizationButton inBreadcrumb />
               </DropdownMenuItem>
@@ -173,6 +171,8 @@ const BreadcrumbComponent = ({
                 <ChevronDownIcon className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
+                <DropdownMenuLabel>Projects</DropdownMenuLabel>
+                <DropdownMenuSeparator />
                 {organization.projects.map((project) => (
                   <DropdownMenuItem key={project.id} asChild>
                     <Link
@@ -193,6 +193,7 @@ const BreadcrumbComponent = ({
                     </Link>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <NewProjectButton orgId={organization.id} inBreadcrumb />
                 </DropdownMenuItem>
