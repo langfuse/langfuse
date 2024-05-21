@@ -33,6 +33,8 @@ export const TracePreview = ({
     withDefault(StringParam, "preview"),
   );
 
+  const traceScores = scores.filter((s) => s.observationId === null);
+
   return (
     <Card className="flex-1">
       <div className="flex justify-end border-b">
@@ -106,6 +108,26 @@ export const TracePreview = ({
               title="Metadata"
               json={trace.metadata}
             />
+            {Boolean(traceScores.length) && (
+              <div className="flex flex-col gap-2 rounded-md border py-2">
+                <span className="border-b px-3 text-xs font-semibold">
+                  Scores
+                </span>
+                <div
+                  className={`grid grid-flow-col grid-rows-${traceScores.length === 1 ? "1" : "2"} gap-2 overflow-x-auto`}
+                >
+                  {traceScores.map((score) => (
+                    <div
+                      key={score.id}
+                      className="ml-3 flex max-w-fit flex-row gap-1 whitespace-nowrap rounded-sm bg-secondary p-1 px-3 text-xs"
+                    >
+                      <span className="font-medium">{`${score.name}:`}</span>
+                      <span>{score.value.toFixed(4)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
         {selectedTab === "scores" && (

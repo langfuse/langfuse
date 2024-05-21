@@ -48,6 +48,10 @@ export const ObservationPreview = (props: {
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
 
+  const observationScores = props.scores.filter(
+    (s) => s.observationId === preloadedObservation.id,
+  );
+
   return (
     <Card className="flex-1">
       <div className="flex justify-end border-b">
@@ -182,9 +186,28 @@ export const ObservationPreview = (props: {
                 json={observationWithInputAndOutput.data.metadata}
               />
             ) : null}
+            {Boolean(observationScores.length) && (
+              <div className="flex flex-col gap-2 rounded-md border py-2">
+                <span className="border-b px-3 text-xs font-semibold">
+                  Scores
+                </span>
+                <div
+                  className={`grid grid-flow-col grid-rows-${observationScores.length === 1 ? "1" : "2"} gap-2 overflow-x-auto`}
+                >
+                  {observationScores.map((score) => (
+                    <div
+                      key={score.id}
+                      className="ml-3 flex max-w-fit flex-row gap-1 whitespace-nowrap rounded-sm bg-secondary p-1 px-3 text-xs"
+                    >
+                      <span className="font-medium">{`${score.name}:`}</span>
+                      <span>{score.value.toFixed(4)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
-
         {selectedTab === "scores" && (
           <ScoresTable
             projectId={props.projectId}
