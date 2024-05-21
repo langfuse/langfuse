@@ -14,7 +14,6 @@ import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey } from "../src/server/auth";
 
 const LOAD_TRACE_VOLUME = 10_000;
-const DEMO_USER_ID_NUMBER = 1;
 
 const options = {
   environment: { type: "string" },
@@ -28,14 +27,14 @@ async function main() {
   }).values.environment;
 
   const user = await prisma.user.upsert({
-    where: { id: `user-${DEMO_USER_ID_NUMBER}` },
+    where: { id: "user-1" },
     update: {
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
     },
     create: {
-      id: `user-${DEMO_USER_ID_NUMBER}`,
+      id: "user-1",
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
@@ -151,21 +150,20 @@ async function main() {
 
     const traceVolume = environment === "load" ? LOAD_TRACE_VOLUME : 100;
 
-    const { traces, observations, scores, sessions, events, users } =
-      createObjects(
-        traceVolume,
-        envTags,
-        colorTags,
-        project1,
-        project2,
-        promptIds
-      );
+    const { traces, observations, scores, sessions, events } = createObjects(
+      traceVolume,
+      envTags,
+      colorTags,
+      project1,
+      project2,
+      promptIds
+    );
 
     console.log(
       `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
     );
 
-    await uploadObjects(traces, observations, scores, sessions, events, users);
+    await uploadObjects(traces, observations, scores, sessions, events);
 
     // add eval objects
     const evalTemplate = await prisma.evalTemplate.upsert({
@@ -331,8 +329,7 @@ async function uploadObjects(
   observations: Prisma.ObservationCreateManyInput[],
   scores: Prisma.ScoreCreateManyInput[],
   sessions: Prisma.TraceSessionCreateManyInput[],
-  events: Prisma.ObservationCreateManyInput[],
-  users: Prisma.UserCreateManyInput[]
+  events: Prisma.ObservationCreateManyInput[]
 ) {
   let promises: Prisma.PrismaPromise<unknown>[] = [];
 
@@ -429,23 +426,6 @@ async function uploadObjects(
     );
     await promises[i];
   }
-
-  promises = [];
-  chunk(users, chunkSize).forEach((chunk) => {
-    promises.push(
-      prisma.user.createMany({
-        data: chunk,
-      })
-    );
-  });
-  for (let i = 0; i < promises.length; i++) {
-    process.stdout.clearLine(0);
-    process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Users ${(i / promises.length) * 100}% complete`
-    );
-    await promises[i];
-  }
 }
 
 function createObjects(
@@ -461,7 +441,6 @@ function createObjects(
   const scores: Prisma.ScoreCreateManyInput[] = [];
   const sessions: Prisma.TraceSessionCreateManyInput[] = [];
   const events: Prisma.ObservationCreateManyInput[] = [];
-  const users: Prisma.UserCreateManyInput[] = [];
 
   for (let i = 0; i < traceVolume; i++) {
     // print progress to console with a progress bar that refreshes every 10 iterations
@@ -541,20 +520,6 @@ function createObjects(
     ];
 
     scores.push(...traceScores);
-
-    if (i !== DEMO_USER_ID_NUMBER) {
-      const user = {
-        id: `user-${i}`,
-        email: `user-${Math.random()}@langfuse.com`,
-        name: `User ${i}`,
-        image:
-          i % 2 === 0
-            ? "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png"
-            : undefined,
-      };
-
-      users.push(user);
-    }
 
     const existingSpanIds: string[] = [];
 
@@ -789,7 +754,6 @@ function createObjects(
     scores,
     sessions: uniqueSessions,
     events,
-    users,
   };
 }
 
