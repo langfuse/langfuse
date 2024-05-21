@@ -4,6 +4,11 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -28,6 +33,10 @@ export type ScoresTableRow = {
   traceName?: string;
   userId?: string;
   jobConfigurationId?: string;
+  user: {
+    image?: string;
+    name?: string;
+  };
 };
 
 export type ScoreFilterInput = Omit<
@@ -215,6 +224,36 @@ export default function ScoresTable({
       },
     },
     {
+      accessorKey: "user",
+      id: "user",
+      header: "User Name",
+      cell: ({ row }) => {
+        const { name, image } = row.getValue("user") as ScoresTableRow["user"];
+        if (!name) return null;
+
+        return (
+          <div className="flex items-center space-x-2">
+            <Avatar className="h-7 w-7">
+              <AvatarImage
+                src={image ?? undefined}
+                alt={name ?? "User Avatar"}
+              />
+              <AvatarFallback>
+                {name
+                  ? name
+                      .split(" ")
+                      .map((word) => word[0])
+                      .slice(0, 2)
+                      .concat("")
+                  : null}
+              </AvatarFallback>
+            </Avatar>
+            <span>{name}</span>
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "jobConfigurationId",
       header: "Eval Configuration ID",
       id: "jobConfigurationId",
@@ -275,6 +314,10 @@ export default function ScoresTable({
       traceName: score.traceName ?? undefined,
       userId: score.userId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
+      user: {
+        image: score.userImage ?? undefined,
+        name: score.userName ?? undefined,
+      },
     };
   };
 
