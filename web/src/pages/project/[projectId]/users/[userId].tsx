@@ -68,7 +68,7 @@ export default function UserPage() {
           <select
             id="tabs"
             name="tabs"
-            className="focus:border-muted-indigo focus:ring-muted-indigo block w-full rounded-md border-border py-2 pl-3 pr-10 text-base focus:outline-none sm:text-sm"
+            className="block w-full rounded-md border-border py-2 pl-3 pr-10 text-base focus:outline-none sm:text-sm"
             defaultValue={currentTab}
             onChange={(e) => setCurrentTab(e.currentTarget.value)}
           >
@@ -85,7 +85,7 @@ export default function UserPage() {
                   key={tab}
                   className={classNames(
                     tab === currentTab
-                      ? "text-primary-accent border-primary-accent"
+                      ? "border-primary-accent text-primary-accent"
                       : "border-transparent text-muted-foreground hover:border-border hover:text-primary",
                     "whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium",
                   )}
