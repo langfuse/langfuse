@@ -18,8 +18,8 @@ import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { useEffect, useState } from "react";
-import { ScoresTablePreview } from "@/src/components/trace/ScoresTablePreview";
+import { withDefault, StringParam, useQueryParam } from "use-query-params";
+import ScoresTable from "@/src/components/table/use-cases/scores";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -28,11 +28,10 @@ export const ObservationPreview = (props: {
   currentObservationId: string;
   traceId: string;
 }) => {
-  const [selectedTab, setSelectedTab] = useState("preview");
-
-  useEffect(() => {
-    setSelectedTab("preview");
-  }, [props.currentObservationId]);
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "view",
+    withDefault(StringParam, "preview"),
+  );
 
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: props.currentObservationId,
@@ -48,10 +47,6 @@ export const ObservationPreview = (props: {
   );
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
-
-  const isScoreAttached = props.scores.some(
-    (s) => s.observationId === preloadedObservation.id,
-  );
 
   return (
     <Card className="flex-1">
@@ -190,13 +185,13 @@ export const ObservationPreview = (props: {
           </>
         )}
 
-        {selectedTab === "scores" && isScoreAttached ? (
-          <ScoresTablePreview
-            scores={props.scores.filter(
-              (s) => s.observationId === preloadedObservation.id,
-            )}
+        {selectedTab === "scores" && (
+          <ScoresTable
+            projectId={props.projectId}
+            omittedFilter={["Observation ID"]}
+            observationId={preloadedObservation.id}
           />
-        ) : null}
+        )}
       </CardContent>
     </Card>
   );

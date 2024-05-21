@@ -16,8 +16,8 @@ import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { useState } from "react";
-import { ScoresTablePreview } from "@/src/components/trace/ScoresTablePreview";
+import { withDefault, StringParam, useQueryParam } from "use-query-params";
+import ScoresTable from "@/src/components/table/use-cases/scores";
 
 export const TracePreview = ({
   trace,
@@ -28,8 +28,10 @@ export const TracePreview = ({
   observations: ObservationReturnType[];
   scores: Score[];
 }) => {
-  const [selectedTab, setSelectedTab] = useState("preview");
-  const isScoreAttached = scores.some((s) => s.observationId === null);
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "view",
+    withDefault(StringParam, "preview"),
+  );
 
   return (
     <Card className="flex-1">
@@ -106,11 +108,13 @@ export const TracePreview = ({
             />
           </>
         )}
-        {selectedTab === "scores" && isScoreAttached ? (
-          <ScoresTablePreview
-            scores={scores.filter((s) => s.observationId === null)}
+        {selectedTab === "scores" && (
+          <ScoresTable
+            projectId={trace.projectId}
+            omittedFilter={["Trace ID"]}
+            traceId={trace.id}
           />
-        ) : null}
+        )}
       </CardContent>
       <CardFooter></CardFooter>
     </Card>

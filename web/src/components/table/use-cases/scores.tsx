@@ -13,6 +13,7 @@ import {
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
+import { type FilterState } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
@@ -33,13 +34,33 @@ export type ScoreFilterInput = Omit<
   "projectId" | "userId"
 >;
 
+function createFilterState(
+  userFilterState: FilterState,
+  omittedFilters: Record<string, string>[],
+) {
+  return omittedFilters.reduce((filterState, { key, value }) => {
+    return filterState.concat([
+      {
+        column: `${key}`,
+        type: "string",
+        operator: "=",
+        value: value,
+      },
+    ]);
+  }, userFilterState);
+}
+
 export default function ScoresTable({
   projectId,
   userId,
+  traceId,
+  observationId,
   omittedFilter = [],
 }: {
   projectId: string;
   userId?: string;
+  traceId?: string;
+  observationId?: string;
   omittedFilter?: string[];
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
@@ -53,16 +74,12 @@ export default function ScoresTable({
     [],
     "scores",
   );
-  const filterState = userId
-    ? userFilterState.concat([
-        {
-          column: "User ID",
-          type: "string",
-          operator: "=",
-          value: userId,
-        },
-      ])
-    : userFilterState;
+
+  const filterState = createFilterState(userFilterState, [
+    ...(userId ? [{ key: "User ID", value: userId }] : []),
+    ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
+    ...(observationId ? [{ key: "Observation ID", value: observationId }] : []),
+  ]);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
