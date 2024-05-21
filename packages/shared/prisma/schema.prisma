@@ -373,6 +373,7 @@ view ObservationView {
     calculatedOutputCost Decimal? @map("calculated_output_cost")
     calculatedTotalCost  Decimal? @map("calculated_total_cost")
     latency              Float?   @map("latency")
+    timeToFirstToken     Float?   @map("time_to_first_token")
 
     @@map("observations_view")
 }
