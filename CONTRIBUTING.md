@@ -294,27 +294,67 @@ When a new release is tagged on the `main` branch (excluding prereleases), it tr
 
 At Langfuse, we utilize CSS variables to manage our theme settings across the platform.
 
-Our approach leverages separate CSS variables for backgrounds (--background) and foregrounds (--foreground), fully adhering to the [shadcn/ui](https://ui.shadcn.com/docs/theming) color conventions. We recommend using HSL values for these colors to enhance consistency and customization.
+Our approach leverages separate CSS variables for backgrounds (--background) and foregrounds (--foreground), fully adhering to the [shadcn/ui](https://ui.shadcn.com/docs/theming) color conventions. The background suffix can be omitted if the variable is used for the background color of the component. We recommend using HSL values for these colors to enhance consistency and customization. There is no need to manually handle dark mode styling with "dark:" prefixes, as next-themes automatically manages the theme switching.
+
+Given the following CSS variables:
+
+```
+--primary: 222.2 47.4% 11.2%; // e.g. background-color
+--primary-foreground: 210 40% 98%; // e.g. text-color
+```
+
+The background color of the following component will be `hsl(var(--primary))` and the foreground color will be `hsl(var(--primary-foreground))`.
+
+```
+<div class="bg-primary text-primary-foreground">Hello</div>
+```
+
+### Color Variables
+
+| Variable                 | Description                                                        | Examples                         |
+| ------------------------ | ------------------------------------------------------------------ | -------------------------------- |
+| --background             | Background color                                                   | Default background color of body |
+| --foreground             | Foreground color                                                   | Default text color of body       |
+| --muted                  | Muted background color                                             | TabsList, Skeleton and Switch    |
+| --muted-foreground       | Muted foreground color                                             |                                  |
+| --popover                | Popover background color                                           | DropdownMenu, HoverCard, Popover |
+| --popover-foreground     | Popover foreground color                                           |                                  |
+| --card                   | Card background color                                              | Card                             |
+| --card-foreground        | Card foreground color                                              |                                  |
+| --border                 | Border color                                                       | Default border color             |
+| --input                  | Input field border color                                           | Input, Select, Textarea          |
+| --primary                | Primary button background colors                                   | Button variant="primary"         |
+| --primary-foreground     | Primary button foreground color                                    |                                  |
+| --secondary              | Secondary button background color                                  | Button variant="secondary"       |
+| --secondary-foreground   | Secondary button foreground color                                  |                                  |
+| --accent                 | Used for accents such as hover effects                             | DropdownMenuItem, SelectItem     |
+| --accent-foreground      | Used for texts on hover effects                                    | DropdownMenuItem, SelectItem     |
+| --destructive            | Destructive action color for background                            | Button variant="destructive"     |
+| --destructive-foreground | Destructive action color for text                                  |                                  |
+| --ring                   | Focus ring color                                                   | MultiSelect                      |
+| --primary-accent         | Primary accent color used for branding                             | Layout                           |
+| --hover-primary-accent   | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
+| --muted-green            | Muted green for Event label                                        | ObservationTree                  |
+| --muted-orange           | Muted orange for Generation label                                  | ObservationTree                  |
+| --muted-blue             | Muted blue for Span label                                          | ObservationTree                  |
+| --muted-gray             | Muted gray for disabled status badges                              | StatusBadge                      |
+| --accent-light-green     | Light green accent for background of output and assistant messages | IOPreview, Generations, Traces   |
+| --accent-dark-green      | Dark green accent for border of output and assistant messages      | CodeJsonViewer and IOPReview     |
+| --light-red              | Light red for error background                                     | level-color and StatusBadge      |
+| --dark-red               | Dark red for error text and error badge dot color                  | level-color and ErrorPage        |
+| --light-yellow           | Light yellow for warning background                                | LevelColor                       |
+| --dark-yellow            | Dark yellow for warning text                                       | LevelColor                       |
+| --light-green            | Light green for success status badge background                    | StatusBadge                      |
+| --dark-green             | Dark green for success status badge text and dot                   | StatusBadge                      |
+| --light-blue             | Light blue for background of Staging label                         | LangfuseLogo                     |
+| --dark-blue              | Dark blue for text and border of Staging label                     | LangfuseLogo                     |
+| --accent-light-blue      | Light blue accent for table link hover effect                      | TableLink                        |
+| --accent-dark-blue       | Dark blue accent for table link text                               | TableLink                        |
 
 ### Adding New Colors
 
 1. Global Definitions: Add new CSS variable definitions in the global.css file.
 2. Tailwind Configuration: Reflect these new colors in the tailwind.config.js to maintain alignment with Tailwind's utility classes.
-
-### Utility Classes
-
-- Border Color: `border`
-- Primary Text: `primary`
-- Secondary Text: `muted-foreground`
-- Hover States: Use `primary-foreground` or `accent`
-- Background: `background`
-- Main Content: `foreground`
-- Primary Color: `primary`
-- Accents: `primary-accent`
-- Selectable Items: `input`
-- Link Background: `muted-indigo`
-- Link Text: `accent-dark-blue`
-- Link Hover: `accent-light-blue`
 
 By following these guidelines, you can ensure that any contributions to our theme are consistent, maintainable, and aligned with our design system.
 
