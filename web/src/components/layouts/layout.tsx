@@ -382,7 +382,7 @@ export default function Layout(props: PropsWithChildren) {
                           onClick={() => void item.onClick()}
                           className={cn(
                             active ? "bg-primary-foreground" : "",
-                            "flex cursor-pointer items-center justify-between px-2 py-1 text-sm text-primary",
+                            "flex cursor-pointer items-center justify-between px-2 py-0.5 text-sm leading-6 text-primary",
                           )}
                         >
                           {item.name}
@@ -446,8 +446,8 @@ export default function Layout(props: PropsWithChildren) {
                       <a
                         onClick={() => void item.onClick()}
                         className={cn(
-                          active ? "bg-gray-50" : "",
-                          "block cursor-pointer px-3 py-1 text-sm text-gray-900",
+                          active ? "bg-primary-foreground" : "",
+                          "flex cursor-pointer items-center justify-between px-2 py-1 text-sm text-primary",
                         )}
                       >
                         {item.name}
