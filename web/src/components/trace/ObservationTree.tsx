@@ -141,7 +141,7 @@ const ObservationTreeNode = (props: {
                   className={cn(
                     "group my-0.5 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-1",
                     props.currentObservationId === observation.id
-                      ? "bg:muted"
+                      ? "bg-muted"
                       : "hover:bg-primary-foreground",
                   )}
                   onClick={() => props.setCurrentObservationId(observation.id)}
