@@ -393,20 +393,18 @@ enum ObservationLevel {
 }
 
 model Score {
-    id                 String            @id @default(cuid())
-    timestamp          DateTime          @default(now())
-    projectId          String            @map("project_id")
-    project            Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    name               String
-    value              Float
-    source             ScoreSource
-    authorUserId       String?           @map("author_user_id")
-    comment            String?
-    traceId            String            @map("trace_id")
-    observationId      String?           @map("observation_id")
-    JobExecution       JobExecution[]
-    annotationConfigId String?           @map("annotation_config_id")
-    annotationConfig   AnnotationConfig? @relation(fields: [annotationConfigId], references: [id], onDelete: Cascade)
+    id            String         @id @default(cuid())
+    timestamp     DateTime       @default(now())
+    projectId     String         @map("project_id")
+    project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    name          String
+    value         Float
+    source        ScoreSource
+    authorUserId  String?        @map("author_user_id")
+    comment       String?
+    traceId       String         @map("trace_id")
+    observationId String?        @map("observation_id")
+    JobExecution  JobExecution[]
 
     @@unique([id, projectId]) // used for upserts via prisma
     @@index(timestamp)
@@ -414,7 +412,6 @@ model Score {
     @@index([projectId])
     @@index([authorUserId])
     @@index([traceId], type: Hash)
-    @@index([annotationConfigId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([source])
     @@map("scores")
@@ -440,7 +437,6 @@ model AnnotationConfig {
     categories   Json?         @map("categories")
     authorUserId String?       @map("author_user_id")
     description  String?
-    scores       Score[]
 
     @@unique([id, projectId]) // used for upserts via prisma
     @@index([dataType])

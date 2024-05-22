@@ -1,9 +1,6 @@
 -- CreateEnum
 CREATE TYPE "ScoreDataType" AS ENUM ('CATEGORICAL', 'CONTINUOUS');
 
--- AlterTable
-ALTER TABLE "scores" ADD COLUMN     "annotation_config_id" TEXT;
-
 -- CreateTable
 CREATE TABLE "annotation_config" (
     "id" TEXT NOT NULL,
@@ -39,12 +36,6 @@ CREATE INDEX "annotation_config_author_user_id_idx" ON "annotation_config"("auth
 
 -- CreateIndex
 CREATE UNIQUE INDEX "annotation_config_id_project_id_key" ON "annotation_config"("id", "project_id");
-
--- CreateIndex
-CREATE INDEX "scores_annotation_config_id_idx" ON "scores" USING HASH ("annotation_config_id");
-
--- AddForeignKey
-ALTER TABLE "scores" ADD CONSTRAINT "scores_annotation_config_id_fkey" FOREIGN KEY ("annotation_config_id") REFERENCES "annotation_config"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "annotation_config" ADD CONSTRAINT "annotation_config_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
