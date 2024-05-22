@@ -43,4 +43,3 @@ services:
       - "postgres"
       - "-c"
       - "wal_level=logical" #required for MaterializedPostgreSQL
-

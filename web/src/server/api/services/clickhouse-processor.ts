@@ -104,7 +104,7 @@ const storeTraces = async (
     `Inserting trace into clickhouse, ${env.CLICKHOUSE_URL} ${JSON.stringify(insert)}`,
   );
   await clickhouseClient.insert({
-    table: "traces_raw",
+    table: "traces",
     format: "JSONEachRow",
     values: insert,
   });
@@ -188,7 +188,7 @@ const storeObservations = async (
     `Inserting observation into clickhouse, ${env.CLICKHOUSE_URL}, ${JSON.stringify(insert)}`,
   );
   return await clickhouseClient.insert({
-    table: "observations_raw",
+    table: "observations",
     format: "JSONEachRow",
     values: insert,
   });
