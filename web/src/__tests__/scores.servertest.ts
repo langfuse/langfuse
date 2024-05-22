@@ -490,14 +490,14 @@ describe("/api/public/scores API Endpoint", () => {
       });
       expect(getScore.body.data).toMatchObject([
         {
-          id: scoreId_1,
-          name: scoreName,
-          value: 10.5,
-        },
-        {
           id: scoreId_2,
           name: scoreName,
           value: 50.5,
+        },
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
         },
       ]);
     });
@@ -515,14 +515,14 @@ describe("/api/public/scores API Endpoint", () => {
       });
       expect(getScore.body.data).toMatchObject([
         {
-          id: scoreId_2,
-          name: scoreName,
-          value: 50.5,
-        },
-        {
           id: scoreId_3,
           name: scoreName,
           value: 100.8,
+        },
+        {
+          id: scoreId_2,
+          name: scoreName,
+          value: 50.5,
         },
       ]);
     });
@@ -540,14 +540,14 @@ describe("/api/public/scores API Endpoint", () => {
       });
       expect(getScore.body.data).toMatchObject([
         {
-          id: scoreId_1,
-          name: scoreName,
-          value: 10.5,
-        },
-        {
           id: scoreId_3,
           name: scoreName,
           value: 100.8,
+        },
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
         },
       ]);
     });
