@@ -454,7 +454,6 @@ export type VerificationToken = {
 };
 export type DB = {
   Account: Account;
-  score_configs: ScoreConfig;
   api_keys: ApiKey;
   audit_logs: AuditLog;
   cron_jobs: CronJobs;
@@ -476,6 +475,7 @@ export type DB = {
   project_memberships: ProjectMembership;
   projects: Project;
   prompts: Prompt;
+  score_configs: ScoreConfig;
   scores: Score;
   Session: Session;
   sso_configs: SsoConfig;
