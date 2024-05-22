@@ -372,11 +372,11 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 rounded-md bg-background py-2 shadow-lg ring-1 ring-primary/5 focus:outline-none">
+                <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
                   <span className="block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
                     {session.data?.user?.email}
                   </span>
-                  {userNavigation.map((item) => (
+                  {userNavigation.map((item, index) => (
                     <Menu.Item key={item.name}>
                       {({ active }) => (
                         <a
@@ -384,6 +384,9 @@ export default function Layout(props: PropsWithChildren) {
                           className={cn(
                             active ? "bg-primary-foreground" : "",
                             "flex cursor-pointer items-center justify-between px-2 py-0.5 text-sm leading-6 text-primary",
+                            index === userNavigation.length - 1
+                              ? "rounded-b-md"
+                              : "",
                           )}
                         >
                           {item.name}
@@ -437,7 +440,7 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-background py-2 shadow-lg ring-1 ring-primary/5 focus:outline-none">
+              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-background py-2 pb-1 shadow-lg ring-1 ring-border focus:outline-none">
                 <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
                   {session.data?.user?.email}
                 </span>
@@ -448,7 +451,7 @@ export default function Layout(props: PropsWithChildren) {
                         onClick={() => void item.onClick()}
                         className={cn(
                           active ? "bg-primary-foreground" : "",
-                          "flex cursor-pointer items-center justify-between px-2 py-1 text-sm text-primary",
+                          "flex cursor-pointer items-center justify-between px-2 py-1 text-sm leading-6 text-primary",
                         )}
                       >
                         {item.name}
