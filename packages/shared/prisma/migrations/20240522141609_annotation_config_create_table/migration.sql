@@ -1,12 +1,6 @@
 -- CreateEnum
 CREATE TYPE "ScoreDataType" AS ENUM ('CATEGORICAL', 'CONTINUOUS');
 
--- DropIndex
-DROP INDEX "scores_author_user_id_idx";
-
--- DropIndex
-DROP INDEX "scores_project_id_idx";
-
 -- CreateTable
 CREATE TABLE "annotation_config" (
     "id" TEXT NOT NULL,
