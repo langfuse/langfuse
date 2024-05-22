@@ -114,7 +114,7 @@ model Project {
     LlmApiKeys         LlmApiKeys[]
     PosthogIntegration PosthogIntegration[]
     Score              Score[]
-    scoresConfig       ScoreConfig[]
+    scoreConfig        ScoreConfig[]
 
     @@map("projects")
 }
@@ -405,7 +405,7 @@ model Score {
     traceId       String         @map("trace_id")
     observationId String?        @map("observation_id")
     configId      String?        @map("config_id")
-    config        ScoreConfig?   @relation(fields: [configId], references: [id], onDelete: SetNull)
+    scoreConfig   ScoreConfig?   @relation(fields: [configId], references: [id], onDelete: SetNull)
     JobExecution  JobExecution[]
 
     @@unique([id, projectId]) // used for upserts via prisma
