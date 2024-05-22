@@ -32,14 +32,14 @@ export const DashboardTable = ({
         <div className="mt-4">
           <div className="overflow-x-auto">
             <div className="inline-block min-w-full align-middle">
-              <table className="min-w-full divide-y divide-gray-300 animate-in animate-out">
+              <table className="min-w-full divide-y divide-border animate-in animate-out">
                 <thead>
                   <tr>
                     {headers.map((header, i) => (
                       <th
                         key={i}
                         scope="col"
-                        className="whitespace-nowrap py-3.5 pl-4 pr-3 text-left text-xs font-semibold text-gray-900 sm:pl-0"
+                        className="whitespace-nowrap py-3.5 pl-4 pr-3 text-left text-xs font-semibold text-primary sm:pl-0"
                       >
                         {header}
                       </th>
@@ -47,7 +47,7 @@ export const DashboardTable = ({
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-gray-200 bg-white">
+                <tbody className="divide-y divide-accent bg-background">
                   {rows
                     .slice(
                       0,
@@ -62,7 +62,7 @@ export const DashboardTable = ({
                         {row.map((cell, j) => (
                           <td
                             key={j}
-                            className="whitespace-nowrap py-2 pl-3 pr-2 text-xs text-gray-500 sm:pl-0"
+                            className="whitespace-nowrap py-2 pl-3 pr-2 text-xs text-muted-foreground sm:pl-0"
                           >
                             {cell}
                           </td>
