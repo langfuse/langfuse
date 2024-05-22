@@ -563,7 +563,6 @@ export class ScoreProcessor implements EventProcessor {
         value: body.value,
         name: body.name,
         comment: body.comment,
-        authorUserId: body.authorUserId ?? undefined,
         source: "API",
       },
       update: {
@@ -573,7 +572,6 @@ export class ScoreProcessor implements EventProcessor {
         value: body.value,
         name: body.name,
         comment: body.comment,
-        authorUserId: body.authorUserId ?? undefined,
         source: "API",
       },
     });
