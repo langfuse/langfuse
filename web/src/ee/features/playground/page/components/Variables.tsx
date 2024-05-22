@@ -31,7 +31,7 @@ export const Variables = () => {
                 key={promptVariable.name}
               />
               {index !== promptVariables.length - 1 ? (
-                <Divider className="my-2 text-gray-400" />
+                <Divider className="my-2 text-muted-foreground" />
               ) : null}
             </>
           );

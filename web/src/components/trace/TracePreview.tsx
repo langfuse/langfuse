@@ -38,9 +38,7 @@ export const TracePreview = ({
       <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
         <div className="flex flex-col gap-1">
           <CardTitle>
-            <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
-              TRACE
-            </span>
+            <span className="mr-2 rounded-sm bg-input p-1 text-xs">TRACE</span>
             <span>{trace.name}</span>
           </CardTitle>
           <CardDescription>{trace.timestamp.toLocaleString()}</CardDescription>

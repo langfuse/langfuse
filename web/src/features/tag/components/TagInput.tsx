@@ -46,7 +46,7 @@ export const TagInput = React.forwardRef<
       <CommandPrimitive.Input
         ref={ref}
         className={cn(
-          "flex h-11 w-full rounded-md border-transparent bg-transparent px-1 text-sm outline-none placeholder:text-slate-500 focus:border-0  focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:placeholder:text-slate-400	",
+          "placeholder:muted-foreground flex h-11 w-full rounded-md border-transparent bg-transparent px-1 text-sm outline-none focus:border-0  focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
           className,
         )}
         autoFocus

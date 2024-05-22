@@ -73,19 +73,19 @@ export function LlmApiKeyList(props: { projectId: string }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden text-gray-900 md:table-cell">
+              <TableHead className="hidden text-primary md:table-cell">
                 Created
               </TableHead>
-              <TableHead className="hidden text-gray-900 md:table-cell">
+              <TableHead className="hidden text-primary md:table-cell">
                 Provider
               </TableHead>
-              <TableHead className="text-gray-900">Secret Key</TableHead>
+              <TableHead className="text-primary">Secret Key</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
-          <TableBody className="text-gray-500">
+          <TableBody className="text-muted-foreground">
             {apiKeys.data?.data.map((apiKey) => (
-              <TableRow key={apiKey.id} className="hover:bg-transparent">
+              <TableRow key={apiKey.id} className="hover:bg-primary-foreground">
                 <TableCell className="hidden md:table-cell">
                   {apiKey.createdAt.toLocaleDateString()}
                 </TableCell>

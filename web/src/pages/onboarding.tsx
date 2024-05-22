@@ -47,11 +47,11 @@ export default function ReferralSource() {
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <LangfuseIcon className="mx-auto" />
-        <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
+        <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
           Welcome to Langfuse
         </h2>
       </div>
-      <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+      <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
         <Form {...form}>
           <form
             className="space-y-6"

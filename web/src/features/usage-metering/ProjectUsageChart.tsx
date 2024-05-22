@@ -98,7 +98,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
             </Link>
           </Button>
         )}
-        <div className="inline-block text-sm text-gray-500">
+        <div className="inline-block text-sm text-muted-foreground">
           Current plan: {plan}
         </div>
       </div>

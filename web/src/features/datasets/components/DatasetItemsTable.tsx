@@ -134,8 +134,8 @@ export function DatasetItemsTable({
               className={cn(
                 "h-2 w-2 rounded-full",
                 status === DatasetStatus.ACTIVE
-                  ? "bg-green-600"
-                  : "bg-yellow-600",
+                  ? "bg-dark-green"
+                  : "bg-dark-yellow",
               )}
             />
             <span>{status}</span>
@@ -173,7 +173,7 @@ export function DatasetItemsTable({
         return !!expectedOutput ? (
           <IOTableCell
             data={expectedOutput}
-            className="bg-green-50"
+            className="bg-accent-light-green"
             singleLine={rowHeight === "s"}
           />
         ) : null;

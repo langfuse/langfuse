@@ -73,9 +73,9 @@ export const EvalTemplateForm = (props: {
             value={langfuseTemplate ?? ""}
             onValueChange={updateLangfuseTemplate}
           >
-            <SelectTrigger className="text-gray-700 ring-transparent focus:ring-0 focus:ring-offset-0">
+            <SelectTrigger className="text-primary ring-transparent focus:ring-0 focus:ring-offset-0">
               <SelectValue
-                className="text-sm font-semibold text-gray-700"
+                className="text-sm font-semibold text-primary"
                 placeholder={"Select a Langfuse managed template"}
               />
             </SelectTrigger>
@@ -512,7 +512,7 @@ export const LLMApiKeyComponent = (p: {
       <Label>API key</Label>
       <div>
         {getApiKeyForModel(p.modelParams.model.value) ? (
-          <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
+          <span className="mr-2 rounded-sm bg-input p-1 text-xs">
             {getApiKeyForModel(p.modelParams.model.value)?.displaySecretKey}
           </span>
         ) : undefined}
