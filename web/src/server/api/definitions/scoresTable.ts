@@ -29,6 +29,12 @@ export const scoresTableCols: ColumnDefinition[] = [
     internal: 's."timestamp"',
   },
   {
+    name: "Source",
+    id: "source",
+    type: "string",
+    internal: 's."source"',
+  },
+  {
     name: "Name",
     id: "name",
     type: "stringOptions",
