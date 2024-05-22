@@ -9,11 +9,11 @@ export default function usePlaygroundCache() {
   const [cache, setCache] = useState<PlaygroundCache>(null);
 
   const setPlaygroundCache = (cache: PlaygroundCache) => {
-    localStorage.setItem(playgroundCacheKey, JSON.stringify(cache));
+    sessionStorage.setItem(playgroundCacheKey, JSON.stringify(cache));
   };
 
   useEffect(() => {
-    const savedCache = localStorage.getItem(playgroundCacheKey);
+    const savedCache = sessionStorage.getItem(playgroundCacheKey);
     if (savedCache) {
       try {
         setCache(JSON.parse(savedCache));

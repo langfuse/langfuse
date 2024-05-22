@@ -41,10 +41,14 @@ const userNavigation = [
   },
   {
     name: "Sign out",
-    onClick: () =>
-      signOut({
+    onClick: async () => {
+      localStorage.clear();
+      sessionStorage.clear();
+
+      await signOut({
         callbackUrl: "/auth/sign-in",
-      }),
+      });
+    },
   },
 ];
 
