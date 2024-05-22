@@ -9,14 +9,14 @@ export const ScoresPreview = ({
   if (!Boolean(itemScoresBySource.size)) return null;
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border">
+    <div className="flex flex-col rounded-md border">
       <span className="border-b px-3 py-1 text-xs font-medium">Scores</span>
       <div
         key={itemScoresBySource.size}
-        className="grid grid-flow-row gap-2 overflow-x-auto px-3"
+        className="grid grid-flow-row gap-2 overflow-x-auto px-3 pb-3 pt-1"
       >
         {Array.from(itemScoresBySource).map(([source, scores]) => (
-          <div key={source} className="mb-4 flex flex-col align-middle text-xs">
+          <div key={source} className="flex flex-col align-middle text-xs">
             <span className="min-w-16 p-1 font-medium">{source}</span>
             <div className="flex flex-col content-start items-start gap-1 text-nowrap">
               <GroupedScoreBadges scores={scores} />
