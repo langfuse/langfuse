@@ -44,9 +44,13 @@ export const TracePreview = ({
   }, new Map<ScoreSource, Score[]>());
 
   return (
-    <Card className="flex-1">
-      <div className="flex justify-end border-b">
-        <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+    <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">
+      <div className="flex flex-shrink-0 flex-row justify-end gap-2">
+        <Tabs
+          value={selectedTab}
+          onValueChange={setSelectedTab}
+          className="flex w-full justify-end border-b bg-white"
+        >
           <TabsList className="bg-white py-0">
             <TabsTrigger
               value="preview"
@@ -63,73 +67,77 @@ export const TracePreview = ({
           </TabsList>
         </Tabs>
       </div>
-      <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <CardTitle>
-            <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
-              TRACE
-            </span>
-            <span>{trace.name}</span>
-          </CardTitle>
-          <CardDescription>{trace.timestamp.toLocaleString()}</CardDescription>
-          <div className="flex flex-wrap gap-2">
-            {!!trace.latency && (
-              <Badge variant="outline">
-                {formatIntervalSeconds(trace.latency)}
-              </Badge>
-            )}
-            <TraceAggUsageBadge observations={observations} />
-            {!!trace.release && (
-              <Badge variant="outline">Release: {trace.release}</Badge>
-            )}
-            {!!trace.version && (
-              <Badge variant="outline">Version: {trace.version}</Badge>
-            )}
+      <div className="flex w-full flex-col overflow-y-auto">
+        <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
+          <div className="flex flex-col gap-1">
+            <CardTitle>
+              <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
+                TRACE
+              </span>
+              <span>{trace.name}</span>
+            </CardTitle>
+            <CardDescription>
+              {trace.timestamp.toLocaleString()}
+            </CardDescription>
+            <div className="flex flex-wrap gap-2">
+              {!!trace.latency && (
+                <Badge variant="outline">
+                  {formatIntervalSeconds(trace.latency)}
+                </Badge>
+              )}
+              <TraceAggUsageBadge observations={observations} />
+              {!!trace.release && (
+                <Badge variant="outline">Release: {trace.release}</Badge>
+              )}
+              {!!trace.version && (
+                <Badge variant="outline">Version: {trace.version}</Badge>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ManualScoreButton
-            projectId={trace.projectId}
-            traceId={trace.id}
-            scores={scores}
-          />
-          <NewDatasetItemFromTrace
-            traceId={trace.id}
-            projectId={trace.projectId}
-            input={trace.input}
-            output={trace.output}
-            metadata={trace.metadata}
-            key={trace.id}
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {selectedTab === "preview" && (
-          <>
-            <IOPreview
-              key={trace.id + "-io"}
-              input={trace.input ?? undefined}
-              output={trace.output ?? undefined}
+          <div className="flex flex-wrap gap-2">
+            <ManualScoreButton
+              projectId={trace.projectId}
+              traceId={trace.id}
+              scores={scores}
             />
-            <JSONView
-              key={trace.id + "-metadata"}
-              title="Metadata"
-              json={trace.metadata}
+            <NewDatasetItemFromTrace
+              traceId={trace.id}
+              projectId={trace.projectId}
+              input={trace.input}
+              output={trace.output}
+              metadata={trace.metadata}
+              key={trace.id}
             />
-            <ScoresPreview itemScoresBySource={traceScoresBySource} />
-          </>
-        )}
-        {selectedTab === "scores" && (
-          <ScoresTable
-            projectId={trace.projectId}
-            omittedFilter={["Trace ID"]}
-            traceId={trace.id}
-            hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
-            tableColumnVisibilityName="scoresColumnVisibilityTracePreview"
-          />
-        )}
-      </CardContent>
-      <CardFooter></CardFooter>
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {selectedTab === "preview" && (
+            <>
+              <IOPreview
+                key={trace.id + "-io"}
+                input={trace.input ?? undefined}
+                output={trace.output ?? undefined}
+              />
+              <JSONView
+                key={trace.id + "-metadata"}
+                title="Metadata"
+                json={trace.metadata}
+              />
+              <ScoresPreview itemScoresBySource={traceScoresBySource} />
+            </>
+          )}
+          {selectedTab === "scores" && (
+            <ScoresTable
+              projectId={trace.projectId}
+              omittedFilter={["Trace ID"]}
+              traceId={trace.id}
+              hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
+              tableColumnVisibilityName="scoresColumnVisibilityTracePreview"
+            />
+          )}
+        </CardContent>
+        <CardFooter></CardFooter>
+      </div>
     </Card>
   );
 };

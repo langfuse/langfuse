@@ -61,7 +61,7 @@ export const ObservationPreview = (props: {
   }, new Map<ScoreSource, Score[]>());
 
   return (
-    <Card className="col-span-2 flex h-full flex-col overflow-hidden">
+    <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">
       <div className="flex flex-shrink-0 flex-row justify-end gap-2">
         <Tabs
           value={selectedTab}
