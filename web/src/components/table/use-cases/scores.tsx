@@ -37,23 +37,16 @@ export type ScoreFilterInput = Omit<
 
 function createFilterState(
   userFilterState: FilterState,
-  omittedFilters: Record<string, string | null>[],
+  omittedFilters: Record<string, string>[],
 ): FilterState {
   return omittedFilters.reduce((filterState, { key, value }) => {
     return filterState.concat([
-      !!value
-        ? {
-            column: `${key}`,
-            type: "string",
-            operator: "=",
-            value: value,
-          }
-        : {
-            column: `${key}`,
-            type: "string",
-            operator: "is null",
-            value: "",
-          },
+      {
+        column: `${key}`,
+        type: "string",
+        operator: "=",
+        value: value,
+      },
     ]);
   }, userFilterState);
 }
@@ -90,7 +83,6 @@ export default function ScoresTable({
   const filterState = createFilterState(userFilterState, [
     ...(userId ? [{ key: "User ID", value: userId }] : []),
     ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
-    ...(traceId ? [{ key: "Observation ID", value: null }] : []),
     ...(observationId ? [{ key: "Observation ID", value: observationId }] : []),
   ]);
 
@@ -289,10 +281,9 @@ export default function ScoresTable({
   const transformFilterOptions = (
     traceFilterOptions: ScoreOptions | undefined,
   ) => {
-    return scoresTableColsWithOptions(traceFilterOptions).filter((c) => {
-      console.log({ c });
-      return !omittedFilter?.includes(c.name) && !hiddenColumns.includes(c.id);
-    });
+    return scoresTableColsWithOptions(traceFilterOptions).filter(
+      (c) => !omittedFilter?.includes(c.name) && !hiddenColumns.includes(c.id),
+    );
   };
 
   return (

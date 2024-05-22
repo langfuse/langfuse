@@ -11,7 +11,6 @@ const operatorReplacements = {
   "none of": "NOT IN",
   contains: "ILIKE",
   "does not contain": "NOT ILIKE",
-  "is null": "IS NULL",
   "starts with": "ILIKE",
   "ends with": "ILIKE",
 };
@@ -95,10 +94,6 @@ export function tableColumnsToSqlFilter(
         break;
       case "string":
       case "stringObject":
-        if (filter.operator === "is null") {
-          valuePrisma = Prisma.empty;
-          break;
-        }
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
       case "stringOptions":
@@ -138,9 +133,6 @@ export function tableColumnsToSqlFilter(
             )
               ? Prisma.raw(" || '%'")
               : Prisma.empty,
-            filter.operator === "is null"
-              ? [Prisma.raw("IS NULL")]
-              : [Prisma.empty, Prisma.empty],
           ]
         : [Prisma.empty, Prisma.empty];
     const [funcPrisma1, funcPrisma2] =
