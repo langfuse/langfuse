@@ -99,7 +99,6 @@ export type ScoreConfig = {
   min_value: number | null;
   max_value: number | null;
   categories: unknown | null;
-  author_user_id: string | null;
   description: string | null;
 };
 export type ApiKey = {
