@@ -30,6 +30,11 @@ export const ScoreSource = {
     EVAL: "EVAL"
 } as const;
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
+export const ScoreDataType = {
+    CATEGORICAL: "CATEGORICAL",
+    CONTINUOUS: "CONTINUOUS"
+} as const;
+export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
 export const PricingUnit = {
     PER_1000_TOKENS: "PER_1000_TOKENS",
     PER_1000_CHARS: "PER_1000_CHARS"
@@ -77,6 +82,20 @@ export type Account = {
     scope: string | null;
     id_token: string | null;
     session_state: string | null;
+};
+export type AnnotationConfig = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    dataType: ScoreDataType;
+    is_archived: Generated<boolean>;
+    min_value: number | null;
+    max_value: number | null;
+    categories: unknown | null;
+    author_user_id: string | null;
+    description: string | null;
 };
 export type ApiKey = {
     id: string;
@@ -351,6 +370,7 @@ export type Score = {
     comment: string | null;
     trace_id: string;
     observation_id: string | null;
+    annotation_config_id: string | null;
 };
 export type Session = {
     id: string;
@@ -429,6 +449,7 @@ export type VerificationToken = {
 };
 export type DB = {
     Account: Account;
+    annotation_config: AnnotationConfig;
     api_keys: ApiKey;
     audit_logs: AuditLog;
     cron_jobs: CronJobs;
