@@ -88,7 +88,7 @@ export type Account = {
   id_token: string | null;
   session_state: string | null;
 };
-export type AnnotationConfig = {
+export type ScoreConfig = {
   id: string;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
@@ -375,7 +375,7 @@ export type Score = {
   comment: string | null;
   trace_id: string;
   observation_id: string | null;
-  annotation_config_id: string | null;
+  config_id: string | null;
 };
 export type Session = {
   id: string;
@@ -454,7 +454,7 @@ export type VerificationToken = {
 };
 export type DB = {
   Account: Account;
-  annotation_config: AnnotationConfig;
+  score_configs: ScoreConfig;
   api_keys: ApiKey;
   audit_logs: AuditLog;
   cron_jobs: CronJobs;

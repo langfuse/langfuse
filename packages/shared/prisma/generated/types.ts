@@ -83,20 +83,6 @@ export type Account = {
     id_token: string | null;
     session_state: string | null;
 };
-export type AnnotationConfig = {
-    id: string;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-    project_id: string;
-    name: string;
-    dataType: ScoreDataType;
-    is_archived: Generated<boolean>;
-    min_value: number | null;
-    max_value: number | null;
-    categories: unknown | null;
-    author_user_id: string | null;
-    description: string | null;
-};
 export type ApiKey = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -370,7 +356,20 @@ export type Score = {
     comment: string | null;
     trace_id: string;
     observation_id: string | null;
-    annotation_config_id: string | null;
+    config_id: string | null;
+};
+export type ScoreConfig = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    data_type: ScoreDataType;
+    is_archived: Generated<boolean>;
+    min_value: number | null;
+    max_value: number | null;
+    categories: unknown | null;
+    description: string | null;
 };
 export type Session = {
     id: string;
@@ -449,7 +448,6 @@ export type VerificationToken = {
 };
 export type DB = {
     Account: Account;
-    annotation_config: AnnotationConfig;
     api_keys: ApiKey;
     audit_logs: AuditLog;
     cron_jobs: CronJobs;
@@ -471,6 +469,7 @@ export type DB = {
     project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;
+    score_configs: ScoreConfig;
     scores: Score;
     Session: Session;
     sso_configs: SsoConfig;
