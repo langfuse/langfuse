@@ -114,7 +114,7 @@ model Project {
     LlmApiKeys         LlmApiKeys[]
     PosthogIntegration PosthogIntegration[]
     Score              Score[]
-    AnnotationConfig   AnnotationConfig[]
+    annotationConfig   AnnotationConfig[]
 
     @@map("projects")
 }
@@ -393,26 +393,27 @@ enum ObservationLevel {
 }
 
 model Score {
-    id            String         @id @default(cuid())
-    timestamp     DateTime       @default(now())
-    projectId     String         @map("project_id")
-    project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    name          String
-    value         Float
-    source        ScoreSource
-    authorUserId  String?        @map("author_user_id")
-    comment       String?
-    traceId       String         @map("trace_id")
-    observationId String?        @map("observation_id")
-    JobExecution  JobExecution[]
+    id                 String            @id @default(cuid())
+    timestamp          DateTime          @default(now())
+    projectId          String            @map("project_id")
+    project            Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    name               String
+    value              Float
+    source             ScoreSource
+    authorUserId       String?           @map("author_user_id")
+    comment            String?
+    traceId            String            @map("trace_id")
+    observationId      String?           @map("observation_id")
+    annotationConfigId String?           @map("annotation_config_id")
+    annotationConfig   AnnotationConfig? @relation(fields: [annotationConfigId], references: [id], onDelete: SetNull)
+    JobExecution       JobExecution[]
 
     @@unique([id, projectId]) // used for upserts via prisma
     @@index(timestamp)
     @@index([value])
-    @@index([projectId])
-    @@index([authorUserId])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
+    @@index([annotationConfigId], type: Hash)
     @@index([source])
     @@map("scores")
 }
@@ -437,12 +438,13 @@ model AnnotationConfig {
     categories   Json?         @map("categories")
     authorUserId String?       @map("author_user_id")
     description  String?
+    score        Score[]
 
     @@unique([id, projectId]) // used for upserts via prisma
     @@index([dataType])
     @@index([isArchived])
-    @@index([categories])
     @@index([projectId])
+    @@index([categories])
     @@index([authorUserId])
     @@map("annotation_config")
 }

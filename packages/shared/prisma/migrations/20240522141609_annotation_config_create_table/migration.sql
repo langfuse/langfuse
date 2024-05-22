@@ -1,6 +1,12 @@
 -- CreateEnum
 CREATE TYPE "ScoreDataType" AS ENUM ('CATEGORICAL', 'CONTINUOUS');
 
+-- DropIndex
+DROP INDEX "scores_author_user_id_idx";
+
+-- DropIndex
+DROP INDEX "scores_project_id_idx";
+
 -- CreateTable
 CREATE TABLE "annotation_config" (
     "id" TEXT NOT NULL,
@@ -26,16 +32,13 @@ CREATE INDEX "annotation_config_dataType_idx" ON "annotation_config"("dataType")
 CREATE INDEX "annotation_config_is_archived_idx" ON "annotation_config"("is_archived");
 
 -- CreateIndex
-CREATE INDEX "annotation_config_categories_idx" ON "annotation_config"("categories");
+CREATE INDEX "annotation_config_project_id_idx" ON "annotation_config"("project_id");
 
 -- CreateIndex
-CREATE INDEX "annotation_config_project_id_idx" ON "annotation_config"("project_id");
+CREATE INDEX "annotation_config_categories_idx" ON "annotation_config"("categories");
 
 -- CreateIndex
 CREATE INDEX "annotation_config_author_user_id_idx" ON "annotation_config"("author_user_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "annotation_config_id_project_id_key" ON "annotation_config"("id", "project_id");
-
--- AddForeignKey
-ALTER TABLE "annotation_config" ADD CONSTRAINT "annotation_config_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -370,6 +370,7 @@ export type Score = {
     comment: string | null;
     trace_id: string;
     observation_id: string | null;
+    annotation_config_id: string | null;
 };
 export type Session = {
     id: string;
