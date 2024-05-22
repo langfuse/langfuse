@@ -30,11 +30,12 @@ export const ScoreSource = {
     EVAL: "EVAL"
 } as const;
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
-export const ScoreDataType = {
+export const ScoreConfigDataType = {
     CATEGORICAL: "CATEGORICAL",
     CONTINUOUS: "CONTINUOUS"
-} as const;
-export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
+  } as const;
+  export type ScoreConfigDataType =
+    (typeof ScoreConfigDataType)[keyof typeof ScoreConfigDataType];
 export const PricingUnit = {
     PER_1000_TOKENS: "PER_1000_TOKENS",
     PER_1000_CHARS: "PER_1000_CHARS"
@@ -83,6 +84,19 @@ export type Account = {
     id_token: string | null;
     session_state: string | null;
 };
+export type ScoreConfig = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    dataType: ScoreConfigDataType;
+    is_archived: Generated<boolean>;
+    min_value: number | null;
+    max_value: number | null;
+    categories: unknown | null;
+    description: string | null;
+  };
 export type ApiKey = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -357,19 +371,6 @@ export type Score = {
     trace_id: string;
     observation_id: string | null;
     config_id: string | null;
-};
-export type ScoreConfig = {
-    id: string;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-    project_id: string;
-    name: string;
-    data_type: ScoreDataType;
-    is_archived: Generated<boolean>;
-    min_value: number | null;
-    max_value: number | null;
-    categories: unknown | null;
-    description: string | null;
 };
 export type Session = {
     id: string;

@@ -33,11 +33,12 @@ export const ScoreSource = {
   EVAL: "EVAL",
 } as const;
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
-export const ScoreDataType = {
+export const ScoreConfigDataType = {
   CATEGORICAL: "CATEGORICAL",
   CONTINUOUS: "CONTINUOUS",
 } as const;
-export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
+export type ScoreConfigDataType =
+  (typeof ScoreConfigDataType)[keyof typeof ScoreConfigDataType];
 export const PricingUnit = {
   PER_1000_TOKENS: "PER_1000_TOKENS",
   PER_1000_CHARS: "PER_1000_CHARS",
@@ -94,7 +95,7 @@ export type ScoreConfig = {
   updated_at: Generated<Timestamp>;
   project_id: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreConfigDataType;
   is_archived: Generated<boolean>;
   min_value: number | null;
   max_value: number | null;
