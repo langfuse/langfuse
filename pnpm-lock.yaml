@@ -375,6 +375,9 @@ importers:
       '@uiw/codemirror-theme-github':
         specifier: ^4.21.25
         version: 4.21.25(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.26.3)
+      '@uiw/codemirror-theme-tokyo-night':
+        specifier: ^4.22.1
+        version: 4.22.1(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.26.3)
       '@uiw/react-codemirror':
         specifier: ^4.21.25
         version: 4.21.25(@babel/runtime@7.24.5)(@codemirror/autocomplete@6.16.0)(@codemirror/language@6.10.1)(@codemirror/lint@6.7.0)(@codemirror/search@6.5.6)(@codemirror/state@6.4.1)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.26.3)(codemirror@6.0.1)(react-dom@18.2.0)(react@18.2.0)
@@ -7123,8 +7126,30 @@ packages:
       - '@codemirror/view'
     dev: false
 
+  /@uiw/codemirror-theme-tokyo-night@4.22.1(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.26.3):
+    resolution: {integrity: sha512-bF3yvrsvlIi1XBXdDkOC9JXtYvpbrSigJUwjSDl3qB2vdKAF3Cuw6/wVzAma3aG5Smy3FMjH4KMww9TStpNcUQ==}
+    dependencies:
+      '@uiw/codemirror-themes': 4.22.1(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.26.3)
+    transitivePeerDependencies:
+      - '@codemirror/language'
+      - '@codemirror/state'
+      - '@codemirror/view'
+    dev: false
+
   /@uiw/codemirror-themes@4.21.25(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.26.3):
     resolution: {integrity: sha512-C3t/voELxQj0eaVhrlgzaOnSALNf8bOcRbL5xN9r2+RkdsbFOmvNl3VVhlxEB7PSGc1jUZwVO4wQsB2AP178ag==}
+    peerDependencies:
+      '@codemirror/language': '>=6.0.0'
+      '@codemirror/state': '>=6.0.0'
+      '@codemirror/view': '>=6.0.0'
+    dependencies:
+      '@codemirror/language': 6.10.1
+      '@codemirror/state': 6.4.1
+      '@codemirror/view': 6.26.3
+    dev: false
+
+  /@uiw/codemirror-themes@4.22.1(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.26.3):
+    resolution: {integrity: sha512-5TeB8wCc0aNd3YEhzOvgekpAFQfEm4fCTUcGmEIQqaRNgKAM83HYNpE1JF2j7x2oDFugdiO0yJynS6bo1zVOuw==}
     peerDependencies:
       '@codemirror/language': '>=6.0.0'
       '@codemirror/state': '>=6.0.0'

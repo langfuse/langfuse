@@ -24,7 +24,7 @@ export function JSONView(props: {
         <div
           className={cn(
             props.title === "assistant" || props.title === "Output"
-              ? "border-accent-dark-green"
+              ? "dark:border-accent-dark-green"
               : "",
             "border-b px-3 py-1 text-xs font-medium",
           )}
