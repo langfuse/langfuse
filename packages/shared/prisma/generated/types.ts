@@ -347,6 +347,7 @@ export type Score = {
     name: string;
     value: number;
     source: ScoreSource;
+    author_user_id: string | null;
     comment: string | null;
     trace_id: string;
     observation_id: string | null;

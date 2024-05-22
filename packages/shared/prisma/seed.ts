@@ -502,6 +502,7 @@ function createObjects(
               timestamp: traceTs,
               source: ScoreSource.REVIEW,
               projectId,
+              authorUserId: `user-${i}`,
             },
           ]
         : []),
