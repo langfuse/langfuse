@@ -156,6 +156,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value,
           name: input.name,
           comment: input.comment,
+          authorUserId: ctx.session.user.id,
           source: "REVIEW",
         },
       });
@@ -218,6 +219,7 @@ export const scoresRouter = createTRPCRouter({
         data: {
           value: input.value,
           comment: input.comment,
+          authorUserId: ctx.session.user.id,
         },
       });
     }),
