@@ -114,6 +114,7 @@ model Project {
     LlmApiKeys         LlmApiKeys[]
     PosthogIntegration PosthogIntegration[]
     Score              Score[]
+    AnnotationConfig   AnnotationConfig[]
 
     @@map("projects")
 }
@@ -392,18 +393,20 @@ enum ObservationLevel {
 }
 
 model Score {
-    id            String         @id @default(cuid())
-    timestamp     DateTime       @default(now())
-    projectId     String         @map("project_id")
-    project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    name          String
-    value         Float
-    source        ScoreSource
-    authorUserId  String?        @map("author_user_id")
-    comment       String?
-    traceId       String         @map("trace_id")
-    observationId String?        @map("observation_id")
-    JobExecution  JobExecution[]
+    id                 String            @id @default(cuid())
+    timestamp          DateTime          @default(now())
+    projectId          String            @map("project_id")
+    project            Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    name               String
+    value              Float
+    source             ScoreSource
+    authorUserId       String?           @map("author_user_id")
+    comment            String?
+    traceId            String            @map("trace_id")
+    observationId      String?           @map("observation_id")
+    JobExecution       JobExecution[]
+    annotationConfigId String?           @map("annotation_config_id")
+    annotationConfig   AnnotationConfig? @relation(fields: [annotationConfigId], references: [id], onDelete: Cascade)
 
     @@unique([id, projectId]) // used for upserts via prisma
     @@index(timestamp)
@@ -411,6 +414,7 @@ model Score {
     @@index([projectId])
     @@index([authorUserId])
     @@index([traceId], type: Hash)
+    @@index([annotationConfigId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([source])
     @@map("scores")
@@ -420,6 +424,36 @@ enum ScoreSource {
     API
     REVIEW
     EVAL
+}
+
+model AnnotationConfig {
+    id           String        @id @default(cuid())
+    createdAt    DateTime      @default(now()) @map("created_at")
+    updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at")
+    projectId    String        @map("project_id")
+    project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    name         String
+    dataType     ScoreDataType
+    isArchived   Boolean       @default(false) @map("is_archived")
+    minValue     Float?        @map("min_value")
+    maxValue     Float?        @map("max_value")
+    categories   Json?         @map("categories")
+    authorUserId String?       @map("author_user_id")
+    description  String?
+    scores       Score[]
+
+    @@unique([id, projectId]) // used for upserts via prisma
+    @@index([dataType])
+    @@index([isArchived])
+    @@index([categories])
+    @@index([projectId])
+    @@index([authorUserId])
+    @@map("annotation_config")
+}
+
+enum ScoreDataType {
+    CATEGORICAL
+    CONTINUOUS
 }
 
 enum PricingUnit {
