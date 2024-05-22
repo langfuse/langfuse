@@ -66,18 +66,18 @@ export const ObservationPreview = (props: {
         <Tabs
           value={selectedTab}
           onValueChange={setSelectedTab}
-          className="flex w-full justify-end border-b bg-white"
+          className="flex w-full justify-end border-b bg-background"
         >
-          <TabsList className="bg-white py-0">
+          <TabsList className="bg-background py-0">
             <TabsTrigger
               value="preview"
-              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:shadow-none"
+              className="data-[state=active]:border-primary-accent h-full rounded-none border-b-4 border-transparent data-[state=active]:shadow-none"
             >
               Preview
             </TabsTrigger>
             <TabsTrigger
               value="scores"
-              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-indigo-500 data-[state=active]:shadow-none"
+              className="data-[state=active]:border-primary-accent h-full rounded-none border-b-4 border-transparent data-[state=active]:shadow-none"
             >
               Scores
             </TabsTrigger>
