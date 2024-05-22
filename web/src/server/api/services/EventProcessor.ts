@@ -449,9 +449,12 @@ export class TraceProcessor implements EventProcessor {
       body.metadata ?? undefined,
     );
 
-    const mergedTags = existingTrace?.tags
-      ? existingTrace.tags.concat(body.tags ?? [])
-      : body.tags;
+    const mergedTags =
+      existingTrace?.tags && body.tags
+        ? Array.from(new Set(existingTrace.tags.concat(body.tags ?? []))).sort()
+        : body.tags
+          ? Array.from(new Set(body.tags)).sort()
+          : undefined;
 
     if (body.sessionId) {
       await prisma.traceSession.upsert({

@@ -26,8 +26,8 @@ const PromptHistoryTraceNode = (props: {
 
   return (
     <div
-      className={`group mb-2 flex cursor-pointer flex-col gap-1 rounded-sm p-2 hover:bg-gray-50 ${
-        props.currentPromptVersion === prompt.version ? "bg-gray-100" : ""
+      className={`group mb-2 flex cursor-pointer flex-col gap-1 rounded-sm p-2 hover:bg-primary-foreground ${
+        props.currentPromptVersion === prompt.version ? "bg-muted" : ""
       }`}
       onClick={() => {
         props.index === 0
@@ -36,19 +36,19 @@ const PromptHistoryTraceNode = (props: {
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-sm bg-gray-200 p-1 text-xs">
+        <span className="rounded-sm bg-input p-1 text-xs">
           Version {prompt.version}
         </span>
         {badges}
       </div>
 
       <div className="flex gap-2">
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted-foreground">
           {prompt.createdAt.toLocaleString()}
         </span>
       </div>
       <div className="flex gap-2">
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted-foreground">
           by {prompt.creator || prompt.createdBy}
         </span>
       </div>
