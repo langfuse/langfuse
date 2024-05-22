@@ -399,6 +399,7 @@ model Score {
     name          String
     value         Float
     source        ScoreSource
+    authorUserId  String?        @map("author_user_id")
     comment       String?
     traceId       String         @map("trace_id")
     observationId String?        @map("observation_id")
@@ -408,6 +409,7 @@ model Score {
     @@index(timestamp)
     @@index([value])
     @@index([projectId])
+    @@index([authorUserId])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([source])
