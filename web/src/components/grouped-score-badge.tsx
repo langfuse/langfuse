@@ -58,7 +58,7 @@ export const GroupedScoreBadges = ({
           .sort(([a], [b]) => (a < b ? -1 : 1))
           .map(([name, scores]) => (
             <div key={name}>
-              <div className="text-xs text-gray-500">{name}</div>
+              <div className="text-xs text-muted-foreground">{name}</div>
               <ScoresOfGroup scores={scores} />
             </div>
           ))}

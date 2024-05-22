@@ -127,7 +127,12 @@ const ModelParamsSelect = ({
 }: ModelParamsSelectProps) => {
   return (
     <div className="space-y-2">
-      <p className={cn("text-xs font-semibold", disabled && "text-gray-400")}>
+      <p
+        className={cn(
+          "text-xs font-semibold",
+          disabled && "text-muted-foreground",
+        )}
+      >
         {title}
       </p>
       <Select
@@ -187,7 +192,7 @@ const ModelParamsSlider = ({
         <p
           className={cn(
             "flex-1 text-xs font-semibold",
-            (!enabled || formDisabled) && "text-gray-400",
+            (!enabled || formDisabled) && "text-muted-foreground",
           )}
         >
           {title}

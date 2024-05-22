@@ -171,7 +171,7 @@ const TraceCardList = ({
           }))
           .map(({ virtualItem, trace }) => (
             <Card
-              className="border-border-gray-150 group grid w-full gap-3 overflow-hidden p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
+              className="group grid w-full gap-3 overflow-hidden border-border p-2 shadow-none hover:border-ring   md:grid-cols-3"
               key={virtualItem.key}
               data-index={virtualItem.index}
               style={{
@@ -193,10 +193,12 @@ const TraceCardList = ({
                   >
                     Trace: {trace.name} ({trace.id})&nbsp;↗
                   </Link>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-muted-foreground">
                     {trace.timestamp.toLocaleString()}
                   </div>
-                  <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
+                  <div className="mb-1 mt-2 text-xs text-muted-foreground">
+                    Scores
+                  </div>
                   <div className="flex flex-wrap content-start items-start gap-1">
                     <GroupedScoreBadges scores={trace.scores} />
                   </div>
@@ -244,7 +246,7 @@ const SessionIO = ({ traceId }: { traceId: string }) => {
           hideIfNull
         />
       ) : (
-        <div className="p-2 text-xs text-gray-500">
+        <div className="p-2 text-xs text-muted-foreground">
           This trace has no input or output.
         </div>
       )}

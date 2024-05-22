@@ -55,7 +55,7 @@ export const DataTableRowHeightSwitch = ({
           <TabsTrigger
             key={id}
             value={id}
-            className="px-2 shadow-none data-[state=active]:bg-slate-200 data-[state=active]:ring-border"
+            className="px-2 shadow-none data-[state=active]:bg-input data-[state=active]:ring-border"
           >
             <span role="img" aria-label={`${label} size`}>
               {icon}
