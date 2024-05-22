@@ -343,8 +343,8 @@ importers:
         specifier: ^7.113.0
         version: 7.113.0
       '@t3-oss/env-nextjs':
-        specifier: ^0.8.0
-        version: 0.8.0(typescript@5.4.5)(zod@3.22.4)
+        specifier: ^0.10.1
+        version: 0.10.1(typescript@5.4.5)(zod@3.22.4)
       '@tailwindcss/container-queries':
         specifier: ^0.1.1
         version: 0.1.1(tailwindcss@3.4.3)
@@ -6073,8 +6073,8 @@ packages:
       defer-to-connect: 2.0.1
     dev: true
 
-  /@t3-oss/env-core@0.8.0(typescript@5.4.5)(zod@3.22.4):
-    resolution: {integrity: sha512-Tc1pg0KH/tJeI0Z1s/Isp1VsGDj1N03ZAYFV8GjWgMxytF/ve0Dv+opjmTapHICRv8qiB1Y/fsTjkWNMpKPRCQ==}
+  /@t3-oss/env-core@0.10.1(typescript@5.4.5)(zod@3.22.4):
+    resolution: {integrity: sha512-GcKZiCfWks5CTxhezn9k5zWX3sMDIYf6Kaxy2Gx9YEQftFcz8hDRN56hcbylyAO3t4jQnQ5ifLawINsNgCDpOg==}
     peerDependencies:
       typescript: '>=5.0.0'
       zod: ^3.0.0
@@ -6086,8 +6086,8 @@ packages:
       zod: 3.22.4
     dev: false
 
-  /@t3-oss/env-nextjs@0.8.0(typescript@5.4.5)(zod@3.22.4):
-    resolution: {integrity: sha512-bJyoE8of4QmqZN7a49iLJAbUq4graScb9ezXzvnuIVr9JP43C093vmy55hT1uZL533CwiPz8zo1INwyAS6qnHw==}
+  /@t3-oss/env-nextjs@0.10.1(typescript@5.4.5)(zod@3.22.4):
+    resolution: {integrity: sha512-iy2qqJLnFh1RjEWno2ZeyTu0ufomkXruUsOZludzDIroUabVvHsrSjtkHqwHp1/pgPUzN3yBRHMILW162X7x2Q==}
     peerDependencies:
       typescript: '>=5.0.0'
       zod: ^3.0.0
@@ -6095,7 +6095,7 @@ packages:
       typescript:
         optional: true
     dependencies:
-      '@t3-oss/env-core': 0.8.0(typescript@5.4.5)(zod@3.22.4)
+      '@t3-oss/env-core': 0.10.1(typescript@5.4.5)(zod@3.22.4)
       typescript: 5.4.5
       zod: 3.22.4
     dev: false
