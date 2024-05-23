@@ -63,6 +63,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 
         <Textarea
           ref={textAreaRef}
+          id={message.id}
           className="height-[auto] min-h-8 w-full pt-3  font-mono text-xs focus:outline-none"
           placeholder={placeholder}
           value={message.content}

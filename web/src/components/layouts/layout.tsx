@@ -33,6 +33,15 @@ import { ProjectNavigation } from "@/src/components/projectNavigation";
 import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 
+const signOutUser = async () => {
+  localStorage.clear();
+  sessionStorage.clear();
+
+  await signOut({
+    callbackUrl: "/auth/sign-in",
+  });
+};
+
 const userNavigation = [
   {
     name: "Theme",
@@ -41,10 +50,7 @@ const userNavigation = [
   },
   {
     name: "Sign out",
-    onClick: () =>
-      signOut({
-        callbackUrl: "/auth/sign-in",
-      }),
+    onClick: signOutUser,
   },
 ];
 
@@ -141,9 +147,8 @@ export default function Layout(props: PropsWithChildren) {
     !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void signOut({
-      callbackUrl: "/auth/sign-in",
-    });
+    signOutUser();
+
     return <Spinner message="Redirecting" />;
   }
 
