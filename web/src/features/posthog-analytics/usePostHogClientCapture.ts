@@ -24,6 +24,7 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
+    "test_in_playground_button_click",
   ],
   generations: ["export"],
   score: [
@@ -58,7 +59,11 @@ const events = {
   ],
   integrations: ["posthog_form_submitted"],
   sign_in: ["cloud_region_switch", "button_click"],
-  playground: ["execute_button_click"],
+  playground: [
+    "execute_button_click",
+    "save_to_new_prompt_button_click",
+    "save_to_prompt_version_button_click",
+  ],
   dashboard: ["chart_tab_switch", "date_range_changed"],
   datasets: [
     "delete_form_open",
