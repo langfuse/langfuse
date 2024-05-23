@@ -3,6 +3,7 @@ CREATE TYPE "ScoreDataType" AS ENUM ('CATEGORICAL', 'NUMERIC');
 
 -- AlterTable
 ALTER TABLE "scores" ADD COLUMN     "config_id" TEXT,
+ADD COLUMN     "data_type" "ScoreDataType" NOT NULL DEFAULT 'NUMERIC',
 ADD COLUMN     "string_value" TEXT;
 
 -- CreateTable
