@@ -64,6 +64,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
         modelParams.provider === "openai"
           ? env.OPENAI_API_KEY
           : env.ANTHROPIC_API_KEY,
+      apiBase: env.OPENAI_API_BASE,
     });
 
     return new StreamingTextResponse(stream);
