@@ -1,5 +1,6 @@
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
-import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
+import { githubLight } from "@uiw/codemirror-theme-github";
+import { tokyoNight } from "@uiw/codemirror-theme-tokyo-night";
 import { json } from "@codemirror/lang-json";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
@@ -20,7 +21,7 @@ export function JsonEditor({
   className?: string;
 }) {
   const { theme } = useTheme();
-  const codeMirrorTheme = theme === "dark" ? githubDark : githubLight;
+  const codeMirrorTheme = theme === "dark" ? tokyoNight : githubLight;
   return (
     <CodeMirror
       value={defaultValue}
