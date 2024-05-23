@@ -1,8 +1,9 @@
 -- CreateEnum
-CREATE TYPE "ScoreConfigDataType" AS ENUM ('CATEGORICAL', 'CONTINUOUS');
+CREATE TYPE "ScoreDataType" AS ENUM ('CATEGORICAL', 'NUMERIC');
 
 -- AlterTable
-ALTER TABLE "scores" ADD COLUMN     "config_id" TEXT;
+ALTER TABLE "scores" ADD COLUMN     "config_id" TEXT,
+ADD COLUMN     "string_value" TEXT;
 
 -- CreateTable
 CREATE TABLE "score_configs" (
@@ -11,7 +12,7 @@ CREATE TABLE "score_configs" (
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "project_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "data_type" "ScoreConfigDataType" NOT NULL,
+    "data_type" "ScoreDataType" NOT NULL,
     "is_archived" BOOLEAN NOT NULL DEFAULT false,
     "min_value" DOUBLE PRECISION,
     "max_value" DOUBLE PRECISION,
