@@ -358,7 +358,7 @@ export type Score = {
     observation_id: string | null;
     config_id: string | null;
     string_value: string | null;
-    data_type: Generated<ScoreDataType>;
+    data_type: Generated<ScoreDataType | null>;
 };
 export type ScoreConfig = {
     id: string;
