@@ -4,6 +4,7 @@ import {
   type Prisma,
   ObservationType,
   ScoreSource,
+  ScoreConfigDataType,
 } from "../src/index";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
@@ -150,20 +151,28 @@ async function main() {
 
     const traceVolume = environment === "load" ? LOAD_TRACE_VOLUME : 100;
 
-    const { traces, observations, scores, sessions, events } = createObjects(
-      traceVolume,
-      envTags,
-      colorTags,
-      project1,
-      project2,
-      promptIds
-    );
+    const { traces, observations, scores, sessions, events, configs } =
+      createObjects(
+        traceVolume,
+        envTags,
+        colorTags,
+        project1,
+        project2,
+        promptIds
+      );
 
     console.log(
       `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
     );
 
-    await uploadObjects(traces, observations, scores, sessions, events);
+    await uploadObjects(
+      traces,
+      observations,
+      scores,
+      sessions,
+      events,
+      configs
+    );
 
     // add eval objects
     const evalTemplate = await prisma.evalTemplate.upsert({
@@ -329,7 +338,8 @@ async function uploadObjects(
   observations: Prisma.ObservationCreateManyInput[],
   scores: Prisma.ScoreCreateManyInput[],
   sessions: Prisma.TraceSessionCreateManyInput[],
-  events: Prisma.ObservationCreateManyInput[]
+  events: Prisma.ObservationCreateManyInput[],
+  configs: Prisma.ScoreConfigCreateManyInput[]
 ) {
   let promises: Prisma.PrismaPromise<unknown>[] = [];
 
@@ -411,6 +421,23 @@ async function uploadObjects(
   }
 
   promises = [];
+  chunk(configs, chunkSize).forEach((chunk) => {
+    promises.push(
+      prisma.scoreConfig.createMany({
+        data: chunk,
+      })
+    );
+  });
+  for (let i = 0; i < promises.length; i++) {
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    process.stdout.write(
+      `Seeding of Score Configs ${(i / promises.length) * 100}% complete`
+    );
+    await promises[i];
+  }
+
+  promises = [];
   chunk(scores, chunkSize).forEach((chunk) => {
     promises.push(
       prisma.score.createMany({
@@ -441,6 +468,7 @@ function createObjects(
   const scores: Prisma.ScoreCreateManyInput[] = [];
   const sessions: Prisma.TraceSessionCreateManyInput[] = [];
   const events: Prisma.ObservationCreateManyInput[] = [];
+  const configs: Prisma.ScoreConfigCreateManyInput[] = [];
 
   for (let i = 0; i < traceVolume; i++) {
     // print progress to console with a progress bar that refreshes every 10 iterations
@@ -492,35 +520,94 @@ function createObjects(
 
     traces.push(trace);
 
-    const traceScores = [
+    const scoreConfig = [
       ...(Math.random() > 0.5
         ? [
             {
+              name: "helpfulness",
+              dataType: ScoreConfigDataType.CONTINUOUS,
+              minValue: -1,
+              maxValue: 1,
+              projectId,
+              id: `continuous-config-${i}`,
+            },
+          ]
+        : []),
+    ];
+
+    configs.push(...scoreConfig);
+
+    const traceScoresAndConfigData: {
+      config?: Prisma.ScoreConfigCreateManyInput;
+      score: Prisma.ScoreCreateManyInput;
+    }[] = [
+      ...(Math.random() > 0.3
+        ? (() => {
+            const config =
+              Math.random() > 0.8
+                ? {
+                    name: `helpfulness-${i}`,
+                    dataType: ScoreConfigDataType.CATEGORICAL,
+                    categories: {
+                      helpful: 2,
+                      neutral: 1,
+                      hurtful: 0,
+                    },
+                    projectId,
+                    id: `categorical-config-${i}`,
+                  }
+                : undefined;
+
+            const score = {
               traceId: trace.id,
-              name: "manual-score",
-              value: Math.floor(Math.random() * 3) - 1,
+              name: "categorical-score",
+              value: Math.floor(Math.random() * 3), // Generates 0, 1, or 2
               timestamp: traceTs,
               source: ScoreSource.REVIEW,
               projectId,
               authorUserId: `user-${i}`,
+              configId: config ? config.id : undefined,
+            };
+
+            return config ? [{ config, score }] : [{ score }];
+          })()
+        : []),
+      ...(Math.random() > 0.5
+        ? [
+            {
+              score: {
+                traceId: trace.id,
+                name: "manual-score",
+                value: Math.floor(Math.random() * 3) - 1,
+                timestamp: traceTs,
+                source: ScoreSource.REVIEW,
+                projectId,
+                authorUserId: `user-${i}`,
+                configId: scoreConfig[0] ? scoreConfig[0].id : undefined,
+              },
             },
           ]
         : []),
       ...(Math.random() > 0.7
         ? [
             {
-              traceId: trace.id,
-              name: "sentiment",
-              value: Math.floor(Math.random() * 10) - 5,
-              timestamp: traceTs,
-              source: ScoreSource.API,
-              projectId,
+              score: {
+                traceId: trace.id,
+                name: "sentiment",
+                value: Math.floor(Math.random() * 10) - 5,
+                timestamp: traceTs,
+                source: ScoreSource.API,
+                projectId,
+              },
             },
           ]
         : []),
     ];
 
-    scores.push(...traceScores);
+    traceScoresAndConfigData.forEach((data) => {
+      if (data.config) configs.push(data.config);
+      scores.push(data.score);
+    });
 
     const existingSpanIds: string[] = [];
 
@@ -753,6 +840,7 @@ function createObjects(
     traces,
     observations,
     scores,
+    configs,
     sessions: uniqueSessions,
     events,
   };
