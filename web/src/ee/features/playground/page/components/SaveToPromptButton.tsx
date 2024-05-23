@@ -43,6 +43,7 @@ export const SaveToPromptButton: React.FC = () => {
           projectId: projectId as string, // Typecast as query is enabled only when projectId is present
           filter: [],
           orderBy: { column: "name", order: "ASC" },
+          page: 0,
         },
         { enabled: Boolean(projectId) },
       )
