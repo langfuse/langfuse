@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      vaul:
+        specifier: ^0.9.1
+        version: 0.9.1(react-dom@18.2.0)(react@18.2.0)
     devDependencies:
       '@release-it/bumper':
         specifier: ^6.0.1
@@ -4231,7 +4235,7 @@ packages:
       '@types/react-dom':
         optional: true
     dependencies:
-      '@babel/runtime': 7.24.0
+      '@babel/runtime': 7.24.5
       '@radix-ui/primitive': 1.0.1
       '@radix-ui/react-compose-refs': 1.0.1(@types/react@18.2.79)(react@18.2.0)
       '@radix-ui/react-context': 1.0.1(@types/react@18.2.79)(react@18.2.0)
@@ -17007,6 +17011,20 @@ packages:
   /vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
+    dev: false
+
+  /vaul@0.9.1(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-fAhd7i4RNMinx+WEm6pF3nOl78DFkAazcN04ElLPFF9BMCNGbY/kou8UMhIcicm0rJCNePJP0Yyza60gGOD0Jw==}
+    peerDependencies:
+      react: ^16.8 || ^17.0 || ^18.0
+      react-dom: ^16.8 || ^17.0 || ^18.0
+    dependencies:
+      '@radix-ui/react-dialog': 1.0.5(@types/react-dom@18.2.25)(@types/react@18.2.79)(react-dom@18.2.0)(react@18.2.0)
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+    transitivePeerDependencies:
+      - '@types/react'
+      - '@types/react-dom'
     dev: false
 
   /victory-vendor@36.9.2:

@@ -69,5 +69,8 @@
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
     }
+  },
+  "dependencies": {
+    "vaul": "^0.9.1"
   }
 }
