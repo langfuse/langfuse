@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "scores" ADD COLUMN     "data_type" "ScoreDataType" DEFAULT 'NUMERIC';
+ALTER TABLE "scores" ADD COLUMN     "data_type" "ScoreDataType" NOT NULL DEFAULT 'NUMERIC',
