@@ -21,6 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
+import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -71,13 +72,13 @@ export const ObservationPreview = (props: {
           <TabsList className="bg-background py-0">
             <TabsTrigger
               value="preview"
-              className="data-[state=active]:border-primary-accent h-full rounded-none border-b-4 border-transparent data-[state=active]:shadow-none"
+              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
             >
               Preview
             </TabsTrigger>
             <TabsTrigger
               value="scores"
-              className="data-[state=active]:border-primary-accent h-full rounded-none border-b-4 border-transparent data-[state=active]:shadow-none"
+              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
             >
               Scores
             </TabsTrigger>
@@ -159,6 +160,14 @@ export const ObservationPreview = (props: {
               observationId={preloadedObservation.id}
               scores={props.scores}
             />
+            {observationWithInputAndOutput.data?.type === "GENERATION" && (
+              <JumpToPlaygroundButton
+                source="generation"
+                generation={observationWithInputAndOutput.data}
+                analyticsEventName="trace_detail:test_in_playground_button_click"
+                fullWidth
+              />
+            )}
             {observationWithInputAndOutput.data ? (
               <NewDatasetItemFromTrace
                 traceId={preloadedObservation.traceId}

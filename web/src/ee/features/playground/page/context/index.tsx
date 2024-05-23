@@ -7,17 +7,13 @@ import React, {
   useState,
 } from "react";
 
-import { StringParam, useQueryParam } from "use-query-params";
 import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import useCommandEnter from "@/src/ee/features/playground/page/hooks/useCommandEnter";
+import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { ChatMessageListSchema } from "@/src/features/prompts/components/NewPromptForm/validation";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import {
   ChatMessageRole,
@@ -40,7 +36,6 @@ type PlaygroundContextType = {
 
   handleSubmit: () => Promise<void>;
   isStreaming: boolean;
-  isInitializing: boolean;
 } & ModelParamsContext &
   MessagesContext;
 
@@ -61,9 +56,8 @@ export const usePlaygroundContext = () => {
 export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
-  const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
-  const [initialPromptId] = useQueryParam("promptId", StringParam);
+  const { playgroundCache, setPlaygroundCache } = usePlaygroundCache();
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
   const [outputJson, setOutputJson] = useState("");
@@ -76,35 +70,32 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     getDefaultModelParams(ModelProvider.OpenAI),
   );
 
-  const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(
-    {
-      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      id: initialPromptId ?? "",
-    },
-    { enabled: Boolean(initialPromptId && projectId), staleTime: Infinity }, // do not refetch as this would overwrite the user's input
-  );
-
+  // Load state from cache
   useEffect(() => {
-    if (!initialPrompt) return;
-    if (initialPrompt.type === PromptType.Chat) {
-      try {
-        const initialMessages = ChatMessageListSchema.parse(
-          initialPrompt.prompt,
-        );
-        setMessages(initialMessages.map((m) => ({ ...m, id: uuidv4() })));
-      } catch (err) {
-        console.warn("Failed to parse initial chat messages", err);
-      }
-    } else {
-      const promptString = initialPrompt.prompt?.valueOf();
-      setMessages([
-        createEmptyMessage(
-          ChatMessageRole.System,
-          typeof promptString === "string" ? promptString : "",
-        ),
-      ]);
+    if (!playgroundCache) return;
+
+    const {
+      messages: cachedMessages,
+      modelParams: cachedModelParams,
+      output: cachedOutput,
+      promptVariables: cachedPromptVariables,
+    } = playgroundCache;
+
+    setMessages(cachedMessages.map((m) => ({ ...m, id: uuidv4() })));
+
+    if (cachedOutput) {
+      setOutput(cachedOutput);
+      setOutputJson("");
     }
-  }, [initialPrompt]);
+
+    if (cachedModelParams) {
+      setModelParams((prev) => ({ ...prev, ...cachedModelParams }));
+    }
+
+    if (cachedPromptVariables) {
+      setPromptVariables(cachedPromptVariables);
+    }
+  }, [playgroundCache]);
 
   useEffect(() => {
     setModelParams(getDefaultModelParams(modelParams.provider.value));
@@ -191,6 +182,12 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           setOutput(response);
         }
         setOutputJson(getOutputJson(response, finalMessages, modelParams));
+        setPlaygroundCache({
+          messages,
+          modelParams,
+          output: response,
+          promptVariables,
+        });
         capture("playground:execute_button_click", {
           inputLength: finalMessages.length,
           modelName: modelParams.model,
@@ -258,7 +255,6 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         outputJson,
         handleSubmit,
         isStreaming,
-        isInitializing: isInitialLoading,
       }}
     >
       {children}
