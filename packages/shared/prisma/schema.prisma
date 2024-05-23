@@ -406,7 +406,7 @@ model Score {
     observationId String?        @map("observation_id")
     configId      String?        @map("config_id")
     stringValue   String?        @map("string_value")
-    dataType      ScoreDataType  @default(NUMERIC) @map("data_type")
+    dataType      ScoreDataType? @default(NUMERIC) @map("data_type")
     JobExecution  JobExecution[]
     scoreConfig   ScoreConfig?   @relation(fields: [configId], references: [id], onDelete: SetNull)
 
