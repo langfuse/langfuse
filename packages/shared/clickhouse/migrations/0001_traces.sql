@@ -2,8 +2,8 @@
 CREATE TABLE traces (
     id String,
     `timestamp` DateTime64(6),
-    `name` Nullable(String),
-    user_id Nullable(String),
+    `name` String,
+    user_id String,
     metadata Map(String, String),
     release Nullable(String),
     `version` Nullable(String),

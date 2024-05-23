@@ -3,7 +3,7 @@ CREATE TABLE scores (
     id String,
     `timestamp` DateTime64(6),
     project_id String,
-    `name` Nullable(String),
+    `name` String,
     `value` Nullable(Float64),
     source String,
     comment Nullable(String),
@@ -32,4 +32,4 @@ GROUP BY project_id,
     id;
 -- +goose Down
 DROP TABLE scores;
-DROP VIEW scores_view
+DROP VIEW scores_view;

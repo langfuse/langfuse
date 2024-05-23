@@ -1,14 +1,14 @@
 -- +goose Up
 CREATE TABLE observations (
     `id` String,
-    `trace_id` Nullable(String),
+    `trace_id` String,
     `project_id` String,
     `type` Nullable(String),
     `parent_observation_id` Nullable(String),
     `created_at` DateTime64(6),
     `start_time` DateTime64(6),
     `end_time` Nullable(DateTime64(6)),
-    `name` Nullable(String),
+    `name` String,
     metadata Map(String, String),
     `user_id` Nullable(String),
     `level` Nullable(String),
@@ -32,8 +32,8 @@ CREATE TABLE observations (
 ) ENGINE = MergeTree PARTITION BY toDate(event_ts)
 ORDER BY (
         project_id,
-        name,
-        toUnixTimestamp(event_ts),
+        `name`,
+        toUnixTimestamp(start_time),
         trace_id,
         id
     );
