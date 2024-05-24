@@ -28,6 +28,7 @@ export const ObservationLevel = {
 export type ObservationLevel =
   (typeof ObservationLevel)[keyof typeof ObservationLevel];
 export const ScoreSource = {
+  ANNOTATION: "ANNOTATION",
   API: "API",
   REVIEW: "REVIEW",
   EVAL: "EVAL",
