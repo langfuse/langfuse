@@ -425,7 +425,6 @@ model Score {
 enum ScoreSource {
     ANNOTATION
     API
-    REVIEW
     EVAL
 }
 

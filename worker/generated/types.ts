@@ -30,7 +30,6 @@ export type ObservationLevel =
 export const ScoreSource = {
   ANNOTATION: "ANNOTATION",
   API: "API",
-  REVIEW: "REVIEW",
   EVAL: "EVAL",
 } as const;
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
