@@ -158,7 +158,7 @@ export const scoresRouter = createTRPCRouter({
           name: input.name,
           comment: input.comment,
           authorUserId: ctx.session.user.id,
-          source: "REVIEW",
+          source: "ANNOTATION",
         },
       });
       await auditLog({
@@ -193,7 +193,7 @@ export const scoresRouter = createTRPCRouter({
         where: {
           id: input.id,
           projectId: input.projectId,
-          source: "REVIEW",
+          source: "ANNOTATION",
         },
       });
       if (!score) {
@@ -236,7 +236,7 @@ export const scoresRouter = createTRPCRouter({
       const score = await ctx.prisma.score.findFirst({
         where: {
           id: input.id,
-          source: "REVIEW",
+          source: "ANNOTATION",
           projectId: input.projectId,
         },
       });
