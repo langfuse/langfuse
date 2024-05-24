@@ -746,6 +746,9 @@ model JobExecution {
     @@index([projectId, status])
     @@index([projectId, id])
     @@index([projectId])
+    @@index([jobConfigurationId])
+    @@index([jobOutputScoreId])
+    @@index([jobInputTraceId])
     @@map("job_executions")
 }
 
