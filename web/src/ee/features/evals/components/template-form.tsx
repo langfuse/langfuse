@@ -520,7 +520,7 @@ export const LLMApiKeyComponent = (p: {
       {/* Custom form message to include a link to the already existing prompt */}
       {!getApiKeyForModel(p.modelParams.model.value) ? (
         <div className="flex flex-col text-sm font-medium text-destructive">
-          {"No LLM API key found."}
+          {`No LLM API key found for provider ${getModelProvider(p.modelParams.model.value)}.`}
 
           <Link
             href={`/project/${p.projectId}/settings`}

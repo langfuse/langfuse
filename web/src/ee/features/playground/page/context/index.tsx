@@ -14,6 +14,7 @@ import useCommandEnter from "@/src/ee/features/playground/page/hooks/useCommandE
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { extractVariables } from "@/src/utils/string";
 import {
   ChatMessageRole,
@@ -57,6 +58,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
   const capture = usePostHogClientCapture();
+  const projectId = useProjectIdFromURL();
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache();
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
@@ -172,6 +174,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         }
 
         const completionStream = getChatCompletionStream(
+          projectId,
           finalMessages,
           modelParams,
         );
@@ -263,10 +266,17 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 };
 
 async function* getChatCompletionStream(
+  projectId: string | undefined,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
 ) {
+  if (!projectId) {
+    console.error("Project ID is not set");
+    return;
+  }
+
   const body = JSON.stringify({
+    projectId,
     messages,
     modelParams: getFinalModelParams(modelParams),
   });
