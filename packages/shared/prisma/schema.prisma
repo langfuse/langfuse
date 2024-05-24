@@ -749,6 +749,7 @@ model JobExecution {
     @@index([jobConfigurationId])
     @@index([jobOutputScoreId])
     @@index([jobInputTraceId])
+    @@index([createdAt])
     @@map("job_executions")
 }
 
