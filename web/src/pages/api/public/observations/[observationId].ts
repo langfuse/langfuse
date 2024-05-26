@@ -5,6 +5,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { env } from "@/src/env.mjs";
+import { getObservation } from "@/src/server/api/repositories/clickhouse";
 
 const GetObservationSchema = z.object({
   observationId: z.string(),
@@ -43,18 +45,20 @@ export default async function handler(
     }
     // END CHECK ACCESS SCOPE
 
-    const observation = await prisma.observationView.findFirst({
-      where: {
-        id: observationId,
-        projectId: authCheck.scope.projectId,
-      },
-    });
+    const observation = env.CLICKHOUSE_URL
+      ? await getObservation(observationId, authCheck.scope.projectId)
+      : await prisma.observationView.findFirst({
+          where: {
+            id: observationId,
+            projectId: authCheck.scope.projectId,
+          },
+        });
     if (!observation) {
       return res.status(404).json({
         message: "Observation not found within authorized project",
       });
     }
-    return res.status(200).json(mapUsageOutput(observation));
+    return res.status(200).json(observation); //mapUsageOutput(observation));
   } catch (error: unknown) {
     console.error(error);
     if (isPrismaException(error)) {

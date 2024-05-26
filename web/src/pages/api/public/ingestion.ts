@@ -88,7 +88,9 @@ export default async function handler(
         errors: parsedSchema.error.issues.map((issue) => issue.message),
       });
     }
-
+    console.log(
+      `handling ingestion ${JSON.stringify(parsedSchema.data.batch)}`,
+    );
     const validationErrors: { id: string; error: unknown }[] = [];
 
     const batch: (z.infer<typeof ingestionEvent> | undefined)[] =

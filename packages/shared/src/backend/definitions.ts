@@ -1,4 +1,10 @@
 import z from "zod";
+export const stringDate = z
+  .string()
+  // clickhouse stores UTC like '2024-05-23 18:33:41.602000'
+  // we need to convert it to '2024-05-23T18:33:41.602000Z'
+  .transform((str) => str.replace(" ", "T") + "Z")
+  .pipe(z.string().datetime({ precision: 6 }));
 
 export const observationRecord = z.object({
   id: z.string(),
@@ -6,9 +12,9 @@ export const observationRecord = z.object({
   project_id: z.string(),
   type: z.string().nullable(),
   parent_observation_id: z.string().nullable(),
-  created_at: z.date(),
-  start_time: z.date().nullable(),
-  end_time: z.date().nullable(),
+  created_at: stringDate,
+  start_time: stringDate.nullable(),
+  end_time: stringDate.nullable(),
   name: z.string().nullable(),
   metadata: z.record(z.string()),
   user_id: z.string().nullable(),
@@ -31,9 +37,9 @@ export const observationRecord = z.object({
   prompt_id: z.string().nullable(),
 });
 
-const traceRecord = z.object({
+export const traceRecord = z.object({
   id: z.string(),
-  timestamp: z.date(),
+  timestamp: stringDate,
   name: z.string().nullable(),
   user_id: z.string().nullable(),
   metadata: z.record(z.string()),
@@ -46,19 +52,18 @@ const traceRecord = z.object({
   input: z.string().nullable(),
   output: z.string().nullable(),
   session_id: z.string().nullable(),
-  created_at: z.date(),
-  updated_at: z.date(),
+  created_at: stringDate,
+  updated_at: stringDate,
 });
 
-const scoreRecord = z.object({
+export const scoreRecord = z.object({
   id: z.string(),
-  timestamp: z.date(),
+  timestamp: stringDate,
   project_id: z.string(),
   name: z.string().nullable(),
   value: z.number().nullable(),
   source: z.string(),
   comment: z.string().nullable(),
   trace_id: z.string(),
-  observation_id: z.string(),
-  event_ts: z.date(),
+  observation_id: z.string().nullable(),
 });

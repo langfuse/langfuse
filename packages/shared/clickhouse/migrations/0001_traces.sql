@@ -4,19 +4,20 @@ CREATE TABLE traces (
     `timestamp` DateTime64(6),
     `name` String,
     user_id String,
-    metadata Map(String, String),
+    metadata Map(String, String) CODEC(ZSTD(1)),
     release Nullable(String),
     `version` Nullable(String),
     project_id String,
     public Bool,
     bookmarked Bool,
     tags Array(String),
-    input Nullable(String),
-    output Nullable(String),
+    input Nullable(String) CODEC(ZSTD(1)),
+    output Nullable(String) CODEC(ZSTD(1)),
     session_id Nullable(String),
     created_at DateTime64(6),
     updated_at DateTime64(6),
-    event_ts DateTime64(6)
+    event_ts DateTime64(3),
+    event_microseconds UInt32,
 ) ENGINE = MergeTree PARTITION BY toDate(timestamp)
 ORDER BY (
         project_id,
@@ -27,20 +28,29 @@ ORDER BY (
 CREATE VIEW traces_view AS
 SELECT id,
     project_id,
-    argMax(`timestamp`, event_ts) AS `timestamp`,
-    argMax(`name`, event_ts) AS `name`,
-    argMax(user_id, event_ts) AS user_id,
+    argMax(
+        if(timestamp != '', timestamp, NULL),
+        tuple(event_ts, event_microseconds)
+    ) AS `timestamp`,
+    argMax(
+        if(name != '', name, NULL),
+        tuple(event_ts, event_microseconds)
+    ) AS `name`,
+    argMax(
+        if(user_id != '', user_id, NULL),
+        tuple(event_ts, event_microseconds)
+    ) AS user_id,
     maxMap(metadata) AS metadata,
-    argMax(release, event_ts) AS release,
-    argMax(`version`, event_ts) AS `version`,
-    argMax(public, event_ts) AS public,
-    argMax(bookmarked, event_ts) AS bookmarked,
-    groupArrayState(tags) AS tags,
-    argMax(input, event_ts) AS input,
-    argMax(output, event_ts) AS output,
-    argMax(session_id, event_ts) AS session_id,
-    argMax(created_at, event_ts) AS created_at,
-    argMax(updated_at, event_ts) AS updated_at
+    argMax(release, tuple(event_ts, event_microseconds)) AS release,
+    argMax(`version`, tuple(event_ts, event_microseconds)) AS `version`,
+    argMax(public, tuple(event_ts, event_microseconds)) AS public,
+    argMax(bookmarked, tuple(event_ts, event_microseconds)) AS bookmarked,
+    arrayDistinct(flatten(groupArray(tags))) AS tags,
+    argMax(input, tuple(event_ts, event_microseconds)) AS input,
+    argMax(output, tuple(event_ts, event_microseconds)) AS output,
+    argMax(session_id, tuple(event_ts, event_microseconds)) AS session_id,
+    argMax(created_at, tuple(event_ts, event_microseconds)) AS created_at,
+    argMax(updated_at, tuple(event_ts, event_microseconds)) AS updated_at
 from langfuse.traces
 GROUP BY project_id,
     id;

@@ -287,7 +287,8 @@ export const eventTypes = {
 
 const base = z.object({
   id: z.string(),
-  timestamp: z.string().datetime({ offset: true }),
+  // potentially high resolution timestamp. Date object cuts off precision, hence using a string
+  timestamp: z.string(),
   metadata: jsonSchema.nullish(),
 });
 export const traceEvent = base.extend({

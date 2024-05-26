@@ -5,9 +5,12 @@ import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { clickhouseClient } from "@langfuse/shared/backend";
 import { env } from "@/src/env.mjs";
-import { jsonSchema } from "@/src/utils/zod";
+import {
+  getObservations,
+  getScores,
+  getTraces,
+} from "@/src/server/api/repositories/clickhouse";
 
 const GetTraceSchema = z.object({
   traceId: z.string(),
@@ -50,40 +53,11 @@ export default async function handler(
       `get trace ${traceId} for project ${authCheck.scope.projectId}`,
     );
 
-    const queryFromClickhouse = async (): Promise<any> => {
-      const trace = await clickhouseClient.query({
-        query: `SELECT * FROM traces_view where id = '${traceId}' and project_id = '${authCheck.scope.projectId}' LIMIT 1`,
-        format: "JSONEachRow",
-      });
-      const traceJson = (await trace.json()) as unknown[];
-
-      const scores = await clickhouseClient.query({
-        query: `SELECT * FROM scores_view where trace_id = '${traceId}' and project_id = '${authCheck.scope.projectId}'`,
-        format: "JSONEachRow",
-      });
-
-      const scoreJson = await scores.json();
-
-      console.log(traceJson, scoreJson);
-      const final = traceJson.length > 0 ? (traceJson[0] as object) : {};
-
-      return {
-        ...final,
-        metadata:
-          "metadata" in final &&
-          final.metadata !== null &&
-          typeof final.metadata === "object" &&
-          Object.keys(final.metadata).length === 0
-            ? null
-            : "metadata" in final
-              ? final.metadata
-              : null,
-        scores: scoreJson,
-      };
-    };
-
     const trace = env.SERVE_FROM_CLICKHOUSE
-      ? await queryFromClickhouse()
+      ? await queryTracesAndScoresFromClickhouse(
+          traceId,
+          authCheck.scope.projectId,
+        )
       : await prisma.trace.findFirst({
           where: {
             id: traceId,
@@ -100,47 +74,11 @@ export default async function handler(
       });
     }
 
-    const clickhouseObs = async () => {
-      const observations = await clickhouseClient.query({
-        query: `SELECT * FROM observations_view where trace_id = '${traceId}' and project_id = '${authCheck.scope.projectId}'`,
-        format: "JSONEachRow",
-      });
-      const obs = await observations.json();
-      const parsedObs = obs.map((observation) => {
-        if (typeof observation === "object" && observation) {
-          if (
-            "model_parameters" in observation &&
-            observation.model_parameters &&
-            typeof observation.model_parameters === "string"
-          ) {
-            observation.model_parameters = JSON.parse(
-              observation.model_parameters,
-            );
-          }
-          if (
-            "input" in observation &&
-            observation.input &&
-            typeof observation.input === "string"
-          ) {
-            observation.input = JSON.parse(observation.input);
-          }
-          if (
-            "output" in observation &&
-            observation.output &&
-            typeof observation.output === "string"
-          ) {
-            try {
-              observation.output = JSON.parse(observation.output);
-            } catch (e) {}
-          }
-        }
-        return observation;
-      });
-      return parsedObs;
-    };
-
     const observations = env.SERVE_FROM_CLICKHOUSE
-      ? await clickhouseObs()
+      ? await queryObservationsFromClickhouse(
+          traceId,
+          authCheck.scope.projectId,
+        )
       : await prisma.observationView.findMany({
           where: {
             traceId: traceId,
@@ -148,9 +86,10 @@ export default async function handler(
           },
         });
 
-    console.log("Got trace:", trace, observations);
+    console.log("Return trace:", trace, observations);
     return res.status(200).json({
       ...trace,
+      externalId: null,
       htmlPath: `/project/${authCheck.scope.projectId}/traces/${traceId}`,
       totalCost: 0,
       // observations.reduce(
@@ -181,21 +120,30 @@ export default async function handler(
   }
 }
 
-// export const getObservations = async (traceId: string, projectId: string) => {
-//   const observations = await clickhouseClient.query({
-//     query: `SELECT * FROM observations_view where trace_id = '${traceId}' and project_id = '${projectId}'`,
-//     format: "JSONEachRow",
-//   });
-//   const jsonRecords = await observations.json();
-//   return jsonRecords.map((record) => {
-//     return {
-//       ...record,
-//       metadata: jsonSchema,
-//       model_parameters: record.model_parameters
-//         ? JSON.parse(record.model_parameters)
-//         : null,
-//       input: record.input ? JSON.parse(record.input) : null,
-//       output: record.output ? JSON.parse(record.output) : null,
-//     };
-//   });
-// };
+const queryTracesAndScoresFromClickhouse = async (
+  traceId: string,
+  projectId: string,
+): Promise<any> => {
+  const traces = await getTraces(traceId, projectId);
+  const scores = await getScores(traceId, projectId);
+
+  if (traces.length === 0) {
+    return undefined;
+  }
+
+  if (traces.length > 1) {
+    throw new Error("Multiple traces found");
+  }
+
+  return {
+    ...traces[0],
+    scores: scores,
+  };
+};
+
+const queryObservationsFromClickhouse = async (
+  traceId: string,
+  projectId: string,
+) => {
+  return getObservations(traceId, projectId);
+};
