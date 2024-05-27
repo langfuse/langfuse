@@ -11,6 +11,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { ScoreDataType, type Prisma } from "@langfuse/shared";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { CreateScoreConfigButton } from "@/src/features/manual-scoring/components/CreateScoreConfigButton";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -191,6 +192,16 @@ export function ScoreConfigs({ projectId }: { projectId: string }) {
     <div>
       <Header title="Score Configs" level="h3" />
       <Card className="flex max-h-[calc(100dvh-40rem)] flex-col overflow-hidden p-4">
+        <div className="grid grid-cols-2 items-center justify-between">
+          <Header
+            title="Configs"
+            help={{
+              description:
+                "Score configs define the scoring rules for your project.",
+            }}
+          />
+          <CreateScoreConfigButton projectId={projectId} />
+        </div>
         <ScoreConfigsTable projectId={projectId} />
       </Card>
     </div>
@@ -203,5 +214,5 @@ function getConfigRange(
   if (dataType === ScoreDataType.CATEGORICAL) {
     return categories;
   }
-  return [{ maxValue, minValue }];
+  return [{ minValue, maxValue }];
 }

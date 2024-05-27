@@ -4,7 +4,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@/src/utils/zod";
-import { Prisma, type ScoreConfig } from "@langfuse/shared/src/db";
+import { ScoreDataType } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
 const ScoreConfigFilterOptions = z.object({
@@ -13,6 +13,11 @@ const ScoreConfigFilterOptions = z.object({
 
 const ScoreConfigAllOptions = ScoreConfigFilterOptions.extend({
   ...paginationZod,
+});
+
+const category = z.object({
+  label: z.string().min(1),
+  value: z.number(),
 });
 
 export const scoreConfigsRouter = createTRPCRouter({
@@ -46,5 +51,32 @@ export const scoreConfigsRouter = createTRPCRouter({
         configs,
         totalCount: configsCount,
       };
+    }),
+
+  create: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string(),
+        dataType: z.enum([ScoreDataType.NUMERIC, ScoreDataType.CATEGORICAL]),
+        minValue: z.number().optional(),
+        maxValue: z.number().optional(),
+        categories: z.array(category).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "scoreConfigs:CUD",
+      });
+
+      const config = await ctx.prisma.scoreConfig.create({
+        data: {
+          ...input,
+        },
+      });
+
+      return config;
     }),
 });
