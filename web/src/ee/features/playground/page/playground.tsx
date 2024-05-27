@@ -16,7 +16,7 @@ export default function Playground() {
           <div className="basis-[55%] ">
             <ModelParameters {...playgroundContext} />
           </div>
-          <div className="basis-[45%]  overflow-auto">
+          <div className="mt-4 basis-[45%] overflow-auto">
             <Variables />
           </div>
         </div>

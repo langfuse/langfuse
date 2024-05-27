@@ -1,12 +1,18 @@
 import { StreamingTextResponse } from "ai";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { env } from "@/src/env.mjs";
-import { BaseError, fetchLLMCompletion } from "@langfuse/shared";
+import {
+  BaseError,
+  ValidationError,
+  fetchLLMCompletion,
+} from "@langfuse/shared";
 
 import { PosthogCallbackHandler } from "./analytics/posthogCallback";
 import { authorizeRequestOrThrow } from "./authorizeRequest";
 import { validateChatCompletionBody } from "./validateChatCompletionBody";
+
+import { prisma } from "@langfuse/shared/src/db";
+import { decrypt } from "@langfuse/shared/encryption";
 
 export default async function chatCompletionHandler(req: NextRequest) {
   try {
@@ -14,15 +20,25 @@ export default async function chatCompletionHandler(req: NextRequest) {
     const { userId } = await authorizeRequestOrThrow(body.projectId);
 
     const { messages, modelParams } = body;
+
+    const LLMApiKey = await prisma.llmApiKeys.findFirst({
+      where: {
+        projectId: body.projectId,
+        provider: modelParams.provider,
+      },
+    });
+
+    if (!LLMApiKey)
+      throw new ValidationError(
+        `No ${modelParams.provider} API key found in project. Please add one in the project settings.`,
+      );
+
     const stream = await fetchLLMCompletion({
       messages,
       modelParams,
       streaming: true,
       callbacks: [new PosthogCallbackHandler("playground", body, userId)],
-      apiKey:
-        modelParams.provider === "openai"
-          ? env.OPENAI_API_KEY
-          : env.ANTHROPIC_API_KEY,
+      apiKey: decrypt(LLMApiKey.secretKey),
     });
 
     return new StreamingTextResponse(stream);
