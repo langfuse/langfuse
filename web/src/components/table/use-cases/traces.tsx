@@ -547,6 +547,7 @@ export default function TracesTable({
       header: "Version",
       enableHiding: true,
       enableSorting: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "release",
@@ -554,6 +555,7 @@ export default function TracesTable({
       header: "Release",
       enableHiding: true,
       enableSorting: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "tags",
