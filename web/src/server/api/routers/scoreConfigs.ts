@@ -58,7 +58,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string(),
-        dataType: z.enum([ScoreDataType.NUMERIC, ScoreDataType.CATEGORICAL]),
+        dataType: z.nativeEnum(ScoreDataType),
         minValue: z.number().optional(),
         maxValue: z.number().optional(),
         categories: z.array(category).optional(),

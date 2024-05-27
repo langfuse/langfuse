@@ -31,11 +31,10 @@ import {
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { Textarea } from "@/src/components/ui/textarea";
-
-const isNumeric = (dataType: ScoreDataType) =>
-  dataType === ScoreDataType.NUMERIC;
-const isCategorical = (dataType: ScoreDataType) =>
-  dataType === ScoreDataType.CATEGORICAL;
+import {
+  isCategorical,
+  isNumeric,
+} from "@/src/features/manual-scoring/helpers";
 
 const availableDataTypes = [
   ScoreDataType.NUMERIC,

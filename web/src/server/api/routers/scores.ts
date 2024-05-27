@@ -46,8 +46,10 @@ export const scoresRouter = createTRPCRouter({
         Array<
           Score & {
             traceName: string | null;
-            userId: string | null;
+            traceUserId: string | null;
             jobConfigurationId: string | null;
+            authorUserImage: string | null;
+            authorUserName: string | null;
           }
         >
       >(
@@ -56,14 +58,19 @@ export const scoresRouter = createTRPCRouter({
           s.id,
           s.name,
           s.value,
+          s.string_value AS "stringValue",
           s.timestamp,
           s.source,
+          s.data_type AS "dataType",
           s.comment,
-          s.trace_id as "traceId",
-          s.observation_id as "observationId",
-          t.user_id as "userId",
-          t.name as "traceName",
-          je.job_configuration_id as "jobConfigurationId"
+          s.trace_id AS "traceId",
+          s.observation_id AS "observationId",
+          s.author_user_id AS "authorUserId",
+          t.user_id AS "traceUserId",
+          t.name AS "traceName",
+          je.job_configuration_id AS "jobConfigurationId",
+          u.image AS "authorUserImage", 
+          u.name AS "authorUserName"
           `,
           input.projectId,
           filterCondition,
@@ -279,6 +286,7 @@ const generateScoresQuery = (
   FROM scores s
   JOIN traces t ON t.id = s.trace_id AND t.project_id = ${projectId}
   LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
+  LEFT JOIN users u ON u.id = s.author_user_id
   WHERE s.project_id = ${projectId}
   ${filterCondition}
   ${orderCondition}
