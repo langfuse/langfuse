@@ -44,9 +44,9 @@
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
     "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load",
     "ch:status": "dotenv -e ../../.env -- goose -dir './clickhouse/migrations/' status",
-    "ch:up": "dotenv -e ../../.env -- goose -dir './clickhouse/migrations/' up",
-    "ch:down": "dotenv -e ../../.env -- goose -dir './clickhouse/migrations/' down",
-    "ch:reset": "dotenv -e ../../.env -- goose -dir './clickhouse/migrations/' reset"
+    "ch:up": "bash clickhouse/scripts/up.sh",
+    "ch:down": "bash clickhouse/scripts/down.sh",
+    "ch:drop": "bash clickhouse/scripts/drop.sh"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
