@@ -1,4 +1,3 @@
--- +goose Up
 CREATE TABLE scores (
     id String,
     `timestamp` DateTime64(6),
@@ -34,6 +33,3 @@ SELECT id,
 FROM scores
 GROUP BY project_id,
     id;
--- +goose Down
-DROP TABLE scores;
-DROP VIEW scores_view;

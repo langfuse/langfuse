@@ -1,4 +1,3 @@
--- +goose Up
 CREATE TABLE traces (
     id String,
     `timestamp` DateTime64(6),
@@ -54,6 +53,3 @@ SELECT id,
 from langfuse.traces
 GROUP BY project_id,
     id;
--- +goose Down
-DROP TABLE traces;
-DROP VIEW traces_view;

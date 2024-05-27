@@ -1,4 +1,3 @@
--- +goose Up
 CREATE TABLE observations (
     `id` String,
     `trace_id` String,
@@ -86,6 +85,3 @@ SELECT id,
 FROM observations
 GROUP BY project_id,
     id;
--- +goose Down
-DROP TABLE observations;
-DROP VIEW observations_view;
