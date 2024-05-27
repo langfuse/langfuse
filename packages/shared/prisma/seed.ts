@@ -4,7 +4,7 @@ import {
   type Prisma,
   ObservationType,
   ScoreSource,
-  ScoreConfigDataType,
+  ScoreDataType,
 } from "../src/index";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
@@ -544,7 +544,7 @@ function createObjects(
         ? [
             {
               name: "helpfulness",
-              dataType: ScoreConfigDataType.CONTINUOUS,
+              dataType: ScoreDataType.NUMERIC,
               minValue: -1,
               maxValue: 1,
               projectId,
@@ -566,26 +566,31 @@ function createObjects(
               Math.random() > 0.8
                 ? {
                     name: `helpfulness-${i}`,
-                    dataType: ScoreConfigDataType.CATEGORICAL,
-                    categories: {
-                      helpful: 2,
-                      neutral: 1,
-                      hurtful: 0,
-                    },
+                    dataType: ScoreDataType.CATEGORICAL,
+                    categories: [
+                      { value: 0, label: "hurtful" },
+                      { value: 1, label: "helpful" },
+                    ],
                     projectId,
                     id: `categorical-config-${i}`,
                   }
                 : undefined;
 
+            const scoreValue = Math.floor(Math.random() * 1); // Generates 0, 1
             const score = {
               traceId: trace.id,
-              name: "categorical-score",
-              value: Math.floor(Math.random() * 3), // Generates 0, 1, or 2
+              name: config ? `helpfulness-${i}` : "categorical-score",
               timestamp: traceTs,
               source: ScoreSource.ANNOTATION,
               projectId,
               authorUserId: `user-${i}`,
               configId: config ? config.id : undefined,
+              dataType: config
+                ? ScoreDataType.CATEGORICAL
+                : ScoreDataType.NUMERIC,
+              value: scoreValue,
+              ...(scoreValue === 0 ? { stringValue: "hurtful" } : {}),
+              ...(scoreValue === 1 ? { stringValue: "helpful" } : {}),
             };
 
             return config ? [{ config, score }] : [{ score }];
@@ -596,13 +601,14 @@ function createObjects(
             {
               score: {
                 traceId: trace.id,
-                name: "manual-score",
+                name: scoreConfig[0] ? scoreConfig[0].name : "manual-score",
                 value: Math.floor(Math.random() * 3) - 1,
                 timestamp: traceTs,
-                source: ScoreSource.REVIEW,
+                source: ScoreSource.ANNOTATION,
                 projectId,
                 authorUserId: `user-${i}`,
                 configId: scoreConfig[0] ? scoreConfig[0].id : undefined,
+                dataType: ScoreDataType.NUMERIC,
               },
             },
           ]
@@ -617,6 +623,7 @@ function createObjects(
                 timestamp: traceTs,
                 source: ScoreSource.API,
                 projectId,
+                dataType: ScoreDataType.NUMERIC,
               },
             },
           ]
