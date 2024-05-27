@@ -28,6 +28,7 @@ export type TableName =
   | "traces"
   | "generations"
   | "sessions"
+  | "scoreConfigs"
   | "scores"
   | "prompts"
   | "dashboard";
