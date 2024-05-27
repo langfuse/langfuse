@@ -1,5 +1,5 @@
 INSERT INTO langfuse.observations
-SELECT toString(randUniform(0, 500000)) AS id,
+SELECT toString(floor(randUniform(0, 500000))) AS id,
   toString(floor(randExponential(1 / 2)) % 1000) AS trace_id,
   toString(floor(randExponential(1 / 2)) % 1000) AS project_id,
   multiIf(

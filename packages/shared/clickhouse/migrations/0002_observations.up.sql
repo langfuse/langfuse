@@ -28,11 +28,16 @@ CREATE TABLE observations (
     `prompt_id` Nullable(String),
     event_ts DateTime64(6),
     event_microseconds UInt32,
+    INDEX idx_id id TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_trace_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_project_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_res_metadata_key mapKeys(metadata) TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_res_metadata_value mapValues(metadata) TYPE bloom_filter(0.01) GRANULARITY 1
 ) ENGINE = MergeTree
 ORDER BY (
         project_id,
         `name`,
-        toUnixTimestamp(start_time),
+        toUnixTimestamp(event_ts),
         trace_id,
         id
     );

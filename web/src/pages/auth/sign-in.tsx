@@ -286,7 +286,6 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
             Sign in to your account
           </h2>
         </div>
-
         <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
           <div className="space-y-8">
             <CloudRegionSwitch />
@@ -395,7 +394,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
           }
           <CloudPrivacyNotice action="signing in" />
         </div>
-
+        ``
         {!signUpDisabled &&
         env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
         authProviders.credentials ? (

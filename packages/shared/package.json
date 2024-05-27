@@ -46,7 +46,8 @@
     "ch:status": "dotenv -e ../../.env -- goose -dir './clickhouse/migrations/' status",
     "ch:up": "bash clickhouse/scripts/up.sh",
     "ch:down": "bash clickhouse/scripts/down.sh",
-    "ch:drop": "bash clickhouse/scripts/drop.sh"
+    "ch:drop": "bash clickhouse/scripts/drop.sh",
+    "ch:reset": "pnpm run ch:down && pnpm run ch:up"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
