@@ -18,7 +18,7 @@ CREATE TABLE traces (
     updated_at DateTime64(6),
     event_ts DateTime64(3),
     event_microseconds UInt32,
-) ENGINE = MergeTree PARTITION BY toDate(timestamp)
+) ENGINE = MergeTree
 ORDER BY (
         project_id,
         name,

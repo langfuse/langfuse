@@ -155,7 +155,6 @@ function convertObservations(jsonRecords: unknown[]) {
       createdAt: record.created_at,
       startTime: record.start_time,
       endTime: record.end_time,
-      userId: record.user_id,
       statusMessage: record.status_message,
       internalModel: record.internal_model,
       modelParameters: record.model_parameters
