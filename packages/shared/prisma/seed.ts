@@ -563,7 +563,7 @@ function createObjects(
               name: "categorical-score",
               value: Math.floor(Math.random() * 3), // Generates 0, 1, or 2
               timestamp: traceTs,
-              source: ScoreSource.REVIEW,
+              source: ScoreSource.ANNOTATION,
               projectId,
               authorUserId: `user-${i}`,
               configId: config ? config.id : undefined,
