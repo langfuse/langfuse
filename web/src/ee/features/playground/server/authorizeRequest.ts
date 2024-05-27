@@ -1,8 +1,9 @@
-import { getIsCloudEnvironment } from "@/src/ee/utils/getIsCloudEnvironment";
-
-import { ApiError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
-import { getAuthOptions } from "@/src/server/auth";
 import { getServerSession } from "next-auth";
+
+import { getIsCloudEnvironment } from "@/src/ee/utils/getIsCloudEnvironment";
+import { getAuthOptions } from "@/src/server/auth";
+import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { ApiError, ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 
 export type AuthorizeRequestResult = {
   userId: string;
@@ -16,9 +17,9 @@ export const authorizeRequestOrThrow = async (
 
   const authOptions = await getAuthOptions();
   const session = await getServerSession(authOptions);
-  if (!session) throw new UnauthorizedError("Unauthenticated");
+  if (!session?.user) throw new UnauthorizedError("Unauthenticated");
 
-  if (!session.user?.projects.some((project) => project.id === projectId))
+  if (!isProjectMemberOrAdmin(session.user, projectId))
     throw new ForbiddenError("User is not a member of this project");
 
   return { userId: session.user.id };
