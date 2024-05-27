@@ -22,7 +22,7 @@ import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
-import { getCookieName, cookieOptions } from "./utils/cookies";
+import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
@@ -330,27 +330,27 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     cookies: {
       sessionToken: {
         name: getCookieName("next-auth.session-token"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       csrfToken: {
         name: getCookieName("next-auth.csrf-token"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       callbackUrl: {
         name: getCookieName("next-auth.callback-url"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       state: {
         name: getCookieName("next-auth.state"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       nonce: {
         name: getCookieName("next-auth.nonce"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       pkceCodeVerifier: {
         name: getCookieName("next-auth.pkce.code_verifier"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
     },
     events: {
