@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
+import { Textarea } from "@/src/components/ui/textarea";
 
 const isNumeric = (dataType: ScoreDataType) =>
   dataType === ScoreDataType.NUMERIC;
@@ -52,6 +53,7 @@ const formSchema = z.object({
   minValue: z.coerce.number().optional(),
   maxValue: z.coerce.number().optional(),
   categories: z.array(category).optional(),
+  description: z.string().min(1).optional(),
 });
 
 export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
@@ -75,6 +77,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
     resolver: zodResolver(formSchema),
     defaultValues: {
       dataType: ScoreDataType.NUMERIC,
+      minValue: undefined,
+      maxValue: undefined,
+      name: "",
     },
   });
 
@@ -273,6 +278,24 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   />
                 </div>
               )}
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <>
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          placeholder="Provide an optional description of the score config..."
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  </>
+                )}
+              />
               <Button
                 type="submit"
                 className="w-full"
@@ -280,7 +303,6 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
               >
                 Submit
               </Button>
-              <FormMessage />
             </form>
             {formError ? (
               <p className="text-red text-center">
@@ -299,7 +321,7 @@ function validateForm(values: z.infer<typeof formSchema>): string | null {
     if (!values.minValue || !values.maxValue) {
       return "Both Minimum and Maximum values are required for numeric data types.";
     }
-    if (values.maxValue < values.minValue) {
+    if (values.maxValue <= values.minValue) {
       return "Maximum value must be greater than Minimum value.";
     }
   } else if (isCategorical(values.dataType)) {

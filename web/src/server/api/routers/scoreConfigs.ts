@@ -62,6 +62,7 @@ export const scoreConfigsRouter = createTRPCRouter({
         minValue: z.number().optional(),
         maxValue: z.number().optional(),
         categories: z.array(category).optional(),
+        description: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
