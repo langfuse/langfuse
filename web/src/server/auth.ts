@@ -19,6 +19,7 @@ import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
 import Auth0Provider from "next-auth/providers/auth0";
+import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, cookieOptions } from "./utils/cookies";
@@ -179,6 +180,21 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
         env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
+if (
+  env.AUTH_COGNITO_CLIENT_ID &&
+  env.AUTH_COGNITO_CLIENT_SECRET &&
+  env.AUTH_COGNITO_ISSUER
+)
+  staticProviders.push(
+    CognitoProvider({
+      clientId: env.AUTH_COGNITO_CLIENT_ID,
+      clientSecret: env.AUTH_COGNITO_CLIENT_SECRET,
+      issuer: env.AUTH_COGNITO_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 
