@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.45.0",
+  "version": "2.45.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -106,7 +106,7 @@
     "react-day-picker": "^8.10.1",
     "react-dom": "18.2.0",
     "react-hook-form": "^7.51.5",
-    "react-icons": "^5.0.1",
+    "react-icons": "^5.2.1",
     "react-responsive": "^10.0.0",
     "react18-json-view": "^0.2.8-canary.6",
     "sonner": "^1.4.41",

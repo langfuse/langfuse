@@ -175,7 +175,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
 
 const formSchema = z.object({
   secretKey: z.string().min(1),
-  provider: z.literal(ModelProvider.OpenAI),
+  provider: z.nativeEnum(ModelProvider),
 });
 
 export function CreateLlmApiKeyComponent(props: {
@@ -277,7 +277,7 @@ export function CreateLlmApiKeyComponent(props: {
                     <Select
                       defaultValue={field.value}
                       onValueChange={(value) =>
-                        field.onChange(value as ModelProvider[number])
+                        field.onChange(value as ModelProvider)
                       }
                     >
                       <FormControl>
@@ -286,13 +286,7 @@ export function CreateLlmApiKeyComponent(props: {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Array.from(
-                          new Set(
-                            evalLLMModels.map(
-                              (models) => models.provider.value,
-                            ),
-                          ),
-                        ).map((provider) => (
+                        {Object.values(ModelProvider).map((provider) => (
                           <SelectItem value={provider} key={provider}>
                             {provider}
                           </SelectItem>

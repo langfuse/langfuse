@@ -13,6 +13,7 @@ import { chunk } from "lodash";
 import { v4 } from "uuid";
 import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey } from "../src/server/auth";
+import { encrypt } from "../src/encryption";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -173,6 +174,24 @@ async function main() {
       events,
       configs
     );
+
+    // If openai key is in environment, add it to the projects LLM API keys
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+    if (OPENAI_API_KEY) {
+      await prisma.llmApiKeys.create({
+        data: {
+          projectId: project1.id,
+          secretKey: encrypt(OPENAI_API_KEY),
+          displaySecretKey: getDisplaySecretKey(OPENAI_API_KEY),
+          provider: "openai",
+        },
+      });
+    } else {
+      console.warn(
+        "No OPENAI_API_KEY found in environment. Skipping seeding LLM API key."
+      );
+    }
 
     // add eval objects
     const evalTemplate = await prisma.evalTemplate.upsert({

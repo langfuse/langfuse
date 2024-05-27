@@ -4,6 +4,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { cn } from "@/src/utils/tailwind";
 import { HelpCircle, Info } from "lucide-react";
 import Link from "next/link";
 
@@ -40,7 +41,10 @@ export default function DocPopup({
         }
       }}
     >
-      <HoverCardTrigger className="mx-1 cursor-pointer" asChild>
+      <HoverCardTrigger
+        className={cn("mx-1", href ? "cursor-pointer" : "cursor-default")}
+        asChild
+      >
         {href ? (
           <Link
             href={href}

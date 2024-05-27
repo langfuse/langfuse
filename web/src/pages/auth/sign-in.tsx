@@ -14,7 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
-import { SiOkta, SiAuth0 } from "react-icons/si";
+import { SiOkta, SiAuth0, SiAmazoncognito } from "react-icons/si";
 import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -49,6 +49,7 @@ export type PageProps = {
     okta: boolean;
     azureAd: boolean;
     auth0: boolean;
+    cognito: boolean;
     sso: boolean;
   };
   signUpDisabled: boolean;
@@ -80,6 +81,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_AUTH0_CLIENT_ID !== undefined &&
           env.AUTH_AUTH0_CLIENT_SECRET !== undefined &&
           env.AUTH_AUTH0_ISSUER !== undefined,
+        cognito:
+          env.AUTH_COGNITO_CLIENT_ID !== undefined &&
+          env.AUTH_COGNITO_CLIENT_SECRET !== undefined &&
+          env.AUTH_COGNITO_ISSUER !== undefined,
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
@@ -167,6 +172,18 @@ export function SSOButtons({
             >
               <SiAuth0 className="mr-3" size={18} />
               Auth0
+            </Button>
+          )}
+          {authProviders.cognito && (
+            <Button
+              onClick={() => {
+                capture("sign_in:button_click", { provider: "cognito" });
+                void signIn("cognito");
+              }}
+              variant="secondary"
+            >
+              <SiAmazoncognito className="mr-3" size={18} />
+              Cognito
             </Button>
           )}
         </div>
@@ -421,7 +438,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
               No account yet?{" "}
               <Link
                 href="/auth/sign-up"
-                className="hover:text-hover-primary-accent font-semibold leading-6 text-primary-accent"
+                className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
               >
                 Sign up
               </Link>
