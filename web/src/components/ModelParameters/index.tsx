@@ -8,7 +8,6 @@ import {
 } from "@/src/components/ui/select";
 import { Slider } from "@/src/components/ui/slider";
 import { Switch } from "@/src/components/ui/switch";
-import { LLMApiKeyComponent } from "@/src/ee/features/components/LLMApiKeyComponent";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -16,6 +15,8 @@ import {
   supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
+
+import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;

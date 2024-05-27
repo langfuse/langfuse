@@ -42,7 +42,6 @@ import {
 } from "@/src/components/ui/select";
 import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { LLMApiKeyComponent } from "@/src/ee/features/components/LLMApiKeyComponent";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 
 export const EvalTemplateForm = (props: {
@@ -435,10 +434,6 @@ export const InnerEvalTemplateForm = (props: {
               }}
               availableModels={[...evalLLMModels]}
               formDisabled={!props.isEditing}
-            />
-            <LLMApiKeyComponent
-              projectId={props.projectId}
-              modelParams={modelParams}
             />
           </div>
         </div>
