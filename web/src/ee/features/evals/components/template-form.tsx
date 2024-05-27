@@ -33,8 +33,6 @@ import {
   type ModelParams,
 } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import Link from "next/dist/client/link";
-import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import {
   Select,
   SelectContent,
@@ -43,8 +41,6 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
-import { Label } from "@/src/components/ui/label";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 
@@ -439,10 +435,6 @@ export const InnerEvalTemplateForm = (props: {
               availableModels={[...evalLLMModels]}
               formDisabled={!props.isEditing}
             />
-            <LLMApiKeyComponent
-              projectId={props.projectId}
-              modelParams={modelParams}
-            />
           </div>
         </div>
 
@@ -462,78 +454,6 @@ export const InnerEvalTemplateForm = (props: {
         </p>
       ) : null}
     </Form>
-  );
-};
-
-export const LLMApiKeyComponent = (p: {
-  projectId: string;
-  modelParams: UIModelParams;
-}) => {
-  const hasAccess = useHasAccess({
-    projectId: p.projectId,
-    scope: "llmApiKeys:read",
-  });
-
-  if (!hasAccess) {
-    return (
-      <div>
-        <Label>API key</Label>
-        <p className="text-sm text-muted-foreground">
-          LLM API Key only visible to Owner and Admin roles.
-        </p>
-      </div>
-    );
-  }
-
-  const apiKeys = api.llmApiKey.all.useQuery({
-    projectId: p.projectId,
-  });
-
-  if (apiKeys.isLoading) {
-    return (
-      <div>
-        <Label>API key</Label>
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
-
-  const getModelProvider = (model: string) => {
-    return evalLLMModels.find((m) => m.model.value === model)?.provider.value;
-  };
-
-  const getApiKeyForModel = (model: string) => {
-    const modelProvider = getModelProvider(model);
-    return apiKeys.data?.data.find((k) => k.provider === modelProvider);
-  };
-
-  return (
-    <div>
-      <Label>API key</Label>
-      <div>
-        {getApiKeyForModel(p.modelParams.model.value) ? (
-          <span className="mr-2 rounded-sm bg-input p-1 text-xs">
-            {getApiKeyForModel(p.modelParams.model.value)?.displaySecretKey}
-          </span>
-        ) : undefined}
-      </div>
-      {/* Custom form message to include a link to the already existing prompt */}
-      {!getApiKeyForModel(p.modelParams.model.value) ? (
-        <div className="flex flex-col text-sm font-medium text-destructive">
-          {"No LLM API key found."}
-
-          <Link
-            href={`/project/${p.projectId}/settings`}
-            className="flex flex-row"
-          >
-            Create a new API key here. <ArrowTopRightIcon />
-          </Link>
-        </div>
-      ) : undefined}
-      <p className="text-sm text-muted-foreground">
-        The API key is used for each evaluation and will incur costs.
-      </p>
-    </div>
   );
 };
 
