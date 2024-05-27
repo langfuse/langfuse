@@ -91,6 +91,7 @@ const events = {
     "create_new_button_click",
   ],
   onboarding: ["code_example_tab_switch"],
+  user_settings: ["theme_changed"],
   project_settings: [
     "project_delete",
     "rename_form_submit",
