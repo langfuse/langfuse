@@ -1,4 +1,4 @@
-CREATE TABLE observations (
+CREATE TABLE observations_raw (
     `id` String,
     `trace_id` String,
     `project_id` String,
@@ -41,52 +41,232 @@ ORDER BY (
         trace_id,
         id
     );
-CREATE VIEW observations_view AS
+CREATE TABLE observations (
+    `id` String,
+    `trace_id` AggregateFunction(argMax, String, DateTime64(6)),
+    `project_id` String,
+    `type` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `parent_observation_id` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `created_at` AggregateFunction(argMax, DateTime64(6), DateTime64(6)),
+    `start_time` AggregateFunction(argMax, DateTime64(6), DateTime64(6)),
+    `end_time` AggregateFunction(argMax, Nullable(DateTime64(6)), DateTime64(6)),
+    `name` AggregateFunction(argMax, String, DateTime64(6)),
+    metadata SimpleAggregateFunction(maxMap, Map(String, String)),
+    `level` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `status_message` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `version` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `input` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `output` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `model` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `internal_model` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `model_parameters` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `prompt_tokens` AggregateFunction(argMax, Nullable(Int32), DateTime64(6)),
+    `completion_tokens` AggregateFunction(argMax, Nullable(Int32), DateTime64(6)),
+    `total_tokens` AggregateFunction(argMax, Nullable(Int32), DateTime64(6)),
+    `unit` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+    `input_cost` AggregateFunction(argMax, Nullable(Float64), DateTime64(6)),
+    `output_cost` AggregateFunction(argMax, Nullable(Float64), DateTime64(6)),
+    `total_cost` AggregateFunction(argMax, Nullable(Float64), DateTime64(6)),
+    `completion_start_time` AggregateFunction(argMax, Nullable(DateTime64(6)), DateTime64(6)),
+    `prompt_id` AggregateFunction(argMax, Nullable(String), DateTime64(6)),
+) ENGINE = AggregatingMergeTree
+ORDER BY (project_id, id);
+CREATE MATERIALIZED VIEW observations_raw_to_aggregating_mv TO observations AS
 SELECT id,
+    argMaxState(
+        `trace_id`,
+        if(
+            `trace_id` <> '',
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `trace_id`,
     project_id,
-    argMax(`trace_id`, event_ts) AS `trace_id`,
-    argMax(`type`, event_ts) AS `type`,
-    argMax(
+    argMaxState(
+        `type`,
+        if(isNotNull(`type`), event_ts, toDateTime64(0, 6))
+    ) as `type`,
+    argMaxState(
         `parent_observation_id`,
-        event_ts
-    ) AS `parent_observation_id`,
-    argMax(`created_at`, event_ts) AS `created_at`,
-    argMax(
-        if(start_time != '', start_time, NULL),
-        event_ts
-    ) AS `start_time`,
-    argMax(`end_time`, event_ts) AS `end_time`,
-    argMax(
-        if(`name` != '', `name`, NULL),
-        event_ts
-    ) AS `name`,
-    maxMap(metadata) AS metadata,
-    argMax(`level`, event_ts) AS `level`,
-    argMax(`status_message`, event_ts) AS `status_message`,
-    argMax(`version`, event_ts) AS `version`,
-    argMax(`input`, event_ts) AS `input`,
-    argMax(`output`, event_ts) AS `output`,
-    argMax(`model`, event_ts) AS `model`,
-    argMax(`internal_model`, event_ts) AS `internal_model`,
-    argMax(
+        if(
+            isNotNull(`parent_observation_id`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `parent_observation_id`,
+    argMaxState(
+        `created_at`,
+        if(
+            isNotNull(`created_at`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `created_at`,
+    argMaxState(`start_time`, event_ts) as `start_time`,
+    argMaxState(
+        `end_time`,
+        if(
+            isNotNull(`end_time`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `end_time`,
+    argMaxState(
+        `name`,
+        if(`name` <> '', event_ts, toDateTime64(0, 6))
+    ) as `name`,
+    maxMap(metadata) as metadata,
+    argMaxState(
+        `level`,
+        if(isNotNull(`level`), event_ts, toDateTime64(0, 6))
+    ) as `level`,
+    argMaxState(
+        `status_message`,
+        if(
+            isNotNull(`status_message`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `status_message`,
+    argMaxState(
+        `version`,
+        if(
+            isNotNull(`version`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `version`,
+    argMaxState(
+        `input`,
+        if(isNotNull(`input`), event_ts, toDateTime64(0, 6))
+    ) as `input`,
+    argMaxState(
+        `output`,
+        if(
+            isNotNull(`output`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `output`,
+    argMaxState(
+        `model`,
+        if(isNotNull(`model`), event_ts, toDateTime64(0, 6))
+    ) as `model`,
+    argMaxState(
+        `internal_model`,
+        if(
+            isNotNull(`internal_model`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `internal_model`,
+    argMaxState(
         `model_parameters`,
-        event_ts
-    ) AS `model_parameters`,
-    argMax(`prompt_tokens`, event_ts) AS `prompt_tokens`,
-    argMax(
+        if(
+            isNotNull(`model_parameters`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `model_parameters`,
+    argMaxState(
+        `prompt_tokens`,
+        if(
+            isNotNull(`prompt_tokens`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `prompt_tokens`,
+    argMaxState(
         `completion_tokens`,
-        event_ts
-    ) AS `completion_tokens`,
-    argMax(`total_tokens`, event_ts) AS `total_tokens`,
-    argMax(`unit`, event_ts) AS `unit`,
-    argMax(`input_cost`, event_ts) AS `input_cost`,
-    argMax(`output_cost`, event_ts) AS `output_cost`,
-    argMax(`total_cost`, event_ts) AS `total_cost`,
-    argMax(
+        if(
+            isNotNull(`completion_tokens`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `completion_tokens`,
+    argMaxState(
+        `total_tokens`,
+        if(
+            isNotNull(`total_tokens`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `total_tokens`,
+    argMaxState(
+        `unit`,
+        if(isNotNull(`unit`), event_ts, toDateTime64(0, 6))
+    ) as `unit`,
+    argMaxState(
+        `input_cost`,
+        if(
+            isNotNull(`input_cost`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `input_cost`,
+    argMaxState(
+        `output_cost`,
+        if(
+            isNotNull(`output_cost`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `output_cost`,
+    argMaxState(
+        `total_cost`,
+        if(
+            isNotNull(`total_cost`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `total_cost`,
+    argMaxState(
         `completion_start_time`,
-        event_ts
-    ) AS `completion_start_time`,
-    argMax(`prompt_id`, event_ts) AS `prompt_id`
-FROM observations
+        if(
+            isNotNull(`completion_start_time`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `completion_start_time`,
+    argMaxState(
+        `prompt_id`,
+        if(
+            isNotNull(`prompt_id`),
+            event_ts,
+            toDateTime64(0, 6)
+        )
+    ) as `prompt_id`
+FROM observations_raw
 GROUP BY project_id,
     id;
+create view langfuse.observations_view as (
+    SELECT id,
+        project_id,
+        argMaxMerge(`trace_id`) AS `trace_id`,
+        argMaxMerge(`type`) AS `type`,
+        argMaxMerge(`parent_observation_id`) AS `parent_observation_id`,
+        argMaxMerge(name) AS `name`,
+        argMaxMerge(start_time) AS `start_time`,
+        argMaxMerge(`end_time`) AS `end_time`,
+        maxMap(metadata) AS metadata,
+        argMaxMerge(`level`) AS `level`,
+        argMaxMerge(`status_message`) AS `status_message`,
+        argMaxMerge(`version`) AS `version`,
+        argMaxMerge(`input`) AS `input`,
+        argMaxMerge(`output`) AS `output`,
+        argMaxMerge(`model`) AS `model`,
+        argMaxMerge(`internal_model`) AS `internal_model`,
+        argMaxMerge(`model_parameters`) AS `model_parameters`,
+        argMaxMerge(`prompt_tokens`) AS `prompt_tokens`,
+        argMaxMerge(`completion_tokens`) AS `completion_tokens`,
+        argMaxMerge(`total_tokens`) AS `total_tokens`,
+        argMaxMerge(`unit`) AS `unit`,
+        argMaxMerge(`input_cost`) AS `input_cost`,
+        argMaxMerge(`output_cost`) AS `output_cost`,
+        argMaxMerge(`total_cost`) AS `total_cost`,
+        argMaxMerge(`completion_start_time`) AS `completion_start_time`,
+        argMaxMerge(`prompt_id`) AS `prompt_id`
+    from langfuse.observations
+    group by id,
+        project_id
+);

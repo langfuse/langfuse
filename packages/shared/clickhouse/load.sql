@@ -1,4 +1,4 @@
-INSERT INTO langfuse.observations
+INSERT INTO langfuse.observations_raw
 SELECT toString(floor(randUniform(0, 500000))) AS id,
   toString(floor(randExponential(1 / 2)) % 1000) AS trace_id,
   toString(floor(randExponential(1 / 2)) % 1000) AS project_id,
@@ -34,4 +34,53 @@ SELECT toString(floor(randUniform(0, 500000))) AS id,
   toString(rand()) AS `prompt_id`,
   now() AS event_ts,
   randUniform(0, 1000000) AS event_microseconds
-FROM numbers(1000000);
+FROM numbers(100000);
+
+
+select count(*) from observations;
+select count(*) from observations_view;
+
+
+
+CREATE VIEW observations_view AS
+SELECT id,
+    project_id,
+    argMaxMerge(`trace_id`) AS `trace_id`,
+    argMaxMerge(`type`) AS `type`,
+    argMaxMerge(
+        `parent_observation_id`
+    ) AS `parent_observation_id`,
+    argMaxMerge(`created_at`) AS `created_at`,
+    argMaxMerge(
+        if(start_time != '', start_time, NULL)
+    ) AS `start_time`,
+    argMaxMerge(`end_time`) AS `end_time`,
+    argMaxMerge(
+        if(`name` != '', `name`, NULL)
+    ) AS `name`,
+    argMaxMerge(metadata) AS metadata,
+    argMaxMerge(`level`) AS `level`,
+    argMaxMerge(`status_message`) AS `status_message`,
+    argMaxMerge(`version`) AS `version`,
+    argMaxMerge(`input`) AS `input`,
+    argMaxMerge(`output`) AS `output`,
+    argMaxMerge(`model`) AS `model`,
+    argMaxMerge(`internal_model`) AS `internal_model`,
+    argMaxMerge(
+        `model_parameters`
+    ) AS `model_parameters`,
+    argMaxMerge(`prompt_tokens`) AS `prompt_tokens`,
+    argMaxMerge(
+        `completion_tokens`
+    ) AS `completion_tokens`,
+    argMaxMerge(`total_tokens`) AS `total_tokens`,
+    argMaxMerge(`unit`) AS `unit`,
+    argMaxMerge(`input_cost`) AS `input_cost`,
+    argMaxMerge(`output_cost`) AS `output_cost`,
+    argMaxMerge(`total_cost`) AS `total_cost`,
+    argMaxMerge(
+        `completion_start_time`
+    ) AS `completion_start_time`,
+    argMaxMerge(`prompt_id`) AS `prompt_id`
+    FROM langfuse.observations
+GROUP BY id, project_id

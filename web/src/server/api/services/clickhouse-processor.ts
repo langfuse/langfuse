@@ -217,7 +217,7 @@ const storeObservations = async (
     return;
   }
   return await clickhouseClient.insert({
-    table: "observations",
+    table: "observations_raw",
     format: "JSONEachRow",
     values: insert,
   });
