@@ -19,10 +19,11 @@ type ScoreConfigTableRow = {
   dataType: ScoreDataType;
   createdAt: string;
   updatedAt: string;
-  range?: Prisma.JsonValue | null; // populated on data fetch
-  maxValue?: number | null;
-  minValue?: number | null;
-  categories?: Prisma.JsonValue | null;
+  range: {
+    maxValue?: number | null;
+    minValue?: number | null;
+    categories?: Prisma.JsonValue | null;
+  };
   description?: string | null;
 };
 
@@ -160,9 +161,11 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
                     description: config.description,
                     createdAt: config.createdAt.toLocaleString(),
                     updatedAt: config.updatedAt.toLocaleString(),
-                    maxValue: config.maxValue,
-                    minValue: config.minValue,
-                    categories: config.categories,
+                    range: {
+                      maxValue: config.maxValue,
+                      minValue: config.minValue,
+                      categories: config.categories,
+                    },
                   })),
                 }
         }
@@ -210,9 +213,9 @@ export function ScoreConfigs({ projectId }: { projectId: string }) {
 function getConfigRange(
   originalRow: ScoreConfigTableRow,
 ): Prisma.JsonValue | undefined {
-  const { maxValue, minValue, categories, dataType } = originalRow;
+  const { range, dataType } = originalRow;
   if (dataType === ScoreDataType.CATEGORICAL) {
-    return categories;
+    return range.categories;
   }
-  return [{ minValue, maxValue }];
+  return [{ minValue: range.minValue, maxValue: range.maxValue }];
 }
