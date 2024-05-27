@@ -500,7 +500,7 @@ function createObjects(
               name: "manual-score",
               value: Math.floor(Math.random() * 3) - 1,
               timestamp: traceTs,
-              source: ScoreSource.REVIEW,
+              source: ScoreSource.ANNOTATION,
               projectId,
               authorUserId: `user-${i}`,
             },

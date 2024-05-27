@@ -77,13 +77,13 @@ export function ManualScoreButton({
       utils.sessions.invalidate(),
     ]);
   };
-  const mutCreateScore = api.scores.createReviewScore.useMutation({
+  const mutCreateScore = api.scores.createAnnotationScore.useMutation({
     onSuccess,
   });
-  const mutUpdateScore = api.scores.updateReviewScore.useMutation({
+  const mutUpdateScore = api.scores.updateAnnotationScore.useMutation({
     onSuccess,
   });
-  const mutDeleteScore = api.scores.deleteReviewScore.useMutation({
+  const mutDeleteScore = api.scores.deleteAnnotationScore.useMutation({
     onSuccess,
   });
 
