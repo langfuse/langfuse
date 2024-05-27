@@ -59,7 +59,7 @@ const TagManager = ({
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       <PopoverTrigger className="select-none" asChild>
-        <div className="flex gap-x-2 gap-y-1">
+        <div className="flex flex-wrap gap-x-2 gap-y-1">
           <TagList selectedTags={selectedTags} isLoading={isLoading} />
         </div>
       </PopoverTrigger>
