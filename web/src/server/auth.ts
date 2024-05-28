@@ -27,7 +27,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { type Provider } from "next-auth/providers/index";
 import OktaProvider from "next-auth/providers/okta";
 import { z } from "zod";
-import { getCookieName } from "./utils/cookies";
+import { getCookieName, getCookieOptions } from "./utils/cookies";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
