@@ -40,6 +40,7 @@ async function main() {
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
+      image: "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png",
     },
   });
 
@@ -540,10 +541,10 @@ function createObjects(
     traces.push(trace);
 
     const scoreConfig = [
-      ...(Math.random() > 0.5
+      ...(Math.random() > 0.9
         ? [
             {
-              name: "helpfulness",
+              name: `helpfulness-${i}`,
               dataType: ScoreDataType.NUMERIC,
               minValue: -1,
               maxValue: 1,
@@ -556,84 +557,37 @@ function createObjects(
 
     configs.push(...scoreConfig);
 
-    const traceScoresAndConfigData: {
-      config?: Prisma.ScoreConfigCreateManyInput;
-      score: Prisma.ScoreCreateManyInput;
-    }[] = [
-      ...(Math.random() > 0.3
-        ? (() => {
-            const config =
-              Math.random() > 0.8
-                ? {
-                    name: `helpfulness-${i}`,
-                    dataType: ScoreDataType.CATEGORICAL,
-                    categories: [
-                      { value: 0, label: "hurtful" },
-                      { value: 1, label: "helpful" },
-                    ],
-                    projectId,
-                    id: `categorical-config-${i}`,
-                  }
-                : undefined;
-
-            const scoreValue = Math.floor(Math.random() * 1); // Generates 0, 1
-            const score = {
+    const traceScores = [
+      ...(Math.random() > 0.5
+        ? [
+            {
               traceId: trace.id,
-              name: config ? `helpfulness-${i}` : "categorical-score",
+              name: "manual-score",
+              value: Math.floor(Math.random() * 3) - 1,
               timestamp: traceTs,
               source: ScoreSource.ANNOTATION,
               projectId,
               authorUserId: `user-${i}`,
-              configId: config ? config.id : undefined,
-              dataType: config
-                ? ScoreDataType.CATEGORICAL
-                : ScoreDataType.NUMERIC,
-              value: scoreValue,
-              ...(scoreValue === 0 ? { stringValue: "hurtful" } : {}),
-              ...(scoreValue === 1 ? { stringValue: "helpful" } : {}),
-            };
-
-            return config ? [{ config, score }] : [{ score }];
-          })()
-        : []),
-      ...(Math.random() > 0.5
-        ? [
-            {
-              score: {
-                traceId: trace.id,
-                name: scoreConfig[0] ? scoreConfig[0].name : "manual-score",
-                value: Math.floor(Math.random() * 3) - 1,
-                timestamp: traceTs,
-                source: ScoreSource.ANNOTATION,
-                projectId,
-                authorUserId: `user-${i}`,
-                configId: scoreConfig[0] ? scoreConfig[0].id : undefined,
-                dataType: ScoreDataType.NUMERIC,
-              },
+              dataType: ScoreDataType.NUMERIC,
             },
           ]
         : []),
       ...(Math.random() > 0.7
         ? [
             {
-              score: {
-                traceId: trace.id,
-                name: "sentiment",
-                value: Math.floor(Math.random() * 10) - 5,
-                timestamp: traceTs,
-                source: ScoreSource.API,
-                projectId,
-                dataType: ScoreDataType.NUMERIC,
-              },
+              traceId: trace.id,
+              name: "sentiment",
+              value: Math.floor(Math.random() * 10) - 5,
+              timestamp: traceTs,
+              source: ScoreSource.API,
+              projectId,
+              dataType: ScoreDataType.NUMERIC,
             },
           ]
         : []),
     ];
 
-    traceScoresAndConfigData.forEach((data) => {
-      if (data.config) configs.push(data.config);
-      scores.push(data.score);
-    });
+    scores.push(...traceScores);
 
     const existingSpanIds: string[] = [];
 
