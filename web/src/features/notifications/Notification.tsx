@@ -15,7 +15,7 @@ interface NotificationProps {
   toast: string | number;
 }
 
-const Notification: React.FC<NotificationProps> = ({
+export const Notification: React.FC<NotificationProps> = ({
   notification,
   setLastSeenId,
   dismissToast,
@@ -50,5 +50,3 @@ const Notification: React.FC<NotificationProps> = ({
     </div>
   );
 };
-
-export default Notification;
