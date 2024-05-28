@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.45.1",
+  "version": "2.46.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -25,6 +25,7 @@
     "@aws-sdk/lib-storage": "^3.568.0",
     "@aws-sdk/s3-request-presigner": "^3.554.0",
     "@codemirror/lang-json": "^6.0.1",
+    "@codemirror/lint": "^6.8.0",
     "@headlessui/react": "1.7.18",
     "@headlessui/tailwindcss": "0.2.0",
     "@heroicons/react": "^2.1.3",
