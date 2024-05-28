@@ -3,6 +3,7 @@ import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import TagManager from "@/src/features/tag/components/TagMananger";
+import { handleTRPCError } from "@/src/utils/errorHandler";
 
 type TagPromptPopverProps = {
   tags: string[];
@@ -32,7 +33,7 @@ export function TagPromptPopover({
     },
     onError: (err, _newTags, context) => {
       utils.prompts.all.setData(promptsFilter, context?.prevPrompt);
-      console.error(err);
+      handleTRPCError(err);
       setIsLoading(false);
     },
     onSettled: (data, error, { name, tags }) => {
