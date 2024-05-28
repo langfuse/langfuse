@@ -8,7 +8,7 @@ CREATE TABLE scores (
     comment Nullable(String) CODEC(ZSTD(1)),
     trace_id String,
     observation_id Nullable(String),
-    event_ts DateTime64(3),
+    event_ts DateTime64(6),
     event_microseconds UInt32,
 ) ENGINE = MergeTree
 ORDER BY (

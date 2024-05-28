@@ -37,7 +37,7 @@ CREATE TABLE observations (
 ORDER BY (
         project_id,
         `name`,
-        toUnixTimestamp(event_ts),
+        toUnixTimestamp(start_time),
         trace_id,
         id
     );

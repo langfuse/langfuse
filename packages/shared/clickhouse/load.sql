@@ -20,8 +20,16 @@ SELECT toString(floor(randUniform(0, 500000))) AS id,
   'version' AS `version`,
   repeat('input', toInt64(randExponential(1 / 100))) AS `input`,
   repeat('output', toInt64(randExponential(1 / 100))) AS `output`,
-  toString(rand() % 1000) AS `model`,
-  'internal_model' AS `internal_model`,
+  if(
+    number % 2 = 0,
+    'claude-3-haiku-20240307',
+    'gpt-4'
+  ) as `model`,
+  if(
+    number % 2 = 0,
+    'claude-3-haiku-20240307',
+    'gpt-4'
+  ) as `internal_model`,
   'model_parameters' AS `model_parameters`,
   toInt32(rand() % 1000) AS `prompt_tokens`,
   toInt32(rand() % 1000) AS `completion_tokens`,
@@ -34,4 +42,21 @@ SELECT toString(floor(randUniform(0, 500000))) AS id,
   toString(rand()) AS `prompt_id`,
   now() AS event_ts,
   randUniform(0, 1000000) AS event_microseconds
-FROM numbers(1000000);
+FROM numbers(4500000);
+INSERT INTO langfuse.scores
+SELECT toString(floor(randUniform(0, 500000))) AS id,
+  addYears(now(), -1) + number AS `timestamp`,
+  toString(floor(randExponential(1 / 2)) % 1000) AS project_id,
+  concat('name', toString(rand() % 100)) AS `name`,
+  randUniform(0, 100) as `value`,
+  toString(floor(randExponential(1 / 2)) % 1000) AS trace_id,
+  'API' as source,
+  if(
+    rand() > 0.9,
+    toString(floor(randExponential(1 / 2)) % 1000),
+    NULL
+  ) AS observation_id,
+  'comment' as comment,
+  now() AS event_ts,
+  randUniform(0, 1000000) AS event_microseconds
+FROM numbers(4500000);
