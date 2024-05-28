@@ -18,6 +18,7 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@langfuse/ee/sso";
+import * as Sentry from "@sentry/nextjs";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
