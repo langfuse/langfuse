@@ -20,8 +20,8 @@ export function JsonEditor({
   lineWrapping?: boolean;
   className?: string;
 }) {
-  const { theme } = useTheme();
-  const codeMirrorTheme = theme === "dark" ? tokyoNight : githubLight;
+  const { resolvedTheme } = useTheme();
+  const codeMirrorTheme = resolvedTheme === "dark" ? tokyoNight : githubLight;
   return (
     <CodeMirror
       value={defaultValue}
