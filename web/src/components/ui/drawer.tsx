@@ -4,18 +4,28 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/src/utils/tailwind";
+import { useMediaQuery } from "react-responsive";
+
+// https://tailwindcss.com/docs/responsive-design
+const TAILWIND_MD_MEDIA_QUERY = 768;
 
 const Drawer = ({
-  direction = "right",
   shouldScaleBackground = true,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
-  <DrawerPrimitive.Root
-    shouldScaleBackground={shouldScaleBackground}
-    direction={direction}
-    {...props}
-  />
-);
+}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+  const isMediumScreen = useMediaQuery({
+    query: `(min-width: ${TAILWIND_MD_MEDIA_QUERY}px)`,
+  });
+  const direction = isMediumScreen ? "right" : "bottom";
+
+  return (
+    <DrawerPrimitive.Root
+      shouldScaleBackground={shouldScaleBackground}
+      direction={direction}
+      {...props}
+    />
+  );
+};
 Drawer.displayName = "Drawer";
 
 const DrawerTrigger = DrawerPrimitive.Trigger;
@@ -45,7 +55,7 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-y-0 right-0 z-50 mt-0 flex h-full flex-col rounded-l-[10px] border bg-background",
+        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background md:inset-x-auto md:inset-y-0 md:right-0 md:mt-0 md:h-full md:rounded-l-[10px] md:rounded-t-[0px]",
         className,
       )}
       {...props}
