@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { createEnv } from "@t3-oss/env-nextjs";
+import { z } from "zod";
 
 export const env = createEnv({
   /**
@@ -71,6 +71,10 @@ export const env = createEnv({
     AUTH_KEYCLOAK_CLIENT_SECRET: z.string().optional(),
     AUTH_KEYCLOAK_ISSUER: z.string().optional(),
     AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_COGNITO_CLIENT_ID: z.string().optional(),
+    AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
+    AUTH_COGNITO_ISSUER: z.string().url().optional(),
+    AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
@@ -171,11 +175,18 @@ export const env = createEnv({
     AUTH_AUTH0_ISSUER: process.env.AUTH_AUTH0_ISSUER,
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
+<<<<<<< HEAD
     AUTH_KEYCLOAK_CLIENT_ID: process.env.AUTH_KEYCLOAK_CLIENT_ID,
     AUTH_KEYCLOAK_CLIENT_SECRET: process.env.AUTH_KEYCLOAK_CLIENT_SECRET,
     AUTH_KEYCLOAK_ISSUER: process.env.AUTH_KEYCLOAK_ISSUER,
     AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING: 
       process.env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING,
+=======
+    AUTH_COGNITO_CLIENT_ID: process.env.AUTH_COGNITO_CLIENT_ID,
+    AUTH_COGNITO_CLIENT_SECRET: process.env.AUTH_COGNITO_CLIENT_SECRET,
+    AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
+    AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: process.env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING,
+>>>>>>> origin/main
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,

@@ -1,16 +1,17 @@
-import { type Provider } from "next-auth/providers/index";
-import GoogleProvider from "next-auth/providers/google";
-import GitHubProvider from "next-auth/providers/github";
-import OktaProvider from "next-auth/providers/okta";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
+import { prisma } from "@langfuse/shared/src/db";
+import { type NextApiRequest, type NextApiResponse } from "next";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import CognitoProvider from "next-auth/providers/cognito";
+import GitHubProvider from "next-auth/providers/github";
+import GoogleProvider from "next-auth/providers/google";
+import { type Provider } from "next-auth/providers/index";
 import KeycloakProvider from "next-auth/providers/keycloak";
+import OktaProvider from "next-auth/providers/okta";
 import { isEeAvailable } from "..";
-import { prisma } from "@langfuse/shared/src/db";
-import { encrypt, decrypt } from "@langfuse/shared/encryption";
-import { SsoProviderSchema } from "./types";
-import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "../env";
+import { SsoProviderSchema } from "./types";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -147,6 +148,12 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     });
   else if (provider.authProvider === "keycloak")
     return KeycloakProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
+  else if (provider.authProvider === "cognito")
+    return CognitoProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),

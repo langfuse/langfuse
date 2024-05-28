@@ -318,7 +318,7 @@ export const InnerEvalConfigForm = (props: {
                     <JSONView
                       title={"Eval Template"}
                       json={props.evalTemplate.prompt ?? null}
-                      className={"min-h-48 bg-gray-100 lg:w-1/2"}
+                      className={"min-h-48 bg-muted lg:w-1/2"}
                     />
                     <div className=" flex flex-col gap-2 lg:w-1/3">
                       {fields.map((mappingField, index) => (

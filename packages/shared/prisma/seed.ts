@@ -12,6 +12,7 @@ import { chunk } from "lodash";
 import { v4 } from "uuid";
 import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey } from "../src/server/auth";
+import { encrypt } from "../src/encryption";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -164,6 +165,24 @@ async function main() {
     );
 
     await uploadObjects(traces, observations, scores, sessions, events);
+
+    // If openai key is in environment, add it to the projects LLM API keys
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+    if (OPENAI_API_KEY) {
+      await prisma.llmApiKeys.create({
+        data: {
+          projectId: project1.id,
+          secretKey: encrypt(OPENAI_API_KEY),
+          displaySecretKey: getDisplaySecretKey(OPENAI_API_KEY),
+          provider: "openai",
+        },
+      });
+    } else {
+      console.warn(
+        "No OPENAI_API_KEY found in environment. Skipping seeding LLM API key."
+      );
+    }
 
     // add eval objects
     const evalTemplate = await prisma.evalTemplate.upsert({
@@ -500,8 +519,9 @@ function createObjects(
               name: "manual-score",
               value: Math.floor(Math.random() * 3) - 1,
               timestamp: traceTs,
-              source: ScoreSource.REVIEW,
+              source: ScoreSource.ANNOTATION,
               projectId,
+              authorUserId: `user-${i}`,
             },
           ]
         : []),
@@ -528,9 +548,9 @@ function createObjects(
       const spanTsStart = new Date(
         traceTs.getTime() + Math.floor(Math.random() * 30)
       );
-      // random duration of upto 30ms
+      // random duration of upto 5000ms
       const spanTsEnd = new Date(
-        spanTsStart.getTime() + Math.floor(Math.random() * 30)
+        spanTsStart.getTime() + Math.floor(Math.random() * 5000)
       );
 
       const span = {
@@ -574,6 +594,13 @@ function createObjects(
                 (spanTsEnd.getTime() - generationTsStart.getTime())
             )
         );
+        // somewhere in the middle
+        const generationTsCompletionStart = new Date(
+          generationTsStart.getTime() +
+            Math.floor(
+              (generationTsEnd.getTime() - generationTsStart.getTime()) / 3
+            )
+        );
 
         const promptTokens = Math.floor(Math.random() * 1000) + 300;
         const completionTokens = Math.floor(Math.random() * 500) + 100;
@@ -602,6 +629,8 @@ function createObjects(
           id: `generation-${v4()}`,
           startTime: generationTsStart,
           endTime: generationTsEnd,
+          completionStartTime:
+            Math.random() > 0.5 ? generationTsCompletionStart : undefined,
           name: `generation-${i}-${j}-${k}`,
           projectId: trace.projectId,
           promptId: promptId,

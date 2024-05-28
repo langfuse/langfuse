@@ -449,6 +449,13 @@ export class TraceProcessor implements EventProcessor {
       body.metadata ?? undefined,
     );
 
+    const mergedTags =
+      existingTrace?.tags && body.tags
+        ? Array.from(new Set(existingTrace.tags.concat(body.tags ?? []))).sort()
+        : body.tags
+          ? Array.from(new Set(body.tags)).sort()
+          : undefined;
+
     if (body.sessionId) {
       await prisma.traceSession.upsert({
         where: {
@@ -486,7 +493,7 @@ export class TraceProcessor implements EventProcessor {
         sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
         projectId: apiScope.projectId,
-        tags: body.tags ?? undefined,
+        tags: mergedTags ?? undefined,
       },
       update: {
         name: body.name ?? undefined,
@@ -501,7 +508,7 @@ export class TraceProcessor implements EventProcessor {
         version: body.version ?? undefined,
         sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
-        tags: body.tags ?? undefined,
+        tags: mergedTags ?? undefined,
       },
     });
     return upsertedTrace;

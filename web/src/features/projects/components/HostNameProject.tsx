@@ -1,4 +1,4 @@
-import { Card } from "@tremor/react";
+import { Card } from "@/src/components/ui/card";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import Header from "@/src/components/layouts/header";
 

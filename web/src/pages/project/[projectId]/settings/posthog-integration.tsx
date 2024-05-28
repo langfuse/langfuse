@@ -53,7 +53,7 @@ export default function PosthogIntegrationSettings() {
               : "inactive"
         }
       />
-      <p className="mb-4 text-sm text-gray-700">
+      <p className="mb-4 text-sm text-primary">
         We have teamed up with{" "}
         <Link href="https://posthog.com" className="underline">
           PostHog
@@ -79,13 +79,13 @@ export default function PosthogIntegrationSettings() {
       {state.data?.enabled && (
         <>
           <Header level="h3" title="Status" className="mt-8" />
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-primary">
             Data synced until:{" "}
             {state.data?.lastSyncAt
               ? new Date(state.data.lastSyncAt).toLocaleString()
               : "Never (pending)"}
           </p>
-          <p className="mt-2 text-sm text-gray-700">
+          <p className="mt-2 text-sm text-primary">
             While in Beta, the sync is scheduled to run once a day.
           </p>
         </>

@@ -112,7 +112,7 @@ export const IOPreview: React.FC<{
               title="Output"
               json={outputClean}
               isLoading={isLoading}
-              className="flex-1 bg-green-50"
+              className="flex-1 bg-accent-light-green dark:border-accent-dark-green"
             />
           ) : null}
         </>
@@ -128,12 +128,11 @@ const ChatMlMessageSchema = z
       .optional(),
     name: z.string().optional(),
     content: z
-      .union([z.record(z.any()), z.record(z.any()).array(), z.string()])
+      .union([z.record(z.any()), z.string(), z.array(z.any())])
       .nullish(),
     additional_kwargs: z.record(z.any()).optional(),
   })
   .passthrough()
-
   .refine((value) => value.content !== null || value.role !== undefined)
   .transform(({ additional_kwargs, ...other }) => ({
     ...other,
@@ -188,10 +187,11 @@ export const OpenAiMessageView: React.FC<{
                     title={message.name ?? message.role}
                     json={message.content}
                     className={cn(
-                      "bg-gray-100",
-                      message.role === "system" && "bg-gray-100",
-                      message.role === "assistant" && "bg-green-50",
-                      message.role === "user" && "bg-white",
+                      "bg-muted",
+                      message.role === "system" && "bg-primary-foreground",
+                      message.role === "assistant" &&
+                        "bg-accent-light-green dark:border-accent-dark-green",
+                      message.role === "user" && "bg-background",
                       !!message.json && "rounded-b-none",
                     )}
                   />
@@ -203,10 +203,11 @@ export const OpenAiMessageView: React.FC<{
                     }
                     json={message.json}
                     className={cn(
-                      "bg-gray-100",
-                      message.role === "system" && "bg-gray-100",
-                      message.role === "assistant" && "bg-green-50",
-                      message.role === "user" && "bg-white",
+                      "bg-muted",
+                      message.role === "system" && "bg-primary-foreground",
+                      message.role === "assistant" &&
+                        "bg-accent-light-green dark:border-accent-dark-green",
+                      message.role === "user" && "bg-foreground",
                       !!message.content && "rounded-t-none border-t-0",
                     )}
                   />

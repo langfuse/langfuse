@@ -94,7 +94,7 @@ export default function SignIn({ authProviders }: PageProps) {
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
-          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
+          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
             Create new account
           </h2>
         </div>
@@ -104,7 +104,7 @@ export default function SignIn({ authProviders }: PageProps) {
           </div>
         ) : null}
 
-        <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
           <CloudRegionSwitch isSignUpPage />
           <Form {...form}>
             <form
@@ -170,12 +170,12 @@ export default function SignIn({ authProviders }: PageProps) {
               ) : null}
             </form>
           </Form>
-          <SSOButtons authProviders={authProviders} action="Sign up" />
+          <SSOButtons authProviders={authProviders} action="sign up" />
           {
             // Turnstile exists copy-paste also on sign-up.tsx
             env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
               <>
-                <Divider className="text-gray-400" />
+                <Divider className="text-muted-foreground" />
                 <Turnstile
                   siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                   options={{
@@ -189,18 +189,17 @@ export default function SignIn({ authProviders }: PageProps) {
               </>
             )
           }
-          <CloudPrivacyNotice action="creating an account" />
         </div>
-
-        <p className="mt-10 text-center text-sm text-gray-500">
+        <p className="mt-10 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <Link
             href="/auth/sign-in"
-            className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+            className="hover:text-hover-primary-accent font-semibold leading-6 text-primary-accent"
           >
             Sign in
           </Link>
         </p>
+        <CloudPrivacyNotice action="creating an account" />
       </div>
     </>
   );

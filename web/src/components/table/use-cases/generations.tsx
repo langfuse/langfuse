@@ -59,6 +59,7 @@ export type GenerationsTableRow = {
   endTime?: string;
   completionStartTime?: Date;
   latency?: number;
+  timeToFirstToken?: number;
   name?: string;
   model?: string;
   // i/o not set explicitly, but fetched from the server from the cell
@@ -310,21 +311,12 @@ export default function GenerationsTable({
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const startTime: Date = row.getValue("startTime");
-        const completionStartTime: Date | undefined =
+        const timeToFirstToken: number | undefined =
           row.getValue("timeToFirstToken");
 
-        if (!completionStartTime) {
-          return undefined;
-        }
-
-        const latencyInSeconds =
-          intervalInSeconds(startTime, completionStartTime) || "-";
         return (
           <span>
-            {typeof latencyInSeconds === "number"
-              ? formatIntervalSeconds(latencyInSeconds)
-              : latencyInSeconds}
+            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
           </span>
         );
       },
@@ -623,7 +615,7 @@ export default function GenerationsTable({
           traceName: generation.traceName ?? "",
           startTime: generation.startTime,
           endTime: generation.endTime?.toLocaleString() ?? undefined,
-          timeToFirstToken: generation.completionStartTime ?? undefined,
+          timeToFirstToken: generation.timeToFirstToken ?? undefined,
           latency: generation.latency ?? undefined,
           totalCost: generation.calculatedTotalCost ?? undefined,
           inputCost: generation.calculatedInputCost ?? undefined,
@@ -758,7 +750,7 @@ const GenerationsIOCell = ({
       data={
         io === "output" ? observation.data?.output : observation.data?.input
       }
-      className={cn(io === "output" && "bg-green-50")}
+      className={cn(io === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
   );

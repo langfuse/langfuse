@@ -73,19 +73,19 @@ export function LlmApiKeyList(props: { projectId: string }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden text-gray-900 md:table-cell">
+              <TableHead className="hidden text-primary md:table-cell">
                 Created
               </TableHead>
-              <TableHead className="hidden text-gray-900 md:table-cell">
+              <TableHead className="hidden text-primary md:table-cell">
                 Provider
               </TableHead>
-              <TableHead className="text-gray-900">Secret Key</TableHead>
+              <TableHead className="text-primary">Secret Key</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
-          <TableBody className="text-gray-500">
+          <TableBody className="text-muted-foreground">
             {apiKeys.data?.data.map((apiKey) => (
-              <TableRow key={apiKey.id} className="hover:bg-transparent">
+              <TableRow key={apiKey.id} className="hover:bg-primary-foreground">
                 <TableCell className="hidden md:table-cell">
                   {apiKey.createdAt.toLocaleDateString()}
                 </TableCell>
@@ -175,7 +175,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
 
 const formSchema = z.object({
   secretKey: z.string().min(1),
-  provider: z.literal(ModelProvider.OpenAI),
+  provider: z.nativeEnum(ModelProvider),
 });
 
 export function CreateLlmApiKeyComponent(props: {
@@ -277,7 +277,7 @@ export function CreateLlmApiKeyComponent(props: {
                     <Select
                       defaultValue={field.value}
                       onValueChange={(value) =>
-                        field.onChange(value as ModelProvider[number])
+                        field.onChange(value as ModelProvider)
                       }
                     >
                       <FormControl>
@@ -286,13 +286,7 @@ export function CreateLlmApiKeyComponent(props: {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Array.from(
-                          new Set(
-                            evalLLMModels.map(
-                              (models) => models.provider.value,
-                            ),
-                          ),
-                        ).map((provider) => (
+                        {Object.values(ModelProvider).map((provider) => (
                           <SelectItem value={provider} key={provider}>
                             {provider}
                           </SelectItem>
