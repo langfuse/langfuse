@@ -3,7 +3,7 @@ import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type RouterOutput } from "@/src/utils/types";
 import TagManager from "@/src/features/tag/components/TagMananger";
-import { handleTRPCError } from "@/src/utils/errorHandler";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 type TagTraceDetailsPopoverProps = {
   tags: string[];
@@ -33,7 +33,7 @@ export function TagTraceDetailsPopover({
     },
     onError: (err, _newTags, context) => {
       setIsLoading(false);
-      handleTRPCError(err);
+      trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
       utils.traces.byId.setData({ traceId }, context?.prev);
     },

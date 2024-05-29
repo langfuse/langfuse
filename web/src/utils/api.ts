@@ -17,7 +17,7 @@ import superjson from "superjson";
 
 import { type AppRouter } from "@/src/server/api/root";
 import { setUpSuperjson } from "@/src/utils/superjson";
-import { handleTRPCError } from "@/src/utils/errorHandler";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 setUpSuperjson();
 
@@ -68,10 +68,10 @@ export const api = createTRPCNext<AppRouter>({
       queryClientConfig: {
         defaultOptions: {
           queries: {
-            onError: (error) => handleTRPCError(error),
+            onError: (error) => trpcErrorToast(error),
           },
           mutations: {
-            onError: (error) => handleTRPCError(error),
+            onError: (error) => trpcErrorToast(error),
           },
         },
       },

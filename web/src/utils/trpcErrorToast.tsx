@@ -17,7 +17,7 @@ const errorTitleMap: Record<string, string> = {
   INTERNAL_SERVER_ERROR: "Internal Server Error",
 };
 
-export const handleTRPCError = (error: unknown) => {
+export const trpcErrorToast = (error: unknown) => {
   if (error instanceof TRPCClientError) {
     const cause = error.data?.cause;
     const description = error.message;
