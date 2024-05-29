@@ -1,7 +1,9 @@
 import { Button } from "@/src/components/ui/button";
 import { AlertTriangle, X } from "lucide-react";
-import { chatAvailable, openChat } from "@/src/features/support-chat/chat";
-import { Crisp } from "crisp-sdk-web";
+import {
+  chatAvailable,
+  sendUserChatMessage,
+} from "@/src/features/support-chat/chat";
 
 interface ErrorNotificationProps {
   error: string;
@@ -20,9 +22,8 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
 }) => {
   const handleReportIssueClick = () => {
     if (chatAvailable) {
-      openChat();
       const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${cause ? `Cause: ${cause}\n` : ""}`;
-      Crisp.message.send("text", message);
+      sendUserChatMessage(message);
       dismissToast(toast);
     }
   };
