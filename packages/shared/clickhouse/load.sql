@@ -1,7 +1,29 @@
-INSERT INTO langfuse.observations
-SELECT toString(floor(randUniform(0, 500000))) AS id,
-  toString(floor(randExponential(1 / 2)) % 1000) AS trace_id,
+-- traces
+INSERT INTO langfuse.traces
+SELECT toString(floor(randUniform(0, 4500000)))  AS id,
+  addYears(now(), -1) + number AS `timestamp`,
+  concat('name', toString(rand() % 100)) AS `name`,
+  concat('name', toString(rand() % 10000)) AS `user_id`,
+  map('key', 'value') AS metadata,
+  concat('release', toString(rand() % 10000)) AS `release`,
+  concat('version', toString(rand() % 10000)) AS `version`,
   toString(floor(randExponential(1 / 2)) % 1000) AS project_id,
+  if(rand() < 0.8, true, false) as public,
+  if(rand() < 0.8, true, false) as bookmarked,
+  array('tag1', 'tag2') as tags,
+  'input' as input,
+  'output' as output,
+  concat('session', toString(rand() % 100)) AS `session_id`,
+  addYears(now(), -1) + number AS `created_at`,
+  addYears(now(), -1) + number AS `updated_at`,
+  addYears(now(), -1) + number AS `event_ts`,
+  randUniform(0, 1000000) AS event_microseconds
+FROM numbers(4500000);
+-- observations
+INSERT INTO langfuse.observations
+SELECT toString(floor(randUniform(0, 4500000))) AS id,
+  toString(floor(randUniform(0, 4500000)))  AS trace_id,
+  floor(randExponential(1 / 2))  AS project_id,
   multiIf(
     rand() < 0.8,
     'SPAN',
@@ -43,6 +65,7 @@ SELECT toString(floor(randUniform(0, 500000))) AS id,
   now() AS event_ts,
   randUniform(0, 1000000) AS event_microseconds
 FROM numbers(4500000);
+-- scores
 INSERT INTO langfuse.scores
 SELECT toString(floor(randUniform(0, 500000))) AS id,
   addYears(now(), -1) + number AS `timestamp`,
@@ -53,10 +76,10 @@ SELECT toString(floor(randUniform(0, 500000))) AS id,
   'API' as source,
   if(
     rand() > 0.9,
-    toString(floor(randExponential(1 / 2)) % 1000),
+    toString(floor(randUniform(0, 500000))),
     NULL
   ) AS observation_id,
   'comment' as comment,
   now() AS event_ts,
   randUniform(0, 1000000) AS event_microseconds
-FROM numbers(4500000);
+FROM numbers(1000000);

@@ -36,8 +36,8 @@ CREATE TABLE observations (
 ) ENGINE = MergeTree
 ORDER BY (
         project_id,
-        `name`,
         toUnixTimestamp(start_time),
+        `name`,
         trace_id,
         id
     );

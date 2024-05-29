@@ -20,9 +20,9 @@ CREATE TABLE traces (
 ) ENGINE = MergeTree
 ORDER BY (
         project_id,
-        name,
-        user_id,
         toUnixTimestamp(timestamp),
+        name,
+        user_id
     );
 CREATE VIEW traces_view AS
 SELECT id,
