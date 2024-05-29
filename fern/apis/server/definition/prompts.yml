@@ -71,6 +71,7 @@ types:
       prompt: list<ChatMessage>
       config: optional<unknown>
       labels: optional<list<string>>
+      tags: optional<list<string>>
 
   CreateTextPromptRequest:
     properties:
@@ -78,6 +79,7 @@ types:
       prompt: string
       config: optional<unknown>
       labels: optional<list<string>>
+      tags: optional<list<string>>
 
   Prompt:
     union:
