@@ -244,8 +244,8 @@ export function AnnotateButton({
         </Button>
       </DrawerTrigger>
       <DrawerContent>
-        <div className="mx-auto w-full">
-          <DrawerHeader>
+        <div className="mx-auto max-h-64 w-full overflow-y-auto md:max-h-full">
+          <DrawerHeader className="sticky top-0 z-10 bg-background">
             <DrawerTitle>
               <div className="flex items-center justify-between">
                 <span>Annotate</span>
@@ -324,10 +324,15 @@ export function AnnotateButton({
                       {fields.map((score, index) => (
                         <div
                           key={score.id}
-                          className="grid grid-cols-[auto,1fr,2fr,auto,auto] items-center gap-2 text-left"
+                          className="grid grid-cols-[1fr,1fr,auto,auto] items-center gap-2 text-left"
                         >
-                          <div className="h-4 w-4 shrink-0 rounded-sm bg-primary-accent" />
-                          <span className="text-sm">{score.name}</span>
+                          <Link
+                            className="grid grid-cols-[auto,1fr] items-center gap-2 hover:text-accent-dark-blue hover:underline"
+                            href={`/project/${projectId}/settings`}
+                          >
+                            <div className="h-4 w-4 shrink-0 rounded-sm bg-primary-accent" />
+                            <span className="text-sm">{score.name}</span>
+                          </Link>
                           <FormField
                             control={form.control}
                             name={`scoreData.${index}.value`}
