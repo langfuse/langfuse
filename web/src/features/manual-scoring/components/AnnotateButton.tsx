@@ -62,6 +62,10 @@ const formSchema = z.object({
   scoreData: z.array(score),
 });
 
+function isPresent<T>(value: T): value is NonNullable<T> {
+  return value !== null && value !== undefined;
+}
+
 export function AnnotateButton({
   traceId,
   scores,
@@ -189,6 +193,36 @@ export function AnnotateButton({
       : remove(index);
   }
 
+  function handleOnValueChange(
+    score: any,
+    index: number,
+  ): ((value: string) => void) | undefined {
+    return async (stringValue) => {
+      const selectedCategory = getConfigCategories(score).find(
+        ({ label }) => label === stringValue,
+      );
+      if (selectedCategory) {
+        const newValue = Number(selectedCategory.value);
+
+        update(index, {
+          ...score,
+          value: newValue,
+        });
+
+        if (!!stringValue)
+          await mutScores.mutateAsync({
+            projectId,
+            traceId,
+            observationId,
+            ...score,
+            id: score.scoreId,
+            value: newValue,
+            stringValue,
+          });
+      }
+    };
+  }
+
   return (
     <Drawer onClose={() => setIsPopoverOpen(false)}>
       <DrawerTrigger asChild>
@@ -242,7 +276,11 @@ export function AnnotateButton({
                         >
                           <Checkbox
                             checked={fields.some(
-                              (field) => field.configId === config.id,
+                              ({ configId }) => configId === config.id,
+                            )}
+                            disabled={fields.some(
+                              ({ value, configId }) =>
+                                isPresent(value) && configId === config.id,
                             )}
                             onCheckedChange={(value) =>
                               handleOnCheckedChange(config, value)
@@ -302,18 +340,10 @@ export function AnnotateButton({
                                   ) : (
                                     <Select
                                       defaultValue={score.stringValue}
-                                      onValueChange={async (value) => {
-                                        if (!!value)
-                                          await mutScores.mutateAsync({
-                                            projectId,
-                                            traceId,
-                                            ...score,
-                                            observationId,
-                                            value: Number(field.value),
-                                            id: score.scoreId,
-                                            stringValue: value,
-                                          });
-                                      }}
+                                      onValueChange={handleOnValueChange(
+                                        score,
+                                        index,
+                                      )}
                                     >
                                       <SelectTrigger>
                                         <SelectValue placeholder="Select category" />
