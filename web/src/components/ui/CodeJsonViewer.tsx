@@ -17,7 +17,7 @@ export function JSONView(props: {
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = deepParseJson(props.json);
-  const { theme } = useTheme();
+  const { resolvedTheme } = useTheme();
   return (
     <div className={cn("rounded-md border", props.className)}>
       {props.title ? (
@@ -44,7 +44,7 @@ export function JSONView(props: {
           <React18JsonView
             src={parsedJson}
             theme="github"
-            dark={theme === "dark"}
+            dark={resolvedTheme === "dark"}
             collapseObjectsAfterLength={20}
             collapseStringsAfterLength={500}
             displaySize={"collapsed"}

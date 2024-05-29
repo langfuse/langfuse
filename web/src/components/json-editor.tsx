@@ -22,9 +22,9 @@ export function JsonEditor({
   lineWrapping?: boolean;
   className?: string;
 }) {
-  const { theme } = useTheme();
-  const codeMirrorTheme = theme === "dark" ? tokyoNight : githubLight;
-
+  const { resolvedTheme } = useTheme();
+  const codeMirrorTheme = resolvedTheme === "dark" ? tokyoNight : githubLight;
+  
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!defaultValue && defaultValue !== "",

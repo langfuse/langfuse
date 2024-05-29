@@ -118,9 +118,9 @@ export function MultiSelect({
                     >
                       <Check className={cn("h-4 w-4")} />
                     </div>
-                    <span>{option.value}</span>
+                    <span className="overflow-x-scroll">{option.value}</span>
                     {option.count !== undefined ? (
-                      <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">
+                      <span className="ml-auto flex h-4 w-4 items-center justify-center pl-1 font-mono text-xs">
                         {option.count}
                       </span>
                     ) : null}
