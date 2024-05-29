@@ -153,6 +153,7 @@ export function AnnotateButton({
     },
   });
 
+  const utils = api.useUtils();
   const mutScores = api.scores.annotate.useMutation({
     onMutate: async () => {
       // setIsLoading(true);
@@ -182,6 +183,8 @@ export function AnnotateButton({
         configId: configId ?? undefined,
         comment: comment ?? undefined,
       });
+
+      void utils.traces.byId.invalidate();
     },
   });
 
