@@ -36,7 +36,7 @@ export const CreateChatPromptSchema = z.object({
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema.nullable().default({}),
-  tags: z.array(z.string()).default([]),
+  tags: z.array(z.string()).optional(),
 });
 
 export const CreatePromptSchema = z.union([
