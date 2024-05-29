@@ -4,6 +4,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { generateKeySet } from "@langfuse/shared";
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,6 +21,45 @@ export default async function handler(
       message: authCheck.error,
     });
   // END CHECK AUTH
+  
+  if (req.method === "POST") {
+    try {
+      const { userId }: any = authCheck.scope;
+      const { name, projectId } = req.body;
+      const { displaySk, pk, hashedSk, sk } = await generateKeySet();
+      const project = await prisma.project.create({
+        data: {
+          id: projectId,
+          name,
+          apiKeys: {
+            create: [
+              {
+                note: "default keys",
+                hashedSecretKey: hashedSk,
+                displaySecretKey: displaySk,
+                publicKey: pk,
+              },
+            ],
+          },
+          projectMembers: {
+            create: {
+              role: "OWNER",
+              userId,
+            },
+          },
+        },
+      });
+      return res.status(200).json({
+        id: project.id,
+        name: project.name,
+        primaryKey : pk,
+        secretKey : sk,
+        displaySk
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
 
   if (req.method === "GET") {
     try {

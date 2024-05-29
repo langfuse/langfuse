@@ -7,7 +7,14 @@ settings:
 importers:
 
   .:
+    dependencies:
+      pg:
+        specifier: ^8.11.5
+        version: 8.11.5
     devDependencies:
+      '@types/pg':
+        specifier: ^8.11.5
+        version: 8.11.5
       '@release-it/bumper':
         specifier: ^6.0.1
         version: 6.0.1(release-it@17.2.1)

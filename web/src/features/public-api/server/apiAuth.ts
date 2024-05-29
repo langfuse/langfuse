@@ -67,6 +67,13 @@ export async function verifyAuthHeaderAndReturnScope(
         throw new Error("Invalid credentials");
       }
 
+      const { userId }: any = await prisma.projectMembership.findFirst({
+        where: {
+          projectId,
+          role: "OWNER",
+        },
+      });
+
       Sentry.setUser({
         id: projectId,
       });
@@ -76,6 +83,7 @@ export async function verifyAuthHeaderAndReturnScope(
         scope: {
           projectId: projectId,
           accessLevel: "all",
+          userId
         },
       };
     }
@@ -88,11 +96,19 @@ export async function verifyAuthHeaderAndReturnScope(
         id: dbKey.projectId,
       });
 
+      const { userId }: any = await prisma.projectMembership.findFirst({
+        where: {
+          projectId : dbKey.projectId,
+          role: "OWNER",
+        },
+      });
+
       return {
         validKey: true,
         scope: {
           projectId: dbKey.projectId,
           accessLevel: "scores",
+          userId
         },
       };
     }
