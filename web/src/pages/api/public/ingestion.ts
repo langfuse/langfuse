@@ -271,7 +271,7 @@ const handleSingleEvent = async (
     restEvent = rest;
   }
   console.log(
-    `handling single event ${event.id} ${JSON.stringify({ event, body: restEvent })}`,
+    `handling single event ${event.id} ${JSON.stringify({ body: restEvent })}`,
   );
 
   const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
