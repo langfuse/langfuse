@@ -140,6 +140,7 @@ export const scoresRouter = createTRPCRouter({
         configId: z.string().optional(),
         stringValue: z.string().optional(),
         dataType: z.nativeEnum(ScoreDataType),
+        comment: z.string().optional().nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -187,6 +188,7 @@ export const scoresRouter = createTRPCRouter({
               value: input.value,
               stringValue: input.stringValue,
               authorUserId: ctx.session.user.id,
+              comment: input.comment,
             },
           });
         }
@@ -212,6 +214,7 @@ export const scoresRouter = createTRPCRouter({
             source: ScoreSource.ANNOTATION,
             dataType: input.dataType,
             stringValue: input.stringValue,
+            comment: input.comment,
           },
         });
         await auditLog({
