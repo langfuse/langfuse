@@ -46,6 +46,7 @@ import {
 } from "@/src/components/ui/select";
 import { cn } from "@/src/utils/tailwind";
 import { Textarea } from "@/src/components/ui/textarea";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
 
 type ConfigCategory = {
   label: string;
@@ -233,8 +234,6 @@ export function AnnotateButton({
     };
   }
 
-  console.log({ fields });
-
   return (
     <Drawer onClose={() => setIsConfigPopoverOpen(false)}>
       <DrawerTrigger asChild>
@@ -260,48 +259,50 @@ export function AnnotateButton({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent>
-                    <div className="flex flex-col space-y-4">
-                      <div className="flex items-center justify-between">
-                        <>
-                          <Link
-                            className="inline-block
+                    <ScrollArea>
+                      <div className="flex max-h-64 flex-col space-y-4">
+                        <div className="flex items-center justify-between">
+                          <>
+                            <Link
+                              className="inline-block
        rounded bg-primary-accent/10 px-2 py-1 text-sm font-semibold text-accent-dark-blue shadow-sm hover:bg-accent-light-blue/45"
-                            href={`/project/${projectId}/settings`}
-                          >
-                            Add new config in settings
-                          </Link>
-                          <Button
-                            onClick={() => setIsConfigPopoverOpen(false)}
-                            variant="ghost"
-                            size="icon"
-                            className="flex w-fit"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </>
-                      </div>
-                      <div className="flex h-1 bg-muted" />
-                      {configs.data?.configs.map((config) => (
-                        <div
-                          className="grid grid-cols-[auto,1fr] items-center gap-2 text-left text-sm"
-                          key={config.id}
-                        >
-                          <Checkbox
-                            checked={fields.some(
-                              ({ configId }) => configId === config.id,
-                            )}
-                            disabled={fields.some(
-                              ({ value, configId }) =>
-                                isPresent(value) && configId === config.id,
-                            )}
-                            onCheckedChange={(value) =>
-                              handleOnCheckedChange(config, value)
-                            }
-                          />
-                          <span>{config.name}</span>
+                              href={`/project/${projectId}/settings`}
+                            >
+                              Add new config in settings
+                            </Link>
+                            <Button
+                              onClick={() => setIsConfigPopoverOpen(false)}
+                              variant="ghost"
+                              size="icon"
+                              className="flex w-fit"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
                         </div>
-                      ))}
-                    </div>
+                        <div className="flex border" />
+                        {configs.data?.configs.map((config) => (
+                          <div
+                            className="grid grid-cols-[auto,1fr] items-center gap-2 text-left text-sm"
+                            key={config.id}
+                          >
+                            <Checkbox
+                              checked={fields.some(
+                                ({ configId }) => configId === config.id,
+                              )}
+                              disabled={fields.some(
+                                ({ value, configId }) =>
+                                  isPresent(value) && configId === config.id,
+                              )}
+                              onCheckedChange={(value) =>
+                                handleOnCheckedChange(config, value)
+                              }
+                            />
+                            <span>{config.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   </PopoverContent>
                 </Popover>
               </div>
