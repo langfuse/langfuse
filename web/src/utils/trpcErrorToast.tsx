@@ -18,6 +18,7 @@ const errorTitleMap: Record<string, string> = {
 };
 
 export const trpcErrorToast = (error: unknown) => {
+  console.error(error);
   if (error instanceof TRPCClientError) {
     const cause = error.data?.cause;
     const description = error.message;
@@ -30,5 +31,4 @@ export const trpcErrorToast = (error: unknown) => {
       "An unexpected error occurred. Please try again.",
     );
   }
-  console.error(error);
 };
