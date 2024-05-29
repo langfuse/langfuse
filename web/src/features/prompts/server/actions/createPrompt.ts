@@ -21,6 +21,7 @@ export const createPrompt = async ({
   config,
   createdBy,
   prisma,
+  tags = [],
 }: CreatePromptParams) => {
   const latestPrompt = await prisma.prompt.findFirst({
     where: { projectId, name },
@@ -52,7 +53,7 @@ export const createPrompt = async ({
         createdBy,
         labels: [...new Set(finalLabels)], // Ensure labels are unique
         type,
-        tags: latestPrompt?.tags,
+        tags: latestPrompt?.tags?.length ? latestPrompt.tags : tags,
         version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
         project: { connect: { id: projectId } },
         config: jsonSchema.parse(config),
