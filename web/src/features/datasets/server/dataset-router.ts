@@ -173,7 +173,7 @@ export const datasetRouter = createTRPCRouter({
           ) avg_scores ON true
           LEFT JOIN LATERAL (
             SELECT
-              AVG(CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END) AS "avgLatency",
+              AVG(o.latency) AS "avgLatency",
               AVG(COALESCE(o.calculated_total_cost, 0)) AS "avgTotalCost"
             FROM
               dataset_run_items ri
