@@ -3,6 +3,7 @@ import { api } from "@/src/utils/api";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type RouterOutput } from "@/src/utils/types";
 import TagManager from "@/src/features/tag/components/TagMananger";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 type TagPromptDetailsPopoverProps = {
   tags: string[];
@@ -34,6 +35,7 @@ export function TagPromptDetailsPopover({
     },
     onError: (err, _newTags, context) => {
       setIsLoading(false);
+      trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
       utils.prompts.allVersions.setData(
         { projectId: projectId, name: promptName },
