@@ -1,7 +1,7 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, TrashIcon, X } from "lucide-react";
+import { LockIcon, MessageCircle, TrashIcon, X } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -9,6 +9,8 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormLabel,
+  FormMessage,
 } from "@/src/components/ui/form";
 import Link from "next/link";
 import {
@@ -43,6 +45,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { cn } from "@/src/utils/tailwind";
+import { Textarea } from "@/src/components/ui/textarea";
 
 type ConfigCategory = {
   label: string;
@@ -52,18 +55,23 @@ type ConfigCategory = {
 const score = z.object({
   scoreId: z.string().optional(),
   name: z.string(),
-  value: z.number(),
+  value: z.number().optional(),
   stringValue: z.string().optional(),
   dataType: z.nativeEnum(ScoreDataType),
   configId: z.string().optional(),
+  comment: z.string().optional(),
 });
 
 const formSchema = z.object({
   scoreData: z.array(score),
 });
 
-function isPresent<T>(value: T): value is NonNullable<T> {
-  return value !== null && value !== undefined;
+function isPresent<T>(value: T) {
+  return value !== null && value !== undefined && value !== "";
+}
+
+function isScoreUnsaved(scoreId?: string): boolean {
+  return !scoreId;
 }
 
 export function AnnotateButton({
@@ -77,7 +85,7 @@ export function AnnotateButton({
   observationId?: string;
   projectId: string;
 }) {
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isConfigPopoverOpen, setIsConfigPopoverOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -98,6 +106,7 @@ export function AnnotateButton({
           dataType: s.dataType,
           stringValue: s.stringValue ?? undefined,
           configId: s.configId ?? undefined,
+          comment: s.comment ?? undefined,
         })),
     },
   });
@@ -157,18 +166,20 @@ export function AnnotateButton({
     onSettled: (data, error) => {
       if (!data || error) return; // handle error
 
-      const { id, value, stringValue, name, dataType, configId } = data;
+      const { id, value, stringValue, name, dataType, configId, comment } =
+        data;
       const updatedScoreIndex = fields.findIndex(
         (field) => field.configId === configId,
       );
 
       update(updatedScoreIndex, {
-        scoreId: id,
         value,
-        stringValue: stringValue ?? undefined,
         name,
         dataType,
+        scoreId: id,
+        stringValue: stringValue ?? undefined,
         configId: configId ?? undefined,
+        comment: comment ?? undefined,
       });
     },
   });
@@ -186,7 +197,6 @@ export function AnnotateButton({
     value
       ? append({
           name: config.name,
-          value: 0,
           dataType: config.dataType,
           configId: config.id,
         })
@@ -223,8 +233,10 @@ export function AnnotateButton({
     };
   }
 
+  console.log({ fields });
+
   return (
-    <Drawer onClose={() => setIsPopoverOpen(false)}>
+    <Drawer onClose={() => setIsConfigPopoverOpen(false)}>
       <DrawerTrigger asChild>
         <Button variant="secondary" disabled={!hasAccess}>
           <span>Annotate</span>
@@ -237,12 +249,12 @@ export function AnnotateButton({
             <DrawerTitle>
               <div className="flex items-center justify-between">
                 <span>Annotate</span>
-                <Popover open={isPopoverOpen}>
+                <Popover open={isConfigPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="secondary"
                       disabled={!hasAccess}
-                      onClick={() => setIsPopoverOpen(true)}
+                      onClick={() => setIsConfigPopoverOpen(true)}
                     >
                       Add score
                     </Button>
@@ -259,7 +271,7 @@ export function AnnotateButton({
                             Add new config in settings
                           </Link>
                           <Button
-                            onClick={() => setIsPopoverOpen(false)}
+                            onClick={() => setIsConfigPopoverOpen(false)}
                             variant="ghost"
                             size="icon"
                             className="flex w-fit"
@@ -312,7 +324,7 @@ export function AnnotateButton({
                       {fields.map((score, index) => (
                         <div
                           key={score.id}
-                          className="grid grid-cols-[auto,1fr,2fr,auto] items-center gap-2 text-left"
+                          className="grid grid-cols-[auto,1fr,2fr,auto,auto] items-center gap-2 text-left"
                         >
                           <div className="h-4 w-4 shrink-0 rounded-sm bg-primary-accent" />
                           <span className="text-sm">{score.name}</span>
@@ -366,10 +378,94 @@ export function AnnotateButton({
                               </FormItem>
                             )}
                           />
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                type="button"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent>
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.comment`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Comment (optional)</FormLabel>
+                                    <FormControl>
+                                      <>
+                                        <Textarea
+                                          {...field}
+                                          value={field.value || ""}
+                                        />
+                                        <div className="mt-2 flex items-center justify-between">
+                                          <Button
+                                            variant="secondary"
+                                            type="button"
+                                            disabled={isScoreUnsaved(
+                                              score.scoreId,
+                                            )}
+                                            onClick={async () => {
+                                              if (
+                                                !!field.value &&
+                                                !!score.scoreId &&
+                                                !!score.value
+                                              )
+                                                await mutScores.mutateAsync({
+                                                  projectId,
+                                                  traceId,
+                                                  ...score,
+                                                  value: score.value,
+                                                  id: score.scoreId,
+                                                  observationId,
+                                                  comment: field.value,
+                                                });
+                                            }}
+                                          >
+                                            Save comment
+                                          </Button>
+                                          <Button
+                                            variant="secondary"
+                                            type="button"
+                                            disabled={isScoreUnsaved(
+                                              score.scoreId,
+                                            )}
+                                            onClick={async () => {
+                                              if (
+                                                !!field.value &&
+                                                !!score.scoreId &&
+                                                !!score.value
+                                              )
+                                                await mutScores.mutateAsync({
+                                                  projectId,
+                                                  traceId,
+                                                  ...score,
+                                                  value: score.value,
+                                                  id: score.scoreId,
+                                                  observationId,
+                                                  comment: null,
+                                                });
+                                            }}
+                                          >
+                                            Delete
+                                          </Button>
+                                        </div>
+                                      </>
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </PopoverContent>
+                          </Popover>
                           <Button
                             variant="outline"
                             size="icon"
                             type="button"
+                            disabled={isScoreUnsaved(score.scoreId)}
                             onClick={async () => {
                               // capture("scores:delete_form_open", {
                               //   source: "annotation",
@@ -381,12 +477,7 @@ export function AnnotateButton({
                                 });
                             }}
                           >
-                            <TrashIcon
-                              className={cn(
-                                "h-4 w-4 text-muted-gray",
-                                score.scoreId ? "text-gray" : "text-muted-gray",
-                              )}
-                            />
+                            <TrashIcon className={cn("h-4 w-4 ")} />
                           </Button>
                         </div>
                       ))}
