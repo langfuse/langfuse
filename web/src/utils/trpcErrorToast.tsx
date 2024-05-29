@@ -18,13 +18,13 @@ const errorTitleMap: Record<string, string> = {
 };
 
 export const trpcErrorToast = (error: unknown) => {
-  console.error(error);
   if (error instanceof TRPCClientError) {
+    const path = error.data?.path;
     const cause = error.data?.cause;
     const description = error.message;
     const errorTitle = errorTitleMap[error.data?.code] || "Unexpected Error";
 
-    showErrorToast(errorTitle, description, cause);
+    showErrorToast(errorTitle, description, cause, path);
   } else {
     showErrorToast(
       "Unexpected Error",

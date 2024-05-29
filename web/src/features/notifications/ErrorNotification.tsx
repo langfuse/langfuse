@@ -11,6 +11,7 @@ interface ErrorNotificationProps {
   cause?: string;
   dismissToast: (t?: string | number | undefined) => void;
   toast: string | number;
+  path?: string;
 }
 
 export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
@@ -19,10 +20,12 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   cause,
   dismissToast,
   toast,
+  path,
 }) => {
   const handleReportIssueClick = () => {
     if (chatAvailable) {
-      const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${cause ? `Cause: ${cause}\n` : ""}`;
+      const currentUrl = window.location.href;
+      const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${cause ? `Cause: ${cause}\n` : ""}${path ? `Path: ${path}\n` : ""}URL: ${currentUrl}`;
       sendUserChatMessage(message);
       dismissToast(toast);
     }
@@ -30,7 +33,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
 
   return (
     <div className="flex justify-between">
-      <div className="flex min-w-[300px] flex-1 flex-col">
+      <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
           <AlertTriangle size={20} className="text-destructive-foreground" />
           <div className="m-0 text-sm font-medium leading-tight text-destructive-foreground">
@@ -38,12 +41,17 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
           </div>
         </div>
         {description && (
-          <div className="my-2 text-sm leading-tight text-destructive-foreground">
+          <div className="text-sm leading-tight text-destructive-foreground">
             {description}
           </div>
         )}
+        {path && (
+          <div className="text-sm leading-tight text-destructive-foreground">
+            Path: {path}
+          </div>
+        )}
         {cause && (
-          <div className="mb-2 max-h-32 overflow-y-auto text-sm leading-tight text-destructive-foreground">
+          <div className="max-h-32 overflow-y-auto text-sm leading-tight text-destructive-foreground">
             {cause}
           </div>
         )}
@@ -55,7 +63,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               handleReportIssueClick();
             }}
           >
-            Report issue to langfuse team
+            Report issue to Langfuse team
           </Button>
         )}
       </div>

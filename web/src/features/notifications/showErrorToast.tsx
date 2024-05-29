@@ -5,6 +5,7 @@ export const showErrorToast = (
   error: string,
   description: string,
   cause?: string,
+  path?: string,
 ) => {
   toast.custom(
     (t) => (
@@ -12,6 +13,7 @@ export const showErrorToast = (
         error={error}
         description={description}
         cause={cause}
+        path={path}
         dismissToast={toast.dismiss}
         toast={t}
       />
