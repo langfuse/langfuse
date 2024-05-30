@@ -26,12 +26,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
-import {
-  ScoreDataType,
-  type Score,
-  ScoreSource,
-  type ScoreConfig,
-} from "@langfuse/shared";
+import { ScoreDataType, type Score, type ScoreConfig } from "@langfuse/shared";
 import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
 import { Checkbox } from "@/src/components/ui/checkbox";
@@ -55,51 +50,11 @@ import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { ScoreConfigDetails } from "@/src/features/manual-scoring/components/ScoreConfigDetails";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-
-type ConfigCategory = {
-  label: string;
-  value: string;
-};
-
-function getScoreData(
-  scores: Score[],
-  traceId: string,
-  observationId?: string,
-  configs?: ScoreConfig[],
-) {
-  const populatedScores = scores
-    .filter(
-      (s) =>
-        s.source === ScoreSource.ANNOTATION &&
-        s.traceId === traceId &&
-        (observationId !== undefined
-          ? s.observationId === observationId
-          : s.observationId === null),
-    )
-    .map((s) => ({
-      scoreId: s.id,
-      name: s.name,
-      value: s.value,
-      dataType: s.dataType,
-      stringValue: s.stringValue ?? undefined,
-      configId: s.configId ?? undefined,
-      comment: s.comment ?? undefined,
-    }));
-
-  console.log(populatedScores, configs);
-
-  if (!configs) return populatedScores;
-
-  const emptyScores = configs
-    .filter((config) => !populatedScores.some((s) => s.configId === config.id))
-    .map((config) => ({
-      name: config.name,
-      dataType: config.dataType,
-      configId: config.id,
-    }));
-
-  return [...populatedScores, ...emptyScores];
-}
+import {
+  isPresent,
+  isScoreUnsaved,
+} from "@/src/features/manual-scoring/lib/helpers";
+import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaultScoreData";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -117,14 +72,10 @@ const AnnotateFormSchema = z.object({
 
 type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
 type AnnotationScoreSchemaType = z.infer<typeof AnnotationScoreDataSchema>;
-
-function isPresent<T>(value: T) {
-  return value !== null && value !== undefined && value !== "";
-}
-
-function isScoreUnsaved(scoreId?: string): boolean {
-  return !scoreId;
-}
+type ConfigCategory = {
+  label: string;
+  value: string;
+};
 
 export function AnnotateButton({
   traceId,
@@ -158,7 +109,7 @@ export function AnnotateButton({
   const form = useForm<z.infer<typeof AnnotateFormSchema>>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
-      scoreData: getScoreData(
+      scoreData: getDefaultScoreData(
         scores,
         traceId,
         observationId,
@@ -194,35 +145,44 @@ export function AnnotateButton({
   });
 
   const utils = api.useUtils();
-  const mutScores = api.scores.annotate.useMutation({
+
+  const onSettledUpsert = async (data?: Score, error?: unknown) => {
+    if (!data || error) return;
+
+    const { id, value, stringValue, name, dataType, configId, comment } = data;
+    const updatedScoreIndex = fields.findIndex(
+      (field) => field.configId === configId,
+    );
+
+    update(updatedScoreIndex, {
+      value,
+      name,
+      dataType,
+      scoreId: id,
+      stringValue: stringValue ?? undefined,
+      configId: configId ?? undefined,
+      comment: comment ?? undefined,
+    });
+
+    await Promise.all([
+      utils.scores.invalidate(),
+      utils.traces.invalidate(),
+      utils.sessions.invalidate(),
+    ]);
+  };
+
+  const mutCreateScores = api.scores.createAnnotationScore.useMutation({
     onError: (error) => {
       trpcErrorToast(error);
     },
-    onSettled: async (data, error) => {
-      if (!data || error) return;
+    onSettled: onSettledUpsert,
+  });
 
-      const { id, value, stringValue, name, dataType, configId, comment } =
-        data;
-      const updatedScoreIndex = fields.findIndex(
-        (field) => field.configId === configId,
-      );
-
-      update(updatedScoreIndex, {
-        value,
-        name,
-        dataType,
-        scoreId: id,
-        stringValue: stringValue ?? undefined,
-        configId: configId ?? undefined,
-        comment: comment ?? undefined,
-      });
-
-      await Promise.all([
-        utils.scores.invalidate(),
-        utils.traces.invalidate(),
-        utils.sessions.invalidate(),
-      ]);
+  const mutUpdateScores = api.scores.updateAnnotationScore.useMutation({
+    onError: (error) => {
+      trpcErrorToast(error);
     },
+    onSettled: onSettledUpsert,
   });
 
   if (!hasAccess && variant === "badge") return null;
@@ -256,16 +216,25 @@ export function AnnotateButton({
           value: newValue,
         });
 
-        if (!!stringValue)
-          await mutScores.mutateAsync({
-            projectId,
-            traceId,
-            observationId,
-            ...score,
-            id: score.scoreId,
-            value: newValue,
-            stringValue,
-          });
+        if (!!stringValue) {
+          if (!!score.scoreId)
+            await mutUpdateScores.mutateAsync({
+              projectId,
+              ...score,
+              id: score.scoreId,
+              value: newValue,
+              stringValue,
+            });
+          else
+            await mutCreateScores.mutateAsync({
+              projectId,
+              traceId,
+              ...score,
+              observationId,
+              value: newValue,
+              stringValue,
+            });
+        }
       }
     };
   }
@@ -284,13 +253,11 @@ export function AnnotateButton({
   }): React.MouseEventHandler<HTMLButtonElement> | undefined {
     return async () => {
       if (!!field.value && !!score.scoreId && !!score.value)
-        await mutScores.mutateAsync({
+        await mutUpdateScores.mutateAsync({
           projectId,
-          traceId,
           ...score,
           value: score.value,
           id: score.scoreId,
-          observationId,
           comment,
         });
     };
@@ -324,15 +291,23 @@ export function AnnotateButton({
 
       form.clearErrors(`scoreData.${index}.value`);
 
-      if (!!field.value)
-        await mutScores.mutateAsync({
-          projectId,
-          traceId,
-          ...score,
-          observationId,
-          value: Number(field.value),
-          id: score.scoreId,
-        });
+      if (!!field.value) {
+        if (!!score.scoreId)
+          await mutUpdateScores.mutateAsync({
+            projectId,
+            ...score,
+            value: Number(field.value),
+            id: score.scoreId,
+          });
+        else
+          await mutCreateScores.mutateAsync({
+            projectId,
+            traceId,
+            ...score,
+            observationId,
+            value: Number(field.value),
+          });
+      }
     };
   }
 
@@ -546,7 +521,9 @@ export function AnnotateButton({
                                               disabled={isScoreUnsaved(
                                                 score.scoreId,
                                               )}
-                                              loading={mutScores.isLoading}
+                                              loading={
+                                                mutUpdateScores.isLoading
+                                              }
                                               onClick={handleCommentUpdate({
                                                 field,
                                                 score,
@@ -561,7 +538,9 @@ export function AnnotateButton({
                                               disabled={isScoreUnsaved(
                                                 score.scoreId,
                                               )}
-                                              loading={mutScores.isLoading}
+                                              loading={
+                                                mutUpdateScores.isLoading
+                                              }
                                               onClick={handleCommentUpdate({
                                                 field,
                                                 score,

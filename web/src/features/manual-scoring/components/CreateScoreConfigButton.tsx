@@ -34,7 +34,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import {
   isCategorical,
   isNumeric,
-} from "@/src/features/manual-scoring/helpers";
+} from "@/src/features/manual-scoring/lib/helpers";
 
 const availableDataTypes = [
   ScoreDataType.NUMERIC,

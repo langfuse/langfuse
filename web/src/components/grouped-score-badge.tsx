@@ -4,7 +4,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { isCategorical } from "@/src/features/manual-scoring/helpers";
+import { isCategorical } from "@/src/features/manual-scoring/lib/helpers";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { cn } from "@/src/utils/tailwind";
 import { MessageCircle } from "lucide-react";

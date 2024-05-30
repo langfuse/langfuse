@@ -1,4 +1,4 @@
-import { isNumeric } from "@/src/features/manual-scoring/helpers";
+import { isNumeric } from "@/src/features/manual-scoring/lib/helpers";
 import { type ScoreConfig } from "@langfuse/shared";
 import React from "react";
 
