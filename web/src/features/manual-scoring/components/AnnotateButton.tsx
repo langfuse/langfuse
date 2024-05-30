@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import {
   Drawer,
+  DrawerClose,
   DrawerContent,
   DrawerDescription,
   DrawerHeader,
@@ -52,9 +53,45 @@ type ConfigCategory = {
   value: string;
 };
 
+function getScoreData(
+  scores: Score[],
+  traceId: string,
+  observationId?: string,
+  configs?: ScoreConfig[],
+) {
+  const populatedScores = scores
+    .filter(
+      (s) =>
+        s.source === ScoreSource.ANNOTATION &&
+        s.traceId === traceId &&
+        (observationId !== undefined
+          ? s.observationId === observationId
+          : s.observationId === null),
+    )
+    .map((s) => ({
+      scoreId: s.id,
+      name: s.name,
+      value: s.value,
+      dataType: s.dataType,
+      stringValue: s.stringValue ?? undefined,
+      configId: s.configId ?? undefined,
+      comment: s.comment ?? undefined,
+    }));
+
+  if (!configs) return populatedScores;
+
+  const emptyScores = configs.map((config) => ({
+    name: config.name,
+    dataType: config.dataType,
+    configId: config.id,
+  }));
+
+  return [...populatedScores, ...emptyScores];
+}
+
 const score = z.object({
-  scoreId: z.string().optional(),
   name: z.string(),
+  scoreId: z.string().optional(),
   value: z.number().optional(),
   stringValue: z.string().optional(),
   dataType: z.nativeEnum(ScoreDataType),
@@ -87,38 +124,9 @@ export function AnnotateButton({
 }) {
   const [isConfigPopoverOpen, setIsConfigPopoverOpen] = useState(false);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      scoreData: scores
-        .filter(
-          (s) =>
-            s.source === ScoreSource.ANNOTATION &&
-            s.traceId === traceId &&
-            (observationId !== undefined
-              ? s.observationId === observationId
-              : s.observationId === null),
-        )
-        .map((s) => ({
-          scoreId: s.id,
-          name: s.name,
-          value: s.value,
-          dataType: s.dataType,
-          stringValue: s.stringValue ?? undefined,
-          configId: s.configId ?? undefined,
-          comment: s.comment ?? undefined,
-        })),
-    },
-  });
-
   const hasAccess = useHasAccess({
     projectId,
     scope: "scores:CUD",
-  });
-
-  const { fields, append, remove, update } = useFieldArray({
-    control: form.control,
-    name: "scoreData",
   });
 
   const configs = api.scoreConfigs.all.useQuery(
@@ -129,6 +137,23 @@ export function AnnotateButton({
       enabled: hasAccess,
     },
   );
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      scoreData: getScoreData(
+        scores,
+        traceId,
+        observationId,
+        configs.data?.configs,
+      ),
+    },
+  });
+
+  const { fields, append, remove, update } = useFieldArray({
+    control: form.control,
+    name: "scoreData",
+  });
 
   const mutDeleteScore = api.scores.deleteAnnotationScore.useMutation({
     onMutate: async () => {
@@ -142,7 +167,7 @@ export function AnnotateButton({
       // we should also set form error here
     },
     onSettled: async (data, error) => {
-      if (!data || error) return; // handle error
+      if (!data || error) return;
 
       const { id } = data;
       const updatedScoreIndex = fields.findIndex(
@@ -165,7 +190,7 @@ export function AnnotateButton({
       // we should also set form error here
     },
     onSettled: (data, error) => {
-      if (!data || error) return; // handle error
+      if (!data || error) return;
 
       const { id, value, stringValue, name, dataType, configId, comment } =
         data;
@@ -250,68 +275,80 @@ export function AnnotateButton({
             <DrawerTitle>
               <div className="flex items-center justify-between">
                 <span>Annotate</span>
-                <Popover open={isConfigPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="secondary"
-                      disabled={!hasAccess}
-                      onClick={() => setIsConfigPopoverOpen(true)}
-                    >
-                      Add score
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent>
-                    <ScrollArea>
-                      <div className="flex max-h-64 flex-col space-y-4">
-                        <div className="flex items-center justify-between">
-                          <>
-                            <Link
-                              className="inline-block
-       rounded bg-primary-accent/10 px-2 py-1 text-sm font-semibold text-accent-dark-blue shadow-sm hover:bg-accent-light-blue/45"
-                              href={`/project/${projectId}/settings`}
-                            >
-                              Add new config in settings
-                            </Link>
-                            <Button
-                              onClick={() => setIsConfigPopoverOpen(false)}
-                              variant="ghost"
-                              size="icon"
-                              className="flex w-fit"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </>
-                        </div>
-                        <div className="flex border" />
-                        {configs.data?.configs.map((config) => (
-                          <div
-                            className="grid grid-cols-[auto,1fr] items-center gap-2 text-left text-sm"
-                            key={config.id}
-                          >
-                            <Checkbox
-                              checked={fields.some(
-                                ({ configId }) => configId === config.id,
-                              )}
-                              disabled={fields.some(
-                                ({ value, configId }) =>
-                                  isPresent(value) && configId === config.id,
-                              )}
-                              onCheckedChange={(value) =>
-                                handleOnCheckedChange(config, value)
-                              }
-                            />
-                            <span>{config.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </PopoverContent>
-                </Popover>
+                <DrawerClose asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="flex w-fit"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </DrawerClose>
               </div>
             </DrawerTitle>
-            <DrawerDescription>
-              Add scores to your observations/traces
-            </DrawerDescription>
+            <div className="grid grid-flow-col items-center">
+              <DrawerDescription>
+                Add scores to your observations/traces
+              </DrawerDescription>
+              <Popover open={isConfigPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    disabled={!hasAccess}
+                    onClick={() => setIsConfigPopoverOpen(true)}
+                  >
+                    Edit score selection
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent>
+                  <ScrollArea>
+                    <div className="flex max-h-64 flex-col space-y-4">
+                      <div className="flex items-center justify-between">
+                        <>
+                          <Link
+                            className="inline-block
+       rounded bg-primary-accent/10 px-2 py-1 text-sm font-semibold text-accent-dark-blue shadow-sm hover:bg-accent-light-blue/45"
+                            href={`/project/${projectId}/settings`}
+                          >
+                            Add new config in settings
+                          </Link>
+                          <Button
+                            onClick={() => setIsConfigPopoverOpen(false)}
+                            variant="ghost"
+                            size="icon"
+                            className="mr-2 flex w-fit"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      </div>
+                      <div className="flex border" />
+                      {configs.data?.configs.map((config) => (
+                        <div
+                          className="grid grid-cols-[auto,1fr] items-center gap-2 text-left text-sm"
+                          key={config.id}
+                        >
+                          <Checkbox
+                            checked={fields.some(
+                              ({ configId }) => configId === config.id,
+                            )}
+                            disabled={fields.some(
+                              ({ value, configId }) =>
+                                isPresent(value) && configId === config.id,
+                            )}
+                            onCheckedChange={(value) =>
+                              handleOnCheckedChange(config, value)
+                            }
+                          />
+                          <span>{config.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            </div>
           </DrawerHeader>
           <Form {...form}>
             <form className="flex flex-col gap-4">
