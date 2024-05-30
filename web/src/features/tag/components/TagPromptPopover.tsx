@@ -11,6 +11,7 @@ type TagPromptPopverProps = {
   projectId: string;
   promptName: string;
   promptsFilter: RouterInput["prompts"]["all"];
+  className?: string;
 };
 
 export function TagPromptPopover({
@@ -19,6 +20,7 @@ export function TagPromptPopover({
   projectId,
   promptName,
   promptsFilter,
+  className,
 }: TagPromptPopverProps) {
   const [isLoading, setIsLoading] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
@@ -67,6 +69,7 @@ export function TagPromptPopover({
       hasAccess={hasAccess}
       isLoading={isLoading}
       mutateTags={mutateTags}
+      className={className}
     />
   );
 }
