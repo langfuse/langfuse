@@ -56,7 +56,6 @@ const formSchema = z.object({
 });
 
 export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
-  // const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -175,7 +174,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   </FormItem>
                 )}
               />
-              {isNumeric(form.watch("dataType")) && (
+              {isNumeric(form.getValues("dataType")) && (
                 <>
                   <FormField
                     control={form.control}

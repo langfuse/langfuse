@@ -200,7 +200,7 @@ export function ScoreConfigs({ projectId }: { projectId: string }) {
             title="Configs"
             help={{
               description:
-                "Score configs define the scoring rules for your project.",
+                "Score configs define the scoring rules for your project. Please note that all score configs are immutable.",
             }}
           />
           <CreateScoreConfigButton projectId={projectId} />
