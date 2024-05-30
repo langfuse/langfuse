@@ -169,6 +169,7 @@ export const PromptDetail = () => {
                 promptName={prompt.name}
                 tags={prompt.tags}
                 availableTags={allTags}
+                className="flex-wrap"
               />
             </div>
           </div>

@@ -11,6 +11,7 @@ type TagTracePopoverProps = {
   projectId: string;
   traceId: string;
   tracesFilter: RouterInput["traces"]["all"];
+  className?: string;
 };
 
 export function TagTracePopover({
@@ -19,6 +20,7 @@ export function TagTracePopover({
   projectId,
   traceId,
   tracesFilter,
+  className,
 }: TagTracePopoverProps) {
   const [isLoading, setIsLoading] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
@@ -69,6 +71,7 @@ export function TagTracePopover({
       hasAccess={hasAccess}
       isLoading={isLoading}
       mutateTags={mutateTags}
+      className={className}
     />
   );
 }

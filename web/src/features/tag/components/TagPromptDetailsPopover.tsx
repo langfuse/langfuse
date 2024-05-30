@@ -10,6 +10,7 @@ type TagPromptDetailsPopoverProps = {
   availableTags: string[];
   projectId: string;
   promptName: string;
+  className?: string;
 };
 
 export function TagPromptDetailsPopover({
@@ -17,6 +18,7 @@ export function TagPromptDetailsPopover({
   availableTags,
   projectId,
   promptName,
+  className,
 }: TagPromptDetailsPopoverProps) {
   const [isLoading, setIsLoading] = useState(false);
   const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
@@ -80,6 +82,7 @@ export function TagPromptDetailsPopover({
       hasAccess={hasAccess}
       isLoading={isLoading}
       mutateTags={mutateTags}
+      className={className}
     />
   );
 }
