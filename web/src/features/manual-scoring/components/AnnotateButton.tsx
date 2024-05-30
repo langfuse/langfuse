@@ -47,6 +47,8 @@ import {
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { HoverCardContent } from "@radix-ui/react-hover-card";
+import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 
 type ConfigCategory = {
   label: string;
@@ -548,22 +550,33 @@ export function AnnotateButton({
                               />
                             </PopoverContent>
                           </Popover>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            type="button"
-                            loading={mutDeleteScore.isLoading}
-                            disabled={isScoreUnsaved(score.scoreId)}
-                            onClick={async () => {
-                              if (score.scoreId)
-                                await mutDeleteScore.mutateAsync({
-                                  id: score.scoreId,
-                                  projectId,
-                                });
-                            }}
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </Button>
+                          <HoverCard>
+                            <HoverCardTrigger>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                type="button"
+                                loading={mutDeleteScore.isLoading}
+                                disabled={isScoreUnsaved(score.scoreId)}
+                                onClick={async () => {
+                                  if (score.scoreId)
+                                    await mutDeleteScore.mutateAsync({
+                                      id: score.scoreId,
+                                      projectId,
+                                    });
+                                }}
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                            </HoverCardTrigger>
+                            <HoverCardContent>
+                              {isScoreUnsaved(score.scoreId) && (
+                                <div className="mr-2 mt-4 bg-background text-xs font-light">
+                                  Remove score in edit score selection
+                                </div>
+                              )}
+                            </HoverCardContent>
+                          </HoverCard>
                         </div>
                       ))}
                     </>
