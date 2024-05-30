@@ -242,7 +242,7 @@ export function DataTable<TData extends object, TValue>({
         <div className="grow"></div>
       </div>
       {pagination !== undefined ? (
-        <div className="bg:background sticky bottom-0 z-10 flex w-full justify-end font-medium">
+        <div className="sticky bottom-0 z-10 flex w-full justify-end bg-background font-medium">
           <DataTablePagination
             table={table}
             paginationOptions={pagination.options}
