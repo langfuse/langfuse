@@ -1,4 +1,4 @@
-import { type Trace, type Score } from "@langfuse/shared";
+import { type Trace, type Score, type ScoreConfig } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -29,6 +29,7 @@ export function Trace(props: {
   observations: Array<ObservationReturnType>;
   trace: Trace;
   scores: Score[];
+  configs: ScoreConfig[];
   projectId: string;
 }) {
   const capture = usePostHogClientCapture();
@@ -103,11 +104,13 @@ export function Trace(props: {
             trace={props.trace}
             observations={props.observations}
             scores={props.scores}
+            configs={props.configs}
           />
         ) : (
           <ObservationPreview
             observations={props.observations}
             scores={props.scores}
+            configs={props.configs}
             projectId={props.projectId}
             currentObservationId={currentObservationId}
             traceId={props.trace.id}
@@ -190,6 +193,15 @@ export function TracePage({ traceId }: { traceId: string }) {
           skipBatch: true,
         },
       },
+      enabled: !!trace.data?.projectId && trace.isSuccess,
+    },
+  );
+
+  const configs = api.scoreConfigs.all.useQuery(
+    {
+      projectId: trace.data?.projectId ?? "",
+    },
+    {
       enabled: !!trace.data?.projectId && trace.isSuccess,
     },
   );
@@ -285,6 +297,7 @@ export function TracePage({ traceId }: { traceId: string }) {
           key={trace.data.id}
           trace={trace.data}
           scores={trace.data.scores}
+          configs={configs.data?.configs ?? []}
           projectId={trace.data.projectId}
           observations={trace.data.observations}
         />

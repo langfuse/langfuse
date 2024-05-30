@@ -22,6 +22,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { AnnotateButton } from "@/src/features/manual-scoring/components/AnnotateButton";
+import { type ScoreConfig } from "@langfuse/shared";
 
 // do not use the usual table row heights here
 const rowHeightMapping: Record<RowHeight, number> = {
@@ -60,6 +61,15 @@ export const SessionPage: React.FC<{
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isSuccess, session.data]);
+
+  const configs = api.scoreConfigs.all.useQuery(
+    {
+      projectId,
+    },
+    {
+      enabled: !!session.data,
+    },
+  );
 
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
@@ -126,6 +136,7 @@ export const SessionPage: React.FC<{
           session={session.data}
           projectId={projectId}
           rowHeight={rowHeightMapping[rowHeight]}
+          configs={configs.data?.configs ?? []}
         />
       )}
     </div>
@@ -136,10 +147,12 @@ const TraceCardList = ({
   session,
   projectId,
   rowHeight,
+  configs,
 }: {
   session: RouterOutput["sessions"]["byId"];
   projectId: string;
   rowHeight: number;
+  configs: ScoreConfig[];
 }) => {
   const listVirtualizationRef = useRef<HTMLDivElement | null>(null);
 
@@ -206,6 +219,7 @@ const TraceCardList = ({
                     projectId={projectId}
                     traceId={trace.id}
                     scores={trace.scores}
+                    configs={configs}
                     variant="badge"
                   />
                 </div>

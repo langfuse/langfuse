@@ -1,5 +1,9 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { type ScoreSource, type Score } from "@langfuse/shared";
+import {
+  type ScoreSource,
+  type Score,
+  type ScoreConfig,
+} from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -27,6 +31,7 @@ export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
   projectId: string;
   scores: Score[];
+  configs: ScoreConfig[];
   currentObservationId: string;
   traceId: string;
 }) => {
@@ -159,6 +164,7 @@ export const ObservationPreview = (props: {
               traceId={preloadedObservation.traceId}
               observationId={preloadedObservation.id}
               scores={props.scores}
+              configs={props.configs}
             />
             {observationWithInputAndOutput.data?.type === "GENERATION" && (
               <JumpToPlaygroundButton

@@ -80,12 +80,14 @@ type ConfigCategory = {
 export function AnnotateButton({
   traceId,
   scores,
+  configs,
   observationId,
   projectId,
   variant = "button",
 }: {
   traceId: string;
   scores: Score[];
+  configs: ScoreConfig[];
   observationId?: string;
   projectId: string;
   variant?: "button" | "badge";
@@ -97,24 +99,10 @@ export function AnnotateButton({
     scope: "scores:CUD",
   });
 
-  const configs = api.scoreConfigs.all.useQuery(
-    {
-      projectId,
-    },
-    {
-      enabled: hasAccess,
-    },
-  );
-
   const form = useForm<z.infer<typeof AnnotateFormSchema>>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
-      scoreData: getDefaultScoreData(
-        scores,
-        traceId,
-        observationId,
-        configs.data?.configs,
-      ),
+      scoreData: getDefaultScoreData(scores, traceId, observationId, configs),
     },
   });
 
@@ -379,7 +367,7 @@ export function AnnotateButton({
                         </>
                       </div>
                       <div className="flex border" />
-                      {configs.data?.configs.map((config) => (
+                      {configs.map((config) => (
                         <div
                           className="grid grid-cols-[auto,1fr] items-center gap-2 text-left text-sm"
                           key={config.id}
@@ -414,7 +402,7 @@ export function AnnotateButton({
                   render={() => (
                     <>
                       {fields.map((score, index) => {
-                        const config = configs.data?.configs.find(
+                        const config = configs.find(
                           (config) => config.id === score.configId,
                         );
                         if (!config) return null;
@@ -437,7 +425,7 @@ export function AnnotateButton({
                               <HoverCardContent>
                                 <ScoreConfigDetails
                                   configId={score.configId}
-                                  configs={configs.data?.configs}
+                                  configs={configs}
                                 />
                               </HoverCardContent>
                             </HoverCard>
