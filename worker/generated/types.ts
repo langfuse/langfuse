@@ -256,6 +256,7 @@ export type Observation = {
   status_message: string | null;
   version: string | null;
   created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
   model: string | null;
   internal_model: string | null;
   modelParameters: unknown | null;
@@ -363,6 +364,8 @@ export type Score = {
   observation_id: string | null;
   config_id: string | null;
   string_value: string | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
   data_type: Generated<ScoreDataType>;
 };
 export type ScoreConfig = {
