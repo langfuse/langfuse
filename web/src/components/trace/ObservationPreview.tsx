@@ -8,7 +8,6 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -22,6 +21,7 @@ import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+import { AnnotateButton } from "@/src/features/manual-scoring/components/AnnotateButton";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -154,7 +154,7 @@ export const ObservationPreview = (props: {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <ManualScoreButton
+            <AnnotateButton
               projectId={props.projectId}
               traceId={preloadedObservation.traceId}
               observationId={preloadedObservation.id}

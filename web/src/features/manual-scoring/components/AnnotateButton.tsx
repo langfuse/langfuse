@@ -116,11 +116,13 @@ export function AnnotateButton({
   scores,
   observationId,
   projectId,
+  variant = "button",
 }: {
   traceId: string;
   scores: Score[];
   observationId?: string;
   projectId: string;
+  variant?: "button" | "badge";
 }) {
   const [isConfigPopoverOpen, setIsConfigPopoverOpen] = useState(false);
 
@@ -189,7 +191,7 @@ export function AnnotateButton({
       // Rollback to the previous value if mutation fails
       // we should also set form error here
     },
-    onSettled: (data, error) => {
+    onSettled: async (data, error) => {
       if (!data || error) return;
 
       const { id, value, stringValue, name, dataType, configId, comment } =
@@ -208,7 +210,11 @@ export function AnnotateButton({
         comment: comment ?? undefined,
       });
 
-      void utils.traces.byId.invalidate();
+      await Promise.all([
+        utils.scores.invalidate(),
+        utils.traces.invalidate(),
+        utils.sessions.invalidate(),
+      ]);
     },
   });
 
@@ -261,13 +267,19 @@ export function AnnotateButton({
     };
   }
 
+  if (!hasAccess && variant === "badge") return null;
+
   return (
     <Drawer onClose={() => setIsConfigPopoverOpen(false)}>
       <DrawerTrigger asChild>
-        <Button variant="secondary" disabled={!hasAccess}>
-          <span>Annotate</span>
-          {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
-        </Button>
+        {variant === "button" ? (
+          <Button variant="secondary" disabled={!hasAccess}>
+            <span>Annotate</span>
+            {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
+          </Button>
+        ) : (
+          <Button className="h-6 rounded-full px-3 text-xs">Annotate</Button>
+        )}
       </DrawerTrigger>
       <DrawerContent>
         <div className="mx-auto max-h-64 w-full overflow-y-auto md:max-h-full">
@@ -297,6 +309,7 @@ export function AnnotateButton({
                     variant="secondary"
                     disabled={!hasAccess}
                     onClick={() => setIsConfigPopoverOpen(true)}
+                    className="ml-2"
                   >
                     Edit score selection
                   </Button>
@@ -480,6 +493,7 @@ export function AnnotateButton({
                                             disabled={isScoreUnsaved(
                                               score.scoreId,
                                             )}
+                                            loading={mutScores.isLoading}
                                             onClick={async () => {
                                               if (
                                                 !!field.value &&
@@ -500,11 +514,12 @@ export function AnnotateButton({
                                             Save comment
                                           </Button>
                                           <Button
-                                            variant="secondary"
+                                            variant="destructive"
                                             type="button"
                                             disabled={isScoreUnsaved(
                                               score.scoreId,
                                             )}
+                                            loading={mutScores.isLoading}
                                             onClick={async () => {
                                               if (
                                                 !!field.value &&
@@ -537,11 +552,9 @@ export function AnnotateButton({
                             variant="outline"
                             size="icon"
                             type="button"
+                            loading={mutDeleteScore.isLoading}
                             disabled={isScoreUnsaved(score.scoreId)}
                             onClick={async () => {
-                              // capture("scores:delete_form_open", {
-                              //   source: "annotation",
-                              // });
                               if (score.scoreId)
                                 await mutDeleteScore.mutateAsync({
                                   id: score.scoreId,
