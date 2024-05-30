@@ -51,7 +51,7 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
         timestamp: Date.now(),
       };
 
-      // catched and logged in the caller
+      // caught and logged in the caller
       throw e;
     }
 
