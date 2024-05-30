@@ -34,7 +34,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
 
   return (
     <div>
-      <Header title="Usage" level="h3" />
+      <Header title="Usage & Billing" level="h3" />
       <Card className="p-4 lg:w-1/2">
         {usage.data !== undefined && (
           <>
@@ -81,7 +81,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
                   level="h3"
                   actionButtons={
                     <Button variant="secondary" asChild>
-                      <Link href="https://langfuse.com/pricing">
+                      <Link href="https://langfuse.com/pricing" target="_blank">
                         Pricing page ↗
                       </Link>
                     </Button>
@@ -98,6 +98,11 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
             </Link>
           </Button>
         )}
+        <Button variant="secondary" asChild>
+          <Link href="https://langfuse.com/pricing" target="_blank">
+            Pricing page ↗
+          </Link>
+        </Button>
         <div className="inline-block text-sm text-muted-foreground">
           Current plan: {plan}
         </div>
