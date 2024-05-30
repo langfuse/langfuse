@@ -92,6 +92,26 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
     const error = validateForm(values);
     setFormError(error);
     if (error) return;
+
+    if (values.categories) {
+      const uniqueNames = new Set<string>();
+      const uniqueValues = new Set<number>();
+
+      for (const category of values.categories) {
+        if (uniqueNames.has(category.label)) {
+          setFormError("Category names must be unique.");
+          return;
+        }
+        uniqueNames.add(category.label);
+
+        if (uniqueValues.has(category.value)) {
+          setFormError("Category values must be unique.");
+          return;
+        }
+        uniqueValues.add(category.value);
+      }
+    }
+
     return createScoreConfig
       .mutateAsync({
         projectId,
