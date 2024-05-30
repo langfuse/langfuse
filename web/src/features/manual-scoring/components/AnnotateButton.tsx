@@ -178,6 +178,12 @@ export function AnnotateButton({
         (field) => field.scoreId === id,
       );
       remove(updatedScoreIndex);
+
+      await Promise.all([
+        utils.scores.invalidate(),
+        utils.traces.invalidate(),
+        utils.sessions.invalidate(),
+      ]);
     },
   });
 
@@ -414,7 +420,7 @@ export function AnnotateButton({
                                             `scoreData.${index}.value`,
                                             {
                                               type: "custom",
-                                              message: `Value should be between ${minValue} and ${maxValue}`,
+                                              message: `Not in range: [${minValue},${maxValue}]`,
                                             },
                                           );
                                           return;
@@ -572,7 +578,7 @@ export function AnnotateButton({
                             <HoverCardContent>
                               {isScoreUnsaved(score.scoreId) && (
                                 <div className="mr-2 mt-4 bg-background text-xs font-light">
-                                  Remove score in edit score selection
+                                  Deselect in edit score selection
                                 </div>
                               )}
                             </HoverCardContent>
