@@ -44,7 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { cn } from "@/src/utils/tailwind";
 import { Textarea } from "@/src/components/ui/textarea";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 
@@ -322,13 +321,10 @@ export function AnnotateButton({
                   name="scoreData"
                   render={() => (
                     <>
-                      <FormControl>
-                        Here will some variable mapping be added.
-                      </FormControl>
                       {fields.map((score, index) => (
                         <div
                           key={score.id}
-                          className="grid grid-cols-[1fr,1fr,auto,auto] items-center gap-2 text-left"
+                          className="grid grid-cols-[1fr,1fr,auto,auto] items-stretch gap-2 text-left"
                         >
                           <Link
                             className="grid grid-cols-[auto,1fr] items-center gap-2 hover:text-accent-dark-blue hover:underline"
@@ -347,6 +343,35 @@ export function AnnotateButton({
                                     <Input
                                       {...field}
                                       onBlur={async () => {
+                                        const config =
+                                          configs.data?.configs.find(
+                                            (config) =>
+                                              config.id === score.configId,
+                                          );
+
+                                        const { maxValue, minValue } =
+                                          config || {};
+
+                                        if (!maxValue || !minValue) return;
+
+                                        if (
+                                          Number(field.value) > maxValue ||
+                                          Number(field.value) < minValue
+                                        ) {
+                                          form.setError(
+                                            `scoreData.${index}.value`,
+                                            {
+                                              type: "custom",
+                                              message: `Value should be between ${minValue} and ${maxValue}`,
+                                            },
+                                          );
+                                          return;
+                                        }
+
+                                        form.clearErrors(
+                                          `scoreData.${index}.value`,
+                                        );
+
                                         if (!!field.value)
                                           await mutScores.mutateAsync({
                                             projectId,
@@ -384,6 +409,7 @@ export function AnnotateButton({
                                     </Select>
                                   )}
                                 </FormControl>
+                                <FormMessage />
                               </FormItem>
                             )}
                           />
@@ -486,7 +512,7 @@ export function AnnotateButton({
                                 });
                             }}
                           >
-                            <TrashIcon className={cn("h-4 w-4 ")} />
+                            <TrashIcon className="h-4 w-4" />
                           </Button>
                         </div>
                       ))}
