@@ -240,12 +240,13 @@ export function AnnotateButton({
     comment?: string | null;
   }): React.MouseEventHandler<HTMLButtonElement> | undefined {
     return async () => {
-      if (!!field.value && !!score.scoreId && !!score.value)
+      const { value, scoreId } = score;
+      if (!!field.value && !!scoreId && isPresent(value))
         await mutUpdateScores.mutateAsync({
           projectId,
           ...score,
-          value: score.value,
-          id: score.scoreId,
+          value,
+          id: scoreId,
           comment,
         });
     };
