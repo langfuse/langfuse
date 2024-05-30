@@ -55,6 +55,7 @@ import {
   isScoreUnsaved,
 } from "@/src/features/manual-scoring/lib/helpers";
 import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaultScoreData";
+import { cn } from "@/src/utils/tailwind";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -102,7 +103,12 @@ export function AnnotateButton({
   const form = useForm<z.infer<typeof AnnotateFormSchema>>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
-      scoreData: getDefaultScoreData(scores, traceId, observationId, configs),
+      scoreData: getDefaultScoreData({
+        scores,
+        traceId,
+        observationId,
+        configs,
+      }),
     },
   });
 
@@ -553,6 +559,7 @@ export function AnnotateButton({
                                   variant="outline"
                                   size="icon"
                                   type="button"
+                                  className="disabled:opacity-100"
                                   loading={mutDeleteScore.isLoading}
                                   disabled={isScoreUnsaved(score.scoreId)}
                                   onClick={async () => {
@@ -563,7 +570,13 @@ export function AnnotateButton({
                                       });
                                   }}
                                 >
-                                  <TrashIcon className="h-4 w-4" />
+                                  <TrashIcon
+                                    className={cn(
+                                      "h-4 w-4",
+                                      isScoreUnsaved(score.scoreId) &&
+                                        "text-muted-gray",
+                                    )}
+                                  />
                                 </Button>
                               </HoverCardTrigger>
                               <HoverCardContent>

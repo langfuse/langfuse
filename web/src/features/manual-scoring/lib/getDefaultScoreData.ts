@@ -1,11 +1,16 @@
 import { type ScoreConfig, type Score, ScoreSource } from "@langfuse/shared";
 
-export const getDefaultScoreData = (
-  scores: Score[],
-  traceId: string,
-  observationId?: string,
-  configs?: ScoreConfig[],
-) => {
+export const getDefaultScoreData = ({
+  scores,
+  traceId,
+  observationId,
+  configs,
+}: {
+  scores: Score[];
+  traceId: string;
+  observationId?: string;
+  configs?: ScoreConfig[];
+}) => {
   const populatedScores = scores
     .filter(
       (s) =>
