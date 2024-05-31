@@ -55,7 +55,7 @@ import {
   isScoreUnsaved,
 } from "@/src/features/manual-scoring/lib/helpers";
 import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaultScoreData";
-import { cn } from "@/src/utils/tailwind";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -416,7 +416,7 @@ export function AnnotateButton({
                         return (
                           <div
                             key={score.id}
-                            className="grid grid-cols-[1fr,1fr] gap-2 text-left"
+                            className="grid grid-cols-[1fr,2fr] gap-2 text-left"
                           >
                             <HoverCard>
                               <HoverCardTrigger asChild>
@@ -453,7 +453,9 @@ export function AnnotateButton({
                                             score,
                                           })}
                                         />
-                                      ) : (
+                                      ) : config.categories &&
+                                        (config.categories as ConfigCategory[])
+                                          .length > 2 ? (
                                         <Select
                                           defaultValue={score.stringValue}
                                           onValueChange={handleOnValueChange(
@@ -482,6 +484,36 @@ export function AnnotateButton({
                                             )}
                                           </SelectContent>
                                         </Select>
+                                      ) : (
+                                        <ToggleGroup
+                                          type="single"
+                                          defaultValue={score.stringValue}
+                                          className="grid max-w-80 grid-cols-2"
+                                          onValueChange={handleOnValueChange(
+                                            score,
+                                            index,
+                                            (config.categories as ConfigCategory[]) ??
+                                              [],
+                                          )}
+                                        >
+                                          {(
+                                            (config.categories as ConfigCategory[]) ??
+                                            []
+                                          ).map((category: ConfigCategory) => (
+                                            <ToggleGroupItem
+                                              key={category.value}
+                                              value={category.label}
+                                              variant="outline"
+                                              className="flex-grow overflow-y-auto text-nowrap px-2"
+                                            >
+                                              <div className="grid w-full grid-cols-[1fr,auto,auto] place-items-center items-center gap-2">
+                                                <span>{category.label}</span>
+                                                <div className="h-6 w-1 border-r"></div>
+                                                <span>{category.value}</span>
+                                              </div>
+                                            </ToggleGroupItem>
+                                          ))}
+                                        </ToggleGroup>
                                       )}
                                     </FormControl>
                                     <FormMessage />

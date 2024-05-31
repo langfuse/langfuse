@@ -71,6 +71,7 @@
     }
   },
   "dependencies": {
+    "@radix-ui/react-toggle-group": "^1.0.4",
     "vaul": "^0.9.1"
   }
 }
