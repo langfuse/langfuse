@@ -154,7 +154,7 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: configs.data.configs.map((config) => ({
+                  data: configs.data?.configs.map((config) => ({
                     id: config.id,
                     name: config.name,
                     dataType: config.dataType,
@@ -196,15 +196,13 @@ export function ScoreConfigs({ projectId }: { projectId: string }) {
       <Header title="Score Configs" level="h3" />
       <Card className="flex max-h-[calc(100dvh-40rem)] flex-col overflow-hidden p-4">
         <div className="grid grid-cols-2 items-center justify-between">
-          <Header
-            title="Configs"
-            help={{
-              description:
-                "Score configs define the scoring rules for your project. Please note that all score configs are immutable.",
-            }}
-          />
+          <Header title="Configs" />
           <CreateScoreConfigButton projectId={projectId} />
         </div>
+        <span className="text-sm">
+          Score configs define which scores are available for annotation in your
+          project. Please note that all score configs are immutable.
+        </span>
         <ScoreConfigsTable projectId={projectId} />
       </Card>
     </div>

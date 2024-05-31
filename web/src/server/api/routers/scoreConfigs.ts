@@ -31,28 +31,32 @@ export const scoreConfigsRouter = createTRPCRouter({
         scope: "scoreConfigs:read",
       });
 
-      const configs = await ctx.prisma.scoreConfig.findMany({
-        where: {
-          projectId: input.projectId,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        ...(input.limit !== undefined && input.page !== undefined
-          ? { take: input.limit, skip: input.page * input.limit }
-          : undefined),
-      });
+      try {
+        const configs = await ctx.prisma.scoreConfig.findMany({
+          where: {
+            projectId: input.projectId,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          ...(input.limit !== undefined && input.page !== undefined
+            ? { take: input.limit, skip: input.page * input.limit }
+            : undefined),
+        });
 
-      const configsCount = await ctx.prisma.scoreConfig.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
+        const configsCount = await ctx.prisma.scoreConfig.count({
+          where: {
+            projectId: input.projectId,
+          },
+        });
 
-      return {
-        configs,
-        totalCount: configsCount,
-      };
+        return {
+          configs,
+          totalCount: configsCount,
+        };
+      } catch (error) {
+        console.log(error);
+      }
     }),
 
   create: protectedProjectProcedure
@@ -74,12 +78,16 @@ export const scoreConfigsRouter = createTRPCRouter({
         scope: "scoreConfigs:CUD",
       });
 
-      const config = await ctx.prisma.scoreConfig.create({
-        data: {
-          ...input,
-        },
-      });
+      try {
+        const config = await ctx.prisma.scoreConfig.create({
+          data: {
+            ...input,
+          },
+        });
 
-      return config;
+        return config;
+      } catch (error) {
+        console.log(error);
+      }
     }),
 });
