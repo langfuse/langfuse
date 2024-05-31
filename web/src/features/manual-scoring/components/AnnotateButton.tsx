@@ -508,9 +508,7 @@ export function AnnotateButton({
                                         <FormLabel>
                                           Comment (optional)
                                         </FormLabel>
-                                        {form.getValues(
-                                          `scoreData.${index}.comment`,
-                                        ) !== score.comment && (
+                                        {field.value !== score.comment && (
                                           <HoverCard>
                                             <HoverCardTrigger asChild>
                                               <span className="ml-1 mr-2 rounded-sm bg-input p-1 text-xs">
@@ -518,11 +516,14 @@ export function AnnotateButton({
                                               </span>
                                             </HoverCardTrigger>
                                             <HoverCardContent side="top">
-                                              <div className="mb-4 max-w-48 rounded border bg-background p-2 shadow-sm">
-                                                <p className="text-xs">
-                                                  Saved comment: {score.comment}
-                                                </p>
-                                              </div>
+                                              {!!score.comment && (
+                                                <div className="mb-4 max-w-48 rounded border bg-background p-2 shadow-sm">
+                                                  <p className="text-xs">
+                                                    Saved comment:{" "}
+                                                    {score.comment}
+                                                  </p>
+                                                </div>
+                                              )}
                                             </HoverCardContent>
                                           </HoverCard>
                                         )}
@@ -532,41 +533,66 @@ export function AnnotateButton({
                                               {...field}
                                               value={field.value || ""}
                                             />
-                                            <div className="mt-2 flex items-center justify-between">
-                                              <Button
-                                                variant="secondary"
-                                                type="button"
-                                                disabled={isScoreUnsaved(
-                                                  score.scoreId,
-                                                )}
-                                                loading={
-                                                  mutUpdateScores.isLoading
-                                                }
-                                                onClick={handleCommentUpdate({
-                                                  field,
-                                                  score,
-                                                  comment: field.value,
-                                                })}
-                                              >
-                                                Save comment
-                                              </Button>
-                                              <Button
-                                                variant="destructive"
-                                                type="button"
-                                                disabled={isScoreUnsaved(
-                                                  score.scoreId,
-                                                )}
-                                                loading={
-                                                  mutUpdateScores.isLoading
-                                                }
-                                                onClick={handleCommentUpdate({
-                                                  field,
-                                                  score,
-                                                  comment: null,
-                                                })}
-                                              >
-                                                Delete
-                                              </Button>
+                                            <div className="mt-2 flex justify-end">
+                                              {field.value !==
+                                                score.comment && (
+                                                <div className="grid w-full grid-cols-[1fr,1fr] gap-2">
+                                                  <Button
+                                                    variant="secondary"
+                                                    type="button"
+                                                    disabled={!field.value}
+                                                    loading={
+                                                      mutUpdateScores.isLoading
+                                                    }
+                                                    onClick={handleCommentUpdate(
+                                                      {
+                                                        field,
+                                                        score,
+                                                        comment: field.value,
+                                                      },
+                                                    )}
+                                                  >
+                                                    Save
+                                                  </Button>
+                                                  <Button
+                                                    variant="secondary"
+                                                    type="button"
+                                                    disabled={!field.value}
+                                                    loading={
+                                                      mutUpdateScores.isLoading
+                                                    }
+                                                    onClick={() =>
+                                                      form.setValue(
+                                                        `scoreData.${index}.comment`,
+                                                        score.comment ?? "",
+                                                      )
+                                                    }
+                                                  >
+                                                    Discard
+                                                  </Button>
+                                                </div>
+                                              )}
+                                              {field.value ===
+                                                score.comment && (
+                                                <Button
+                                                  variant="destructive"
+                                                  type="button"
+                                                  disabled={
+                                                    !field.value ||
+                                                    !score.comment
+                                                  }
+                                                  loading={
+                                                    mutUpdateScores.isLoading
+                                                  }
+                                                  onClick={handleCommentUpdate({
+                                                    field,
+                                                    score,
+                                                    comment: null,
+                                                  })}
+                                                >
+                                                  Delete
+                                                </Button>
+                                              )}
                                             </div>
                                           </>
                                         </FormControl>
