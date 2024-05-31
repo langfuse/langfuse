@@ -234,63 +234,63 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                         {fields.map((category, index) => (
                           <div
                             key={`${category.id}-langfuseObject`}
-                            className="items-top mb-2 grid grid-cols-9 gap-2 text-left"
+                            className="items-top mb-2 grid grid-cols-[1fr,1fr,auto] gap-2 text-left"
                           >
-                            <div className="col-span-4">
-                              <FormField
-                                control={form.control}
-                                name={`categories.${index}.label`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormControl>
-                                      <Input {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-                            <div className="col-span-4">
-                              <FormField
-                                control={form.control}
-                                name={`categories.${index}.value`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormControl>
-                                      <Input {...field} type="number" />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-                            <Button
-                              onClick={() => remove(index)}
-                              variant="outline"
-                              size="icon"
-                              disabled={
-                                index === 0 || index !== fields.length - 1
-                              }
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <FormField
+                              control={form.control}
+                              name={`categories.${index}.label`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`categories.${index}.value`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input {...field} type="number" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            {isCategorical(form.getValues("dataType")) && (
+                              <Button
+                                onClick={() => remove(index)}
+                                variant="outline"
+                                size="icon"
+                                disabled={
+                                  index === 0 || index !== fields.length - 1
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         ))}
-                        <div className="grid-cols-auto grid">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            disabled={
-                              isBooleanDataType(form.getValues("dataType")) &&
-                              fields.length === 2
-                            }
-                            onClick={() =>
-                              append({ label: "", value: fields.length })
-                            }
-                          >
-                            Add category
-                          </Button>
-                        </div>
+                        {isCategorical(form.getValues("dataType")) && (
+                          <div className="grid-cols-auto grid">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={
+                                isBooleanDataType(form.getValues("dataType")) &&
+                                fields.length === 2
+                              }
+                              onClick={() =>
+                                append({ label: "", value: fields.length })
+                              }
+                            >
+                              Add category
+                            </Button>
+                          </div>
+                        )}
                       </>
                     )}
                   />
