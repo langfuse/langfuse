@@ -277,6 +277,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                               onClick={() => remove(index)}
                               variant="outline"
                               size="icon"
+                              disabled={
+                                index === 0 || index !== fields.length - 1
+                              }
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -286,7 +289,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                           <Button
                             type="button"
                             variant="secondary"
-                            onClick={() => append({ label: "", value: 0 })}
+                            onClick={() =>
+                              append({ label: "", value: fields.length })
+                            }
                           >
                             Add category
                           </Button>
