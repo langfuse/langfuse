@@ -55,7 +55,7 @@ export default function SessionsTable({
         type: "datetime",
         operator: ">",
         value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -14,
+          session.data?.environment.defaultTableDateTimeOffset ?? -7,
         ),
       },
     ],
