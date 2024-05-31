@@ -7,7 +7,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "",
+      "value": "https://cloud.langfuse.com",
       "type": "string"
     },
     {

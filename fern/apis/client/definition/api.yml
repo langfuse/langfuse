@@ -2,6 +2,17 @@ name: langfuse
 error-discrimination:
   strategy: status-code
 auth: bearer
+environments:
+  cloud-eu:
+    docs: Langfuse Cloud (EU data region)
+    url: https://cloud.langfuse.com
+  cloud-us:
+    docs: Langfuse Cloud (US data region)
+    url: https://us.cloud.langfuse.com
+  development:
+    docs: Local development
+    url: http://localhost:3000
+default-environment: cloud-eu
 imports:
   commons: commons.yml
 errors:

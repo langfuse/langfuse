@@ -102,3 +102,10 @@ components:
     BearerAuth:
       type: http
       scheme: bearer
+servers:
+  - url: https://cloud.langfuse.com
+    description: cloud-eu (Langfuse Cloud (EU data region))
+  - url: https://us.cloud.langfuse.com
+    description: cloud-us (Langfuse Cloud (US data region))
+  - url: http://localhost:3000
+    description: development (Local development)

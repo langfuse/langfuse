@@ -14,6 +14,17 @@ docs: |
 
 error-discrimination:
   strategy: status-code
+environments:
+  cloud-eu:
+    docs: Langfuse Cloud (EU data region)
+    url: https://cloud.langfuse.com
+  cloud-us:
+    docs: Langfuse Cloud (US data region)
+    url: https://us.cloud.langfuse.com
+  development:
+    docs: Local development
+    url: http://localhost:3000
+default-environment: cloud-eu
 auth: basic
 imports:
   commons: commons.yml
