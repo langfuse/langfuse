@@ -14,8 +14,10 @@ import {
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
+import { utcDateOffsetByDays } from "@/src/utils/dates";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
 import type { FilterState, ScoreDataType } from "@langfuse/shared";
+import { useSession } from "next-auth/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
@@ -79,11 +81,20 @@ export default function ScoresTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
+  const session = useSession();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [],
+    [
+      {
+        column: "Timestamp",
+        type: "datetime",
+        operator: ">",
+        value: utcDateOffsetByDays(
+          session.data?.environment.defaultTableDateTimeOffset ?? -7,
+        ),
+      },
+    ],
     "scores",
   );
 
