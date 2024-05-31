@@ -32,7 +32,8 @@ export const ScoreSource = {
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
 export const ScoreDataType = {
     CATEGORICAL: "CATEGORICAL",
-    NUMERIC: "NUMERIC"
+    NUMERIC: "NUMERIC",
+    BOOLEAN: "BOOLEAN"
 } as const;
 export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
 export const PricingUnit = {

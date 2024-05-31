@@ -463,6 +463,7 @@ model ScoreConfig {
 enum ScoreDataType {
     CATEGORICAL
     NUMERIC
+    BOOLEAN
 }
 
 enum PricingUnit {
