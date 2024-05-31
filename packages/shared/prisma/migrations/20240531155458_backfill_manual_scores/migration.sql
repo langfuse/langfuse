@@ -47,4 +47,3 @@ WHERE
 	scores.project_id = pc.project_id
 	AND scores.name = 'manual-score';
 COMMIT;
-END;
