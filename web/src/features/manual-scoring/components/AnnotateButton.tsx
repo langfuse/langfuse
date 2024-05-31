@@ -317,7 +317,7 @@ export function AnnotateButton({
           <Button className="h-6 rounded-full px-3 text-xs">Annotate</Button>
         )}
       </DrawerTrigger>
-      <DrawerContent>
+      <DrawerContent className="max-w-[460px]">
         <div className="mx-auto max-h-64 w-full overflow-y-auto md:max-h-full">
           <DrawerHeader className="sticky top-0 z-10 bg-background">
             <DrawerTitle>
@@ -416,7 +416,7 @@ export function AnnotateButton({
                         return (
                           <div
                             key={score.id}
-                            className="grid grid-cols-[1fr,2fr] gap-2 text-left"
+                            className="grid w-full grid-cols-[1fr,2fr] gap-2 text-left"
                           >
                             <HoverCard>
                               <HoverCardTrigger asChild>
