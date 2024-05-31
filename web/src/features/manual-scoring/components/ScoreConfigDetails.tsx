@@ -15,7 +15,7 @@ export function ScoreConfigDetails({
   const { description, minValue, maxValue, dataType } = config;
 
   return (
-    <div className="rounded border bg-background p-2 text-xs font-light">
+    <div className="max-w-48 overflow-hidden rounded border bg-background p-2 text-xs font-light">
       {!!description && <p>{`Description: ${description}`}</p>}
       {isNumeric(dataType) ? (
         <p>{`Range: [${minValue}, ${maxValue}]`}</p>

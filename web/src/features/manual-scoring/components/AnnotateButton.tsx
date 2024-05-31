@@ -494,6 +494,7 @@ export function AnnotateButton({
                                     variant="outline"
                                     size="icon"
                                     type="button"
+                                    disabled={isScoreUnsaved(score.scoreId)}
                                   >
                                     <MessageCircle className="h-4 w-4" />
                                   </Button>
@@ -507,6 +508,24 @@ export function AnnotateButton({
                                         <FormLabel>
                                           Comment (optional)
                                         </FormLabel>
+                                        {form.getValues(
+                                          `scoreData.${index}.comment`,
+                                        ) !== score.comment && (
+                                          <HoverCard>
+                                            <HoverCardTrigger asChild>
+                                              <span className="ml-1 mr-2 rounded-sm bg-input p-1 text-xs">
+                                                Draft
+                                              </span>
+                                            </HoverCardTrigger>
+                                            <HoverCardContent side="top">
+                                              <div className="mb-4 max-w-48 rounded border bg-background p-2 shadow-sm">
+                                                <p className="text-xs">
+                                                  Saved comment: {score.comment}
+                                                </p>
+                                              </div>
+                                            </HoverCardContent>
+                                          </HoverCard>
+                                        )}
                                         <FormControl>
                                           <>
                                             <Textarea
