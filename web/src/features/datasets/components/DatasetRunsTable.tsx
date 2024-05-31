@@ -120,7 +120,7 @@ export function DatasetRunsTable(props: {
             scores={Object.entries(scores).map(([k, v]) => ({
               name: k,
               value: v,
-              dataType: ScoreDataType.NUMERIC,
+              dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
             }))}
             variant="headings"
           />

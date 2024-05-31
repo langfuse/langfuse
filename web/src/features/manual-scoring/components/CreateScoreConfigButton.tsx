@@ -32,6 +32,7 @@ import {
 import { api } from "@/src/utils/api";
 import { Textarea } from "@/src/components/ui/textarea";
 import {
+  isBooleanDataType,
   isCategorical,
   isNumeric,
 } from "@/src/features/manual-scoring/lib/helpers";
@@ -39,6 +40,7 @@ import {
 const availableDataTypes = [
   ScoreDataType.NUMERIC,
   ScoreDataType.CATEGORICAL,
+  ScoreDataType.BOOLEAN,
 ] as const;
 
 const category = z.object({
@@ -81,7 +83,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "categories",
   });
@@ -92,25 +94,6 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
     const error = validateForm(values);
     setFormError(error);
     if (error) return;
-
-    if (values.categories) {
-      const uniqueNames = new Set<string>();
-      const uniqueValues = new Set<number>();
-
-      for (const category of values.categories) {
-        if (uniqueNames.has(category.label)) {
-          setFormError("Category names must be unique.");
-          return;
-        }
-        uniqueNames.add(category.label);
-
-        if (uniqueValues.has(category.value)) {
-          setFormError("Category values must be unique.");
-          return;
-        }
-        uniqueValues.add(category.value);
-      }
-    }
 
     return createScoreConfig
       .mutateAsync({
@@ -170,11 +153,20 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                         field.onChange(
                           value as (typeof availableDataTypes)[number],
                         );
-                        if (isCategorical(value as ScoreDataType)) {
-                          append({ label: "", value: 0 });
+                        if (isNumeric(value as ScoreDataType)) {
+                          remove();
+                        } else {
                           form.setValue("minValue", undefined);
                           form.setValue("maxValue", undefined);
-                        } else remove();
+                          if (isBooleanDataType(value as ScoreDataType)) {
+                            replace([
+                              { label: "True", value: 1 },
+                              { label: "False", value: 0 },
+                            ]);
+                          } else {
+                            replace([{ label: "", value: 0 }]);
+                          }
+                        }
                       }}
                     >
                       <FormControl>
@@ -194,7 +186,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   </FormItem>
                 )}
               />
-              {isNumeric(form.getValues("dataType")) && (
+              {isNumeric(form.getValues("dataType")) ? (
                 <>
                   <FormField
                     control={form.control}
@@ -223,8 +215,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                     )}
                   />
                 </>
-              )}
-              {isCategorical(form.watch("dataType")) && (
+              ) : (
                 <div className="grid grid-flow-row gap-2">
                   <FormField
                     control={form.control}
@@ -289,6 +280,10 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                           <Button
                             type="button"
                             variant="secondary"
+                            disabled={
+                              isBooleanDataType(form.getValues("dataType")) &&
+                              fields.length === 2
+                            }
                             onClick={() =>
                               append({ label: "", value: fields.length })
                             }
@@ -351,6 +346,30 @@ function validateForm(values: z.infer<typeof formSchema>): string | null {
     if (!values.categories || values.categories.length === 0) {
       return "At least one category is required for categorical data types.";
     }
+  } else if (isBooleanDataType(values.dataType)) {
+    if (values.categories?.length !== 2)
+      return "Boolean data type must have exactly 2 categories.";
+    const isBooleanCategoryInvalid = values.categories?.some(
+      (category) => category.value !== 0 && category.value !== 1,
+    );
+    if (isBooleanCategoryInvalid)
+      return "Boolean data type must have categories with values 0 and 1.";
   }
+
+  const uniqueNames = new Set<string>();
+  const uniqueValues = new Set<number>();
+
+  for (const category of values.categories || []) {
+    if (uniqueNames.has(category.label)) {
+      return "Category names must be unique.";
+    }
+    uniqueNames.add(category.label);
+
+    if (uniqueValues.has(category.value)) {
+      return "Category values must be unique.";
+    }
+    uniqueValues.add(category.value);
+  }
+
   return null;
 }

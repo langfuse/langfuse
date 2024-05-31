@@ -6,6 +6,9 @@ export const isNumeric = (dataType: ScoreDataType) =>
 export const isCategorical = (dataType: ScoreDataType) =>
   dataType === ScoreDataType.CATEGORICAL;
 
+export const isBooleanDataType = (dataType: ScoreDataType) =>
+  dataType === ScoreDataType.BOOLEAN;
+
 export const isPresent = <T>(value: T): value is NonNullable<T> =>
   value !== null && value !== undefined && value !== "";
 

@@ -1,7 +1,7 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, MessageCircle, TrashIcon, X } from "lucide-react";
+import { LockIcon, MessageCircle, X } from "lucide-react";
 import {
   type ControllerRenderProps,
   useFieldArray,
@@ -51,6 +51,8 @@ import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { ScoreConfigDetails } from "@/src/features/manual-scoring/components/ScoreConfigDetails";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
+  isCategorical,
+  isNumeric,
   isPresent,
   isScoreUnsaved,
 } from "@/src/features/manual-scoring/lib/helpers";
@@ -442,8 +444,7 @@ export function AnnotateButton({
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormControl>
-                                      {score.dataType ===
-                                      ScoreDataType.NUMERIC ? (
+                                      {isNumeric(score.dataType) ? (
                                         <Input
                                           {...field}
                                           onBlur={handleOnBlur({
@@ -454,8 +455,7 @@ export function AnnotateButton({
                                           })}
                                         />
                                       ) : config.categories &&
-                                        (config.categories as ConfigCategory[])
-                                          .length > 2 ? (
+                                        isCategorical(score.dataType) ? (
                                         <Select
                                           defaultValue={score.stringValue}
                                           onValueChange={handleOnValueChange(

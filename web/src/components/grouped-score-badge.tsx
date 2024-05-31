@@ -4,7 +4,10 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { isCategorical } from "@/src/features/manual-scoring/lib/helpers";
+import {
+  isBooleanDataType,
+  isCategorical,
+} from "@/src/features/manual-scoring/lib/helpers";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { cn } from "@/src/utils/tailwind";
 import { MessageCircle } from "lucide-react";
@@ -35,7 +38,9 @@ export const GroupedScoreBadges = ({
     <div className={cn("text-xs", props.className)}>
       {props.scores.map((s, i) => (
         <span key={i} className="group/score ml-1 first:ml-0">
-          {isCategorical(s.dataType) ? s.stringValue : s.value.toFixed(2)}
+          {isCategorical(s.dataType) || isBooleanDataType(s.dataType)
+            ? s.stringValue
+            : s.value.toFixed(2)}
           {s.comment && (
             <HoverCard>
               <HoverCardTrigger className="ml-1 inline-block cursor-pointer">
