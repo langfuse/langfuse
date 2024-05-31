@@ -145,7 +145,7 @@ model LlmApiKeys {
     updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
     provider          String
-    adapter           String
+    adapter           String // This controls the interface that is used to connect with the LLM, e.g. 'openai' or 'anthropic'
     displaySecretKey  String   @map("display_secret_key")
     secretKey         String   @map("secret_key")
     baseURL           String?  @map("base_url")
