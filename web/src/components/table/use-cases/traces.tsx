@@ -96,7 +96,7 @@ export default function TracesTable({
         type: "datetime",
         operator: ">",
         value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -14,
+          session.data?.environment.defaultTableDateTimeOffset ?? -7,
         ),
       },
     ],
