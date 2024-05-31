@@ -107,7 +107,6 @@ export function AnnotateButton({
         scores,
         traceId,
         observationId,
-        configs,
       }),
     },
   });
@@ -417,7 +416,7 @@ export function AnnotateButton({
                         return (
                           <div
                             key={score.id}
-                            className="grid grid-cols-[1fr,1fr,auto,auto] items-stretch gap-2 text-left"
+                            className="grid grid-cols-[1fr,1fr] gap-2 text-left"
                           >
                             <HoverCard>
                               <HoverCardTrigger asChild>
@@ -436,132 +435,134 @@ export function AnnotateButton({
                                 />
                               </HoverCardContent>
                             </HoverCard>
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.value`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    {score.dataType ===
-                                    ScoreDataType.NUMERIC ? (
-                                      <Input
-                                        {...field}
-                                        onBlur={handleOnBlur({
-                                          config,
-                                          field,
-                                          index,
-                                          score,
-                                        })}
-                                      />
-                                    ) : (
-                                      <Select
-                                        defaultValue={score.stringValue}
-                                        onValueChange={handleOnValueChange(
-                                          score,
-                                          index,
-                                          (config.categories as ConfigCategory[]) ??
-                                            [],
-                                        )}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Select category" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {(
+                            <div className="grid grid-cols-[1fr,min-content,auto] gap-2">
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.value`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      {score.dataType ===
+                                      ScoreDataType.NUMERIC ? (
+                                        <Input
+                                          {...field}
+                                          onBlur={handleOnBlur({
+                                            config,
+                                            field,
+                                            index,
+                                            score,
+                                          })}
+                                        />
+                                      ) : (
+                                        <Select
+                                          defaultValue={score.stringValue}
+                                          onValueChange={handleOnValueChange(
+                                            score,
+                                            index,
                                             (config.categories as ConfigCategory[]) ??
-                                            []
-                                          ).map((category: ConfigCategory) => (
-                                            <SelectItem
-                                              key={category.value}
-                                              value={category.label}
-                                            >
-                                              {category.label}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
+                                              [],
+                                          )}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select category" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {(
+                                              (config.categories as ConfigCategory[]) ??
+                                              []
+                                            ).map(
+                                              (category: ConfigCategory) => (
+                                                <SelectItem
+                                                  key={category.value}
+                                                  value={category.label}
+                                                >
+                                                  {category.label}
+                                                </SelectItem>
+                                              ),
+                                            )}
+                                          </SelectContent>
+                                        </Select>
+                                      )}
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    type="button"
+                                  >
+                                    <MessageCircle className="h-4 w-4" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent>
+                                  <FormField
+                                    control={form.control}
+                                    name={`scoreData.${index}.comment`}
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>
+                                          Comment (optional)
+                                        </FormLabel>
+                                        <FormControl>
+                                          <>
+                                            <Textarea
+                                              {...field}
+                                              value={field.value || ""}
+                                            />
+                                            <div className="mt-2 flex items-center justify-between">
+                                              <Button
+                                                variant="secondary"
+                                                type="button"
+                                                disabled={isScoreUnsaved(
+                                                  score.scoreId,
+                                                )}
+                                                loading={
+                                                  mutUpdateScores.isLoading
+                                                }
+                                                onClick={handleCommentUpdate({
+                                                  field,
+                                                  score,
+                                                  comment: field.value,
+                                                })}
+                                              >
+                                                Save comment
+                                              </Button>
+                                              <Button
+                                                variant="destructive"
+                                                type="button"
+                                                disabled={isScoreUnsaved(
+                                                  score.scoreId,
+                                                )}
+                                                loading={
+                                                  mutUpdateScores.isLoading
+                                                }
+                                                onClick={handleCommentUpdate({
+                                                  field,
+                                                  score,
+                                                  comment: null,
+                                                })}
+                                              >
+                                                Delete
+                                              </Button>
+                                            </div>
+                                          </>
+                                        </FormControl>
+                                        <FormMessage />
+                                      </FormItem>
                                     )}
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <Popover>
-                              <PopoverTrigger asChild>
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                              {score.scoreId && (
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="icon"
                                   type="button"
-                                >
-                                  <MessageCircle className="h-4 w-4" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent>
-                                <FormField
-                                  control={form.control}
-                                  name={`scoreData.${index}.comment`}
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Comment (optional)</FormLabel>
-                                      <FormControl>
-                                        <>
-                                          <Textarea
-                                            {...field}
-                                            value={field.value || ""}
-                                          />
-                                          <div className="mt-2 flex items-center justify-between">
-                                            <Button
-                                              variant="secondary"
-                                              type="button"
-                                              disabled={isScoreUnsaved(
-                                                score.scoreId,
-                                              )}
-                                              loading={
-                                                mutUpdateScores.isLoading
-                                              }
-                                              onClick={handleCommentUpdate({
-                                                field,
-                                                score,
-                                                comment: field.value,
-                                              })}
-                                            >
-                                              Save comment
-                                            </Button>
-                                            <Button
-                                              variant="destructive"
-                                              type="button"
-                                              disabled={isScoreUnsaved(
-                                                score.scoreId,
-                                              )}
-                                              loading={
-                                                mutUpdateScores.isLoading
-                                              }
-                                              onClick={handleCommentUpdate({
-                                                field,
-                                                score,
-                                                comment: null,
-                                              })}
-                                            >
-                                              Delete
-                                            </Button>
-                                          </div>
-                                        </>
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <HoverCard>
-                              <HoverCardTrigger>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  type="button"
-                                  className="disabled:opacity-100"
                                   loading={mutDeleteScore.isLoading}
-                                  disabled={isScoreUnsaved(score.scoreId)}
                                   onClick={async () => {
                                     if (score.scoreId)
                                       await mutDeleteScore.mutateAsync({
@@ -570,23 +571,10 @@ export function AnnotateButton({
                                       });
                                   }}
                                 >
-                                  <TrashIcon
-                                    className={cn(
-                                      "h-4 w-4",
-                                      isScoreUnsaved(score.scoreId) &&
-                                        "text-muted-gray",
-                                    )}
-                                  />
+                                  <X className="h-4 w-4" />
                                 </Button>
-                              </HoverCardTrigger>
-                              <HoverCardContent>
-                                {isScoreUnsaved(score.scoreId) && (
-                                  <div className="mr-2 mt-4 bg-background text-xs font-light">
-                                    Deselect in score selection
-                                  </div>
-                                )}
-                              </HoverCardContent>
-                            </HoverCard>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
