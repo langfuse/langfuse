@@ -59,7 +59,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
       projectId: props.projectId,
     },
     {
-      enabled: hasAccess,
+      enabled: hasAccess && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined,
     },
   );
 
