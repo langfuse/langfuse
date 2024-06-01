@@ -3,7 +3,7 @@
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
-import { Card, Flex, MarkerBar, Metric, Text } from "@tremor/react";
+import { Flex, MarkerBar, Metric, Text } from "@tremor/react";
 import Link from "next/link";
 import { PricingPage } from "@/src/features/pricing-page/PricingPage";
 import {
@@ -15,6 +15,7 @@ import {
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
+import { Card } from "@/src/components/ui/card";
 
 export const OrganizationUsageChart = () => {
   const organization = useQueryOrganization();

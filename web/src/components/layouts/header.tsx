@@ -22,10 +22,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { ChevronDownIcon, Settings, Slash } from "lucide-react";
+import { ChevronDownIcon, PlusIcon, Settings, Slash } from "lucide-react";
 import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { Button } from "@/src/components/ui/button";
-import { NewOrganizationButton } from "@/src/features/organizations/components/NewOrganizationButton";
 import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
 
 export default function Header({
@@ -133,29 +132,47 @@ const BreadcrumbComponent = ({
             <DropdownMenuContent align="start">
               <DropdownMenuLabel>Organizations</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {session.data?.user?.organizations.map((org) => (
-                <DropdownMenuItem key={org.id} asChild>
-                  <Link
-                    href={`/organization/${org.id}`}
-                    className="flex cursor-pointer justify-between"
-                  >
-                    <span>{org.name}</span>
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="xs"
-                      className="-my-1 hover:bg-background"
+              <div className="max-h-36 overflow-y-auto">
+                {session.data?.user?.organizations.map((org) => (
+                  <DropdownMenuItem key={org.id} asChild>
+                    <Link
+                      href={`/organization/${org.id}`}
+                      className="flex cursor-pointer justify-between"
                     >
-                      <Link href={`/organization/${org.id}/settings`}>
-                        <Settings size={12} />
-                      </Link>
-                    </Button>
-                  </Link>
-                </DropdownMenuItem>
-              ))}
+                      <span
+                        className="max-w-24 overflow-hidden overflow-ellipsis whitespace-nowrap"
+                        title={org.name}
+                      >
+                        {org.name}
+                      </span>
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="xs"
+                        className="-my-1 ml-4 mr-1 hover:bg-background"
+                      >
+                        <Link href={`/organization/${org.id}/settings`}>
+                          <Settings size={12} />
+                        </Link>
+                      </Button>
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <NewOrganizationButton inBreadcrumb />
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  data-testid="create-project-btn"
+                  className="h-8 w-full text-sm font-normal"
+                  asChild
+                >
+                  <Link href="/setup">
+                    <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    New Organization
+                  </Link>
+                </Button>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -173,26 +190,33 @@ const BreadcrumbComponent = ({
               <DropdownMenuContent align="start">
                 <DropdownMenuLabel>Projects</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {organization.projects.map((project) => (
-                  <DropdownMenuItem key={project.id} asChild>
-                    <Link
-                      href={`/project/${project.id}`}
-                      className="flex cursor-pointer justify-between"
-                    >
-                      <span>{project.name}</span>
-                      <Button
-                        asChild
-                        variant="ghost"
-                        size="xs"
-                        className="-my-1 hover:bg-background"
+                <div className="max-h-36 overflow-y-auto">
+                  {organization.projects.map((project) => (
+                    <DropdownMenuItem key={project.id} asChild>
+                      <Link
+                        href={`/project/${project.id}`}
+                        className="flex cursor-pointer justify-between"
                       >
-                        <Link href={`/project/${project.id}/settings`}>
-                          <Settings size={12} />
-                        </Link>
-                      </Button>
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
+                        <span
+                          className="max-w-24 overflow-hidden overflow-ellipsis whitespace-nowrap"
+                          title={project.name}
+                        >
+                          {project.name}
+                        </span>
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="xs"
+                          className="-my-1 ml-4 mr-1 hover:bg-background"
+                        >
+                          <Link href={`/project/${project.id}/settings`}>
+                            <Settings size={12} />
+                          </Link>
+                        </Button>
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <NewProjectButton orgId={organization.id} inBreadcrumb />

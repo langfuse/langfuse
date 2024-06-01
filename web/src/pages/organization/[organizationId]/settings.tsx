@@ -14,7 +14,7 @@ const OrgSettingsPage = () => {
 
   return (
     <div className="md:container">
-      <Header title="Settings" />
+      <Header title="Organization Settings" />
       <PagedSettingsContainer
         pages={[
           {
@@ -34,13 +34,13 @@ const OrgSettingsPage = () => {
           {
             title: "Members",
             content: (
-              <div>
-                <Header title="Organization Members" level="h3" />
+              <div className="flex flex-col gap-10">
                 <div>
+                  <Header title="Organization Members" level="h3" />
                   <MembersTable orgId={organization.id} />
                 </div>
-                <Header title="Membership Invites" level="h3" />
                 <div>
+                  <Header title="Membership Invites" level="h3" />
                   <InvitesTable orgId={organization.id} />
                 </div>
               </div>

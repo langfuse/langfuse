@@ -5,16 +5,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import Header from "@/src/components/layouts/header";
 import { OrganizationProjectOverview } from "@/src/features/organizations/components/ProjectOverview";
 
 export default function GetStartedPage() {
-  return (
-    <div className="md:container">
-      <Header title="Home" />
-      <OrganizationProjectOverview />
-    </div>
-  );
+  return <OrganizationProjectOverview />;
 }
 
 const Onboarding = () => {

@@ -14,13 +14,16 @@ import {
   Lightbulb,
   Grid2X2,
 } from "lucide-react";
+import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { VERSION } from "@/src/constants";
+import { type ReactNode } from "react";
 
 export type Route = {
   name: string;
   featureFlag?: Flag;
-  label?: string;
+  label?: string | ReactNode;
   rbacScope?: Scope;
-  icon?: LucideIcon; // ignored for nested routes
+  icon?: LucideIcon | typeof LangfuseIcon; // ignored for nested routes
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
@@ -29,6 +32,12 @@ export type Route = {
 };
 
 export const ROUTES: Route[] = [
+  {
+    name: "Langfuse",
+    pathname: "/",
+    icon: LangfuseIcon,
+    label: <span className="text-xs">{VERSION}</span>,
+  },
   {
     name: "Projects",
     pathname: "/organization/[organizationId]",

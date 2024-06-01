@@ -2,7 +2,6 @@ import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { Fragment, type PropsWithChildren, useState } from "react";
 import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
@@ -32,6 +31,7 @@ import DOMPurify from "dompurify";
 import { useQueryProject } from "@/src/features/projects/utils/useProject";
 import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import { EnvLabel } from "@/src/components/EnvLabel";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -278,14 +278,7 @@ export default function Layout(props: PropsWithChildren) {
                     </div>
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
-                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background px-6 py-4">
-                    <LangfuseLogo
-                      version
-                      size="xl"
-                      showEnvLabel={session.data?.user?.email?.endsWith(
-                        "@langfuse.com",
-                      )}
-                    />
+                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background px-4 py-3">
                     <nav className="flex flex-1 flex-col">
                       <ul role="list">
                         <MainNavigation nav={navigation} />
@@ -301,17 +294,10 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col border-r border-border bg-background pt-7">
-            <LangfuseLogo
-              version
-              size="xl"
-              className="mb-8 px-6"
-              showEnvLabel={session.data?.user?.email?.endsWith(
-                "@langfuse.com",
-              )}
-            />
-            <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
+          <div className="flex h-screen grow flex-col border-r border-border bg-background">
+            <nav className="flex h-full flex-1 flex-col overflow-y-auto px-4 py-3">
               <ul role="list" className="flex h-full flex-col">
+                <EnvLabel className="my-2" />
                 <MainNavigation nav={topNavigation} />
                 <MainNavigation nav={bottomNavigation} className="mt-auto" />
                 <FeedbackButtonWrapper
@@ -332,7 +318,7 @@ export default function Layout(props: PropsWithChildren) {
             </nav>
 
             <Menu as="div" className="relative">
-              <Menu.Button className="flex w-full items-center gap-x-2 overflow-hidden p-1.5 py-3 pl-6 pr-8 text-sm font-semibold text-primary hover:bg-primary-foreground">
+              <Menu.Button className="flex w-full items-center gap-x-2 overflow-hidden p-1.5 py-3 pl-3 pr-4 text-sm font-semibold text-primary hover:bg-primary-foreground">
                 <span className="sr-only">Open user menu</span>
                 <Avatar className="h-7 w-7">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -525,7 +511,7 @@ const MainNavigation: React.FC<{
                   item.current
                     ? "bg-primary-foreground text-primary-accent"
                     : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
-                  "group flex gap-x-3 rounded-md p-2 text-sm font-semibold",
+                  "group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold",
                 )}
                 onClick={onNavitemClick}
                 target={item.newTab ? "_blank" : undefined}
@@ -542,18 +528,22 @@ const MainNavigation: React.FC<{
                   />
                 )}
                 {item.name}
-                {item.label && (
-                  <span
-                    className={cn(
-                      "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                      item.current
-                        ? "border-primary-accent text-primary-accent"
-                        : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                )}
+                {item.label &&
+                  (typeof item.label === "string" ? (
+                    <span
+                      className={cn(
+                        "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                        item.current
+                          ? "border-primary-accent text-primary-accent"
+                          : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
+                      )}
+                    >
+                      {item.label}
+                    </span>
+                  ) : (
+                    // ReactNode
+                    item.label
+                  ))}
               </Link>
             ) : item.children && item.children.length > 0 ? (
               <Disclosure

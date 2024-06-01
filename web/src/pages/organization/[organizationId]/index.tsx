@@ -4,9 +4,5 @@ import { useQueryOrganization } from "@/src/features/organizations/utils/useOrga
 export default function GetStartedPage() {
   const organization = useQueryOrganization();
   if (!organization) return null;
-  return (
-    <div className="md:container">
-      <OrganizationProjectOverview orgId={organization.id} />
-    </div>
-  );
+  return <OrganizationProjectOverview orgId={organization.id} />;
 }

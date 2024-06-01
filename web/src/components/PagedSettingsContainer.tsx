@@ -32,7 +32,7 @@ export const PagedSettingsContainer = ({ pages }: SettingsProps) => {
     <main className="flex flex-1 flex-col gap-4 py-4 md:gap-8">
       <div className="grid w-full items-start gap-4 md:grid-cols-[180px_1fr] lg:grid-cols-[250px_1fr]">
         <nav
-          className="grid gap-4 text-sm text-muted-foreground"
+          className="grid gap-4 text-sm text-muted-foreground md:sticky md:top-5"
           x-chunk="dashboard-04-chunk-0"
         >
           {availablePages.map((page) =>

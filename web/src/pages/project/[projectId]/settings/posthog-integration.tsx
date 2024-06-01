@@ -1,3 +1,4 @@
+import { PostHogLogo } from "@/src/components/PosthogLogo";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -41,7 +42,7 @@ export default function PosthogIntegrationSettings() {
         actionButtons={
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/docs/analytics/posthog">
-              Integration Docs
+              Integration Docs ↗
             </Link>
           </Button>
         }
@@ -69,6 +70,7 @@ export default function PosthogIntegrationSettings() {
         <>
           <Header level="h3" title="Configuration" />
           <Card className="p-4">
+            <PostHogLogo className="mb-4 w-36 text-foreground" />
             <PostHogIntegrationSettings
               state={state.data}
               projectId={projectId}

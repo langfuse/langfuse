@@ -1,4 +1,3 @@
-import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
@@ -18,6 +17,7 @@ import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
+import { Card } from "@/src/components/ui/card";
 
 export default function RenameOrganization() {
   const capture = usePostHogClientCapture();
@@ -68,15 +68,12 @@ export default function RenameOrganization() {
       <Header title="Organization Name" level="h3" />
       <Card className="mb-4 p-4">
         {form.getValues().name !== "" ? (
-          <p className="mb-4 text-sm text-gray-700">
+          <p className="mb-4 text-sm">
             Your Organization will be renamed to &quot;
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
-          <p
-            className="mb-4 text-sm text-gray-700"
-            data-testid="organization-name"
-          >
+          <p className="mb-4 text-sm" data-testid="organization-name">
             Your Organization is currently named &quot;<b>{orgName}</b>
             &quot;.
           </p>

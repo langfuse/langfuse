@@ -4,13 +4,11 @@ import { SiOpenai } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import { Code, Bird, GraduationCap } from "lucide-react";
-import { ProjectMembersTable } from "@/src/features/rbac/components/ProjectMembersTable";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { env } from "@/src/env.mjs";
-import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
@@ -19,6 +17,8 @@ import { useQueryProject } from "@/src/features/projects/utils/useProject";
 import MembersTable from "@/src/components/table/use-cases/members";
 import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { PostHogLogo } from "@/src/components/PosthogLogo";
+import { Card } from "@/src/components/ui/card";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -161,7 +161,7 @@ function Instructions() {
           <li key={itemIdx}>
             <div className="group relative flex items-start space-x-3 py-4">
               <div className="flex-shrink-0">
-                <span className="group-hover:border-primary-accent group-hover:text-primary-accent inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent">
                   <item.icon className="h-6 w-6" aria-hidden="true" />
                 </span>
               </div>
@@ -198,11 +198,7 @@ const Integrations = (props: { projectId: string }) => {
       <Header title="Integrations" level="h3" />
       <Card className="p-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/images/posthog-logo.svg"
-          alt="Posthog Logo"
-          className="mb-4 w-32"
-        />
+        <PostHogLogo className="mb-4 w-40 text-foreground" />
         <p className="mb-4 text-sm text-primary">
           We have teamed up with PostHog (OSS product analytics) to make
           Langfuse Events/Metrics available in your Posthog Dashboards.
@@ -217,7 +213,7 @@ const Integrations = (props: { projectId: string }) => {
           </Button>
           <Button asChild variant="ghost">
             <Link href="https://langfuse.com/docs/analytics/posthog">
-              Integration Docs
+              Integration Docs ↗
             </Link>
           </Button>
         </div>
