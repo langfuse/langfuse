@@ -4,6 +4,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { cn } from "@/src/utils/tailwind";
 import { HelpCircle, Info } from "lucide-react";
 import Link from "next/link";
 
@@ -40,13 +41,16 @@ export default function DocPopup({
         }
       }}
     >
-      <HoverCardTrigger className="mx-1 cursor-pointer" asChild>
+      <HoverCardTrigger
+        className={cn("mx-1", href ? "cursor-pointer" : "cursor-default")}
+        asChild
+      >
         {href ? (
           <Link
             href={href}
             rel="noopener"
             target="_blank"
-            className="inline-block whitespace-nowrap text-gray-500 sm:pl-0"
+            className="inline-block whitespace-nowrap text-muted-foreground sm:pl-0"
             onClick={() => {
               capture("help_popup:href_clicked", {
                 href: href,
@@ -62,7 +66,7 @@ export default function DocPopup({
             }
           </Link>
         ) : (
-          <div className="inline-block whitespace-nowrap text-gray-500 sm:pl-0">
+          <div className="inline-block whitespace-nowrap text-muted-foreground sm:pl-0">
             {
               {
                 question: <HelpCircle className={sizes[size]} />,
@@ -74,7 +78,7 @@ export default function DocPopup({
       </HoverCardTrigger>
       <HoverCardContent>
         {typeof description === "string" ? (
-          <div className="whitespace-break-spaces text-xs font-normal text-gray-800 sm:pl-0">
+          <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
             {description}
           </div>
         ) : (
@@ -98,7 +102,7 @@ export function Popup({ triggerContent, description }: PopupProps) {
       </HoverCardTrigger>
       <HoverCardContent>
         {typeof description === "string" ? (
-          <div className="whitespace-break-spaces text-xs font-normal text-gray-800 sm:pl-0">
+          <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
             {description}
           </div>
         ) : (

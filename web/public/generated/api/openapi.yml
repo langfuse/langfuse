@@ -1825,8 +1825,8 @@ components:
       title: ScoreSource
       type: string
       enum:
+        - ANNOTATION
         - API
-        - REVIEW
         - EVAL
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest

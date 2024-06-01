@@ -128,6 +128,7 @@ model Project {
     LlmApiKeys         LlmApiKeys[]
     PosthogIntegration PosthogIntegration[]
     Score              Score[]
+    scoreConfig        ScoreConfig[]
 
     @@index([orgId])
     @@map("projects")
@@ -253,6 +254,7 @@ model TraceSession {
     @@id([id, projectId])
     @@index([projectId])
     @@index([createdAt])
+    @@index([updatedAt])
     @@map("trace_sessions")
 }
 
@@ -340,6 +342,7 @@ model Observation {
     statusMessage       String?          @map("status_message")
     version             String?
     createdAt           DateTime         @default(now()) @map("created_at")
+    updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at")
 
     // GENERATION ONLY
     model               String?
@@ -371,6 +374,7 @@ model Observation {
     @@index([type])
     @@index(startTime)
     @@index(createdAt)
+    @@index(updatedAt)
     @@index(projectId)
     @@index(parentObservationId)
     @@index(model)
@@ -447,25 +451,66 @@ model Score {
     name          String
     value         Float
     source        ScoreSource
+    authorUserId  String?        @map("author_user_id")
     comment       String?
     traceId       String         @map("trace_id")
     observationId String?        @map("observation_id")
+    configId      String?        @map("config_id")
+    stringValue   String?        @map("string_value")
+    createdAt     DateTime       @default(now()) @map("created_at")
+    updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
+    dataType      ScoreDataType  @default(NUMERIC) @map("data_type")
     JobExecution  JobExecution[]
+    scoreConfig   ScoreConfig?   @relation(fields: [configId], references: [id], onDelete: SetNull)
 
     @@unique([id, projectId]) // used for upserts via prisma
     @@index(timestamp)
     @@index([value])
     @@index([projectId])
+    @@index([authorUserId])
+    @@index([configId])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([source])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("scores")
 }
 
 enum ScoreSource {
+    ANNOTATION
     API
-    REVIEW
     EVAL
+}
+
+model ScoreConfig {
+    id          String        @id @default(cuid())
+    createdAt   DateTime      @default(now()) @map("created_at")
+    updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
+    projectId   String        @map("project_id")
+    project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    name        String
+    dataType    ScoreDataType @map("data_type")
+    isArchived  Boolean       @default(false) @map("is_archived")
+    minValue    Float?        @map("min_value")
+    maxValue    Float?        @map("max_value")
+    categories  Json?         @map("categories")
+    description String?
+    score       Score[]
+
+    @@unique([id, projectId]) // used for upserts via prisma
+    @@index([dataType])
+    @@index([isArchived])
+    @@index([projectId])
+    @@index([categories])
+    @@index([createdAt])
+    @@index([updatedAt])
+    @@map("score_configs")
+}
+
+enum ScoreDataType {
+    CATEGORICAL
+    NUMERIC
 }
 
 enum PricingUnit {
@@ -514,6 +559,8 @@ model Dataset {
 
     @@unique([projectId, name])
     @@index([projectId], type: Hash)
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("datasets")
 }
 
@@ -535,6 +582,8 @@ model DatasetItem {
 
     @@index([sourceObservationId], type: Hash)
     @@index([datasetId], type: Hash)
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("dataset_items")
 }
 
@@ -556,6 +605,8 @@ model DatasetRuns {
 
     @@unique([datasetId, name])
     @@index([datasetId], type: Hash)
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("dataset_runs")
 }
 
@@ -576,6 +627,8 @@ model DatasetRunItems {
     @@index([datasetItemId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([traceId])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("dataset_run_items")
 }
 
@@ -618,6 +671,8 @@ model Prompt {
     @@index([projectId, name, version])
     @@index([projectId, id])
     @@index([projectId])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("prompts")
 }
@@ -667,6 +722,7 @@ model AuditLog {
     @@index([userId])
     @@index([orgId])
     @@index([createdAt])
+    @@index([updatedAt])
     @@map("audit_logs")
 }
 
@@ -760,6 +816,11 @@ model JobExecution {
     @@index([projectId, status])
     @@index([projectId, id])
     @@index([projectId])
+    @@index([jobConfigurationId])
+    @@index([jobOutputScoreId])
+    @@index([jobInputTraceId])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("job_executions")
 }
 

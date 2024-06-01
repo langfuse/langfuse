@@ -38,7 +38,7 @@ export const OrganizationUsageChart = () => {
 
   return (
     <div>
-      <Header title="Usage" level="h3" />
+      <Header title="Usage & Billing" level="h3" />
       <Card className="p-4">
         {usage.data !== undefined && (
           <>
@@ -85,7 +85,7 @@ export const OrganizationUsageChart = () => {
                   level="h3"
                   actionButtons={
                     <Button variant="secondary" asChild>
-                      <Link href="https://langfuse.com/pricing">
+                      <Link href="https://langfuse.com/pricing" target="_blank">
                         Pricing page ↗
                       </Link>
                     </Button>
@@ -102,7 +102,12 @@ export const OrganizationUsageChart = () => {
             </Link>
           </Button>
         )}
-        <div className="inline-block text-sm text-gray-500">
+        <Button variant="secondary" asChild>
+          <Link href="https://langfuse.com/pricing" target="_blank">
+            Pricing page ↗
+          </Link>
+        </Button>
+        <div className="inline-block text-sm text-muted-foreground">
           Current plan: {plan}
         </div>
       </div>

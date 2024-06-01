@@ -33,7 +33,7 @@ import {
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { isEeAvailable } from "@langfuse/ee";
+import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -113,23 +113,11 @@ export const PromptDetail = () => {
               <>
                 <SetPromptVersionLabels prompt={prompt} />
 
-                {isEeAvailable && (
-                  <Button
-                    variant="outline"
-                    title="Test in prompt playground"
-                    size="icon"
-                    onClick={() =>
-                      capture("prompt_detail:test_in_playground_button_click")
-                    }
-                    asChild
-                  >
-                    <Link
-                      href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
-                    >
-                      <Terminal className="h-5 w-5" />
-                    </Link>
-                  </Button>
-                )}
+                <JumpToPlaygroundButton
+                  source="prompt"
+                  prompt={prompt}
+                  analyticsEventName="prompt_detail:test_in_playground_button_click"
+                />
 
                 <Button
                   variant="outline"
@@ -181,6 +169,7 @@ export const PromptDetail = () => {
                 promptName={prompt.name}
                 tags={prompt.tags}
                 availableTags={allTags}
+                className="flex-wrap"
               />
             </div>
           </div>
@@ -213,7 +202,7 @@ export const PromptDetail = () => {
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
-          <p className="mt-6 text-xs text-gray-600">
+          <p className="mt-6 text-xs text-muted-foreground">
             Fetch prompts via Python or JS/TS SDKs. See{" "}
             <a
               href="https://langfuse.com/docs/prompts"

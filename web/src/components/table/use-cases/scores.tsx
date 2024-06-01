@@ -12,13 +12,17 @@ import {
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
+import { utcDateOffsetByDays } from "@/src/utils/dates";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
+import type { FilterState } from "@langfuse/shared";
+import { useSession } from "next-auth/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
   id: string;
   traceId: string;
   timestamp: string;
+  source: string;
   name: string;
   value: number;
   comment?: string;
@@ -33,36 +37,65 @@ export type ScoreFilterInput = Omit<
   "projectId" | "userId"
 >;
 
+function createFilterState(
+  userFilterState: FilterState,
+  omittedFilters: Record<string, string>[],
+): FilterState {
+  return omittedFilters.reduce((filterState, { key, value }) => {
+    return filterState.concat([
+      {
+        column: `${key}`,
+        type: "string",
+        operator: "=",
+        value: value,
+      },
+    ]);
+  }, userFilterState);
+}
+
 export default function ScoresTable({
   projectId,
   userId,
+  traceId,
+  observationId,
   omittedFilter = [],
+  hiddenColumns = [],
+  tableColumnVisibilityName = "scoresColumnVisibility",
 }: {
   projectId: string;
   userId?: string;
+  traceId?: string;
+  observationId?: string;
   omittedFilter?: string[];
+  hiddenColumns?: string[];
+  tableColumnVisibilityName?: string;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
+  const session = useSession();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [],
+    [
+      {
+        column: "Timestamp",
+        type: "datetime",
+        operator: ">",
+        value: utcDateOffsetByDays(
+          session.data?.environment.defaultTableDateTimeOffset ?? -7,
+        ),
+      },
+    ],
     "scores",
   );
-  const filterState = userId
-    ? userFilterState.concat([
-        {
-          column: "User ID",
-          type: "string",
-          operator: "=",
-          value: userId,
-        },
-      ])
-    : userFilterState;
+
+  const filterState = createFilterState(userFilterState, [
+    ...(userId ? [{ key: "User ID", value: userId }] : []),
+    ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
+    ...(observationId ? [{ key: "Observation ID", value: observationId }] : []),
+  ]);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
@@ -82,7 +115,7 @@ export default function ScoresTable({
     projectId,
   });
 
-  const columns: LangfuseColumnDef<ScoresTableRow>[] = [
+  const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
     {
       accessorKey: "traceId",
       id: "traceId",
@@ -143,6 +176,13 @@ export default function ScoresTable({
       accessorKey: "timestamp",
       header: "Timestamp",
       id: "timestamp",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "source",
+      header: "Source",
+      id: "source",
       enableHiding: true,
       enableSorting: true,
     },
@@ -218,16 +258,18 @@ export default function ScoresTable({
       cell: ({ row }) => {
         const value = row.getValue("comment") as ScoresTableRow["comment"];
         return (
-          value !== undefined && (
-            <IOTableCell data={value} singleLine={rowHeight === "s"} />
-          )
+          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
         );
       },
     },
   ];
 
+  const columns = rawColumns.filter(
+    (c) => !!c.id && !hiddenColumns.includes(c.id),
+  );
+
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ScoresTableRow>("scoresColumnVisibility", columns);
+    useColumnVisibility<ScoresTableRow>(tableColumnVisibilityName, columns);
 
   const convertToTableRow = (
     score: RouterOutput["scores"]["all"]["scores"][0],
@@ -235,6 +277,7 @@ export default function ScoresTable({
     return {
       id: score.id,
       timestamp: score.timestamp.toLocaleString(),
+      source: score.source,
       name: score.name,
       value: score.value,
       comment: score.comment ?? undefined,
@@ -250,7 +293,7 @@ export default function ScoresTable({
     traceFilterOptions: ScoreOptions | undefined,
   ) => {
     return scoresTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name),
+      (c) => !omittedFilter?.includes(c.name) && !hiddenColumns.includes(c.id),
     );
   };
 

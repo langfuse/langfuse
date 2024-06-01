@@ -57,6 +57,7 @@ export const scoresRouter = createTRPCRouter({
           s.name,
           s.value,
           s.timestamp,
+          s.source,
           s.comment,
           s.trace_id as "traceId",
           s.observation_id as "observationId",
@@ -120,7 +121,7 @@ export const scoresRouter = createTRPCRouter({
 
       return res;
     }),
-  createReviewScore: protectedProjectProcedure
+  createAnnotationScore: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -156,7 +157,8 @@ export const scoresRouter = createTRPCRouter({
           value: input.value,
           name: input.name,
           comment: input.comment,
-          source: "REVIEW",
+          authorUserId: ctx.session.user.id,
+          source: "ANNOTATION",
         },
       });
       await auditLog({
@@ -168,7 +170,7 @@ export const scoresRouter = createTRPCRouter({
       });
       return score;
     }),
-  updateReviewScore: protectedProjectProcedure
+  updateAnnotationScore: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -187,11 +189,11 @@ export const scoresRouter = createTRPCRouter({
         where: {
           id: input.id,
           projectId: input.projectId,
-          source: "REVIEW",
+          source: "ANNOTATION",
         },
       });
       if (!score) {
-        throw new Error("No review score with this id in this project.");
+        throw new Error("No annotation score with this id in this project.");
       }
 
       await auditLog({
@@ -210,10 +212,11 @@ export const scoresRouter = createTRPCRouter({
         data: {
           value: input.value,
           comment: input.comment,
+          authorUserId: ctx.session.user.id,
         },
       });
     }),
-  deleteReviewScore: protectedProjectProcedure
+  deleteAnnotationScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -225,12 +228,12 @@ export const scoresRouter = createTRPCRouter({
       const score = await ctx.prisma.score.findFirst({
         where: {
           id: input.id,
-          source: "REVIEW",
+          source: "ANNOTATION",
           projectId: input.projectId,
         },
       });
       if (!score) {
-        throw new Error("No review score with this id in this project.");
+        throw new Error("No annotation score with this id in this project.");
       }
 
       await auditLog({

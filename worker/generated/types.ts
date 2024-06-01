@@ -34,11 +34,16 @@ export const ObservationLevel = {
 export type ObservationLevel =
   (typeof ObservationLevel)[keyof typeof ObservationLevel];
 export const ScoreSource = {
+  ANNOTATION: "ANNOTATION",
   API: "API",
-  REVIEW: "REVIEW",
   EVAL: "EVAL",
 } as const;
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
+export const ScoreDataType = {
+  CATEGORICAL: "CATEGORICAL",
+  NUMERIC: "NUMERIC",
+} as const;
+export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
 export const PricingUnit = {
   PER_1000_TOKENS: "PER_1000_TOKENS",
   PER_1000_CHARS: "PER_1000_CHARS",
@@ -259,6 +264,7 @@ export type Observation = {
   status_message: string | null;
   version: string | null;
   created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
   model: string | null;
   internal_model: string | null;
   modelParameters: unknown | null;
@@ -378,9 +384,28 @@ export type Score = {
   name: string;
   value: number;
   source: ScoreSource;
+  author_user_id: string | null;
   comment: string | null;
   trace_id: string;
   observation_id: string | null;
+  config_id: string | null;
+  string_value: string | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  data_type: Generated<ScoreDataType>;
+};
+export type ScoreConfig = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  project_id: string;
+  name: string;
+  data_type: ScoreDataType;
+  is_archived: Generated<boolean>;
+  min_value: number | null;
+  max_value: number | null;
+  categories: unknown | null;
+  description: string | null;
 };
 export type Session = {
   id: string;
@@ -482,6 +507,7 @@ export type DB = {
   project_memberships: ProjectMembership;
   projects: Project;
   prompts: Prompt;
+  score_configs: ScoreConfig;
   scores: Score;
   Session: Session;
   sso_configs: SsoConfig;

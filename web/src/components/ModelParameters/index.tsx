@@ -8,12 +8,15 @@ import {
 } from "@/src/components/ui/select";
 import { Slider } from "@/src/components/ui/slider";
 import { Switch } from "@/src/components/ui/switch";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
   ModelProvider,
   supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
+
+import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
@@ -33,10 +36,14 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   setModelParamEnabled,
   formDisabled = false,
 }) => {
+  const projectId = useProjectIdFromURL();
+
+  if (!projectId) return null;
+
   return (
     <div className="flex flex-col space-y-4">
       <p className="font-semibold">Model</p>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <ModelParamsSelect
           title="Provider"
           modelParamsKey="provider"
@@ -104,6 +111,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
           updateModelParam={updateModelParamValue}
         />
+        <LLMApiKeyComponent {...{ projectId, modelParams }} />
       </div>
     </div>
   );
@@ -127,7 +135,12 @@ const ModelParamsSelect = ({
 }: ModelParamsSelectProps) => {
   return (
     <div className="space-y-2">
-      <p className={cn("text-xs font-semibold", disabled && "text-gray-400")}>
+      <p
+        className={cn(
+          "text-xs font-semibold",
+          disabled && "text-muted-foreground",
+        )}
+      >
         {title}
       </p>
       <Select
@@ -187,7 +200,7 @@ const ModelParamsSlider = ({
         <p
           className={cn(
             "flex-1 text-xs font-semibold",
-            (!enabled || formDisabled) && "text-gray-400",
+            (!enabled || formDisabled) && "text-muted-foreground",
           )}
         >
           {title}

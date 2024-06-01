@@ -18,6 +18,7 @@ type TagManagerProps = {
   hasAccess: boolean;
   isLoading: boolean;
   mutateTags: (value: string[]) => void;
+  className?: string;
 };
 
 const TagManager = ({
@@ -26,6 +27,7 @@ const TagManager = ({
   hasAccess,
   isLoading,
   mutateTags,
+  className,
 }: TagManagerProps) => {
   const {
     selectedTags,
@@ -59,7 +61,7 @@ const TagManager = ({
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       <PopoverTrigger className="select-none" asChild>
-        <div className="flex gap-x-2 gap-y-1">
+        <div className={cn("flex gap-x-2 gap-y-1", className)}>
           <TagList selectedTags={selectedTags} isLoading={isLoading} />
         </div>
       </PopoverTrigger>

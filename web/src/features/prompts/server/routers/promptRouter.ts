@@ -571,6 +571,8 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
+      if (input.promptIds.length === 0) return [];
+
       const metrics = await ctx.prisma.$queryRaw<
         Array<{
           id: string;

@@ -14,7 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
-import { SiOkta, SiAuth0 } from "react-icons/si";
+import { SiOkta, SiAuth0, SiAmazoncognito } from "react-icons/si";
 import { TbBrandAzure } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -49,6 +49,7 @@ export type PageProps = {
     okta: boolean;
     azureAd: boolean;
     auth0: boolean;
+    cognito: boolean;
     sso: boolean;
   };
   signUpDisabled: boolean;
@@ -80,6 +81,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_AUTH0_CLIENT_ID !== undefined &&
           env.AUTH_AUTH0_CLIENT_SECRET !== undefined &&
           env.AUTH_AUTH0_ISSUER !== undefined,
+        cognito:
+          env.AUTH_COGNITO_CLIENT_ID !== undefined &&
+          env.AUTH_COGNITO_CLIENT_SECRET !== undefined &&
+          env.AUTH_COGNITO_ISSUER !== undefined,
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
@@ -104,7 +109,7 @@ export function SSOButtons({
     ) ? (
       <div>
         {authProviders.credentials && (
-          <Divider className="text-gray-400">or {action} with</Divider>
+          <Divider className="text-muted-foreground">or {action} with</Divider>
         )}
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
           {authProviders.google && (
@@ -167,6 +172,18 @@ export function SSOButtons({
             >
               <SiAuth0 className="mr-3" size={18} />
               Auth0
+            </Button>
+          )}
+          {authProviders.cognito && (
+            <Button
+              onClick={() => {
+                capture("sign_in:button_click", { provider: "cognito" });
+                void signIn("cognito");
+              }}
+              variant="secondary"
+            >
+              <SiAmazoncognito className="mr-3" size={18} />
+              Cognito
             </Button>
           )}
         </div>
@@ -302,12 +319,12 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
-          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
+          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
             Sign in to your account
           </h2>
         </div>
 
-        <div className="mt-14 bg-white px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
           <div className="space-y-6">
             <CloudRegionSwitch />
             {authProviders.credentials ? (
@@ -399,7 +416,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
             // Turnstile exists copy-paste also on sign-up.tsx
             env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
               <>
-                <Divider className="text-gray-400" />
+                <Divider className="text-muted-foreground" />
                 <Turnstile
                   siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                   options={{
@@ -417,11 +434,11 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
           {!signUpDisabled &&
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
           authProviders.credentials ? (
-            <p className="mt-10 text-center text-sm text-gray-500">
+            <p className="mt-10 text-center text-sm text-muted-foreground">
               No account yet?{" "}
               <Link
                 href="/auth/sign-up"
-                className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+                className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
               >
                 Sign up
               </Link>

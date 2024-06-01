@@ -79,6 +79,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
+import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 
 setUpSuperjson();
 
@@ -179,7 +180,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
       )
       .find((project) => project.id === projectId);
 
-    if (!sessionProject && ctx.session.user.admin !== true)
+    if (!sessionProject && !isProjectMemberOrAdmin(ctx.session.user, projectId))
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "User is not a member of this project",
@@ -291,7 +292,11 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     .flatMap((org) => org.projects)
     .find(({ id }) => id === trace.projectId);
 
-  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true)
+  if (
+    !trace.public &&
+    !sessionProject &&
+    !isProjectMemberOrAdmin(ctx.session?.user, trace.projectId)
+  )
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message:

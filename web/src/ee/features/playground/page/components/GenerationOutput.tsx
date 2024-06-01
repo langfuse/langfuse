@@ -67,7 +67,7 @@ export const GenerationOutput = () => {
   return (
     <div className="relative h-full overflow-auto">
       <div
-        className="h-full overflow-auto rounded-lg bg-gray-100 p-4"
+        className="h-full overflow-auto rounded-lg bg-muted p-4"
         ref={scrollAreaRef}
       >
         <div className="mb-4 flex w-full items-center">

@@ -52,10 +52,10 @@ export default function Header({
           <nav className="sm:hidden" aria-label="Back">
             <Link
               href={backHref}
-              className="flex items-center text-sm font-medium text-gray-500 hover:text-gray-700"
+              className="flex items-center text-sm font-medium text-muted-foreground hover:text-primary"
             >
               <ChevronLeftIcon
-                className="-ml-1 mr-1 h-5 w-5 flex-shrink-0 text-gray-400"
+                className="-ml-1 mr-1 h-5 w-5 flex-shrink-0 text-muted-foreground"
                 aria-hidden="true"
               />
               Back
@@ -70,11 +70,11 @@ export default function Header({
         <div className="flex items-center gap-3 md:gap-5">
           <div className="flex min-w-0 flex-row justify-center align-middle">
             {level === "h2" ? (
-              <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+              <h2 className="text-2xl font-bold leading-7 sm:truncate sm:text-3xl sm:tracking-tight">
                 {props.title}
               </h2>
             ) : (
-              <h3 className="text-lg font-bold leading-7 text-gray-900 sm:truncate sm:text-xl sm:tracking-tight">
+              <h3 className="text-lg font-bold leading-7 sm:truncate sm:text-xl sm:tracking-tight">
                 {props.title}
               </h3>
             )}
