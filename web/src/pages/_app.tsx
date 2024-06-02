@@ -57,6 +57,7 @@ if (
     loaded: (posthog) => {
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
+    autocapture: false,
   });
 }
 
