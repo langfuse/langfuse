@@ -23,9 +23,9 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { ChevronDownIcon, PlusIcon, Settings, Slash } from "lucide-react";
-import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { Button } from "@/src/components/ui/button";
 import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
+import { createProjectRoute } from "@/src/components/setup";
 
 export default function Header({
   level = "h2",
@@ -219,7 +219,18 @@ const BreadcrumbComponent = ({
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <NewProjectButton orgId={organization.id} inBreadcrumb />
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    data-testid="create-project-btn"
+                    className="h-8 w-full text-sm font-normal"
+                    asChild
+                  >
+                    <Link href={createProjectRoute(organization.id)}>
+                      <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                      New Project
+                    </Link>
+                  </Button>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

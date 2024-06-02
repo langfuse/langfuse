@@ -54,7 +54,7 @@ export function SetupPage() {
 
   const hasAnyTrace =
     api.traces.hasAny.useQuery(
-      { projectId: project!.id },
+      { projectId: project?.id ?? "no-project" },
       {
         enabled: !!project && stepInt === 4,
         refetchInterval: 5000,
