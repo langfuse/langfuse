@@ -1,7 +1,7 @@
 -- traces
 INSERT INTO langfuse.traces
 SELECT toString(floor(randUniform(0, 4500000)))  AS id,
-  addYears(now(), -1) + number AS `timestamp`,
+  now() - randUniform(0, 10000000) AS `timestamp`,
   concat('name', toString(rand() % 100)) AS `name`,
   concat('name', toString(rand() % 10000)) AS `user_id`,
   map('key', 'value') AS metadata,
@@ -14,11 +14,11 @@ SELECT toString(floor(randUniform(0, 4500000)))  AS id,
   'input' as input,
   'output' as output,
   concat('session', toString(rand() % 100)) AS `session_id`,
-  addYears(now(), -1) + number AS `created_at`,
-  addYears(now(), -1) + number AS `updated_at`,
-  addYears(now(), -1) + number AS `event_ts`,
+  now() - randUniform(0, 10000000) AS `created_at`,
+  now() - randUniform(0, 10000000) AS `updated_at`,
+  now() - randUniform(0, 10000000) AS `event_ts`,
   randUniform(0, 1000000) AS event_microseconds
-FROM numbers(4500000);
+FROM numbers(1000000);
 -- observations
 INSERT INTO langfuse.observations
 SELECT toString(floor(randUniform(0, 4500000))) AS id,
@@ -32,8 +32,8 @@ SELECT toString(floor(randUniform(0, 4500000))) AS id,
     'EVENT'
   ) AS `type`,
   toString(rand()) AS `parent_observation_id`,
-  addYears(now(), -1) + number AS `created_at`,
-  addHours(addYears(now(), -1), number * 1) AS `start_time`,
+  now() - randUniform(0, 10000000) AS `created_at`,
+  now() - randUniform(0, 10000000) AS `start_time`,
   addSeconds(start_time, floor(randExponential(1 / 10))) AS `end_time`,
   concat('name', toString(rand() % 100)) AS `name`,
   map('key', 'value') AS metadata,
@@ -68,7 +68,7 @@ FROM numbers(4500000);
 -- scores
 INSERT INTO langfuse.scores
 SELECT toString(floor(randUniform(0, 500000))) AS id,
-  addYears(now(), -1) + number AS `timestamp`,
+  now() - randUniform(0, 10000000) AS `timestamp`,
   toString(floor(randExponential(1 / 2)) % 1000) AS project_id,
   concat('name', toString(rand() % 100)) AS `name`,
   randUniform(0, 100) as `value`,

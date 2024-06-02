@@ -4,8 +4,11 @@
 source ../../.env
 
 # Construct the database URL
-# DATABASE_URL="clickhouse://${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=langfuse&x-multi-statement=true"
-DATABASE_URL="clickhouse://${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=langfuse&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
+    DATABASE_URL="clickhouse://${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=langfuse&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+else
+    DATABASE_URL="clickhouse://${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=langfuse&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+fi
 
 
 # Execute the drop command
