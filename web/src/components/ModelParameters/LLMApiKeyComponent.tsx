@@ -1,16 +1,16 @@
 import Link from "next/link";
 
 import { Label } from "@/src/components/ui/label";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { supportedModels, type UIModelParams } from "@langfuse/shared";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export const LLMApiKeyComponent = (p: {
   projectId: string;
   modelParams: UIModelParams;
 }) => {
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: p.projectId,
     scope: "llmApiKeys:read",
   });
