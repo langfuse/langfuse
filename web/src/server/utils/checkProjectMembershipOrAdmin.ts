@@ -7,7 +7,8 @@ export const isProjectMemberOrAdmin = (
   if (!user) return false;
 
   const isAdmin = user.admin === true;
-  const isProjectMember = user.projects.some(
+  const sessionProjects = user.organizations.flatMap((org) => org.projects);
+  const isProjectMember = sessionProjects.some(
     (project) => project.id === projectId,
   );
 

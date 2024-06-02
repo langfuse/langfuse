@@ -5,7 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
+import { Prisma, type Score } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@langfuse/shared";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";
