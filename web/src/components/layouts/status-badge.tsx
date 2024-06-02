@@ -1,7 +1,8 @@
 import { cn } from "@/src/utils/tailwind";
 
 const statusCategories = {
-  active: ["production", "live", "active", "pending"],
+  active: ["production", "live", "active"],
+  pending: ["pending", "waiting", "queued"],
   inactive: ["disabled", "inactive"],
   completed: ["completed", "done", "finished"],
   error: ["error", "failed"],
@@ -20,6 +21,10 @@ export const StatusBadge = (props: { className?: string; type: Status }) => {
     badgeColor = "bg-light-green text-dark-green";
     dotColor = "animate-ping bg-dark-green";
     dotPingColor = "bg-dark-green";
+  } else if (statusCategories.pending.includes(props.type)) {
+    badgeColor = "bg-light-yellow text-dark-yellow";
+    dotColor = "animate-ping bg-dark-yellow";
+    dotPingColor = "bg-dark-yellow";
   } else if (statusCategories.error.includes(props.type)) {
     badgeColor = "bg-light-red text-dark-red";
     dotColor = "animate-ping bg-dark-red";

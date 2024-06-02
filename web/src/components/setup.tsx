@@ -14,11 +14,12 @@ import { NewOrganizationForm } from "@/src/features/organizations/components/New
 import { NewProjectForm } from "@/src/features/projects/components/NewProjectForm";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/utils/useProject";
 import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyButton";
+import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
 export const createOrganizationRoute = "/setup";
@@ -50,6 +51,15 @@ export function SetupPage() {
       : orgStep === "create-project"
         ? 3
         : 2;
+
+  const hasAnyTrace =
+    api.traces.hasAny.useQuery(
+      { projectId: project!.id },
+      {
+        enabled: !!project && stepInt === 4,
+        refetchInterval: 5000,
+      },
+    ).data ?? false;
 
   return (
     <div className="mb-12 md:container">
@@ -143,9 +153,14 @@ export function SetupPage() {
         {
           // 4. Setup Tracing
           stepInt === 4 && project && organization && (
-            <div>
-              <Header title="API Keys" level="h3" />
-              <TracingSetup projectId={project.id} />
+            <div className="space-y-8">
+              <div>
+                <Header title="API Keys" level="h3" />
+                <TracingSetup
+                  projectId={project.id}
+                  hasAnyTrace={hasAnyTrace}
+                />
+              </div>
             </div>
           )
         }
@@ -164,8 +179,9 @@ export function SetupPage() {
           <Button
             className="mt-4"
             onClick={() => router.push(`/project/${project.id}`)}
+            variant={hasAnyTrace ? "default" : "secondary"}
           >
-            Skip
+            {hasAnyTrace ? "Open Dashboard" : "Skip for now"}
           </Button>
         )
       }
@@ -173,7 +189,13 @@ export function SetupPage() {
   );
 }
 
-const TracingSetup = ({ projectId }: { projectId: string }) => {
+const TracingSetup = ({
+  projectId,
+  hasAnyTrace,
+}: {
+  projectId: string;
+  hasAnyTrace?: boolean;
+}) => {
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["apiKeys"]["create"] | null
   >(null);
@@ -181,21 +203,47 @@ const TracingSetup = ({ projectId }: { projectId: string }) => {
   const mutCreateApiKey = api.apiKeys.create.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
   });
+  const isLoadingRef = useRef(false);
 
-  const createApiKey = useCallback(async () => {
-    if (projectId && !mutCreateApiKey.isLoading && !apiKeys) {
-      try {
-        const apiKey = await mutCreateApiKey.mutateAsync({ projectId });
-        setApiKeys(apiKey);
-      } catch (error) {
-        console.error("Error creating API key:", error);
+  useEffect(() => {
+    const createApiKey = async () => {
+      if (projectId && !isLoadingRef.current && !apiKeys) {
+        isLoadingRef.current = true;
+        try {
+          const apiKey = await mutCreateApiKey.mutateAsync({ projectId });
+          setApiKeys(apiKey);
+        } catch (error) {
+          console.error("Error creating API key:", error);
+        } finally {
+          isLoadingRef.current = false;
+        }
       }
+    };
+    if (!apiKeys) {
+      createApiKey();
     }
-  }, [projectId, mutCreateApiKey, apiKeys]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useMemo(() => {
-    createApiKey();
-  }, [createApiKey]);
-
-  return <ApiKeyRender generatedKeys={apiKeys ?? undefined} />;
+  return (
+    <div className="space-y-8">
+      <div>
+        <ApiKeyRender generatedKeys={apiKeys ?? undefined} />
+      </div>
+      {apiKeys && (
+        <div>
+          <Header
+            title="Setup Tracing"
+            level="h3"
+            status={hasAnyTrace ? "active" : "pending"}
+          />
+          <QuickstartExamples
+            secretKey={apiKeys.secretKey}
+            publicKey={apiKeys.publicKey}
+            host={window.origin}
+          />
+        </div>
+      )}
+    </div>
+  );
 };

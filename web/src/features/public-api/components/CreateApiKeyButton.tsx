@@ -70,6 +70,16 @@ export function CreateApiKeyButton(props: { projectId: string }) {
         <DialogTitle>API Keys</DialogTitle>
         <div className="shrink overflow-x-hidden overflow-y-scroll">
           <ApiKeyRender generatedKeys={generatedKeys ?? undefined} />
+          {generatedKeys && (
+            <div className="mb-2 max-w-full">
+              <div className="text-md my-2 font-semibold">Usage</div>
+              <QuickstartExamples
+                secretKey={generatedKeys.secretKey}
+                publicKey={generatedKeys.publicKey}
+                host={window.origin}
+              />
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -81,7 +91,6 @@ export const ApiKeyRender = ({
 }: {
   generatedKeys?: { secretKey: string; publicKey: string };
 }) => {
-  const hostname = window.origin;
   return (
     <>
       <div className="mb-2">
@@ -97,18 +106,8 @@ export const ApiKeyRender = ({
       </div>
       <div>
         <div className="text-md mb-2 font-semibold">Host</div>
-        <CodeView content={hostname} />
+        <CodeView content={window.origin} />
       </div>
-      {generatedKeys && (
-        <div className="mb-2 max-w-full">
-          <div className="text-md my-2 font-semibold">Usage</div>
-          <QuickstartExamples
-            secretKey={generatedKeys.secretKey}
-            publicKey={generatedKeys.publicKey}
-            host={hostname}
-          />
-        </div>
-      )}
     </>
   );
 };
