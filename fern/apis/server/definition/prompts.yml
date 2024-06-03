@@ -70,14 +70,24 @@ types:
       name: string
       prompt: list<ChatMessage>
       config: optional<unknown>
-      labels: optional<list<string>>
+      labels:
+        type: optional<list<string>>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: optional<list<string>>
+        docs: List of tags to apply to all versions of this prompt.
 
   CreateTextPromptRequest:
     properties:
       name: string
       prompt: string
       config: optional<unknown>
-      labels: optional<list<string>>
+      labels:
+        type: optional<list<string>>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: optional<list<string>>
+        docs: List of tags to apply to all versions of this prompt.
 
   Prompt:
     union:
@@ -89,7 +99,12 @@ types:
       name: string
       version: integer
       config: unknown
-      labels: list<string>
+      labels:
+        type: list<string>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: list<string>
+        docs: List of tags. Used to filter via UI and API. The same across versions of a prompt.
 
   ChatMessage:
     properties:

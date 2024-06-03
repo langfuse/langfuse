@@ -18,7 +18,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
         samplingContext.request.url &&
         samplingContext.request.url.includes("api/trpc")
       ) {
-        return 0.3;
+        return 0.1;
       }
       if (
         samplingContext.request &&
@@ -27,12 +27,12 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
         samplingContext.transactionContext.status !== "ok" &&
         samplingContext.transactionContext.status !== "unauthenticated"
       ) {
-        return 1;
+        return 0.1;
       }
-      return 0.1;
+      return 0.01;
     },
 
-    profilesSampleRate: 0.2, // Profiling sample rate is relative to tracesSampleRate
+    profilesSampleRate: 0.1,
     integrations: [
       // Add profiling integration to list of integrations
       new ProfilingIntegration(),
