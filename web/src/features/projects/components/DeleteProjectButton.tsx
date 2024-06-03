@@ -17,26 +17,35 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
-export function DeleteProjectButton(props: { projectId: string }) {
+export function DeleteProjectButton(props: {
+  projectId: string;
+  orgId: string;
+}) {
   const session = useSession();
   const capture = usePostHogClientCapture();
 
   //code for dynamic confirmation message
   const userInfo = session.data?.user;
+  const currentOrganization = userInfo?.organizations.find(
+    (org) => org.id === props.orgId,
+  );
   const currentProject = userInfo?.organizations
     .flatMap((org) => org.projects)
     .find((p) => p.id === props.projectId);
-  const confirmMessage =
-    userInfo?.name?.replace(" ", "-") +
+  const confirmMessage = (
+    currentOrganization?.name +
     "/" +
-    currentProject?.name.replace(" ", "-");
+    currentProject?.name
+  )
+    .replaceAll(" ", "-")
+    .toLowerCase();
 
   const formSchema = z.object({
     name: z.string().includes(confirmMessage, {
@@ -44,9 +53,9 @@ export function DeleteProjectButton(props: { projectId: string }) {
     }),
   });
 
-  const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "project:delete",
+  const hasAccess = useHasOrganizationAccess({
+    organizationId: props.orgId,
+    scope: "projects:delete",
   });
 
   const deleteProject = api.projects.delete.useMutation();

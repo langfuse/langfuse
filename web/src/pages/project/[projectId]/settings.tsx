@@ -6,7 +6,6 @@ import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import { Code, Bird, GraduationCap } from "lucide-react";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
-import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { env } from "@/src/env.mjs";
 import { Button } from "@/src/components/ui/button";
@@ -19,6 +18,7 @@ import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
+import { TransferOrganizationButton } from "@/src/features/projects/components/TransferOrganizationButton";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -45,8 +45,11 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-3">
-                  <DeleteProjectButton projectId={project.id} />
-                  <TransferOwnershipButton projectId={project.id} />
+                  <DeleteProjectButton
+                    projectId={project.id}
+                    orgId={organization.id}
+                  />
+                  <TransferOrganizationButton projectId={project.id} />
                 </div>
               </div>
             ),

@@ -17,9 +17,7 @@ const scopes = [
 
   "scores:CUD",
 
-  "project:delete",
   "project:update",
-  "project:transfer",
   "integrations:CRUD",
 
   "datasets:CUD",
@@ -57,9 +55,7 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "objects:tag",
     "traces:delete",
     "scores:CUD",
-    "project:delete",
     "project:update",
-    "project:transfer",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",

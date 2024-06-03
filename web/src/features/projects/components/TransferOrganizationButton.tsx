@@ -28,7 +28,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 const formSchema = z.object({
   newOwnerEmail: z.string().email(),
 });
-export function TransferOwnershipButton(props: { projectId: string }) {
+export function TransferOrganizationButton(props: { projectId: string }) {
   const utils = api.useUtils();
   const router = useRouter();
   const capture = usePostHogClientCapture();
