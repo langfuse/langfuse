@@ -183,7 +183,7 @@ export function AnnotateButton({
   if (!hasAccess && variant === "badge") return null;
 
   function handleOnCheckedChange(values: string[], changedValue?: string) {
-    if (values.length === 0) replace([]);
+    if (values.length === 0) replace(fields.filter(({ scoreId }) => !!scoreId));
     if (!changedValue) return;
 
     const configToChange = configs.find(({ name }) => name === changedValue);
@@ -347,6 +347,8 @@ export function AnnotateButton({
             <div className="grid grid-flow-col items-center">
               <MultiSelect
                 title="Value"
+                align="end"
+                items="empty scores"
                 className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
                 onValueChange={handleOnCheckedChange}
                 options={configs.map((config) => ({

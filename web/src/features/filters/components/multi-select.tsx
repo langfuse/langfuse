@@ -28,6 +28,8 @@ export function MultiSelect({
   options,
   className,
   disabled,
+  align = "center",
+  items = "filters",
 }: {
   title?: string;
   values: string[];
@@ -35,6 +37,8 @@ export function MultiSelect({
   options: FilterOption[] | readonly FilterOption[];
   className?: string;
   disabled?: boolean;
+  align?: "center" | "end" | "start";
+  items?: string;
 }) {
   const selectedValues = new Set(values);
 
@@ -86,7 +90,7 @@ export function MultiSelect({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="center">
+      <PopoverContent className="w-[200px]  p-0" align={align}>
         <Command>
           <CommandInput placeholder={title} />
           <CommandList>
@@ -140,7 +144,7 @@ export function MultiSelect({
                     onSelect={() => onValueChange([])}
                     className="justify-center text-center"
                   >
-                    Clear filters
+                    Clear {items}
                   </CommandItem>
                 </CommandGroup>
               </>
