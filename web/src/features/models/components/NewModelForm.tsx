@@ -28,6 +28,7 @@ import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { JsonEditor } from "@/src/components/json-editor";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import Link from "next/link";
 
 const formSchema = z.object({
   modelName: z.string().min(1),
@@ -255,11 +256,33 @@ export const NewModelForm = (props: {
             name="inputPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Input price (USD)</FormLabel>
+                <FormLabel>
+                  Input price (USD per{" "}
+                  {form.getValues("unit").toLowerCase().replace(/s$/, "")})
+                </FormLabel>
                 <FormControl>
                   <Input {...field} type="number" />
                 </FormControl>
-                <FormDescription>Cost per input unit.</FormDescription>
+                {field.value !== null && field.value !== "" ? (
+                  <FormDescription>
+                    <ul className="font-mono text-xs">
+                      <li>
+                        {(parseFloat(field.value ?? "0") * 1000).toFixed(4)} USD
+                        / 1k {form.getValues("unit").toLowerCase()}
+                      </li>
+                      <li>
+                        {(parseFloat(field.value ?? "0") * 100_000).toFixed(4)}{" "}
+                        USD / 100k {form.getValues("unit").toLowerCase()}
+                      </li>
+                      <li>
+                        {(parseFloat(field.value ?? "0") * 1_000_000).toFixed(
+                          4,
+                        )}{" "}
+                        USD / 1M {form.getValues("unit").toLowerCase()}
+                      </li>
+                    </ul>
+                  </FormDescription>
+                ) : null}
                 <FormMessage />
               </FormItem>
             )}
@@ -269,11 +292,33 @@ export const NewModelForm = (props: {
             name="outputPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Output price (USD)</FormLabel>
+                <FormLabel>
+                  Output price (USD per{" "}
+                  {form.getValues("unit").toLowerCase().replace(/s$/, "")})
+                </FormLabel>
                 <FormControl>
                   <Input {...field} type="number" />
                 </FormControl>
-                <FormDescription>Cost per output unit.</FormDescription>
+                {field.value !== null && field.value !== "" ? (
+                  <FormDescription>
+                    <ul className="font-mono text-xs">
+                      <li>
+                        {(parseFloat(field.value ?? "0") * 1000).toFixed(4)} USD
+                        / 1k {form.getValues("unit").toLowerCase()}
+                      </li>
+                      <li>
+                        {(parseFloat(field.value ?? "0") * 100_000).toFixed(4)}{" "}
+                        USD / 100k {form.getValues("unit").toLowerCase()}
+                      </li>
+                      <li>
+                        {(parseFloat(field.value ?? "0") * 1_000_000).toFixed(
+                          4,
+                        )}{" "}
+                        USD / 1M {form.getValues("unit").toLowerCase()}
+                      </li>
+                    </ul>
+                  </FormDescription>
+                ) : null}
                 <FormMessage />
               </FormItem>
             )}
@@ -283,12 +328,34 @@ export const NewModelForm = (props: {
             name="totalPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Total price (USD)</FormLabel>
+                <FormLabel>
+                  Total price (USD per{" "}
+                  {form.getValues("unit").toLowerCase().replace(/s$/, "")})
+                </FormLabel>
                 <FormControl>
                   <Input {...field} type="number" />
                 </FormControl>
                 <FormDescription>
-                  Cost per unit, if no separate input/output prices.
+                  {field.value !== null && field.value !== "" ? (
+                    <ul className="mt-2 font-mono text-xs">
+                      <li>
+                        {(parseFloat(field.value ?? "0") * 1000).toFixed(4)} USD
+                        / 1k {form.getValues("unit").toLowerCase()}
+                      </li>
+                      <li>
+                        {(parseFloat(field.value ?? "0") * 100_000).toFixed(4)}{" "}
+                        USD / 100k {form.getValues("unit").toLowerCase()}
+                      </li>
+                      <li>
+                        {(parseFloat(field.value ?? "0") * 1_000_000).toFixed(
+                          4,
+                        )}{" "}
+                        USD / 1M {form.getValues("unit").toLowerCase()}
+                      </li>
+                    </ul>
+                  ) : (
+                    "Enter total price only if no separate input and output prices are provided."
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -328,7 +395,15 @@ export const NewModelForm = (props: {
                 Optionally, Langfuse can tokenize the input and output of a
                 generation if no unit counts are ingested. This is useful for
                 e.g. streamed OpenAI completions. For details on the supported
-                tokenizers, see the docs.
+                tokenizers, see the{" "}
+                <Link
+                  href="https://langfuse.com/docs/model-usage-and-cost"
+                  className="underline"
+                  target="_blank"
+                >
+                  docs
+                </Link>
+                .
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -346,8 +421,15 @@ export const NewModelForm = (props: {
                   onChange={field.onChange}
                 />
                 <FormDescription>
-                  The config for the tokenizer. Required for openai. See the
-                  docs for details.
+                  The config for the tokenizer. Required for openai. See the{" "}
+                  <Link
+                    href="https://langfuse.com/docs/model-usage-and-cost"
+                    className="underline"
+                    target="_blank"
+                  >
+                    docs
+                  </Link>{" "}
+                  for details.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
