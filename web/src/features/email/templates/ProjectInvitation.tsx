@@ -79,7 +79,7 @@ export const ProjectInvitationTemplate = ({
                 Accept Invitation
               </Button>
               <Text className="mt-2 text-xs leading-3 text-muted-foreground">
-                (you need to create an account wth this email address)
+                (you need to create an account with this email address)
               </Text>
             </Section>
             <Text className="text-sm leading-6 text-black">

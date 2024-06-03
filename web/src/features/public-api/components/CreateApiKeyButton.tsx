@@ -97,7 +97,7 @@ export const ApiKeyRender = ({
         <div className="text-md font-semibold">Secret Key</div>
         <div className="my-2">
           This key can only be viewed once. You can always generate a new key in
-          the proejct settings.
+          the project settings.
         </div>
         <CodeView content={generatedKeys?.secretKey ?? "Loading ..."} />
       </div>
