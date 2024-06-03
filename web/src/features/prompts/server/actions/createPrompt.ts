@@ -68,7 +68,10 @@ export const createPrompt = async ({
       })),
     );
 
-  if (tags && finalTags.length > 0)
+  const haveTagsChanged =
+    JSON.stringify([...new Set(finalTags)].sort()) !==
+    JSON.stringify([...new Set(latestPrompt?.tags)].sort());
+  if (haveTagsChanged)
     // If we're creating a new prompt with tags, we must update those tags on previous prompts since tags are consistent across versions
     create.push(
       ...(await updatePromptTagsOnAllVersions({

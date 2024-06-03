@@ -729,6 +729,21 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(fetchedPrompt2.version).toBe(2);
       expect(fetchedPrompt3.tags).toEqual(["tag1", "tag2", "tag3"]);
       expect(fetchedPrompt3.version).toBe(3);
+
+      // remove tags
+      await createPromptVersion([]);
+      fetchedPrompt1 = await fetchPromptVersion(1);
+      fetchedPrompt2 = await fetchPromptVersion(2);
+      fetchedPrompt3 = await fetchPromptVersion(3);
+      let fetchedPrompt4 = await fetchPromptVersion(4);
+      expect(fetchedPrompt1.tags).toEqual([]);
+      expect(fetchedPrompt1.version).toBe(1);
+      expect(fetchedPrompt2.tags).toEqual([]);
+      expect(fetchedPrompt2.version).toBe(2);
+      expect(fetchedPrompt3.tags).toEqual([]);
+      expect(fetchedPrompt3.version).toBe(3);
+      expect(fetchedPrompt4.tags).toEqual([]);
+      expect(fetchedPrompt4.version).toBe(4);
     });
   });
 
