@@ -27,6 +27,7 @@ import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
 import {
   Popover,
+  PopoverClose,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
@@ -423,79 +424,82 @@ export function AnnotateButton({
                                     control={form.control}
                                     name={`scoreData.${index}.comment`}
                                     render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>
+                                      <FormItem className="space-y-4">
+                                        <FormLabel className="text-sm">
                                           Comment (optional)
                                         </FormLabel>
-                                        {field.value !== score.comment && (
-                                          <HoverCard>
-                                            <HoverCardTrigger asChild>
-                                              <span className="ml-1 mr-2 rounded-sm bg-input p-1 text-xs">
-                                                Draft
-                                              </span>
-                                            </HoverCardTrigger>
-                                            <HoverCardContent side="top">
-                                              {!!score.comment && (
-                                                <div className="mb-4 max-w-48 rounded border bg-background p-2 shadow-sm">
-                                                  <p className="text-xs">
-                                                    Saved comment:{" "}
-                                                    {score.comment}
-                                                  </p>
-                                                </div>
-                                              )}
-                                            </HoverCardContent>
-                                          </HoverCard>
-                                        )}
+                                        {!!field.value &&
+                                          field.value !== score.comment && (
+                                            <HoverCard>
+                                              <HoverCardTrigger asChild>
+                                                <span className="ml-2 mr-2 rounded-sm bg-input p-1 text-xs">
+                                                  Draft
+                                                </span>
+                                              </HoverCardTrigger>
+                                              <HoverCardContent side="top">
+                                                {!!score.comment && (
+                                                  <div className="mb-4 max-w-48 rounded border bg-background p-2 shadow-sm">
+                                                    <p className="text-xs">
+                                                      Saved comment:{" "}
+                                                      {score.comment}
+                                                    </p>
+                                                  </div>
+                                                )}
+                                              </HoverCardContent>
+                                            </HoverCard>
+                                          )}
                                         <FormControl>
                                           <>
                                             <Textarea
                                               {...field}
+                                              className="text-xs"
                                               value={field.value || ""}
                                             />
-                                            <div className="mt-2 flex justify-end">
-                                              {field.value !==
-                                                score.comment && (
-                                                <div className="grid w-full grid-cols-[1fr,1fr] gap-2">
+                                            {field.value !== score.comment && (
+                                              <div className="grid w-full grid-cols-[1fr,1fr] gap-2">
+                                                <Button
+                                                  variant="secondary"
+                                                  type="button"
+                                                  size="sm"
+                                                  className="text-xs"
+                                                  disabled={!field.value}
+                                                  loading={
+                                                    mutUpdateScores.isLoading
+                                                  }
+                                                  onClick={handleCommentUpdate({
+                                                    field,
+                                                    score,
+                                                    comment: field.value,
+                                                  })}
+                                                >
+                                                  Save
+                                                </Button>
+                                                <PopoverClose asChild>
                                                   <Button
                                                     variant="secondary"
                                                     type="button"
+                                                    size="sm"
+                                                    className="text-xs"
                                                     disabled={!field.value}
-                                                    loading={
-                                                      mutUpdateScores.isLoading
-                                                    }
-                                                    onClick={handleCommentUpdate(
-                                                      {
-                                                        field,
-                                                        score,
-                                                        comment: field.value,
-                                                      },
-                                                    )}
-                                                  >
-                                                    Save
-                                                  </Button>
-                                                  <Button
-                                                    variant="secondary"
-                                                    type="button"
-                                                    disabled={!field.value}
-                                                    loading={
-                                                      mutUpdateScores.isLoading
-                                                    }
-                                                    onClick={() =>
+                                                    onClick={() => {
                                                       form.setValue(
                                                         `scoreData.${index}.comment`,
                                                         score.comment ?? "",
-                                                      )
-                                                    }
+                                                      );
+                                                    }}
                                                   >
                                                     Discard
                                                   </Button>
-                                                </div>
-                                              )}
-                                              {field.value ===
-                                                score.comment && (
+                                                </PopoverClose>
+                                              </div>
+                                            )}
+                                            {field.value === score.comment && (
+                                              <div className="flex justify-end">
                                                 <Button
                                                   variant="destructive"
                                                   type="button"
+                                                  size="sm"
+                                                  className="text-xs"
                                                   disabled={
                                                     !field.value ||
                                                     !score.comment
@@ -511,8 +515,8 @@ export function AnnotateButton({
                                                 >
                                                   Delete
                                                 </Button>
-                                              )}
-                                            </div>
+                                              </div>
+                                            )}
                                           </>
                                         </FormControl>
                                         <FormMessage className="text-xs" />
