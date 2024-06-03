@@ -50,6 +50,7 @@ interface DataTableProps<TData, TValue> {
   help?: { description: string; href: string };
   rowHeight?: RowHeight;
   className?: string;
+  isBorderless?: boolean;
 }
 
 export interface AsyncTableData<T> {
@@ -71,6 +72,8 @@ export function DataTable<TData extends object, TValue>({
   orderBy,
   setOrderBy,
   rowHeight,
+  className,
+  isBorderless = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
@@ -105,8 +108,18 @@ export function DataTable<TData extends object, TValue>({
 
   return (
     <>
-      <div className="flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto">
-        <div className="w-full overflow-auto rounded-md border">
+      <div
+        className={cn(
+          "flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto",
+          className,
+        )}
+      >
+        <div
+          className={cn(
+            "w-full overflow-auto",
+            isBorderless ? "" : "rounded-md border",
+          )}
+        >
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (

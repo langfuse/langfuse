@@ -29,11 +29,6 @@ type ScoreConfigTableRow = {
 };
 
 function ScoreConfigsTable({ projectId }: { projectId: string }) {
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
-  });
-
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "scoreConfigs",
     "s",
@@ -41,11 +36,7 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
 
   const configs = api.scoreConfigs.all.useQuery({
     projectId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
   });
-
-  const totalCount = configs.data?.totalCount ?? 0;
 
   const columns: LangfuseColumnDef<ScoreConfigTableRow>[] = [
     {
@@ -124,44 +115,43 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
-      <DataTable
-        columns={columns}
-        data={
-          configs.isLoading
-            ? { isLoading: true, isError: false }
-            : configs.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: configs.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: configs.data?.configs.map((config) => ({
-                    id: config.id,
-                    name: config.name,
-                    dataType: config.dataType,
-                    description: config.description,
-                    createdAt: config.createdAt.toLocaleString(),
-                    updatedAt: config.updatedAt.toLocaleString(),
-                    range: {
-                      maxValue: config.maxValue,
-                      minValue: config.minValue,
-                      categories: config.categories,
-                    },
-                  })),
-                }
-        }
-        pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        rowHeight={rowHeight}
-      />
+      <Card className="mb-4 flex max-h-[calc(100dvh-40rem)] flex-col overflow-hidden">
+        <DataTable
+          columns={columns}
+          data={
+            configs.isLoading
+              ? { isLoading: true, isError: false }
+              : configs.isError
+                ? {
+                    isLoading: false,
+                    isError: true,
+                    error: configs.error.message,
+                  }
+                : {
+                    isLoading: false,
+                    isError: false,
+                    data: configs.data?.configs.map((config) => ({
+                      id: config.id,
+                      name: config.name,
+                      dataType: config.dataType,
+                      description: config.description,
+                      createdAt: config.createdAt.toLocaleString(),
+                      updatedAt: config.updatedAt.toLocaleString(),
+                      range: {
+                        maxValue: config.maxValue,
+                        minValue: config.minValue,
+                        categories: config.categories,
+                      },
+                    })),
+                  }
+          }
+          columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
+          rowHeight={rowHeight}
+          className="gap-0"
+          isBorderless
+        />
+      </Card>
     </>
   );
 }
@@ -178,17 +168,13 @@ export function ScoreConfigs({ projectId }: { projectId: string }) {
   return (
     <div>
       <Header title="Score Configs" level="h3" />
-      <Card className="flex max-h-[calc(100dvh-40rem)] flex-col overflow-hidden p-4">
-        <div className="grid grid-cols-2 items-center justify-between">
-          <Header title="Configs" />
-          <CreateScoreConfigButton projectId={projectId} />
-        </div>
-        <span className="text-sm">
-          Score configs define which scores are available for annotation in your
-          project. Please note that all score configs are immutable.
-        </span>
-        <ScoreConfigsTable projectId={projectId} />
-      </Card>
+      <span className="mb-4 flex text-sm">
+        Score configs define which scores are available for annotation in your
+        project. Please note that all score configs are immutable.
+      </span>
+
+      <ScoreConfigsTable projectId={projectId} />
+      <CreateScoreConfigButton projectId={projectId} />
     </div>
   );
 }

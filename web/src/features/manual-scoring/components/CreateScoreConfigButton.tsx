@@ -111,7 +111,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="grid justify-items-end">
+    <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button variant="secondary" loading={createScoreConfig.isLoading}>
@@ -353,7 +353,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
           </Form>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 

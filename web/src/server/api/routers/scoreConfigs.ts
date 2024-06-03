@@ -3,17 +3,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { optionalPaginationZod } from "@/src/utils/zod";
 
 import { ScoreDataType } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
 const ScoreConfigFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-});
-
-const ScoreConfigAllOptions = ScoreConfigFilterOptions.extend({
-  ...optionalPaginationZod,
 });
 
 const category = z.object({
@@ -23,7 +18,7 @@ const category = z.object({
 
 export const scoreConfigsRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(ScoreConfigAllOptions)
+    .input(ScoreConfigFilterOptions)
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -39,9 +34,6 @@ export const scoreConfigsRouter = createTRPCRouter({
           orderBy: {
             createdAt: "desc",
           },
-          ...(input.limit !== undefined && input.page !== undefined
-            ? { take: input.limit, skip: input.page * input.limit }
-            : undefined),
         });
 
         const configsCount = await ctx.prisma.scoreConfig.count({
