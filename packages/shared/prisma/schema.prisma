@@ -532,6 +532,7 @@ model DatasetItem {
     updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
     datasetRunItems     DatasetRunItems[]
 
+    @@index([sourceTraceId], type: Hash)
     @@index([sourceObservationId], type: Hash)
     @@index([datasetId], type: Hash)
     @@index([createdAt])
