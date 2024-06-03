@@ -136,7 +136,11 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        {...field}
+                        type="text"
+                        onBlur={(e) => field.onChange(e.target.value.trimEnd())}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -223,9 +227,6 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                     name="categories"
                     render={() => (
                       <>
-                        <FormControl>
-                          Here will some variable mapping be added.
-                        </FormControl>
                         {fields.length > 0 && (
                           <div className="mb-2 grid grid-cols-[1fr,3fr] items-center gap-2 text-left sm:grid-cols-[1fr,7fr]">
                             <FormLabel className="grid grid-flow-col">
@@ -273,6 +274,12 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                                     <FormControl>
                                       <Input
                                         {...field}
+                                        type="text"
+                                        onBlur={(e) =>
+                                          field.onChange(
+                                            e.target.value.trimEnd(),
+                                          )
+                                        }
                                         readOnly={isBooleanDataType(
                                           form.getValues("dataType"),
                                         )}

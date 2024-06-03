@@ -1,7 +1,7 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import React, { useState } from "react";
+import React from "react";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, MessageCircle, MessageCircleMore, X } from "lucide-react";
+import { LockIcon, MessageCircleMore, MessageCircle, X } from "lucide-react";
 import {
   type ControllerRenderProps,
   useFieldArray,
@@ -16,7 +16,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import Link from "next/link";
 import {
   Drawer,
   DrawerContent,
@@ -26,14 +25,12 @@ import {
 import { ScoreDataType, type Score, type ScoreConfig } from "@langfuse/shared";
 import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
-import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { api } from "@/src/utils/api";
-import { type CheckedState } from "@radix-ui/react-checkbox";
 import {
   Select,
   SelectContent,
@@ -42,13 +39,11 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
-import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { ScoreConfigDetails } from "@/src/features/manual-scoring/components/ScoreConfigDetails";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
-  isCategorical,
   isNumeric,
   isPresent,
   isScoreUnsaved,
@@ -56,7 +51,7 @@ import {
 import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaultScoreData";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import Header from "@/src/components/layouts/header";
-import { cn } from "@/src/utils/tailwind";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -94,8 +89,6 @@ export function AnnotateButton({
   projectId: string;
   variant?: "button" | "badge";
 }) {
-  const [isConfigPopoverOpen, setIsConfigPopoverOpen] = useState(false);
-
   const hasAccess = useHasAccess({
     projectId,
     scope: "scores:CUD",
@@ -112,7 +105,7 @@ export function AnnotateButton({
     },
   });
 
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, remove, update, replace } = useFieldArray({
     control: form.control,
     name: "scoreData",
   });
@@ -189,15 +182,25 @@ export function AnnotateButton({
 
   if (!hasAccess && variant === "badge") return null;
 
-  function handleOnCheckedChange(config: ScoreConfig, value: CheckedState) {
-    const index = fields.findIndex((field) => field.configId === config.id);
+  function handleOnCheckedChange(values: string[], changedValue?: string) {
+    if (values.length === 0) replace([]);
+    if (!changedValue) return;
 
-    value
-      ? append({
-          name: config.name,
-          dataType: config.dataType,
-          configId: config.id,
-        })
+    const configToChange = configs.find(({ name }) => name === changedValue);
+    if (!configToChange) return;
+    const { id, name, dataType } = configToChange;
+
+    const index = fields.findIndex(({ configId }) => configId === id);
+
+    index === -1
+      ? replace([
+          ...fields,
+          {
+            name,
+            dataType,
+            configId: id,
+          },
+        ])
       : remove(index);
   }
 
@@ -319,7 +322,7 @@ export function AnnotateButton({
   }
 
   return (
-    <Drawer onClose={() => setIsConfigPopoverOpen(false)}>
+    <Drawer>
       <DrawerTrigger asChild>
         {variant === "button" ? (
           <Button variant="secondary" disabled={!hasAccess}>
@@ -342,64 +345,18 @@ export function AnnotateButton({
               }}
             ></Header>
             <div className="grid grid-flow-col items-center">
-              <Popover open={isConfigPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="secondary"
-                    disabled={!hasAccess}
-                    onClick={() => setIsConfigPopoverOpen(true)}
-                    className="ml-2"
-                  >
-                    Score selection
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent>
-                  <ScrollArea>
-                    <div className="flex max-h-64 flex-col space-y-4">
-                      <div className="flex items-center justify-between">
-                        <>
-                          <Link
-                            className="inline-block
-       rounded bg-primary-accent/10 px-2 py-1 text-sm font-semibold text-accent-dark-blue shadow-sm hover:bg-accent-light-blue/45"
-                            href={`/project/${projectId}/settings`}
-                          >
-                            Add new config in settings
-                          </Link>
-                          <Button
-                            onClick={() => setIsConfigPopoverOpen(false)}
-                            variant="ghost"
-                            size="icon"
-                            className="mr-2 flex w-fit"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </>
-                      </div>
-                      <div className="flex border" />
-                      {configs.map((config) => (
-                        <div
-                          className="grid grid-cols-[auto,1fr] items-center gap-2 text-left text-sm"
-                          key={config.id}
-                        >
-                          <Checkbox
-                            checked={fields.some(
-                              ({ configId }) => configId === config.id,
-                            )}
-                            disabled={fields.some(
-                              ({ value, configId }) =>
-                                isPresent(value) && configId === config.id,
-                            )}
-                            onCheckedChange={(value) =>
-                              handleOnCheckedChange(config, value)
-                            }
-                          />
-                          <span>{config.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </PopoverContent>
-              </Popover>
+              <MultiSelect
+                title="Value"
+                className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
+                onValueChange={handleOnCheckedChange}
+                options={configs.map((config) => ({
+                  value: config.name,
+                  disabled: fields.some(
+                    (field) => !!field.scoreId && field.configId === config.id,
+                  ),
+                }))}
+                values={fields.map((field) => field.name)}
+              />
             </div>
           </DrawerHeader>
           <Form {...form}>
@@ -422,13 +379,12 @@ export function AnnotateButton({
                             className="grid w-full grid-cols-[1fr,2fr] items-center gap-8 text-left"
                           >
                             <div className="grid h-full grid-cols-[1fr,auto] items-center gap-1">
-                              {config.description ? (
+                              {config.description ||
+                              config.maxValue ||
+                              config.minValue ? (
                                 <HoverCard>
                                   <HoverCardTrigger asChild>
-                                    <span
-                                      className="line-clamp-2 text-wrap break-words text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-4"
-                                      title={score.name}
-                                    >
+                                    <span className="line-clamp-2 text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-2">
                                       {score.name}
                                     </span>
                                   </HoverCardTrigger>
@@ -438,7 +394,7 @@ export function AnnotateButton({
                                 </HoverCard>
                               ) : (
                                 <span
-                                  className="line-clamp-2 text-wrap break-words text-xs font-medium"
+                                  className="line-clamp-2 text-xs font-medium"
                                   title={score.name}
                                 >
                                   {score.name}
@@ -450,7 +406,7 @@ export function AnnotateButton({
                                     variant="ghost"
                                     type="button"
                                     size="xs"
-                                    className="h-full items-start px-0"
+                                    className="h-full items-start px-0 disabled:text-primary/50 disabled:opacity-100"
                                     disabled={isScoreUnsaved(score.scoreId)}
                                   >
                                     {score.comment ? (
@@ -557,7 +513,7 @@ export function AnnotateButton({
                                             </div>
                                           </>
                                         </FormControl>
-                                        <FormMessage />
+                                        <FormMessage className="text-xs" />
                                       </FormItem>
                                     )}
                                   />
@@ -653,7 +609,7 @@ export function AnnotateButton({
                                         </ToggleGroup>
                                       )}
                                     </FormControl>
-                                    <FormMessage />
+                                    <FormMessage className="text-xs" />
                                   </FormItem>
                                 )}
                               />
@@ -664,11 +620,15 @@ export function AnnotateButton({
                                 disabled={isScoreUnsaved(score.scoreId)}
                                 loading={mutDeleteScore.isLoading}
                                 onClick={async () => {
-                                  if (score.scoreId)
+                                  if (score.scoreId) {
                                     await mutDeleteScore.mutateAsync({
                                       id: score.scoreId,
                                       projectId,
                                     });
+                                    form.clearErrors(
+                                      `scoreData.${index}.value`,
+                                    );
+                                  }
                                 }}
                               >
                                 <X className="h-4 w-4" />

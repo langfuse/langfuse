@@ -31,7 +31,7 @@ export function MultiSelect({
 }: {
   title?: string;
   values: string[];
-  onValueChange: (values: string[]) => void;
+  onValueChange: (values: string[], changedValue?: string) => void;
   options: FilterOption[] | readonly FilterOption[];
   className?: string;
   disabled?: boolean;
@@ -97,16 +97,19 @@ export function MultiSelect({
                 return (
                   <CommandItem
                     key={option.value}
-                    onSelect={() => {
+                    onSelect={(value) => {
                       if (isSelected) {
                         selectedValues.delete(option.value);
                       } else {
                         selectedValues.add(option.value);
                       }
                       const filterValues = Array.from(selectedValues);
-
-                      onValueChange(filterValues.length ? filterValues : []);
+                      onValueChange(
+                        filterValues.length ? filterValues : [],
+                        value,
+                      );
                     }}
+                    disabled={option.disabled}
                   >
                     <div
                       className={cn(
@@ -114,6 +117,7 @@ export function MultiSelect({
                         isSelected
                           ? "bg-primary text-primary-foreground"
                           : "opacity-50 [&_svg]:invisible",
+                        option.disabled ? "opacity-50" : null,
                       )}
                     >
                       <Check className={cn("h-4 w-4")} />
