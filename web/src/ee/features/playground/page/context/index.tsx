@@ -7,15 +7,14 @@ import React, {
   useState,
 } from "react";
 
-import { StringParam, useQueryParam } from "use-query-params";
 import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import useCommandEnter from "@/src/ee/features/playground/page/hooks/useCommandEnter";
-import { ChatMessageListSchema } from "@/src/features/prompts/components/NewPromptForm/validation";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
+import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
+import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
 import {
   ChatMessageRole,
@@ -38,7 +37,6 @@ type PlaygroundContextType = {
 
   handleSubmit: () => Promise<void>;
   isStreaming: boolean;
-  isInitializing: boolean;
 } & ModelParamsContext &
   MessagesContext;
 
@@ -59,8 +57,9 @@ export const usePlaygroundContext = () => {
 export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
+  const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const [initialPromptId] = useQueryParam("promptId", StringParam);
+  const { playgroundCache, setPlaygroundCache } = usePlaygroundCache();
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
   const [outputJson, setOutputJson] = useState("");
@@ -73,39 +72,36 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     getDefaultModelParams(ModelProvider.OpenAI),
   );
 
-  const { data: initialPrompt, isInitialLoading } = api.prompts.byId.useQuery(
-    {
-      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      id: initialPromptId ?? "",
-    },
-    { enabled: Boolean(initialPromptId && projectId), staleTime: Infinity }, // do not refetch as this would overwrite the user's input
-  );
-
+  // Load state from cache
   useEffect(() => {
-    if (!initialPrompt) return;
-    if (initialPrompt.type === PromptType.Chat) {
-      try {
-        const initialMessages = ChatMessageListSchema.parse(
-          initialPrompt.prompt,
-        );
-        setMessages(initialMessages.map((m) => ({ ...m, id: uuidv4() })));
-      } catch (err) {
-        console.warn("Failed to parse initial chat messages", err);
-      }
-    } else {
-      const promptString = initialPrompt.prompt?.valueOf();
-      setMessages([
-        createEmptyMessage(
-          ChatMessageRole.System,
-          typeof promptString === "string" ? promptString : "",
-        ),
-      ]);
+    if (!playgroundCache) return;
+
+    const {
+      messages: cachedMessages,
+      modelParams: cachedModelParams,
+      output: cachedOutput,
+      promptVariables: cachedPromptVariables,
+    } = playgroundCache;
+
+    setMessages(cachedMessages.map((m) => ({ ...m, id: uuidv4() })));
+
+    if (cachedOutput) {
+      setOutput(cachedOutput);
+      setOutputJson("");
     }
-  }, [initialPrompt]);
+
+    if (cachedModelParams) {
+      setModelParams((prev) => ({ ...prev, ...cachedModelParams }));
+    }
+
+    if (cachedPromptVariables) {
+      setPromptVariables(cachedPromptVariables);
+    }
+  }, [playgroundCache]);
 
   useEffect(() => {
-    setModelParams(getDefaultModelParams(modelParams.provider));
-  }, [modelParams.provider]);
+    setModelParams(getDefaultModelParams(modelParams.provider.value));
+  }, [modelParams.provider.value]);
 
   const updatePromptVariables = useCallback(() => {
     const messageContents = messages.map((m) => m.content).join("\n");
@@ -178,6 +174,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         }
 
         const completionStream = getChatCompletionStream(
+          projectId,
           finalMessages,
           modelParams,
         );
@@ -188,6 +185,18 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           setOutput(response);
         }
         setOutputJson(getOutputJson(response, finalMessages, modelParams));
+        setPlaygroundCache({
+          messages,
+          modelParams,
+          output: response,
+          promptVariables,
+        });
+        capture("playground:execute_button_click", {
+          inputLength: finalMessages.length,
+          modelName: modelParams.model,
+          modelProvider: modelParams.provider,
+          outputLength: response.length,
+        });
       } catch (err) {
         console.error(err);
 
@@ -196,15 +205,27 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       } finally {
         setIsStreaming(false);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messages, modelParams, promptVariables]);
 
   useCommandEnter(!isStreaming, handleSubmit);
 
-  const updateModelParam: PlaygroundContextType["updateModelParam"] = (
+  const updateModelParamValue: PlaygroundContextType["updateModelParamValue"] =
+    (key, value) => {
+      setModelParams((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], value },
+      }));
+    };
+
+  const setModelParamEnabled: PlaygroundContextType["setModelParamEnabled"] = (
     key,
-    value,
+    enabled,
   ) => {
-    setModelParams((prev) => ({ ...prev, [key]: value }));
+    setModelParams((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], enabled },
+    }));
   };
 
   const updatePromptVariableValue = (variable: string, value: string) => {
@@ -230,13 +251,13 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         deleteMessage,
 
         modelParams,
-        updateModelParam,
+        updateModelParamValue,
+        setModelParamEnabled,
 
         output,
         outputJson,
         handleSubmit,
         isStreaming,
-        isInitializing: isInitialLoading,
       }}
     >
       {children}
@@ -245,10 +266,20 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 };
 
 async function* getChatCompletionStream(
+  projectId: string | undefined,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
 ) {
-  const body = JSON.stringify({ messages, modelParams });
+  if (!projectId) {
+    console.error("Project ID is not set");
+    return;
+  }
+
+  const body = JSON.stringify({
+    projectId,
+    messages,
+    modelParams: getFinalModelParams(modelParams),
+  });
   const result = await fetch("/api/chatCompletion", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -316,23 +347,29 @@ function getDefaultModelParams(provider: ModelProvider): UIModelParams {
     // Docs: https://platform.openai.com/docs/api-reference/chat/create
     case ModelProvider.OpenAI:
       return {
-        provider,
-        model: "gpt-3.5-turbo",
-        temperature: 1,
-        maxTemperature: 2,
-        max_tokens: 256,
-        top_p: 1,
+        provider: {
+          value: provider,
+          enabled: true,
+        },
+        model: { value: "gpt-3.5-turbo", enabled: true },
+        temperature: { value: 1, enabled: true },
+        maxTemperature: { value: 2, enabled: true },
+        max_tokens: { value: 256, enabled: true },
+        top_p: { value: 1, enabled: true },
       };
 
     // Docs: https://docs.anthropic.com/claude/reference/messages_post
     case ModelProvider.Anthropic:
       return {
-        provider,
-        model: "claude-3-opus-20240229",
-        temperature: 0,
-        maxTemperature: 1,
-        max_tokens: 256,
-        top_p: 1,
+        provider: {
+          value: provider,
+          enabled: true,
+        },
+        model: { value: "claude-3-opus-20240229", enabled: true },
+        temperature: { value: 0, enabled: true },
+        maxTemperature: { value: 1, enabled: true },
+        max_tokens: { value: 256, enabled: true },
+        top_p: { value: 1, enabled: true },
       };
   }
 }
@@ -344,9 +381,9 @@ function getOutputJson(
 ) {
   return JSON.stringify(
     {
-      output,
       input: messages.map((obj) => filterKeyFromObject(obj, "id")),
-      model: filterKeyFromObject(modelParams, "maxTemperature"),
+      output,
+      model: getFinalModelParams(modelParams),
     },
     null,
     2,

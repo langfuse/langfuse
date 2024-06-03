@@ -8,6 +8,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function Dataset() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function Dataset() {
   });
 
   return (
-    <div>
+    <FullScreenPage>
       <Header
         title={dataset.data?.name ?? ""}
         breadcrumb={[
@@ -86,13 +87,13 @@ export default function Dataset() {
         }
       />
 
-      <p className="mt-3 text-xs text-gray-600">
+      <p className="mt-3 text-xs text-muted-foreground">
         Add new runs via Python or JS/TS SDKs. See{" "}
         <a href="https://langfuse.com/docs/datasets" className="underline">
           documentation
         </a>{" "}
         for details.
       </p>
-    </div>
+    </FullScreenPage>
   );
 }

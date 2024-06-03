@@ -49,6 +49,15 @@ export const paginationZod = {
   ),
 };
 
+export const optionalPaginationZod = {
+  page: z
+    .preprocess((x) => (x === "" ? undefined : x), z.coerce.number())
+    .optional(),
+  limit: z
+    .preprocess((x) => (x === "" ? undefined : x), z.coerce.number())
+    .optional(),
+};
+
 export const noHtmlRegex = /<[^>]*>/;
 export const noHtmlCheck = (value: string) => !noHtmlRegex.test(value);
 

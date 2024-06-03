@@ -1,4 +1,4 @@
-import { expect, test, describe, vi } from "vitest";
+import { expect, test, describe, vi, afterAll, beforeAll } from "vitest";
 import {
   createEvalJobs,
   evaluate,
@@ -11,6 +11,8 @@ import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
 import { LangfuseNotFoundError, variableMappingList } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+import { OpenAIServer } from "./network";
+import { afterEach } from "node:test";
 
 vi.mock("../redis/consumer", () => ({
   evalQueue: {
@@ -26,6 +28,20 @@ vi.mock("../redis/consumer", () => ({
     }),
   },
 }));
+
+let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const hasActiveKey = Boolean(OPENAI_API_KEY);
+if (!hasActiveKey) {
+  OPENAI_API_KEY = "sk-test_not_used_as_network_mocks_are_activated";
+}
+const openAIServer = new OpenAIServer({
+  hasActiveKey,
+  useDefaultResponse: false,
+});
+
+beforeAll(openAIServer.setup);
+afterEach(openAIServer.reset);
+afterAll(openAIServer.teardown);
 
 describe("create eval jobs", () => {
   test("creates new eval job", async () => {
@@ -235,6 +251,7 @@ describe("create eval jobs", () => {
 describe("execute evals", () => {
   test("evals a valid event", async () => {
     await pruneDatabase();
+    openAIServer.respondWithDefault();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -307,7 +324,7 @@ describe("execute evals", () => {
       .values({
         id: randomUUID(),
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        secret_key: encrypt(String(process.env.OPENAI_API_KEY)),
+        secret_key: encrypt(String(OPENAI_API_KEY)),
         provider: "openai",
         display_secret_key: "123456",
       })
@@ -342,6 +359,7 @@ describe("execute evals", () => {
     expect(scores.length).toBe(1);
     expect(scores[0].trace_id).toBe(traceId);
     expect(scores[0].comment).not.toBeNull();
+    expect(scores[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   }, 10_000);
 
   test("fails to eval without llm api key", async () => {

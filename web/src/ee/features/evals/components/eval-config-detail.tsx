@@ -21,6 +21,7 @@ import {
 import { Label } from "@/src/components/ui/label";
 import TableLink from "@/src/components/table/table-link";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -122,8 +123,9 @@ export function DeactivateConfig({
   isLoading: boolean;
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "job:CUD" });
+  const hasAccess = useHasAccess({ projectId, scope: "evalJob:CUD" });
   const [isOpen, setIsOpen] = useState(false);
+  const capture = usePostHogClientCapture();
 
   const mutEvalConfig = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
@@ -141,6 +143,7 @@ export function DeactivateConfig({
       evalConfigId: config?.id ?? "",
       updatedStatus: "INACTIVE",
     });
+    capture("eval_config:delete");
     setIsOpen(false);
   };
 

@@ -18,12 +18,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { TrashIcon } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
 export function ApiKeyList(props: { projectId: string }) {
@@ -50,19 +50,19 @@ export function ApiKeyList(props: { projectId: string }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden text-gray-900 md:table-cell">
+              <TableHead className="hidden text-primary md:table-cell">
                 Created
               </TableHead>
-              {/* <TableHead className="text-gray-900">Note</TableHead> */}
-              <TableHead className="text-gray-900">Public Key</TableHead>
-              <TableHead className="text-gray-900">Secret Key</TableHead>
-              {/* <TableHead className="text-gray-900">Last used</TableHead> */}
+              {/* <TableHead className="text-primary">Note</TableHead> */}
+              <TableHead className="text-primary">Public Key</TableHead>
+              <TableHead className="text-primary">Secret Key</TableHead>
+              {/* <TableHead className="text-primary">Last used</TableHead> */}
               <TableHead />
             </TableRow>
           </TableHeader>
-          <TableBody className="text-gray-500">
+          <TableBody className="text-muted-foreground">
             {apiKeys.data?.map((apiKey) => (
-              <TableRow key={apiKey.id} className="hover:bg-transparent">
+              <TableRow key={apiKey.id} className="hover:bg-primary-foreground">
                 <TableCell className="hidden md:table-cell">
                   {apiKey.createdAt.toLocaleDateString()}
                 </TableCell>
@@ -97,7 +97,7 @@ export function ApiKeyList(props: { projectId: string }) {
 
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "apiKeys:delete",
@@ -136,7 +136,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
                   id: props.apiKeyId,
                 })
                 .then(() => {
-                  posthog.capture("project_settings:api_key_delete");
+                  capture("project_settings:api_key_delete");
                   setOpen(false);
                 })
                 .catch((error) => {

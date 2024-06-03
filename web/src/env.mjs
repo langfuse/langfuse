@@ -30,6 +30,14 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET: z.string().optional().refine((v) =>
+      v === undefined || !isNaN(Number.parseInt(v))
+      , {
+        message: "LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET must be a number when set"
+      }).transform((v) =>
+        v === undefined ? undefined : -Number.parseInt(v) // negative offset
+      ),
+    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES: z.enum(["true", "false"]).optional().default("false"),
     SALT: z.string({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
@@ -60,6 +68,10 @@ export const env = createEnv({
     AUTH_AUTH0_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTH0_ISSUER: z.string().url().optional(),
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_COGNITO_CLIENT_ID: z.string().optional(),
+    AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
+    AUTH_COGNITO_ISSUER: z.string().url().optional(),
+    AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
@@ -122,6 +134,10 @@ export const env = createEnv({
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET:
+      process.env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
+    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES:
+      process.env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_TEAM_BETTERSTACK_TOKEN:
       process.env.LANGFUSE_TEAM_BETTERSTACK_TOKEN,
@@ -157,6 +173,10 @@ export const env = createEnv({
     AUTH_AUTH0_ISSUER: process.env.AUTH_AUTH0_ISSUER,
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
+    AUTH_COGNITO_CLIENT_ID: process.env.AUTH_COGNITO_CLIENT_ID,
+    AUTH_COGNITO_CLIENT_SECRET: process.env.AUTH_COGNITO_CLIENT_SECRET,
+    AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
+    AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: process.env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,

@@ -27,7 +27,11 @@ export async function createUserEmailPassword(
     },
   });
   if (user !== null) {
-    throw new Error("User with email already exists. Please sign in.");
+    throw new Error(
+      user.password !== null
+        ? "User with email already exists. Please sign in."
+        : "You have already signed up via an identity provider. Please sign in.",
+    );
   }
 
   const newUser = await prisma.user.create({

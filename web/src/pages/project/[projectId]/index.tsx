@@ -23,7 +23,6 @@ import {
 } from "use-query-params";
 import { isValidOption } from "@/src/utils/types";
 import { api } from "@/src/utils/api";
-import { usePostHog } from "posthog-js/react";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { BarChart2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -34,6 +33,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type DashboardDateRange = {
   from: Date;
@@ -43,9 +43,11 @@ export type DashboardDateRange = {
 export default function Start() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   const session = useSession();
+  const disableExpensiveDashboardComponents =
+    session.data?.environment.disableExpensivePostgresQueries ?? true;
   const project = session.data?.user?.projects.find(
     (project) => project.id === projectId,
   );
@@ -74,7 +76,7 @@ export default function Start() {
     option?: AvailableDateRangeSelections,
     dateRange?: DashboardDateRange,
   ) => {
-    posthog.capture("dashboard:date_range_changed");
+    capture("dashboard:date_range_changed");
     setUrlParams({
       select: option ? option.toString() : urlParams.select,
       from: dateRange ? dateRange.from.getTime() : urlParams.from,
@@ -170,11 +172,11 @@ export default function Start() {
             id="date"
             variant={"outline"}
             className={
-              "group justify-start gap-x-3 text-left font-semibold text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
+              "hover:text-primary-accent group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground"
             }
           >
             <BarChart2
-              className="hidden h-6 w-6 shrink-0 text-gray-700 group-hover:text-indigo-600 lg:block"
+              className="group-hover:text-primary-accent hidden h-6 w-6 shrink-0 text-primary lg:block"
               aria-hidden="true"
             />
             Request Chart
@@ -187,11 +189,13 @@ export default function Start() {
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <MetricTable
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-        />
+        {!disableExpensiveDashboardComponents && (
+          <MetricTable
+            className="col-span-1 xl:col-span-2"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+          />
+        )}
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
@@ -203,34 +207,42 @@ export default function Start() {
           globalFilterState={mergedFilterState}
           agg={agg}
         />
-        <ModelUsageChart
-          className="col-span-1  min-h-24 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          agg={agg}
-        />
-        <UserChart
-          className="col-span-1 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          agg={agg}
-        />
+        {!disableExpensiveDashboardComponents && (
+          <ModelUsageChart
+            className="col-span-1  min-h-24 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+            agg={agg}
+          />
+        )}
+        {!disableExpensiveDashboardComponents && (
+          <UserChart
+            className="col-span-1 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+            agg={agg}
+          />
+        )}
         <ChartScores
           className="col-span-1 xl:col-span-3"
           agg={agg}
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <LatencyTables
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-        />
-        <GenerationLatencyChart
-          className="col-span-1 flex-auto justify-between lg:col-span-full"
-          projectId={projectId}
-          agg={agg}
-          globalFilterState={mergedFilterState}
-        />
+        {!disableExpensiveDashboardComponents && (
+          <LatencyTables
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+          />
+        )}
+        {!disableExpensiveDashboardComponents && (
+          <GenerationLatencyChart
+            className="col-span-1 flex-auto justify-between lg:col-span-full"
+            projectId={projectId}
+            agg={agg}
+            globalFilterState={mergedFilterState}
+          />
+        )}
       </div>
     </div>
   );

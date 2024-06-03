@@ -73,6 +73,15 @@ describe("model match", () => {
           input: "I am a prompt",
           output: "I am a completion",
         },
+        {
+          type: "GENERATION",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          model: "gpt-4o",
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          input: "I am a prompt",
+          output: "I am a completion",
+        },
       ],
     });
 
@@ -86,7 +95,7 @@ describe("model match", () => {
     expect(observation1?.completionTokens).toEqual(3000);
     expect(observation1?.totalTokens).toEqual(0);
 
-    expect(observations.length).toEqual(3);
+    expect(observations.length).toEqual(4);
     observations.forEach((observation) => {
       expect(observation.internalModel).toBeDefined();
       expect(observation.promptTokens).toBeGreaterThan(0);

@@ -1,5 +1,4 @@
 import { tokenCount } from "@/src/features/ingest/lib/usage";
-import { checkApiAccessScope } from "@/src/features/public-api/server/apiScope";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import {
   type legacyObservationCreateEvent,
@@ -29,6 +28,7 @@ import { type z } from "zod";
 import { jsonSchema } from "@/src/utils/zod";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
+import { instrument } from "@/src/utils/instrumentation";
 
 export interface EventProcessor {
   process(
@@ -345,27 +345,31 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation,
   ) {
-    const newPromptTokens =
-      body.usage?.input ??
-      ((body.input || existingObservation?.input) && model && model.tokenizerId
-        ? tokenCount({
-            model: model,
-            text: body.input ?? existingObservation?.input,
-          })
-        : undefined);
+    return instrument({ name: "calculate-tokens" }, () => {
+      const newPromptTokens =
+        body.usage?.input ??
+        ((body.input || existingObservation?.input) &&
+        model &&
+        model.tokenizerId
+          ? tokenCount({
+              model: model,
+              text: body.input ?? existingObservation?.input,
+            })
+          : undefined);
 
-    const newCompletionTokens =
-      body.usage?.output ??
-      ((body.output || existingObservation?.output) &&
-      model &&
-      model.tokenizerId
-        ? tokenCount({
-            model: model,
-            text: body.output ?? existingObservation?.output,
-          })
-        : undefined);
+      const newCompletionTokens =
+        body.usage?.output ??
+        ((body.output || existingObservation?.output) &&
+        model &&
+        model.tokenizerId
+          ? tokenCount({
+              model: model,
+              text: body.output ?? existingObservation?.output,
+            })
+          : undefined);
 
-    return [newPromptTokens, newCompletionTokens];
+      return [newPromptTokens, newCompletionTokens];
+    });
   }
 
   async process(apiScope: ApiAccessScope): Promise<Observation> {
@@ -422,8 +426,8 @@ export class TraceProcessor implements EventProcessor {
     console.log(
       "Trying to create trace, project ",
       apiScope.projectId,
-      ", body:",
-      body,
+      ", id:",
+      internalId,
     );
 
     const existingTrace = await prisma.trace.findFirst({
@@ -434,7 +438,7 @@ export class TraceProcessor implements EventProcessor {
 
     if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
       throw new ForbiddenError(
-        `Access denied for trace creation ${existingTrace.projectId} `,
+        `Access denied for trace creation ${existingTrace.projectId}`,
       );
     }
 
@@ -444,6 +448,13 @@ export class TraceProcessor implements EventProcessor {
         : undefined,
       body.metadata ?? undefined,
     );
+
+    const mergedTags =
+      existingTrace?.tags && body.tags
+        ? Array.from(new Set(existingTrace.tags.concat(body.tags ?? []))).sort()
+        : body.tags
+          ? Array.from(new Set(body.tags)).sort()
+          : undefined;
 
     if (body.sessionId) {
       await prisma.traceSession.upsert({
@@ -482,7 +493,7 @@ export class TraceProcessor implements EventProcessor {
         sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
         projectId: apiScope.projectId,
-        tags: body.tags ?? undefined,
+        tags: mergedTags ?? undefined,
       },
       update: {
         name: body.name ?? undefined,
@@ -497,7 +508,7 @@ export class TraceProcessor implements EventProcessor {
         version: body.version ?? undefined,
         sessionId: body.sessionId ?? undefined,
         public: body.public ?? undefined,
-        tags: body.tags ?? undefined,
+        tags: mergedTags ?? undefined,
       },
     });
     return upsertedTrace;
@@ -515,50 +526,53 @@ export class ScoreProcessor implements EventProcessor {
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
-    const accessCheck = await checkApiAccessScope(
-      apiScope,
-      [
-        { type: "trace", id: body.traceId },
-        ...(body.observationId
-          ? [{ type: "observation" as const, id: body.observationId }]
-          : []),
-      ],
-      "score",
-    );
-    if (!accessCheck)
-      throw new ForbiddenError("Access denied for score creation");
+    if (apiScope.accessLevel !== "scores" && apiScope.accessLevel !== "all")
+      throw new ForbiddenError(
+        `Access denied for score creation, ${apiScope.accessLevel}`,
+      );
 
     const id = body.id ?? v4();
 
-    // access control via traceId
+    const existingScore = await prisma.score.findFirst({
+      where: {
+        id: id,
+      },
+      select: {
+        projectId: true,
+      },
+    });
+    if (existingScore && existingScore.projectId !== apiScope.projectId) {
+      throw new ForbiddenError(
+        `Access denied for score creation ${existingScore.projectId}`,
+      );
+    }
+
     return await prisma.score.upsert({
       where: {
-        id_traceId: {
+        id_projectId: {
           id,
-          traceId: body.traceId,
+          projectId: apiScope.projectId,
         },
       },
       create: {
         id,
-        trace: { connect: { id: body.traceId } },
+        projectId: apiScope.projectId,
+        traceId: body.traceId,
+        observationId: body.observationId ?? undefined,
         timestamp: new Date(),
         value: body.value,
         name: body.name,
-        source: "API",
         comment: body.comment,
-        ...(body.observationId && {
-          observation: { connect: { id: body.observationId } },
-        }),
+        source: "API",
       },
       update: {
+        traceId: body.traceId,
+        observationId: body.observationId ?? undefined,
         timestamp: new Date(),
         value: body.value,
         name: body.name,
         comment: body.comment,
         source: "API",
-        ...(body.observationId && {
-          observation: { connect: { id: body.observationId } },
-        }),
       },
     });
   }

@@ -133,21 +133,35 @@ export default async function handler(
             t.version,
             t.public,
             t.tags,
-            COALESCE(SUM(o.calculated_total_cost), 0)::DOUBLE PRECISION AS "totalCost",
-            COALESCE(EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"))) - EXTRACT(EPOCH FROM MIN(o."start_time")), 0)::double precision AS "latency",
-            COALESCE(ARRAY_AGG(DISTINCT o.id) FILTER (WHERE o.id IS NOT NULL), ARRAY[]::text[]) AS "observations",
-            COALESCE(ARRAY_AGG(DISTINCT s.id) FILTER (WHERE s.id IS NOT NULL), ARRAY[]::text[]) AS "scores"
-          FROM "traces" AS t
-          LEFT JOIN "observations_view" AS o ON t.id = o.trace_id AND o.project_id = ${authCheck.scope.projectId}
-          LEFT JOIN "scores" AS s ON t.id = s.trace_id
-          WHERE t.project_id = ${authCheck.scope.projectId}
-          ${userCondition}
-          ${nameCondition}
-          ${tagsCondition}
-          ${fromTimestampCondition}
-          GROUP BY t.id
-          ${orderByCondition}
-          LIMIT ${obj.limit} OFFSET ${skipValue}
+            COALESCE(o."totalCost", 0)::DOUBLE PRECISION AS "totalCost",
+            COALESCE(o."latency", 0)::double precision AS "latency",
+            COALESCE(o."observations", ARRAY[]::text[]) AS "observations",
+            COALESCE(s."scores", ARRAY[]::text[]) AS "scores"
+          FROM (
+            SELECT *
+            FROM "traces" t
+            WHERE project_id = ${authCheck.scope.projectId}
+            ${fromTimestampCondition}
+            ${userCondition}
+            ${nameCondition}
+            ${tagsCondition}
+            ${orderByCondition}
+            LIMIT ${obj.limit} OFFSET ${skipValue}
+          ) AS t
+          LEFT JOIN LATERAL (
+            SELECT
+              SUM(o.calculated_total_cost)::DOUBLE PRECISION AS "totalCost",
+              EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"))) - EXTRACT(EPOCH FROM MIN(o."start_time"))::DOUBLE PRECISION AS "latency",
+              ARRAY_AGG(DISTINCT o.id) FILTER (WHERE o.id IS NOT NULL) AS "observations"
+            FROM "observations_view" AS o
+            WHERE o.trace_id = t.id AND o.project_id = ${authCheck.scope.projectId}
+          ) AS o ON true
+          LEFT JOIN LATERAL (
+            SELECT
+              ARRAY_AGG(DISTINCT s.id) FILTER (WHERE s.id IS NOT NULL) AS "scores"
+            FROM "scores" AS s
+            WHERE s.trace_id = t.id AND s.project_id = ${authCheck.scope.projectId}
+          ) AS s ON true
           `);
       const totalItems = await prisma.trace.count({
         where: {

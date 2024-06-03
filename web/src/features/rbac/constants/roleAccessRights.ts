@@ -1,4 +1,4 @@
-import { type MembershipRole } from "@langfuse/shared";
+import { type ProjectRole } from "@langfuse/shared";
 
 const scopes = [
   "members:read",
@@ -31,10 +31,9 @@ const scopes = [
 
   "evalTemplate:create",
   "evalTemplate:read",
-  "job:read",
-  "job:CUD",
-
-  "jobExecution:read",
+  "evalJob:read",
+  "evalJob:CUD",
+  "evalJobExecution:read",
 
   "llmApiKeys:read",
   "llmApiKeys:create",
@@ -44,7 +43,7 @@ const scopes = [
 // type string of all Resource:Action, e.g. "members:read"
 export type Scope = (typeof scopes)[number];
 
-export const roleAccessRights: Record<MembershipRole, Scope[]> = {
+export const roleAccessRights: Record<ProjectRole, Scope[]> = {
   OWNER: [
     "members:read",
     "members:create",
@@ -67,9 +66,9 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "models:CUD",
     "evalTemplate:create",
     "evalTemplate:read",
-    "job:CUD",
-    "job:read",
-    "jobExecution:read",
+    "evalJob:CUD",
+    "evalJob:read",
+    "evalJobExecution:read",
     "llmApiKeys:read",
     "llmApiKeys:create",
     "llmApiKeys:delete",
@@ -94,9 +93,9 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "models:CUD",
     "evalTemplate:create",
     "evalTemplate:read",
-    "job:CUD",
-    "job:read",
-    "jobExecution:read",
+    "evalJob:CUD",
+    "evalJob:read",
+    "evalJobExecution:read",
     "llmApiKeys:read",
     "llmApiKeys:create",
     "llmApiKeys:delete",
@@ -113,10 +112,15 @@ export const roleAccessRights: Record<MembershipRole, Scope[]> = {
     "prompts:read",
     "evalTemplate:create",
     "evalTemplate:read",
-    "job:read",
-    "job:CUD",
-    "jobExecution:read",
+    "evalJob:read",
+    "evalJob:CUD",
+    "evalJobExecution:read",
     "llmApiKeys:read",
   ],
-  VIEWER: ["prompts:read"],
+  VIEWER: [
+    "prompts:read",
+    "evalTemplate:read",
+    "evalJob:read",
+    "evalJobExecution:read",
+  ],
 };

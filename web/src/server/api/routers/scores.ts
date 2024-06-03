@@ -2,15 +2,10 @@ import { z } from "zod";
 
 import {
   createTRPCRouter,
-  protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import {
-  type MembershipRole,
-  Prisma,
-  type Score,
-} from "@langfuse/shared/src/db";
+import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
 import { singleFilter } from "@langfuse/shared";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";
@@ -62,6 +57,7 @@ export const scoresRouter = createTRPCRouter({
           s.name,
           s.value,
           s.timestamp,
+          s.source,
           s.comment,
           s.trace_id as "traceId",
           s.observation_id as "observationId",
@@ -105,13 +101,17 @@ export const scoresRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const names = await ctx.prisma.score.groupBy({
         where: {
-          trace: {
-            projectId: input.projectId,
-          },
+          projectId: input.projectId,
         },
         by: ["name"],
         _count: {
           _all: true,
+        },
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
         },
       });
 
@@ -121,29 +121,10 @@ export const scoresRouter = createTRPCRouter({
 
       return res;
     }),
-  byId: protectedProcedure.input(z.string()).query(({ input, ctx }) =>
-    ctx.prisma.score.findFirstOrThrow({
-      where: {
-        id: input,
-        ...(ctx.session.user.admin === true
-          ? undefined
-          : {
-              trace: {
-                project: {
-                  members: {
-                    some: {
-                      userId: ctx.session.user.id,
-                    },
-                  },
-                },
-              },
-            }),
-      },
-    }),
-  ),
-  createReviewScore: protectedProcedure
+  createAnnotationScore: protectedProjectProcedure
     .input(
       z.object({
+        projectId: z.string(),
         traceId: z.string(),
         value: z.number(),
         name: z.string(),
@@ -152,52 +133,40 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const trace = await ctx.prisma.trace.findFirstOrThrow({
-        where: {
-          id: input.traceId,
-          project: {
-            members: {
-              some: {
-                userId: ctx.session.user.id,
-              },
-            },
-          },
-        },
-      });
       throwIfNoAccess({
         session: ctx.session,
-        projectId: trace.projectId,
+        projectId: input.projectId,
         scope: "scores:CUD",
       });
 
+      const trace = await ctx.prisma.trace.findFirst({
+        where: {
+          id: input.traceId,
+          projectId: input.projectId,
+        },
+      });
+      if (!trace) {
+        throw new Error("No trace with this id in this project.");
+      }
+
       const score = await ctx.prisma.score.create({
         data: {
-          trace: {
-            connect: {
-              id: trace.id,
-            },
-          },
-          ...(input.observationId
-            ? {
-                observation: {
-                  connect: {
-                    id: input.observationId,
-                  },
-                },
-              }
-            : undefined),
+          projectId: input.projectId,
+          traceId: input.traceId,
+          observationId: input.observationId,
           value: input.value,
           name: input.name,
           comment: input.comment,
-          source: "REVIEW",
+          authorUserId: ctx.session.user.id,
+          source: "ANNOTATION",
         },
       });
       await auditLog({
-        projectId: trace.projectId,
+        projectId: input.projectId,
         userId: ctx.session.user.id,
         userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === trace.projectId,
-        )?.role as MembershipRole, // throwIfNoAccess ensures this is defined
+          (p) => p.id === input.projectId,
+        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
         resourceType: "score",
         resourceId: score.id,
         action: "create",
@@ -205,114 +174,92 @@ export const scoresRouter = createTRPCRouter({
       });
       return score;
     }),
-  updateReviewScore: protectedProcedure
+  updateAnnotationScore: protectedProjectProcedure
     .input(
       z.object({
+        projectId: z.string(),
         id: z.string(),
         value: z.number(),
         comment: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const score = await ctx.prisma.score.findFirstOrThrow({
-        where: {
-          id: input.id,
-          source: "REVIEW",
-          trace: {
-            project: {
-              members: {
-                some: {
-                  userId: ctx.session.user.id,
-                },
-              },
-            },
-          },
-        },
-        include: {
-          trace: {
-            select: {
-              projectId: true,
-            },
-          },
-        },
-      });
       throwIfNoAccess({
         session: ctx.session,
-        projectId: score.trace.projectId,
+        projectId: input.projectId,
         scope: "scores:CUD",
       });
+      const score = await ctx.prisma.score.findFirst({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+          source: "ANNOTATION",
+        },
+      });
+      if (!score) {
+        throw new Error("No annotation score with this id in this project.");
+      }
 
-      // exclude trace object from audit log
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { trace, ...pureScore } = score;
       await auditLog({
-        projectId: trace.projectId,
+        projectId: input.projectId,
         userId: ctx.session.user.id,
         userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === trace.projectId,
-        )?.role as MembershipRole, // throwIfNoAccess ensures this is defined
+          (p) => p.id === input.projectId,
+        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
         resourceType: "score",
         resourceId: score.id,
         action: "update",
-        after: pureScore,
+        after: score,
       });
 
       return ctx.prisma.score.update({
         where: {
           id: score.id,
+          projectId: input.projectId,
         },
         data: {
           value: input.value,
           comment: input.comment,
+          authorUserId: ctx.session.user.id,
         },
       });
     }),
-  deleteReviewScore: protectedProcedure
-    .input(z.string())
+  deleteAnnotationScore: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const score = await ctx.prisma.score.findFirstOrThrow({
-        where: {
-          id: input,
-          source: "REVIEW",
-          trace: {
-            project: {
-              members: {
-                some: {
-                  userId: ctx.session.user.id,
-                },
-              },
-            },
-          },
-        },
-        include: {
-          trace: {
-            select: {
-              projectId: true,
-            },
-          },
-        },
-      });
       throwIfNoAccess({
         session: ctx.session,
-        projectId: score.trace.projectId,
+        projectId: input.projectId,
         scope: "scores:CUD",
       });
-      const { trace, ...pureScore } = score;
+
+      const score = await ctx.prisma.score.findFirst({
+        where: {
+          id: input.id,
+          source: "ANNOTATION",
+          projectId: input.projectId,
+        },
+      });
+      if (!score) {
+        throw new Error("No annotation score with this id in this project.");
+      }
+
       await auditLog({
-        projectId: trace.projectId,
+        projectId: input.projectId,
         userId: ctx.session.user.id,
         userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === trace.projectId,
-        )?.role as MembershipRole, // throwIfNoAccess ensures this is defined
+          (p) => p.id === input.projectId,
+        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
         resourceType: "score",
         resourceId: score.id,
         action: "delete",
-        before: pureScore,
+        before: score,
       });
 
       return ctx.prisma.score.delete({
         where: {
           id: score.id,
+          projectId: input.projectId,
         },
       });
     }),
@@ -330,8 +277,9 @@ const generateScoresQuery = (
   SELECT
    ${select}
   FROM scores s
-  JOIN traces t ON t.id = s.trace_id LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
-  WHERE t.project_id = ${projectId}
+  JOIN traces t ON t.id = s.trace_id AND t.project_id = ${projectId}
+  LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
+  WHERE s.project_id = ${projectId}
   ${filterCondition}
   ${orderCondition}
   LIMIT ${limit}

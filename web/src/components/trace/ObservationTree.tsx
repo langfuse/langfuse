@@ -9,6 +9,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { MinusCircle, MinusIcon, PlusCircleIcon, PlusIcon } from "lucide-react";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Button } from "@/src/components/ui/button";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const ObservationTree = (props: {
   observations: ObservationReturnType[];
@@ -67,13 +68,13 @@ const ObservationTreeTraceNode = (props: {
       "group mb-0.5 flex cursor-pointer flex-col gap-1 rounded-sm p-1",
       props.currentObservationId === undefined ||
         props.currentObservationId === ""
-        ? "bg-gray-100"
-        : "hover:bg-gray-50",
+        ? "bg-muted"
+        : "hover:bg-primary-foreground",
     )}
     onClick={() => props.setCurrentObservationId(undefined)}
   >
     <div className="flex gap-2">
-      <span className={cn("rounded-sm bg-gray-200 p-1 text-xs")}>TRACE</span>
+      <span className={cn("rounded-sm bg-input p-1 text-xs")}>TRACE</span>
       <span className="flex-1 break-all text-sm">{props.trace.name}</span>
       <Button
         onClick={(ev) => (ev.stopPropagation(), props.expandAll())}
@@ -95,7 +96,7 @@ const ObservationTreeTraceNode = (props: {
 
     {props.showMetrics && props.trace.latency ? (
       <div className="flex gap-2">
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted-foreground">
           {formatIntervalSeconds(props.trace.latency)}
         </span>
       </div>
@@ -120,134 +121,146 @@ const ObservationTreeNode = (props: {
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics?: boolean;
   showScores?: boolean;
-}) => (
-  <>
-    {props.observations
-      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
-      .map((observation) => {
-        const collapsed = props.collapsedObservations.includes(observation.id);
-
-        return (
-          <Fragment key={observation.id}>
-            <div className="flex">
-              {Array.from({ length: props.indentationLevel }, (_, i) => (
-                <div className="mx-2 border-r" key={i} />
-              ))}
-              <div
-                className={cn(
-                  "group my-0.5 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-1",
-                  props.currentObservationId === observation.id
-                    ? "bg-gray-100"
-                    : "hover:bg-gray-50",
-                )}
-                onClick={() => props.setCurrentObservationId(observation.id)}
-              >
-                <div className="flex gap-2">
-                  <ColorCodedObservationType
-                    observationType={observation.type}
-                  />
-                  <span className="flex-1 break-all text-sm">
-                    {observation.name}
-                  </span>
-                  {observation.children.length === 0 ? null : (
-                    <Toggle
-                      onClick={(ev) => (
-                        ev.stopPropagation(),
-                        props.toggleCollapsedObservation(observation.id)
-                      )}
-                      variant="default"
-                      pressed={collapsed}
-                      size="xs"
-                      className="w-7"
-                      title={
-                        collapsed ? "Expand children" : "Collapse children"
-                      }
-                    >
-                      {collapsed ? (
-                        <PlusIcon className="h-4 w-4" />
-                      ) : (
-                        <MinusIcon className="h-4 w-4" />
-                      )}
-                    </Toggle>
+}) => {
+  const capture = usePostHogClientCapture();
+  return (
+    <>
+      {props.observations
+        .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+        .map((observation) => {
+          const collapsed = props.collapsedObservations.includes(
+            observation.id,
+          );
+          return (
+            <Fragment key={observation.id}>
+              <div className="flex">
+                {Array.from({ length: props.indentationLevel }, (_, i) => (
+                  <div className="mx-2 border-r" key={i} />
+                ))}
+                <div
+                  className={cn(
+                    "group my-0.5 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-1",
+                    props.currentObservationId === observation.id
+                      ? "bg-muted"
+                      : "hover:bg-primary-foreground",
                   )}
-                </div>
-                {props.showMetrics &&
-                  (observation.promptTokens ||
-                    observation.completionTokens ||
-                    observation.totalTokens ||
-                    observation.endTime) && (
-                    <div className="flex gap-2">
-                      {observation.endTime ? (
-                        <span className="text-xs text-gray-500">
-                          {formatIntervalSeconds(
-                            (observation.endTime.getTime() -
-                              observation.startTime.getTime()) /
-                              1000,
-                          )}
-                        </span>
-                      ) : null}
-                      {observation.promptTokens ||
-                      observation.completionTokens ||
-                      observation.totalTokens ? (
-                        <span className="text-xs text-gray-500">
-                          {observation.promptTokens} →{" "}
-                          {observation.completionTokens} (∑{" "}
-                          {observation.totalTokens})
-                        </span>
-                      ) : null}
-                    </div>
-                  )}
-                {observation.level !== "DEFAULT" ? (
-                  <div className="flex">
-                    <span
-                      className={cn(
-                        "rounded-sm p-0.5 text-xs",
-                        LevelColors[observation.level].bg,
-                        LevelColors[observation.level].text,
-                      )}
-                    >
-                      {observation.level}
-                    </span>
-                  </div>
-                ) : null}
-                {props.showScores &&
-                props.scores.find((s) => s.observationId === observation.id) ? (
-                  <div className="flex flex-wrap gap-1">
-                    <GroupedScoreBadges
-                      scores={props.scores.filter(
-                        (s) => s.observationId === observation.id,
-                      )}
+                  onClick={() => props.setCurrentObservationId(observation.id)}
+                >
+                  <div className="flex gap-2">
+                    <ColorCodedObservationType
+                      observationType={observation.type}
                     />
+                    <span className="flex-1 break-all text-sm">
+                      {observation.name}
+                    </span>
+                    {observation.children.length === 0 ? null : (
+                      <Toggle
+                        onClick={(ev) => (
+                          ev.stopPropagation(),
+                          props.toggleCollapsedObservation(observation.id),
+                          capture(
+                            collapsed
+                              ? "trace_detail:observation_tree_expand"
+                              : "trace_detail:observation_tree_collapse",
+                            { type: "single" },
+                          )
+                        )}
+                        variant="default"
+                        pressed={collapsed}
+                        size="xs"
+                        className="w-7"
+                        title={
+                          collapsed ? "Expand children" : "Collapse children"
+                        }
+                      >
+                        {collapsed ? (
+                          <PlusIcon className="h-4 w-4" />
+                        ) : (
+                          <MinusIcon className="h-4 w-4" />
+                        )}
+                      </Toggle>
+                    )}
                   </div>
-                ) : null}
+                  {props.showMetrics &&
+                    (observation.promptTokens ||
+                      observation.completionTokens ||
+                      observation.totalTokens ||
+                      observation.endTime) && (
+                      <div className="flex gap-2">
+                        {observation.endTime ? (
+                          <span className="text-xs text-muted-foreground">
+                            {formatIntervalSeconds(
+                              (observation.endTime.getTime() -
+                                observation.startTime.getTime()) /
+                                1000,
+                            )}
+                          </span>
+                        ) : null}
+                        {observation.promptTokens ||
+                        observation.completionTokens ||
+                        observation.totalTokens ? (
+                          <span className="text-xs text-muted-foreground">
+                            {observation.promptTokens} →{" "}
+                            {observation.completionTokens} (∑{" "}
+                            {observation.totalTokens})
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                  {observation.level !== "DEFAULT" ? (
+                    <div className="flex">
+                      <span
+                        className={cn(
+                          "rounded-sm p-0.5 text-xs",
+                          LevelColors[observation.level].bg,
+                          LevelColors[observation.level].text,
+                        )}
+                      >
+                        {observation.level}
+                      </span>
+                    </div>
+                  ) : null}
+                  {props.showScores &&
+                  props.scores.find(
+                    (s) => s.observationId === observation.id,
+                  ) ? (
+                    <div className="flex flex-wrap gap-1">
+                      <GroupedScoreBadges
+                        scores={props.scores.filter(
+                          (s) => s.observationId === observation.id,
+                        )}
+                      />
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            </div>
-            {!collapsed && (
-              <ObservationTreeNode
-                observations={observation.children}
-                collapsedObservations={props.collapsedObservations}
-                toggleCollapsedObservation={props.toggleCollapsedObservation}
-                scores={props.scores}
-                indentationLevel={props.indentationLevel + 1}
-                currentObservationId={props.currentObservationId}
-                setCurrentObservationId={props.setCurrentObservationId}
-                showMetrics={props.showMetrics}
-                showScores={props.showScores}
-              />
-            )}
-          </Fragment>
-        );
-      })}
-  </>
-);
+              {!collapsed && (
+                <ObservationTreeNode
+                  observations={observation.children}
+                  collapsedObservations={props.collapsedObservations}
+                  toggleCollapsedObservation={props.toggleCollapsedObservation}
+                  scores={props.scores}
+                  indentationLevel={props.indentationLevel + 1}
+                  currentObservationId={props.currentObservationId}
+                  setCurrentObservationId={props.setCurrentObservationId}
+                  showMetrics={props.showMetrics}
+                  showScores={props.showScores}
+                />
+              )}
+            </Fragment>
+          );
+        })}
+    </>
+  );
+};
 
 const ColorCodedObservationType = (props: {
   observationType: $Enums.ObservationType;
 }) => {
   const colors: Record<$Enums.ObservationType, string> = {
-    [$Enums.ObservationType.SPAN]: "bg-blue-100",
-    [$Enums.ObservationType.GENERATION]: "bg-orange-100",
-    [$Enums.ObservationType.EVENT]: "bg-green-100",
+    [$Enums.ObservationType.SPAN]: "bg-muted-blue",
+    [$Enums.ObservationType.GENERATION]: "bg-muted-orange",
+    [$Enums.ObservationType.EVENT]: "bg-muted-green",
   };
 
   return (

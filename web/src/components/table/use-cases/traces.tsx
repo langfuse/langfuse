@@ -38,6 +38,7 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { useSession } from "next-auth/react";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -47,6 +48,7 @@ export type TracesTableRow = {
   userId: string;
   metadata?: string;
   level: ObservationLevel;
+  observationCount: number;
   latency?: number;
   release?: string;
   version?: string;
@@ -80,6 +82,7 @@ export default function TracesTable({
   omittedFilter = [],
 }: TracesTableProps) {
   const utils = api.useUtils();
+  const session = useSession();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -92,7 +95,9 @@ export default function TracesTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-14),
+        value: utcDateOffsetByDays(
+          session.data?.environment.defaultTableDateTimeOffset ?? -7,
+        ),
       },
     ],
     "traces",
@@ -173,6 +178,7 @@ export default function TracesTable({
       timestamp: trace.timestamp.toLocaleString(),
       name: trace.name ?? "",
       level: trace.level,
+      observationCount: trace.observationCount,
       metadata: JSON.stringify(trace.metadata),
       release: trace.release ?? undefined,
       version: trace.version ?? undefined,
@@ -529,11 +535,19 @@ export default function TracesTable({
       enableSorting: true,
     },
     {
+      accessorKey: "observationCount",
+      id: "observationCount",
+      header: "Observation Count",
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "version",
       id: "version",
       header: "Version",
       enableHiding: true,
       enableSorting: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "release",
@@ -541,6 +555,7 @@ export default function TracesTable({
       header: "Release",
       enableHiding: true,
       enableSorting: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "tags",
@@ -586,7 +601,7 @@ export default function TracesTable({
     useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
@@ -648,7 +663,7 @@ export default function TracesTable({
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}
       />
-    </div>
+    </>
   );
 }
 
@@ -677,7 +692,7 @@ const TracesIOCell = ({
     <IOTableCell
       isLoading={trace.isLoading}
       data={io === "output" ? trace.data?.output : trace.data?.input}
-      className={cn(io === "output" && "bg-green-50")}
+      className={cn(io === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
   );

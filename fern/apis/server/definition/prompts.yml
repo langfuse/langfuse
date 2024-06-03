@@ -89,6 +89,7 @@ types:
       name: string
       version: integer
       config: unknown
+      labels: list<string>
 
   ChatMessage:
     properties:

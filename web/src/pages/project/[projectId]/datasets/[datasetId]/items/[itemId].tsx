@@ -1,3 +1,4 @@
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
@@ -30,7 +31,7 @@ export default function Dataset() {
   );
 
   return (
-    <div>
+    <FullScreenPage>
       <Header
         title={`Dataset Item`}
         breadcrumb={[
@@ -74,6 +75,6 @@ export default function Dataset() {
         datasetItemId={itemId}
         datasetId={datasetId}
       />
-    </div>
+    </FullScreenPage>
   );
 }

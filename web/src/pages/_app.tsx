@@ -30,6 +30,7 @@ import "core-js/features/array/to-sorted";
 import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
+import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 
 const setProjectInPosthog = () => {
   // project
@@ -52,10 +53,12 @@ if (
   setProjectInPosthog();
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
+    ui_host: "https://eu.posthog.com",
     // Enable debug mode in development
     loaded: (posthog) => {
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
+    autocapture: false,
   });
 }
 
@@ -87,10 +90,16 @@ const MyApp: AppType<{ session: Session | null }> = ({
         <PostHogProvider client={posthog}>
           <SessionProvider session={session} refetchOnWindowFocus={true}>
             <DetailPageListsProvider>
-              <Layout>
-                <Component {...pageProps} />
-                <UserTracking />
-              </Layout>
+              <ThemeProvider
+                attribute="class"
+                enableSystem
+                disableTransitionOnChange
+              >
+                <Layout>
+                  <Component {...pageProps} />
+                  <UserTracking />
+                </Layout>
+              </ThemeProvider>
               <CrispWidget />
             </DetailPageListsProvider>
           </SessionProvider>

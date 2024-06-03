@@ -3,7 +3,7 @@
 
 generator client {
     provider        = "prisma-client-js"
-    previewFeatures = ["tracing", "views"]
+    previewFeatures = ["tracing", "views", "relationJoins"]
 }
 
 datasource db {
@@ -63,21 +63,21 @@ model Session {
 }
 
 model User {
-    id            String                 @id @default(cuid())
-    name          String?
-    email         String?                @unique
-    emailVerified DateTime?              @map("email_verified")
-    password      String?
-    image         String?
-    admin         Boolean                @default(false)
-    accounts      Account[]
-    sessions      Session[]
-    memberships   Membership[]
-    invitations   MembershipInvitation[]
-    createdAt     DateTime               @default(now()) @map("created_at")
-    updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at")
-    featureFlags  String[]               @default([]) @map("feature_flags")
-    AuditLog      AuditLog[]
+    id                 String                 @id @default(cuid())
+    name               String?
+    email              String?                @unique
+    emailVerified      DateTime?              @map("email_verified")
+    password           String?
+    image              String?
+    admin              Boolean                @default(false)
+    accounts           Account[]
+    sessions           Session[]
+    projectMemberships ProjectMembership[]
+    invitations        MembershipInvitation[]
+    createdAt          DateTime               @default(now()) @map("created_at")
+    updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at")
+    featureFlags       String[]               @default([]) @map("feature_flags")
+    AuditLog           AuditLog[]
 
     @@map("users")
 }
@@ -97,7 +97,7 @@ model Project {
     updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at")
     name               String
     cloudConfig        Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
-    members            Membership[]
+    projectMembers     ProjectMembership[]
     traces             Trace[]
     observations       Observation[]
     apiKeys            ApiKey[]
@@ -113,6 +113,8 @@ model Project {
     JobExecution       JobExecution[]
     LlmApiKeys         LlmApiKeys[]
     PosthogIntegration PosthogIntegration[]
+    Score              Score[]
+    scoreConfig        ScoreConfig[]
 
     @@map("projects")
 }
@@ -154,37 +156,37 @@ model LlmApiKeys {
     @@map("llm_api_keys")
 }
 
-model Membership {
-    projectId String         @map("project_id")
-    project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    userId    String         @map("user_id")
-    user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-    role      MembershipRole
-    createdAt DateTime       @default(now()) @map("created_at")
-    updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
+model ProjectMembership {
+    projectId String      @map("project_id")
+    project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    userId    String      @map("user_id")
+    user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+    role      ProjectRole
+    createdAt DateTime    @default(now()) @map("created_at")
+    updatedAt DateTime    @default(now()) @updatedAt @map("updated_at")
 
     @@id([projectId, userId])
     @@index([userId])
-    @@map("memberships")
+    @@map("project_memberships")
 }
 
 model MembershipInvitation {
-    id        String         @id @unique @default(cuid())
+    id        String      @id @unique @default(cuid())
     email     String
-    role      MembershipRole
-    projectId String         @map("project_id")
-    project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    senderId  String?        @map("sender_id")
-    sender    User?          @relation(fields: [senderId], references: [id], onDelete: SetNull)
-    createdAt DateTime       @default(now()) @map("created_at")
-    updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
+    role      ProjectRole
+    projectId String      @map("project_id")
+    project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    senderId  String?     @map("sender_id")
+    sender    User?       @relation(fields: [senderId], references: [id], onDelete: SetNull)
+    createdAt DateTime    @default(now()) @map("created_at")
+    updatedAt DateTime    @default(now()) @updatedAt @map("updated_at")
 
     @@index([projectId])
     @@index([email])
     @@map("membership_invitations")
 }
 
-enum MembershipRole {
+enum ProjectRole {
     OWNER
     ADMIN
     MEMBER
@@ -204,6 +206,7 @@ model TraceSession {
     @@id([id, projectId])
     @@index([projectId])
     @@index([createdAt])
+    @@index([updatedAt])
     @@map("trace_sessions")
 }
 
@@ -227,8 +230,9 @@ model Trace {
     output     Json?
     sessionId  String?       @map("session_id")
     session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
+    createdAt  DateTime      @default(now()) @map("created_at")
+    updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
 
-    scores          Score[]
     DatasetRunItems DatasetRunItems[]
     DatasetItem     DatasetItem[]
     JobExecution    JobExecution[]
@@ -241,6 +245,8 @@ model Trace {
     @@index([externalId])
     @@index(timestamp)
     @@index(release)
+    @@index(updatedAt)
+    @@index(createdAt)
     @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("traces")
 }
@@ -272,6 +278,8 @@ view TraceView {
 }
 
 // Update ObservationView below when making changes to this model!
+// traceId is optional only due to timing during data injestion 
+// (traceId is not necessarily known at the time of observation creation)
 model Observation {
     id                  String           @id @default(cuid())
     traceId             String?          @map("trace_id")
@@ -286,6 +294,7 @@ model Observation {
     statusMessage       String?          @map("status_message")
     version             String?
     createdAt           DateTime         @default(now()) @map("created_at")
+    updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at")
 
     // GENERATION ONLY
     model               String?
@@ -301,7 +310,6 @@ model Observation {
     outputCost          Decimal?          @map("output_cost")
     totalCost           Decimal?          @map("total_cost")
     completionStartTime DateTime?         @map("completion_start_time")
-    scores              Score[]
     project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
     derivedDatasetItems DatasetItem[]
     datasetRunItems     DatasetRunItems[]
@@ -318,6 +326,7 @@ model Observation {
     @@index([type])
     @@index(startTime)
     @@index(createdAt)
+    @@index(updatedAt)
     @@index(projectId)
     @@index(parentObservationId)
     @@index(model)
@@ -368,6 +377,7 @@ view ObservationView {
     calculatedOutputCost Decimal? @map("calculated_output_cost")
     calculatedTotalCost  Decimal? @map("calculated_total_cost")
     latency              Float?   @map("latency")
+    timeToFirstToken     Float?   @map("time_to_first_token")
 
     @@map("observations_view")
 }
@@ -388,29 +398,71 @@ enum ObservationLevel {
 model Score {
     id            String         @id @default(cuid())
     timestamp     DateTime       @default(now())
+    projectId     String         @map("project_id")
+    project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
     name          String
     value         Float
     source        ScoreSource
+    authorUserId  String?        @map("author_user_id")
     comment       String?
     traceId       String         @map("trace_id")
-    trace         Trace          @relation(fields: [traceId], references: [id], onDelete: Cascade)
     observationId String?        @map("observation_id")
-    observation   Observation?   @relation(fields: [observationId], references: [id], onDelete: SetNull)
+    configId      String?        @map("config_id")
+    stringValue   String?        @map("string_value")
+    createdAt     DateTime       @default(now()) @map("created_at")
+    updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
+    dataType      ScoreDataType  @default(NUMERIC) @map("data_type")
     JobExecution  JobExecution[]
+    scoreConfig   ScoreConfig?   @relation(fields: [configId], references: [id], onDelete: SetNull)
 
-    @@unique([id, traceId]) // used for upsert
+    @@unique([id, projectId]) // used for upserts via prisma
     @@index(timestamp)
     @@index([value])
+    @@index([projectId])
+    @@index([authorUserId])
+    @@index([configId])
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([source])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("scores")
 }
 
 enum ScoreSource {
+    ANNOTATION
     API
-    REVIEW
     EVAL
+}
+
+model ScoreConfig {
+    id          String        @id @default(cuid())
+    createdAt   DateTime      @default(now()) @map("created_at")
+    updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
+    projectId   String        @map("project_id")
+    project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    name        String
+    dataType    ScoreDataType @map("data_type")
+    isArchived  Boolean       @default(false) @map("is_archived")
+    minValue    Float?        @map("min_value")
+    maxValue    Float?        @map("max_value")
+    categories  Json?         @map("categories")
+    description String?
+    score       Score[]
+
+    @@unique([id, projectId]) // used for upserts via prisma
+    @@index([dataType])
+    @@index([isArchived])
+    @@index([projectId])
+    @@index([categories])
+    @@index([createdAt])
+    @@index([updatedAt])
+    @@map("score_configs")
+}
+
+enum ScoreDataType {
+    CATEGORICAL
+    NUMERIC
 }
 
 enum PricingUnit {
@@ -459,6 +511,8 @@ model Dataset {
 
     @@unique([projectId, name])
     @@index([projectId], type: Hash)
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("datasets")
 }
 
@@ -480,6 +534,8 @@ model DatasetItem {
 
     @@index([sourceObservationId], type: Hash)
     @@index([datasetId], type: Hash)
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("dataset_items")
 }
 
@@ -501,6 +557,8 @@ model DatasetRuns {
 
     @@unique([datasetId, name])
     @@index([datasetId], type: Hash)
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("dataset_runs")
 }
 
@@ -521,6 +579,8 @@ model DatasetRunItems {
     @@index([datasetItemId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([traceId])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("dataset_run_items")
 }
 
@@ -563,6 +623,8 @@ model Prompt {
     @@index([projectId, name, version])
     @@index([projectId, id])
     @@index([projectId])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("prompts")
 }
@@ -594,22 +656,23 @@ model Model {
 }
 
 model AuditLog {
-    id              String         @id @default(cuid())
-    createdAt       DateTime       @default(now()) @map("created_at")
-    updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at")
-    userId          String         @map("user_id")
-    user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-    projectId       String         @map("project_id")
-    project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    userProjectRole MembershipRole @map("user_project_role")
-    resourceType    String         @map("resource_type")
-    resourceId      String         @map("resource_id")
+    id              String      @id @default(cuid())
+    createdAt       DateTime    @default(now()) @map("created_at")
+    updatedAt       DateTime    @default(now()) @updatedAt @map("updated_at")
+    userId          String      @map("user_id")
+    user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+    projectId       String      @map("project_id")
+    project         Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    userProjectRole ProjectRole @map("user_project_role")
+    resourceType    String      @map("resource_type")
+    resourceId      String      @map("resource_id")
     action          String
     before          String? //stringified JSON
     after           String? // stringified JSON
 
     @@index([projectId])
     @@index([createdAt])
+    @@index([updatedAt])
     @@map("audit_logs")
 }
 
@@ -703,6 +766,11 @@ model JobExecution {
     @@index([projectId, status])
     @@index([projectId, id])
     @@index([projectId])
+    @@index([jobConfigurationId])
+    @@index([jobOutputScoreId])
+    @@index([jobInputTraceId])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("job_executions")
 }
 

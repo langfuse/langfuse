@@ -12,12 +12,12 @@ export default function TemplatesPage() {
   const projectId = router.query.projectId as string;
 
   return (
-    <div>
+    <div className="h-[calc(100vh-6rem)] overflow-hidden lg:h-[calc(100vh-2rem)]">
       <Header
         title="Eval Log"
         help={{
           description: "View of all running evals.",
-          href: "https://langfuse.com/docs/evals",
+          href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
       />
       <EvalLogTable projectId={projectId} />

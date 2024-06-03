@@ -9,9 +9,9 @@ import {
   ChatMlArraySchema,
   OpenAiMessageView,
 } from "@/src/components/trace/IOPreview";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
@@ -25,9 +25,19 @@ import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import Generations from "@/src/components/table/use-cases/generations";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/src/components/ui/accordion";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
+  const capture = usePostHogClientCapture();
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
@@ -41,10 +51,10 @@ export const PromptDetail = () => {
     { enabled: Boolean(projectId) },
   );
   const prompt = currentPromptVersion
-    ? promptHistory.data?.find(
+    ? promptHistory.data?.promptVersions.find(
         (prompt) => prompt.version === currentPromptVersion,
       )
-    : promptHistory.data?.[0];
+    : promptHistory.data?.promptVersions[0];
 
   const extractedVariables = prompt
     ? extractVariables(JSON.stringify(prompt.prompt))
@@ -103,30 +113,29 @@ export const PromptDetail = () => {
               <>
                 <SetPromptVersionLabels prompt={prompt} />
 
-                <Link
-                  href={`/project/${projectId}/playground?promptId=${encodeURIComponent(prompt.id)}`}
-                >
-                  <Button
-                    variant="outline"
-                    title="Test in prompt playground"
-                    size="icon"
-                  >
-                    <Terminal className="h-5 w-5" />
-                  </Button>
-                </Link>
+                <JumpToPlaygroundButton
+                  source="prompt"
+                  prompt={prompt}
+                  analyticsEventName="prompt_detail:test_in_playground_button_click"
+                />
 
-                <Link
-                  href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => capture("prompts:update_form_open")}
+                  asChild
                 >
-                  <Button variant="outline" size="icon">
+                  <Link
+                    href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                  >
                     <Pencil className="h-5 w-5" />
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
 
                 <DeletePromptVersion
                   promptVersionId={prompt.id}
                   version={prompt.version}
-                  countVersions={promptHistory.data.length}
+                  countVersions={promptHistory.data.totalCount}
                 />
                 <DetailPageNav
                   key="nav"
@@ -134,6 +143,18 @@ export const PromptDetail = () => {
                   path={(name) => `/project/${projectId}/prompts/${name}`}
                   listKey="prompts"
                 />
+                <Tabs value="editor">
+                  <TabsList>
+                    <TabsTrigger value="editor">Editor</TabsTrigger>
+                    <TabsTrigger value="metrics" asChild>
+                      <Link
+                        href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/metrics`}
+                      >
+                        Metrics
+                      </Link>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </>
             }
           />
@@ -148,6 +169,7 @@ export const PromptDetail = () => {
                 promptName={prompt.name}
                 tags={prompt.tags}
                 availableTags={allTags}
+                className="flex-wrap"
               />
             </div>
           </div>
@@ -180,7 +202,7 @@ export const PromptDetail = () => {
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
-          <p className="mt-6 text-xs text-gray-600">
+          <p className="mt-6 text-xs text-muted-foreground">
             Fetch prompts via Python or JS/TS SDKs. See{" "}
             <a
               href="https://langfuse.com/docs/prompts"
@@ -192,12 +214,29 @@ export const PromptDetail = () => {
             </a>{" "}
             for details.
           </p>
+          <Accordion type="single" collapsible className="mt-10">
+            <AccordionItem value="item-1">
+              <AccordionTrigger>
+                Generations using this prompt version
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="flex max-h-[calc(100vh-20rem)] flex-col">
+                  <Generations
+                    projectId={prompt.projectId}
+                    promptName={prompt.name}
+                    promptVersion={prompt.version}
+                    omittedFilter={["Prompt Name", "Prompt Version"]}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
         <div className="flex h-screen flex-col">
           <div className="text-m px-3 font-medium">
             <ScrollArea className="flex border-l pl-2">
               <PromptHistoryNode
-                prompts={promptHistory.data}
+                prompts={promptHistory.data.promptVersions}
                 currentPromptVersion={prompt.version}
                 setCurrentPromptVersion={setCurrentPromptVersion}
               />

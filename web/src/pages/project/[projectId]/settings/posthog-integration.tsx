@@ -13,6 +13,7 @@ import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
 import { env } from "@/src/env.mjs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -20,7 +21,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@tremor/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import posthog from "posthog-js";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
@@ -29,7 +29,6 @@ export default function PosthogIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const state = api.posthogIntegration.get.useQuery({ projectId });
-
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
   return (
@@ -54,7 +53,7 @@ export default function PosthogIntegrationSettings() {
               : "inactive"
         }
       />
-      <p className="mb-4 text-sm text-gray-700">
+      <p className="mb-4 text-sm text-primary">
         We have teamed up with{" "}
         <Link href="https://posthog.com" className="underline">
           PostHog
@@ -80,13 +79,13 @@ export default function PosthogIntegrationSettings() {
       {state.data?.enabled && (
         <>
           <Header level="h3" title="Status" className="mt-8" />
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-primary">
             Data synced until:{" "}
             {state.data?.lastSyncAt
               ? new Date(state.data.lastSyncAt).toLocaleString()
               : "Never (pending)"}
           </p>
-          <p className="mt-2 text-sm text-gray-700">
+          <p className="mt-2 text-sm text-primary">
             While in Beta, the sync is scheduled to run once a day.
           </p>
         </>
@@ -102,6 +101,7 @@ const PostHogIntegrationSettings = ({
   state?: RouterOutput["posthogIntegration"]["get"];
   projectId: string;
 }) => {
+  const capture = usePostHogClientCapture();
   const posthogForm = useForm<z.infer<typeof posthogIntegrationFormSchema>>({
     resolver: zodResolver(posthogIntegrationFormSchema),
     defaultValues: {
@@ -135,7 +135,7 @@ const PostHogIntegrationSettings = ({
   async function onSubmit(
     values: z.infer<typeof posthogIntegrationFormSchema>,
   ) {
-    posthog.capture("integrations:posthog_form_submitted");
+    capture("integrations:posthog_form_submitted");
     mut.mutate({
       projectId,
       ...values,

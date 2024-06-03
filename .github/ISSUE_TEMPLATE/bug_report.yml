@@ -12,10 +12,24 @@ body:
   - type: textarea
     attributes:
       label: To reproduce
-      description: Describe how to reproduce your bug. Steps, code snippets, reproduction repos etc.
+      description: Describe how to reproduce your bug. Please provide detailed steps, code snippets, reproduction repos etc.
     validations:
       required: true
   - type: textarea
     attributes:
+      label: SDK and container versions
+      description: If you're experiencing an issue with an integration or SDK, please ensure you're using the latest version. If you're self-hosting Langfuse, check that you're running the most recent version. If updating isn't an option, please provide the specific versions you're currently using.
+  - type: textarea
+    attributes:
       label: Additional information
       description: Add any other information related to the bug here, screenshots if applicable.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Are you interested to contribute a fix for this bug?
+      description: If this is a confirmed bug, the maintainers are happy to support with guidance and review.
+      options:
+        - "No"
+        - "Yes"
+    validations:
+      required: true

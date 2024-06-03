@@ -48,6 +48,7 @@ export const promptsTableCols: ColumnDefinition[] = [
 
 export type PromptOptions = {
   tags: Array<OptionsDefinition>;
+  labels: Array<OptionsDefinition>;
 };
 
 export function promptsTableColsWithOptions(
@@ -56,6 +57,9 @@ export function promptsTableColsWithOptions(
   return promptsTableCols.map((col) => {
     if (col.id === "tags") {
       return { ...col, options: options?.tags ?? [] };
+    }
+    if (col.id === "labels") {
+      return { ...col, options: options?.labels ?? [] };
     }
     return col;
   });

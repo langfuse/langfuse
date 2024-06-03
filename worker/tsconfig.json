@@ -8,7 +8,8 @@
     "declarationMap": false,
     "lib": ["ES2015"],
     "outDir": "./dist",
-    "types": ["node"]
+    "types": ["node"],
+    "downlevelIteration": true
   },
   "include": ["."],
   "exclude": ["node_modules", "dist"]

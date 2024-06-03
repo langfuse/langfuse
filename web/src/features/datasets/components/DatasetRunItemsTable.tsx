@@ -230,7 +230,7 @@ export function DatasetRunItemsTable(
   );
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
@@ -266,7 +266,7 @@ export function DatasetRunItemsTable(
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}
       />
-    </div>
+    </>
   );
 }
 
@@ -316,7 +316,7 @@ const TraceObservationIOCell = ({
     <IOTableCell
       isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
       data={io === "output" ? data?.output : data?.input}
-      className={cn(io === "output" && "bg-green-50")}
+      className={cn(io === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
   );

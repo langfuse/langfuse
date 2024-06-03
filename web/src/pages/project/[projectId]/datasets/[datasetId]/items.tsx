@@ -9,6 +9,7 @@ import { DatasetActionButton } from "@/src/features/datasets/components/DatasetA
 import { DeleteButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function DatasetItems() {
   });
 
   return (
-    <div>
+    <FullScreenPage>
       <Header
         title={dataset.data?.name ?? ""}
         help={
@@ -92,6 +93,6 @@ export default function DatasetItems() {
           </Tabs>
         }
       />
-    </div>
+    </FullScreenPage>
   );
 }

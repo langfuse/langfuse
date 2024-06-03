@@ -45,7 +45,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "evalJob:read",
       });
 
       const configs = await ctx.prisma.jobConfiguration.findMany({
@@ -86,7 +86,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "evalJob:read",
       });
 
       const config = await ctx.prisma.jobConfiguration.findUnique({
@@ -249,7 +249,7 @@ export const evalRouter = createTRPCRouter({
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),
         sampling: z.number().gte(0).lte(1),
-        delay: z.number().gte(0).default(10_000),
+        delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -260,7 +260,7 @@ export const evalRouter = createTRPCRouter({
         throwIfNoAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "job:CUD",
+          scope: "evalJob:CUD",
         });
 
         const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
@@ -287,7 +287,7 @@ export const evalRouter = createTRPCRouter({
             filter: input.filter ?? [],
             variableMapping: input.mapping,
             sampling: input.sampling,
-            delay: DEFAULT_TRACE_JOB_DELAY, // 10 seconds default
+            delay: input.delay,
             status: "ACTIVE",
           },
         });
@@ -359,7 +359,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:CUD",
+        scope: "evalJob:CUD",
       });
 
       await ctx.prisma.jobConfiguration.update({
@@ -396,7 +396,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "evalJob:read",
       });
 
       const jobExecutions = await ctx.prisma.jobExecution.findMany({

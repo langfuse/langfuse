@@ -1,4 +1,3 @@
-import { usePostHog } from "posthog-js/react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
@@ -42,6 +41,7 @@ import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const formSchema = z.object({
   scoreName: z.string(),
@@ -113,7 +113,7 @@ export const InnerEvalConfigForm = (props: {
   onFormSuccess?: () => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -182,7 +182,7 @@ export const InnerEvalConfigForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("evals:new_config_form");
+    capture("eval_config:new_form_submit");
 
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
@@ -318,7 +318,7 @@ export const InnerEvalConfigForm = (props: {
                     <JSONView
                       title={"Eval Template"}
                       json={props.evalTemplate.prompt ?? null}
-                      className={"min-h-48 bg-gray-100 lg:w-1/2"}
+                      className={"min-h-48 bg-muted lg:w-1/2"}
                     />
                     <div className=" flex flex-col gap-2 lg:w-1/3">
                       {fields.map((mappingField, index) => (

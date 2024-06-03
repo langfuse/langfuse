@@ -89,6 +89,7 @@ export const traceRouter = createTRPCRouter({
           COALESCE(tm."completionTokens", 0)::int AS "completionTokens",
           COALESCE(tm."totalTokens", 0)::int AS "totalTokens",
           tl.latency AS "latency",
+          tl."observationCount" AS "observationCount",
           COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
           COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
           COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
@@ -116,6 +117,7 @@ export const traceRouter = createTRPCRouter({
                 totalCount: number;
                 latency: number | null;
                 level: ObservationLevel;
+                observationCount: number;
                 calculatedTotalCost: Decimal | null;
                 calculatedInputCost: Decimal | null;
                 calculatedOutputCost: Decimal | null;
@@ -142,18 +144,18 @@ export const traceRouter = createTRPCRouter({
       // performance of the query above
       const scores = await ctx.prisma.score.findMany({
         where: {
-          trace: {
-            projectId: input.projectId,
-          },
+          projectId: input.projectId,
           traceId: {
             in: traces.map((t) => t.id),
           },
         },
       });
+
       const totalTraceCount = totalTraces[0]?.count;
       return {
         traces: traces.map((trace) => {
           const filteredScores = scores.filter((s) => s.traceId === trace.id);
+
           const { input, output, ...rest } = trace;
           if (returnIO) {
             return { ...rest, input, output, scores: filteredScores };
@@ -174,8 +176,12 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const scores = await ctx.prisma.score.groupBy({
         where: {
-          trace: {
-            projectId: input.projectId,
+          projectId: input.projectId,
+        },
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
           },
         },
         by: ["name"],
@@ -203,7 +209,8 @@ export const traceRouter = createTRPCRouter({
         SELECT COUNT(*)::integer AS "count", tags.tag as value
         FROM traces, UNNEST(traces.tags) AS tags(tag)
         WHERE traces.project_id = ${input.projectId}
-        GROUP BY tags.tag;
+        GROUP BY tags.tag
+        LIMIT 1000
       `;
       const res: TraceOptions = {
         scores_avg: scores.map((score) => score.name),
@@ -228,9 +235,6 @@ export const traceRouter = createTRPCRouter({
         where: {
           id: input.traceId,
         },
-        include: {
-          scores: true,
-        },
       });
       const observations = await ctx.prisma.observationView.findMany({
         select: {
@@ -241,7 +245,6 @@ export const traceRouter = createTRPCRouter({
           startTime: true,
           endTime: true,
           name: true,
-          metadata: true,
           parentObservationId: true,
           level: true,
           statusMessage: true,
@@ -254,6 +257,7 @@ export const traceRouter = createTRPCRouter({
           totalTokens: true,
           unit: true,
           completionStartTime: true,
+          timeToFirstToken: true,
           promptId: true,
           modelId: true,
           inputPrice: true,
@@ -268,6 +272,13 @@ export const traceRouter = createTRPCRouter({
             equals: input.traceId,
             not: null,
           },
+          projectId: trace.projectId,
+        },
+      });
+      const scores = await ctx.prisma.score.findMany({
+        where: {
+          traceId: input.traceId,
+          projectId: trace.projectId,
         },
       });
 
@@ -291,6 +302,7 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
+        scores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations as ObservationReturnType[],
       };
@@ -328,6 +340,14 @@ export const traceRouter = createTRPCRouter({
           },
         }),
         ctx.prisma.observation.deleteMany({
+          where: {
+            traceId: {
+              in: input.traceIds,
+            },
+            projectId: input.projectId,
+          },
+        }),
+        ctx.prisma.score.deleteMany({
           where: {
             traceId: {
               in: input.traceIds,
@@ -513,7 +533,8 @@ function createTracesQuery(
   ) AS tm ON true
   LEFT JOIN LATERAL (
     SELECT
-        EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
+      COUNT(*) AS "observationCount",
+      EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
     FROM
         "observations"
     WHERE

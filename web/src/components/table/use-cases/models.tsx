@@ -2,6 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -47,7 +48,6 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-
   const models = api.models.all.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
@@ -111,7 +111,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         return (
           <>
             Input Price{" "}
-            <span className="text-xs text-gray-400">/ 1k units</span>
+            <span className="text-xs text-muted-foreground">/ 1k units</span>
           </>
         );
       },
@@ -140,7 +140,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         return (
           <>
             Output Price{" "}
-            <span className="text-xs text-gray-400">/ 1k units</span>
+            <span className="text-xs text-muted-foreground">/ 1k units</span>
           </>
         );
       },
@@ -163,7 +163,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         return (
           <>
             Total Price{" "}
-            <span className="text-xs text-gray-400">/ 1k units</span>
+            <span className="text-xs text-muted-foreground">/ 1k units</span>
           </>
         );
       },
@@ -256,33 +256,31 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div>
-      <DataTable
-        columns={columns}
-        data={
-          models.isLoading
-            ? { isLoading: true, isError: false }
-            : models.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: models.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: models.data.models.map((t) => convertToTableRow(t)),
-                }
-        }
-        pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-      />
-    </div>
+    <DataTable
+      columns={columns}
+      data={
+        models.isLoading
+          ? { isLoading: true, isError: false }
+          : models.isError
+            ? {
+                isLoading: false,
+                isError: true,
+                error: models.error.message,
+              }
+            : {
+                isLoading: false,
+                isError: false,
+                data: models.data.models.map((t) => convertToTableRow(t)),
+              }
+      }
+      pagination={{
+        pageCount: Math.ceil(totalCount / paginationState.pageSize),
+        onChange: setPaginationState,
+        state: paginationState,
+      }}
+      columnVisibility={columnVisibility}
+      onColumnVisibilityChange={setColumnVisibility}
+    />
   );
 }
 
@@ -294,6 +292,7 @@ const DeleteModelButton = ({
   projectId: string;
 }) => {
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const mut = api.models.delete.useMutation({
     onSuccess: () => {
       void utils.models.invalidate();
@@ -314,14 +313,20 @@ const DeleteModelButton = ({
       size="xs"
       variant="ghost"
       onClick={() => {
-        mut
-          .mutateAsync({
-            projectId,
-            modelId,
-          })
-          .catch((error) => {
-            console.error(error);
-          });
+        const confirmDelete = window.confirm(
+          "Are you sure you want to delete this model?",
+        );
+        if (confirmDelete) {
+          capture("models:delete_button_click");
+          mut
+            .mutateAsync({
+              projectId,
+              modelId,
+            })
+            .catch((error) => {
+              console.error(error);
+            });
+        }
       }}
     >
       <Trash size={14} />
