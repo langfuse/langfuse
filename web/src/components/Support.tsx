@@ -8,14 +8,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { chatAvailable, openChat } from "@/src/features/support-chat/chat";
-import {
-  Book,
-  Calendar,
-  Github,
-  Mail,
-  MessageSquare,
-  Slack,
-} from "lucide-react";
+import { Book, Github, Mail, MessageSquare, Slack } from "lucide-react";
 import Link from "next/link";
 import { SiDiscord } from "react-icons/si";
 
@@ -30,7 +23,7 @@ const supportChannels = [
   },
   {
     icon: Github,
-    title: "GitHub",
+    title: "GitHub Issues",
     description:
       "Create an issue on Github to report bugs or request new features.",
     href: "https://github.com/langfuse/langfuse/issues/new/choose",
@@ -38,12 +31,11 @@ const supportChannels = [
     primary: true,
   },
   {
-    icon: SiDiscord,
-    title: "Discord",
-    description:
-      "Get support from community and maintainers. Follow announcements to stay up to date with new features.",
-    href: "https://langfuse.com/discord",
-    buttonText: "Join Discord",
+    icon: Github,
+    title: "GitHub Support",
+    description: "Create a support ticket via GitHub discussions.",
+    href: "https://github.com/orgs/langfuse/discussions/categories/support",
+    buttonText: "Submit question",
     primary: true,
   },
   {
@@ -57,17 +49,18 @@ const supportChannels = [
   {
     icon: MessageSquare,
     title: "Chat",
-    description: "Get quick support directly from the team.",
+    description: "Get support directly from the team.",
     onClick: () => openChat(),
     available: chatAvailable,
     buttonText: "Launch Chat",
   },
   {
-    icon: Calendar,
-    title: "Schedule call",
-    description: "Schedule a call with one of the founders.",
-    href: "https://cal.com/marc-kl/office-hours",
-    buttonText: "Schedule Call",
+    icon: SiDiscord,
+    title: "Discord",
+    description:
+      "Get support from community. Follow announcements to stay up to date with new features.",
+    href: "https://langfuse.com/discord",
+    buttonText: "Join Discord",
   },
   {
     icon: Slack,

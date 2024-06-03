@@ -49,8 +49,7 @@ export const SaveToPromptButton: React.FC = () => {
       )
       .data?.prompts.filter((prompt) => prompt.type === PromptType.Chat)
       .map((prompt) => ({
-        label:
-          prompt.name.slice(0, 20) + (prompt.name.length > 25 ? "..." : ""),
+        label: prompt.name,
         value: prompt.id,
       })) ?? [];
 
@@ -126,7 +125,9 @@ export const SaveToPromptButton: React.FC = () => {
                         : "opacity-0",
                     )}
                   />
-                  {promptName.label}
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                    {promptName.label}
+                  </span>
                 </CommandItem>
               ))}
             </CommandList>
