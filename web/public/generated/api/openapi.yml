@@ -2727,11 +2727,20 @@ components:
           type: array
           items:
             type: string
+          description: List of deployment labels of this prompt version.
+        tags:
+          type: array
+          items:
+            type: string
+          description: >-
+            List of tags. Used to filter via UI and API. The same across
+            versions of a prompt.
       required:
         - name
         - version
         - config
         - labels
+        - tags
     ChatMessage:
       title: ChatMessage
       type: object
