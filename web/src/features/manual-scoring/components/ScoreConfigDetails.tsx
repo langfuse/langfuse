@@ -2,17 +2,9 @@ import { isNumeric } from "@/src/features/manual-scoring/lib/helpers";
 import { type ScoreConfig } from "@langfuse/shared";
 import React from "react";
 
-export function ScoreConfigDetails({
-  configId,
-  configs,
-}: {
-  configId?: string;
-  configs?: ScoreConfig[];
-}) {
-  if (!configId) return null;
-  const config = configs?.find((config) => config.id === configId);
-  if (!config) return null;
+export function ScoreConfigDetails({ config }: { config: ScoreConfig }) {
   const { description, minValue, maxValue, dataType } = config;
+  if (!description && !minValue && !maxValue) return null;
 
   return (
     <div className="max-w-48 overflow-hidden rounded border bg-background p-2 text-xs font-light">

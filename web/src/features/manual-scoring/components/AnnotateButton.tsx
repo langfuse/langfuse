@@ -1,7 +1,7 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, MessageCircle, X } from "lucide-react";
+import { LockIcon, MessageCircle, MessageCircleMore, X } from "lucide-react";
 import {
   type ControllerRenderProps,
   useFieldArray,
@@ -19,11 +19,8 @@ import {
 import Link from "next/link";
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
-  DrawerDescription,
   DrawerHeader,
-  DrawerTitle,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
 import { ScoreDataType, type Score, type ScoreConfig } from "@langfuse/shared";
@@ -58,6 +55,8 @@ import {
 } from "@/src/features/manual-scoring/lib/helpers";
 import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaultScoreData";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import Header from "@/src/components/layouts/header";
+import { cn } from "@/src/utils/tailwind";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -331,14 +330,18 @@ export function AnnotateButton({
           <Button className="h-6 rounded-full px-3 text-xs">Annotate</Button>
         )}
       </DrawerTrigger>
-      <DrawerContent className="h-1/3 md:max-w-[460px]">
+      <DrawerContent className="h-1/3">
         <div className="mx-auto w-full overflow-y-auto md:max-h-full">
           <DrawerHeader className="sticky top-0 z-10 bg-background">
-            <DrawerTitle>Annotate</DrawerTitle>
+            <Header
+              title="Annotate"
+              level="h3"
+              help={{
+                description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
+                href: "https://langfuse.com/docs/scores/manually",
+              }}
+            ></Header>
             <div className="grid grid-flow-col items-center">
-              <DrawerDescription>
-                Add scores to your observations/traces
-              </DrawerDescription>
               <Popover open={isConfigPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -416,115 +419,39 @@ export function AnnotateButton({
                         return (
                           <div
                             key={score.id}
-                            className="grid w-full grid-cols-[1fr,2fr] gap-2 text-left"
+                            className="grid w-full grid-cols-[1fr,2fr] items-center gap-8 text-left"
                           >
-                            <HoverCard>
-                              <HoverCardTrigger asChild>
-                                <Link
-                                  className="grid grid-cols-[auto,1fr] items-center gap-2 hover:text-accent-dark-blue hover:underline"
-                                  href={`/project/${projectId}/settings`}
-                                >
-                                  <div className="h-4 w-4 shrink-0 rounded-sm bg-primary-accent" />
-                                  <span className="text-sm">{score.name}</span>
-                                </Link>
-                              </HoverCardTrigger>
-                              <HoverCardContent>
-                                <ScoreConfigDetails
-                                  configId={score.configId}
-                                  configs={configs}
-                                />
-                              </HoverCardContent>
-                            </HoverCard>
-                            <div className="grid grid-cols-[1fr,min-content,auto] gap-2">
-                              <FormField
-                                control={form.control}
-                                name={`scoreData.${index}.value`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormControl>
-                                      {isNumeric(score.dataType) ? (
-                                        <Input
-                                          {...field}
-                                          onBlur={handleOnBlur({
-                                            config,
-                                            field,
-                                            index,
-                                            score,
-                                          })}
-                                        />
-                                      ) : config.categories &&
-                                        isCategorical(score.dataType) ? (
-                                        <Select
-                                          defaultValue={score.stringValue}
-                                          onValueChange={handleOnValueChange(
-                                            score,
-                                            index,
-                                            (config.categories as ConfigCategory[]) ??
-                                              [],
-                                          )}
-                                        >
-                                          <SelectTrigger>
-                                            <SelectValue placeholder="Select category" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {(
-                                              (config.categories as ConfigCategory[]) ??
-                                              []
-                                            ).map(
-                                              (category: ConfigCategory) => (
-                                                <SelectItem
-                                                  key={category.value}
-                                                  value={category.label}
-                                                >
-                                                  {category.label}
-                                                </SelectItem>
-                                              ),
-                                            )}
-                                          </SelectContent>
-                                        </Select>
-                                      ) : (
-                                        <ToggleGroup
-                                          type="single"
-                                          defaultValue={score.stringValue}
-                                          className="grid max-w-80 grid-cols-2"
-                                          onValueChange={handleOnValueChange(
-                                            score,
-                                            index,
-                                            (config.categories as ConfigCategory[]) ??
-                                              [],
-                                          )}
-                                        >
-                                          {(
-                                            (config.categories as ConfigCategory[]) ??
-                                            []
-                                          ).map((category: ConfigCategory) => (
-                                            <ToggleGroupItem
-                                              key={category.value}
-                                              value={category.label}
-                                              variant="outline"
-                                              className="flex-grow overflow-y-auto text-nowrap px-2"
-                                            >
-                                              <span className="truncate">
-                                                {`${category.label} (${category.value})`}
-                                              </span>
-                                            </ToggleGroupItem>
-                                          ))}
-                                        </ToggleGroup>
-                                      )}
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
+                            <div className="grid h-full grid-cols-[1fr,auto] items-center gap-1">
+                              {config.description ? (
+                                <HoverCard>
+                                  <HoverCardTrigger asChild>
+                                    <span className="text-wrap break-words text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-4">
+                                      {score.name}
+                                    </span>
+                                  </HoverCardTrigger>
+                                  <HoverCardContent>
+                                    <ScoreConfigDetails config={config} />
+                                  </HoverCardContent>
+                                </HoverCard>
+                              ) : (
+                                <span className="text-wrap break-words text-xs font-medium">
+                                  {score.name}
+                                </span>
+                              )}
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <Button
-                                    variant="outline"
-                                    size="icon"
+                                    variant="ghost"
                                     type="button"
+                                    size="xs"
+                                    className="mb-4 px-0"
                                     disabled={isScoreUnsaved(score.scoreId)}
                                   >
-                                    <MessageCircle className="h-4 w-4" />
+                                    {score.comment ? (
+                                      <MessageCircleMore className="h-4 w-4" />
+                                    ) : (
+                                      <MessageCircle className="h-4 w-4" />
+                                    )}
                                   </Button>
                                 </PopoverTrigger>
                                 <PopoverContent>
@@ -630,23 +557,116 @@ export function AnnotateButton({
                                   />
                                 </PopoverContent>
                               </Popover>
-                              {score.scoreId && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  type="button"
-                                  loading={mutDeleteScore.isLoading}
-                                  onClick={async () => {
-                                    if (score.scoreId)
-                                      await mutDeleteScore.mutateAsync({
-                                        id: score.scoreId,
-                                        projectId,
-                                      });
-                                  }}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
+                            </div>
+                            <div className="grid grid-cols-[1fr,min-content] gap-2">
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.value`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      {isNumeric(score.dataType) ? (
+                                        <Input
+                                          {...field}
+                                          type="number"
+                                          className="text-xs"
+                                          onBlur={handleOnBlur({
+                                            config,
+                                            field,
+                                            index,
+                                            score,
+                                          })}
+                                        />
+                                      ) : config.categories &&
+                                        (
+                                          (config.categories as ConfigCategory[]) ??
+                                          []
+                                        ).length > 3 ? (
+                                        <Select
+                                          defaultValue={score.stringValue}
+                                          onValueChange={handleOnValueChange(
+                                            score,
+                                            index,
+                                            (config.categories as ConfigCategory[]) ??
+                                              [],
+                                          )}
+                                        >
+                                          <SelectTrigger>
+                                            <div className="text-xs">
+                                              <SelectValue placeholder="Select category" />
+                                            </div>
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {(
+                                              (config.categories as ConfigCategory[]) ??
+                                              []
+                                            ).map(
+                                              (category: ConfigCategory) => (
+                                                <SelectItem
+                                                  key={category.value}
+                                                  value={category.label}
+                                                  className="text-xs"
+                                                >
+                                                  {category.label}
+                                                </SelectItem>
+                                              ),
+                                            )}
+                                          </SelectContent>
+                                        </Select>
+                                      ) : (
+                                        <ToggleGroup
+                                          type="single"
+                                          defaultValue={score.stringValue}
+                                          className={`grid grid-cols-${((config.categories as ConfigCategory[]) ?? [])?.length}`}
+                                          onValueChange={handleOnValueChange(
+                                            score,
+                                            index,
+                                            (config.categories as ConfigCategory[]) ??
+                                              [],
+                                          )}
+                                        >
+                                          {(
+                                            (config.categories as ConfigCategory[]) ??
+                                            []
+                                          ).map((category: ConfigCategory) => (
+                                            <ToggleGroupItem
+                                              key={category.value}
+                                              value={category.label}
+                                              variant="outline"
+                                              className="grid grid-flow-col gap-1 text-nowrap px-1 text-xs font-normal"
+                                            >
+                                              <span
+                                                className="truncate"
+                                                title={category.label}
+                                              >
+                                                {category.label}
+                                              </span>
+                                              <span className="text-primary/60">{`(${category.value})`}</span>
+                                            </ToggleGroupItem>
+                                          ))}
+                                        </ToggleGroup>
+                                      )}
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <Button
+                                variant="ghost"
+                                type="button"
+                                className="px-0"
+                                disabled={isScoreUnsaved(score.scoreId)}
+                                loading={mutDeleteScore.isLoading}
+                                onClick={async () => {
+                                  if (score.scoreId)
+                                    await mutDeleteScore.mutateAsync({
+                                      id: score.scoreId,
+                                      projectId,
+                                    });
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                         );
