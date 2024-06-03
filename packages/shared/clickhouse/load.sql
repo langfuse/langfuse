@@ -1,6 +1,6 @@
 -- traces
 INSERT INTO langfuse.traces
-SELECT toString(floor(randUniform(0, 4500000))) AS id,
+SELECT toString(floor(randUniform(0, 2000000))) AS id,
   now() - randUniform(0, 10000000) AS `timestamp`,
   concat('name_', toString(rand() % 100)) AS `name`,
   concat('user_id_', toString(rand() % 10000)) AS `user_id`,
@@ -14,12 +14,12 @@ SELECT toString(floor(randUniform(0, 4500000))) AS id,
   repeat('input', toInt64(randExponential(1 / 100))) AS `input`,
   repeat('output', toInt64(randExponential(1 / 100))) AS `output`,
   concat('session_', toString(rand() % 100)) AS `session_id`,
-  now() - randUniform(0, 10000000) AS `created_at`
-FROM numbers(1000000);
+  `timestamp` AS `created_at`
+FROM numbers(2000000);
 -- observations
 INSERT INTO langfuse.observations
-SELECT toString(floor(randUniform(0, 4500000))) AS id,
-  toString(floor(randUniform(0, 4500000))) AS trace_id,
+SELECT toString(floor(randUniform(0, 10000000))) AS id,
+  toString(floor(randUniform(0, 2000000))) AS trace_id,
   concat('project_id_', toString(floor(randExponential(1 / 2)) % 1000)) AS project_id,
   multiIf(
     rand() < 0.8,
@@ -56,12 +56,10 @@ SELECT toString(floor(randUniform(0, 4500000))) AS id,
   rand64() AS `input_cost`,
   rand64() AS `output_cost`,
   rand64() AS `total_cost`,
-  addYears(now(), -1) AS `completion_start_time`,
+  start_time AS `completion_start_time`,
   toString(rand()) AS `prompt_id`,
-  now() - randUniform(0, 10000000) AS `created_at`,
-  now() AS event_ts,
-  randUniform(0, 1000000) AS event_microseconds
-FROM numbers(4500000);
+  start_time AS `created_at`
+FROM numbers(1000000);
 -- scores
 INSERT INTO langfuse.scores
 SELECT toString(floor(randUniform(0, 500000))) AS id,

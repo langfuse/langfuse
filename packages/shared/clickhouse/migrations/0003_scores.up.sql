@@ -9,8 +9,6 @@ CREATE TABLE scores (
     trace_id String,
     observation_id Nullable(String),
     created_at DateTime64(6) DEFAULT now(),
-    event_ts DateTime64(6),
-    event_microseconds UInt32,
     INDEX idx_id id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_project_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1
 ) ENGINE = ReplacingMergeTree Partition by toYYYYMM(timestamp)
