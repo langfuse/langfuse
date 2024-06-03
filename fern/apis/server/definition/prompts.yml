@@ -99,7 +99,12 @@ types:
       name: string
       version: integer
       config: unknown
-      labels: list<string>
+      labels:
+        type: list<string>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: list<string>
+        docs: List of tags. Used to filter via UI and API. The same across versions of a prompt.
 
   ChatMessage:
     properties:
