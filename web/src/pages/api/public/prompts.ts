@@ -67,7 +67,6 @@ export default async function handler(
         labels: input.isActive
           ? [...new Set([...input.labels, PRODUCTION_LABEL])] // Ensure labels are unique
           : input.labels, // If production label is already present, this will still promote the prompt
-        tags: input.tags ?? [],
         config: input.config ?? {}, // Config can be null in which case zod default value is not used
         projectId: authCheck.scope.projectId,
         createdBy: "API",
