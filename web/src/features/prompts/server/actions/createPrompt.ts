@@ -6,8 +6,8 @@ import { ValidationError } from "@langfuse/shared";
 import { jsonSchema } from "@/src/utils/zod";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
-import { updatePromptLabels } from "@/src/features/prompts/server/utils/updatePromptLabels";
-import { updatePromptTags } from "@/src/features/prompts/server/utils/updatePromptTags";
+import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
+import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;
@@ -39,7 +39,7 @@ export const createPrompt = async ({
   const finalLabels = [...labels, LATEST_PROMPT_LABEL]; // Newly created prompts are always labeled as 'latest'
 
   // If tags are undefined, use the tags from the latest prompt version
-  const finalTags = tags ?? latestPrompt?.tags ?? [];
+  const finalTags = [...new Set(tags ?? latestPrompt?.tags ?? [])];
 
   const create = [
     prisma.prompt.create({
@@ -60,13 +60,23 @@ export const createPrompt = async ({
   if (finalLabels.length > 0)
     // If we're creating a new labeled prompt, we must remove those labels on previous prompts since labels are unique
     create.push(
-      ...(await updatePromptLabels(prisma, projectId, name, finalLabels)),
+      ...(await removeLabelsFromPreviousPromptVersions({
+        prisma,
+        projectId,
+        promptName: name,
+        labelsToRemove: finalLabels,
+      })),
     );
 
-  if (finalTags.length > 0)
+  if (tags && finalTags.length > 0)
     // If we're creating a new prompt with tags, we must update those tags on previous prompts since tags are consistent across versions
     create.push(
-      ...(await updatePromptTags(prisma, projectId, name, finalTags)),
+      ...(await updatePromptTagsOnAllVersions({
+        prisma,
+        projectId,
+        promptName: name,
+        tags: finalTags,
+      })),
     );
 
   const [createdPrompt] = await prisma.$transaction(create);

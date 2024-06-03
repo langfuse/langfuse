@@ -1,13 +1,18 @@
 import { type PrismaClient } from "@langfuse/shared/src/db";
 
-export const updatePromptTags = async (
-  prisma: PrismaClient,
-  projectId: string,
-  name: string,
-  tags: string[],
-) => {
+export const updatePromptTagsOnAllVersions = async ({
+  prisma,
+  projectId,
+  promptName,
+  tags,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  promptName: string;
+  tags: string[];
+}) => {
   const previousVersions = await prisma.prompt.findMany({
-    where: { projectId, name },
+    where: { projectId, name: promptName },
   });
 
   if (previousVersions.length === 0) return [];
