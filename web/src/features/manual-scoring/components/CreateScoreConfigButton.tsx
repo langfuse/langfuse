@@ -36,6 +36,7 @@ import {
   isCategorical,
   isNumeric,
 } from "@/src/features/manual-scoring/lib/helpers";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 const availableDataTypes = [
   ScoreDataType.NUMERIC,
@@ -226,15 +227,25 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                           Here will some variable mapping be added.
                         </FormControl>
                         {fields.length > 0 && (
-                          <div className="mb-2 grid grid-cols-[1fr,3fr] items-center gap-2 text-left sm:grid-cols-[1fr,9fr]">
-                            <FormLabel>Value</FormLabel>
+                          <div className="mb-2 grid grid-cols-[1fr,3fr] items-center gap-2 text-left sm:grid-cols-[1fr,7fr]">
+                            <FormLabel className="grid grid-flow-col">
+                              Value
+                              <DocPopup
+                                description={`This is how the ${
+                                  isCategorical(form.getValues("dataType"))
+                                    ? "category"
+                                    : "boolean"
+                                } label is mapped to an integer value internally.`}
+                                size="xs"
+                              ></DocPopup>
+                            </FormLabel>
                             <FormLabel>Label</FormLabel>
                           </div>
                         )}
                         {fields.map((category, index) => (
                           <div
                             key={`${category.id}-langfuseObject`}
-                            className="items-top mb-2 grid grid-cols-[1fr,3fr] gap-2 text-left sm:grid-cols-[1fr,9fr]"
+                            className="items-top mb-2 grid grid-cols-[1fr,3fr] gap-2 text-left sm:grid-cols-[1fr,7fr]"
                           >
                             <FormField
                               control={form.control}
