@@ -125,11 +125,19 @@ export function AnnotateButton({
     onSettled: async (data, error) => {
       if (!data || error) return;
 
-      const { id } = data;
+      const { id, name, dataType, configId } = data;
       const updatedScoreIndex = fields.findIndex(
         (field) => field.scoreId === id,
       );
-      remove(updatedScoreIndex);
+      update(updatedScoreIndex, {
+        name,
+        dataType,
+        configId: configId ?? undefined,
+        value: undefined,
+        scoreId: undefined,
+        stringValue: undefined,
+        comment: undefined,
+      });
 
       await Promise.all([
         utils.scores.invalidate(),
@@ -274,15 +282,19 @@ export function AnnotateButton({
     score: AnnotationScoreSchemaType;
   }): React.FocusEventHandler<HTMLInputElement> | undefined {
     return async () => {
-      const { maxValue, minValue } = config;
-      if (!maxValue || !minValue) return;
+      const { maxValue, minValue, dataType } = config;
 
-      if (Number(field.value) > maxValue || Number(field.value) < minValue) {
-        form.setError(`scoreData.${index}.value`, {
-          type: "custom",
-          message: `Not in range: [${minValue},${maxValue}]`,
-        });
-        return;
+      if (isNumeric(dataType)) {
+        if (
+          (!!maxValue && Number(field.value) > maxValue) ||
+          (!!minValue && Number(field.value) < minValue)
+        ) {
+          form.setError(`scoreData.${index}.value`, {
+            type: "custom",
+            message: `Not in range: [${minValue ?? "-∞"},${maxValue ?? "∞"}]`,
+          });
+          return;
+        }
       }
 
       form.clearErrors(`scoreData.${index}.value`);
@@ -319,24 +331,10 @@ export function AnnotateButton({
           <Button className="h-6 rounded-full px-3 text-xs">Annotate</Button>
         )}
       </DrawerTrigger>
-      <DrawerContent className="max-w-[460px]">
-        <div className="mx-auto max-h-64 w-full overflow-y-auto md:max-h-full">
+      <DrawerContent className="h-1/3 md:max-w-[460px]">
+        <div className="mx-auto w-full overflow-y-auto md:max-h-full">
           <DrawerHeader className="sticky top-0 z-10 bg-background">
-            <DrawerTitle>
-              <div className="flex items-center justify-between">
-                <span>Annotate</span>
-                <DrawerClose asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="flex w-fit"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </DrawerClose>
-              </div>
-            </DrawerTitle>
+            <DrawerTitle>Annotate</DrawerTitle>
             <div className="grid grid-flow-col items-center">
               <DrawerDescription>
                 Add scores to your observations/traces
@@ -506,11 +504,9 @@ export function AnnotateButton({
                                               variant="outline"
                                               className="flex-grow overflow-y-auto text-nowrap px-2"
                                             >
-                                              <div className="grid w-full grid-cols-[1fr,auto,auto] place-items-center items-center gap-2">
-                                                <span>{category.label}</span>
-                                                <div className="h-6 w-1 border-r"></div>
-                                                <span>{category.value}</span>
-                                              </div>
+                                              <span className="truncate">
+                                                {`${category.label} (${category.value})`}
+                                              </span>
                                             </ToggleGroupItem>
                                           ))}
                                         </ToggleGroup>

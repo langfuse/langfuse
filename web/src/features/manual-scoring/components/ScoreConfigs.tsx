@@ -184,7 +184,9 @@ function getConfigRange(
 ): Prisma.JsonValue | undefined {
   const { range, dataType } = originalRow;
   if (isNumeric(dataType)) {
-    return [{ minValue: range.minValue, maxValue: range.maxValue }];
+    return [
+      { minValue: range.minValue ?? "-∞", maxValue: range.maxValue ?? "∞" },
+    ];
   }
   return range.categories;
 }
