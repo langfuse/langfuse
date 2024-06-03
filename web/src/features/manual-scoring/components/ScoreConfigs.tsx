@@ -49,43 +49,22 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
 
   const columns: LangfuseColumnDef<ScoreConfigTableRow>[] = [
     {
-      accessorKey: "id",
-      id: "id",
-      header: "Config ID",
-      enableSorting: true,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.original.id;
-        return (
-          <span
-            className="inline-block rounded bg-muted-gray px-2
-        py-1 text-xs font-semibold text-accent-dark-blue shadow-sm"
-          >
-            {value}
-          </span>
-        );
-      },
-    },
-    {
       accessorKey: "name",
       id: "name",
       header: "Name",
       enableHiding: true,
-      enableSorting: true,
     },
     {
       accessorKey: "dataType",
       id: "dataType",
       header: "Data Type",
       enableHiding: true,
-      enableSorting: true,
     },
     {
       accessorKey: "range",
       id: "range",
       header: "Range",
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const range = getConfigRange(row.original);
 
@@ -99,7 +78,6 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
       id: "description",
       header: "Description",
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value = row.original.description;
 
@@ -109,12 +87,18 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
       },
     },
     {
+      accessorKey: "id",
+      id: "id",
+      header: "Config ID",
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "createdAt",
       id: "createdAt",
       header: "Created At",
       enableHiding: true,
       defaultHidden: true,
-      enableSorting: true,
     },
     {
       accessorKey: "updatedAt",
@@ -122,7 +106,6 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
       header: "Updated At",
       enableHiding: true,
       defaultHidden: true,
-      enableSorting: true,
     },
   ];
 
@@ -209,6 +192,7 @@ export function ScoreConfigs({ projectId }: { projectId: string }) {
     </div>
   );
 }
+
 function getConfigRange(
   originalRow: ScoreConfigTableRow,
 ): Prisma.JsonValue | undefined {
