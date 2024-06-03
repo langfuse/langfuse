@@ -102,7 +102,7 @@
     "nodemailer": "^6.9.13",
     "posthog-js": "^1.122.0",
     "posthog-node": "^3.6.3",
-    "prisma": "^5.13.0",
+    "prisma": "^5.14.0",
     "react": "18.2.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "18.2.0",
