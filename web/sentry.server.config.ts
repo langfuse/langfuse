@@ -20,6 +20,15 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
       ) {
         return 0.1;
       }
+      if (
+        samplingContext.request &&
+        samplingContext.request.url &&
+        samplingContext.request.url.includes("api/auth") &&
+        samplingContext.transactionContext.status !== "ok" &&
+        samplingContext.transactionContext.status !== "unauthenticated"
+      ) {
+        return 0.1;
+      }
       return 0.01;
     },
 
