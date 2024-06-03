@@ -10,7 +10,7 @@ import {
 } from "@/src/features/manual-scoring/lib/helpers";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { cn } from "@/src/utils/tailwind";
-import { MessageCircle } from "lucide-react";
+import { MessageCircleMore } from "lucide-react";
 
 export const GroupedScoreBadges = ({
   scores,
@@ -44,7 +44,7 @@ export const GroupedScoreBadges = ({
           {s.comment && (
             <HoverCard>
               <HoverCardTrigger className="ml-1 inline-block cursor-pointer">
-                <MessageCircle size={12} />
+                <MessageCircleMore size={12} />
               </HoverCardTrigger>
               <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
                 <p>{s.comment}</p>

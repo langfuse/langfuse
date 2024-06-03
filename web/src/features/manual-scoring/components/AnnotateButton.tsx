@@ -425,7 +425,10 @@ export function AnnotateButton({
                               {config.description ? (
                                 <HoverCard>
                                   <HoverCardTrigger asChild>
-                                    <span className="text-wrap break-words text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-4">
+                                    <span
+                                      className="line-clamp-2 text-wrap break-words text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-4"
+                                      title={score.name}
+                                    >
                                       {score.name}
                                     </span>
                                   </HoverCardTrigger>
@@ -434,7 +437,10 @@ export function AnnotateButton({
                                   </HoverCardContent>
                                 </HoverCard>
                               ) : (
-                                <span className="text-wrap break-words text-xs font-medium">
+                                <span
+                                  className="line-clamp-2 text-wrap break-words text-xs font-medium"
+                                  title={score.name}
+                                >
                                   {score.name}
                                 </span>
                               )}
@@ -444,7 +450,7 @@ export function AnnotateButton({
                                     variant="ghost"
                                     type="button"
                                     size="xs"
-                                    className="mb-4 px-0"
+                                    className="h-full items-start px-0"
                                     disabled={isScoreUnsaved(score.scoreId)}
                                   >
                                     {score.comment ? (
