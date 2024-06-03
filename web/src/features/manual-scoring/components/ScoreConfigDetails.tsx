@@ -17,8 +17,8 @@ export function ScoreConfigDetails({
   return (
     <div className="max-w-48 overflow-hidden rounded border bg-background p-2 text-xs font-light">
       {!!description && <p>{`Description: ${description}`}</p>}
-      {isNumeric(dataType) ? (
-        <p>{`Range: [${minValue}, ${maxValue}]`}</p>
+      {isNumeric(dataType) && (!!minValue || !!maxValue) ? (
+        <p>{`Range: [${minValue ?? "-∞"}, ${maxValue ?? "∞"}]`}</p>
       ) : null}
     </div>
   );

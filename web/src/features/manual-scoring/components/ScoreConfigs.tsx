@@ -8,10 +8,11 @@ import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
-import { ScoreDataType, type Prisma } from "@langfuse/shared";
+import { type ScoreDataType, type Prisma } from "@langfuse/shared";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { CreateScoreConfigButton } from "@/src/features/manual-scoring/components/CreateScoreConfigButton";
+import { isNumeric } from "@/src/features/manual-scoring/lib/helpers";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -212,8 +213,8 @@ function getConfigRange(
   originalRow: ScoreConfigTableRow,
 ): Prisma.JsonValue | undefined {
   const { range, dataType } = originalRow;
-  if (dataType === ScoreDataType.CATEGORICAL) {
-    return range.categories;
+  if (isNumeric(dataType)) {
+    return [{ minValue: range.minValue, maxValue: range.maxValue }];
   }
-  return [{ minValue: range.minValue, maxValue: range.maxValue }];
+  return range.categories;
 }

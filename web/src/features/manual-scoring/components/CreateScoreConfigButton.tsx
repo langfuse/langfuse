@@ -36,7 +36,6 @@ import {
   isCategorical,
   isNumeric,
 } from "@/src/features/manual-scoring/lib/helpers";
-import { cn } from "@/src/utils/tailwind";
 
 const availableDataTypes = [
   ScoreDataType.NUMERIC,
@@ -227,64 +226,64 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                           Here will some variable mapping be added.
                         </FormControl>
                         {fields.length > 0 && (
-                          <div
-                            className={cn(
-                              "mb-2 grid items-center text-left",
-                              isBooleanDataType(form.getValues("dataType"))
-                                ? "grid-cols-8 gap-2"
-                                : "grid-cols-9 gap-4",
-                            )}
-                          >
-                            <FormLabel className="col-span-4">Label</FormLabel>
-                            <FormLabel className="col-span-4">Value</FormLabel>
+                          <div className="mb-2 grid grid-cols-[1fr,3fr] items-center gap-2 text-left sm:grid-cols-[1fr,9fr]">
+                            <FormLabel>Value</FormLabel>
+                            <FormLabel>Label</FormLabel>
                           </div>
                         )}
                         {fields.map((category, index) => (
                           <div
                             key={`${category.id}-langfuseObject`}
-                            className="items-top mb-2 grid grid-cols-[1fr,1fr,auto] gap-2 text-left"
+                            className="items-top mb-2 grid grid-cols-[1fr,3fr] gap-2 text-left sm:grid-cols-[1fr,9fr]"
                           >
-                            <FormField
-                              control={form.control}
-                              name={`categories.${index}.label`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      {...field}
-                                      readOnly={isBooleanDataType(
-                                        form.getValues("dataType"),
-                                      )}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
                             <FormField
                               control={form.control}
                               name={`categories.${index}.value`}
                               render={({ field }) => (
                                 <FormItem>
                                   <FormControl>
-                                    <Input {...field} type="number" readOnly />
+                                    <Input
+                                      {...field}
+                                      readOnly
+                                      inputMode="numeric"
+                                      className="text-center"
+                                    />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
-                            {isCategorical(form.getValues("dataType")) && (
-                              <Button
-                                onClick={() => remove(index)}
-                                variant="outline"
-                                size="icon"
-                                disabled={
-                                  index === 0 || index !== fields.length - 1
-                                }
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
+                            <div className="grid grid-cols-[1fr,auto] gap-2">
+                              <FormField
+                                control={form.control}
+                                name={`categories.${index}.label`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        readOnly={isBooleanDataType(
+                                          form.getValues("dataType"),
+                                        )}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              {isCategorical(form.getValues("dataType")) && (
+                                <Button
+                                  onClick={() => remove(index)}
+                                  variant="outline"
+                                  size="icon"
+                                  disabled={
+                                    index === 0 || index !== fields.length - 1
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         ))}
                         {isCategorical(form.getValues("dataType")) && (
