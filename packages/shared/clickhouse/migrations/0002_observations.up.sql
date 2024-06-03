@@ -4,7 +4,6 @@ CREATE TABLE observations (
     `project_id` String,
     `type` String,
     `parent_observation_id` Nullable(String),
-    `created_at` DateTime64(6),
     `start_time` DateTime64(6),
     `end_time` Nullable(DateTime64(6)),
     `name` String,
@@ -34,7 +33,7 @@ CREATE TABLE observations (
     INDEX idx_project_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_res_metadata_key mapKeys(metadata) TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_res_metadata_value mapValues(metadata) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree Partition by toYYYYMM(start_time)
+) ENGINE = ReplacingMergeTree Partition by toYYYYMM(start_time)
 ORDER BY (
         project_id,
         `type`,

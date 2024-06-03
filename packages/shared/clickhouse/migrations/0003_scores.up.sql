@@ -13,7 +13,7 @@ CREATE TABLE scores (
     event_microseconds UInt32,
     INDEX idx_id id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_project_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1
-) ENGINE = MergeTree Partition by toYYYYMM(timestamp)
+) ENGINE = ReplacingMergeTree Partition by toYYYYMM(timestamp)
 ORDER BY (
         project_id,
         name,

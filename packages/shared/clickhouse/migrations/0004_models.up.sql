@@ -12,5 +12,5 @@ CREATE TABLE models (
     unit String,
     tokenizer_id Nullable(String),
     tokenizer_config Nullable(String)
-) ENGINE = MergeTree()
+) ENGINE = ReplacingMergeTree()
 ORDER BY (model_name, id);
