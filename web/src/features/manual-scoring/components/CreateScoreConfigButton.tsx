@@ -36,6 +36,7 @@ import {
   isCategorical,
   isNumeric,
 } from "@/src/features/manual-scoring/lib/helpers";
+import { cn } from "@/src/utils/tailwind";
 
 const availableDataTypes = [
   ScoreDataType.NUMERIC,
@@ -193,7 +194,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                     name="minValue"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Minimum</FormLabel>
+                        <FormLabel>Minimum (optional)</FormLabel>
                         <FormControl>
                           <Input {...field} type="number" />
                         </FormControl>
@@ -206,7 +207,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                     name="maxValue"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Maximum</FormLabel>
+                        <FormLabel>Maximum (optional)</FormLabel>
                         <FormControl>
                           <Input {...field} type="number" />
                         </FormControl>
@@ -226,7 +227,14 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                           Here will some variable mapping be added.
                         </FormControl>
                         {fields.length > 0 && (
-                          <div className="mb-2 grid grid-cols-9 items-center gap-2 text-left">
+                          <div
+                            className={cn(
+                              "mb-2 grid items-center text-left",
+                              isBooleanDataType(form.getValues("dataType"))
+                                ? "grid-cols-8 gap-2"
+                                : "grid-cols-9 gap-4",
+                            )}
+                          >
                             <FormLabel className="col-span-4">Label</FormLabel>
                             <FormLabel className="col-span-4">Value</FormLabel>
                           </div>
@@ -242,7 +250,12 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                               render={({ field }) => (
                                 <FormItem>
                                   <FormControl>
-                                    <Input {...field} />
+                                    <Input
+                                      {...field}
+                                      readOnly={isBooleanDataType(
+                                        form.getValues("dataType"),
+                                      )}
+                                    />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -254,7 +267,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                               render={({ field }) => (
                                 <FormItem>
                                   <FormControl>
-                                    <Input {...field} type="number" />
+                                    <Input {...field} type="number" readOnly />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -336,10 +349,11 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
 
 function validateForm(values: z.infer<typeof formSchema>): string | null {
   if (isNumeric(values.dataType)) {
-    if (!values.minValue || !values.maxValue) {
-      return "Both Minimum and Maximum values are required for numeric data types.";
-    }
-    if (values.maxValue <= values.minValue) {
+    if (
+      !!values.maxValue &&
+      !!values.minValue &&
+      values.maxValue <= values.minValue
+    ) {
       return "Maximum value must be greater than Minimum value.";
     }
   } else if (isCategorical(values.dataType)) {
