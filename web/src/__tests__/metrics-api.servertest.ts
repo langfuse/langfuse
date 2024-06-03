@@ -68,12 +68,18 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         inputUsage: 333,
         outputUsage: 0,
         totalUsage: 333,
+        countObservations: 1,
+        countTraces: 1,
+        totalCost: 0,
       },
       {
         model: "modelC",
         inputUsage: 666,
         outputUsage: 777,
         totalUsage: 1443,
+        countObservations: 1,
+        countTraces: 1,
+        totalCost: 1024.22,
       },
     ]);
 
@@ -88,6 +94,9 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         inputUsage: 100,
         outputUsage: 200,
         totalUsage: 300,
+        countObservations: 1,
+        countTraces: 1,
+        totalCost: 0,
       },
     ]);
   });
