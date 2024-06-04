@@ -167,6 +167,7 @@ export const datasetRouter = createTRPCRouter({
                 JOIN traces t ON t.id = s.trace_id
               WHERE 
                 t.project_id = ${input.projectId}
+                AND s.data_type != 'CATEGORICAL'
                 AND ri.dataset_run_id = runs.id
               GROUP BY s.name
             ) s

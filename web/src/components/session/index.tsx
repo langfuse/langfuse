@@ -7,7 +7,6 @@ import { IOPreview } from "@/src/components/trace/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
@@ -22,6 +21,7 @@ import {
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { AnnotateButton } from "@/src/features/manual-scoring/components/AnnotateButton";
 
 // do not use the usual table row heights here
 const rowHeightMapping: Record<RowHeight, number> = {
@@ -202,7 +202,7 @@ const TraceCardList = ({
                   <div className="flex flex-wrap content-start items-start gap-1">
                     <GroupedScoreBadges scores={trace.scores} />
                   </div>
-                  <ManualScoreButton
+                  <AnnotateButton
                     projectId={projectId}
                     traceId={trace.id}
                     scores={trace.scores}
