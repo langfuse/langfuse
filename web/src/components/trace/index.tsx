@@ -1,4 +1,4 @@
-import { type Trace, type Score, type ScoreConfig } from "@langfuse/shared";
+import { type Trace, type Score } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
