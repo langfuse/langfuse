@@ -22,7 +22,6 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { AnnotateButton } from "@/src/features/manual-scoring/components/AnnotateButton";
-import { type ScoreConfig } from "@langfuse/shared";
 
 // do not use the usual table row heights here
 const rowHeightMapping: Record<RowHeight, number> = {
