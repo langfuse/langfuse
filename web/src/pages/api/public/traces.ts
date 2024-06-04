@@ -25,6 +25,7 @@ const GetTracesSchema = z.object({
   userId: z.string().nullish(),
   name: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
+  sessionId: z.string().nullish(),
   fromTimestamp: stringDate,
   orderBy: z
     .string() // orderBy=timestamp.asc
@@ -105,6 +106,9 @@ export default async function handler(
             ", ",
           )}] <@ t."tags"`
         : Prisma.empty;
+      const sessionCondition = obj.sessionId
+        ? Prisma.sql`AND t."session_id" = ${obj.sessionId}`
+        : Prisma.empty;
       const fromTimestampCondition = obj.fromTimestamp
         ? Prisma.sql`AND t."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
@@ -145,6 +149,7 @@ export default async function handler(
             ${userCondition}
             ${nameCondition}
             ${tagsCondition}
+            ${sessionCondition}
             ${orderByCondition}
             LIMIT ${obj.limit} OFFSET ${skipValue}
           ) AS t
@@ -168,6 +173,7 @@ export default async function handler(
           projectId: authCheck.scope.projectId,
           name: obj.name ? obj.name : undefined,
           userId: obj.userId ? obj.userId : undefined,
+          sessionId: obj.sessionId ? obj.sessionId : undefined,
           timestamp: obj.fromTimestamp
             ? { gte: new Date(obj.fromTimestamp) }
             : undefined,
