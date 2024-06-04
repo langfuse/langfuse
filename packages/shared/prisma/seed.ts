@@ -146,6 +146,11 @@ async function main() {
       });
     }
 
+    const configIdsAndNames = await generateConfigsForProject([
+      project1,
+      project2,
+    ]);
+
     const promptIds = await generatePromptsForProject([project1, project2]);
 
     const envTags = [null, "development", "staging", "production"];
@@ -153,28 +158,21 @@ async function main() {
 
     const traceVolume = environment === "load" ? LOAD_TRACE_VOLUME : 100;
 
-    const { traces, observations, scores, sessions, events, configs } =
-      createObjects(
-        traceVolume,
-        envTags,
-        colorTags,
-        project1,
-        project2,
-        promptIds
-      );
+    const { traces, observations, scores, sessions, events } = createObjects(
+      traceVolume,
+      envTags,
+      colorTags,
+      project1,
+      project2,
+      promptIds,
+      configIdsAndNames
+    );
 
     console.log(
       `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
     );
 
-    await uploadObjects(
-      traces,
-      observations,
-      scores,
-      sessions,
-      events,
-      configs
-    );
+    await uploadObjects(traces, observations, scores, sessions, events);
 
     // If openai key is in environment, add it to the projects LLM API keys
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -358,8 +356,7 @@ async function uploadObjects(
   observations: Prisma.ObservationCreateManyInput[],
   scores: Prisma.ScoreCreateManyInput[],
   sessions: Prisma.TraceSessionCreateManyInput[],
-  events: Prisma.ObservationCreateManyInput[],
-  configs: Prisma.ScoreConfigCreateManyInput[]
+  events: Prisma.ObservationCreateManyInput[]
 ) {
   let promises: Prisma.PrismaPromise<unknown>[] = [];
 
@@ -441,23 +438,6 @@ async function uploadObjects(
   }
 
   promises = [];
-  chunk(configs, chunkSize).forEach((chunk) => {
-    promises.push(
-      prisma.scoreConfig.createMany({
-        data: chunk,
-      })
-    );
-  });
-  for (let i = 0; i < promises.length; i++) {
-    process.stdout.clearLine(0);
-    process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Score Configs ${(i / promises.length) * 100}% complete`
-    );
-    await promises[i];
-  }
-
-  promises = [];
   chunk(scores, chunkSize).forEach((chunk) => {
     promises.push(
       prisma.score.createMany({
@@ -481,7 +461,8 @@ function createObjects(
   colorTags: (string | null)[],
   project1: Project,
   project2: Project,
-  promptIds: Map<string, string[]>
+  promptIds: Map<string, string[]>,
+  configIdsAndNames: Map<string, { name: string; id: string }[]>
 ) {
   const traces: Prisma.TraceCreateManyInput[] = [];
   const observations: Prisma.ObservationCreateManyInput[] = [];
@@ -540,35 +521,28 @@ function createObjects(
 
     traces.push(trace);
 
-    const scoreConfig = [
-      ...(Math.random() > 0.9
-        ? [
-            {
-              name: `helpfulness-${i}`,
-              dataType: ScoreDataType.NUMERIC,
-              minValue: -1,
-              maxValue: 1,
-              projectId,
-              id: `continuous-config-${i}`,
-            },
-          ]
-        : []),
-    ];
-
-    configs.push(...scoreConfig);
+    const configArray = configIdsAndNames.get(projectId) ?? [];
+    const randomIndex = Math.floor(Math.random() * 3);
+    const config =
+      configArray.length >= randomIndex - 1 && configArray[randomIndex];
+    const { name: annotationScoreName, id: configId } = config || {
+      name: "manual-score",
+      id: undefined,
+    };
 
     const traceScores = [
       ...(Math.random() > 0.5
         ? [
             {
               traceId: trace.id,
-              name: "manual-score",
+              name: annotationScoreName,
               value: Math.floor(Math.random() * 3) - 1,
               timestamp: traceTs,
               source: ScoreSource.ANNOTATION,
               projectId,
               authorUserId: `user-${i}`,
               dataType: ScoreDataType.NUMERIC,
+              ...(configId ? { configId } : {}),
             },
           ]
         : []),
@@ -1002,4 +976,78 @@ async function generatePrompts(project: Project) {
     promptIds.push(promptId);
   }
   return promptIds;
+}
+
+async function generateConfigsForProject(projects: Project[]) {
+  const projectIdsToConfigs: Map<string, { name: string; id: string }[]> =
+    new Map();
+
+  await Promise.all(
+    projects.map(async (project) => {
+      const configNameAndId = await generateConfigs(project);
+      projectIdsToConfigs.set(project.id, configNameAndId);
+    })
+  );
+  return projectIdsToConfigs;
+}
+
+async function generateConfigs(project: Project) {
+  const configNameAndId: { name: string; id: string }[] = [];
+
+  const configs = [
+    {
+      id: `config-${v4()}`,
+      name: "manual-score",
+      dataType: ScoreDataType.NUMERIC,
+      projectId: project.id,
+      isArchived: false,
+    },
+    {
+      id: `config-${v4()}`,
+      projectId: project.id,
+      name: "Accuracy",
+      dataType: ScoreDataType.CATEGORICAL,
+      categories: [
+        { label: "Incorrect", value: 0 },
+        { label: "Correct", value: 1 },
+      ],
+      isArchived: false,
+    },
+    {
+      id: `config-${v4()}`,
+      projectId: project.id,
+      name: "Toxicity",
+      dataType: ScoreDataType.BOOLEAN,
+      categories: [
+        { label: "True", value: 1 },
+        { label: "False", value: 0 },
+      ],
+      isArchived: false,
+    },
+  ];
+
+  for (const config of configs) {
+    await prisma.scoreConfig.upsert({
+      where: {
+        id_projectId: {
+          projectId: config.projectId,
+          id: config.id,
+        },
+      },
+      create: {
+        id: config.id,
+        projectId: config.projectId,
+        name: config.name,
+        dataType: config.dataType,
+        categories: config.categories,
+        isArchived: config.isArchived,
+      },
+      update: {
+        id: config.id,
+      },
+    });
+    configNameAndId.push({ name: config.name, id: config.id });
+  }
+
+  return configNameAndId;
 }
