@@ -17,13 +17,14 @@ SELECT
 	FALSE,
 	- 1,
 	1,
-	'Langfuse default annotation score.'
+	'Langfuse legacy annotation score.'
 FROM ( SELECT DISTINCT
 		project_id
 	FROM
 		scores
 	WHERE
-		name = 'manual-score') s
+		name = 'manual-score'
+		AND source = 'ANNOTATION') s
 WHERE
 	NOT EXISTS (
 		SELECT
