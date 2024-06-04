@@ -53,6 +53,8 @@ import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaul
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import Header from "@/src/components/layouts/header";
 import { MultiSelectKeyValues } from "@/src/features/manual-scoring/components/multi-select-key-values";
+import { CommandItem } from "@/src/components/ui/command";
+import { useRouter } from "next/router";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -106,6 +108,8 @@ export function AnnotateButton({
       }),
     },
   });
+
+  const router = useRouter();
 
   const { fields, remove, update, replace } = useFieldArray({
     control: form.control,
@@ -369,6 +373,15 @@ export function AnnotateButton({
                     value: field.name,
                     key: field.configId as string,
                   }))}
+                controlButtons={
+                  <CommandItem
+                    onSelect={() =>
+                      router.push(`/project/${projectId}/settings`)
+                    }
+                  >
+                    Manage score configs
+                  </CommandItem>
+                }
               />
             </div>
           </DrawerHeader>

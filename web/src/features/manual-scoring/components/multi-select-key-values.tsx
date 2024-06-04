@@ -38,6 +38,7 @@ export function MultiSelectKeyValues<
   disabled,
   items = "items",
   align = "center",
+  controlButtons,
 }: {
   title?: string;
   values: T[];
@@ -47,6 +48,7 @@ export function MultiSelectKeyValues<
   disabled?: boolean;
   items?: string;
   align?: "center" | "end" | "start";
+  controlButtons?: React.ReactNode;
 }) {
   const selectedValueKeys = new Set(
     values.map((value) => (typeof value === "string" ? value : value.key)),
@@ -168,13 +170,11 @@ export function MultiSelectKeyValues<
             {selectedValueKeys.size > 0 && (
               <>
                 <CommandSeparator />
-                <CommandGroup>
-                  <CommandItem
-                    onSelect={() => onValueChange([])}
-                    className="justify-center text-center"
-                  >
+                <CommandGroup heading="Controls">
+                  <CommandItem onSelect={() => onValueChange([])}>
                     Clear {items}
                   </CommandItem>
+                  {controlButtons}
                 </CommandGroup>
               </>
             )}
