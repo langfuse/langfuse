@@ -19,6 +19,16 @@ const errorTitleMap: Record<string, string> = {
 
 export const trpcErrorToast = (error: unknown) => {
   if (error instanceof TRPCClientError) {
+    if (
+      error.name === "SyntaxError" &&
+      error.message.includes("Unexpected token '<'")
+    ) {
+      showErrorToast(
+        "Rate Limit Exceeded",
+        "You have made too many requests in a short period. Please wait a moment and try again.",
+      );
+      return;
+    }
     const path = error.data?.path;
     const cause = error.data?.cause;
     const description = error.message;
