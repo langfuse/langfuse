@@ -53,6 +53,7 @@ export function MultiSelectKeyValues<
   const selectedValueKeys = new Set(
     values.map((value) => (typeof value === "string" ? value : value.key)),
   );
+  const showClearItems = selectedValueKeys.size > 0;
 
   function formatFilterValues(): T[] {
     if (values.length > 0 && typeof values[0] === "string") {
@@ -167,17 +168,19 @@ export function MultiSelectKeyValues<
                 );
               })}
             </CommandGroup>
-            {selectedValueKeys.size > 0 && (
+            {controlButtons || showClearItems ? (
               <>
                 <CommandSeparator />
                 <CommandGroup heading="Controls">
-                  <CommandItem onSelect={() => onValueChange([])}>
-                    Clear {items}
-                  </CommandItem>
+                  {showClearItems && (
+                    <CommandItem onSelect={() => onValueChange([])}>
+                      Clear {items}
+                    </CommandItem>
+                  )}
                   {controlButtons}
                 </CommandGroup>
               </>
-            )}
+            ) : null}
           </CommandList>
         </Command>
       </PopoverContent>
