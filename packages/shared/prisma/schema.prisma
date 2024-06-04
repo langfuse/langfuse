@@ -418,6 +418,7 @@ model Score {
     @@unique([id, projectId]) // used for upserts via prisma
     @@index(timestamp)
     @@index([value])
+    @@index([name])
     @@index([projectId])
     @@index([authorUserId])
     @@index([configId])
