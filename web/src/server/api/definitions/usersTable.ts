@@ -1,6 +1,6 @@
 import { type ColumnDefinition } from "@langfuse/shared";
 
-export const userTableFilters: ColumnDefinition[] = [
+export const usersTableCols: ColumnDefinition[] = [
   {
     name: "Timestamp",
     id: "timestamp",

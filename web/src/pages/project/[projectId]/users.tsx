@@ -17,8 +17,8 @@ import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@langfuse/shared";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
-import { userTableFilters } from "@/src/server/api/definitions/userTable";
 import { useSession } from "next-auth/react";
+import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -45,7 +45,7 @@ export default function UsersPage() {
         ),
       },
     ],
-    "traces",
+    "users",
   );
 
   const { setDetailPageList } = useDetailPageLists();
@@ -232,7 +232,7 @@ export default function UsersPage() {
         }}
       />
       <DataTableToolbar
-        filterColumnDefinition={userTableFilters}
+        filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         columns={columns}

@@ -10,7 +10,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
-import { userTableFilters } from "@/src/server/api/definitions/userTable";
+import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -27,8 +27,8 @@ export const userRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter ?? [],
-        userTableFilters,
-        "traces",
+        usersTableCols,
+        "users",
       );
 
       const totalUsers = (
