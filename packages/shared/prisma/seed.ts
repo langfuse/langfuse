@@ -1009,7 +1009,8 @@ async function generateConfigs(project: Project) {
       dataType: ScoreDataType.CATEGORICAL,
       categories: [
         { label: "Incorrect", value: 0 },
-        { label: "Correct", value: 1 },
+        { label: "Partially Correct", value: 1 },
+        { label: "Correct", value: 2 },
       ],
       isArchived: false,
     },
@@ -1022,6 +1023,8 @@ async function generateConfigs(project: Project) {
         { label: "True", value: 1 },
         { label: "False", value: 0 },
       ],
+      description:
+        "Used to indicate if text was harmful or offensive in nature.",
       isArchived: false,
     },
   ];
