@@ -52,7 +52,7 @@ import {
 import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaultScoreData";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import Header from "@/src/components/layouts/header";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { MultiSelectKeyValues } from "@/src/features/manual-scoring/components/multi-select-key-values";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -183,11 +183,14 @@ export function AnnotateButton({
 
   if (!hasAccess && variant === "badge") return null;
 
-  function handleOnCheckedChange(values: string[], changedValue?: string) {
+  function handleOnCheckedChange(
+    values: Record<string, string>[],
+    changedValueId?: string,
+  ) {
     if (values.length === 0) replace(fields.filter(({ scoreId }) => !!scoreId));
-    if (!changedValue) return;
+    if (!changedValueId) return;
 
-    const configToChange = configs.find(({ name }) => name === changedValue);
+    const configToChange = configs.find(({ id }) => id === changedValueId);
     if (!configToChange) return;
     const { id, name, dataType } = configToChange;
 
@@ -346,19 +349,25 @@ export function AnnotateButton({
               }}
             ></Header>
             <div className="grid grid-flow-col items-center">
-              <MultiSelect
+              <MultiSelectKeyValues
                 title="Value"
                 align="end"
                 items="empty scores"
                 className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
                 onValueChange={handleOnCheckedChange}
                 options={configs.map((config) => ({
+                  key: config.id,
                   value: config.name,
                   disabled: fields.some(
                     (field) => !!field.scoreId && field.configId === config.id,
                   ),
                 }))}
-                values={fields.map((field) => field.name)}
+                values={fields
+                  .filter((field) => !!field.configId)
+                  .map((field) => ({
+                    value: field.name,
+                    key: field.configId as string,
+                  }))}
               />
             </div>
           </DrawerHeader>

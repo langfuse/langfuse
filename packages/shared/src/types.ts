@@ -22,7 +22,6 @@ export type WipFilterState = WipFilterCondition[];
 export type FilterOption = {
   value: string;
   count?: number;
-  disabled?: boolean;
 };
 
 export type TableName =

@@ -55,7 +55,7 @@ const formSchema = z.object({
   minValue: z.coerce.number().optional(),
   maxValue: z.coerce.number().optional(),
   categories: z.array(category).optional(),
-  description: z.string().min(1).optional(),
+  description: z.string().optional(),
 });
 
 export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
@@ -158,6 +158,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                         field.onChange(
                           value as (typeof availableDataTypes)[number],
                         );
+                        form.clearErrors();
                         if (isNumeric(value as ScoreDataType)) {
                           remove();
                         } else {
