@@ -50,6 +50,7 @@ interface DataTableProps<TData, TValue> {
   help?: { description: string; href: string };
   rowHeight?: RowHeight;
   className?: string;
+  paginationClassName?: string;
   isBorderless?: boolean;
 }
 
@@ -73,6 +74,7 @@ export function DataTable<TData extends object, TValue>({
   setOrderBy,
   rowHeight,
   className,
+  paginationClassName,
   isBorderless = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -255,7 +257,12 @@ export function DataTable<TData extends object, TValue>({
         <div className="grow"></div>
       </div>
       {pagination !== undefined ? (
-        <div className="sticky bottom-0 z-10 flex w-full justify-end bg-background font-medium">
+        <div
+          className={cn(
+            "sticky bottom-0 z-10 flex w-full justify-end bg-background font-medium",
+            paginationClassName,
+          )}
+        >
           <DataTablePagination
             table={table}
             paginationOptions={pagination.options}

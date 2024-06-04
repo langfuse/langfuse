@@ -12,6 +12,7 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { CreateScoreConfigButton } from "@/src/features/manual-scoring/components/CreateScoreConfigButton";
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -28,6 +29,11 @@ type ScoreConfigTableRow = {
 };
 
 function ScoreConfigsTable({ projectId }: { projectId: string }) {
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "scoreConfigs",
     "s",
@@ -35,7 +41,11 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
 
   const configs = api.scoreConfigs.all.useQuery({
     projectId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
   });
+
+  const totalCount = configs.data?.totalCount ?? 0;
 
   const columns: LangfuseColumnDef<ScoreConfigTableRow>[] = [
     {
@@ -144,10 +154,16 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
                     })),
                   }
           }
+          pagination={{
+            pageCount: Math.ceil(totalCount / paginationState.pageSize),
+            onChange: setPaginationState,
+            state: paginationState,
+          }}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
           rowHeight={rowHeight}
-          className="gap-0"
+          className="gap-2"
+          paginationClassName="-mx-2 mb-2"
           isBorderless
         />
       </Card>

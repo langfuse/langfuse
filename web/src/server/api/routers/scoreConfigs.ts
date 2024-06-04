@@ -3,11 +3,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { optionalPaginationZod } from "@/src/utils/zod";
 
 import { ScoreDataType } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
-const ScoreConfigFilterOptions = z.object({
+const ScoreConfigAllInput = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
 });
 
@@ -16,9 +17,13 @@ const category = z.object({
   value: z.number(),
 });
 
+const ScoreConfigAllInputPaginated = ScoreConfigAllInput.extend({
+  ...optionalPaginationZod,
+});
+
 export const scoreConfigsRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(ScoreConfigFilterOptions)
+    .input(ScoreConfigAllInputPaginated)
     .query(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -31,6 +36,9 @@ export const scoreConfigsRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
           },
+          ...(input.limit !== undefined && input.page !== undefined
+            ? { take: input.limit, skip: input.page * input.limit }
+            : undefined),
           orderBy: {
             createdAt: "desc",
           },
