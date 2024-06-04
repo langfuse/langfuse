@@ -1,5 +1,10 @@
 import { Job, Queue, Worker } from "bullmq";
-import { BaseError, QueueName, TQueueJobTypes } from "@langfuse/shared";
+import {
+  ApiError,
+  BaseError,
+  QueueName,
+  TQueueJobTypes,
+} from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../eval-service";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
@@ -59,11 +64,6 @@ export const evalJobExecutor = redis
             await evaluate({ event: job.data.payload });
             return true;
           } catch (e) {
-            logger.error(
-              e,
-              `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`
-            );
-
             const displayError =
               e instanceof BaseError ? e.message : "An internal error occurred";
 
@@ -76,7 +76,20 @@ export const evalJobExecutor = redis
               .where("project_id", "=", job.data.payload.projectId)
               .execute();
 
-            Sentry.captureException(e);
+            // do not log expected errors (api failures + missing api keys not provided by the user)
+            if (
+              !(e instanceof ApiError) &&
+              !(
+                e instanceof BaseError &&
+                e.message.includes("API key for provider")
+              )
+            ) {
+              logger.error(
+                e,
+                `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`
+              );
+              Sentry.captureException(e);
+            }
 
             throw e;
           } finally {
