@@ -22,9 +22,9 @@ SELECT toString(floor(randUniform(0, 10000000))) AS id,
   toString(floor(randUniform(0, 2000000))) AS trace_id,
   concat('project_id_', toString(floor(randExponential(1 / 2)) % 1000)) AS project_id,
   multiIf(
-    rand() < 0.8,
+    randUniform(0,1) < 0.4,
     'SPAN',
-    rand() < 0.95,
+    randUniform(0,1) < 0.8,
     'GENERATION',
     'EVENT'
   ) AS `type`,
@@ -63,19 +63,17 @@ FROM numbers(1000000);
 -- scores
 INSERT INTO langfuse.scores
 SELECT toString(floor(randUniform(0, 500000))) AS id,
-  now() - randUniform(0, 10000000) AS `timestamp`,
-  toString(floor(randExponential(1 / 2)) % 1000) AS project_id,
-  concat('name', toString(rand() % 100)) AS `name`,
+   now() - randUniform(0, 10000000) AS `timestamp`,
+  concat('project_id_', toString(floor(randExponential(1 / 2)) % 1000)) AS project_id,
+  concat('name_', toString(rand() % 100)) AS `name`,
   randUniform(0, 100) as `value`,
-  toString(floor(randExponential(1 / 2)) % 1000) AS trace_id,
+  toString(floor(randUniform(0, 2000000))) AS trace_id,
   'API' as source,
   if(
     rand() > 0.9,
-    toString(floor(randUniform(0, 500000))),
+     toString(floor(randUniform(0, 10000000))),
     NULL
   ) AS observation_id,
   'comment' as comment,
-  now() AS event_ts,
-  now() - randUniform(0, 10000000) AS `created_at`,
-  randUniform(0, 1000000) AS event_microseconds
+  `timestamp` AS created_at
 FROM numbers(1000000);
