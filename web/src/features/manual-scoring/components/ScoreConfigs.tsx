@@ -183,11 +183,18 @@ export function ScoreConfigs({ projectId }: { projectId: string }) {
   return (
     <div>
       <Header title="Score Configs" level="h3" />
-      <span className="mb-4 flex text-sm">
-        Score configs define which scores are available for annotation in your
-        project. Please note that all score configs are immutable.
-      </span>
-
+      <p className="mb-4 text-sm">
+        Score configs define which scores are available for{" "}
+        <a
+          href="https://langfuse.com/docs/scores/manually"
+          className="underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          annotation
+        </a>{" "}
+        in your project. Please note that all score configs are immutable.
+      </p>
       <ScoreConfigsTable projectId={projectId} />
       <CreateScoreConfigButton projectId={projectId} />
     </div>
