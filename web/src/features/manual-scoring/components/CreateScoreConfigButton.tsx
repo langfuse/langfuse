@@ -260,6 +260,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                                     <Input
                                       {...field}
                                       readOnly
+                                      disabled
                                       inputMode="numeric"
                                       className="text-center"
                                     />
