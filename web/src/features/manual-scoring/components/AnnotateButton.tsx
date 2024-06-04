@@ -429,7 +429,7 @@ export function AnnotateButton({
                             key={score.id}
                             className="grid w-full grid-cols-[1fr,2fr] items-center gap-8 text-left"
                           >
-                            <div className="grid h-full grid-cols-[1fr,auto] items-center gap-1">
+                            <div className="grid h-full grid-cols-[1fr,auto] items-center">
                               {config.description ||
                               isPresent(config.maxValue) ||
                               isPresent(config.minValue) ? (
@@ -454,10 +454,11 @@ export function AnnotateButton({
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <Button
-                                    variant="ghost"
+                                    variant="link"
                                     type="button"
                                     size="xs"
-                                    className="h-full items-start px-0 disabled:text-primary/50 disabled:opacity-100"
+                                    title="Add or view score comment"
+                                    className="h-full items-start px-0 pl-1 disabled:text-primary/50 disabled:opacity-100"
                                     disabled={isScoreUnsaved(score.scoreId)}
                                   >
                                     {score.comment ? (
@@ -574,7 +575,7 @@ export function AnnotateButton({
                                 </PopoverContent>
                               </Popover>
                             </div>
-                            <div className="grid grid-cols-[1fr,min-content] gap-2">
+                            <div className="grid grid-cols-[11fr,1fr]">
                               <FormField
                                 control={form.control}
                                 name={`scoreData.${index}.value`}
@@ -669,9 +670,10 @@ export function AnnotateButton({
                                 )}
                               />
                               <Button
-                                variant="ghost"
+                                variant="link"
                                 type="button"
-                                className="px-0"
+                                className="px-0 pl-1"
+                                title="Delete score from trace/observation"
                                 disabled={isScoreUnsaved(score.scoreId)}
                                 loading={mutDeleteScore.isLoading}
                                 onClick={async () => {
