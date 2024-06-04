@@ -2,7 +2,6 @@ import React from "react";
 import { Card } from "@/src/components/ui/card";
 import Header from "@/src/components/layouts/header";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
