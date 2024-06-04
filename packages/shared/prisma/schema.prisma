@@ -419,6 +419,7 @@ model Score {
     @@index(timestamp)
     @@index([value])
     @@index([projectId])
+    @@index([projectId, name])
     @@index([authorUserId])
     @@index([configId])
     @@index([traceId], type: Hash)
