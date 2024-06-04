@@ -219,7 +219,6 @@ const TraceCardList = ({
                     projectId={projectId}
                     traceId={trace.id}
                     scores={trace.scores}
-                    configs={configs}
                     variant="badge"
                   />
                 </div>
