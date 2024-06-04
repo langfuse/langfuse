@@ -890,7 +890,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get a session",
+            "description": "Get a session. Please note that `traces` on this endpoint are not paginated, if you plan to fetch large sessions, consider `GET /api/public/traces?sessionId=<sessionId>`",
             "url": {
               "raw": "{{baseUrl}}/api/public/sessions/:sessionId",
               "host": [
