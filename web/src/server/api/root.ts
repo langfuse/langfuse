@@ -16,6 +16,7 @@ import { modelRouter } from "@/src/server/api/routers/models";
 import { evalRouter } from "@/src/ee/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
+import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
 
 /**
  * This is the primary router for your server.
@@ -27,6 +28,7 @@ export const appRouter = createTRPCRouter({
   sessions: sessionRouter,
   generations: generationsRouter,
   scores: scoresRouter,
+  scoreConfigs: scoreConfigsRouter,
   dashboard: dashboardRouter,
   projects: projectsRouter,
   users: userRouter,

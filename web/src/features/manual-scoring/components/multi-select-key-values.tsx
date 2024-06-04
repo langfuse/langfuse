@@ -19,27 +19,57 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
-import { type FilterOption } from "@langfuse/shared";
 
-export function MultiSelect({
+type MultiSelectOptions = {
+  value: string;
+  key?: string;
+  count?: number;
+  disabled?: boolean;
+};
+
+export function MultiSelectKeyValues<
+  T extends { key: string; value: string } | string,
+>({
   title,
   values,
   onValueChange,
   options,
   className,
   disabled,
+  items = "items",
+  align = "center",
+  controlButtons,
 }: {
   title?: string;
-  values: string[];
-  onValueChange: (values: string[]) => void;
-  options: FilterOption[] | readonly FilterOption[];
+  values: T[];
+  onValueChange: (values: T[], changedValue?: string) => void;
+  options: MultiSelectOptions[] | readonly MultiSelectOptions[];
   className?: string;
   disabled?: boolean;
+  items?: string;
+  align?: "center" | "end" | "start";
+  controlButtons?: React.ReactNode;
 }) {
-  const selectedValues = new Set(values);
+  const selectedValueKeys = new Set(
+    values.map((value) => (typeof value === "string" ? value : value.key)),
+  );
+  const showClearItems = selectedValueKeys.size > 0;
+
+  function formatFilterValues(): T[] {
+    if (values.length > 0 && typeof values[0] === "string") {
+      return Array.from(selectedValueKeys) as T[];
+    }
+
+    return options
+      .filter((option) => !!option.key && selectedValueKeys.has(option.key))
+      .map((option) => ({
+        key: option.key as string,
+        value: option.value,
+      })) as T[];
+  }
 
   return (
-    <Popover>
+    <Popover modal>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -51,30 +81,32 @@ export function MultiSelect({
         >
           Select
           <ChevronDown className="h-4 w-4 opacity-50" />
-          {selectedValues.size > 0 && (
+          {selectedValueKeys.size > 0 && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />
               <Badge
                 variant="secondary"
                 className="rounded-sm px-1 font-normal lg:hidden"
               >
-                {selectedValues.size}
+                {selectedValueKeys.size}
               </Badge>
-              <div className="hidden space-x-1 lg:flex">
-                {selectedValues.size > 2 ? (
+              <div className="hidden space-x-1 overflow-x-auto lg:flex">
+                {selectedValueKeys.size > 2 ? (
                   <Badge
                     variant="secondary"
                     className="rounded-sm px-1 font-normal"
                   >
-                    {selectedValues.size} selected
+                    {selectedValueKeys.size} selected
                   </Badge>
                 ) : (
                   options
-                    .filter((option) => selectedValues.has(option.value))
+                    .filter((option) =>
+                      selectedValueKeys.has(option.key ?? option.value),
+                    )
                     .map((option) => (
                       <Badge
                         variant="secondary"
-                        key={option.value}
+                        key={option.key}
                         className="rounded-sm px-1 font-normal"
                       >
                         {option.value}
@@ -86,26 +118,34 @@ export function MultiSelect({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="center">
+      <PopoverContent className="w-[200px] p-0" align={align}>
         <Command>
           <CommandInput placeholder={title} />
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
-                const isSelected = selectedValues.has(option.value);
+                const isSelected = selectedValueKeys.has(
+                  option.key ?? option.value,
+                );
                 return (
                   <CommandItem
-                    key={option.value}
-                    onSelect={() => {
+                    key={option.key ?? option.value}
+                    value={option.key ?? option.value}
+                    onSelect={(value) => {
                       if (isSelected) {
-                        selectedValues.delete(option.value);
+                        selectedValueKeys.delete(value);
                       } else {
-                        selectedValues.add(option.value);
+                        selectedValueKeys.add(value);
                       }
-                      const filterValues = Array.from(selectedValues);
-                      onValueChange(filterValues.length ? filterValues : []);
+                      const filterValues = formatFilterValues();
+
+                      onValueChange(
+                        filterValues.length ? filterValues : [],
+                        value,
+                      );
                     }}
+                    disabled={option.disabled}
                   >
                     <div
                       className={cn(
@@ -113,6 +153,7 @@ export function MultiSelect({
                         isSelected
                           ? "bg-primary text-primary-foreground"
                           : "opacity-50 [&_svg]:invisible",
+                        option.disabled ? "opacity-50" : null,
                       )}
                     >
                       <Check className={cn("h-4 w-4")} />
@@ -127,19 +168,19 @@ export function MultiSelect({
                 );
               })}
             </CommandGroup>
-            {selectedValues.size > 0 && (
+            {controlButtons || showClearItems ? (
               <>
                 <CommandSeparator />
-                <CommandGroup>
-                  <CommandItem
-                    onSelect={() => onValueChange([])}
-                    className="justify-center text-center"
-                  >
-                    Clear filters
-                  </CommandItem>
+                <CommandGroup heading="Controls">
+                  {showClearItems && (
+                    <CommandItem onSelect={() => onValueChange([])}>
+                      Clear {items}
+                    </CommandItem>
+                  )}
+                  {controlButtons}
                 </CommandGroup>
               </>
-            )}
+            ) : null}
           </CommandList>
         </Command>
       </PopoverContent>
