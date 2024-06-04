@@ -81,14 +81,12 @@ type ConfigCategory = {
 export function AnnotateButton({
   traceId,
   scores,
-  configs,
   observationId,
   projectId,
   variant = "button",
 }: {
   traceId: string;
   scores: Score[];
-  configs: ScoreConfig[];
   observationId?: string;
   projectId: string;
   variant?: "button" | "badge";
@@ -97,6 +95,12 @@ export function AnnotateButton({
     projectId,
     scope: "scores:CUD",
   });
+
+  const configsData = api.scoreConfigs.all.useQuery({
+    projectId,
+  });
+
+  const configs = configsData.data?.configs ?? [];
 
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]

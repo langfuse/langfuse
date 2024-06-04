@@ -1,10 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  type Trace,
-  type Score,
-  type ScoreSource,
-  type ScoreConfig,
-} from "@langfuse/shared";
+import { type Trace, type Score, type ScoreSource } from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -29,12 +24,10 @@ export const TracePreview = ({
   trace,
   observations,
   scores,
-  configs,
 }: {
   trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
   scores: Score[];
-  configs: ScoreConfig[];
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -106,7 +99,6 @@ export const TracePreview = ({
               projectId={trace.projectId}
               traceId={trace.id}
               scores={scores}
-              configs={configs}
             />
             <NewDatasetItemFromTrace
               traceId={trace.id}
