@@ -24,6 +24,7 @@ import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
+import KeycloakProvider from "next-auth/providers/keycloak";
 import { type Provider } from "next-auth/providers/index";
 import OktaProvider from "next-auth/providers/okta";
 import { z } from "zod";
@@ -179,6 +180,20 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
         env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
+if (
+  env.AUTH_KEYCLOAK_CLIENT_ID &&
+  env.AUTH_KEYCLOAK_ISSUER
+)
+  staticProviders.push(
+    KeycloakProvider({
+      clientId: env.AUTH_KEYCLOAK_CLIENT_ID,
+      clientSecret: env.AUTH_KEYCLOAK_CLIENT_SECRET || "",
+      issuer: env.AUTH_KEYCLOAK_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 

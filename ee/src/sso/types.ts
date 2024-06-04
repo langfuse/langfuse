@@ -64,18 +64,6 @@ export const AzureAdProviderSchema = base.extend({
     .nullish(),
 });
 
-export const KeycloakProviderSchema = base.extend({
-  authProvider: z.literal("keycloak"),
-  authConfig: z
-    .object({
-      clientId: z.string(),
-      clientSecret: z.string(),
-      issuer: z.string(),
-      allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
-    })
-    .nullish(),
-});
-
 export const CognitoProviderSchema = base.extend({
   authProvider: z.literal("cognito"),
   authConfig: z
@@ -93,7 +81,6 @@ export type GithubProviderSchema = z.infer<typeof GithubProviderSchema>;
 export type Auth0ProviderSchema = z.infer<typeof Auth0ProviderSchema>;
 export type OktaProviderSchema = z.infer<typeof OktaProviderSchema>;
 export type AzureAdProviderSchema = z.infer<typeof AzureAdProviderSchema>;
-export type KeycloakProviderSchema = z.infer<typeof KeycloakProviderSchema>;
 export type CognitoProviderSchema = z.infer<typeof CognitoProviderSchema>;
 
 export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
@@ -102,7 +89,6 @@ export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   Auth0ProviderSchema,
   OktaProviderSchema,
   AzureAdProviderSchema,
-  KeycloakProviderSchema,
   CognitoProviderSchema,
 ]);
 

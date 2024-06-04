@@ -450,9 +450,9 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
             )
           }
 
-        {!signUpDisabled &&
-          env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
-          authProviders.credentials ? (
+          {!signUpDisabled &&
+            env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
+            authProviders.credentials ? (
             <p className="mt-10 text-center text-sm text-muted-foreground">
               No account yet?{" "}
               <Link
