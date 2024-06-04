@@ -297,8 +297,8 @@ export function AnnotateButton({
 
       if (isNumericDataType(dataType)) {
         if (
-          (!!maxValue && Number(field.value) > maxValue) ||
-          (!!minValue && Number(field.value) < minValue)
+          (isPresent(maxValue) && Number(field.value) > maxValue) ||
+          (isPresent(minValue) && Number(field.value) < minValue)
         ) {
           form.setError(`scoreData.${index}.value`, {
             type: "custom",
@@ -310,7 +310,7 @@ export function AnnotateButton({
 
       form.clearErrors(`scoreData.${index}.value`);
 
-      if (!!field.value) {
+      if (isPresent(field.value)) {
         if (!!score.scoreId)
           await mutUpdateScores.mutateAsync({
             projectId,
