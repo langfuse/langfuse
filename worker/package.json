@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.45.1",
+  "version": "2.47.5",
   "description": "",
   "license": "MIT",
   "main": "index.js",

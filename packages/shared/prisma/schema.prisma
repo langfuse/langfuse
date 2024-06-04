@@ -206,6 +206,7 @@ model TraceSession {
     @@id([id, projectId])
     @@index([projectId])
     @@index([createdAt])
+    @@index([updatedAt])
     @@map("trace_sessions")
 }
 
@@ -293,6 +294,7 @@ model Observation {
     statusMessage       String?          @map("status_message")
     version             String?
     createdAt           DateTime         @default(now()) @map("created_at")
+    updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at")
 
     // GENERATION ONLY
     model               String?
@@ -324,6 +326,7 @@ model Observation {
     @@index([type])
     @@index(startTime)
     @@index(createdAt)
+    @@index(updatedAt)
     @@index(projectId)
     @@index(parentObservationId)
     @@index(model)
@@ -406,6 +409,8 @@ model Score {
     observationId String?        @map("observation_id")
     configId      String?        @map("config_id")
     stringValue   String?        @map("string_value")
+    createdAt     DateTime       @default(now()) @map("created_at")
+    updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
     dataType      ScoreDataType  @default(NUMERIC) @map("data_type")
     JobExecution  JobExecution[]
     scoreConfig   ScoreConfig?   @relation(fields: [configId], references: [id], onDelete: SetNull)
@@ -419,6 +424,8 @@ model Score {
     @@index([traceId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([source])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("scores")
 }
 
@@ -448,6 +455,8 @@ model ScoreConfig {
     @@index([isArchived])
     @@index([projectId])
     @@index([categories])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("score_configs")
 }
 
@@ -502,6 +511,8 @@ model Dataset {
 
     @@unique([projectId, name])
     @@index([projectId], type: Hash)
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("datasets")
 }
 
@@ -521,8 +532,11 @@ model DatasetItem {
     updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
     datasetRunItems     DatasetRunItems[]
 
+    @@index([sourceTraceId], type: Hash)
     @@index([sourceObservationId], type: Hash)
     @@index([datasetId], type: Hash)
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("dataset_items")
 }
 
@@ -544,6 +558,8 @@ model DatasetRuns {
 
     @@unique([datasetId, name])
     @@index([datasetId], type: Hash)
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("dataset_runs")
 }
 
@@ -564,6 +580,8 @@ model DatasetRunItems {
     @@index([datasetItemId], type: Hash)
     @@index([observationId], type: Hash)
     @@index([traceId])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@map("dataset_run_items")
 }
 
@@ -606,6 +624,8 @@ model Prompt {
     @@index([projectId, name, version])
     @@index([projectId, id])
     @@index([projectId])
+    @@index([createdAt])
+    @@index([updatedAt])
     @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("prompts")
 }
@@ -653,6 +673,7 @@ model AuditLog {
 
     @@index([projectId])
     @@index([createdAt])
+    @@index([updatedAt])
     @@map("audit_logs")
 }
 
@@ -750,6 +771,7 @@ model JobExecution {
     @@index([jobOutputScoreId])
     @@index([jobInputTraceId])
     @@index([createdAt])
+    @@index([updatedAt])
     @@map("job_executions")
 }
 

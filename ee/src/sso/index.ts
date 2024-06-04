@@ -10,7 +10,8 @@ import { type Provider } from "next-auth/providers/index";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import OktaProvider from "next-auth/providers/okta";
 import { isEeAvailable } from "..";
-import { env } from "../env";
+import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 
 // Local cache for SSO configurations
@@ -27,14 +28,36 @@ let cachedSsoConfigs: {
 async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
   if (!isEeAvailable) return [];
   const CACHE_TTL = 60 * 1000; // 1 minute
+  const DB_MAX_WAIT = 2000; // 2 seconds
+  const DB_TIMEOUT = 3000; // 3 seconds
 
   // Set/refresh the cache if it's empty or expired
   if (
     cachedSsoConfigs === null ||
     Date.now() - cachedSsoConfigs.timestamp > CACHE_TTL
   ) {
+    // findMany with custom timeout via $transaction
+    let dbConfigs: SsoConfig[] = [];
+    try {
+      dbConfigs = await prisma.$transaction(
+        async (prisma) => prisma.ssoConfig.findMany(),
+        {
+          maxWait: DB_MAX_WAIT,
+          timeout: DB_TIMEOUT,
+        }
+      );
+    } catch (e) {
+      // cache empty array to prevent repeated DB calls on error
+      cachedSsoConfigs = {
+        data: [],
+        timestamp: Date.now(),
+      };
+
+      // caught and logged in the caller
+      throw e;
+    }
+
     // transform into zod object
-    const dbConfigs = await prisma.ssoConfig.findMany();
     const parsedSsoConfigs = dbConfigs
       .map((v) => {
         try {

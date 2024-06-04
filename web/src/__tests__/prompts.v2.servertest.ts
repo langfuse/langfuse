@@ -680,6 +680,71 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(fetchedPrompt.body.createdBy).toBe("API");
       expect(fetchedPrompt.body.config).toEqual({});
     });
+
+    it("should update tags across versions", async () => {
+      const promptName = "prompt-name" + nanoid();
+
+      const createPromptVersion = async (tags?: string[]) => {
+        await makeAPICall("POST", baseURI, {
+          name: promptName,
+          prompt: "This is a test prompt",
+          type: PromptType.Text,
+          ...(tags !== undefined && { tags: tags }),
+        });
+      };
+
+      const fetchPromptVersion = async (version: number) => {
+        const fetchedPrompt = await makeAPICall(
+          "GET",
+          `${baseURI}/${promptName}?version=${version}`,
+          undefined,
+        );
+        expect(fetchedPrompt.status).toBe(200);
+        if (!isPrompt(fetchedPrompt.body)) {
+          throw new Error("Expected body to be a prompt");
+        }
+        return fetchedPrompt.body;
+      };
+
+      // Create version 1 with ["tag"]
+      await createPromptVersion(["tag"]);
+      let fetchedPrompt1 = await fetchPromptVersion(1);
+      expect(fetchedPrompt1.tags).toEqual(["tag"]);
+      expect(fetchedPrompt1.version).toBe(1);
+
+      // Create version 2 with no tags provided (should use tags from version 1)
+      await createPromptVersion();
+      let fetchedPrompt2 = await fetchPromptVersion(2);
+      expect(fetchedPrompt2.tags).toEqual(["tag"]);
+      expect(fetchedPrompt2.version).toBe(2);
+
+      // Create version 3 with ["tag1", "tag2", "tag3"] (should update tags across versions)
+      await createPromptVersion(["tag1", "tag2", "tag3"]);
+      fetchedPrompt1 = await fetchPromptVersion(1);
+      fetchedPrompt2 = await fetchPromptVersion(2);
+      let fetchedPrompt3 = await fetchPromptVersion(3);
+      expect(fetchedPrompt1.tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(fetchedPrompt1.version).toBe(1);
+      expect(fetchedPrompt2.tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(fetchedPrompt2.version).toBe(2);
+      expect(fetchedPrompt3.tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(fetchedPrompt3.version).toBe(3);
+
+      // remove tags
+      await createPromptVersion([]);
+      fetchedPrompt1 = await fetchPromptVersion(1);
+      fetchedPrompt2 = await fetchPromptVersion(2);
+      fetchedPrompt3 = await fetchPromptVersion(3);
+      let fetchedPrompt4 = await fetchPromptVersion(4);
+      expect(fetchedPrompt1.tags).toEqual([]);
+      expect(fetchedPrompt1.version).toBe(1);
+      expect(fetchedPrompt2.tags).toEqual([]);
+      expect(fetchedPrompt2.version).toBe(2);
+      expect(fetchedPrompt3.tags).toEqual([]);
+      expect(fetchedPrompt3.version).toBe(3);
+      expect(fetchedPrompt4.tags).toEqual([]);
+      expect(fetchedPrompt4.version).toBe(4);
+    });
   });
 
   describe("when fetching a prompt list", () => {

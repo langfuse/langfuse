@@ -2499,6 +2499,7 @@ components:
         totalCost:
           type: number
           format: double
+          description: Total model cost in USD
         usage:
           type: array
           items:
@@ -2521,14 +2522,28 @@ components:
           nullable: true
         inputUsage:
           type: integer
+          description: Total number of generation input units (e.g. tokens)
         outputUsage:
           type: integer
+          description: Total number of generation output units (e.g. tokens)
         totalUsage:
           type: integer
+          description: Total number of generation total units (e.g. tokens)
+        countTraces:
+          type: integer
+        countObservations:
+          type: integer
+        totalCost:
+          type: number
+          format: double
+          description: Total model cost in USD
       required:
         - inputUsage
         - outputUsage
         - totalUsage
+        - countTraces
+        - countObservations
+        - totalCost
     Observations:
       title: Observations
       type: object
@@ -2654,6 +2669,13 @@ components:
           items:
             type: string
           nullable: true
+          description: List of deployment labels of this prompt version.
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: List of tags to apply to all versions of this prompt.
       required:
         - name
         - prompt
@@ -2672,6 +2694,13 @@ components:
           items:
             type: string
           nullable: true
+          description: List of deployment labels of this prompt version.
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: List of tags to apply to all versions of this prompt.
       required:
         - name
         - prompt
@@ -2713,11 +2742,20 @@ components:
           type: array
           items:
             type: string
+          description: List of deployment labels of this prompt version.
+        tags:
+          type: array
+          items:
+            type: string
+          description: >-
+            List of tags. Used to filter via UI and API. The same across
+            versions of a prompt.
       required:
         - name
         - version
         - config
         - labels
+        - tags
     ChatMessage:
       title: ChatMessage
       type: object

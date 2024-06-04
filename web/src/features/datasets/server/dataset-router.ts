@@ -137,50 +137,6 @@ export const datasetRouter = createTRPCRouter({
           }
         >
       >(Prisma.sql`
-        WITH avg_scores_by_run_id AS (
-          SELECT
-            ri.dataset_run_id run_id,
-            s.name score_name,
-            AVG(s.value) AS average_score_value
-          FROM
-            dataset_run_items ri
-            JOIN scores s 
-              ON s.trace_id = ri.trace_id 
-              AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id) -- only include scores that are linked to the observation if observation is linked
-              AND s.project_id = ${input.projectId}
-            JOIN traces t ON t.id = s.trace_id
-          WHERE t.project_id = ${input.projectId}
-          GROUP BY
-            ri.dataset_run_id,
-            s.name
-          ORDER BY
-            1,
-            2
-        ),
-        json_avg_scores_by_run_id AS (
-          SELECT
-            run_id,
-            jsonb_object_agg(score_name,
-              average_score_value) AS scores
-          FROM
-            avg_scores_by_run_id
-          GROUP BY
-            run_id
-          ORDER BY
-            run_id
-        ),
-        latency_and_total_cost_by_run_id AS (
-          SELECT
-            ri.dataset_run_id run_id,
-            AVG(CASE WHEN o.end_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time"))::double precision END)  AS "avgLatency",
-            AVG(COALESCE(o.calculated_total_cost, 0)) AS "avgTotalCost"
-          FROM
-            dataset_run_items ri
-            JOIN observations_view o ON o.id = ri.observation_id
-          WHERE o.project_id = ${input.projectId}
-          group by 1
-        )
-
         SELECT
           runs.id,
           runs.name,
@@ -188,28 +144,52 @@ export const datasetRouter = createTRPCRouter({
           runs.metadata,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
-          COALESCE(avg_scores.scores, '[]'::jsonb) scores,
+          COALESCE(avg_scores.scores, '{}') scores,
           COALESCE(latency_and_total_cost."avgLatency", 0) "avgLatency",
           COALESCE(latency_and_total_cost."avgTotalCost", 0) "avgTotalCost",  
-          count(DISTINCT ri.id)::int "countRunItems"
+          COALESCE(run_items_count.count, 0)::int "countRunItems"
         FROM
           dataset_runs runs
           JOIN datasets ON datasets.id = runs.dataset_id
-          LEFT JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
-          LEFT JOIN json_avg_scores_by_run_id avg_scores ON avg_scores.run_id = runs.id
-          LEFT JOIN latency_and_total_cost_by_run_id latency_and_total_cost ON latency_and_total_cost.run_id = runs.id
-        WHERE runs.dataset_id = ${input.datasetId}
+          LEFT JOIN LATERAL (
+            SELECT
+              jsonb_object_agg(s.name, s.avg_value) AS scores
+            FROM (
+              SELECT
+                s.name,
+                AVG(s.value) AS avg_value
+              FROM
+                dataset_run_items ri
+                JOIN scores s 
+                  ON s.trace_id = ri.trace_id 
+                  AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id)
+                  AND s.project_id = ${input.projectId}
+                JOIN traces t ON t.id = s.trace_id
+              WHERE 
+                t.project_id = ${input.projectId}
+                AND ri.dataset_run_id = runs.id
+              GROUP BY s.name
+            ) s
+          ) avg_scores ON true
+          LEFT JOIN LATERAL (
+            SELECT
+              AVG(o.latency) AS "avgLatency",
+              AVG(COALESCE(o.calculated_total_cost, 0)) AS "avgTotalCost"
+            FROM
+              dataset_run_items ri
+              JOIN observations_view o ON o.id = ri.observation_id
+            WHERE 
+              o.project_id = ${input.projectId}
+              AND ri.dataset_run_id = runs.id
+          ) latency_and_total_cost ON true
+          LEFT JOIN LATERAL (
+            SELECT count(*) as count 
+            FROM dataset_run_items ri 
+            WHERE ri.dataset_run_id = runs.id
+          ) run_items_count ON true
+        WHERE 
+          runs.dataset_id = ${input.datasetId}
           AND datasets.project_id = ${input.projectId}
-        GROUP BY
-          1,
-          2,
-          3,
-          4,
-          5,
-          6,
-          7,
-          8,
-          9
         ORDER BY
           runs.created_at DESC
         LIMIT ${input.limit}
@@ -550,7 +530,6 @@ export const datasetRouter = createTRPCRouter({
           },
         },
         include: {
-          datasetItem: true,
           observation: {
             select: {
               id: true,
