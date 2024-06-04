@@ -11,7 +11,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 
-export type ScoreConfigTableRow = {
+type ScoreConfigTableRow = {
   id: string;
   name: string;
   dataType: ScoreDataType;
