@@ -79,9 +79,12 @@ export const GroupedScoreBadges = ({
             <Badge
               variant="outline"
               key={name}
-              className="break-all font-normal"
+              className="grid grid-cols-[1fr,auto] gap-1 font-normal"
             >
-              {name}: <ScoresOfGroup scores={scores} className="ml-2" />
+              <p className="truncate" title={name}>
+                {name}:
+              </p>
+              <ScoresOfGroup scores={scores} />
             </Badge>
           ))}
       </>

@@ -406,8 +406,8 @@ export function AnnotateButton({
                           >
                             <div className="grid h-full grid-cols-[1fr,auto] items-center gap-1">
                               {config.description ||
-                              config.maxValue ||
-                              config.minValue ? (
+                              isPresent(config.maxValue) ||
+                              isPresent(config.minValue) ? (
                                 <HoverCard>
                                   <HoverCardTrigger asChild>
                                     <span className="line-clamp-2 break-words text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-2">
