@@ -90,7 +90,7 @@ export function MultiSelectKeyValues<
               >
                 {selectedValueKeys.size}
               </Badge>
-              <div className="hidden space-x-1 lg:flex">
+              <div className="hidden space-x-1 overflow-x-auto lg:flex">
                 {selectedValueKeys.size > 2 ? (
                   <Badge
                     variant="secondary"
