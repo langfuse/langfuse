@@ -2,14 +2,16 @@ import { type Score, ScoreSource, type ScoreConfig } from "@langfuse/shared";
 
 export const getDefaultScoreData = ({
   scores,
+  emptySelectedConfigIds,
+  configs,
   traceId,
   observationId,
-  configs,
 }: {
   scores: Score[];
+  emptySelectedConfigIds: string[];
+  configs: ScoreConfig[];
   traceId: string;
   observationId?: string;
-  configs: ScoreConfig[];
 }) => {
   const populatedScores = scores
     .filter(
@@ -20,27 +22,35 @@ export const getDefaultScoreData = ({
           ? s.observationId === observationId
           : s.observationId === null),
     )
-    .map((s) => ({
-      scoreId: s.id,
-      name: s.name,
-      value: s.value,
-      dataType: s.dataType,
-      stringValue: s.stringValue ?? undefined,
-      configId: s.configId ?? undefined,
-      comment: s.comment ?? undefined,
+    .map(({ id, name, value, dataType, stringValue, configId, comment }) => ({
+      scoreId: id,
+      name,
+      value,
+      dataType,
+      stringValue: stringValue ?? undefined,
+      configId: configId ?? undefined,
+      comment: comment ?? undefined,
     }));
 
-  if (!Boolean(configs.length)) return populatedScores;
+  const populatedScoresConfigIds = new Set(
+    populatedScores.map((s) => s.configId),
+  );
 
-  const emptyScores = configs.map((c) => ({
-    scoreId: undefined,
-    name: c.name,
-    value: undefined,
-    dataType: c.dataType,
-    stringValue: undefined,
-    configId: c.id,
-    comment: undefined,
-  }));
+  const emptyScores = configs
+    .filter(
+      (c) =>
+        !populatedScoresConfigIds.has(c.id) &&
+        emptySelectedConfigIds.includes(c.id),
+    )
+    .map(({ name, dataType, id }) => ({
+      scoreId: undefined,
+      name,
+      value: undefined,
+      dataType,
+      stringValue: undefined,
+      configId: id,
+      comment: undefined,
+    }));
 
   return [...populatedScores, ...emptyScores];
 };

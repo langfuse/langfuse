@@ -55,6 +55,7 @@ import Header from "@/src/components/layouts/header";
 import { MultiSelectKeyValues } from "@/src/features/manual-scoring/components/multi-select-key-values";
 import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -97,6 +98,10 @@ export function AnnotateButton({
     scope: "scores:CUD",
   });
 
+  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
+    string[]
+  >("emptySelectedConfigIds", []);
+
   const form = useForm<z.infer<typeof AnnotateFormSchema>>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
@@ -104,6 +109,7 @@ export function AnnotateButton({
         scores,
         traceId,
         observationId,
+        emptySelectedConfigIds,
         configs,
       }),
     },
@@ -192,7 +198,16 @@ export function AnnotateButton({
     values: Record<string, string>[],
     changedValueId?: string,
   ) {
-    if (values.length === 0) replace(fields.filter(({ scoreId }) => !!scoreId));
+    if (values.length === 0) {
+      const populatedScoreFields = fields.filter(({ scoreId }) => !!scoreId);
+      replace(populatedScoreFields);
+      setEmptySelectedConfigIds(
+        populatedScoreFields
+          .filter(({ configId }) => !!configId)
+          .map(({ configId }) => configId as string),
+      );
+      return;
+    }
     if (!changedValueId) return;
 
     const configToChange = configs.find(({ id }) => id === changedValueId);
@@ -201,16 +216,22 @@ export function AnnotateButton({
 
     const index = fields.findIndex(({ configId }) => configId === id);
 
-    index === -1
-      ? replace([
-          ...fields,
-          {
-            name,
-            dataType,
-            configId: id,
-          },
-        ])
-      : remove(index);
+    if (index === -1) {
+      replace([
+        ...fields,
+        {
+          name,
+          dataType,
+          configId: id,
+        },
+      ]);
+      setEmptySelectedConfigIds([...emptySelectedConfigIds, changedValueId]);
+    } else {
+      remove(index);
+      setEmptySelectedConfigIds(
+        emptySelectedConfigIds.filter((id) => id !== changedValueId),
+      );
+    }
   }
 
   function handleOnValueChange(
