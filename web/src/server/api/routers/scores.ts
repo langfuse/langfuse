@@ -7,7 +7,7 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
 import { paginationZod } from "@/src/utils/zod";
-import { ScoreDataType, ScoreSource, singleFilter } from "@langfuse/shared";
+import { ScoreDataType, singleFilter } from "@langfuse/shared";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";
 import {
   type ScoreOptions,
@@ -160,6 +160,31 @@ export const scoresRouter = createTRPCRouter({
       }
 
       try {
+        const existingScore = await ctx.prisma.score.findFirst({
+          where: {
+            projectId: input.projectId,
+            traceId: input.traceId,
+            observationId: input.observationId,
+            source: "ANNOTATION",
+            configId: input.configId,
+          },
+        });
+
+        if (existingScore) {
+          return ctx.prisma.score.update({
+            where: {
+              id: existingScore.id,
+              projectId: input.projectId,
+            },
+            data: {
+              value: input.value,
+              stringValue: input.stringValue,
+              comment: input.comment,
+              authorUserId: ctx.session.user.id,
+            },
+          });
+        }
+
         const score = await ctx.prisma.score.create({
           data: {
             projectId: input.projectId,
