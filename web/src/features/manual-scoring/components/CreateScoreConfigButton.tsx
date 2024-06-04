@@ -50,7 +50,7 @@ const category = z.object({
 });
 
 const formSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).max(35),
   dataType: z.enum(availableDataTypes),
   minValue: z.coerce.number().optional(),
   maxValue: z.coerce.number().optional(),
