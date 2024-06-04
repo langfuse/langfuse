@@ -62,15 +62,6 @@ export const SessionPage: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isSuccess, session.data]);
 
-  const configs = api.scoreConfigs.all.useQuery(
-    {
-      projectId,
-    },
-    {
-      enabled: !!session.data,
-    },
-  );
-
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
 
@@ -136,7 +127,6 @@ export const SessionPage: React.FC<{
           session={session.data}
           projectId={projectId}
           rowHeight={rowHeightMapping[rowHeight]}
-          configs={configs.data?.configs ?? []}
         />
       )}
     </div>
@@ -147,12 +137,10 @@ const TraceCardList = ({
   session,
   projectId,
   rowHeight,
-  configs,
 }: {
   session: RouterOutput["sessions"]["byId"];
   projectId: string;
   rowHeight: number;
-  configs: ScoreConfig[];
 }) => {
   const listVirtualizationRef = useRef<HTMLDivElement | null>(null);
 
