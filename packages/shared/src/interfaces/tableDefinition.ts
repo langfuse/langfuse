@@ -42,6 +42,7 @@ export const tableNames = [
   "traces_parent_observation_scores",
   "sessions",
   "prompts",
+  "users",
 ] as const;
 
 export type TableNames = (typeof tableNames)[number];

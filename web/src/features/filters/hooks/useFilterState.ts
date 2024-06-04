@@ -15,6 +15,7 @@ import {
   withDefault,
 } from "use-query-params";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
+import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -107,6 +108,7 @@ const tableCols = {
   sessions: sessionsViewCols,
   scores: scoresTableCols,
   prompts: promptsTableCols,
+  users: usersTableCols,
   dashboard: [
     { id: "traceName", name: "Trace Name" },
     { id: "tags", name: "Tags" },
