@@ -71,6 +71,19 @@ export const scoreConfigsRouter = createTRPCRouter({
       });
 
       try {
+        const existingConfig = await ctx.prisma.scoreConfig.findFirst({
+          where: {
+            projectId: input.projectId,
+            name: input.name,
+            dataType: input.dataType,
+          },
+        });
+
+        if (existingConfig)
+          throw new Error(
+            "Score config with this name and data type already exists",
+          );
+
         const config = await ctx.prisma.scoreConfig.create({
           data: {
             ...input,
