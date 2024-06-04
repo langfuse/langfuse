@@ -8,7 +8,6 @@
     "node": ">=20",
     "pnpm": "<9"
   },
-  "packageManager": "pnpm@8.15.5+sha256.4b4efa12490e5055d59b9b9fc9438b7d581a6b7af3b5675eb5c5f447cee1a589",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d",
