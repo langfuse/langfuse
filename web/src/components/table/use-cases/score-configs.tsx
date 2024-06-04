@@ -1,6 +1,5 @@
 import React from "react";
 import { Card } from "@/src/components/ui/card";
-import Header from "@/src/components/layouts/header";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
@@ -8,13 +7,11 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
 import { type ScoreDataType, type Prisma } from "@langfuse/shared";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { CreateScoreConfigButton } from "@/src/features/manual-scoring/components/CreateScoreConfigButton";
-import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 
-type ScoreConfigTableRow = {
+export type ScoreConfigTableRow = {
   id: string;
   name: string;
   dataType: ScoreDataType;
@@ -28,7 +25,19 @@ type ScoreConfigTableRow = {
   description?: string | null;
 };
 
-function ScoreConfigsTable({ projectId }: { projectId: string }) {
+function getConfigRange(
+  originalRow: ScoreConfigTableRow,
+): Prisma.JsonValue | undefined {
+  const { range, dataType } = originalRow;
+  if (isNumericDataType(dataType)) {
+    return [
+      { minValue: range.minValue ?? "-∞", maxValue: range.maxValue ?? "∞" },
+    ];
+  }
+  return range.categories;
+}
+
+export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -100,13 +109,6 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       defaultHidden: true,
     },
-    {
-      accessorKey: "updatedAt",
-      id: "updatedAt",
-      header: "Updated At",
-      enableHiding: true,
-      defaultHidden: true,
-    },
   ];
 
   const [columnVisibility, setColumnVisibility] =
@@ -169,46 +171,4 @@ function ScoreConfigsTable({ projectId }: { projectId: string }) {
       </Card>
     </>
   );
-}
-
-export function ScoreConfigs({ projectId }: { projectId: string }) {
-  // const capture = usePostHogClientCapture();
-  const hasReadAccess = useHasAccess({
-    projectId: projectId,
-    scope: "scoreConfigs:read",
-  });
-
-  if (!hasReadAccess) return null;
-
-  return (
-    <div>
-      <Header title="Score Configs" level="h3" />
-      <p className="mb-4 text-sm">
-        Score configs define which scores are available for{" "}
-        <a
-          href="https://langfuse.com/docs/scores/manually"
-          className="underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          annotation
-        </a>{" "}
-        in your project. Please note that all score configs are immutable.
-      </p>
-      <ScoreConfigsTable projectId={projectId} />
-      <CreateScoreConfigButton projectId={projectId} />
-    </div>
-  );
-}
-
-function getConfigRange(
-  originalRow: ScoreConfigTableRow,
-): Prisma.JsonValue | undefined {
-  const { range, dataType } = originalRow;
-  if (isNumericDataType(dataType)) {
-    return [
-      { minValue: range.minValue ?? "-∞", maxValue: range.maxValue ?? "∞" },
-    ];
-  }
-  return range.categories;
 }

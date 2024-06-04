@@ -16,7 +16,7 @@ import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
-import { ScoreConfigs } from "@/src/features/manual-scoring/components/ScoreConfigs";
+import { ScoreConfigSettings } from "@/src/features/manual-scoring/components/ScoreConfigSettings";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -30,7 +30,7 @@ export default function SettingsPage() {
         <LlmApiKeyList projectId={projectId} />
         <ProjectMembersTable projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
-        <ScoreConfigs projectId={projectId} />
+        <ScoreConfigSettings projectId={projectId} />
         <Integrations projectId={projectId} />
         <Instructions />
         <RenameProject projectId={projectId} />
