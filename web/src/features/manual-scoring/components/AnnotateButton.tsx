@@ -410,7 +410,7 @@ export function AnnotateButton({
                               config.minValue ? (
                                 <HoverCard>
                                   <HoverCardTrigger asChild>
-                                    <span className="line-clamp-2 text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-2">
+                                    <span className="line-clamp-2 break-words text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-2">
                                       {score.name}
                                     </span>
                                   </HoverCardTrigger>
@@ -420,7 +420,7 @@ export function AnnotateButton({
                                 </HoverCard>
                               ) : (
                                 <span
-                                  className="line-clamp-2 text-xs font-medium"
+                                  className="line-clamp-2 break-words text-xs font-medium"
                                   title={score.name}
                                 >
                                   {score.name}
