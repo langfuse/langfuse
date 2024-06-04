@@ -59,7 +59,7 @@ import { useRouter } from "next/router";
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
   scoreId: z.string().optional(),
-  value: z.number().optional(),
+  value: z.number().nullable().optional(),
   stringValue: z.string().optional(),
   dataType: z.nativeEnum(ScoreDataType),
   configId: z.string().optional(),
@@ -131,7 +131,7 @@ export function AnnotateButton({
         name,
         dataType,
         configId: configId ?? undefined,
-        value: undefined,
+        value: null,
         scoreId: undefined,
         stringValue: undefined,
         comment: undefined,
@@ -559,6 +559,7 @@ export function AnnotateButton({
                                       {isNumericDataType(score.dataType) ? (
                                         <Input
                                           {...field}
+                                          value={field.value ?? undefined}
                                           type="number"
                                           className="text-xs"
                                           onBlur={handleOnBlur({
