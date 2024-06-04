@@ -40,6 +40,7 @@ export const userRouter = createTRPCRouter({
         SELECT COUNT(DISTINCT t.user_id)::int AS "totalCount"
         FROM traces t
         WHERE t.project_id = ${input.projectId}
+        ${filterCondition}
       `
       )[0].totalCount;
 
