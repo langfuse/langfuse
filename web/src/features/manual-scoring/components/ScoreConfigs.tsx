@@ -12,7 +12,7 @@ import { type ScoreDataType, type Prisma } from "@langfuse/shared";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { CreateScoreConfigButton } from "@/src/features/manual-scoring/components/CreateScoreConfigButton";
-import { isNumeric } from "@/src/features/manual-scoring/lib/helpers";
+import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -183,7 +183,7 @@ function getConfigRange(
   originalRow: ScoreConfigTableRow,
 ): Prisma.JsonValue | undefined {
   const { range, dataType } = originalRow;
-  if (isNumeric(dataType)) {
+  if (isNumericDataType(dataType)) {
     return [
       { minValue: range.minValue ?? "-∞", maxValue: range.maxValue ?? "∞" },
     ];

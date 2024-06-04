@@ -33,8 +33,8 @@ import { api } from "@/src/utils/api";
 import { Textarea } from "@/src/components/ui/textarea";
 import {
   isBooleanDataType,
-  isCategorical,
-  isNumeric,
+  isCategoricalDataType,
+  isNumericDataType,
 } from "@/src/features/manual-scoring/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
 
@@ -159,7 +159,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                           value as (typeof availableDataTypes)[number],
                         );
                         form.clearErrors();
-                        if (isNumeric(value as ScoreDataType)) {
+                        if (isNumericDataType(value as ScoreDataType)) {
                           remove();
                         } else {
                           form.setValue("minValue", undefined);
@@ -192,7 +192,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   </FormItem>
                 )}
               />
-              {isNumeric(form.getValues("dataType")) ? (
+              {isNumericDataType(form.getValues("dataType")) ? (
                 <>
                   <FormField
                     control={form.control}
@@ -234,7 +234,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                               Value
                               <DocPopup
                                 description={`This is how the ${
-                                  isCategorical(form.getValues("dataType"))
+                                  isCategoricalDataType(
+                                    form.getValues("dataType"),
+                                  )
                                     ? "category"
                                     : "boolean"
                                 } label is mapped to an integer value internally.`}
@@ -290,7 +292,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                                   </FormItem>
                                 )}
                               />
-                              {isCategorical(form.getValues("dataType")) && (
+                              {isCategoricalDataType(
+                                form.getValues("dataType"),
+                              ) && (
                                 <Button
                                   onClick={() => remove(index)}
                                   variant="outline"
@@ -305,7 +309,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                             </div>
                           </div>
                         ))}
-                        {isCategorical(form.getValues("dataType")) && (
+                        {isCategoricalDataType(form.getValues("dataType")) && (
                           <div className="grid-cols-auto grid">
                             <Button
                               type="button"
@@ -366,7 +370,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
 }
 
 function validateForm(values: z.infer<typeof formSchema>): string | null {
-  if (isNumeric(values.dataType)) {
+  if (isNumericDataType(values.dataType)) {
     if (
       !!values.maxValue &&
       !!values.minValue &&
@@ -374,7 +378,7 @@ function validateForm(values: z.infer<typeof formSchema>): string | null {
     ) {
       return "Maximum value must be greater than Minimum value.";
     }
-  } else if (isCategorical(values.dataType)) {
+  } else if (isCategoricalDataType(values.dataType)) {
     if (!values.categories || values.categories.length === 0) {
       return "At least one category is required for categorical data types.";
     }

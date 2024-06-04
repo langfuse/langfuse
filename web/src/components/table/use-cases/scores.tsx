@@ -7,7 +7,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { isNumeric } from "@/src/features/manual-scoring/lib/helpers";
+import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type ScoreOptions,
@@ -311,7 +311,7 @@ export default function ScoresTable({
       source: score.source,
       name: score.name,
       dataType: score.dataType,
-      value: isNumeric(score.dataType)
+      value: isNumericDataType(score.dataType)
         ? score.value % 1 === 0
           ? String(score.value)
           : score.value.toFixed(4)

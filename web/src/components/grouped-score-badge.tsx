@@ -6,7 +6,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import {
   isBooleanDataType,
-  isCategorical,
+  isCategoricalDataType,
 } from "@/src/features/manual-scoring/lib/helpers";
 import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { cn } from "@/src/utils/tailwind";
@@ -38,7 +38,7 @@ export const GroupedScoreBadges = ({
     <div className={cn("text-xs", props.className)}>
       {props.scores.map((s, i) => (
         <span key={i} className="group/score ml-1 first:ml-0">
-          {isCategorical(s.dataType) || isBooleanDataType(s.dataType)
+          {isCategoricalDataType(s.dataType) || isBooleanDataType(s.dataType)
             ? s.stringValue
             : s.value.toFixed(2)}
           {s.comment && (

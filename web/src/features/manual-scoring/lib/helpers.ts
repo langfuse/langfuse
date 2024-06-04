@@ -1,9 +1,9 @@
 import { ScoreDataType } from "@langfuse/shared";
 
-export const isNumeric = (dataType: ScoreDataType) =>
+export const isNumericDataType = (dataType: ScoreDataType) =>
   dataType === ScoreDataType.NUMERIC;
 
-export const isCategorical = (dataType: ScoreDataType) =>
+export const isCategoricalDataType = (dataType: ScoreDataType) =>
   dataType === ScoreDataType.CATEGORICAL;
 
 export const isBooleanDataType = (dataType: ScoreDataType) =>

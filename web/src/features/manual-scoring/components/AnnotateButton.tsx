@@ -45,7 +45,7 @@ import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { ScoreConfigDetails } from "@/src/features/manual-scoring/components/ScoreConfigDetails";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
-  isNumeric,
+  isNumericDataType,
   isPresent,
   isScoreUnsaved,
 } from "@/src/features/manual-scoring/lib/helpers";
@@ -295,7 +295,7 @@ export function AnnotateButton({
     return async () => {
       const { maxValue, minValue, dataType } = config;
 
-      if (isNumeric(dataType)) {
+      if (isNumericDataType(dataType)) {
         if (
           (!!maxValue && Number(field.value) > maxValue) ||
           (!!minValue && Number(field.value) < minValue)
@@ -556,7 +556,7 @@ export function AnnotateButton({
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormControl>
-                                      {isNumeric(score.dataType) ? (
+                                      {isNumericDataType(score.dataType) ? (
                                         <Input
                                           {...field}
                                           type="number"
