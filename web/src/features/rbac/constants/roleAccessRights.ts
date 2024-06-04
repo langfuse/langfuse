@@ -128,6 +128,7 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
   VIEWER: [
     "prompts:read",
     "evalTemplate:read",
+    "scoreConfigs:read",
     "evalJob:read",
     "evalJobExecution:read",
   ],
