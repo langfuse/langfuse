@@ -112,7 +112,13 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          form.reset();
+        }}
+      >
         <DialogTrigger asChild>
           <Button variant="secondary" loading={createScoreConfig.isLoading}>
             <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
