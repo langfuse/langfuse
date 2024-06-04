@@ -102,6 +102,7 @@ export function AnnotateButton({
         scores,
         traceId,
         observationId,
+        configs,
       }),
     },
   });
