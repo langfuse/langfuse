@@ -5,6 +5,7 @@ import {
 } from "@/src/utils/zod";
 import {
   clickhouseClient,
+  convertTraces,
   observationRecord,
   scoreRecord,
   traceRecord,
@@ -68,28 +69,7 @@ export const getTraces = async (traceId: string, projectId: string) => {
   const traceJson = await trace.json();
 
   console.log("traceJson", traceJson);
-
-  const parsedRecord = z.array(traceRecord).parse(traceJson);
-
-  return parsedRecord.map((record) => {
-    return {
-      id: record.id,
-      timestamp: record.timestamp,
-      name: record.name,
-      release: record.release,
-      version: record.version,
-      bookmarked: record.bookmarked,
-      tags: record.tags,
-      input: record.input ? parseJsonPrioritised(record.input) : undefined,
-      output: record.output ? parseJsonPrioritised(record.output) : undefined,
-      projectId: record.project_id,
-      userId: record.user_id,
-      public: record.public,
-      sessionId: record.session_id,
-      createdAt: record.created_at,
-      metadata: convertRecordToJsonSchema(record.metadata),
-    };
-  });
+  return convertTraces(traceJson);
 };
 
 export const getScores = async (traceId: string, projectId: string) => {

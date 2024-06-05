@@ -1,6 +1,6 @@
 import { createClient } from "@clickhouse/client";
 import { env } from "../env";
-import { observationRecord } from "./definitions";
+import { observationRecord, traceRecord } from "./definitions";
 import z from "zod";
 import { JsonNested, jsonSchema, jsonSchemaNullable } from "./ingestion/types";
 
@@ -14,6 +14,29 @@ export const clickhouseClient = createClient({
     wait_for_async_insert: 1, // if disabled, we wont get errors from clickhouse
   },
 });
+export const convertTraces = (traces: unknown[]) => {
+  const parsedRecord = z.array(traceRecord).parse(traces);
+
+  return parsedRecord.map((record) => {
+    return {
+      id: record.id,
+      timestamp: record.timestamp,
+      name: record.name,
+      release: record.release,
+      version: record.version,
+      bookmarked: record.bookmarked,
+      tags: record.tags,
+      input: record.input ? parseJsonPrioritised(record.input) : undefined,
+      output: record.output ? parseJsonPrioritised(record.output) : undefined,
+      projectId: record.project_id,
+      userId: record.user_id,
+      public: record.public,
+      sessionId: record.session_id,
+      createdAt: record.created_at,
+      metadata: convertRecordToJsonSchema(record.metadata),
+    };
+  });
+};
 
 export function convertObservations(jsonRecords: unknown[]) {
   const parsedRecord = z.array(observationRecord).parse(jsonRecords);

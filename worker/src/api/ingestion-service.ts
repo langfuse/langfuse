@@ -3,8 +3,10 @@ import {
   ObservationEvent,
   clickhouseClient,
   convertObservations,
+  convertTraces,
   eventTypes,
   ingestionBatchEvent,
+  ingestionEvent,
   scoreEvent,
   traceEvent,
 } from "@langfuse/shared/backend";
@@ -117,25 +119,86 @@ const storeTraces = async (
     `Inserting trace into clickhouse, ${env.CLICKHOUSE_URL} ${JSON.stringify(insert)}`
   );
 
-  const existingTraces = await instrumentAsync(
-    { name: "get-traces" },
-    async () => {
-      return await clickhouseClient.query({
-        query: `SELECT id FROM traces where project_id = '${projectId}' and id in (${insert.map((obs) => `'${obs.id}'`).join(",")})`,
-        format: "JSONEachRow",
-      });
-    }
+  const merged = insert.reduce(
+    (acc, curr) => {
+      const existing = acc.find(
+        (o) => o.id === curr.id && o.project_id === curr.project_id
+      );
+      if (existing) {
+        return acc.map((o) =>
+          o.id === curr.id
+            ? {
+                ...o,
+                ...Object.entries(curr).reduce(
+                  (a, [k, v]) => (v == null ? a : { ...a, [k]: v }),
+                  {}
+                ),
+              }
+            : o
+        );
+      }
+      return [...acc, curr];
+    },
+    [] as typeof insert
   );
 
-  const json = await existingTraces.json();
-  console.log(`Existing traces ${json.length}`);
-  if (insert.length === 0) {
+  const redisTraces = await Promise.all(
+    merged.map(async (record) => {
+      const redisObject = await redis?.get(`trace:${record.id}`);
+      if (redisObject) {
+        return JSON.parse(redisObject);
+      }
+      return undefined;
+    })
+  );
+
+  const remainingObservations = merged.filter((record) =>
+    redisTraces.find((r) => r !== undefined && r.id === record.id)
+  );
+
+  console.log(`merged traces ${JSON.stringify(merged)}`);
+
+  const existingTraces =
+    remainingObservations.length > 0
+      ? await instrumentAsync({ name: "get-traces" }, async () => {
+          const clickhouseTraces = await clickhouseClient.query({
+            query: `SELECT id FROM traces where project_id = '${projectId}' and id in (${remainingObservations.map((obs) => `'${obs.id}'`).join(",")})`,
+            format: "JSONEachRow",
+          });
+          return await clickhouseTraces.json();
+        })
+      : [];
+
+  const retrievedTraces = [
+    ...existingTraces,
+    ...redisTraces.filter((r) => r !== undefined),
+  ];
+
+  const updatedRecords = merged.map((record) => {
+    const existingRecord = retrievedTraces.find(
+      (r) => r !== undefined && r.id === record.id
+    );
+    if (!existingRecord) {
+      return record;
+    }
+    // if the record exists, we need to update the existing record with the new record
+    return {
+      ...existingRecord,
+      ...record,
+    };
+  });
+
+  if (updatedRecords.length === 0) {
     return;
+  }
+
+  for (const record of updatedRecords) {
+    await redis?.setex(`trace:${record.id}`, 120, JSON.stringify(record));
   }
   await clickhouseClient.insert({
     table: "traces",
     format: "JSONEachRow",
-    values: insert,
+    values: updatedRecords,
   });
 };
 
@@ -258,7 +321,7 @@ const storeObservations = async (
     merged.map(async (record) => {
       const redisObject = await redis?.get(`observation:${record.id}`);
       if (redisObject) {
-        return convertObservations([JSON.parse(redisObject)])[0];
+        return JSON.parse(redisObject);
       }
       return undefined;
     })
@@ -274,7 +337,7 @@ const storeObservations = async (
           { name: "get-observations-clickhouse" },
           async () => {
             const response = await clickhouseClient.query({
-              query: `SELECT id FROM observations where project_id = '${projectId}' and id in (${remainingObservations.map((obs) => `'${obs.id}'`).join(",")})`,
+              query: `SELECT * FROM observations where project_id = '${projectId}' and id in (${remainingObservations.map((obs) => `'${obs.id}'`).join(",")})`,
               format: "JSONEachRow",
             });
             return response.json();
@@ -283,9 +346,14 @@ const storeObservations = async (
       : [];
 
   const retrievedObservations = [
-    ...convertObservations(existingObservations),
+    ...existingObservations,
     ...redisObservations.filter((r) => r !== undefined),
   ];
+
+  console.log(
+    `existing clickhouse obs: ${JSON.stringify(existingObservations)}`
+  );
+  console.log(`existing redis obs: ${JSON.stringify(redisObservations)}`);
 
   const updatedRecords = merged.map((record) => {
     const existingRecord = retrievedObservations.find(
@@ -297,15 +365,18 @@ const storeObservations = async (
     // if the record exists, we need to update the existing record with the new record
     return {
       ...existingRecord,
-      ...record,
+      ...Object.entries(record).reduce(
+        (a, [k, v]) => (v == null ? a : { ...a, [k]: v }),
+        {}
+      ),
     };
   });
 
   console.log(
-    `Inserting observation into clickhouse, ${env.CLICKHOUSE_URL}, ${JSON.stringify(updatedRecords)}`
+    `final records, ${env.CLICKHOUSE_URL}, ${JSON.stringify(updatedRecords)}`
   );
 
-  if (insert.length === 0) {
+  if (updatedRecords.length === 0) {
     return;
   }
 

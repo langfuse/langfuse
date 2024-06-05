@@ -36,7 +36,6 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { instrumentAsync } from "@/src/utils/instrumentation";
-import { ingest } from "@/src/server/api/services/clickhouse-processor";
 
 export const config = {
   api: {
