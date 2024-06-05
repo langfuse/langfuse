@@ -56,6 +56,7 @@ import { MultiSelectKeyValues } from "@/src/features/manual-scoring/components/m
 import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -84,13 +85,18 @@ export function AnnotateButton({
   observationId,
   projectId,
   variant = "button",
+  type = "trace",
+  source = "TraceDetail",
 }: {
   traceId: string;
   scores: Score[];
   observationId?: string;
   projectId: string;
   variant?: "button" | "badge";
+  type?: "trace" | "observation" | "session";
+  source?: "TraceDetail" | "SessionDetail";
 }) {
+  const capture = usePostHogClientCapture();
   const hasAccess = useHasAccess({
     projectId,
     scope: "scores:CUD",
@@ -256,7 +262,7 @@ export function AnnotateButton({
         });
 
         if (!!stringValue) {
-          if (!!score.scoreId)
+          if (!!score.scoreId) {
             await mutUpdateScores.mutateAsync({
               projectId,
               ...score,
@@ -264,7 +270,12 @@ export function AnnotateButton({
               value: newValue,
               stringValue,
             });
-          else
+            capture("score:update", {
+              type: type,
+              source: source,
+              dataType: score.dataType,
+            });
+          } else {
             await mutCreateScores.mutateAsync({
               projectId,
               traceId,
@@ -273,6 +284,12 @@ export function AnnotateButton({
               value: newValue,
               stringValue,
             });
+            capture("score:create", {
+              type: type,
+              source: source,
+              dataType: score.dataType,
+            });
+          }
         }
       }
     };
@@ -292,7 +309,7 @@ export function AnnotateButton({
   }): React.MouseEventHandler<HTMLButtonElement> | undefined {
     return async () => {
       const { value, scoreId } = score;
-      if (!!field.value && !!scoreId && isPresent(value))
+      if (!!field.value && !!scoreId && isPresent(value)) {
         await mutUpdateScores.mutateAsync({
           projectId,
           ...score,
@@ -300,6 +317,11 @@ export function AnnotateButton({
           id: scoreId,
           comment,
         });
+        capture(comment ? "score:update_comment" : "score:delete_comment", {
+          type: type,
+          source: source,
+        });
+      }
     };
   }
 
@@ -336,14 +358,19 @@ export function AnnotateButton({
       form.clearErrors(`scoreData.${index}.value`);
 
       if (isPresent(field.value)) {
-        if (!!score.scoreId)
+        if (!!score.scoreId) {
           await mutUpdateScores.mutateAsync({
             projectId,
             ...score,
             value: Number(field.value),
             id: score.scoreId,
           });
-        else
+          capture("score:update", {
+            type: type,
+            source: source,
+            dataType: score.dataType,
+          });
+        } else {
           await mutCreateScores.mutateAsync({
             projectId,
             traceId,
@@ -351,6 +378,12 @@ export function AnnotateButton({
             observationId,
             value: Number(field.value),
           });
+          capture("score:create", {
+            type: type,
+            source: source,
+            dataType: score.dataType,
+          });
+        }
       }
     };
   }
@@ -359,12 +392,41 @@ export function AnnotateButton({
     <Drawer>
       <DrawerTrigger asChild>
         {variant === "button" ? (
-          <Button variant="secondary" disabled={!hasAccess}>
+          <Button
+            variant="secondary"
+            disabled={!hasAccess}
+            onClick={() =>
+              capture(
+                Boolean(scores.length)
+                  ? "score:update_form_open"
+                  : "score:create_form_open",
+                {
+                  type: type,
+                  source: source,
+                },
+              )
+            }
+          >
             <span>Annotate</span>
             {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
           </Button>
         ) : (
-          <Button className="h-6 rounded-full px-3 text-xs">Annotate</Button>
+          <Button
+            className="h-6 rounded-full px-3 text-xs"
+            onClick={() =>
+              capture(
+                Boolean(scores.length)
+                  ? "score:update_form_open"
+                  : "score:create_form_open",
+                {
+                  type: type,
+                  source: source,
+                },
+              )
+            }
+          >
+            Annotate
+          </Button>
         )}
       </DrawerTrigger>
       <DrawerContent className="h-1/3">
@@ -400,9 +462,13 @@ export function AnnotateButton({
                   }))}
                 controlButtons={
                   <CommandItem
-                    onSelect={() =>
-                      router.push(`/project/${projectId}/settings`)
-                    }
+                    onSelect={() => {
+                      capture("score_configs:manage_configs_item_click", {
+                        type: type,
+                        source: source,
+                      });
+                      router.push(`/project/${projectId}/settings`);
+                    }}
                   >
                     Manage score configs
                   </CommandItem>
@@ -682,6 +748,10 @@ export function AnnotateButton({
                                     await mutDeleteScore.mutateAsync({
                                       id: score.scoreId,
                                       projectId,
+                                    });
+                                    capture("score:delete", {
+                                      type: type,
+                                      source: source,
                                     });
                                     form.clearErrors(
                                       `scoreData.${index}.value`,
