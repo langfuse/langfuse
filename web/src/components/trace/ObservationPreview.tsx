@@ -159,6 +159,7 @@ export const ObservationPreview = (props: {
               traceId={preloadedObservation.traceId}
               observationId={preloadedObservation.id}
               scores={props.scores}
+              type="observation"
             />
             {observationWithInputAndOutput.data?.type === "GENERATION" && (
               <JumpToPlaygroundButton

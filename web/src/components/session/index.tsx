@@ -207,6 +207,8 @@ const TraceCardList = ({
                     traceId={trace.id}
                     scores={trace.scores}
                     variant="badge"
+                    type="session"
+                    source="SessionDetail"
                   />
                 </div>
               </ScrollArea>
