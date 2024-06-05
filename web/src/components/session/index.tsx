@@ -12,14 +12,18 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AnnotateButton } from "@/src/features/manual-scoring/components/AnnotateButton";
+import { Button } from "@/src/components/ui/button";
+
+const PAGE_SIZE = 50;
 
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const { setDetailPageList } = useDetailPageLists();
+  const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const session = api.sessions.byId.useQuery(
     {
       sessionId,
@@ -98,7 +102,7 @@ export const SessionPage: React.FC<{
         )}
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
-        {session.data?.traces.map((trace) => (
+        {session.data?.traces.slice(0, visibleTraces).map((trace) => (
           <Card
             className="group grid gap-3 border-border p-2 shadow-none hover:border-ring md:grid-cols-3"
             key={trace.id}
@@ -131,6 +135,15 @@ export const SessionPage: React.FC<{
             </div>
           </Card>
         ))}
+        {session.data?.traces && session.data.traces.length > visibleTraces && (
+          <Button
+            onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
+            variant="ghost"
+            className="self-center"
+          >
+            {`Load ${Math.min(session.data.traces.length - visibleTraces, PAGE_SIZE)} More`}
+          </Button>
+        )}
       </div>
     </div>
   );
