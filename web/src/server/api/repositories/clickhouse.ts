@@ -7,6 +7,7 @@ import {
   clickhouseClient,
   convertTraces,
   observationRecord,
+  parseJsonPrioritised,
   scoreRecord,
   traceRecord,
 } from "@langfuse/shared/backend";
@@ -17,7 +18,7 @@ export const getObservation = async (
   projectId: string,
 ) => {
   const observation = await clickhouseClient.query({
-    query: `SELECT * FROM observations where id = '${observationId}' and project_id = '${projectId}' LIMIT 1`,
+    query: `SELECT * FROM observations FINAl where id = '${observationId}' and project_id = '${projectId}' LIMIT 1`,
     format: "JSONEachRow",
   });
   const jsonRecords = await observation.json();
@@ -29,7 +30,7 @@ export const getObservation = async (
 
 export const getObservations = async (traceId: string, projectId: string) => {
   const observations = await clickhouseClient.query({
-    query: `SELECT * FROM observations where trace_id = '${traceId}' and project_id = '${projectId}'`,
+    query: `SELECT * FROM observations FINAl where trace_id = '${traceId}' and project_id = '${projectId}'`,
     format: "JSONEachRow",
   });
   const jsonRecords = await observations.json();
@@ -38,32 +39,9 @@ export const getObservations = async (traceId: string, projectId: string) => {
   return convertObservations(jsonRecords);
 };
 
-export const parseJsonPrioritised = (
-  json: string,
-): z.infer<typeof jsonSchema> | string | undefined => {
-  try {
-    console.log("parseJsonPrioritised", json);
-    const parsedJson = JSON.parse(json);
-    if (Object.keys(parsedJson).length === 0) {
-      return undefined;
-    }
-    const arr = z.array(jsonSchemaNullable).safeParse(parsedJson);
-    if (arr.success) {
-      return arr.data;
-    }
-    const obj = z.record(jsonSchemaNullable).safeParse(parsedJson);
-    if (obj.success) {
-      return obj.data;
-    }
-
-    return jsonSchema.parse(parsedJson);
-  } catch (error) {
-    return jsonSchema.parse(json);
-  }
-};
 export const getTraces = async (traceId: string, projectId: string) => {
   const trace = await clickhouseClient.query({
-    query: `SELECT * FROM traces where id = '${traceId}' and project_id = '${projectId}' LIMIT 1`,
+    query: `SELECT * FROM traces FINAl where id = '${traceId}' and project_id = '${projectId}' LIMIT 1`,
     format: "JSONEachRow",
   });
   const traceJson = await trace.json();
@@ -74,7 +52,7 @@ export const getTraces = async (traceId: string, projectId: string) => {
 
 export const getScores = async (traceId: string, projectId: string) => {
   const scores = await clickhouseClient.query({
-    query: `SELECT * FROM scores where trace_id = '${traceId}' and project_id = '${projectId}'`,
+    query: `SELECT * FROM scores FINAl where trace_id = '${traceId}' and project_id = '${projectId}'`,
     format: "JSONEachRow",
   });
   const jsonRecords = await scores.json();

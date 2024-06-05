@@ -1,6 +1,6 @@
-import { type jsonSchema } from "@/src/utils/zod";
-import { type z } from "zod";
+import { z } from "zod";
 import lodash from "lodash";
+import { JsonNested, jsonSchema, jsonSchemaNullable } from "../backend";
 
 export const parseJson = (input: string) => {
   try {
@@ -37,7 +37,7 @@ export function deepParseJson(json: unknown): unknown {
         // Ensure we only iterate over the object's own properties
         if (Object.prototype.hasOwnProperty.call(json, key)) {
           (json as Record<string, unknown>)[key] = deepParseJson(
-            (json as Record<string, unknown>)[key],
+            (json as Record<string, unknown>)[key]
           );
         }
       }
@@ -50,10 +50,53 @@ export function deepParseJson(json: unknown): unknown {
 
 export const mergeJson = (
   json1?: z.infer<typeof jsonSchema>,
-  json2?: z.infer<typeof jsonSchema>,
+  json2?: z.infer<typeof jsonSchema>
 ) => {
   if (json1 === undefined) {
     return json2;
   }
   return lodash.merge(json1, json2);
+};
+
+export const parseJsonPrioritised = (
+  json: string
+): z.infer<typeof jsonSchema> | string | undefined => {
+  try {
+    const parsedJson = JSON.parse(json);
+    if (Object.keys(parsedJson).length === 0) {
+      return undefined;
+    }
+    const arr = z.array(jsonSchemaNullable).safeParse(parsedJson);
+    if (arr.success) {
+      return arr.data;
+    }
+    const obj = z.record(jsonSchemaNullable).safeParse(parsedJson);
+    if (obj.success) {
+      return obj.data;
+    }
+
+    return jsonSchema.parse(parsedJson);
+  } catch (error) {
+    return jsonSchema.parse(json);
+  }
+};
+export const convertRecordToJsonSchema = (
+  record: Record<string, string>
+): JsonNested | undefined => {
+  const jsonSchema: JsonNested = {};
+
+  // if record is empty, return undefined
+  if (Object.keys(record).length === 0) {
+    return undefined;
+  }
+
+  for (const key in record) {
+    try {
+      jsonSchema[key] = JSON.parse(record[key]);
+    } catch (e) {
+      jsonSchema[key] = record[key];
+    }
+  }
+
+  return jsonSchema;
 };

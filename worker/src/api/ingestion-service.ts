@@ -2,18 +2,16 @@ import {
   JsonNested,
   ObservationEvent,
   clickhouseClient,
-  convertObservations,
-  convertTraces,
   eventTypes,
   ingestionBatchEvent,
-  ingestionEvent,
   scoreEvent,
   traceEvent,
 } from "@langfuse/shared/backend";
 import z from "zod";
 import { instrumentAsync } from "../instrumentation";
-import { env } from "@langfuse/shared";
+import { convertRecordToJsonSchema, env, mergeJson } from "@langfuse/shared";
 import { redis } from "../redis/redis";
+import { v4 } from "uuid";
 
 export const processEvents = async (
   events: z.infer<typeof ingestionBatchEvent>
@@ -133,6 +131,12 @@ const storeTraces = async (
                   (a, [k, v]) => (v == null ? a : { ...a, [k]: v }),
                   {}
                 ),
+                metadata:
+                  !o.metadata && curr.metadata
+                    ? curr.metadata
+                    : !curr.metadata && o.metadata
+                      ? o.metadata
+                      : mergeRecords(o.metadata, curr.metadata),
               }
             : o
         );
@@ -241,6 +245,22 @@ const storeObservations = async (
       convertedMetadata["metadata"] = obs.body.metadata;
     }
 
+    const newInputCount =
+      "usage" in obs.body ? obs.body.usage?.input : undefined;
+
+    const newOutputCount =
+      "usage" in obs.body ? obs.body.usage?.output : undefined;
+
+    const newTotalCount =
+      newInputCount !== undefined &&
+      newOutputCount !== undefined &&
+      newInputCount &&
+      newOutputCount
+        ? newInputCount + newOutputCount
+        : newInputCount ?? newOutputCount;
+
+    const newUnit = "usage" in obs.body ? obs.body.usage?.unit : undefined;
+
     return {
       id: obs.body.id ?? v4(),
       trace_id: obs.body.traceId ?? v4(),
@@ -267,12 +287,10 @@ const storeObservations = async (
           : undefined,
       input: obs.body.input ?? undefined,
       output: obs.body.output ?? undefined,
-      // TODO: calculate tokens or ingest observed ons
-      prompt_tokens: 0,
-      completion_tokens: 0,
-      // TODO should we still track that?
-      total_tokens: 0,
-      unit: "TOKENS",
+      promptTokens: newInputCount,
+      completionTokens: newOutputCount,
+      totalTokens: newTotalCount,
+      unit: newUnit,
       level: obs.body.level ?? "DEFAULT",
       status_message: obs.body.statusMessage ?? undefined,
       parent_observation_id: obs.body.parentObservationId ?? undefined,
@@ -304,6 +322,12 @@ const storeObservations = async (
                   (a, [k, v]) => (v == null ? a : { ...a, [k]: v }),
                   {}
                 ),
+                metadata:
+                  !o.metadata && curr.metadata
+                    ? curr.metadata
+                    : !curr.metadata && o.metadata
+                      ? o.metadata
+                      : mergeRecords(o.metadata, curr.metadata),
               }
             : o
         );
@@ -417,13 +441,14 @@ export const convertJsonSchemaToRecord = (
   return record;
 };
 
-const extractMicroseconds = (timestamp: string): number => {
-  // we get strings with high precision such as: 2024-05-26T16:34:28.181300000Z
-  // extract the microseconds part and convert it to a number -> 181300000
-  console.log(`Extracting microseconds from timestamp ${timestamp}`);
+export const mergeRecords = (
+  record1?: Record<string, string>,
+  record2?: Record<string, string>
+): Record<string, string> | undefined => {
+  const merged = mergeJson(
+    record1 ? convertRecordToJsonSchema(record1) ?? undefined : undefined,
+    record2 ? convertRecordToJsonSchema(record2) ?? undefined : undefined
+  );
 
-  return parseInt(timestamp.split(".")[1].split("Z")[0]);
+  return merged ? convertJsonSchemaToRecord(merged) : undefined;
 };
-function v4(): any {
-  throw new Error("Function not implemented.");
-}

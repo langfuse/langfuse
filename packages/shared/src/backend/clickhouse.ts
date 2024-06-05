@@ -2,7 +2,8 @@ import { createClient } from "@clickhouse/client";
 import { env } from "../env";
 import { observationRecord, traceRecord } from "./definitions";
 import z from "zod";
-import { JsonNested, jsonSchema, jsonSchemaNullable } from "./ingestion/types";
+import { jsonSchema, jsonSchemaNullable } from "./ingestion/types";
+import { convertRecordToJsonSchema } from "../utils/json";
 
 export const clickhouseClient = createClient({
   url: env.CLICKHOUSE_URL ?? "http://localhost:8123",
@@ -98,25 +99,4 @@ export const parseJsonPrioritised = (
   } catch (error) {
     return jsonSchema.parse(json);
   }
-};
-
-export const convertRecordToJsonSchema = (
-  record: Record<string, string>
-): JsonNested | undefined => {
-  const jsonSchema: JsonNested = {};
-
-  // if record is empty, return undefined
-  if (Object.keys(record).length === 0) {
-    return undefined;
-  }
-
-  for (const key in record) {
-    try {
-      jsonSchema[key] = JSON.parse(record[key]);
-    } catch (e) {
-      jsonSchema[key] = record[key];
-    }
-  }
-
-  return jsonSchema;
 };

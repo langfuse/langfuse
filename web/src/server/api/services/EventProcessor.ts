@@ -12,7 +12,7 @@ import {
 } from "@langfuse/shared/backend";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
-import { mergeJson } from "@/src/utils/json";
+import { mergeJson } from "@langfuse/shared";
 import {
   type Trace,
   type Observation,
