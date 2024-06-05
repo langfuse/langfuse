@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { AnnotateButton } from "@/src/features/manual-scoring/components/AnnotateButton";
 import { Button } from "@/src/components/ui/button";
 
+// some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
 
 export const SessionPage: React.FC<{
