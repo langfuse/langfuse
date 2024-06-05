@@ -1,7 +1,13 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import React from "react";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, MessageCircleMore, MessageCircle, X } from "lucide-react";
+import {
+  LockIcon,
+  MessageCircleMore,
+  MessageCircle,
+  X,
+  SquarePen,
+} from "lucide-react";
 import {
   type ControllerRenderProps,
   useFieldArray,
@@ -407,8 +413,12 @@ export function AnnotateButton({
               )
             }
           >
+            {!hasAccess ? (
+              <LockIcon className="mr-2 h-3 w-3" />
+            ) : (
+              <SquarePen className="mr-2 h-5 w-5" />
+            )}
             <span>Annotate</span>
-            {!hasAccess ? <LockIcon className="ml-2 h-3 w-3" /> : null}
           </Button>
         ) : (
           <Button
