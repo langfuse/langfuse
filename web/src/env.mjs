@@ -36,7 +36,7 @@ export const env = createEnv({
         message: "LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET must be a number when set"
       }).transform((v) =>
         v === undefined ? undefined : -Number.parseInt(v) // negative offset
-    ),
+      ),
     LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES: z.enum(["true", "false"]).optional().default("false"),
     SALT: z.string({
       required_error:
