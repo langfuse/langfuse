@@ -67,7 +67,7 @@ router
   )
   .post<{}, EventsResponse>("/events", async (req, res) => {
     const { body } = req;
-    logger.debug(`Received events, ${JSON.stringify(body)}`);
+    logger.info(`Received events, ${JSON.stringify(body)}`);
 
     const events = eventBody.parse(body);
 
