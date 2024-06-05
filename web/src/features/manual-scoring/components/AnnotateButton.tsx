@@ -594,6 +594,7 @@ export function AnnotateButton({
                                             index,
                                             score,
                                           })}
+                                          onKeyDown={handleOnKeyDown}
                                         />
                                       ) : config.categories &&
                                         (
@@ -704,4 +705,23 @@ export function AnnotateButton({
       </DrawerContent>
     </Drawer>
   );
+}
+
+function handleOnKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const form = e.currentTarget.form;
+    if (!form) return;
+
+    const currentTabIndex = e.currentTarget.tabIndex;
+    const nextElement = form.querySelector(
+      `[tabindex="${currentTabIndex + 1}"]`,
+    );
+
+    if (nextElement instanceof HTMLElement) {
+      nextElement.focus();
+    } else {
+      e.currentTarget.blur();
+    }
+  }
 }
