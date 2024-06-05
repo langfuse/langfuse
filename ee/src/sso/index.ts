@@ -174,8 +174,8 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
     });
-  else if (provider.authProvider === "cognito")
-    return CustomSSO({
+  else if (provider.authProvider === "custom")
+    return CustomSSOProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
