@@ -132,6 +132,7 @@ export function MultiSelectKeyValues<
                   <CommandItem
                     key={option.key ?? option.value}
                     value={option.key ?? option.value}
+                    keywords={[option.value]}
                     onSelect={(value) => {
                       if (isSelected) {
                         selectedValueKeys.delete(value);
