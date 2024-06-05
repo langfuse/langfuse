@@ -7,7 +7,7 @@ service:
   base-path: /api/public
   endpoints:
     get:
-      docs: Get a session
+      docs: Get a session. Please note that `traces` on this endpoint are not paginated, if you plan to fetch large sessions, consider `GET /api/public/traces?sessionId=<sessionId>`
       method: GET
       path: /sessions/{sessionId}
       path-parameters:
