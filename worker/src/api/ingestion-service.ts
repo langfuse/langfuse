@@ -1,22 +1,23 @@
 import {
-  type ingestionEvent,
-  type ObservationEvent,
+  JsonNested,
+  ObservationEvent,
+  clickhouseClient,
+  convertObservations,
   eventTypes,
-  type traceEvent,
-  type scoreEvent,
+  ingestionBatchEvent,
+  scoreEvent,
+  traceEvent,
 } from "@langfuse/shared/backend";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { instrumentAsync } from "@/src/utils/instrumentation";
-import { type JsonNested } from "@/src/utils/zod";
+import z from "zod";
+import { instrumentAsync } from "../instrumentation";
 import { env } from "@langfuse/shared";
-import { clickhouseClient } from "@langfuse/shared/backend";
-import { v4 } from "uuid";
-import { type z } from "zod";
+import { redis } from "../redis/redis";
 
-export const ingest = async (
-  apiScope: ApiAccessScope,
-  events: z.infer<typeof ingestionEvent>[],
+export const processEvents = async (
+  events: z.infer<typeof ingestionBatchEvent>
 ) => {
+  // first order events
+
   const observationEvents: ObservationEvent[] = [];
   const traceEvents: z.infer<typeof traceEvent>[] = [];
   const scoreEvents: z.infer<typeof scoreEvent>[] = [];
@@ -44,16 +45,20 @@ export const ingest = async (
     }
   });
 
+  // then process all of them per table in batches in parallel
   await Promise.all([
-    storeObservations(apiScope, observationEvents),
-    storeTraces(apiScope, traceEvents),
-    storeScores(apiScope, scoreEvents),
+    storeObservations(
+      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      observationEvents
+    ),
+    storeTraces("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a", traceEvents),
+    storeScores("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a", scoreEvents),
   ]);
 };
 
 const storeScores = async (
-  apiScope: ApiAccessScope,
-  scores: z.infer<typeof scoreEvent>[],
+  projectId: string,
+  scores: z.infer<typeof scoreEvent>[]
 ) => {
   const insert = scores.map((score) => ({
     id: score.body.id ?? v4(),
@@ -64,7 +69,7 @@ const storeScores = async (
     comment: score.body.comment,
     trace_id: score.body.traceId,
     observation_id: score.body.observationId ?? null,
-    project_id: apiScope.projectId,
+    project_id: projectId,
   }));
 
   console.log(`Inserting score into clickhouse ${JSON.stringify(insert)}`);
@@ -79,8 +84,8 @@ const storeScores = async (
 };
 
 const storeTraces = async (
-  apiScope: ApiAccessScope,
-  traces: z.infer<typeof traceEvent>[],
+  projectId: string,
+  traces: z.infer<typeof traceEvent>[]
 ) => {
   console.log(`Storing traces ${JSON.stringify(traces)}`);
   const insert = traces.map((trace) => ({
@@ -97,7 +102,7 @@ const storeTraces = async (
       : undefined,
     release: trace.body.release,
     version: trace.body.version,
-    project_id: apiScope.projectId,
+    project_id: projectId,
     public: trace.body.public,
     bookmarked: false,
     tags: trace.body.tags ?? [],
@@ -109,17 +114,17 @@ const storeTraces = async (
   }));
 
   console.log(
-    `Inserting trace into clickhouse, ${env.CLICKHOUSE_URL} ${JSON.stringify(insert)}`,
+    `Inserting trace into clickhouse, ${env.CLICKHOUSE_URL} ${JSON.stringify(insert)}`
   );
 
   const existingTraces = await instrumentAsync(
     { name: "get-traces" },
     async () => {
       return await clickhouseClient.query({
-        query: `SELECT id FROM traces where project_id = '${apiScope.projectId}' and id in (${insert.map((obs) => `'${obs.id}'`).join(",")})`,
+        query: `SELECT id FROM traces where project_id = '${projectId}' and id in (${insert.map((obs) => `'${obs.id}'`).join(",")})`,
         format: "JSONEachRow",
       });
-    },
+    }
   );
 
   const json = await existingTraces.json();
@@ -135,13 +140,13 @@ const storeTraces = async (
 };
 
 const storeObservations = async (
-  apiScope: ApiAccessScope,
-  observations: ObservationEvent[],
+  projectId: string,
+  observations: ObservationEvent[]
 ) => {
   const observationsToStore = observations.map((observation) => {
     return {
       ...observation,
-      project_id: apiScope.projectId,
+      project_id: projectId,
     };
   });
 
@@ -209,7 +214,7 @@ const storeObservations = async (
       status_message: obs.body.statusMessage ?? undefined,
       parent_observation_id: obs.body.parentObservationId ?? undefined,
       version: obs.body.version ?? undefined,
-      project_id: apiScope.projectId,
+      project_id: projectId,
       // todo: find prompt from postgres
       prompt_id: undefined,
       input_cost: "usage" in obs.body ? obs.body.usage?.inputCost : undefined,
@@ -219,33 +224,104 @@ const storeObservations = async (
   });
 
   console.log(
-    `Inserting observation into clickhouse, ${env.CLICKHOUSE_URL}, ${JSON.stringify(insert)}`,
+    `Received observation for clickhouse, ${env.CLICKHOUSE_URL}, ${JSON.stringify(insert)}`
   );
-
-  const existingObservations = await instrumentAsync(
-    { name: "get-observations" },
-    async () => {
-      return await clickhouseClient.query({
-        query: `SELECT id FROM observations where project_id = '${apiScope.projectId}' and id in (${observationsToStore.map((obs) => `'${obs.body.id}'`).join(",")})`,
-        format: "JSONEachRow",
-      });
+  // merge observations with same id and project id into one
+  const merged = insert.reduce(
+    (acc, curr) => {
+      const existing = acc.find(
+        (o) => o.id === curr.id && o.project_id === curr.project_id
+      );
+      if (existing) {
+        return acc.map((o) =>
+          o.id === curr.id
+            ? {
+                ...o,
+                ...Object.entries(curr).reduce(
+                  (a, [k, v]) => (v == null ? a : { ...a, [k]: v }),
+                  {}
+                ),
+              }
+            : o
+        );
+      }
+      return [...acc, curr];
     },
+    [] as typeof insert
   );
 
-  const json = await existingObservations.json();
-  console.log(`Existing observations ${json.length}`);
+  console.log(`merged ${JSON.stringify(merged)}`);
+
+  // try to get existing observations from redis
+
+  const redisObservations = await Promise.all(
+    merged.map(async (record) => {
+      const redisObject = await redis?.get(`observation:${record.id}`);
+      if (redisObject) {
+        return convertObservations([JSON.parse(redisObject)])[0];
+      }
+      return undefined;
+    })
+  );
+
+  const remainingObservations = merged.filter((record) =>
+    redisObservations.find((r) => r !== undefined && r.id === record.id)
+  );
+
+  const existingObservations =
+    remainingObservations.length > 0
+      ? await instrumentAsync(
+          { name: "get-observations-clickhouse" },
+          async () => {
+            const response = await clickhouseClient.query({
+              query: `SELECT id FROM observations where project_id = '${projectId}' and id in (${remainingObservations.map((obs) => `'${obs.id}'`).join(",")})`,
+              format: "JSONEachRow",
+            });
+            return response.json();
+          }
+        )
+      : [];
+
+  const retrievedObservations = [
+    ...convertObservations(existingObservations),
+    ...redisObservations.filter((r) => r !== undefined),
+  ];
+
+  const updatedRecords = merged.map((record) => {
+    const existingRecord = retrievedObservations.find(
+      (r) => r !== undefined && r.id === record.id
+    );
+    if (!existingRecord) {
+      return record;
+    }
+    // if the record exists, we need to update the existing record with the new record
+    return {
+      ...existingRecord,
+      ...record,
+    };
+  });
+
+  console.log(
+    `Inserting observation into clickhouse, ${env.CLICKHOUSE_URL}, ${JSON.stringify(updatedRecords)}`
+  );
+
   if (insert.length === 0) {
     return;
+  }
+
+  // add the latest observations to redis with ttl of 2 min
+  for (const record of updatedRecords) {
+    await redis?.setex(`observation:${record.id}`, 120, JSON.stringify(record));
   }
   return await clickhouseClient.insert({
     table: "observations",
     format: "JSONEachRow",
-    values: insert,
+    values: updatedRecords,
   });
 };
 
 export const convertJsonSchemaToRecord = (
-  jsonSchema: JsonNested,
+  jsonSchema: JsonNested
 ): Record<string, string> => {
   const record: Record<string, string> = {};
 
@@ -277,3 +353,6 @@ const extractMicroseconds = (timestamp: string): number => {
 
   return parseInt(timestamp.split(".")[1].split("Z")[0]);
 };
+function v4(): any {
+  throw new Error("Function not implemented.");
+}

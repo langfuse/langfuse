@@ -2,7 +2,7 @@ CREATE TABLE traces (
     id String,
     `timestamp` DateTime64(3),
     `name` String,
-    user_id String,
+    user_id Nullable(String),
     metadata Map(String, String) CODEC(ZSTD(1)),
     release Nullable(String),
     `version` Nullable(String),

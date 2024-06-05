@@ -16,7 +16,7 @@ export const getObservation = async (
   projectId: string,
 ) => {
   const observation = await clickhouseClient.query({
-    query: `SELECT * FROM observations_view where id = '${observationId}' and project_id = '${projectId}' LIMIT 1`,
+    query: `SELECT * FROM observations where id = '${observationId}' and project_id = '${projectId}' LIMIT 1`,
     format: "JSONEachRow",
   });
   const jsonRecords = await observation.json();
@@ -28,7 +28,7 @@ export const getObservation = async (
 
 export const getObservations = async (traceId: string, projectId: string) => {
   const observations = await clickhouseClient.query({
-    query: `SELECT * FROM observations_view where trace_id = '${traceId}' and project_id = '${projectId}'`,
+    query: `SELECT * FROM observations where trace_id = '${traceId}' and project_id = '${projectId}'`,
     format: "JSONEachRow",
   });
   const jsonRecords = await observations.json();
@@ -62,7 +62,7 @@ export const parseJsonPrioritised = (
 };
 export const getTraces = async (traceId: string, projectId: string) => {
   const trace = await clickhouseClient.query({
-    query: `SELECT * FROM traces_view where id = '${traceId}' and project_id = '${projectId}' LIMIT 1`,
+    query: `SELECT * FROM traces where id = '${traceId}' and project_id = '${projectId}' LIMIT 1`,
     format: "JSONEachRow",
   });
   const traceJson = await trace.json();
@@ -87,7 +87,6 @@ export const getTraces = async (traceId: string, projectId: string) => {
       public: record.public,
       sessionId: record.session_id,
       createdAt: record.created_at,
-      updatedAt: record.updated_at,
       metadata: convertRecordToJsonSchema(record.metadata),
     };
   });
@@ -95,7 +94,7 @@ export const getTraces = async (traceId: string, projectId: string) => {
 
 export const getScores = async (traceId: string, projectId: string) => {
   const scores = await clickhouseClient.query({
-    query: `SELECT * FROM scores_view where trace_id = '${traceId}' and project_id = '${projectId}'`,
+    query: `SELECT * FROM scores where trace_id = '${traceId}' and project_id = '${projectId}'`,
     format: "JSONEachRow",
   });
   const jsonRecords = await scores.json();

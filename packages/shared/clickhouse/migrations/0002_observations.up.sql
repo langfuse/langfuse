@@ -1,7 +1,7 @@
 CREATE TABLE observations (
     `id` String,
     `trace_id` String,
-    `project_id` UUID,
+    `project_id` String,
     `type` LowCardinality(String),
     `parent_observation_id` Nullable(String),
     `start_time` DateTime64(6),

@@ -1,6 +1,6 @@
 -- traces
 INSERT INTO langfuse.traces
-SELECT toString(floor(randUniform(0, 2000000))) AS id,
+SELECT toString(floor(randUniform(0, 200000000))) AS id,
   now() - randUniform(0, 10000000) AS `timestamp`,
   concat('name_', toString(rand() % 100)) AS `name`,
   concat('user_id_', toString(rand() % 10000)) AS `user_id`,
@@ -15,10 +15,10 @@ SELECT toString(floor(randUniform(0, 2000000))) AS id,
   repeat('output', toInt64(randExponential(1 / 100))) AS `output`,
   concat('session_', toString(rand() % 100)) AS `session_id`,
   `timestamp` AS `created_at`
-FROM numbers(2000000);
+FROM numbers(1000000);
 -- observations
 INSERT INTO langfuse.observations
-SELECT toString(floor(randUniform(0, 10000000))) AS id,
+SELECT toString(floor(randUniform(0, 1000000000))) AS id,
   toString(floor(randUniform(0, 2000000))) AS trace_id,
   concat('project_id_', toString(floor(randExponential(1 / 2)) % 1000)) AS project_id,
   multiIf(
@@ -62,7 +62,7 @@ SELECT toString(floor(randUniform(0, 10000000))) AS id,
 FROM numbers(1000000);
 -- scores
 INSERT INTO langfuse.scores
-SELECT toString(floor(randUniform(0, 500000))) AS id,
+SELECT toString(floor(randUniform(0, 50000000))) AS id,
    now() - randUniform(0, 10000000) AS `timestamp`,
   concat('project_id_', toString(floor(randExponential(1 / 2)) % 1000)) AS project_id,
   concat('name_', toString(rand() % 100)) AS `name`,

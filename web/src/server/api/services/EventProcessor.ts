@@ -9,7 +9,7 @@ import {
   type sdkLogEvent,
   type traceEvent,
   type ObservationEvent,
-} from "@/src/features/public-api/server/ingestion-api-schema";
+} from "@langfuse/shared/backend";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@/src/utils/json";

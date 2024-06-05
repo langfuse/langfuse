@@ -11,7 +11,7 @@ import {
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { stringDate } from "@/src/features/public-api/server/ingestion-api-schema";
+import { stringDate } from "@langfuse/shared/backend";
 
 const ObservationsGetSchema = z.object({
   ...paginationZod,

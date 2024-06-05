@@ -10,7 +10,7 @@ import {
   eventTypes,
   ingestionBatchEvent,
   stringDate,
-} from "@/src/features/public-api/server/ingestion-api-schema";
+} from "@langfuse/shared/backend";
 import { v4 } from "uuid";
 import {
   handleBatch,

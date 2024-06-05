@@ -9,6 +9,8 @@ import basicAuth from "express-basic-auth";
 import { env } from "../env";
 import { QueueJobs, QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { ingestionBatchEvent } from "@langfuse/shared/backend";
+import { processEvents } from "./ingestion-service";
 
 const router = express.Router();
 
@@ -26,7 +28,7 @@ const eventBody = z.array(
 );
 
 type EventsResponse = {
-  status: "success";
+  status: "success" | "error";
 };
 
 router.get<{}, { status: string }>("/health", async (_req, res) => {
@@ -81,6 +83,31 @@ router
       status: "success",
     });
   });
+router.post<{}, EventsResponse>("/ingestion", async (req, res) => {
+  try {
+    const { body } = req;
+    logger.debug(`Received events, ${JSON.stringify(body)}`);
+
+    const events = ingestionBatchEvent.safeParse(body);
+
+    if (!events.success) {
+      logger.error(events.error, "Failed to parse ingestion event");
+      return res.status(400).json({
+        status: "error",
+      });
+    }
+
+    await processEvents(events.data);
+    res.json({
+      status: "success",
+    });
+  } catch (e) {
+    logger.error(e, "Failed to process ingestion event");
+    return res.status(500).json({
+      status: "error",
+    });
+  }
+});
 
 router.use("/emojis", emojis);
 

@@ -10,7 +10,7 @@ import {
   type ingestionApiSchema,
   eventTypes,
   ingestionEvent,
-} from "@/src/features/public-api/server/ingestion-api-schema";
+} from "@langfuse/shared/backend";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";
@@ -234,7 +234,18 @@ export const handleBatch = async (
 
   if (env.CLICKHOUSE_URL) {
     await instrumentAsync({ name: "insert-clickhouse" }, async () => {
-      await ingest(authCheck.scope, events);
+      await fetch(`${env.LANGFUSE_WORKER_HOST}/api/ingestion`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:
+            "Basic " +
+            Buffer.from("admin" + ":" + env.LANGFUSE_WORKER_PASSWORD).toString(
+              "base64",
+            ),
+        },
+        body: JSON.stringify(events),
+      });
     });
   }
 
