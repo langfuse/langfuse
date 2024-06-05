@@ -21,10 +21,10 @@ import OktaProvider from "next-auth/providers/okta";
 import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
-import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers/oauth";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
+  CustomSSOProvider,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@langfuse/ee/sso";
@@ -411,33 +411,3 @@ export const getServerAuthSession = async (ctx: {
   ctx.res.setHeader("Cache-Control", "no-store, max-age=0");
   return getServerSession(ctx.req, ctx.res, authOptions);
 };
-
-export interface CustomSSOUser extends Record<string, any> {
-  email: string;
-  id: string;
-  name: string;
-  verified: boolean;
-}
-
-export default function CustomSSOProvider<P extends CustomSSOUser>(
-  options: OAuthUserConfig<P>,
-): OAuthConfig<P> {
-  return {
-    id: "custom",
-    name: "CustomSSOProvider",
-    type: "oauth",
-    wellKnown: `${options.issuer}/.well-known/openid-configuration`,
-    authorization: { params: { scope: "openid profile email" } },
-    checks: ["pkce", "state"],
-    idToken: true,
-    profile(profile) {
-      return {
-        id: profile.sub,
-        name: profile.name,
-        email: profile.email,
-        image: null,
-      } as User;
-    },
-    options,
-  };
-}
