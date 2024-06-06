@@ -53,7 +53,9 @@ export const publicRouter = createTRPCRouter({
 
     let body;
     try {
-      const response = await fetch("https://langfuse.com/api/latest-releases");
+      const response = await fetch(
+        `https://langfuse.com/api/latest-releases?langfuseVersion=${VERSION}`,
+      );
       body = await response.json();
     } catch (error) {
       throw new TRPCError({
