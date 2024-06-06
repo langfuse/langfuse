@@ -191,6 +191,16 @@ Requirements
     pnpm run dev
    ```
 
+7. Open the web app in the browser:
+
+   https://localhost:3000
+
+8. Log in as a test user:
+
+   Username: demo@langfuse.com
+
+   Password: password
+
 ## Monorepo quickstart
 
 - Available packages and their dependencies
