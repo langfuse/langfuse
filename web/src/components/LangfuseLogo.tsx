@@ -135,7 +135,7 @@ export const LangfuseLogo = ({
     )}
     {/* Langfuse Logo */}
     <div className="flex items-center">
-      <LangfuseIcon size={size === "sm" ? 14 : 20} />
+      <LangfuseIcon size={size === "sm" ? 16 : 20} />
       <span
         className={cn(
           "ml-2 font-mono font-semibold",
