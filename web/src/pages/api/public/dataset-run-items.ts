@@ -16,7 +16,7 @@ const DatasetRunItemPostSchema = z
     traceId: z.string().nullish(),
   })
   .refine((data) => data.observationId || data.traceId, {
-    message: "ObservationId or traceId must be provided",
+    message: "observationId or traceId must be provided",
     path: ["observationId", "traceId"], // Specify the path of the error
   });
 
@@ -79,6 +79,7 @@ export default async function handler(
 
       let finalTraceId = traceId;
 
+      // Backwards compatibility: historically, dataset run items were linked to observations, not traces
       if (!traceId && observationId) {
         const observation = observationId
           ? await prisma.observation.findUnique({
@@ -94,15 +95,14 @@ export default async function handler(
             message: "Observation not found",
           });
         }
-
         finalTraceId = observation?.traceId;
       }
 
       // double check, should not be necessary due to zod schema + validations above
       if (!finalTraceId) {
-        console.error("No traceId set or observation not found");
+        console.error("No traceId set");
         return res.status(404).json({
-          message: "No traceId set or observation not found",
+          message: "No traceId set",
         });
       }
 
