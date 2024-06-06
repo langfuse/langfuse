@@ -2,8 +2,7 @@ import { createClient } from "@clickhouse/client";
 import { env } from "../env";
 import { observationRecord, traceRecord } from "./definitions";
 import z from "zod";
-import { jsonSchema, jsonSchemaNullable } from "./ingestion/types";
-import { convertRecordToJsonSchema } from "../utils/json";
+import { convertRecordToJsonSchema, parseJsonPrioritised } from "../utils/json";
 
 export const clickhouseClient = createClient({
   url: env.CLICKHOUSE_URL ?? "http://localhost:8123",
@@ -76,27 +75,3 @@ export function convertObservations(jsonRecords: unknown[]) {
     };
   });
 }
-
-export const parseJsonPrioritised = (
-  json: string
-): z.infer<typeof jsonSchema> | string | undefined => {
-  try {
-    console.log("parseJsonPrioritised", json);
-    const parsedJson = JSON.parse(json);
-    if (Object.keys(parsedJson).length === 0) {
-      return undefined;
-    }
-    const arr = z.array(jsonSchemaNullable).safeParse(parsedJson);
-    if (arr.success) {
-      return arr.data;
-    }
-    const obj = z.record(jsonSchemaNullable).safeParse(parsedJson);
-    if (obj.success) {
-      return obj.data;
-    }
-
-    return jsonSchema.parse(parsedJson);
-  } catch (error) {
-    return jsonSchema.parse(json);
-  }
-};

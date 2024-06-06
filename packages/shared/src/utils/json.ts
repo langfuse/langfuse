@@ -1,6 +1,6 @@
 import { z } from "zod";
 import lodash from "lodash";
-import { JsonNested, jsonSchema, jsonSchemaNullable } from "../backend";
+import { JsonNested, jsonSchema, jsonSchemaNullable } from "./zod";
 
 export const parseJson = (input: string) => {
   try {

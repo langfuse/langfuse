@@ -1,5 +1,4 @@
 import {
-  JsonNested,
   ObservationEvent,
   clickhouseClient,
   eventTypes,
@@ -9,7 +8,12 @@ import {
 } from "@langfuse/shared/backend";
 import z from "zod";
 import { instrumentAsync } from "../instrumentation";
-import { convertRecordToJsonSchema, env, mergeJson } from "@langfuse/shared";
+import {
+  JsonNested,
+  convertRecordToJsonSchema,
+  env,
+  mergeJson,
+} from "@langfuse/shared";
 import { redis } from "../redis/redis";
 import { v4 } from "uuid";
 
