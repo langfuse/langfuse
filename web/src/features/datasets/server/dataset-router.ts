@@ -530,13 +530,6 @@ export const datasetRouter = createTRPCRouter({
             },
           },
         },
-        include: {
-          observation: {
-            select: {
-              id: true,
-            },
-          },
-        },
         orderBy: {
           createdAt: "desc",
         },
