@@ -315,7 +315,14 @@ const DeleteModelButton = ({
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="xs" disabled={!hasAccess || isBuiltIn}>
+        <Button
+          variant="ghost"
+          size="xs"
+          disabled={!hasAccess || isBuiltIn}
+          title={
+            isBuiltIn ? "Built-in models cannot be deleted" : "Delete model"
+          }
+        >
           <Trash className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
