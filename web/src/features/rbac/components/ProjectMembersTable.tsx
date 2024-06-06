@@ -58,13 +58,13 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
         <Table className="text-sm">
           <TableHeader>
             <TableRow>
-              <TableHead className="text-gray-900">Name</TableHead>
-              <TableHead className="text-gray-900">Email</TableHead>
-              <TableHead className="text-gray-900">Role</TableHead>
+              <TableHead className="text-primary">Name</TableHead>
+              <TableHead className="text-primary">Email</TableHead>
+              <TableHead className="text-primary">Role</TableHead>
               {hasDeleteAccess ? <TableHead /> : null}
             </TableRow>
           </TableHeader>
-          <TableBody className="text-gray-500">
+          <TableBody className="text-muted-foreground">
             {memberships.map((m) => (
               <TableRow key={m.userId} className="hover:bg-transparent">
                 <TableCell>{m.user.name}</TableCell>
@@ -97,20 +97,20 @@ export function ProjectMembersTable({ projectId }: { projectId: string }) {
       </Card>
       {invitations.length > 0 ? (
         <>
-          <h3 className="mb-3 text-sm font-semibold leading-4 text-gray-600">
+          <h3 className="mb-3 text-sm font-semibold leading-4 text-muted-foreground">
             Pending Invites
           </h3>
           <Card className="mb-4">
             <Table className="text-sm">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-gray-900">Email</TableHead>
-                  <TableHead className="text-gray-900">Role</TableHead>
-                  <TableHead className="text-gray-900">Sent by</TableHead>
+                  <TableHead className="text-primary">Email</TableHead>
+                  <TableHead className="text-primary">Role</TableHead>
+                  <TableHead className="text-primary">Sent by</TableHead>
                   {hasDeleteAccess ? <TableHead /> : null}
                 </TableRow>
               </TableHeader>
-              <TableBody className="text-gray-500">
+              <TableBody className="text-muted-foreground">
                 {invitations.map((invite) => (
                   <TableRow key={invite.id} className="hover:bg-transparent">
                     <TableCell>{invite.email}</TableCell>

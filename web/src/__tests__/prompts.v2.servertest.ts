@@ -680,6 +680,71 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(fetchedPrompt.body.createdBy).toBe("API");
       expect(fetchedPrompt.body.config).toEqual({});
     });
+
+    it("should update tags across versions", async () => {
+      const promptName = "prompt-name" + nanoid();
+
+      const createPromptVersion = async (tags?: string[]) => {
+        await makeAPICall("POST", baseURI, {
+          name: promptName,
+          prompt: "This is a test prompt",
+          type: PromptType.Text,
+          ...(tags !== undefined && { tags: tags }),
+        });
+      };
+
+      const fetchPromptVersion = async (version: number) => {
+        const fetchedPrompt = await makeAPICall(
+          "GET",
+          `${baseURI}/${promptName}?version=${version}`,
+          undefined,
+        );
+        expect(fetchedPrompt.status).toBe(200);
+        if (!isPrompt(fetchedPrompt.body)) {
+          throw new Error("Expected body to be a prompt");
+        }
+        return fetchedPrompt.body;
+      };
+
+      // Create version 1 with ["tag"]
+      await createPromptVersion(["tag"]);
+      let fetchedPrompt1 = await fetchPromptVersion(1);
+      expect(fetchedPrompt1.tags).toEqual(["tag"]);
+      expect(fetchedPrompt1.version).toBe(1);
+
+      // Create version 2 with no tags provided (should use tags from version 1)
+      await createPromptVersion();
+      let fetchedPrompt2 = await fetchPromptVersion(2);
+      expect(fetchedPrompt2.tags).toEqual(["tag"]);
+      expect(fetchedPrompt2.version).toBe(2);
+
+      // Create version 3 with ["tag1", "tag2", "tag3"] (should update tags across versions)
+      await createPromptVersion(["tag1", "tag2", "tag3"]);
+      fetchedPrompt1 = await fetchPromptVersion(1);
+      fetchedPrompt2 = await fetchPromptVersion(2);
+      let fetchedPrompt3 = await fetchPromptVersion(3);
+      expect(fetchedPrompt1.tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(fetchedPrompt1.version).toBe(1);
+      expect(fetchedPrompt2.tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(fetchedPrompt2.version).toBe(2);
+      expect(fetchedPrompt3.tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(fetchedPrompt3.version).toBe(3);
+
+      // remove tags
+      await createPromptVersion([]);
+      fetchedPrompt1 = await fetchPromptVersion(1);
+      fetchedPrompt2 = await fetchPromptVersion(2);
+      fetchedPrompt3 = await fetchPromptVersion(3);
+      let fetchedPrompt4 = await fetchPromptVersion(4);
+      expect(fetchedPrompt1.tags).toEqual([]);
+      expect(fetchedPrompt1.version).toBe(1);
+      expect(fetchedPrompt2.tags).toEqual([]);
+      expect(fetchedPrompt2.version).toBe(2);
+      expect(fetchedPrompt3.tags).toEqual([]);
+      expect(fetchedPrompt3.version).toBe(3);
+      expect(fetchedPrompt4.tags).toEqual([]);
+      expect(fetchedPrompt4.version).toBe(4);
+    });
   });
 
   describe("when fetching a prompt list", () => {
@@ -784,10 +849,17 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(promptMeta3.tags).toEqual(["tag-1"]);
 
       // Validate pagination
-      expect(body.pagination.page).toBe(1);
-      expect(body.pagination.limit).toBe(10);
-      expect(body.pagination.totalPages).toBe(1);
-      expect(body.pagination.totalItems).toBe(3);
+      expect(body.meta.page).toBe(1);
+      expect(body.meta.limit).toBe(10);
+      expect(body.meta.totalPages).toBe(1);
+      expect(body.meta.totalItems).toBe(3);
+
+      // Validate pagination backwards compatibility
+      // https://github.com/langfuse/langfuse/issues/2068
+      expect(body.pagination?.page).toBe(1);
+      expect(body.pagination?.limit).toBe(10);
+      expect(body.pagination?.totalPages).toBe(1);
+      expect(body.pagination?.totalItems).toBe(3);
     });
 
     it("should fetch a prompt meta list with name filter", async () => {
@@ -802,10 +874,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.data[0].tags).toEqual([]);
 
       // Validate pagination
-      expect(body.pagination.page).toBe(1);
-      expect(body.pagination.limit).toBe(10);
-      expect(body.pagination.totalPages).toBe(1);
-      expect(body.pagination.totalItems).toBe(1);
+      expect(body.meta.page).toBe(1);
+      expect(body.meta.limit).toBe(10);
+      expect(body.meta.totalPages).toBe(1);
+      expect(body.meta.totalItems).toBe(1);
 
       // Test with a different name
       const response2 = await makeAPICall("GET", `${baseURI}?name=prompt-2`);
@@ -819,10 +891,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body2.data[0].tags).toEqual([]);
 
       // Validate pagination
-      expect(body2.pagination.page).toBe(1);
-      expect(body2.pagination.limit).toBe(10);
-      expect(body2.pagination.totalPages).toBe(1);
-      expect(body2.pagination.totalItems).toBe(1);
+      expect(body2.meta.page).toBe(1);
+      expect(body2.meta.limit).toBe(10);
+      expect(body2.meta.totalPages).toBe(1);
+      expect(body2.meta.totalItems).toBe(1);
 
       // Return 200 with empty list if name does not exist
       const response3 = await makeAPICall(
@@ -846,10 +918,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.data[0].tags).toEqual(["tag-1"]);
 
       // Validate pagination
-      expect(body.pagination.page).toBe(1);
-      expect(body.pagination.limit).toBe(10);
-      expect(body.pagination.totalPages).toBe(1);
-      expect(body.pagination.totalItems).toBe(1);
+      expect(body.meta.page).toBe(1);
+      expect(body.meta.limit).toBe(10);
+      expect(body.meta.totalPages).toBe(1);
+      expect(body.meta.totalItems).toBe(1);
 
       // Return 200 with empty list if tag does not exist
       const response3 = await makeAPICall("GET", `${baseURI}?tag=non-existent`);
@@ -875,10 +947,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       ).toBe(true);
 
       // Validate pagination
-      expect(body.pagination.page).toBe(1);
-      expect(body.pagination.limit).toBe(10);
-      expect(body.pagination.totalPages).toBe(1);
-      expect(body.pagination.totalItems).toBe(3);
+      expect(body.meta.page).toBe(1);
+      expect(body.meta.limit).toBe(10);
+      expect(body.meta.totalPages).toBe(1);
+      expect(body.meta.totalItems).toBe(3);
 
       // Test with a different label
       const response2 = await makeAPICall("GET", `${baseURI}?label=dev`);
@@ -892,10 +964,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body2.data[0].tags).toEqual([]);
 
       // Validate pagination
-      expect(body2.pagination.page).toBe(1);
-      expect(body2.pagination.limit).toBe(10);
-      expect(body2.pagination.totalPages).toBe(1);
-      expect(body2.pagination.totalItems).toBe(1);
+      expect(body2.meta.page).toBe(1);
+      expect(body2.meta.limit).toBe(10);
+      expect(body2.meta.totalPages).toBe(1);
+      expect(body2.meta.totalItems).toBe(1);
 
       // Return 200 with empty list if label does not exist
       const response3 = await makeAPICall(
@@ -914,10 +986,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     const body = response.body as unknown as PromptsMetaResponse;
 
     expect(body.data).toHaveLength(1);
-    expect(body.pagination.page).toBe(1);
-    expect(body.pagination.limit).toBe(1);
-    expect(body.pagination.totalPages).toBe(3);
-    expect(body.pagination.totalItems).toBe(3);
+    expect(body.meta.page).toBe(1);
+    expect(body.meta.limit).toBe(1);
+    expect(body.meta.totalPages).toBe(3);
+    expect(body.meta.totalItems).toBe(3);
   });
 });
 

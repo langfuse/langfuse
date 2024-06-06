@@ -209,8 +209,8 @@ types:
       - ARCHIVED
   ScoreSource:
     enum:
+      - ANNOTATION
       - API
-      - REVIEW
       - EVAL
 
 errors:

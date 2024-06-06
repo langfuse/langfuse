@@ -5,7 +5,7 @@ FROM node:20-alpine AS alpine
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat
 
 FROM alpine AS base
-RUN npm install turbo --global
+RUN npm install turbo@^1.13.3 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -56,4 +56,4 @@ COPY --from=builder --chown=expressjs:expressjs /app .
 EXPOSE 3030
 ENV PORT=3030
 
-CMD ["node", "worker/dist/src/index.js"]
+CMD ["node", "worker/dist/index.js"]

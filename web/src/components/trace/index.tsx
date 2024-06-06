@@ -277,6 +277,7 @@ export function TracePage({ traceId }: { traceId: string }) {
             availableTags={allTags}
             traceId={trace.data.id}
             projectId={trace.data.projectId}
+            className="flex-wrap"
           />
         </div>
       </div>

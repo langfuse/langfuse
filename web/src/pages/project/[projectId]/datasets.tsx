@@ -1,13 +1,14 @@
 import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import { DatasetsTable } from "@/src/features/datasets/components/DatasetsTable";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden md:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title="Datasets"
         help={{
@@ -17,6 +18,6 @@ export default function Traces() {
         }}
       />
       <DatasetsTable projectId={projectId} />
-    </div>
+    </FullScreenPage>
   );
 }

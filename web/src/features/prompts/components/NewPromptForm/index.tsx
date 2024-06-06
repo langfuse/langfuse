@@ -43,6 +43,8 @@ import { PromptDescription } from "@/src/features/prompts/components/prompt-desc
 import { JsonEditor } from "@/src/components/json-editor";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
+import { useQueryParam } from "use-query-params";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -52,7 +54,11 @@ type NewPromptFormProps = {
 export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const { onFormSuccess, initialPrompt } = props;
   const projectId = useProjectIdFromURL();
+  const [shouldLoadPlaygroundCache] = useQueryParam("loadPlaygroundCache");
   const [formError, setFormError] = useState<string | null>(null);
+  const { playgroundCache } = usePlaygroundCache();
+  const [initialMessages, setInitialMessages] = useState<unknown>([]);
+
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -157,6 +163,16 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         console.error(error);
       });
   }
+
+  useEffect(() => {
+    if (shouldLoadPlaygroundCache && playgroundCache) {
+      form.setValue("type", PromptType.Chat);
+
+      setInitialMessages(playgroundCache.messages);
+    } else if (initialPrompt?.type === PromptType.Chat) {
+      setInitialMessages(initialPrompt.prompt);
+    }
+  }, [playgroundCache, initialPrompt, form, shouldLoadPlaygroundCache]);
 
   useEffect(() => {
     const isNewPrompt = !allPrompts
@@ -279,7 +295,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   name="chatPrompt"
                   render={({ field }) => (
                     <>
-                      <PromptChatMessages {...field} />
+                      <PromptChatMessages
+                        {...field}
+                        initialMessages={initialMessages}
+                      />
                       <FormMessage />
                     </>
                   )}
@@ -329,7 +348,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 <FormLabel>Serve prompt as default to SDKs</FormLabel>
               </div>
               {currentIsActive ? (
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-muted-foreground">
                   This makes the prompt available to the SDKs immediately.
                 </div>
               ) : null}

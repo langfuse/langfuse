@@ -21,11 +21,7 @@ import {
   withDefault,
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import {
-  formatIntervalSeconds,
-  intervalInSeconds,
-  utcDateOffsetByDays,
-} from "@/src/utils/dates";
+import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -59,6 +55,7 @@ export type GenerationsTableRow = {
   endTime?: string;
   completionStartTime?: Date;
   latency?: number;
+  timeToFirstToken?: number;
   name?: string;
   model?: string;
   // i/o not set explicitly, but fetched from the server from the cell
@@ -118,7 +115,7 @@ export default function GenerationsTable({
         type: "datetime",
         operator: ">",
         value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -14,
+          session.data?.environment.defaultTableDateTimeOffset ?? -7,
         ),
       },
     ],
@@ -310,21 +307,12 @@ export default function GenerationsTable({
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const startTime: Date = row.getValue("startTime");
-        const completionStartTime: Date | undefined =
+        const timeToFirstToken: number | undefined =
           row.getValue("timeToFirstToken");
 
-        if (!completionStartTime) {
-          return undefined;
-        }
-
-        const latencyInSeconds =
-          intervalInSeconds(startTime, completionStartTime) || "-";
         return (
           <span>
-            {typeof latencyInSeconds === "number"
-              ? formatIntervalSeconds(latencyInSeconds)
-              : latencyInSeconds}
+            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
           </span>
         );
       },
@@ -623,7 +611,7 @@ export default function GenerationsTable({
           traceName: generation.traceName ?? "",
           startTime: generation.startTime,
           endTime: generation.endTime?.toLocaleString() ?? undefined,
-          timeToFirstToken: generation.completionStartTime ?? undefined,
+          timeToFirstToken: generation.timeToFirstToken ?? undefined,
           latency: generation.latency ?? undefined,
           totalCost: generation.calculatedTotalCost ?? undefined,
           inputCost: generation.calculatedInputCost ?? undefined,
@@ -758,7 +746,7 @@ const GenerationsIOCell = ({
       data={
         io === "output" ? observation.data?.output : observation.data?.input
       }
-      className={cn(io === "output" && "bg-green-50")}
+      className={cn(io === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
   );

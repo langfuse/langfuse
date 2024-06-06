@@ -146,9 +146,7 @@ export const traceRouter = createTRPCRouter({
       // performance of the query above
       const scores = await ctx.prisma.score.findMany({
         where: {
-          trace: {
-            projectId: input.projectId,
-          },
+          projectId: input.projectId,
           traceId: {
             in: traces.map((t) => t.id),
           },
@@ -180,9 +178,7 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const scores = await ctx.prisma.score.groupBy({
         where: {
-          trace: {
-            projectId: input.projectId,
-          },
+          projectId: input.projectId,
         },
         take: 1000,
         orderBy: {
@@ -241,9 +237,6 @@ export const traceRouter = createTRPCRouter({
         where: {
           id: input.traceId,
         },
-        include: {
-          scores: true,
-        },
       });
       const observations = await ctx.prisma.observationView.findMany({
         select: {
@@ -266,6 +259,7 @@ export const traceRouter = createTRPCRouter({
           totalTokens: true,
           unit: true,
           completionStartTime: true,
+          timeToFirstToken: true,
           promptId: true,
           modelId: true,
           inputPrice: true,
@@ -280,6 +274,12 @@ export const traceRouter = createTRPCRouter({
             equals: input.traceId,
             not: null,
           },
+          projectId: trace.projectId,
+        },
+      });
+      const scores = await ctx.prisma.score.findMany({
+        where: {
+          traceId: input.traceId,
           projectId: trace.projectId,
         },
       });
@@ -304,6 +304,7 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
+        scores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations as ObservationReturnType[],
       };
@@ -341,6 +342,14 @@ export const traceRouter = createTRPCRouter({
           },
         }),
         ctx.prisma.observation.deleteMany({
+          where: {
+            traceId: {
+              in: input.traceIds,
+            },
+            projectId: input.projectId,
+          },
+        }),
+        ctx.prisma.score.deleteMany({
           where: {
             traceId: {
               in: input.traceIds,

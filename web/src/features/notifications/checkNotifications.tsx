@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import Notification, {
+import {
+  Notification,
   type TNotification,
 } from "@/src/features/notifications/Notification";
 import { Button } from "@/src/components/ui/button";

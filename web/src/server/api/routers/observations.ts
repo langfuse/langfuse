@@ -23,6 +23,7 @@ export const observationsRouter = createTRPCRouter({
         ? await ctx.prisma.score.findMany({
             where: {
               traceId: observation.traceId,
+              projectId: observation.projectId,
             },
           })
         : [];

@@ -30,4 +30,5 @@ export type TableName =
   | "sessions"
   | "scores"
   | "prompts"
-  | "dashboard";
+  | "dashboard"
+  | "users";

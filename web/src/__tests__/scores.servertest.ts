@@ -60,6 +60,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbScore?.observationId).toBeNull();
     expect(dbScore?.comment).toBe("comment");
     expect(dbScore?.source).toBe("API");
+    expect(dbScore?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
   it("should create score for a trace with int", async () => {
@@ -489,14 +490,14 @@ describe("/api/public/scores API Endpoint", () => {
       });
       expect(getScore.body.data).toMatchObject([
         {
-          id: scoreId_1,
-          name: scoreName,
-          value: 10.5,
-        },
-        {
           id: scoreId_2,
           name: scoreName,
           value: 50.5,
+        },
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
         },
       ]);
     });
@@ -514,14 +515,14 @@ describe("/api/public/scores API Endpoint", () => {
       });
       expect(getScore.body.data).toMatchObject([
         {
-          id: scoreId_2,
-          name: scoreName,
-          value: 50.5,
-        },
-        {
           id: scoreId_3,
           name: scoreName,
           value: 100.8,
+        },
+        {
+          id: scoreId_2,
+          name: scoreName,
+          value: 50.5,
         },
       ]);
     });
@@ -539,14 +540,14 @@ describe("/api/public/scores API Endpoint", () => {
       });
       expect(getScore.body.data).toMatchObject([
         {
-          id: scoreId_1,
-          name: scoreName,
-          value: 10.5,
-        },
-        {
           id: scoreId_3,
           name: scoreName,
           value: 100.8,
+        },
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
         },
       ]);
     });

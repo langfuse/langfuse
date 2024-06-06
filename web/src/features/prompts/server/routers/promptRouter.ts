@@ -571,6 +571,8 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
+      if (input.promptIds.length === 0) return [];
+
       const metrics = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
@@ -624,6 +626,7 @@ export const promptRouter = createTRPCRouter({
           LEFT JOIN scores s ON o.trace_id = s.trace_id AND s.observation_id = o.id AND s.project_id = ${input.projectId}
           WHERE
               o.type = 'GENERATION'
+              AND s.data_type != 'CATEGORICAL'
               AND o.prompt_id IS NOT NULL
               AND o.project_id = ${input.projectId}
               AND p.id IN (${Prisma.join(input.promptIds)})
@@ -679,6 +682,8 @@ export const promptRouter = createTRPCRouter({
             traces_by_prompt_id tp
           JOIN prompts AS p ON tp.prompt_id = p.id AND p.project_id = ${input.projectId}
           LEFT JOIN scores s ON tp.trace_id = s.trace_id AND s.observation_id IS NULL AND s.project_id = ${input.projectId}
+          WHERE 
+              s.data_type != 'CATEGORICAL'
         ), average_scores_by_prompt AS (
           SELECT 
               prompt_id,

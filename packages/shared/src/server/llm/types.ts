@@ -34,9 +34,9 @@ export type UIModelParams = RecordWithEnabledFlag<
 export type ModelConfig = z.infer<typeof ZodModelConfig>;
 
 export const ZodModelConfig = z.object({
-  max_tokens: z.number().optional(),
-  temperature: z.number().optional(),
-  top_p: z.number().optional(),
+  max_tokens: z.coerce.number().optional(),
+  temperature: z.coerce.number().optional(),
+  top_p: z.coerce.number().optional(),
 });
 
 // OpenAI

@@ -19,14 +19,16 @@ import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
 import Auth0Provider from "next-auth/providers/auth0";
+import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
-import { getCookieName, cookieOptions } from "./utils/cookies";
+import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@langfuse/ee/sso";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -90,7 +92,10 @@ const staticProviders: Provider[] = [
       });
 
       if (!dbUser) throw new Error("Invalid credentials");
-      if (dbUser.password === null) throw new Error("Invalid credentials");
+      if (dbUser.password === null)
+        throw new Error(
+          "Please sign in with the identity provider that is linked to your account.",
+        );
 
       const isValidPassword = await verifyPassword(
         credentials.password,
@@ -178,6 +183,21 @@ if (
     }),
   );
 
+if (
+  env.AUTH_COGNITO_CLIENT_ID &&
+  env.AUTH_COGNITO_CLIENT_SECRET &&
+  env.AUTH_COGNITO_ISSUER
+)
+  staticProviders.push(
+    CognitoProvider({
+      clientId: env.AUTH_COGNITO_CLIENT_ID,
+      clientSecret: env.AUTH_COGNITO_CLIENT_SECRET,
+      issuer: env.AUTH_COGNITO_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const extendedPrismaAdapter: Adapter = {
@@ -212,7 +232,13 @@ const extendedPrismaAdapter: Adapter = {
  * @see https://next-auth.js.org/configuration/options
  */
 export async function getAuthOptions(): Promise<NextAuthOptions> {
-  const dynamicSsoProviders = await loadSsoProviders();
+  let dynamicSsoProviders: Provider[] = [];
+  try {
+    dynamicSsoProviders = await loadSsoProviders();
+  } catch (e) {
+    console.error("Error loading dynamic SSO providers", e);
+    Sentry.captureException(e);
+  }
   const providers = [...staticProviders, ...dynamicSsoProviders];
 
   const data: NextAuthOptions = {
@@ -304,27 +330,27 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     cookies: {
       sessionToken: {
         name: getCookieName("next-auth.session-token"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       csrfToken: {
         name: getCookieName("next-auth.csrf-token"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       callbackUrl: {
         name: getCookieName("next-auth.callback-url"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       state: {
         name: getCookieName("next-auth.state"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       nonce: {
         name: getCookieName("next-auth.nonce"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
       pkceCodeVerifier: {
         name: getCookieName("next-auth.pkce.code_verifier"),
-        options: cookieOptions,
+        options: getCookieOptions(),
       },
     },
     events: {
@@ -365,5 +391,9 @@ export const getServerAuthSession = async (ctx: {
   res: GetServerSidePropsContext["res"];
 }) => {
   const authOptions = await getAuthOptions();
+  // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
+  // for api routes, we need to call the headers in the api route itself
+  // disable caching for anything auth related
+  ctx.res.setHeader("Cache-Control", "no-store, max-age=0");
   return getServerSession(ctx.req, ctx.res, authOptions);
 };

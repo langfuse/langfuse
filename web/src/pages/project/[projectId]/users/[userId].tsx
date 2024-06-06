@@ -68,7 +68,7 @@ export default function UserPage() {
           <select
             id="tabs"
             name="tabs"
-            className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+            className="block w-full rounded-md border-border py-2 pl-3 pr-10 text-base focus:outline-none sm:text-sm"
             defaultValue={currentTab}
             onChange={(e) => setCurrentTab(e.currentTarget.value)}
           >
@@ -78,15 +78,15 @@ export default function UserPage() {
           </select>
         </div>
         <div className="hidden sm:block">
-          <div className="border-b border-gray-200">
+          <div className="border-b border-border">
             <nav className="-mb-px flex space-x-8" aria-label="Tabs">
               {tabs.map((tab) => (
                 <button
                   key={tab}
                   className={classNames(
                     tab === currentTab
-                      ? "border-indigo-500 text-indigo-600"
-                      : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700",
+                      ? "border-primary-accent text-primary-accent"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-primary",
                     "whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium",
                   )}
                   aria-current={tab === currentTab ? "page" : undefined}
@@ -146,17 +146,17 @@ function DetailsTab({ userId, projectId }: TabProps) {
 
   return (
     <div className="mt-5 pt-5">
-      <div className="mt-6 border-t border-gray-100">
-        <dl className="divide-y divide-gray-100">
+      <div className="mt-6 border-t border-muted">
+        <dl className="divide-y divide-muted">
           {userData.map((item) => (
             <div
               key={item.label}
               className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
             >
-              <dt className="text-sm font-medium leading-6 text-gray-900">
+              <dt className="text-sm font-medium leading-6 text-primary">
                 {item.label}
               </dt>
-              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+              <dd className="mt-1 text-sm leading-6 text-primary sm:col-span-2 sm:mt-0">
                 {item.value ?? "-"}
               </dd>
             </div>
@@ -166,10 +166,10 @@ function DetailsTab({ userId, projectId }: TabProps) {
               key="score"
               className="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
             >
-              <dt className="text-sm font-medium leading-6 text-gray-900">
+              <dt className="text-sm font-medium leading-6 text-primary">
                 Last Score
               </dt>
-              <dd className="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+              <dd className="mt-1 text-sm leading-6 text-primary sm:col-span-2 sm:mt-0">
                 <div className="flex items-center gap-4">
                   <TableLink
                     path={

@@ -40,9 +40,7 @@ export default async function handler(
         },
         where: {
           id: scoreId,
-          trace: {
-            projectId: authCheck.scope.projectId,
-          },
+          projectId: authCheck.scope.projectId,
         },
       });
 
@@ -55,9 +53,7 @@ export default async function handler(
       await prisma.score.delete({
         where: {
           id: scoreId,
-          trace: {
-            projectId: authCheck.scope.projectId,
-          },
+          projectId: authCheck.scope.projectId,
         },
       });
 
@@ -107,9 +103,7 @@ export default async function handler(
       const score = await prisma.score.findUnique({
         where: {
           id: scoreId,
-          trace: {
-            projectId: authCheck.scope.projectId,
-          },
+          projectId: authCheck.scope.projectId,
         },
       });
 

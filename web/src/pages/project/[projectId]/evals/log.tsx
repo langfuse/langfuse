@@ -17,7 +17,7 @@ export default function TemplatesPage() {
         title="Eval Log"
         help={{
           description: "View of all running evals.",
-          href: "https://langfuse.com/docs/evals",
+          href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
       />
       <EvalLogTable projectId={projectId} />

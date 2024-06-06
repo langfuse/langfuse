@@ -32,6 +32,7 @@ const MessageSchema = z.object({
   id: z.string().optional(),
 });
 export const ChatCompletionBodySchema = z.object({
+  projectId: z.string(),
   messages: z.array(MessageSchema),
   modelParams: ModelParamsSchema,
 });

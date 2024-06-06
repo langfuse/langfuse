@@ -48,12 +48,25 @@ types:
       date: date
       countTraces: integer
       countObservations: integer
-      totalCost: double
+      totalCost:
+        type: double
+        docs: Total model cost in USD
       usage: list<UsageByModel>
   UsageByModel:
     docs: Daily usage of a given model. Usage corresponds to the unit set for the specific model (e.g. tokens).
     properties:
       model: optional<string>
-      inputUsage: integer
-      outputUsage: integer
-      totalUsage: integer
+      inputUsage:
+        type: integer
+        docs: Total number of generation input units (e.g. tokens)
+      outputUsage:
+        type: integer
+        docs: Total number of generation output units (e.g. tokens)
+      totalUsage:
+        type: integer
+        docs: Total number of generation total units (e.g. tokens)
+      countTraces: integer
+      countObservations: integer
+      totalCost:
+        type: double
+        docs: Total model cost in USD

@@ -74,6 +74,13 @@ export default async function handler(
       });
     }
 
+    const scores = await prisma.score.findMany({
+      where: {
+        traceId: traceId,
+        projectId: authCheck.scope.projectId,
+      },
+    });
+
     const observations = env.SERVE_FROM_CLICKHOUSE
       ? await queryObservationsFromClickhouse(
           traceId,

@@ -1,4 +1,4 @@
-import { Card } from "@tremor/react";
+import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
@@ -66,12 +66,12 @@ export default function RenameProject(props: { projectId: string }) {
       <Header title="Project Name" level="h3" />
       <Card className="mb-4 p-4">
         {form.getValues().name !== "" ? (
-          <p className="mb-4 text-sm text-gray-700">
+          <p className="mb-4 text-sm text-primary">
             Your Project will be renamed to &quot;
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
-          <p className="mb-4 text-sm text-gray-700" data-testid="project-name">
+          <p className="mb-4 text-sm text-primary" data-testid="project-name">
             Your Project is currently named &quot;<b>{projectName}</b>
             &quot;.
           </p>

@@ -59,9 +59,7 @@ export function transformStreamToCsv(): Transform {
         row.endTime?.toISOString() ?? "",
         row.completionStartTime?.toISOString() ?? "",
         // time to first token
-        row.completionStartTime
-          ? intervalInSeconds(row.startTime, row.completionStartTime).toFixed(2)
-          : "",
+        row.timeToFirstToken?.toFixed(2) ?? "",
         row.scores ? JSON.stringify(row.scores) : "",
         row.latency ? formatIntervalSeconds(row.latency).slice(0, -1) : "",
         // latency per token

@@ -59,7 +59,7 @@ async function isResourceInProject(resource: Resource, projectId: string) {
         (await prisma.score.count({
           where: {
             id: resource.id,
-            trace: { projectId },
+            projectId,
           },
         })) === 1;
       if (!scoreCheck)

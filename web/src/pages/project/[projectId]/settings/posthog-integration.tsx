@@ -15,6 +15,7 @@ import { Switch } from "@/src/components/ui/switch";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,7 +29,13 @@ import { type z } from "zod";
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const state = api.posthogIntegration.get.useQuery({ projectId });
+  const hasAccess = useHasAccess({ projectId, scope: "integrations:CRUD" });
+  const state = api.posthogIntegration.get.useQuery(
+    { projectId },
+    {
+      enabled: hasAccess,
+    },
+  );
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
   return (
@@ -46,14 +53,14 @@ export default function PosthogIntegrationSettings() {
           </Button>
         }
         status={
-          state.isInitialLoading
+          state.isInitialLoading || !hasAccess
             ? undefined
             : state.data?.enabled
               ? "active"
               : "inactive"
         }
       />
-      <p className="mb-4 text-sm text-gray-700">
+      <p className="mb-4 text-sm text-primary">
         We have teamed up with{" "}
         <Link href="https://posthog.com" className="underline">
           PostHog
@@ -63,15 +70,20 @@ export default function PosthogIntegrationSettings() {
         on a daily schedule to PostHog. When first activated, it will sync all
         historical data from the beginning of your project.
       </p>
-      <div className="flex flex-col gap-10"></div>
-
-      {!state.isInitialLoading && (
+      {!hasAccess && (
+        <p className="text-sm">
+          You current role does not grant you access to these settings, please
+          reach out to your project admin or owner.
+        </p>
+      )}
+      {hasAccess && (
         <>
           <Header level="h3" title="Configuration" />
           <Card className="p-4">
             <PostHogIntegrationSettings
               state={state.data}
               projectId={projectId}
+              isLoading={state.isLoading}
             />
           </Card>
         </>
@@ -79,13 +91,13 @@ export default function PosthogIntegrationSettings() {
       {state.data?.enabled && (
         <>
           <Header level="h3" title="Status" className="mt-8" />
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-primary">
             Data synced until:{" "}
             {state.data?.lastSyncAt
               ? new Date(state.data.lastSyncAt).toLocaleString()
               : "Never (pending)"}
           </p>
-          <p className="mt-2 text-sm text-gray-700">
+          <p className="mt-2 text-sm text-primary">
             While in Beta, the sync is scheduled to run once a day.
           </p>
         </>
@@ -97,9 +109,11 @@ export default function PosthogIntegrationSettings() {
 const PostHogIntegrationSettings = ({
   state,
   projectId,
+  isLoading,
 }: {
   state?: RouterOutput["posthogIntegration"]["get"];
   projectId: string;
+  isLoading: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const posthogForm = useForm<z.infer<typeof posthogIntegrationFormSchema>>({
@@ -109,6 +123,7 @@ const PostHogIntegrationSettings = ({
       posthogProjectApiKey: state?.posthogApiKey ?? "",
       enabled: state?.enabled ?? false,
     },
+    disabled: isLoading,
   });
 
   useEffect(() => {
@@ -205,12 +220,14 @@ const PostHogIntegrationSettings = ({
         <Button
           loading={mut.isLoading}
           onClick={posthogForm.handleSubmit(onSubmit)}
+          disabled={isLoading}
         >
           Save
         </Button>
         <Button
           variant="ghost"
           loading={mutDelete.isLoading}
+          disabled={isLoading || !!!state}
           onClick={() => {
             if (
               confirm(

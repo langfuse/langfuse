@@ -109,9 +109,6 @@ jobs:
     strategy:
       matrix:
         node-version: [20]
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master

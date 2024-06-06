@@ -7,7 +7,7 @@ export const TagButton: React.FC<{ tag: string; loading: boolean }> =
       key={tag}
       variant="secondary"
       size="xs"
-      className="text-xs font-semibold hover:bg-white"
+      className="text-xs font-semibold hover:bg-background"
       loading={loading}
     >
       {tag}

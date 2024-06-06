@@ -15,7 +15,7 @@ const TagList = ({ selectedTags, isLoading }: TagListProps) => {
     <Button
       variant="outline"
       size="xs"
-      className="text-xs font-bold opacity-0 hover:bg-white hover:opacity-100"
+      className="text-xs font-bold opacity-0 hover:bg-background hover:opacity-100"
     >
       Add tag
     </Button>

@@ -72,7 +72,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             </Button>
           ) : (
             <div
-              className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+              className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
               onClick={() => {
                 setOpen(true);
                 capture("datasets:update_form_open", {
@@ -90,7 +90,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
           )
         ) : props.mode === "delete" ? (
           <div
-            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
             onClick={() => {
               setOpen(true);
               capture("datasets:delete_form_open", {

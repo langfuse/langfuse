@@ -8,14 +8,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { chatAvailable, openChat } from "@/src/features/support-chat/chat";
-import {
-  Book,
-  Calendar,
-  Github,
-  Mail,
-  MessageSquare,
-  Slack,
-} from "lucide-react";
+import { Book, Github, Mail, MessageSquare, Slack } from "lucide-react";
 import Link from "next/link";
 import { SiDiscord } from "react-icons/si";
 
@@ -30,7 +23,7 @@ const supportChannels = [
   },
   {
     icon: Github,
-    title: "GitHub",
+    title: "GitHub Issues",
     description:
       "Create an issue on Github to report bugs or request new features.",
     href: "https://github.com/langfuse/langfuse/issues/new/choose",
@@ -38,12 +31,11 @@ const supportChannels = [
     primary: true,
   },
   {
-    icon: SiDiscord,
-    title: "Discord",
-    description:
-      "Get support from community and maintainers. Follow announcements to stay up to date with new features.",
-    href: "https://langfuse.com/discord",
-    buttonText: "Join Discord",
+    icon: Github,
+    title: "GitHub Support",
+    description: "Create a support ticket via GitHub discussions.",
+    href: "https://github.com/orgs/langfuse/discussions/categories/support",
+    buttonText: "Submit question",
     primary: true,
   },
   {
@@ -57,24 +49,25 @@ const supportChannels = [
   {
     icon: MessageSquare,
     title: "Chat",
-    description: "Get quick support directly from the team.",
+    description: "Get support directly from the team.",
     onClick: () => openChat(),
     available: chatAvailable,
     buttonText: "Launch Chat",
   },
   {
-    icon: Calendar,
-    title: "Schedule call",
-    description: "Schedule a call with one of the founders.",
-    href: "https://cal.com/marc-kl/office-hours",
-    buttonText: "Schedule Call",
+    icon: SiDiscord,
+    title: "Discord",
+    description:
+      "Get support from community. Follow announcements to stay up to date with new features.",
+    href: "https://langfuse.com/discord",
+    buttonText: "Join Discord",
   },
   {
     icon: Slack,
     title: "Slack Connect",
     description: "Get a dedicated support channel for you and your team.",
     href: "mailto:help@langfuse.com?subject=Slack%20Connect%20Request&body=I'd%20like%20to%20request%20a%20dedicated%20Slack%20Connect%20channel%20for%20me%20and%20my%20team.%0D%0A%0D%0AUsers%20(emails)%20to%20include%20besides%20mine%3A%0D%0A%0D%0A",
-    buttonText: "Request Slack Connect (via Email)",
+    buttonText: "Request via Email",
   },
 ];
 

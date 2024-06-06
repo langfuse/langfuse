@@ -68,13 +68,13 @@ const ObservationTreeTraceNode = (props: {
       "group mb-0.5 flex cursor-pointer flex-col gap-1 rounded-sm p-1",
       props.currentObservationId === undefined ||
         props.currentObservationId === ""
-        ? "bg-gray-100"
-        : "hover:bg-gray-50",
+        ? "bg-muted"
+        : "hover:bg-primary-foreground",
     )}
     onClick={() => props.setCurrentObservationId(undefined)}
   >
     <div className="flex gap-2">
-      <span className={cn("rounded-sm bg-gray-200 p-1 text-xs")}>TRACE</span>
+      <span className={cn("rounded-sm bg-input p-1 text-xs")}>TRACE</span>
       <span className="flex-1 break-all text-sm">{props.trace.name}</span>
       <Button
         onClick={(ev) => (ev.stopPropagation(), props.expandAll())}
@@ -96,7 +96,7 @@ const ObservationTreeTraceNode = (props: {
 
     {props.showMetrics && props.trace.latency ? (
       <div className="flex gap-2">
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted-foreground">
           {formatIntervalSeconds(props.trace.latency)}
         </span>
       </div>
@@ -141,8 +141,8 @@ const ObservationTreeNode = (props: {
                   className={cn(
                     "group my-0.5 flex flex-1 cursor-pointer flex-col gap-1 rounded-sm p-1",
                     props.currentObservationId === observation.id
-                      ? "bg-gray-100"
-                      : "hover:bg-gray-50",
+                      ? "bg-muted"
+                      : "hover:bg-primary-foreground",
                   )}
                   onClick={() => props.setCurrentObservationId(observation.id)}
                 >
@@ -188,7 +188,7 @@ const ObservationTreeNode = (props: {
                       observation.endTime) && (
                       <div className="flex gap-2">
                         {observation.endTime ? (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-muted-foreground">
                             {formatIntervalSeconds(
                               (observation.endTime.getTime() -
                                 observation.startTime.getTime()) /
@@ -199,7 +199,7 @@ const ObservationTreeNode = (props: {
                         {observation.promptTokens ||
                         observation.completionTokens ||
                         observation.totalTokens ? (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-muted-foreground">
                             {observation.promptTokens} →{" "}
                             {observation.completionTokens} (∑{" "}
                             {observation.totalTokens})
@@ -258,9 +258,9 @@ const ColorCodedObservationType = (props: {
   observationType: $Enums.ObservationType;
 }) => {
   const colors: Record<$Enums.ObservationType, string> = {
-    [$Enums.ObservationType.SPAN]: "bg-blue-100",
-    [$Enums.ObservationType.GENERATION]: "bg-orange-100",
-    [$Enums.ObservationType.EVENT]: "bg-green-100",
+    [$Enums.ObservationType.SPAN]: "bg-muted-blue",
+    [$Enums.ObservationType.GENERATION]: "bg-muted-orange",
+    [$Enums.ObservationType.EVENT]: "bg-muted-green",
   };
 
   return (

@@ -1,36 +1,45 @@
 import { useEffect, useState } from "react";
-import type { ControllerRenderProps } from "react-hook-form";
+import { v4 as uuidv4 } from "uuid";
+
 import { ChatMessages } from "@/src/components/ChatMessages";
-import { ChatMessageRole } from "@langfuse/shared";
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import type { MessagesContext } from "@/src/components/ChatMessages/types";
+import { ChatMessageRole, type ChatMessageWithId } from "@langfuse/shared";
+
 import {
   ChatMessageListSchema,
   type NewPromptFormSchemaType,
 } from "./validation";
-import { v4 as uuidv4 } from "uuid";
+
+import type { ControllerRenderProps } from "react-hook-form";
+import type { MessagesContext } from "@/src/components/ChatMessages/types";
 
 type PromptChatMessagesProps = ControllerRenderProps<
   NewPromptFormSchemaType,
   "chatPrompt"
->;
+> & { initialMessages: unknown };
+
 export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
   onChange,
-  value,
+  initialMessages,
 }) => {
-  let initialMessages;
-  try {
-    if (value.length === 0) throw Error("Empty array");
+  const [messages, setMessages] = useState<ChatMessageWithId[]>([]);
 
-    initialMessages = ChatMessageListSchema.parse(value).map((message) => ({
-      ...message,
-      id: uuidv4(),
-    }));
-  } catch (err) {
-    initialMessages = [createEmptyMessage(ChatMessageRole.System)];
-  }
+  useEffect(() => {
+    const parsedMessages = ChatMessageListSchema.safeParse(initialMessages);
 
-  const [messages, setMessages] = useState(initialMessages);
+    if (!parsedMessages.success || !parsedMessages.data.length) {
+      setMessages([createEmptyMessage(ChatMessageRole.System)]);
+
+      return;
+    }
+
+    setMessages(
+      parsedMessages.data.map((message) => ({
+        ...message,
+        id: uuidv4(),
+      })),
+    );
+  }, [initialMessages]);
 
   const addMessage: MessagesContext["addMessage"] = (role, content) => {
     const message = createEmptyMessage(role, content);

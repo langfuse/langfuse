@@ -83,7 +83,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       >
         <Button variant="outline" title="Show/hide columns">
           <Columns className="mr-2 h-4 w-4" />
-          <span className="text-xs text-gray-500">{`(${count}/${total})`}</span>
+          <span className="text-xs text-muted-foreground">{`(${count}/${total})`}</span>
           <ChevronDown className="ml-2 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

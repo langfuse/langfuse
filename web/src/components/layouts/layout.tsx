@@ -31,14 +31,26 @@ import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { ProjectNavigation } from "@/src/components/projectNavigation";
 import DOMPurify from "dompurify";
+import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+
+const signOutUser = async () => {
+  localStorage.clear();
+  sessionStorage.clear();
+
+  await signOut({
+    callbackUrl: "/auth/sign-in",
+  });
+};
 
 const userNavigation = [
   {
+    name: "Theme",
+    onClick: () => {},
+    content: <ThemeToggle />,
+  },
+  {
     name: "Sign out",
-    onClick: () =>
-      signOut({
-        callbackUrl: "/auth/sign-in",
-      }),
+    onClick: signOutUser,
   },
 ];
 
@@ -135,9 +147,8 @@ export default function Layout(props: PropsWithChildren) {
     !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void signOut({
-      callbackUrl: "/auth/sign-in",
-    });
+    signOutUser();
+
     return <Spinner message="Redirecting" />;
   }
 
@@ -178,7 +189,7 @@ export default function Layout(props: PropsWithChildren) {
     router.pathname.startsWith("/public/");
   if (hideNavigation)
     return (
-      <main className="min-h-screen bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-primary-foreground px-4 py-4 sm:px-6 lg:px-8">
         {props.children}
       </main>
     );
@@ -222,7 +233,7 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="opacity-100"
               leaveTo="opacity-0"
             >
-              <div className="fixed inset-0 bg-gray-900/80" />
+              <div className="fixed inset-0 bg-primary/80" />
             </Transition.Child>
 
             <div className="fixed inset-0 flex">
@@ -253,14 +264,14 @@ export default function Layout(props: PropsWithChildren) {
                       >
                         <span className="sr-only">Close sidebar</span>
                         <XMarkIcon
-                          className="h-6 w-6 text-white"
+                          className="h-5 w-5 text-background"
                           aria-hidden="true"
                         />
                       </button>
                     </div>
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
-                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 py-4">
+                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background px-6 py-4">
                     <LangfuseLogo
                       version
                       size="xl"
@@ -273,7 +284,7 @@ export default function Layout(props: PropsWithChildren) {
                         <MainNavigation nav={navigation} />
                       </ul>
                       <div className="mb-2 flex flex-row place-content-between items-center">
-                        <div className="text-xs font-semibold leading-6 text-gray-400">
+                        <div className="text-xs font-semibold text-muted-foreground">
                           Project
                         </div>
                         <NewProjectButton size="xs" />
@@ -291,9 +302,9 @@ export default function Layout(props: PropsWithChildren) {
         </Transition.Root>
 
         {/* Static sidebar for desktop */}
-        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-60 lg:flex-col">
+        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col border-r border-gray-200 bg-white pt-7">
+          <div className="flex h-screen grow flex-col border-r border-border bg-background pt-7">
             <LangfuseLogo
               version
               size="xl"
@@ -312,16 +323,16 @@ export default function Layout(props: PropsWithChildren) {
                   description="What do you think about this project? What can be improved?"
                   type="feedback"
                 >
-                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
+                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-1.5 text-sm font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent">
                     <MessageSquarePlus
-                      className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                      className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
                       aria-hidden="true"
                     />
                     Feedback
                   </li>
                 </FeedbackButtonWrapper>
                 <div className="mb-2 flex flex-row place-content-between items-center">
-                  <div className="text-xs font-semibold leading-6 text-gray-400">
+                  <div className="text-xs font-semibold text-muted-foreground">
                     Project
                   </div>
                   <NewProjectButton size="xs" />
@@ -334,9 +345,9 @@ export default function Layout(props: PropsWithChildren) {
             </nav>
 
             <Menu as="div" className="relative">
-              <Menu.Button className="flex w-full items-center gap-x-4 overflow-hidden p-1.5 py-3 pl-6 pr-10 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
+              <Menu.Button className="flex w-full items-center gap-x-2 overflow-hidden p-1.5 py-3 pl-6 pr-8 text-sm font-semibold text-primary hover:bg-primary-foreground">
                 <span className="sr-only">Open user menu</span>
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-7 w-7">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
                   <AvatarFallback>
                     {session.data?.user?.name
@@ -348,12 +359,12 @@ export default function Layout(props: PropsWithChildren) {
                       : null}
                   </AvatarFallback>
                 </Avatar>
-                <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
+                <span className="flex-shrink truncate text-sm font-semibold text-primary">
                   {session.data?.user?.name}
                 </span>
                 <div className="flex-1" />
                 <ChevronDownIcon
-                  className="h-5 w-5 text-gray-400"
+                  className="h-5 w-5 text-muted-foreground"
                   aria-hidden="true"
                 />
               </Menu.Button>
@@ -366,8 +377,8 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                  <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+                <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
+                  <span className="block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
                     {session.data?.user?.email}
                   </span>
                   {userNavigation.map((item) => (
@@ -376,11 +387,12 @@ export default function Layout(props: PropsWithChildren) {
                         <a
                           onClick={() => void item.onClick()}
                           className={cn(
-                            active ? "bg-gray-50" : "",
-                            "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                            active ? "bg-primary-foreground" : "",
+                            "flex cursor-pointer items-center justify-between px-2 py-0.5 text-sm leading-6 text-primary",
                           )}
                         >
                           {item.name}
+                          {item.content}
                         </a>
                       )}
                     </Menu.Item>
@@ -391,14 +403,14 @@ export default function Layout(props: PropsWithChildren) {
           </div>
         </div>
 
-        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 lg:hidden">
+        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-background px-4 py-4 shadow-sm sm:px-6 lg:hidden">
           <button
             type="button"
-            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+            className="-m-2.5 p-2.5 text-primary lg:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
-            <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+            <Bars3Icon className="h-5 w-5" aria-hidden="true" />
           </button>
           <LangfuseLogo
             version
@@ -406,7 +418,7 @@ export default function Layout(props: PropsWithChildren) {
             showEnvLabel={session.data?.user?.email?.endsWith("@langfuse.com")}
           />
           <Menu as="div" className="relative">
-            <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
+            <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold text-primary">
               <span className="sr-only">Open user menu</span>
               <Avatar className="h-8 w-8">
                 <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -430,8 +442,8 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-background py-2 pb-1 shadow-lg ring-1 ring-border focus:outline-none">
+                <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-muted-foreground">
                   {session.data?.user?.email}
                 </span>
                 {userNavigation.map((item) => (
@@ -440,11 +452,12 @@ export default function Layout(props: PropsWithChildren) {
                       <a
                         onClick={() => void item.onClick()}
                         className={cn(
-                          active ? "bg-gray-50" : "",
-                          "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                          active ? "bg-primary-foreground" : "",
+                          "flex cursor-pointer items-center justify-between px-2 py-1 text-sm leading-6 text-primary",
                         )}
                       >
                         {item.name}
+                        {item.content}
                       </a>
                     )}
                   </Menu.Item>
@@ -453,13 +466,13 @@ export default function Layout(props: PropsWithChildren) {
             </Transition>
           </Menu>
         </div>
-        <div className="lg:pl-60">
+        <div className="lg:pl-56">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
             env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") &&
           !session.data?.user?.email?.endsWith("@langfuse.com") ? (
-            <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 lg:sticky lg:top-0 lg:z-40">
+            <div className="flex w-full items-center border-b border-dark-yellow  bg-light-yellow px-4 py-2 lg:sticky lg:top-0 lg:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
                 <div className="flex items-center gap-1">
                   <Info className="h-4 w-4" />
@@ -523,9 +536,9 @@ const MainNavigation: React.FC<{
                 href={item.href}
                 className={clsx(
                   item.current
-                    ? "bg-gray-50 text-indigo-600"
-                    : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                  "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
+                    ? "bg-primary-foreground text-primary-accent"
+                    : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
+                  "group flex gap-x-3 rounded-md p-2 text-sm font-semibold",
                 )}
                 onClick={onNavitemClick}
                 target={item.newTab ? "_blank" : undefined}
@@ -534,9 +547,9 @@ const MainNavigation: React.FC<{
                   <item.icon
                     className={clsx(
                       item.current
-                        ? "text-indigo-600"
-                        : "text-gray-400 group-hover:text-indigo-600",
-                      "h-6 w-6 shrink-0",
+                        ? "text-primary-accent"
+                        : "text-muted-foreground group-hover:text-primary-accent",
+                      "h-5 w-5 shrink-0",
                     )}
                     aria-hidden="true"
                   />
@@ -545,10 +558,10 @@ const MainNavigation: React.FC<{
                 {item.label && (
                   <span
                     className={cn(
-                      "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                      "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                       item.current
-                        ? "border-indigo-600 text-indigo-600"
-                        : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                        ? "border-primary-accent text-primary-accent"
+                        : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
                     )}
                   >
                     {item.label}
@@ -565,12 +578,12 @@ const MainNavigation: React.FC<{
                 {({ open }) => (
                   <>
                     <Disclosure.Button
-                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600"
+                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold hover:bg-primary-foreground hover:text-primary-accent"
                       onClick={() => setIsOpen(!isOpen)}
                     >
                       {item.icon && (
                         <item.icon
-                          className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                          className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
                           aria-hidden="true"
                         />
                       )}
@@ -578,10 +591,10 @@ const MainNavigation: React.FC<{
                       {item.label && (
                         <span
                           className={cn(
-                            "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                            "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                             item.current
-                              ? "border-indigo-600 text-indigo-600"
-                              : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                              ? "border-primary-accent text-primary-accent"
+                              : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
                           )}
                         >
                           {item.label}
@@ -589,13 +602,15 @@ const MainNavigation: React.FC<{
                       )}
                       <ChevronRightIcon
                         className={clsx(
-                          open ? "rotate-90 text-gray-500" : "text-gray-400",
+                          open
+                            ? "rotate-90 text-muted-foreground"
+                            : "text-muted-foreground",
                           "ml-auto h-5 w-5 shrink-0",
                         )}
                         aria-hidden="true"
                       />
                     </Disclosure.Button>
-                    <Disclosure.Panel as="ul" className="mt-1 px-2">
+                    <Disclosure.Panel as="ul" className="mt-1 space-y-1 px-2">
                       {item.children?.map((subItem) => (
                         <li key={subItem.name}>
                           {/* 44px */}
@@ -603,15 +618,15 @@ const MainNavigation: React.FC<{
                             href={subItem.href ?? "#"}
                             className={clsx(
                               subItem.current
-                                ? "bg-gray-50 text-indigo-600"
-                                : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                              "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
+                                ? "bg-primary-foreground text-primary-accent"
+                                : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
+                              "ml-0.5 flex w-full items-center gap-x-3 rounded-md p-1.5 pl-7 pr-2 text-sm",
                             )}
                             target={subItem.newTab ? "_blank" : undefined}
                           >
                             {subItem.name}
                             {subItem.label && (
-                              <span className="self-center whitespace-nowrap break-keep rounded-sm border border-gray-200 px-1 py-0.5 text-xs text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
+                              <span className="self-center whitespace-nowrap break-keep rounded-sm border border-border px-1 py-0.5 text-xs text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent">
                                 {subItem.label}
                               </span>
                             )}
