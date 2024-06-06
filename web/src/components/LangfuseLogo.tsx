@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   Check,
-  Dock,
   Github,
   HardDriveDownload,
   Newspaper,
