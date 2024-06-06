@@ -516,16 +516,15 @@ type NestedNavigationItem = Omit<Route, "children"> & {
   current: boolean;
 };
 
-type NestedNavigationLiteral = "Tracing" | "Evaluation";
-
 const MainNavigation: React.FC<{
   nav: NavigationItem[];
   onNavitemClick?: () => void;
   className?: string;
 }> = ({ nav, onNavitemClick, className }) => {
-  const [isOpen, setIsOpen] = useLocalStorage<
-    Record<NestedNavigationLiteral, boolean>
-  >("sidebar-item-default-open", { Tracing: false, Evaluation: false });
+  const [isOpen, setIsOpen] = useLocalStorage<Record<string, boolean>>(
+    "sidebar-item-default-open",
+    {},
+  );
 
   return (
     <li className={className}>
@@ -574,7 +573,7 @@ const MainNavigation: React.FC<{
                 as="div"
                 defaultOpen={
                   item.children.some((child) => child.current) ||
-                  isOpen[item.name as NestedNavigationLiteral]
+                  isOpen[item.name]
                 }
               >
                 {({ open }) => (
@@ -584,8 +583,7 @@ const MainNavigation: React.FC<{
                       onClick={() =>
                         setIsOpen((prev) => ({
                           ...prev,
-                          [item.name]:
-                            !prev[item.name as NestedNavigationLiteral],
+                          [item.name]: !prev[item.name],
                         }))
                       }
                     >
