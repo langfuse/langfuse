@@ -36,8 +36,7 @@
   "release-it": {
     "git": {
       "commitMessage": "chore: release v${version}",
-      "tagName": "v${version}",
-      "pushArgs": "--force"
+      "tagName": "v${version}"
     },
     "plugins": {
       "@release-it/bumper": {
