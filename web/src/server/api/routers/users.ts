@@ -4,11 +4,17 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { paginationZod } from "@langfuse/shared";
+import {
+  singleFilter,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
-import { paginationZod } from "@/src/utils/zod";
+import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
+  filter: z.array(singleFilter).nullable(),
 });
 
 const UserAllOptions = UserFilterOptions.extend({
@@ -19,6 +25,12 @@ export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter ?? [],
+        usersTableCols,
+        "users",
+      );
+
       const totalUsers = (
         await ctx.prisma.$queryRaw<
           Array<{
@@ -28,6 +40,7 @@ export const userRouter = createTRPCRouter({
         SELECT COUNT(DISTINCT t.user_id)::int AS "totalCount"
         FROM traces t
         WHERE t.project_id = ${input.projectId}
+        ${filterCondition}
       `
       )[0].totalCount;
 
@@ -46,6 +59,7 @@ export const userRouter = createTRPCRouter({
           t.user_id IS NOT NULL
           AND t.user_id != ''
           AND t.project_id = ${input.projectId}
+          ${filterCondition}
         GROUP BY
           t.user_id
         ORDER BY

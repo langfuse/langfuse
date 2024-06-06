@@ -4,7 +4,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema } from "@langfuse/shared";
 
 const DatasetRunItemPostSchema = z
   .object({
@@ -16,7 +16,7 @@ const DatasetRunItemPostSchema = z
     traceId: z.string().nullish(),
   })
   .refine((data) => data.observationId || data.traceId, {
-    message: "ObservationId or traceId must be provided",
+    message: "observationId or traceId must be provided",
     path: ["observationId", "traceId"], // Specify the path of the error
   });
 
@@ -77,39 +77,32 @@ export default async function handler(
         });
       }
 
-      const observation = observationId
-        ? await prisma.observation.findUnique({
-            where: {
-              id: observationId,
-              projectId: authCheck.scope.projectId,
-            },
-          })
-        : undefined;
-      if (observationId && !observation) {
-        console.error("Observation not found");
-        return res.status(404).json({
-          message: "Observation not found",
-        });
-      }
+      let finalTraceId = traceId;
 
-      const trace = traceId
-        ? await prisma.trace.findUnique({
-            where: { id: traceId, projectId: authCheck.scope.projectId },
-          })
-        : undefined;
-      if (traceId && !trace) {
-        console.error("Trace not found");
-        return res.status(404).json({
-          message: "Trace not found",
-        });
+      // Backwards compatibility: historically, dataset run items were linked to observations, not traces
+      if (!traceId && observationId) {
+        const observation = observationId
+          ? await prisma.observation.findUnique({
+              where: {
+                id: observationId,
+                projectId: authCheck.scope.projectId,
+              },
+            })
+          : undefined;
+        if (observationId && !observation) {
+          console.error("Observation not found");
+          return res.status(404).json({
+            message: "Observation not found",
+          });
+        }
+        finalTraceId = observation?.traceId;
       }
 
       // double check, should not be necessary due to zod schema + validations above
-      const saveTraceId = trace?.id ?? observation?.traceId;
-      if (!!!saveTraceId) {
-        console.error("Observation or Trace not found");
+      if (!finalTraceId) {
+        console.error("No traceId set");
         return res.status(404).json({
-          message: "Observation or Trace not found",
+          message: "No traceId set",
         });
       }
 
@@ -135,8 +128,8 @@ export default async function handler(
       const runItem = await prisma.datasetRunItems.create({
         data: {
           datasetItemId: datasetItemId,
-          traceId: saveTraceId,
-          observationId: observation?.id ?? undefined,
+          traceId: finalTraceId,
+          observationId,
           datasetRunId: run.id,
         },
       });

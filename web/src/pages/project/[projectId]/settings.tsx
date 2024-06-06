@@ -16,6 +16,7 @@ import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
+import { ScoreConfigSettings } from "@/src/features/manual-scoring/components/ScoreConfigSettings";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function SettingsPage() {
         <LlmApiKeyList projectId={projectId} />
         <ProjectMembersTable projectId={projectId} />
         <ProjectUsageChart projectId={projectId} />
+        <ScoreConfigSettings projectId={projectId} />
         <Integrations projectId={projectId} />
         <Instructions />
         <RenameProject projectId={projectId} />
@@ -107,7 +109,7 @@ function Instructions() {
           <li key={itemIdx}>
             <div className="group relative flex items-start space-x-3 py-4">
               <div className="flex-shrink-0">
-                <span className="group-hover:border-primary-accent group-hover:text-primary-accent inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent">
                   <item.icon className="h-6 w-6" aria-hidden="true" />
                 </span>
               </div>

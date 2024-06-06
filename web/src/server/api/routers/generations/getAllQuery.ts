@@ -1,8 +1,12 @@
 import { type z } from "zod";
 
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { paginationZod } from "@/src/utils/zod";
-import { type ObservationView, Prisma } from "@langfuse/shared/src/db";
+import { paginationZod } from "@langfuse/shared";
+import {
+  type ObservationView,
+  Prisma,
+  type ScoreDataType,
+} from "@langfuse/shared/src/db";
 
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
@@ -14,6 +18,8 @@ const getAllGenerationsInput = GenerationTableOptions.extend({
 export type ScoreSimplified = {
   name: string;
   value: number;
+  dataType: ScoreDataType;
+  stringValue?: string | null;
   comment?: string | null;
 };
 

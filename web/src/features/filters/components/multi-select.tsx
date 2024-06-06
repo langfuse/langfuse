@@ -104,7 +104,6 @@ export function MultiSelect({
                         selectedValues.add(option.value);
                       }
                       const filterValues = Array.from(selectedValues);
-
                       onValueChange(filterValues.length ? filterValues : []);
                     }}
                   >

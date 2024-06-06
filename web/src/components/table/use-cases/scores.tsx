@@ -4,8 +4,10 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type ScoreOptions,
@@ -14,7 +16,7 @@ import {
 import { api } from "@/src/utils/api";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
-import type { FilterState } from "@langfuse/shared";
+import type { FilterState, ScoreDataType } from "@langfuse/shared";
 import { useSession } from "next-auth/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
@@ -24,7 +26,12 @@ export type ScoresTableRow = {
   timestamp: string;
   source: string;
   name: string;
-  value: number;
+  dataType: ScoreDataType;
+  value: string;
+  author: {
+    image?: string;
+    name?: string;
+  };
   comment?: string;
   observationId?: string;
   traceName?: string;
@@ -173,6 +180,29 @@ export default function ScoresTable({
       },
     },
     {
+      accessorKey: "userId",
+      header: "Trace User ID",
+      id: "userId",
+      headerTooltip: {
+        description: "The user ID associated with the trace.",
+        href: "https://langfuse.com/docs/tracing-features/users",
+      },
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value = row.getValue("userId");
+        return typeof value === "string" ? (
+          <>
+            <TableLink
+              path={`/project/${projectId}/users/${value}`}
+              value={value}
+              truncateAt={40}
+            />
+          </>
+        ) : undefined;
+      },
+    },
+    {
       accessorKey: "timestamp",
       header: "Timestamp",
       id: "timestamp",
@@ -194,37 +224,38 @@ export default function ScoresTable({
       enableSorting: true,
     },
     {
+      accessorKey: "dataType",
+      header: "Data Type",
+      id: "dataType",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
       accessorKey: "value",
       header: "Value",
       id: "value",
       enableHiding: true,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: number = row.getValue("value");
-        return value % 1 === 0 ? value : value.toFixed(4);
-      },
     },
     {
-      accessorKey: "userId",
-      header: "User ID",
-      id: "userId",
-      headerTooltip: {
-        description: "The user ID associated with the trace.",
-        href: "https://langfuse.com/docs/tracing-features/users",
-      },
-      enableHiding: true,
-      enableSorting: true,
+      accessorKey: "author",
+      id: "author",
+      header: "Author",
       cell: ({ row }) => {
-        const value = row.getValue("userId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/users/${value}`}
-              value={value}
-              truncateAt={40}
-            />
-          </>
-        ) : undefined;
+        const { name, image } = row.getValue(
+          "author",
+        ) as ScoresTableRow["author"];
+        return (
+          <div className="flex items-center space-x-2">
+            <Avatar className="h-7 w-7">
+              <AvatarImage
+                src={image ?? undefined}
+                alt={name ?? "User Avatar"}
+              />
+            </Avatar>
+            <span>{name}</span>
+          </div>
+        );
       },
     },
     {
@@ -279,12 +310,21 @@ export default function ScoresTable({
       timestamp: score.timestamp.toLocaleString(),
       source: score.source,
       name: score.name,
-      value: score.value,
+      dataType: score.dataType,
+      value: isNumericDataType(score.dataType)
+        ? score.value % 1 === 0
+          ? String(score.value)
+          : score.value.toFixed(4)
+        : score.stringValue ?? "",
+      author: {
+        image: score.authorUserImage ?? undefined,
+        name: score.authorUserName ?? undefined,
+      },
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
       traceId: score.traceId,
       traceName: score.traceName ?? undefined,
-      userId: score.userId ?? undefined,
+      userId: score.traceUserId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
     };
   };
