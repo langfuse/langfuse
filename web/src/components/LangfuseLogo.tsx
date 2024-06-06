@@ -1,13 +1,22 @@
-import { AlertTriangle, Check } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Github,
+  HardDriveDownload,
+  Newspaper,
+} from "lucide-react";
 
 import { VERSION } from "@/src/constants";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
 import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/src/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/src/components/ui/dropdown-menu";
 import { ArrowUp } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -35,49 +44,60 @@ const VersionLabel = ({ className }: { className?: string }) => {
         : undefined;
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="xs" className={className}>
           {VERSION}
           {hasUpdate && <ArrowUp className={`ml-1 h-3 w-3 ${color}`} />}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="max-w-[260px]">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
         {hasUpdate ? (
-          <div className="mb-4 text-center">
-            New {checkUpdate.data?.updateType} version:{" "}
-            {checkUpdate.data?.latestRelease}
-          </div>
+          <>
+            <DropdownMenuLabel>
+              New {checkUpdate.data?.updateType} version:{" "}
+              {checkUpdate.data?.latestRelease}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
         ) : !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ? (
-          <div className="mb-4 text-center">This is the latest release</div>
+          <>
+            <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
         ) : null}
-        <div className="flex flex-col gap-2">
-          <Button size="sm" variant="secondary" asChild>
-            <Link
-              href="https://github.com/langfuse/langfuse/releases"
-              target="_blank"
-            >
-              GitHub Releases
-            </Link>
-          </Button>
-          <Button size="sm" variant="secondary" asChild>
-            <Link href="https://langfuse.com/changelog" target="_blank">
-              Changelog
-            </Link>
-          </Button>
-          {hasUpdate && (
-            <Button size="sm">
+
+        <DropdownMenuItem asChild>
+          <Link
+            href="https://github.com/langfuse/langfuse/releases"
+            target="_blank"
+          >
+            <Github size={16} className="mr-2" />
+            Releases
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="https://langfuse.com/changelog" target="_blank">
+            <Newspaper size={16} className="mr-2" />
+            Changelog
+          </Link>
+        </DropdownMenuItem>
+        {hasUpdate && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
               <Link
                 href="https://langfuse.com/docs/deployment/self-host#update"
                 target="_blank"
               >
+                <HardDriveDownload size={16} className="mr-2" />
                 Update
               </Link>
-            </Button>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 
