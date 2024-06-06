@@ -278,7 +278,7 @@ export interface CustomSSOUser extends Record<string, any> {
   verified: boolean;
 }
 
-export default function CustomSSOProvider<P extends CustomSSOUser>(
+export function CustomSSOProvider<P extends CustomSSOUser>(
   options: OAuthUserConfig<P>
 ): OAuthConfig<P> {
   return {
