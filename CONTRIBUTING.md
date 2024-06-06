@@ -195,7 +195,7 @@ Requirements
 
    https://localhost:3000
 
-8. Log in as a test user:
+8. Log in as a test user (after you ran `db:seed` command):
 
    Username: demo@langfuse.com
 
