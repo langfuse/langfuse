@@ -521,9 +521,9 @@ const MainNavigation: React.FC<{
   onNavitemClick?: () => void;
   className?: string;
 }> = ({ nav, onNavitemClick, className }) => {
-  const [isOpen, setIsOpen] = useLocalStorage(
-    "sidebar-tracing-default-open",
-    false,
+  const [isOpen, setIsOpen] = useLocalStorage<Record<string, boolean>>(
+    "sidebar-item-default-open",
+    {},
   );
 
   return (
@@ -572,14 +572,20 @@ const MainNavigation: React.FC<{
               <Disclosure
                 as="div"
                 defaultOpen={
-                  item.children.some((child) => child.current) || isOpen
+                  item.children.some((child) => child.current) ||
+                  isOpen[item.name]
                 }
               >
                 {({ open }) => (
                   <>
                     <Disclosure.Button
                       className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold hover:bg-primary-foreground hover:text-primary-accent"
-                      onClick={() => setIsOpen(!isOpen)}
+                      onClick={() =>
+                        setIsOpen((prev) => ({
+                          ...prev,
+                          [item.name]: !prev[item.name],
+                        }))
+                      }
                     >
                       {item.icon && (
                         <item.icon
