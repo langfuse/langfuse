@@ -3,7 +3,6 @@
   "version": "2.48.1",
   "description": "",
   "license": "MIT",
-  "main": "index.js",
   "private": true,
   "engines": {
     "node": ">=20"
@@ -11,7 +10,7 @@
   "scripts": {
     "test": "dotenv -e ../.env -- vitest run --reporter=basic --disable-console-intercept",
     "coverage": "vitest run --coverage",
-    "start": "dotenv -e ../.env -- node dist/src/index.js",
+    "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
