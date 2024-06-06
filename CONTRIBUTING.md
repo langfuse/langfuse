@@ -358,7 +358,9 @@ The background color of the following component will be `hsl(var(--primary))` an
 
 By following these guidelines, you can ensure that any contributions to our theme are consistent, maintainable, and aligned with our design system.
 
-## Using secrets stored in 1Password
+## Maintainers
+
+### Using secrets stored in 1Password
 
 When applying changes to non-local environments, you may need to use secrets stored in 1Password. We use the 1Password CLI for this purpose.
 

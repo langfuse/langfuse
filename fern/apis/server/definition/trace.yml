@@ -30,6 +30,7 @@ service:
             docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
           userId: optional<string>
           name: optional<string>
+          sessionId: optional<string>
           fromTimestamp:
             type: optional<datetime>
             docs: Retrieve only traces newer than this datetime (ISO 8601).

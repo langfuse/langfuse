@@ -238,4 +238,62 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.body.htmlPath).toContain(`/traces/${traceId}`);
     expect(trace.body.htmlPath).toContain(`/project/`); // do not know the projectId
   });
+
+  it("should filter traces by session ID", async () => {
+    const sessionId = "test-session-id";
+    const anotherSessionId = "another-session-id";
+
+    // Create traces with different session IDs
+    await makeAPICall("POST", "/api/public/traces", {
+      id: "trace-1",
+      name: "test-trace-1",
+      sessionId,
+      userId: "user-1",
+      projectId: "project-1",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "1.0.0",
+    });
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: "trace-2",
+      name: "test-trace-2",
+      sessionId: anotherSessionId,
+      userId: "user-2",
+      projectId: "project-1",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "1.0.0",
+    });
+
+    // Filter by session ID
+    const tracesBySessionId = await makeAPICall<GetTracesAPIResponse>(
+      "GET",
+      `/api/public/traces?sessionId=${sessionId}`,
+    );
+
+    expect(tracesBySessionId.status).toBe(200);
+    expect(tracesBySessionId.body.data).toHaveLength(1);
+    expect(tracesBySessionId.body.data[0].id).toBe("trace-1");
+
+    // Filter by another session ID
+    const tracesByAnotherSessionId = await makeAPICall<GetTracesAPIResponse>(
+      "GET",
+      `/api/public/traces?sessionId=${anotherSessionId}`,
+    );
+
+    expect(tracesByAnotherSessionId.status).toBe(200);
+    expect(tracesByAnotherSessionId.body.data).toHaveLength(1);
+    expect(tracesByAnotherSessionId.body.data[0].id).toBe("trace-2");
+
+    // Filter by non-existent session ID
+    const tracesByNonExistentSessionId =
+      await makeAPICall<GetTracesAPIResponse>(
+        "GET",
+        `/api/public/traces?sessionId=non-existent-session-id`,
+      );
+
+    expect(tracesByNonExistentSessionId.status).toBe(200);
+    expect(tracesByNonExistentSessionId.body.data).toHaveLength(0);
+  });
 });

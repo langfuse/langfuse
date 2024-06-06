@@ -1137,7 +1137,10 @@ paths:
       security: *ref_0
   /api/public/sessions/{sessionId}:
     get:
-      description: Get a session
+      description: >-
+        Get a session. Please note that `traces` on this endpoint are not
+        paginated, if you plan to fetch large sessions, consider `GET
+        /api/public/traces?sessionId=<sessionId>`
       operationId: sessions_get
       tags:
         - Sessions
@@ -1257,6 +1260,12 @@ paths:
             type: string
             nullable: true
         - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sessionId
           in: query
           required: false
           schema:
@@ -2499,6 +2508,7 @@ components:
         totalCost:
           type: number
           format: double
+          description: Total model cost in USD
         usage:
           type: array
           items:
@@ -2521,14 +2531,28 @@ components:
           nullable: true
         inputUsage:
           type: integer
+          description: Total number of generation input units (e.g. tokens)
         outputUsage:
           type: integer
+          description: Total number of generation output units (e.g. tokens)
         totalUsage:
           type: integer
+          description: Total number of generation total units (e.g. tokens)
+        countTraces:
+          type: integer
+        countObservations:
+          type: integer
+        totalCost:
+          type: number
+          format: double
+          description: Total model cost in USD
       required:
         - inputUsage
         - outputUsage
         - totalUsage
+        - countTraces
+        - countObservations
+        - totalCost
     Observations:
       title: Observations
       type: object
