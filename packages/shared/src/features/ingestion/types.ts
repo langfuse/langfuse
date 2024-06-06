@@ -1,10 +1,9 @@
 import lodash from "lodash";
 import { z } from "zod";
 
-import { ModelUsageUnit } from "@langfuse/shared";
-
-import { ObservationLevel } from "@langfuse/shared";
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
+import { ModelUsageUnit } from "../../constants";
+import { ObservationLevel } from "@prisma/client";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
