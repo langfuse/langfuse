@@ -467,29 +467,6 @@ enum ScoreDataType {
     BOOLEAN
 }
 
-enum PricingUnit {
-    PER_1000_TOKENS
-    PER_1000_CHARS
-}
-
-enum TokenType {
-    PROMPT
-    COMPLETION
-    TOTAL
-}
-
-model Pricing {
-    id          String      @id @default(cuid())
-    modelName   String      @map("model_name")
-    pricingUnit PricingUnit @default(PER_1000_TOKENS) @map("pricing_unit")
-    price       Decimal
-    currency    String      @default("USD")
-    tokenType   TokenType   @map("token_type")
-
-    @@index(modelName)
-    @@map("pricings")
-}
-
 model CronJobs {
     name         String    @id
     lastRun      DateTime? @map("last_run")
