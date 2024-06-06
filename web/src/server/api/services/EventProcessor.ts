@@ -12,7 +12,7 @@ import {
   type legacyObservationUpdateEvent,
   type sdkLogEvent,
   type traceEvent,
-} from "@/src/features/public-api/server/ingestion-api-schema";
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@/src/utils/json";
