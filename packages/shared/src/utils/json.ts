@@ -1,6 +1,6 @@
-import { type jsonSchema } from "@/src/utils/zod";
 import { type z } from "zod";
 import lodash from "lodash";
+import { jsonSchema } from "./zod";
 
 export const parseJson = (input: string) => {
   try {
@@ -37,7 +37,7 @@ export function deepParseJson(json: unknown): unknown {
         // Ensure we only iterate over the object's own properties
         if (Object.prototype.hasOwnProperty.call(json, key)) {
           (json as Record<string, unknown>)[key] = deepParseJson(
-            (json as Record<string, unknown>)[key],
+            (json as Record<string, unknown>)[key]
           );
         }
       }
@@ -50,7 +50,7 @@ export function deepParseJson(json: unknown): unknown {
 
 export const mergeJson = (
   json1?: z.infer<typeof jsonSchema>,
-  json2?: z.infer<typeof jsonSchema>,
+  json2?: z.infer<typeof jsonSchema>
 ) => {
   if (json1 === undefined) {
     return json2;

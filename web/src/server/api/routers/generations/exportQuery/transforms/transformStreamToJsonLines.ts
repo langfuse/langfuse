@@ -1,7 +1,7 @@
 import { Transform, type TransformCallback } from "stream";
 import { z } from "zod";
 
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema } from "@langfuse/shared";
 import { type ObservationViewWithScores } from "@/src/server/api/routers/generations/getAllQuery";
 
 export function transformStreamToJsonLines(): Transform {
