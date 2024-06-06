@@ -77,24 +77,29 @@ export default async function handler(
         });
       }
 
-      const observation = observationId
-        ? await prisma.observation.findUnique({
-            where: {
-              id: observationId,
-              projectId: authCheck.scope.projectId,
-            },
-          })
-        : undefined;
-      if (observationId && !observation) {
-        console.error("Observation not found");
-        return res.status(404).json({
-          message: "Observation not found",
-        });
+      let finalTraceId = traceId;
+
+      if (!traceId && observationId) {
+        const observation = observationId
+          ? await prisma.observation.findUnique({
+              where: {
+                id: observationId,
+                projectId: authCheck.scope.projectId,
+              },
+            })
+          : undefined;
+        if (observationId && !observation) {
+          console.error("Observation not found");
+          return res.status(404).json({
+            message: "Observation not found",
+          });
+        }
+
+        finalTraceId = observation?.traceId;
       }
 
       // double check, should not be necessary due to zod schema + validations above
-      const saveTraceId = traceId ?? observation?.traceId;
-      if (!!!saveTraceId) {
+      if (!finalTraceId) {
         console.error("No traceId set or observation not found");
         return res.status(404).json({
           message: "No traceId set or observation not found",
@@ -123,8 +128,8 @@ export default async function handler(
       const runItem = await prisma.datasetRunItems.create({
         data: {
           datasetItemId: datasetItemId,
-          traceId: saveTraceId,
-          observationId: observation?.id ?? undefined,
+          traceId: finalTraceId,
+          observationId,
           datasetRunId: run.id,
         },
       });
