@@ -338,14 +338,11 @@ const DeleteModelButton = ({
             loading={mut.isLoading}
             onClick={() => {
               capture("models:delete_button_click");
-              mut
-                .mutateAsync({
-                  projectId,
-                  modelId,
-                })
-                .catch((error) => {
-                  console.error(error);
-                });
+              mut.mutateAsync({
+                projectId,
+                modelId,
+              });
+
               setIsOpen(false);
             }}
           >
