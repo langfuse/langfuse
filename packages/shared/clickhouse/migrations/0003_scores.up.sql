@@ -14,7 +14,7 @@ CREATE TABLE scores (
 ) ENGINE = ReplacingMergeTree Partition by toYYYYMM(timestamp)
 ORDER BY (
         project_id,
-        name,
+        trace_id,
         toUnixTimestamp(timestamp),
         id
     );
