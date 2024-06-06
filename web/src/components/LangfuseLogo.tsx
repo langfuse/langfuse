@@ -53,7 +53,10 @@ const VersionLabel = ({ className }: { className?: string }) => {
         ) : null}
         <div className="flex flex-col gap-2">
           <Button size="sm" variant="secondary" asChild>
-            <Link href="https://github.com/langfuse/langfuse/releases">
+            <Link
+              href="https://github.com/langfuse/langfuse/releases"
+              target="_blank"
+            >
               GitHub Releases
             </Link>
           </Button>
