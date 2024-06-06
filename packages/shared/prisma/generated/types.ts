@@ -36,17 +36,6 @@ export const ScoreDataType = {
     BOOLEAN: "BOOLEAN"
 } as const;
 export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
-export const PricingUnit = {
-    PER_1000_TOKENS: "PER_1000_TOKENS",
-    PER_1000_CHARS: "PER_1000_CHARS"
-} as const;
-export type PricingUnit = (typeof PricingUnit)[keyof typeof PricingUnit];
-export const TokenType = {
-    PROMPT: "PROMPT",
-    COMPLETION: "COMPLETION",
-    TOTAL: "TOTAL"
-} as const;
-export type TokenType = (typeof TokenType)[keyof typeof TokenType];
 export const DatasetStatus = {
     ACTIVE: "ACTIVE",
     ARCHIVED: "ARCHIVED"
@@ -310,14 +299,6 @@ export type PosthogIntegration = {
     enabled: boolean;
     created_at: Generated<Timestamp>;
 };
-export type Pricing = {
-    id: string;
-    model_name: string;
-    pricing_unit: Generated<PricingUnit>;
-    price: string;
-    currency: Generated<string>;
-    token_type: TokenType;
-};
 export type Project = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -471,7 +452,6 @@ export type DB = {
     observations: Observation;
     observations_view: ObservationView;
     posthog_integrations: PosthogIntegration;
-    pricings: Pricing;
     project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;
