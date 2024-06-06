@@ -1,8 +1,7 @@
 import lodash from "lodash";
 import { z } from "zod";
-
-import { ModelUsageUnit } from "@langfuse/shared";
-import { ObservationLevel } from "@langfuse/shared";
+import { ModelUsageUnit } from "../../constants";
+import { ObservationLevel } from "@prisma/client";
 
 // to be used for Prisma JSON type
 // @see: https://github.com/colinhacks/zod#json-type

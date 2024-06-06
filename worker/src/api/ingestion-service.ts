@@ -17,6 +17,7 @@ export const processEvents = async (
   events: z.infer<typeof ingestionBatchEvent>
 ) => {
   // first order events
+  console.log(`Processing events ${JSON.stringify(events)}`);
 
   const observationEvents: ObservationEvent[] = [];
   const traceEvents: z.infer<typeof traceEvent>[] = [];
@@ -341,7 +342,7 @@ const storeObservations = async (
     [] as typeof insert
   );
 
-  console.log(`merged ${JSON.stringify(merged)}`);
+  console.log(`merged obs ${JSON.stringify(merged)}`);
 
   // try to get existing observations from redis
 
@@ -403,21 +404,13 @@ const storeObservations = async (
   });
 
   console.log(
-    `final records, ${env.CLICKHOUSE_URL}, ${JSON.stringify(updatedRecords)}`
+    `final records obs, ${env.CLICKHOUSE_URL}, ${JSON.stringify(updatedRecords)}`
   );
 
   if (updatedRecords.length === 0) {
     return;
   }
 
-  // add the latest observations to redis with ttl of 2 min
-  for (const record of updatedRecords) {
-    await redis?.setex(
-      `observation:${record.id}-${projectId}`,
-      120,
-      JSON.stringify(record)
-    );
-  }
   return await clickhouseClient.insert({
     table: "observations",
     format: "JSONEachRow",

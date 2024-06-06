@@ -9,7 +9,7 @@ import basicAuth from "express-basic-auth";
 import { env } from "../env";
 import { QueueJobs, QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { ingestionBatchEvent } from "@langfuse/shared/backend";
+import { ingestionApiSchema } from "@langfuse/shared/backend";
 import { processEvents } from "./ingestion-service";
 
 const router = express.Router();
@@ -83,12 +83,13 @@ router
       status: "success",
     });
   });
-router.post<{}, EventsResponse>("/ingestion", async (req, res) => {
+router.post("/ingestion", async (req, res) => {
   try {
     const { body } = req;
-    logger.debug(`Received events, ${JSON.stringify(body)}`);
 
-    const events = ingestionBatchEvent.safeParse(body);
+    console.log(`Received ingestion events, ${JSON.stringify(body)}`);
+
+    const events = ingestionApiSchema.safeParse(body);
 
     if (!events.success) {
       logger.error(events.error, "Failed to parse ingestion event");
@@ -96,11 +97,11 @@ router.post<{}, EventsResponse>("/ingestion", async (req, res) => {
         status: "error",
       });
     }
-
-    await processEvents(events.data);
     res.json({
       status: "success",
     });
+
+    await processEvents(events.data.batch);
   } catch (e) {
     logger.error(e, "Failed to process ingestion event");
     return res.status(500).json({

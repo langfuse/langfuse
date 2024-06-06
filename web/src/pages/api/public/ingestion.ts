@@ -243,7 +243,7 @@ export const handleBatch = async (
               "base64",
             ),
         },
-        body: JSON.stringify(events),
+        body: JSON.stringify({ batch: events, metadata }),
       });
     });
   }

@@ -1,0 +1,40 @@
+[
+  {
+    "id": "117125df-bf03-408d-9eb9-ea44cbbc1cc7",
+    "timestamp": "2024-06-06T14:14:25.841348Z",
+    "type": "trace-create",
+    "body": {
+      "id": "931ca405-3095-414a-b1a1-d2b9ebfecf3f",
+      "name": "query-generation"
+    }
+  },
+  {
+    "id": "752af80d-febf-4aad-80cc-a589510f2793",
+    "timestamp": "2024-06-06T14:14:25.841575Z",
+    "type": "generation-create",
+    "body": {
+      "traceId": "931ca405-3095-414a-b1a1-d2b9ebfecf3f",
+      "name": "query-generation",
+      "startTime": "2024-06-06T14:14:25.840451Z",
+      "metadata": { "interface": "whatsapp" },
+      "input": [
+        { "role": "system", "content": "You are a helpful assistant." },
+        {
+          "role": "user",
+          "content": "Please generate the start of a company documentation that contains the answer to the questinon: Write a summary of the Q3 OKR goals"
+        }
+      ],
+      "output": "This document entails the OKR goals for ACME",
+      "level": "DEBUG",
+      "id": "a09527e9-52a1-4414-b802-c551709f7a2a",
+      "endTime": "2024-06-06T14:14:25.840451Z",
+      "model": "gpt-3.5-turbo",
+      "modelParameters": {
+        "max_tokens": "1000",
+        "temperature": "0.9",
+        "stop": ["user-1", "user-2"]
+      },
+      "usage": { "input": 50, "output": 49, "unit": "TOKENS" }
+    }
+  }
+]
