@@ -17,6 +17,7 @@ import { evalRouter } from "@/src/ee/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
+import { publicRouter } from "@/src/server/api/routers/public";
 
 /**
  * This is the primary router for your server.
@@ -42,6 +43,7 @@ export const appRouter = createTRPCRouter({
   evals: evalRouter,
   posthogIntegration: posthogIntegrationRouter,
   llmApiKey: llmApiKeyRouter,
+  public: publicRouter,
 });
 
 // export type definition of API
