@@ -67,7 +67,7 @@ const supportChannels = [
     title: "Slack Connect",
     description: "Get a dedicated support channel for you and your team.",
     href: "mailto:help@langfuse.com?subject=Slack%20Connect%20Request&body=I'd%20like%20to%20request%20a%20dedicated%20Slack%20Connect%20channel%20for%20me%20and%20my%20team.%0D%0A%0D%0AUsers%20(emails)%20to%20include%20besides%20mine%3A%0D%0A%0D%0A",
-    buttonText: "Request Slack Connect (via Email)",
+    buttonText: "Request via Email",
   },
 ];
 
