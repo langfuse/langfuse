@@ -4,7 +4,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema } from "@langfuse/shared";
 
 const DatasetRunItemPostSchema = z
   .object({

@@ -1,9 +1,9 @@
 import lodash from "lodash";
 import { z } from "zod";
 
-import { ModelUsageUnit } from "@langfuse/shared";
-import { NonEmptyString, jsonSchema } from "@/src/utils/zod";
-import { ObservationLevel } from "@langfuse/shared";
+import { NonEmptyString, jsonSchema } from "../../utils/zod";
+import { ModelUsageUnit } from "../../constants";
+import { ObservationLevel } from "@prisma/client";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
@@ -109,7 +109,7 @@ export const CreateGenerationBody = CreateSpanBody.extend({
       z.string(),
       z
         .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
-        .nullish(),
+        .nullish()
     )
     .nullish(),
   usage: usage,
@@ -131,7 +131,7 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
       z.string(),
       z
         .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
-        .nullish(),
+        .nullish()
     )
     .nullish(),
   usage: usage,
@@ -195,7 +195,7 @@ export const LegacyGenerationsCreateSchema = z.object({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
+      z.union([z.string(), z.number(), z.boolean()]).nullish()
     )
     .nullish(),
   prompt: jsonSchema.nullish(),
@@ -219,7 +219,7 @@ export const LegacyGenerationPatchSchema = z.object({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
+      z.union([z.string(), z.number(), z.boolean()]).nullish()
     )
     .nullish(),
   prompt: jsonSchema.nullish(),
@@ -243,7 +243,7 @@ export const LegacyObservationBody = z.object({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
+      z.union([z.string(), z.number(), z.boolean()]).nullish()
     )
     .nullish(),
   input: jsonSchema.nullish(),

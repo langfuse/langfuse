@@ -25,7 +25,7 @@ import {
   filterOperators,
   singleFilter,
 } from "@langfuse/shared";
-import { NonEmptyString } from "@/src/utils/zod";
+import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 

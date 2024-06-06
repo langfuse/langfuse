@@ -11,7 +11,7 @@ import {
   type ObservationView,
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {

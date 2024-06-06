@@ -8,7 +8,7 @@ import {
   LegacySpanPostSchema,
   eventTypes,
   ingestionBatchEvent,
-} from "@/src/features/public-api/server/ingestion-api-schema";
+} from "@langfuse/shared";
 import {
   handleBatch,
   handleBatchResultLegacy,

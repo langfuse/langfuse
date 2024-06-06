@@ -3,7 +3,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { optionalPaginationZod } from "@/src/utils/zod";
+import { optionalPaginationZod } from "@langfuse/shared";
 
 import { ScoreDataType } from "@langfuse/shared/src/db";
 import { z } from "zod";
