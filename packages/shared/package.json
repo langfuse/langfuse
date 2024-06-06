@@ -59,7 +59,6 @@
     "@langchain/openai": "^0.0.33",
     "@prisma/client": "^5.13.0",
     "@types/bcryptjs": "^2.4.6",
-    "add": "^2.0.6",
     "bcryptjs": "^2.4.3",
     "kysely": "^0.27.3",
     "langchain": "^0.1.36",
