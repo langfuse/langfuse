@@ -148,7 +148,7 @@ const storeTraces = async (
 
   const redisTraces = await Promise.all(
     merged.map(async (record) => {
-      const redisObject = await redis?.get(`trace:${record.id}`);
+      const redisObject = await redis?.get(`trace:${record.id}-${projectId}`);
       if (redisObject) {
         return JSON.parse(redisObject);
       }
@@ -197,7 +197,11 @@ const storeTraces = async (
   }
 
   for (const record of updatedRecords) {
-    await redis?.setex(`trace:${record.id}`, 120, JSON.stringify(record));
+    await redis?.setex(
+      `trace:${record.id}-${projectId}`,
+      120,
+      JSON.stringify(record)
+    );
   }
   await clickhouseClient.insert({
     table: "traces",
@@ -343,7 +347,9 @@ const storeObservations = async (
 
   const redisObservations = await Promise.all(
     merged.map(async (record) => {
-      const redisObject = await redis?.get(`observation:${record.id}`);
+      const redisObject = await redis?.get(
+        `observation:${record.id}-${projectId}`
+      );
       if (redisObject) {
         return JSON.parse(redisObject);
       }
@@ -406,7 +412,11 @@ const storeObservations = async (
 
   // add the latest observations to redis with ttl of 2 min
   for (const record of updatedRecords) {
-    await redis?.setex(`observation:${record.id}`, 120, JSON.stringify(record));
+    await redis?.setex(
+      `observation:${record.id}-${projectId}`,
+      120,
+      JSON.stringify(record)
+    );
   }
   return await clickhouseClient.insert({
     table: "observations",

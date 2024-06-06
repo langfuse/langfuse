@@ -1,5 +1,5 @@
 -- traces
-INSERT INTO langfuse.traces
+INSERT INTO traces
 SELECT toString(floor(randUniform(0, 200000000))) AS id,
   now() - randUniform(0, 10000000) AS `timestamp`,
   concat('name_', toString(rand() % 100)) AS `name`,
@@ -17,7 +17,7 @@ SELECT toString(floor(randUniform(0, 200000000))) AS id,
   `timestamp` AS `created_at`
 FROM numbers(1000000);
 -- observations
-INSERT INTO langfuse.observations
+INSERT INTO observations
 SELECT toString(floor(randUniform(0, 1000000000))) AS id,
   toString(floor(randUniform(0, 2000000))) AS trace_id,
   concat('project_id_', toString(floor(randExponential(1 / 2)) % 1000)) AS project_id,
@@ -61,7 +61,7 @@ SELECT toString(floor(randUniform(0, 1000000000))) AS id,
   start_time AS `created_at`
 FROM numbers(1000000);
 -- scores
-INSERT INTO langfuse.scores
+INSERT INTO scores
 SELECT toString(floor(randUniform(0, 50000000))) AS id,
    now() - randUniform(0, 10000000) AS `timestamp`,
   concat('project_id_', toString(floor(randExponential(1 / 2)) % 1000)) AS project_id,
