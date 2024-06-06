@@ -1,4 +1,4 @@
-import { noHtmlCheck } from "@/src/utils/zod";
+import { noHtmlCheck } from "@langfuse/shared";
 import * as z from "zod";
 
 export const projectNameSchema = z.object({

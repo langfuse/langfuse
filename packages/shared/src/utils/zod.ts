@@ -26,7 +26,7 @@ const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
     nestedLiteralSchema,
     z.array(jsonSchemaNullable),
     z.record(jsonSchemaNullable),
-  ]),
+  ])
 );
 
 // Root schema that does not allow nulls at the root level
@@ -35,17 +35,17 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
     rootLiteralSchema,
     z.array(jsonSchemaNullable),
     z.record(jsonSchemaNullable),
-  ]),
+  ])
 );
 
 export const paginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().default(1),
+    z.coerce.number().default(1)
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().lte(100).default(50),
+    z.coerce.number().lte(100).default(50)
   ),
 };
 

@@ -2,7 +2,7 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { prisma } from "@langfuse/shared/src/db";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import {
   Prisma,
   type PrismaClient,
@@ -11,7 +11,7 @@ import {
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { stringDate } from "@/src/features/public-api/server/ingestion-api-schema";
+import { stringDate } from "@langfuse/shared";
 
 const ObservationsGetSchema = z.object({
   ...paginationZod,

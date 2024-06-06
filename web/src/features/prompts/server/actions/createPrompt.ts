@@ -3,7 +3,7 @@ import {
   PromptType,
 } from "@/src/features/prompts/server/utils/validation";
 import { ValidationError } from "@langfuse/shared";
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
