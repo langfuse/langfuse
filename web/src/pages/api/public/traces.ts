@@ -4,7 +4,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma, type Trace } from "@langfuse/shared/src/db";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import {
   handleBatch,
   handleBatchResultLegacy,

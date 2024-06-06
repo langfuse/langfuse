@@ -3,7 +3,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { stringDate } from "@/src/features/public-api/server/ingestion-api-schema";
 

@@ -9,7 +9,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";

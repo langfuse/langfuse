@@ -1,4 +1,4 @@
-import { type jsonSchema } from "@/src/utils/zod";
+import { type jsonSchema } from "@langfuse/shared";
 import { type z } from "zod";
 import lodash from "lodash";
 

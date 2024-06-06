@@ -6,7 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import { ScoreDataType, singleFilter } from "@langfuse/shared";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared";
 import {

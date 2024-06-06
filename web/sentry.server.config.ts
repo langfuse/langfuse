@@ -2,7 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import * as Sentry from "@sentry/nextjs";
 import { ProfilingIntegration } from "@sentry/profiling-node";
 import type { SamplingContext, TransactionEvent } from "@sentry/types";
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema } from "@langfuse/shared";
 
 if (process.env.NEXT_PUBLIC_SENTRY_DSN)
   Sentry.init({
