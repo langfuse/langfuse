@@ -1,5 +1,5 @@
 import { type ChangeEvent } from "react";
-import { CheckCircle2, Circle, Trash2Icon } from "lucide-react";
+import { CheckCircle2, Circle, TrashIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
 import { type PromptVariable } from "@langfuse/shared";
@@ -46,7 +46,7 @@ export const PromptVariableComponent: React.FC<{
           onClick={handleDeleteVariable}
           className="p-0"
         >
-          {!isUsed && <Trash2Icon size={16} />}
+          {!isUsed && <TrashIcon size={16} />}
         </Button>
       </div>
       <Textarea

@@ -11,7 +11,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import {
   Tabs,
   TabsContent,
@@ -156,7 +156,7 @@ export function DeactivateConfig({
           disabled={!hasAccess || config?.status !== "ACTIVE"}
           loading={isLoading}
         >
-          <Trash2 className="h-5 w-5" />
+          <Trash className="h-5 w-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>

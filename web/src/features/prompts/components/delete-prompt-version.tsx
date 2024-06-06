@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { useState } from "react";
 import {
   Popover,
@@ -46,10 +46,6 @@ export function DeletePromptVersion({
     },
   });
 
-  if (!hasAccess) {
-    return null;
-  }
-
   return (
     <Popover
       key={promptVersionId}
@@ -62,8 +58,13 @@ export function DeletePromptVersion({
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" type="button" size="icon">
-          <Trash2 className="h-5 w-5" />
+        <Button
+          variant="outline"
+          type="button"
+          size="icon"
+          disabled={!hasAccess}
+        >
+          <Trash className="h-5 w-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>
