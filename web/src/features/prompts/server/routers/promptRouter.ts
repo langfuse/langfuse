@@ -13,7 +13,7 @@ import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt } from "../actions/createPrompt";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
-import { optionalPaginationZod, paginationZod } from "@/src/utils/zod";
+import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
 import {
   orderBy,
   singleFilter,

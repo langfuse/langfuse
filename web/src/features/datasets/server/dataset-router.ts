@@ -12,7 +12,7 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -527,18 +527,6 @@ export const datasetRouter = createTRPCRouter({
           datasetRun: {
             dataset: {
               projectId: ctx.session.projectId,
-            },
-          },
-        },
-        include: {
-          observation: {
-            select: {
-              id: true,
-            },
-          },
-          trace: {
-            select: {
-              id: true,
             },
           },
         },

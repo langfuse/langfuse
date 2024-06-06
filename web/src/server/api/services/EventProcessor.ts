@@ -7,8 +7,7 @@ import {
   type generationCreateEvent,
   type sdkLogEvent,
   type traceEvent,
-  type ObservationEvent,
-} from "@langfuse/shared/backend";
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@langfuse/shared";
@@ -21,7 +20,7 @@ import {
 } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { type z } from "zod";
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema } from "@langfuse/shared";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";

@@ -6,7 +6,7 @@ import {
   CreateEventEvent,
   eventTypes,
   ingestionBatchEvent,
-} from "@langfuse/shared/backend";
+} from "@langfuse/shared";
 import {
   handleBatch,
   handleBatchResultLegacy,

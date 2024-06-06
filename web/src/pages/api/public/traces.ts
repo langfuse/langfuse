@@ -4,12 +4,12 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma, type Trace } from "@langfuse/shared/src/db";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import {
   handleBatch,
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
-import { TraceBody, eventTypes, stringDate } from "@langfuse/shared/backend";
+import { TraceBody, eventTypes, stringDate } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
