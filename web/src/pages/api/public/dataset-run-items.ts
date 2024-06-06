@@ -92,24 +92,12 @@ export default async function handler(
         });
       }
 
-      const trace = traceId
-        ? await prisma.trace.findUnique({
-            where: { id: traceId, projectId: authCheck.scope.projectId },
-          })
-        : undefined;
-      if (traceId && !trace) {
-        console.error("Trace not found");
-        return res.status(404).json({
-          message: "Trace not found",
-        });
-      }
-
       // double check, should not be necessary due to zod schema + validations above
-      const saveTraceId = trace?.id ?? observation?.traceId;
+      const saveTraceId = traceId ?? observation?.traceId;
       if (!!!saveTraceId) {
-        console.error("Observation or Trace not found");
+        console.error("No traceId set or observation not found");
         return res.status(404).json({
-          message: "Observation or Trace not found",
+          message: "No traceId set or observation not found",
         });
       }
 
