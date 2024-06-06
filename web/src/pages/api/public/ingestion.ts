@@ -442,7 +442,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
 ): Promise<void> => {
   try {
     console.log(
-      "senging to worker",
+      "senging to worker again",
       env.LANGFUSE_WORKER_HOST,
       env.LANGFUSE_WORKER_PASSWORD,
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
