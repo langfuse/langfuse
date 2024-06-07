@@ -6,16 +6,22 @@ import React from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 
-import { MinusIcon, PlusIcon } from "lucide-react";
+import { MinusIcon, PlusIcon, Search } from "lucide-react";
 import { nestObservations } from "@/src/components/trace/ObservationTree";
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
-import Link from "next/link";
+import { Button } from "@/src/components/ui/button";
 
-const colors: Map<$Enums.ObservationType, string> = new Map([
+const scaleWidth = 800; // in pixels
+const labelWidth = 35;
+
+type TreeItemType = $Enums.ObservationType | "TRACE";
+
+const colors: Map<TreeItemType, string> = new Map([
   [$Enums.ObservationType.SPAN, "bg-muted-blue"],
   [$Enums.ObservationType.GENERATION, "bg-muted-orange"],
   [$Enums.ObservationType.EVENT, "bg-muted-green"],
+  ["TRACE", "bg-input"],
 ]);
 
 const predefinedStepSizes = [
@@ -31,47 +37,31 @@ const calculateStepSize = (latency: number, scaleWidth: number) => {
   );
 };
 
-const ColorCodedObservationType = (props: {
-  observationType: $Enums.ObservationType;
+const renderTree = ({
+  observation,
+  level = 0,
+  traceStartTime,
+  totalScaleSpan,
+  projectId,
+}: {
+  observation: NestedObservation;
+  level: number;
+  traceStartTime: Date;
+  totalScaleSpan: number;
   projectId: string;
-  observationId: string;
-  traceId: string;
 }) => {
-  return (
-    <Link
-      href={`/project/${props.projectId}/traces/${props.traceId}?observation=${props.observationId}`}
-    >
-      <span
-        className={cn(
-          "inline-block self-start rounded-sm p-1 text-xs hover:underline hover:underline-offset-2 group-hover:block",
-          colors.get(props.observationType),
-        )}
-      >
-        {props.observationType}
-      </span>
-    </Link>
-  );
-};
-
-const scaleWidth = 800;
-
-const renderTree = (
-  observation: NestedObservation,
-  level: number = 0,
-  traceStartTime: Date,
-  traceLatency: number,
-  projectId: string,
-) => {
   const { startTime, endTime } = observation || {};
   const latency =
-    startTime && endTime ? endTime.getTime() - startTime.getTime() : undefined;
+    startTime && endTime
+      ? (endTime.getTime() - startTime.getTime()) / 1000
+      : undefined;
   const startOffset = startTime
-    ? ((startTime.getTime() - traceStartTime.getTime()) / traceLatency / 1000) *
+    ? ((startTime.getTime() - traceStartTime.getTime()) /
+        totalScaleSpan /
+        1000) *
       scaleWidth
     : 0;
-  console.log("startOffset", startOffset);
-  console.log("latency", latency);
-  console.log("traceLatency", traceLatency);
+  if (!latency) return null;
 
   return (
     <TreeItem
@@ -81,51 +71,23 @@ const renderTree = (
       key={observation.id}
       itemId={observation.id}
       label={
-        <div
-          className="my-1 grid w-full grid-cols-[1fr,auto,auto]"
-          title={`Click ${observation.type} to view details`}
-        >
-          <div className="flex min-w-[200px] items-center gap-2">
-            <ColorCodedObservationType
-              observationType={observation.type}
-              projectId={projectId}
-              observationId={observation.id}
-              traceId={observation.traceId}
-            />
-            <span className="flex-1 break-all text-sm">{observation.name}</span>
-          </div>
-          {latency && (
-            <div className="group flex w-full items-center overflow-x-auto">
-              <div
-                className={`relative grid w-[${scaleWidth}px] grid-cols-[auto,1fr] items-center gap-2`}
-              >
-                <div
-                  className={cn(colors.get(observation.type))}
-                  style={{
-                    marginLeft: `${startOffset}px`,
-                    width: `${(latency / 1000 / traceLatency) * scaleWidth}px`,
-                    height: "18px",
-                    borderRadius: 2,
-                  }}
-                ></div>
-                <span className="hidden text-xs text-muted-foreground group-hover:block">
-                  {(latency / 1000).toFixed(2)}s
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
+        <TreeItemInner
+          latency={latency}
+          type={observation.type}
+          startOffset={startOffset}
+          totalScaleSpan={totalScaleSpan}
+        />
       }
     >
       {Array.isArray(observation.children)
         ? observation.children.map((child) =>
-            renderTree(
-              child,
-              level + 1,
+            renderTree({
+              observation: child,
+              level: level + 1,
               traceStartTime,
-              traceLatency,
+              totalScaleSpan,
               projectId,
-            ),
+            }),
           )
         : null}
     </TreeItem>
@@ -141,9 +103,10 @@ export function TraceTimelineChart({
   observations: Array<ObservationReturnType>;
   projectId: string;
 }) {
-  if (!trace.latency) return null;
+  const { latency, name, id } = trace;
+  if (!latency) return null;
   const nestedObservations = nestObservations(observations);
-  const stepSize = calculateStepSize(trace.latency, scaleWidth);
+  const stepSize = calculateStepSize(latency, scaleWidth);
   const totalScaleSpan = stepSize * (scaleWidth / 100);
 
   return (
@@ -155,23 +118,20 @@ export function TraceTimelineChart({
         <div className={`relative mr-2 h-4 w-[${scaleWidth}px]`}>
           {Array.from({ length: scaleWidth / 100 + 1 }).map((_, index) => {
             const step = stepSize * index;
-            if (index === scaleWidth / 100)
-              return (
-                <span
-                  className="absolute -right-2 text-xs text-muted-foreground"
-                  key={index}
-                >
-                  {step.toFixed(2)}s
-                </span>
-              );
-            return (
+            const isLastStep = index === scaleWidth / 100;
+
+            return isLastStep ? (
+              <span
+                className="absolute -right-2 text-xs text-muted-foreground"
+                key={index}
+              >
+                {step.toFixed(2)}s
+              </span>
+            ) : (
               <div
                 key={index}
-                className="absolute border border-l text-xs"
-                style={{
-                  left: `${index * 100}px`,
-                  height: "100%",
-                }}
+                className="absolute h-full border border-l text-xs"
+                style={{ left: `${index * 100}px` }}
               >
                 <span className="absolute left-2 text-xs text-muted-foreground">
                   {step.toFixed(2)}s
@@ -187,53 +147,94 @@ export function TraceTimelineChart({
             expandIcon: PlusIcon,
             collapseIcon: MinusIcon,
           }}
-          defaultExpandedItems={[trace.id]}
+          defaultExpandedItems={[id]}
         >
           <TreeItem
-            key={trace.id}
-            itemId={trace.id}
-            label={
-              <div
-                className="my-1 grid w-full grid-cols-[1fr,auto] items-center"
-                title="Click TRACE to view details"
-              >
-                <div className="group flex min-w-[200px] items-center gap-2">
-                  <Link
-                    className="rounded-sm bg-input p-1 text-xs hover:underline hover:underline-offset-2 group-hover:block"
-                    href={`/project/${projectId}/traces/${trace.id}`}
-                  >
-                    TRACE
-                  </Link>
-                  <span className="flex-1 break-all text-sm">{trace.name}</span>
-                </div>
-                <div className="flex w-full items-center overflow-x-auto">
-                  <div className={`relative w-[${scaleWidth}px]`}>
-                    <div className="ml-4 mr-4 h-full border-r-2"></div>
-                    <div
-                      className="bg-input"
-                      style={{
-                        width: `${(trace.latency / totalScaleSpan) * scaleWidth}px`,
-                        height: "18px",
-                        borderRadius: 2,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            }
+            key={id}
+            itemId={id}
+            label={TreeItemInner({
+              name,
+              latency,
+              totalScaleSpan,
+              type: "TRACE",
+            })}
           >
             {nestedObservations.map((observation) =>
-              renderTree(
+              renderTree({
                 observation,
-                0,
-                nestedObservations[0].startTime,
-                trace.latency ?? 1000,
+                level: 0,
+                traceStartTime: nestedObservations[0].startTime, // adjust this calculation
+                totalScaleSpan,
                 projectId,
-              ),
+              }),
             )}
           </TreeItem>
         </SimpleTreeView>
       </div>
     </Card>
+  );
+}
+
+function TreeItemInner({
+  latency,
+  totalScaleSpan,
+  type,
+  startOffset = 0,
+  name,
+}: {
+  latency: number;
+  totalScaleSpan: number;
+  type: TreeItemType;
+  startOffset?: number;
+  name?: string | null;
+}) {
+  const itemWidth = (latency / totalScaleSpan) * scaleWidth;
+  const itemOffsetLabelWidth = itemWidth + startOffset + labelWidth;
+
+  return (
+    <div className="group my-1 grid w-full grid-cols-[1fr,auto] items-center">
+      <div className="grid min-w-[200px] grid-cols-[auto,max-content,1fr] items-center gap-2">
+        <span className={cn("rounded-sm p-1 text-xs", colors.get(type))}>
+          {type}
+        </span>
+        <span className="break-all text-sm">{name}</span>
+        <Button
+          className="focus:none active:none hidden justify-start hover:!bg-transparent group-hover:block"
+          type="button"
+          size="xs"
+          variant="ghost"
+          onClick={(event) => {
+            event.stopPropagation();
+            console.log("hi");
+          }}
+        >
+          <Search className="h-4 w-4"></Search>
+        </Button>
+      </div>
+      <div className="flex w-full items-center overflow-x-auto">
+        <div className={`relative w-[${scaleWidth}px]`}>
+          <div className="ml-4 mr-4 h-full border-r-2"></div>
+          <div
+            className={cn(
+              "flex h-5 items-center justify-end rounded-sm",
+              colors.get(type),
+            )}
+            style={{
+              width: `${itemWidth}px`,
+              marginLeft: `${startOffset}px`,
+            }}
+          >
+            <span
+              className={cn(
+                "justify-end text-xs text-muted-foreground",
+                itemOffsetLabelWidth > scaleWidth ? "mr-1" : "-mr-10",
+              )}
+            >
+              {latency.toFixed(2)}s
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

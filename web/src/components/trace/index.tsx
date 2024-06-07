@@ -315,19 +315,7 @@ export function TracePage({ traceId }: { traceId: string }) {
           >
             <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
-            <Link
-              href="https://github.com/orgs/langfuse/discussions"
-              rel="noopener noreferrer"
-              target="_blank"
-              className="flex items-center"
-            >
-              <Badge
-                title="Feature is currently in beta. Click to learn more."
-                className="ml-2 px-1.5"
-              >
-                Beta
-              </Badge>
-            </Link>
+            <Badge className="pointer-events-none ml-2 px-1.5">Beta</Badge>
           </TabsTrigger>
         </TabsList>
       </Tabs>
