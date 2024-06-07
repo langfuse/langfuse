@@ -16,6 +16,7 @@ import { type Prisma, type Model } from "@langfuse/shared/src/db";
 import Decimal from "decimal.js";
 import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { cn } from "@/src/utils/tailwind";
 
 export type ModelTableRow = {
   modelId: string;
@@ -322,6 +323,10 @@ const DeleteModelButton = ({
           title={
             isBuiltIn ? "Built-in models cannot be deleted" : "Delete model"
           }
+          className={cn(
+            isBuiltIn &&
+              "disabled:pointer-events-auto disabled:cursor-not-allowed",
+          )}
         >
           <Trash className="h-4 w-4" />
         </Button>
