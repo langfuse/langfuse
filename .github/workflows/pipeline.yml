@@ -45,6 +45,14 @@ jobs:
           docker compose -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
+      - name: Check server health
+        run: |
+          until curl -f http://localhost:3000/api/public/health; do sleep 5; done
+
+      - name: Check worker health
+        run: |
+          until curl -f http://localhost:3030/api/health; do sleep 5; done
+
   tests-web:
     runs-on: ubuntu-latest
     strategy:
