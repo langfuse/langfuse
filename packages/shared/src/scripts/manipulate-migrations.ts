@@ -2,6 +2,12 @@
 // Self-hosters running on different schemas than public ran into errors with this migration.
 // As this migration does not introduce any model changes, we can just remove it.
 
+// test cases to consider:
+// - user applied faulty migration on public, everything worked -> removal of migrtion file and row, will be added back.
+// - user did not apply faulty migration on public -> no impact, row not applied yet in db.
+// - user applied faulty migration on non public, ran into error -> we remove migration file and db entry before migration. He will get the updated migration.
+// - user did not apply faulty migration on non public, about to run into error -> we removed faulty migration. He will get the updated migration.
+
 import "dotenv/config";
 
 import { prisma } from "@langfuse/shared/src/db";
