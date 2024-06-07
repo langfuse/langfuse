@@ -6,15 +6,12 @@ export const clickhouseStringDate = z
   .transform((str) => str.replace(" ", "T") + "Z")
   .pipe(z.string().datetime());
 
-export const observationRecord = z.object({
+export const observationRecordBase = z.object({
   id: z.string(),
   trace_id: z.string().nullish(),
   project_id: z.string(),
   type: z.string().nullish(),
   parent_observation_id: z.string().nullish(),
-  created_at: clickhouseStringDate,
-  start_time: clickhouseStringDate.nullish(),
-  end_time: clickhouseStringDate.nullish(),
   name: z.string().nullish(),
   metadata: z.record(z.string()),
   level: z.string().nullish(),
@@ -36,9 +33,21 @@ export const observationRecord = z.object({
   prompt_id: z.string().nullish(),
 });
 
-export const traceRecord = z.object({
+export const observationRecordRead = observationRecordBase.extend({
+  created_at: clickhouseStringDate,
+  start_time: clickhouseStringDate,
+  end_time: clickhouseStringDate,
+});
+
+export const observationRecordInsert = observationRecordBase.extend({
+  created_at: z.number(),
+  start_time: z.number(),
+  end_time: z.number(),
+});
+
+export const traceRecordBase = z.object({
   id: z.string(),
-  timestamp: clickhouseStringDate,
+
   name: z.string().nullish(),
   user_id: z.string().nullish(),
   metadata: z.record(z.string()),
@@ -51,7 +60,16 @@ export const traceRecord = z.object({
   input: z.string().nullish(),
   output: z.string().nullish(),
   session_id: z.string().nullish(),
+});
+
+export const traceRecordRead = traceRecordBase.extend({
+  timestamp: clickhouseStringDate,
   created_at: clickhouseStringDate,
+});
+
+export const traceRecordInsert = traceRecordBase.extend({
+  timestamp: z.number(),
+  created_at: z.number(),
 });
 
 export const scoreRecord = z.object({

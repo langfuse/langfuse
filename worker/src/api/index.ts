@@ -104,9 +104,11 @@ router.post("/ingestion", async (req, res) => {
     await processEvents(events.data.batch);
   } catch (e) {
     logger.error(e, "Failed to process ingestion event");
-    return res.status(500).json({
-      status: "error",
-    });
+    if (!res.headersSent) {
+      return res.status(500).json({
+        status: "error",
+      });
+    }
   }
 });
 
