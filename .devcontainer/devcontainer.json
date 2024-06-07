@@ -7,8 +7,8 @@
         "moby": true
         }
     },
-    "forwardPorts": ["3000"],
+    "forwardPorts": [3000],
 
     "onCreateCommand": "npm install -g pnpm@8.15.5",
-    "postCreateCommand": "pnpm run infra:dev:up &&  cp .env.dev.example .env && pnpm install && pnpm --filter=shared run db:migrate &&  pnpm run dev"
+    "postCreateCommand": "cp .env.dev.example .env && pnpm run dx-y"
 }
