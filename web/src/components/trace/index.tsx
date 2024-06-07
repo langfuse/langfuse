@@ -18,7 +18,14 @@ import { ErrorPage } from "@/src/components/error-page";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
-import { Award, ChevronsDownUp, ChevronsUpDown, Terminal } from "lucide-react";
+import {
+  Award,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  ListTree,
+  Network,
+  Terminal,
+} from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
@@ -299,12 +306,14 @@ export function TracePage({ traceId }: { traceId: string }) {
             value="details"
             className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
           >
+            <Network className="mr-1 h-4 w-4"></Network>
             Tree
           </TabsTrigger>
           <TabsTrigger
             value="timeline"
             className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
           >
+            <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
             <Link
               href="https://github.com/orgs/langfuse/discussions"
