@@ -40,19 +40,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build Web Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./web/Dockerfile
-          push: false
+      - name: Build and run both images from compose
+        run: |
+          docker compose -f docker-compose.build.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
 
-      - name: Build Worker Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./worker/Dockerfile
-          push: false
+      - name: Check server health
+        run: |
+          until curl -f http://localhost:3000/api/public/health; do sleep 5; done
+
+      - name: Check worker health
+        run: |
+          until curl -f http://localhost:3030/api/health; do sleep 5; done
+
+      - name: Ensure no unhealthy status
+        run: |
+          if docker-compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
 
   tests-web:
     runs-on: ubuntu-latest
