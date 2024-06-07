@@ -30,14 +30,20 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
-    LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET: z.string().optional().refine((v) =>
-      v === undefined || !isNaN(Number.parseInt(v))
-      , {
-        message: "LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET must be a number when set"
-      }).transform((v) =>
-        v === undefined ? undefined : -Number.parseInt(v) // negative offset
+    LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET: z
+      .string()
+      .optional()
+      .refine((v) => v === undefined || !isNaN(Number.parseInt(v)), {
+        message:
+          "LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET must be a number when set",
+      })
+      .transform(
+        (v) => (v === undefined ? undefined : -Number.parseInt(v)), // negative offset
       ),
-    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES: z.enum(["true", "false"]).optional().default("false"),
+    LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     SALT: z.string({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
@@ -94,6 +100,7 @@ export const env = createEnv({
     TURNSTILE_SECRET_KEY: z.string().optional(),
     // DB event log
     ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
+    LANGFUSE_DATABASE_SCHEMA: z.string().optional(),
   },
 
   /**
@@ -174,7 +181,8 @@ export const env = createEnv({
     AUTH_COGNITO_CLIENT_ID: process.env.AUTH_COGNITO_CLIENT_ID,
     AUTH_COGNITO_CLIENT_SECRET: process.env.AUTH_COGNITO_CLIENT_SECRET,
     AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
-    AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: process.env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING,
+    AUTH_COGNITO_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
@@ -204,6 +212,7 @@ export const env = createEnv({
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
     // db event log
     ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
+    LANGFUSE_DATABASE_SCHEMA: process.env.LANGFUSE_DATABASE_SCHEMA,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
