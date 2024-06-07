@@ -6,7 +6,7 @@ import { TracePreview } from "./TracePreview";
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import { StringParam, useQueryParam } from "use-query-params";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
@@ -24,6 +24,8 @@ import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { TraceTimelineChart } from "@/src/components/trace/TraceTimelineChart";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -199,6 +201,11 @@ export function TracePage({ traceId }: { traceId: string }) {
 
   const totalCost = calculateDisplayTotalCost(trace.data?.observations ?? []);
 
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "display",
+    withDefault(StringParam, "details"),
+  );
+
   if (trace.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
   if (!trace.data) return <div>loading...</div>;
@@ -281,15 +288,47 @@ export function TracePage({ traceId }: { traceId: string }) {
           />
         </div>
       </div>
-      <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
-        <Trace
-          key={trace.data.id}
-          trace={trace.data}
-          scores={trace.data.scores}
-          projectId={trace.data.projectId}
-          observations={trace.data.observations}
-        />
-      </div>
+      <Tabs
+        value={selectedTab}
+        onValueChange={setSelectedTab}
+        className="flex w-full justify-end border-b bg-background"
+      >
+        <TabsList className="bg-background py-0">
+          <TabsTrigger
+            value="details"
+            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+          >
+            Tree
+          </TabsTrigger>
+          <TabsTrigger
+            value="timeline"
+            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+          >
+            Timeline
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {selectedTab === "details" && (
+        <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
+          <Trace
+            key={trace.data.id}
+            trace={trace.data}
+            scores={trace.data.scores}
+            projectId={trace.data.projectId}
+            observations={trace.data.observations}
+          />
+        </div>
+      )}
+      {selectedTab === "timeline" && (
+        <div className="mt-5 flex-1 overflow-hidden pt-5">
+          <TraceTimelineChart
+            key={trace.data.id}
+            trace={trace.data}
+            observations={trace.data.observations}
+            projectId={trace.data.projectId}
+          />
+        </div>
+      )}
     </div>
   );
 }
