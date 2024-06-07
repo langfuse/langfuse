@@ -18,7 +18,7 @@ import { ErrorPage } from "@/src/components/error-page";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
-import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { Award, ChevronsDownUp, ChevronsUpDown, Terminal } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
@@ -26,6 +26,7 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineChart } from "@/src/components/trace/TraceTimelineChart";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -305,6 +306,19 @@ export function TracePage({ traceId }: { traceId: string }) {
             className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
           >
             Timeline
+            <Link
+              href="https://github.com/orgs/langfuse/discussions"
+              rel="noopener noreferrer"
+              target="_blank"
+              className="flex items-center"
+            >
+              <Badge
+                title="Feature is currently in beta. Click to learn more."
+                className="ml-2 px-1.5"
+              >
+                Beta
+              </Badge>
+            </Link>
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -320,7 +334,23 @@ export function TracePage({ traceId }: { traceId: string }) {
         </div>
       )}
       {selectedTab === "timeline" && (
-        <div className="mt-5 flex-1 overflow-hidden pt-5">
+        <div className="mt-5 flex-1 flex-col space-y-5 overflow-hidden">
+          <Alert>
+            <Terminal className="h-4 w-4" />
+            <AlertTitle>New Trace Design Beta</AlertTitle>
+            <AlertDescription>
+              We value your feedback! Share your thoughts on{" "}
+              <a
+                href="https://github.com/orgs/langfuse/discussions"
+                target="_blank"
+                className="underline"
+                rel="noopener noreferrer"
+              >
+                GitHub discussions
+              </a>
+              .
+            </AlertDescription>
+          </Alert>
           <TraceTimelineChart
             key={trace.data.id}
             trace={trace.data}
