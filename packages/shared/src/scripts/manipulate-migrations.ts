@@ -31,7 +31,7 @@ export async function manipulateMigrations() {
   console.log(tableExists);
 
   if (tableExists.length > 0) {
-    // update checksum
+    // remove the migration logs if they exist
     await prisma.$executeRaw`
     DELETE FROM _prisma_migrations WHERE migration_name in ('20240606090858_pricings_add_latest_gemini_models', '20240530212419_model_price_anthropic_via_google_vertex');`;
   }
