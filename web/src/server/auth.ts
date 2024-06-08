@@ -322,6 +322,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           throw new Error(`You must sign in via SSO for this domain.`);
         }
 
+        // Only allow sign in via email link if user is already in db as this is used for password reset
         if (account?.provider === "email") {
           const user = await prisma.user.findUnique({
             where: {
@@ -331,10 +332,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           if (user) {
             return true;
           } else {
-            // wait to simulate email verification delay to not leak if email is in db
+            // Simulate email verification delay to prevent leaking if user exists
             await new Promise((resolve) =>
-              setTimeout(resolve, Math.random() * 1500 + 500),
+              setTimeout(resolve, Math.random() * 2000 + 200),
             );
+            // Prevents sign in with email link if user does not exist
             return false;
           }
         }
