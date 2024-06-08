@@ -54,7 +54,10 @@ const userNavigation = [
   },
 ];
 
-const pathsWithoutNavigation: string[] = ["/onboarding"];
+const pathsWithoutNavigation: string[] = [
+  "/onboarding",
+  "/auth/reset-password",
+];
 const unauthenticatedPaths: string[] = [
   "/auth/sign-in",
   "/auth/sign-up",

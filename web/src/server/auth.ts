@@ -7,7 +7,7 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
-import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
+import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -18,6 +18,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
+import EmailProvider from "next-auth/providers/email";
 import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
@@ -29,6 +30,7 @@ import {
 } from "@langfuse/ee/sso";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
+import { sendResetPasswordVerificationRequest } from "@/src/features/auth-credentials/lib/sendResetPasswordVerificationRequest";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -108,13 +110,18 @@ const staticProviders: Provider[] = [
         name: dbUser.name,
         email: dbUser.email,
         image: dbUser.image,
-        emailVerified: dbUser.emailVerified,
+        emailVerified: dbUser.emailVerified?.toISOString(),
         featureFlags: parseFlags(dbUser.featureFlags),
         projects: [],
       };
 
       return userObj;
     },
+  }),
+  EmailProvider({
+    server: env.SMTP_CONNECTION_URL,
+    from: env.EMAIL_FROM_ADDRESS,
+    sendVerificationRequest: sendResetPasswordVerificationRequest,
   }),
 ];
 
@@ -257,6 +264,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             name: true,
             email: true,
             image: true,
+            emailVerified: true,
             featureFlags: true,
             admin: true,
             projectMemberships: {
@@ -286,6 +294,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                   email: dbUser.email,
                   image: dbUser.image,
                   admin: dbUser.admin,
+                  emailVerified: dbUser.emailVerified?.toISOString(),
                   projects: dbUser.projectMemberships.map((membership) => ({
                     id: membership.project.id,
                     name: membership.project.name,
@@ -311,6 +320,23 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
         if (customSsoProvider && account?.provider !== customSsoProvider) {
           throw new Error(`You must sign in via SSO for this domain.`);
+        }
+
+        if (account?.provider === "email") {
+          const user = await prisma.user.findUnique({
+            where: {
+              email: email,
+            },
+          });
+          if (user) {
+            return true;
+          } else {
+            // wait to simulate email verification delay to not leak if email is in db
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 1500 + 500),
+            );
+            return false;
+          }
         }
 
         return true;
