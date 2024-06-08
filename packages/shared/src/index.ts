@@ -7,7 +7,7 @@ export * from "./interfaces/tableDefinition";
 export * from "./types";
 export * from "./filterToPrisma";
 export * from "./tracesTable";
-export * from "./server/auth";
+
 export * from "./observationsTable";
 export * from "./features/ingestion/types";
 export * from "./utils/zod";

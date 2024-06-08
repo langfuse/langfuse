@@ -2,7 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { v4 as uuidv4 } from "uuid";
-import { ResourceNotFoundError } from "../../../utils/exceptions";
+import { ResourceNotFoundError } from "../../../../../packages/shared/src/errors/exceptions";
 import {
   LegacyGenerationPatchSchema,
   LegacyGenerationsCreateSchema,

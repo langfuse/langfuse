@@ -2,9 +2,9 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { verifyAuthHeaderAndReturnScope } from "@langfuse/shared";
 import { paginationZod } from "@langfuse/shared";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { isPrismaException } from "@langfuse/shared";
 import { stringDate } from "@langfuse/shared";
 
 const GetUsageSchema = z.object({

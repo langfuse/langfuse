@@ -119,6 +119,9 @@ importers:
       '@prisma/client':
         specifier: ^5.13.0
         version: 5.13.0(prisma@5.13.0)
+      '@sentry/node':
+        specifier: ^7.113.0
+        version: 7.113.0
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6

@@ -1,12 +1,13 @@
-import { env } from "@/src/env.mjs";
 import {
   createShaHash,
   verifySecretKey,
-} from "@langfuse/shared/src/server/auth";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
+} from "../../../dist/src/server/auth/auth";
+
 import { prisma } from "@langfuse/shared/src/db";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { ApiAccessScope } from "./types";
 import * as Sentry from "@sentry/node";
+import { isPrismaException } from "../../errors/exceptions";
+import { env } from "../../env";
 
 export type AuthHeaderVerificationResult =
   | {
@@ -19,7 +20,7 @@ export type AuthHeaderVerificationResult =
     };
 
 export async function verifyAuthHeaderAndReturnScope(
-  authHeader: string | undefined,
+  authHeader: string | undefined
 ): Promise<AuthHeaderVerificationResult> {
   if (!authHeader) {
     console.error("No authorization header");

@@ -1,7 +1,7 @@
 import {
   type AuthHeaderVerificationResult,
   verifyAuthHeaderAndReturnScope,
-} from "@/src/features/public-api/server/apiAuth";
+} from "@langfuse/shared";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -11,10 +11,10 @@ import {
   eventTypes,
   ingestionEvent,
 } from "@langfuse/shared";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
+import { type ApiAccessScope } from "@langfuse/shared";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";
-import { ResourceNotFoundError } from "@/src/utils/exceptions";
+import { ResourceNotFoundError } from "@langfuse/shared";
 import {
   SdkLogProcessor,
   type EventProcessor,
@@ -26,7 +26,7 @@ import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
 import * as Sentry from "@sentry/nextjs";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { isPrismaException } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import {
   ValidationError,
