@@ -1,12 +1,14 @@
 import {
   ObservationEvent,
   clickhouseClient,
+  convertObservationReadToInsert,
+  convertScoreReadToInsert,
+  convertTraceReadToInsert,
   eventTypes,
   ingestionBatchEvent,
   observationRecordInsert,
   observationRecordRead,
   scoreEvent,
-  scoreRecord,
   scoreRecordInsert,
   scoreRecordRead,
   traceEvent,
@@ -23,6 +25,7 @@ import {
 } from "@langfuse/shared";
 import { redis } from "../redis/redis";
 import { v4 } from "uuid";
+import _ from "lodash";
 
 export const processEvents = async (
   events: z.infer<typeof ingestionBatchEvent>
@@ -233,9 +236,9 @@ async function getDedupedAndUpdatedRecords<
   recordRead: z.ZodType<any, any>
 ) {
   const nonOverwritableProperties = {
-    traces: ["id", "project_id", "name", "timestamp"],
-    scores: ["id", "project_id", "timestamp", "type", "trace_id"],
-    observations: ["id", "project_id", "trace_id", "timestamp"],
+    traces: ["id", "project_id", "name", "timestamp", "created_at"],
+    scores: ["id", "project_id", "timestamp", "type", "trace_id", "created_at"],
+    observations: ["id", "project_id", "trace_id", "timestamp", "created_at"],
   };
   const dedupedSdkRecords = z
     .array(recordInsert)
@@ -268,10 +271,22 @@ async function getDedupedAndUpdatedRecords<
     nonRedisRecords.length > 0
       ? await instrumentAsync({ name: `get-${recordType}` }, async () => {
           const clickhouseRecords = await clickhouseClient.query({
-            query: `SELECT * FROM ${recordType} where project_id = '${projectId}' and id in (${nonRedisRecords.map((obs) => `'${obs.id}'`).join(",")})`,
+            query: `SELECT * FROM ${recordType} FINAL where project_id = '${projectId}' and id in (${nonRedisRecords.map((obs) => `'${obs.id}'`).join(",")})`,
             format: "JSONEachRow",
           });
-          return z.array(recordRead).parse(await clickhouseRecords.json());
+          return z
+            .array(recordRead)
+            .parse(await clickhouseRecords.json())
+            .map((record) => {
+              // convert read into write format
+              if (recordType === "traces") {
+                return convertTraceReadToInsert(record);
+              } else if (recordType === "scores") {
+                return convertScoreReadToInsert(record);
+              } else {
+                return convertObservationReadToInsert(record);
+              }
+            });
         })
       : [];
   console.log(`clickhouse ${recordType} ${JSON.stringify(chRecords)}`);
@@ -474,8 +489,6 @@ function dedupeAndOverwriteObjectById(
     [] as typeof insert
   );
 }
-
-import _ from "lodash";
 
 function overwriteObject(
   a: {

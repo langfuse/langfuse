@@ -92,3 +92,34 @@ export const scoreRecordInsert = scoreRecord.extend({
   created_at: z.number(),
   timestamp: z.number(),
 });
+
+export const convertTraceReadToInsert = (
+  record: z.infer<typeof traceRecordRead>
+) => {
+  return {
+    ...record,
+    timestamp: new Date(record.timestamp).getTime(),
+    created_at: new Date(record.created_at).getTime(),
+  };
+};
+
+export const convertObservationReadToInsert = (
+  record: z.infer<typeof observationRecordRead>
+) => {
+  return {
+    ...record,
+    created_at: new Date(record.created_at).getTime(),
+    start_time: new Date(record.start_time).getTime(),
+    end_time: new Date(record.end_time).getTime(),
+  };
+};
+
+export const convertScoreReadToInsert = (
+  record: z.infer<typeof scoreRecordRead>
+) => {
+  return {
+    ...record,
+    created_at: new Date(record.created_at).getTime(),
+    timestamp: new Date(record.timestamp).getTime(),
+  };
+};
