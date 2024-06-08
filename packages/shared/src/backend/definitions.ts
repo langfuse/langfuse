@@ -42,7 +42,7 @@ export const observationRecordRead = observationRecordBase.extend({
 export const observationRecordInsert = observationRecordBase.extend({
   created_at: z.number(),
   start_time: z.number(),
-  end_time: z.number(),
+  end_time: z.number().nullish(),
 });
 
 export const traceRecordBase = z.object({

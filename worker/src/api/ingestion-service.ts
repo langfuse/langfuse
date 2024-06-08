@@ -5,6 +5,7 @@ import {
   convertScoreReadToInsert,
   convertTraceReadToInsert,
   eventTypes,
+  findModel,
   ingestionBatchEvent,
   observationRecordInsert,
   observationRecordRead,
@@ -26,6 +27,7 @@ import {
 import { redis } from "../redis/redis";
 import { v4 } from "uuid";
 import _ from "lodash";
+import { prisma } from "@langfuse/shared/src/db";
 
 export const processEvents = async (
   events: z.infer<typeof ingestionBatchEvent>
@@ -144,7 +146,15 @@ const storeObservations = async (
   if (observations.length === 0) {
     return;
   }
-  const insert = convertEventToObservation(observations, projectId);
+  const observationMap = await findPrompt(projectId, observations);
+  console.log("observation map ", JSON.stringify(observationMap));
+  const insert = convertEventToObservation(
+    observations,
+    projectId,
+    observationMap
+  );
+
+  console.log(`hehe check: ${JSON.stringify(insert)}`);
 
   // merge observations with same id and project id into one
   const newRecords = await getDedupedAndUpdatedRecords(
@@ -159,7 +169,159 @@ const storeObservations = async (
     return;
   }
 
-  return await insertFinalRecords(projectId, "observations", newRecords);
+  // model match of observations
+
+  const modelMatchedRecords = await modelMatch(newRecords);
+
+  return await insertFinalRecords(
+    projectId,
+    "observations",
+    modelMatchedRecords
+  );
+};
+
+export const findPrompt = async (
+  projectId: string,
+  events: ObservationEvent[]
+) => {
+  const observationMap = new Map<string, string>(); // contains prompt id for each matching observation
+  // find all unique combinations of prompt names + versions alongside all observations
+  console.log(`events to find prompts ${JSON.stringify(events)}`);
+  const uniquePrompts = events.reduce<{
+    [key: string]: ObservationEvent[];
+  }>((acc, event) => {
+    if (
+      "promptName" in event.body &&
+      typeof event.body.promptName === "string" &&
+      "promptVersion" in event.body &&
+      typeof event.body.promptVersion === "number"
+    ) {
+      const key = `${event.body.promptName}-${event.body.promptVersion}`;
+      console.log(`key ${key}`);
+      acc[key] = acc[key] ?? [];
+      acc[key]?.push(event);
+      console.log(`acc ${JSON.stringify(acc)}`);
+      return acc;
+    }
+    return acc;
+  }, {});
+
+  console.log(`uniquePrompts ${JSON.stringify(uniquePrompts)}`);
+
+  // for all unique prompts, find the prompt in the database
+
+  const prompts = await prisma.prompt.findMany({
+    where: {
+      projectId,
+      name: {
+        in: Object.keys(uniquePrompts).map((key) => key.split("-")[0]),
+      },
+      version: {
+        in: Object.keys(uniquePrompts).map((key) =>
+          parseInt(key.split("-")[1])
+        ),
+      },
+    },
+  });
+
+  // assign prompt id to all observations
+  for (const [key, observationsGroup] of Object.entries(uniquePrompts)) {
+    const prompt = prompts.find(
+      (prompt) =>
+        prompt.name === key.split("-")[0] &&
+        prompt.version === parseInt(key.split("-")[1])
+    );
+
+    if (!prompt) {
+      continue;
+    }
+
+    for (const observation of observationsGroup) {
+      if (!observation.body.id) {
+        continue;
+      }
+      observationMap.set(observation.body.id, prompt.id);
+    }
+  }
+  return observationMap;
+};
+
+export const modelMatch = async (
+  observations: z.infer<typeof observationRecordInsert>[]
+) => {
+  const groupedGenerations = observations.reduce<{
+    [key: string]: z.infer<typeof observationRecordInsert>[];
+  }>((acc, observation) => {
+    const config = {
+      model: observation.model,
+      unit: observation.unit,
+      projectId: observation.project_id,
+    };
+
+    const key = JSON.stringify(config);
+
+    acc[key] = acc[key] ?? [];
+    acc[key]?.push(observation);
+
+    return acc;
+  }, {});
+
+  for (const [key, observationsGroup] of Object.entries(groupedGenerations)) {
+    const { model, unit, projectId } = JSON.parse(key) as {
+      model: string;
+      unit: string;
+      projectId: string;
+    };
+
+    if (!projectId) {
+      throw new Error("No project id");
+    }
+
+    if (!model) {
+      continue;
+    }
+
+    console.log(`Execute key: ${model} ${unit} ${projectId}`);
+
+    if (!projectId) {
+      throw new Error("No project id");
+    }
+
+    const foundModel = await findModel({
+      event: { projectId, model, unit },
+    });
+
+    console.log(
+      `Found model: ${foundModel?.id} for key: ${key} with observations: ${observationsGroup.length}`
+    );
+
+    if (foundModel) {
+      observationsGroup.map((observation) => {
+        if (
+          observation.input_cost ||
+          observation.output_cost ||
+          observation.total_cost
+        ) {
+          return {
+            ...observation,
+          };
+        }
+        return {
+          ...observation,
+          model_id: foundModel.id,
+          input_cost:
+            foundModel.inputPrice ?? 0 * (observation.input_cost ?? 0),
+          output_cost:
+            foundModel.outputPrice ?? 0 * (observation.output_cost ?? 0),
+          total_cost:
+            foundModel.totalPrice ?? 0 * (observation.total_cost ?? 0),
+        };
+      });
+    }
+  }
+
+  // return a list of all groupedGenerations values, without the keys
+  return Object.values(groupedGenerations).flat();
 };
 
 export const convertJsonSchemaToRecord = (
@@ -326,11 +488,11 @@ function convertEventToRecord(
       user_id: trace.body.userId,
       metadata: trace.body.metadata
         ? convertJsonSchemaToRecord(trace.body.metadata)
-        : undefined,
+        : {},
       release: trace.body.release,
       version: trace.body.version,
       project_id: projectId,
-      public: trace.body.public,
+      public: trace.body.public ?? false,
       bookmarked: false,
       tags: trace.body.tags ?? [],
       input: trace.body.input,
@@ -376,7 +538,8 @@ async function getCurrentStateFromRedis<T extends z.ZodType<any, any>>(
 
 function convertEventToObservation(
   observationsToStore: ObservationEvent[],
-  projectId: string
+  projectId: string,
+  observationMap: Map<string, string>
 ) {
   return observationsToStore.map((obs) => {
     let type: "EVENT" | "SPAN" | "GENERATION";
@@ -429,7 +592,7 @@ function convertEventToObservation(
       name: obs.body.name,
       start_time: obs.body.startTime
         ? new Date(obs.body.startTime).getTime() * 1000
-        : undefined,
+        : new Date().getTime() * 1000,
       end_time:
         "endTime" in obs.body && obs.body.endTime
           ? new Date(obs.body.endTime).getTime() * 1000
@@ -440,7 +603,7 @@ function convertEventToObservation(
           : undefined,
       metadata: obs.body.metadata
         ? convertJsonSchemaToRecord(obs.body.metadata)
-        : undefined,
+        : {},
       model: "model" in obs.body ? obs.body.model : undefined,
       model_parameters:
         "modelParameters" in obs.body
@@ -457,11 +620,11 @@ function convertEventToObservation(
       parent_observation_id: obs.body.parentObservationId ?? undefined,
       version: obs.body.version ?? undefined,
       project_id: projectId,
-      // todo: find prompt from postgres
-      prompt_id: undefined,
       input_cost: "usage" in obs.body ? obs.body.usage?.inputCost : undefined,
       output_cost: "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
       total_cost: "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
+      prompt_id: obs.body.id ? observationMap.get(obs.body.id) : undefined,
+      created_at: Date.now(),
     });
   });
 }
@@ -516,7 +679,7 @@ function overwriteObject(
       ? b.metadata
       : !b.metadata && a.metadata
         ? a.metadata
-        : mergeRecords(a.metadata, b.metadata);
+        : mergeRecords(a.metadata, b.metadata) ?? {};
 
   console.log(`Result ${JSON.stringify(result)}`);
   return result;
