@@ -7,7 +7,7 @@ services:
     container_name: clickhouse
     hostname: clickhouse
     environment:
-      CLICKHOUSE_DB: langfuse
+      CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
     volumes:

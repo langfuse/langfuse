@@ -74,7 +74,6 @@ export const traceRecordInsert = traceRecordBase.extend({
 
 export const scoreRecord = z.object({
   id: z.string(),
-  timestamp: clickhouseStringDate,
   project_id: z.string(),
   name: z.string().nullish(),
   value: z.number().nullish(),
@@ -82,4 +81,14 @@ export const scoreRecord = z.object({
   comment: z.string().nullish(),
   trace_id: z.string(),
   observation_id: z.string().nullish(),
+});
+
+export const scoreRecordRead = scoreRecord.extend({
+  created_at: clickhouseStringDate,
+  timestamp: clickhouseStringDate,
+});
+
+export const scoreRecordInsert = scoreRecord.extend({
+  created_at: z.number(),
+  timestamp: z.number(),
 });

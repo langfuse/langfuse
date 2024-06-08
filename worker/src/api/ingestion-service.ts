@@ -6,6 +6,9 @@ import {
   observationRecordInsert,
   observationRecordRead,
   scoreEvent,
+  scoreRecord,
+  scoreRecordInsert,
+  scoreRecordRead,
   traceEvent,
   traceRecordInsert,
   traceRecordRead,
@@ -81,10 +84,59 @@ const storeScores = async (
     project_id: projectId,
   }));
 
+  const dedupedSdkRecords = z
+    .array(scoreRecordInsert)
+    .parse(dedupeAndOverwriteObjectById(insert));
+
+  const redisScores = await getCurrentScoresFromRedis(
+    dedupedSdkRecords.map((m) => m.id),
+    projectId
+  );
+
+  const nonRedisTraces = dedupedSdkRecords.filter((record) =>
+    redisScores.find((r) => r && r.id === record.id)
+  );
+
+  const chScores =
+    nonRedisTraces.length > 0
+      ? await instrumentAsync({ name: "get-scores" }, async () => {
+          const clickhouseTraces = await clickhouseClient.query({
+            query: `SELECT * FROM scores where project_id = '${projectId}' and id in (${nonRedisTraces.map((obs) => `'${obs.id}'`).join(",")})`,
+            format: "JSONEachRow",
+          });
+          return z.array(scoreRecordRead).parse(await clickhouseTraces.json());
+        })
+      : [];
+
   console.log(`Inserting score into clickhouse ${JSON.stringify(insert)}`);
-  if (insert.length === 0) {
+  const retrievedScores = [...chScores, ...redisScores.filter(Boolean)];
+
+  const newRecords = dedupedSdkRecords.map((record) => {
+    const existingRecord = retrievedScores.find(
+      (r) => r !== undefined && r.id === record.id
+    );
+    if (!existingRecord) {
+      return record;
+    }
+    // if the record exists, we need to update the existing record with the new record
+    return overwriteObject(existingRecord, record);
+  });
+
+  if (newRecords.length === 0) {
     return;
   }
+
+  await redis
+    ?.pipeline(
+      newRecords.map((record) => [
+        "setex",
+        `score:${record.id}-${projectId}`,
+        120,
+        JSON.stringify(record),
+      ])
+    )
+    .exec();
+
   await clickhouseClient.insert({
     table: "scores",
     format: "JSONEachRow",
@@ -109,20 +161,10 @@ const storeTraces = async (
 
   console.log(`deduped traces ${JSON.stringify(dedupedSdkRecords)}`);
 
-  const redisTraces = z
-    .array(traceRecordInsert.nullish())
-    .parse(
-      dedupedSdkRecords.length > 0
-        ? await redis?.mget(
-            ...dedupedSdkRecords.map((m) => `trace:${m.id}-${projectId}`)
-          )
-        : [
-            await redis?.get(
-              dedupedSdkRecords.map((m) => `trace:${m.id}-${projectId}`)[0]
-            ),
-          ]
-    )
-    .filter((item): item is z.infer<typeof traceRecordInsert> => !!item);
+  const redisTraces = await getCurrentTracesFromRedis(
+    dedupedSdkRecords.map((m) => m.id),
+    projectId
+  );
 
   const nonRedisTraces = dedupedSdkRecords.filter((record) =>
     redisTraces.find((r) => r && r.id === record.id)
@@ -132,7 +174,7 @@ const storeTraces = async (
     nonRedisTraces.length > 0
       ? await instrumentAsync({ name: "get-traces" }, async () => {
           const clickhouseTraces = await clickhouseClient.query({
-            query: `SELECT id FROM traces where project_id = '${projectId}' and id in (${nonRedisTraces.map((obs) => `'${obs.id}'`).join(",")})`,
+            query: `SELECT * FROM traces where project_id = '${projectId}' and id in (${nonRedisTraces.map((obs) => `'${obs.id}'`).join(",")})`,
             format: "JSONEachRow",
           });
           return z.array(traceRecordRead).parse(await clickhouseTraces.json());
@@ -191,12 +233,10 @@ const storeObservations = async (
 
   console.log(`merged obs ${JSON.stringify(dedupedSdkEvents)}`);
 
-  const redisObservations = (
-    await getCurrentObservationStateFromRedis(
-      dedupedSdkEvents.map((m) => m.id),
-      projectId
-    )
-  ).filter(Boolean);
+  const redisObservations = await getCurrentObservationStateFromRedis(
+    dedupedSdkEvents.map((m) => m.id),
+    projectId
+  );
 
   const observationsNotInRedis = dedupedSdkEvents.filter((record) =>
     redisObservations.find((r) => r !== undefined && r.id === record.id)
@@ -333,17 +373,48 @@ function convertEventToRecord(
   );
 }
 
+async function getCurrentTracesFromRedis(ids: string[], projectId: string) {
+  return z
+    .array(traceRecordInsert.nullish())
+    .parse(
+      ids.length > 0
+        ? await redis?.mget(...ids.map((id) => `trace:${id}-${projectId}`))
+        : [await redis?.get(ids.map((id) => `trace:${id}-${projectId}`)[0])]
+    )
+    .filter((item): item is z.infer<typeof traceRecordInsert> => !!item);
+}
+
+async function getCurrentScoresFromRedis(ids: string[], projectId: string) {
+  return z
+    .array(scoreRecord.nullish())
+    .parse(
+      ids.length > 0
+        ? await redis?.mget(...ids.map((id) => `score:${id}-${projectId}`))
+        : [await redis?.get(ids.map((id) => `score:${id}-${projectId}`)[0])]
+    )
+    .filter((item): item is z.infer<typeof scoreRecord> => !!item);
+}
+
 async function getCurrentObservationStateFromRedis(
   ids: string[],
   projectId: string
 ) {
   const keys = ids.map((id) => `observation:${id}-${projectId}`);
 
-  const redisObjects = await redis?.mget(...keys);
+  if (keys.length === 0) {
+    return [];
+  }
+
+  const redisObjects =
+    keys.length === 1
+      ? [await redis?.get(keys[0])]
+      : await redis?.mget(...keys);
+
   const redisObservations =
     redisObjects?.map((redisObject) =>
       redisObject ? JSON.parse(redisObject) : undefined
     ) ?? [];
+
   return z
     .array(observationRecordInsert.nullish())
     .parse(redisObservations)

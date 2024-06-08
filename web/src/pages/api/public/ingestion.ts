@@ -233,18 +233,23 @@ export const handleBatch = async (
 
   if (env.CLICKHOUSE_URL) {
     await instrumentAsync({ name: "insert-clickhouse" }, async () => {
-      await fetch(`${env.LANGFUSE_WORKER_HOST}/api/ingestion`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:
-            "Basic " +
-            Buffer.from("admin" + ":" + env.LANGFUSE_WORKER_PASSWORD).toString(
-              "base64",
-            ),
-        },
-        body: JSON.stringify({ batch: events, metadata }),
-      });
+      try {
+        console.log(`senfing to ${env.LANGFUSE_WORKER_HOST}/api/ingestion`);
+        await fetch(`${env.LANGFUSE_WORKER_HOST}/api/ingestion`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:
+              "Basic " +
+              Buffer.from(
+                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
+              ).toString("base64"),
+          },
+          body: JSON.stringify({ batch: events, metadata }),
+        });
+      } catch (error) {
+        console.error("Error sending events to worker", JSON.stringify(error));
+      }
     });
   }
 

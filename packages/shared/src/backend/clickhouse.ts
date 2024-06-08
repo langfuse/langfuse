@@ -1,6 +1,6 @@
 import { createClient } from "@clickhouse/client";
 import { env } from "../env";
-import { observationRecord, traceRecord } from "./definitions";
+import { observationRecordRead, traceRecordRead } from "./definitions";
 import z from "zod";
 import { convertRecordToJsonSchema, parseJsonPrioritised } from "../utils/json";
 
@@ -15,7 +15,7 @@ export const clickhouseClient = createClient({
   },
 });
 export const convertTraces = (traces: unknown[]) => {
-  const parsedRecord = z.array(traceRecord).parse(traces);
+  const parsedRecord = z.array(traceRecordRead).parse(traces);
 
   return parsedRecord.map((record) => {
     return {
@@ -39,7 +39,7 @@ export const convertTraces = (traces: unknown[]) => {
 };
 
 export function convertObservations(jsonRecords: unknown[]) {
-  const parsedRecord = z.array(observationRecord).parse(jsonRecords);
+  const parsedRecord = z.array(observationRecordRead).parse(jsonRecords);
 
   return parsedRecord.map((record) => {
     return {
