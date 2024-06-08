@@ -1,7 +1,7 @@
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { verifyAuthHeaderAndReturnScope } from "@langfuse/shared/src/server/auth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { isPrismaException } from "@langfuse/shared";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 

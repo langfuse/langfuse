@@ -2,8 +2,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { verifyAuthHeaderAndReturnScope } from "@langfuse/shared/src/server/auth";
+import { isPrismaException } from "@langfuse/shared";
 
 const DatasetsGetSchema = z.object({
   name: z.string().transform((val) => decodeURIComponent(val)),

@@ -1,4 +1,4 @@
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { verifyAuthHeaderAndReturnScope } from "@langfuse/shared/src/server/auth";
 import { type NextApiRequest } from "next";
 import { UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 

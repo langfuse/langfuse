@@ -2,10 +2,10 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { DatasetStatus, prisma } from "@langfuse/shared/src/db";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { verifyAuthHeaderAndReturnScope } from "@langfuse/shared/src/server/auth";
 import { jsonSchema } from "@langfuse/shared";
 import { v4 as uuidv4 } from "uuid";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { isPrismaException } from "@langfuse/shared";
 
 const CreateDatasetItemSchema = z.object({
   datasetName: z.string(),

@@ -14,7 +14,7 @@ import {
   type traceEvent,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { ResourceNotFoundError } from "@/src/utils/exceptions";
+import { ResourceNotFoundError } from "@langfuse/shared";
 import { mergeJson } from "@langfuse/shared";
 import {
   type Trace,

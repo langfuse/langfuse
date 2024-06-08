@@ -1,4 +1,4 @@
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { verifyAuthHeaderAndReturnScope } from "@langfuse/shared/src/server/auth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { prisma } from "@langfuse/shared/src/db";
@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { isPrismaException } from "@langfuse/shared";
 import { stringDate } from "@langfuse/shared";
 
 const ObservationsGetSchema = z.object({

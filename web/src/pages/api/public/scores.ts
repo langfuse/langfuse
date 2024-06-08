@@ -3,7 +3,7 @@ import { Prisma, type Score } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { verifyAuthHeaderAndReturnScope } from "@langfuse/shared/src/server/auth";
 import { paginationZod } from "@langfuse/shared";
 import {
   ScoreBody,
@@ -16,7 +16,7 @@ import {
   handleBatch,
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { isPrismaException } from "@langfuse/shared";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 

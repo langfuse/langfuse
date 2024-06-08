@@ -2,7 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { verifyAuthHeaderAndReturnScope } from "@langfuse/shared/src/server/auth";
 import { Prisma, type Trace } from "@langfuse/shared/src/db";
 import { paginationZod } from "@langfuse/shared";
 import {
@@ -14,7 +14,7 @@ import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { tracesTableCols, orderBy } from "@langfuse/shared";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { isPrismaException } from "@langfuse/shared";
 
 const GetTracesSchema = z.object({
   ...paginationZod,
