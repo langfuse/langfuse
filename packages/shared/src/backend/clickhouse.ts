@@ -64,9 +64,9 @@ export function convertObservations(jsonRecords: unknown[]) {
         ? parseJsonPrioritised(record.model_parameters)
         : null,
       metadata: convertRecordToJsonSchema(record.metadata),
-      promptTokens: record.prompt_tokens,
-      completionTokens: record.completion_tokens,
-      totalTokens: record.total_tokens,
+      promptTokens: record.input_usage,
+      completionTokens: record.output_usage,
+      totalTokens: record.total_usage,
       inputCost: record.input_cost,
       outputCost: record.output_cost,
       totalCost: record.total_cost,
