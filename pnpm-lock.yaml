@@ -109,7 +109,7 @@ importers:
     dependencies:
       '@clickhouse/client':
         specifier: ^1.0.1
-        version: 1.0.2
+        version: 1.1.0
       '@langchain/anthropic':
         specifier: ^0.1.21
         version: 0.1.21
@@ -133,7 +133,10 @@ importers:
         version: 0.27.3
       langchain:
         specifier: ^0.1.36
-        version: 0.1.36(@clickhouse/client@1.0.2)
+        version: 0.1.36(@clickhouse/client@1.1.0)(lodash@4.17.21)
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
       prisma-extension-kysely:
         specifier: ^2.1.0
         version: 2.1.0(@prisma/client@5.13.0)
@@ -227,7 +230,7 @@ importers:
         version: 3.554.0
       '@clickhouse/client':
         specifier: ^1.0.1
-        version: 1.0.2
+        version: 1.1.0
       '@codemirror/lang-json':
         specifier: ^6.0.1
         version: 6.0.1
@@ -440,7 +443,7 @@ importers:
         version: 0.27.3
       langchain:
         specifier: ^0.1.36
-        version: 0.1.36(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.0.2)(lodash@4.17.21)
+        version: 0.1.36(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.1.0)(lodash@4.17.21)
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -2053,15 +2056,15 @@ packages:
     resolution: {integrity: sha512-hBzuU5+JjB2cqNZyszkDHZgOSrUUT8V3dhgRl8Q9Gp6dAj/H5+KILGjbhDpc3Iy9qmqlm/akuOI2ut9VUtzJxQ==}
     dev: true
 
-  /@clickhouse/client-common@1.0.2:
-    resolution: {integrity: sha512-5oI2URFsXlzoysv5lAxoTUAnAHjXnaJ+1Jz3HUARR06Hkbr1sN0pGxfGwgjEd8E/lI4+UNdNEZicG2rlFnWSaA==}
+  /@clickhouse/client-common@1.1.0:
+    resolution: {integrity: sha512-saD6vNg+gIZACT5OSCWn0evLBP+Cs5bBR2Ol24yOQc8AXcw94b1qcDjQEVxms1xzO6heFhZRuPf+YefMNrL3Ig==}
     dev: false
 
-  /@clickhouse/client@1.0.2:
-    resolution: {integrity: sha512-PaK0GLjIrlCpXevrp9gliOrurna6MjMMFBgZhDh6Zup8IuJCjQru4LkNsWUl3hJ2nua6+Ygag14iB8ILbeaIjg==}
+  /@clickhouse/client@1.1.0:
+    resolution: {integrity: sha512-fDG0dUU2nzcsE4XLDL3qUydbHJfuVCHnLuBTEmQfDrNQB9z6/qOtAUoGfAatZ07eEakZ4JAzKWMTU4MW4m0BJg==}
     engines: {node: '>=16'}
     dependencies:
-      '@clickhouse/client-common': 1.0.2
+      '@clickhouse/client-common': 1.1.0
     dev: false
 
   /@codemirror/autocomplete@6.16.0(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.26.3)(@lezer/common@1.2.1):
@@ -3073,7 +3076,7 @@ packages:
       - encoding
     dev: false
 
-  /@langchain/community@0.0.47(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.0.2)(lodash@4.17.21):
+  /@langchain/community@0.0.47(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.1.0)(lodash@4.17.21):
     resolution: {integrity: sha512-j20KhnWs16K/qxaY3QccOFMfcEmiTXN00NB1IPeO1pexRsvHL7GfqZ8rR5cOSSBfft2iuoGxaj1EZIyxh5ftgA==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -3353,7 +3356,7 @@ packages:
         optional: true
     dependencies:
       '@aws-sdk/credential-provider-node': 3.549.0
-      '@clickhouse/client': 1.0.2
+      '@clickhouse/client': 1.1.0
       '@langchain/core': 0.1.61
       '@langchain/openai': 0.0.33
       expr-eval: 2.0.2
@@ -12460,7 +12463,7 @@ packages:
     resolution: {integrity: sha512-lG03Ru+XyOJFsjH3OMY6R/9U38IjDPfnOfDgO3ynhbDr+Dz8fak+X6L62vqu3iybQnj+lG84OttBuU9KY3L9kA==}
     engines: {node: '>=14.0.0'}
 
-  /langchain@0.1.36(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.0.2)(lodash@4.17.21):
+  /langchain@0.1.36(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.1.0)(lodash@4.17.21):
     resolution: {integrity: sha512-NTbnCL/jKWIeEI//Nm1oG8nhW3vkYWvEMr1MPotmTThTfeKfO87eV/OAzAyh6Ruy6GFs/qofRgQZGIe6XvXTNQ==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -12625,7 +12628,7 @@ packages:
       '@anthropic-ai/sdk': 0.9.1
       '@aws-sdk/client-s3': 3.550.0
       '@aws-sdk/credential-provider-node': 3.549.0
-      '@langchain/community': 0.0.47(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.0.2)(lodash@4.17.21)
+      '@langchain/community': 0.0.47(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.1.0)(lodash@4.17.21)
       '@langchain/core': 0.1.61
       '@langchain/openai': 0.0.33
       '@langchain/textsplitters': 0.0.0
@@ -12712,7 +12715,7 @@ packages:
       - voy-search
     dev: false
 
-  /langchain@0.1.36(@clickhouse/client@1.0.2):
+  /langchain@0.1.36(@clickhouse/client@1.1.0)(lodash@4.17.21):
     resolution: {integrity: sha512-NTbnCL/jKWIeEI//Nm1oG8nhW3vkYWvEMr1MPotmTThTfeKfO87eV/OAzAyh6Ruy6GFs/qofRgQZGIe6XvXTNQ==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -12875,7 +12878,7 @@ packages:
         optional: true
     dependencies:
       '@anthropic-ai/sdk': 0.9.1
-      '@langchain/community': 0.0.47(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.0.2)(lodash@4.17.21)
+      '@langchain/community': 0.0.47(@aws-sdk/credential-provider-node@3.549.0)(@clickhouse/client@1.1.0)(lodash@4.17.21)
       '@langchain/core': 0.1.61
       '@langchain/openai': 0.0.33
       '@langchain/textsplitters': 0.0.0
