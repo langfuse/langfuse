@@ -1,15 +1,9 @@
-import {
-  jsonSchema,
-  jsonSchemaNullable,
-  type JsonNested,
-} from "@/src/utils/zod";
+import { parseJsonPrioritised, type JsonNested } from "@langfuse/shared";
 import {
   clickhouseClient,
   convertTraces,
-  observationRecord,
-  parseJsonPrioritised,
+  observationRecordRead,
   scoreRecord,
-  traceRecord,
 } from "@langfuse/shared/backend";
 import { z } from "zod";
 
@@ -93,7 +87,7 @@ export const convertRecordToJsonSchema = (
 };
 
 function convertObservations(jsonRecords: unknown[]) {
-  const parsedRecord = z.array(observationRecord).parse(jsonRecords);
+  const parsedRecord = z.array(observationRecordRead).parse(jsonRecords);
 
   return parsedRecord.map((record) => {
     return {
