@@ -7,7 +7,8 @@ import {
   type generationCreateEvent,
   type sdkLogEvent,
   type traceEvent,
-} from "@langfuse/shared";
+  type ObservationEvent,
+} from "@langfuse/shared/backend";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@langfuse/shared";
