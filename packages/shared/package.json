@@ -18,8 +18,8 @@
       "require": "./dist/src/db.js"
     },
     "./src/server/auth": {
-      "import": "./dist/src/server/auth/main.js",
-      "require": "./dist/src/server/auth/main.js"
+      "import": "./dist/src/server/auth/index.js",
+      "require": "./dist/src/server/auth/index.js"
     },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",

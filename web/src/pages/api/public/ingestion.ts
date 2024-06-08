@@ -1,7 +1,3 @@
-import {
-  type AuthHeaderVerificationResult,
-  verifyAuthHeaderAndReturnScope,
-} from "@langfuse/shared";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -11,7 +7,11 @@ import {
   eventTypes,
   ingestionEvent,
 } from "@langfuse/shared";
-import { type ApiAccessScope } from "@langfuse/shared";
+import {
+  type ApiAccessScope,
+  type AuthHeaderVerificationResult,
+  verifyAuthHeaderAndReturnScope,
+} from "@langfuse/shared/src/server/auth";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";
 import { ResourceNotFoundError } from "@langfuse/shared";

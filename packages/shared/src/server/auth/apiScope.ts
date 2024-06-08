@@ -1,5 +1,5 @@
-import { prisma } from "@langfuse/shared/src/db";
 import { ApiAccessScope } from "./types";
+import { prisma } from "./../../db";
 
 type Resource = {
   type: "project" | "trace" | "observation" | "score";
@@ -45,13 +45,14 @@ async function isResourceInProject(resource: Resource, projectId: string) {
         (await prisma.observation.count({
           where: { id: resource.id, projectId },
         })) === 1;
-      if (!observationCheck)
+      if (!observationCheck) {
         console.log(
           "observation check",
           observationCheck,
           resource.id,
           projectId
         );
+      }
       return observationCheck;
 
     case "score":

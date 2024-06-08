@@ -1,7 +1,7 @@
 import {
   createShaHash,
   verifySecretKey,
-} from "../../../dist/src/server/auth/auth";
+} from "./auth";
 
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAccessScope } from "./types";
