@@ -25,6 +25,10 @@ const EnvSchema = z.object({
     .default(6379),
   REDIS_AUTH: z.string(),
   LANGFUSE_WORKER_PASSWORD: z.string(),
+  SALT: z.string({
+    required_error:
+      "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
+  }),
 });
 
 export const env = EnvSchema.parse(process.env);
