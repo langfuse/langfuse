@@ -15,7 +15,6 @@ import {
   traceEvent,
   traceRecordInsert,
   traceRecordRead,
-  tokenCount,
 } from "@langfuse/shared/backend";
 import z from "zod";
 import { instrumentAsync } from "../instrumentation";
@@ -29,6 +28,7 @@ import { redis } from "../redis/redis";
 import { v4 } from "uuid";
 import _ from "lodash";
 import { prisma } from "@langfuse/shared/src/db";
+import { tokenCount } from "../features/tokenisation/usage";
 
 export const processEvents = async (
   events: z.infer<typeof ingestionBatchEvent>
@@ -312,7 +312,8 @@ export const modelMatch = async (
             model: foundModel,
             text: observation.output,
           });
-          const newTotalCount = newInputCount + newOutputCount;
+          const newTotalCount =
+            (newInputCount ?? 0) + (newOutputCount ?? 0) || null;
           updatedObservation = {
             ...observation,
             input_usage: newInputCount,
@@ -334,11 +335,14 @@ export const modelMatch = async (
           ...updatedObservation,
           model_id: foundModel.id,
           input_cost:
-            foundModel.inputPrice ?? 0 * (updatedObservation.input_cost ?? 0),
+            (foundModel.inputPrice?.toNumber() ?? 0) *
+              (updatedObservation.input_cost ?? 0) || null,
           output_cost:
-            foundModel.outputPrice ?? 0 * (updatedObservation.output_cost ?? 0),
+            (foundModel.outputPrice?.toNumber() ?? 0) *
+              (updatedObservation.output_cost ?? 0) || null,
           total_cost:
-            foundModel.totalPrice ?? 0 * (updatedObservation.total_cost ?? 0),
+            (foundModel.totalPrice?.toNumber() ?? 0) *
+              (updatedObservation.total_cost ?? 0) || null,
         };
       });
     }
