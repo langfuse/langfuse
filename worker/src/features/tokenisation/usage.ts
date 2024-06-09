@@ -5,9 +5,9 @@ import { Model } from "@prisma/client";
 import {
   type TiktokenModel,
   type Tiktoken,
-  getEncoding,
-  encodingForModel,
-} from "js-tiktoken";
+  get_encoding,
+  encoding_for_model,
+} from "tiktoken";
 
 import { z } from "zod";
 
@@ -146,13 +146,13 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
   let encoding: Tiktoken | undefined;
   try {
     cachedTokenizerByModel[model] =
-      cachedTokenizerByModel[model] || encodingForModel(model);
+      cachedTokenizerByModel[model] || encoding_for_model(model);
 
     encoding = cachedTokenizerByModel[model];
   } catch (KeyError) {
     console.log("Warning: model not found. Using cl100k_base encoding.");
 
-    encoding = getEncoding("cl100k_base");
+    encoding = get_encoding("cl100k_base");
   }
   const cleandedText = unicodeToBytesInString(text);
   return encoding?.encode(cleandedText).length;

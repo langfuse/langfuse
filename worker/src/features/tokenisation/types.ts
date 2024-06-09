@@ -1,4 +1,4 @@
-import { type TiktokenModel } from "js-tiktoken";
+import { type TiktokenModel } from "tiktoken";
 
 export const isTiktokenModel = (model: string): model is TiktokenModel => {
   return [

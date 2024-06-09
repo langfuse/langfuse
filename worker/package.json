@@ -4,7 +4,6 @@
   "description": "",
   "license": "MIT",
   "private": true,
-  "type": "module",
   "engines": {
     "node": ">=20"
   },
@@ -40,6 +39,7 @@
     "pino": "^8.20.0",
     "pino-http": "^9.0.0",
     "pino-pretty": "^10.3.1",
+    "tiktoken": "^1.0.15",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
   },
