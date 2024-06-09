@@ -28,8 +28,8 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 
-import logger from "./logger";
-import { evalQueue } from "./redis/consumer";
+import logger from "../../logger";
+import { evalQueue } from "../../redis/consumer";
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace

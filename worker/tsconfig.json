@@ -2,11 +2,11 @@
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
     "esModuleInterop": true,
-    "moduleResolution": "Node16",
-    "module": "Node16",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "declaration": false,
     "declarationMap": false,
-    "lib": ["ES2015"],
+    "lib": ["ES2020"],
     "outDir": "./dist",
     "types": ["node"],
     "downlevelIteration": true
