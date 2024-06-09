@@ -18,6 +18,7 @@
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
+    "@anthropic-ai/tokenizer": "^0.0.4",
     "@langfuse/shared": "workspace:*",
     "@sentry/node": "^7.113.0",
     "@sentry/profiling-node": "^7.113.0",
@@ -31,12 +32,14 @@
     "handlebars": "^4.7.8",
     "helmet": "^7.1.0",
     "ioredis": "^5.4.1",
+    "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",
     "lodash": "^4.17.21",
     "pg": "^8.11.5",
     "pino": "^8.20.0",
     "pino-http": "^9.0.0",
     "pino-pretty": "^10.3.1",
+    "tiktoken": "^1.0.15",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
   },

@@ -638,6 +638,9 @@ importers:
 
   worker:
     dependencies:
+      '@anthropic-ai/tokenizer':
+        specifier: ^0.0.4
+        version: 0.0.4
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
@@ -677,6 +680,9 @@ importers:
       ioredis:
         specifier: ^5.4.1
         version: 5.4.1
+      js-tiktoken:
+        specifier: ^1.0.12
+        version: 1.0.12
       kysely:
         specifier: ^0.27.3
         version: 0.27.3
@@ -695,6 +701,9 @@ importers:
       pino-pretty:
         specifier: ^10.3.1
         version: 10.3.1
+      tiktoken:
+        specifier: ^1.0.15
+        version: 1.0.15
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
@@ -857,7 +866,7 @@ packages:
     resolution: {integrity: sha512-EHRKbxlxlc8W4KCBEseByJ7YwyYCmgu9OyN59H9+IYIGPoKv8tXyQXinkeGDI+cI8Tiuz9wk2jZb/kK7AyvL7g==}
     dependencies:
       '@types/node': 18.19.25
-      tiktoken: 1.0.13
+      tiktoken: 1.0.15
     dev: false
 
   /@aws-crypto/crc32@3.0.0:
@@ -16228,8 +16237,8 @@ packages:
     resolution: {integrity: sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==}
     dev: true
 
-  /tiktoken@1.0.13:
-    resolution: {integrity: sha512-JaL9ZnvTbGFMDIBeGdVkLt4qWTeCPw+n7Ock+wceAGRenuHA6nOOvMJFliNDyXsjg2osGKJWsXtO2xc74VxyDw==}
+  /tiktoken@1.0.15:
+    resolution: {integrity: sha512-sCsrq/vMWUSEW29CJLNmPvWxlVp7yh2tlkAjpJltIKqp5CKf98ZNpdeHRmAlPVFlGEbswDc6SmI8vz64W/qErw==}
     dev: false
 
   /tiny-invariant@1.3.3:

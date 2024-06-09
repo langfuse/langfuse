@@ -47,11 +47,11 @@ jobs:
 
       - name: Check server health
         run: |
-          until curl -f http://localhost:3000/api/public/health; do sleep 5; done
+          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
 
       - name: Check worker health
         run: |
-          until curl -f http://localhost:3030/api/health; do sleep 5; done
+          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
 
       - name: Ensure no unhealthy status
         run: |
