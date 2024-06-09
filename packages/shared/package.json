@@ -53,6 +53,7 @@
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/tokenizer": "^0.0.4",
     "@clickhouse/client": "^1.0.1",
     "@langchain/anthropic": "^0.1.21",
     "@langchain/core": "^0.1.61",
@@ -60,6 +61,7 @@
     "@prisma/client": "^5.13.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
+    "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",
     "langchain": "^0.1.36",
     "lodash": "^4.17.21",

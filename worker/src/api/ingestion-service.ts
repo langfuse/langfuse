@@ -15,6 +15,7 @@ import {
   traceEvent,
   traceRecordInsert,
   traceRecordRead,
+  tokenCount,
 } from "@langfuse/shared/backend";
 import z from "zod";
 import { instrumentAsync } from "../instrumentation";
@@ -297,24 +298,47 @@ export const modelMatch = async (
 
     if (foundModel) {
       observationsGroup.map((observation) => {
+        let updatedObservation = observation;
         if (
-          observation.input_cost ||
-          observation.output_cost ||
-          observation.total_cost
+          !observation.input_usage &&
+          !observation.output_usage &&
+          !observation.total_usage
+        ) {
+          const newInputCount = tokenCount({
+            model: foundModel,
+            text: observation.input,
+          });
+          const newOutputCount = tokenCount({
+            model: foundModel,
+            text: observation.output,
+          });
+          const newTotalCount = newInputCount + newOutputCount;
+          updatedObservation = {
+            ...observation,
+            input_usage: newInputCount,
+            output_usage: newOutputCount,
+            total_usage: newTotalCount,
+          };
+        }
+
+        if (
+          updatedObservation.input_cost ||
+          updatedObservation.output_cost ||
+          updatedObservation.total_cost
         ) {
           return {
-            ...observation,
+            ...updatedObservation,
           };
         }
         return {
-          ...observation,
+          ...updatedObservation,
           model_id: foundModel.id,
           input_cost:
-            foundModel.inputPrice ?? 0 * (observation.input_cost ?? 0),
+            foundModel.inputPrice ?? 0 * (updatedObservation.input_cost ?? 0),
           output_cost:
-            foundModel.outputPrice ?? 0 * (observation.output_cost ?? 0),
+            foundModel.outputPrice ?? 0 * (updatedObservation.output_cost ?? 0),
           total_cost:
-            foundModel.totalPrice ?? 0 * (observation.total_cost ?? 0),
+            foundModel.totalPrice ?? 0 * (updatedObservation.total_cost ?? 0),
         };
       });
     }
@@ -495,8 +519,8 @@ function convertEventToRecord(
       public: trace.body.public ?? false,
       bookmarked: false,
       tags: trace.body.tags ?? [],
-      input: trace.body.input,
-      output: trace.body.output,
+      input: trace.body.input?.toString(), // convert even json to string
+      output: trace.body.output?.toString(),
       session_id: trace.body.sessionId,
       updated_at: Date.now() * 1000,
       created_at: Date.now() * 1000,
@@ -609,8 +633,8 @@ function convertEventToObservation(
         "modelParameters" in obs.body
           ? obs.body.modelParameters ?? undefined
           : undefined,
-      input: obs.body.input ?? undefined,
-      output: obs.body.output ?? undefined,
+      input: obs.body.input?.toString() ?? undefined, // convert even json to string
+      output: obs.body.output?.toString() ?? undefined,
       promptTokens: newInputCount,
       completionTokens: newOutputCount,
       totalTokens: newTotalCount,
