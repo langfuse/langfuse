@@ -14,6 +14,9 @@ export * from "./utils/zod";
 export * from "./utils/json";
 export { env } from "./env";
 
+export * from "./features/usage/usage-types";
+export * from "./features/usage/usage";
+
 // llm api
 export * from "./server/llm/types";
 export * from "./server/llm/fetchLLMCompletion";

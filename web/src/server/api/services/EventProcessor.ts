@@ -1,4 +1,4 @@
-import { tokenCount } from "@/src/features/ingest/lib/usage";
+import { tokenCount } from "@langfuse/shared";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import {
   type legacyObservationCreateEvent,

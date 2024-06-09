@@ -1,12 +1,13 @@
-import { isChatModel, isTiktokenModel } from "@/src/utils/types";
+import { isChatModel, isTiktokenModel } from "./usage-types";
 import { countTokens } from "@anthropic-ai/tokenizer";
-import { type Model } from "@langfuse/shared";
+import { Model } from "@prisma/client";
+
 import {
   type TiktokenModel,
   type Tiktoken,
-  getEncoding,
-  encodingForModel,
-} from "js-tiktoken";
+  get_encoding,
+  encoding_for_model,
+} from "tiktoken";
 import { z } from "zod";
 
 const OpenAiTokenConfig = z.object({
@@ -61,8 +62,8 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
   if (!config.success) {
     console.error(
       `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
-        p.model.tokenizerConfig,
-      )}, ${JSON.stringify(config.error)}`,
+        p.model.tokenizerConfig
+      )}, ${JSON.stringify(config.error)}`
     );
     return undefined;
   }
@@ -72,13 +73,13 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
   if (isChatMessageArray(p.text) && isChatModel(config.data.tokenizerModel)) {
     // check if the tokenizerConfig is a valid chat config
     const parsedConfig = OpenAiChatTokenConfig.safeParse(
-      p.model.tokenizerConfig,
+      p.model.tokenizerConfig
     );
     if (!parsedConfig.success) {
       console.error(
         `Invalid tokenizer config for chat model ${
           p.model.id
-        }: ${JSON.stringify(p.model.tokenizerConfig)}`,
+        }: ${JSON.stringify(p.model.tokenizerConfig)}`
       );
       return undefined;
     }
@@ -144,13 +145,13 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
   let encoding: Tiktoken | undefined;
   try {
     cachedTokenizerByModel[model] =
-      cachedTokenizerByModel[model] || encodingForModel(model);
+      cachedTokenizerByModel[model] || encoding_for_model(model);
 
     encoding = cachedTokenizerByModel[model];
   } catch (KeyError) {
     console.log("Warning: model not found. Using cl100k_base encoding.");
 
-    encoding = getEncoding("cl100k_base");
+    encoding = get_encoding("cl100k_base");
   }
   const cleandedText = unicodeToBytesInString(text);
   return encoding?.encode(cleandedText).length;
@@ -178,7 +179,7 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
       typeof item.role === "string" &&
       "content" in item &&
       typeof item.content === "string" &&
-      (!("name" in item) || typeof item.name === "string"),
+      (!("name" in item) || typeof item.name === "string")
   );
 }
 
