@@ -172,7 +172,7 @@ const storeObservations = async (
 
   // model match of observations
 
-  const modelMatchedRecords = await modelMatch(newRecords);
+  const modelMatchedRecords = await modelMatchAndTokenization(newRecords);
 
   return await insertFinalRecords(
     projectId,
@@ -208,6 +208,10 @@ export const findPrompt = async (
   }, {});
 
   console.log(`uniquePrompts ${JSON.stringify(uniquePrompts)}`);
+
+  if (Object.keys(uniquePrompts).length === 0) {
+    return observationMap;
+  }
 
   // for all unique prompts, find the prompt in the database
 
@@ -247,7 +251,7 @@ export const findPrompt = async (
   return observationMap;
 };
 
-export const modelMatch = async (
+export const modelMatchAndTokenization = async (
   observations: z.infer<typeof observationRecordInsert>[]
 ) => {
   const groupedGenerations = observations.reduce<{
@@ -267,6 +271,8 @@ export const modelMatch = async (
     return acc;
   }, {});
 
+  const updatedObservations: z.infer<typeof observationRecordInsert>[] = [];
+
   for (const [key, observationsGroup] of Object.entries(groupedGenerations)) {
     const { model, unit, projectId } = JSON.parse(key) as {
       model: string;
@@ -284,10 +290,6 @@ export const modelMatch = async (
 
     console.log(`Execute key: ${model} ${unit} ${projectId}`);
 
-    if (!projectId) {
-      throw new Error("No project id");
-    }
-
     const foundModel = await findModel({
       event: { projectId, model, unit },
     });
@@ -297,13 +299,20 @@ export const modelMatch = async (
     );
 
     if (foundModel) {
-      observationsGroup.map((observation) => {
-        let updatedObservation = observation;
+      observationsGroup.forEach((observation) => {
+        let updatedObservation = {
+          ...observation,
+          internal_model: foundModel.id,
+        };
+
         if (
-          !observation.input_usage &&
-          !observation.output_usage &&
-          !observation.total_usage
+          !observation.provided_input_usage &&
+          !observation.provided_output_usage &&
+          !observation.provided_total_usage
         ) {
+          console.log(
+            `tokenizing ${JSON.stringify(observation.input)} ${JSON.stringify(observation.output)}`
+          );
           const newInputCount = tokenCount({
             model: foundModel,
             text: observation.input,
@@ -314,42 +323,60 @@ export const modelMatch = async (
           });
           const newTotalCount =
             (newInputCount ?? 0) + (newOutputCount ?? 0) || null;
+
+          console.log(
+            `found model ${foundModel.id} ${newInputCount} ${newOutputCount} ${newTotalCount}`
+          );
           updatedObservation = {
-            ...observation,
-            input_usage: newInputCount,
-            output_usage: newOutputCount,
-            total_usage: newTotalCount,
+            ...updatedObservation,
+            input_usage: newInputCount ?? null,
+            output_usage: newOutputCount ?? null,
+            total_usage: newTotalCount ?? null,
+          };
+        } else {
+          updatedObservation = {
+            ...updatedObservation,
+            input_usage: observation.provided_input_usage ?? null,
+            output_usage: observation.provided_output_usage ?? null,
+            total_usage: observation.provided_total_usage ?? null,
           };
         }
 
         if (
-          updatedObservation.input_cost ||
-          updatedObservation.output_cost ||
-          updatedObservation.total_cost
+          !updatedObservation.provided_input_cost &&
+          !updatedObservation.provided_output_cost &&
+          !updatedObservation.provided_total_cost
         ) {
-          return {
+          updatedObservation = {
             ...updatedObservation,
+            input_cost:
+              (foundModel.inputPrice?.toNumber() ?? 0) *
+                (updatedObservation.input_usage ?? 0) || null,
+            output_cost:
+              (foundModel.outputPrice?.toNumber() ?? 0) *
+                (updatedObservation.output_usage ?? 0) || null,
+            total_cost:
+              (updatedObservation.input_cost ?? 0) +
+                (updatedObservation.output_cost ?? 0) || null,
           };
         }
-        return {
-          ...updatedObservation,
-          model_id: foundModel.id,
-          input_cost:
-            (foundModel.inputPrice?.toNumber() ?? 0) *
-              (updatedObservation.input_cost ?? 0) || null,
-          output_cost:
-            (foundModel.outputPrice?.toNumber() ?? 0) *
-              (updatedObservation.output_cost ?? 0) || null,
-          total_cost:
-            (foundModel.totalPrice?.toNumber() ?? 0) *
-              (updatedObservation.total_cost ?? 0) || null,
-        };
+
+        console.log(`Fully updated ${JSON.stringify(updatedObservation)}`);
+        updatedObservations.push(updatedObservation);
       });
     }
   }
 
-  // return a list of all groupedGenerations values, without the keys
-  return Object.values(groupedGenerations).flat();
+  const allObservations = Object.values(groupedGenerations).flat();
+  const nonUpdatedObservations = allObservations.filter(
+    (obs) => !updatedObservations.find((u) => u.id === obs.id)
+  );
+
+  console.log(
+    `returning ${JSON.stringify([...updatedObservations, ...nonUpdatedObservations])}`
+  );
+
+  return [...updatedObservations, ...nonUpdatedObservations];
 };
 
 export const convertJsonSchemaToRecord = (
@@ -523,8 +550,8 @@ function convertEventToRecord(
       public: trace.body.public ?? false,
       bookmarked: false,
       tags: trace.body.tags ?? [],
-      input: trace.body.input?.toString(), // convert even json to string
-      output: trace.body.output?.toString(),
+      input: trace.body.input ? JSON.stringify(trace.body.input) : undefined, // convert even json to string
+      output: trace.body.output ? JSON.stringify(trace.body.output) : undefined, // convert even json to string
       session_id: trace.body.sessionId,
       updated_at: Date.now() * 1000,
       created_at: Date.now() * 1000,
@@ -635,22 +662,27 @@ function convertEventToObservation(
       model: "model" in obs.body ? obs.body.model : undefined,
       model_parameters:
         "modelParameters" in obs.body
-          ? obs.body.modelParameters ?? undefined
+          ? obs.body.modelParameters
+            ? JSON.stringify(obs.body.modelParameters)
+            : undefined
           : undefined,
-      input: obs.body.input?.toString() ?? undefined, // convert even json to string
-      output: obs.body.output?.toString() ?? undefined,
-      promptTokens: newInputCount,
-      completionTokens: newOutputCount,
-      totalTokens: newTotalCount,
+      input: obs.body.input ? JSON.stringify(obs.body.input) : undefined, // convert even json to string
+      output: obs.body.output ? JSON.stringify(obs.body.output) : undefined, // convert even json to string
+      provided_input_usage: newInputCount,
+      provided_output_usage: newOutputCount,
+      provided_total_usage: newTotalCount,
       unit: newUnit,
       level: obs.body.level ?? "DEFAULT",
       status_message: obs.body.statusMessage ?? undefined,
       parent_observation_id: obs.body.parentObservationId ?? undefined,
       version: obs.body.version ?? undefined,
       project_id: projectId,
-      input_cost: "usage" in obs.body ? obs.body.usage?.inputCost : undefined,
-      output_cost: "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
-      total_cost: "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
+      provided_input_cost:
+        "usage" in obs.body ? obs.body.usage?.inputCost : undefined,
+      provided_output_cost:
+        "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
+      provided_total_cost:
+        "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
       prompt_id: obs.body.id ? observationMap.get(obs.body.id) : undefined,
       created_at: Date.now(),
     });

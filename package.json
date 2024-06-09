@@ -69,5 +69,52 @@
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
     }
-  }
+  },
+  "a": [
+    {
+      "id": "5a3e2382-1563-4bc3-b0a1-9a1103f1f73e",
+      "trace_id": "8f5dcf91-8079-452e-be8a-9b0677f61b5a",
+      "project_id": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "GENERATION",
+      "name": "e41224d1-de9c-42e8-aebc-5c7158c85f7a",
+      "metadata": {
+        "someKey": "\"someResponse\""
+      },
+      "level": "DEFAULT",
+      "input": "[{\"role\":\"user\",\"content\":\"1 + 1 = \"}]",
+      "model": "gpt-3.5-turbo-0125",
+      "model_parameters": "{\"temperature\":0,\"max_tokens\":\"inf\",\"top_p\":1,\"frequency_penalty\":0,\"presence_penalty\":0}",
+      "created_at": 1717938500424,
+      "start_time": 1717938500941000,
+      "output": "{\"role\":\"assistant\",\"content\":\"2\"}",
+      "unit": "TOKENS",
+      "input_cost": 0.000007499999999999999,
+      "output_cost": 0.0000135,
+      "total_cost": null,
+      "end_time": 1717938500498000,
+      "internal_model": "clruwnahl00030al7ab9rark7",
+      "input_usage": 15,
+      "output_usage": 9,
+      "total_usage": 24
+    },
+    {
+      "id": "5a3e2382-1563-4bc3-b0a1-9a1103f1f73e",
+      "trace_id": "8f5dcf91-8079-452e-be8a-9b0677f61b5a",
+      "project_id": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "GENERATION",
+      "name": "e41224d1-de9c-42e8-aebc-5c7158c85f7a",
+      "metadata": {
+        "someKey": "\"someResponse\""
+      },
+      "level": "DEFAULT",
+      "input": "[{\"role\":\"user\",\"content\":\"1 + 1 = \"}]",
+      "model": "gpt-3.5-turbo-0125",
+      "model_parameters": "{\"temperature\":0,\"max_tokens\":\"inf\",\"top_p\":1,\"frequency_penalty\":0,\"presence_penalty\":0}",
+      "created_at": 1717938500424,
+      "start_time": 1717938500941000,
+      "output": "{\"role\":\"assistant\",\"content\":\"2\"}",
+      "unit": "TOKENS",
+      "end_time": 1717938500498000
+    }
+  ]
 }
