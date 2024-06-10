@@ -18,6 +18,7 @@ import {
 } from "@/src/components/ui/drawer";
 import { TracePreview } from "@/src/components/trace/TracePreview";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 const SCALE_WIDTH = 800; // in pixels
 const LABEL_WIDTH = 35;
@@ -84,6 +85,7 @@ function TraceTreeItem({
         <TreeItemInner
           latency={latency}
           type={observation.type}
+          name={observation.name}
           startOffset={startOffset}
           totalScaleSpan={totalScaleSpan}
           setBackgroundColor={setBackgroundColor}
@@ -135,6 +137,11 @@ export function TraceTimelineChart({
 }) {
   const { latency, name, id } = trace;
   const [backgroundColor, setBackgroundColor] = useState("");
+  const [expandedItems, setExpandedItems] = useLocalStorage<string[]>(
+    `${trace.id}-expanded`,
+    [trace.id],
+  );
+
   if (!latency) return null;
 
   const nestedObservations = nestObservations(observations);
@@ -182,7 +189,8 @@ export function TraceTimelineChart({
             expandIcon: PlusIcon,
             collapseIcon: MinusIcon,
           }}
-          defaultExpandedItems={[id]}
+          expandedItems={expandedItems}
+          onExpandedItemsChange={(_, itemIds) => setExpandedItems(itemIds)}
         >
           <TreeItem
             key={id}
@@ -284,7 +292,7 @@ function TreeItemInner({
                 <Search className="h-4 w-4"></Search>
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="h-1/3 w-full md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
+            <DrawerContent className="h-1/3 w-full overflow-y-auto md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
               {children}
             </DrawerContent>
           </Drawer>
