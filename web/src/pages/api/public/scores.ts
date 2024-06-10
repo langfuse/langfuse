@@ -20,15 +20,24 @@ import { isPrismaException } from "@/src/utils/exceptions";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
-const ScoresGetSchema = z.object({
-  ...paginationZod,
-  userId: z.string().nullish(),
-  name: z.string().nullish(),
-  fromTimestamp: stringDate,
-  source: z.nativeEnum(ScoreSource).nullish(),
-  value: z.coerce.number().nullish(),
-  operator: z.enum(operators).nullish(),
-});
+const ScoresGetSchema = z
+  .object({
+    ...paginationZod,
+    userId: z.string().nullish(),
+    name: z.string().nullish(),
+    fromTimestamp: stringDate,
+    source: z.nativeEnum(ScoreSource).nullish(),
+    value: z.coerce.number().nullish(),
+    operator: z.enum(operators).nullish(),
+    scoreIds: z
+      .string()
+      .transform((str) => str.split(",").map((id) => id.trim())) // Split the comma-separated string
+      .refine((arr) => arr.every((id) => typeof id === "string"), {
+        message: "Each score ID must be a string",
+      })
+      .nullish(),
+  })
+  .strict(); // Use strict to give 400s on typo'd query params
 
 export default async function handler(
   req: NextApiRequest,
@@ -117,6 +126,9 @@ export default async function handler(
         obj.operator && obj.value !== null && obj.value !== undefined
           ? Prisma.sql`AND s."value" ${Prisma.raw(`${obj.operator}`)} ${obj.value}`
           : Prisma.empty;
+      const scoreIdCondition = obj.scoreIds
+        ? Prisma.sql`AND s."id" = ANY(${obj.scoreIds})`
+        : Prisma.empty;
 
       const scores = await prisma.$queryRaw<
         Array<Score & { trace: { userId: string } }>
@@ -139,7 +151,8 @@ export default async function handler(
           ${sourceCondition}
           ${fromTimestampCondition}
           ${valueCondition}
-          ORDER BY t."timestamp" DESC
+          ${scoreIdCondition}
+          ORDER BY s."timestamp" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}
           `);
 
@@ -154,6 +167,7 @@ export default async function handler(
           ${sourceCondition}
           ${fromTimestampCondition}
           ${valueCondition}
+          ${scoreIdCondition}
         `,
       );
 
