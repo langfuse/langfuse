@@ -351,6 +351,7 @@ export function TracePage({ traceId }: { traceId: string }) {
           <TraceTimelineChart
             key={trace.data.id}
             trace={trace.data}
+            scores={trace.data.scores}
             observations={trace.data.observations}
             projectId={trace.data.projectId}
           />

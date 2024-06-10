@@ -1,6 +1,6 @@
 import { Card } from "@/src/components/ui/card";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { $Enums, type Trace } from "@langfuse/shared";
+import { $Enums, type Score, type Trace } from "@langfuse/shared";
 
 import React from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
@@ -11,6 +11,13 @@ import { nestObservations } from "@/src/components/trace/ObservationTree";
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTrigger,
+} from "@/src/components/ui/drawer";
+import { TracePreview } from "@/src/components/trace/TracePreview";
+import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 
 const scaleWidth = 800; // in pixels
 const labelWidth = 35;
@@ -25,15 +32,14 @@ const colors: Map<TreeItemType, string> = new Map([
 ]);
 
 const predefinedStepSizes = [
-  0.25, 0.5, 0.75, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024,
+  0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10,
 ];
 
 const calculateStepSize = (latency: number, scaleWidth: number) => {
   const calculatedStepSize = latency / (scaleWidth / 100);
-  return predefinedStepSizes.reduce((prev, curr) =>
-    Math.abs(curr - calculatedStepSize) < Math.abs(prev - calculatedStepSize)
-      ? curr
-      : prev,
+  return (
+    predefinedStepSizes.find((step) => step >= calculatedStepSize) ||
+    predefinedStepSizes[predefinedStepSizes.length - 1]
   );
 };
 
@@ -43,25 +49,25 @@ const renderTree = ({
   traceStartTime,
   totalScaleSpan,
   projectId,
+  scores,
+  observations,
 }: {
   observation: NestedObservation;
   level: number;
   traceStartTime: Date;
   totalScaleSpan: number;
   projectId: string;
+  scores: Score[];
+  observations: Array<ObservationReturnType>;
 }) => {
   const { startTime, endTime } = observation || {};
-  const latency =
-    startTime && endTime
-      ? (endTime.getTime() - startTime.getTime()) / 1000
-      : undefined;
-  const startOffset = startTime
-    ? ((startTime.getTime() - traceStartTime.getTime()) /
-        totalScaleSpan /
-        1000) *
-      scaleWidth
-    : 0;
-  if (!latency) return null;
+
+  if (!endTime) return null;
+
+  const latency = (endTime.getTime() - startTime.getTime()) / 1000;
+  const startOffset =
+    ((startTime.getTime() - traceStartTime.getTime()) / totalScaleSpan / 1000) *
+    scaleWidth;
 
   return (
     <TreeItem
@@ -76,7 +82,20 @@ const renderTree = ({
           type={observation.type}
           startOffset={startOffset}
           totalScaleSpan={totalScaleSpan}
-        />
+        >
+          <div className="p-8">
+            <h3 className="mb-6 text-2xl font-semibold tracking-tight">
+              Detail view
+            </h3>
+            <ObservationPreview
+              observations={observations}
+              scores={scores}
+              projectId={projectId}
+              currentObservationId={observation.id}
+              traceId={observation.traceId}
+            />
+          </div>
+        </TreeItemInner>
       }
     >
       {Array.isArray(observation.children)
@@ -87,6 +106,8 @@ const renderTree = ({
               traceStartTime,
               totalScaleSpan,
               projectId,
+              scores,
+              observations,
             }),
           )
         : null}
@@ -98,10 +119,12 @@ export function TraceTimelineChart({
   trace,
   observations,
   projectId,
+  scores,
 }: {
   trace: Trace & { latency?: number };
   observations: Array<ObservationReturnType>;
   projectId: string;
+  scores: Score[];
 }) {
   const { latency, name, id } = trace;
   if (!latency) return null;
@@ -115,7 +138,7 @@ export function TraceTimelineChart({
         <h3 className="p-2 text-2xl font-semibold tracking-tight">
           Trace Timeline
         </h3>
-        <div className={`relative mr-2 h-4 w-[${scaleWidth}px]`}>
+        <div className="relative mr-2 h-4" style={{ width: `${scaleWidth}px` }}>
           {Array.from({ length: scaleWidth / 100 + 1 }).map((_, index) => {
             const step = stepSize * index;
             const isLastStep = index === scaleWidth / 100;
@@ -152,20 +175,35 @@ export function TraceTimelineChart({
           <TreeItem
             key={id}
             itemId={id}
-            label={TreeItemInner({
-              name,
-              latency,
-              totalScaleSpan,
-              type: "TRACE",
-            })}
+            label={
+              <TreeItemInner
+                name={name}
+                latency={latency}
+                totalScaleSpan={totalScaleSpan}
+                type="TRACE"
+              >
+                <div className="p-8">
+                  <h3 className="mb-6 text-2xl font-semibold tracking-tight">
+                    Detail view
+                  </h3>
+                  <TracePreview
+                    trace={trace}
+                    observations={observations}
+                    scores={scores}
+                  />
+                </div>
+              </TreeItemInner>
+            }
           >
             {nestedObservations.map((observation) =>
               renderTree({
                 observation,
                 level: 0,
-                traceStartTime: nestedObservations[0].startTime, // adjust this calculation
+                traceStartTime: nestedObservations[0].startTime,
                 totalScaleSpan,
                 projectId,
+                scores,
+                observations,
               }),
             )}
           </TreeItem>
@@ -181,12 +219,14 @@ function TreeItemInner({
   type,
   startOffset = 0,
   name,
+  children,
 }: {
   latency: number;
   totalScaleSpan: number;
   type: TreeItemType;
   startOffset?: number;
   name?: string | null;
+  children?: React.ReactNode;
 }) {
   const itemWidth = (latency / totalScaleSpan) * scaleWidth;
   const itemOffsetLabelWidth = itemWidth + startOffset + labelWidth;
@@ -198,20 +238,31 @@ function TreeItemInner({
           {type}
         </span>
         <span className="break-all text-sm">{name}</span>
-        <Button
-          className="focus:none active:none hidden justify-start hover:!bg-transparent group-hover:block"
-          type="button"
-          size="xs"
-          variant="ghost"
-          onClick={(event) => {
-            event.stopPropagation();
-            console.log("hi");
-          }}
-        >
-          <Search className="h-4 w-4"></Search>
-        </Button>
+        <Drawer>
+          <DrawerTrigger asChild>
+            <Button
+              className="focus:none active:none hidden justify-start hover:!bg-transparent group-hover:block"
+              type="button"
+              size="xs"
+              variant="ghost"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              <Search className="h-4 w-4"></Search>
+            </Button>
+          </DrawerTrigger>
+          <DrawerContent
+            className="h-1/3 w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5"
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            {children}
+          </DrawerContent>
+        </Drawer>
       </div>
-      <div className="flex w-full items-center overflow-x-auto">
+      <div className="flex items-center" style={{ width: `${scaleWidth}px` }}>
         <div className={`relative w-[${scaleWidth}px]`}>
           <div className="ml-4 mr-4 h-full border-r-2"></div>
           <div
@@ -226,8 +277,8 @@ function TreeItemInner({
           >
             <span
               className={cn(
-                "justify-end text-xs text-muted-foreground",
-                itemOffsetLabelWidth > scaleWidth ? "mr-1" : "-mr-10",
+                "justify-end text-xs text-muted-foreground ",
+                itemOffsetLabelWidth > scaleWidth ? "mr-1" : "-mr-9",
               )}
             >
               {latency.toFixed(2)}s
