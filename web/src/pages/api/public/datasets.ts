@@ -4,7 +4,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { jsonSchema, paginationZod } from "@/src/utils/zod";
+import { jsonSchema, paginationZod } from "@langfuse/shared";
 
 const CreateDatasetSchema = z.object({
   name: z.string(),

@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "2.48.1",
+  "version": "2.50.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -25,11 +25,13 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "models:migrate": "turbo run models:migrate",
-    "release": "dotenv -e ../.env -- release-it"
+    "release": "dotenv -e ../.env -- release-it",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@release-it/bumper": "^6.0.1",
     "dotenv-cli": "^7.4.2",
+    "husky": "^9.0.11",
     "prettier": "^3.2.5",
     "release-it": "^17.2.1",
     "turbo": "^1.13.3"
@@ -37,7 +39,13 @@
   "release-it": {
     "git": {
       "commitMessage": "chore: release v${version}",
-      "tagName": "v${version}"
+      "tagName": "v${version}",
+      "commitArgs": [
+        "--no-verify"
+      ],
+      "pushArgs": [
+        "--no-verify"
+      ]
     },
     "plugins": {
       "@release-it/bumper": {

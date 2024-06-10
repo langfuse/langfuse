@@ -233,9 +233,8 @@ model Trace {
     createdAt  DateTime      @default(now()) @map("created_at")
     updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
 
-    DatasetRunItems DatasetRunItems[]
-    DatasetItem     DatasetItem[]
-    JobExecution    JobExecution[]
+    DatasetItem  DatasetItem[]
+    JobExecution JobExecution[]
 
     @@index([projectId])
     @@index([sessionId])
@@ -298,21 +297,20 @@ model Observation {
 
     // GENERATION ONLY
     model               String?
-    internalModel       String?           @map("internal_model")
+    internalModel       String?       @map("internal_model")
     modelParameters     Json?
     input               Json?
     output              Json?
-    promptTokens        Int               @default(0) @map("prompt_tokens")
-    completionTokens    Int               @default(0) @map("completion_tokens")
-    totalTokens         Int               @default(0) @map("total_tokens")
+    promptTokens        Int           @default(0) @map("prompt_tokens")
+    completionTokens    Int           @default(0) @map("completion_tokens")
+    totalTokens         Int           @default(0) @map("total_tokens")
     unit                String?
-    inputCost           Decimal?          @map("input_cost")
-    outputCost          Decimal?          @map("output_cost")
-    totalCost           Decimal?          @map("total_cost")
-    completionStartTime DateTime?         @map("completion_start_time")
-    project             Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    inputCost           Decimal?      @map("input_cost")
+    outputCost          Decimal?      @map("output_cost")
+    totalCost           Decimal?      @map("total_cost")
+    completionStartTime DateTime?     @map("completion_start_time")
+    project             Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     derivedDatasetItems DatasetItem[]
-    datasetRunItems     DatasetRunItems[]
 
     promptId String? @map("prompt_id")
     prompt   Prompt? @relation(fields: [promptId], onDelete: SetNull, references: [id])
@@ -467,29 +465,6 @@ enum ScoreDataType {
     BOOLEAN
 }
 
-enum PricingUnit {
-    PER_1000_TOKENS
-    PER_1000_CHARS
-}
-
-enum TokenType {
-    PROMPT
-    COMPLETION
-    TOTAL
-}
-
-model Pricing {
-    id          String      @id @default(cuid())
-    modelName   String      @map("model_name")
-    pricingUnit PricingUnit @default(PER_1000_TOKENS) @map("pricing_unit")
-    price       Decimal
-    currency    String      @default("USD")
-    tokenType   TokenType   @map("token_type")
-
-    @@index(modelName)
-    @@map("pricings")
-}
-
 model CronJobs {
     name         String    @id
     lastRun      DateTime? @map("last_run")
@@ -566,17 +541,15 @@ model DatasetRuns {
 }
 
 model DatasetRunItems {
-    id            String       @id @default(cuid())
-    datasetRunId  String       @map("dataset_run_id")
-    datasetRun    DatasetRuns  @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
-    datasetItemId String       @map("dataset_item_id")
-    datasetItem   DatasetItem  @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
-    traceId       String       @map("trace_id")
-    trace         Trace        @relation(fields: [traceId], references: [id], onDelete: Cascade)
-    observationId String?      @map("observation_id")
-    observation   Observation? @relation(fields: [observationId], references: [id], onDelete: Cascade)
-    createdAt     DateTime     @default(now()) @map("created_at")
-    updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at")
+    id            String      @id @default(cuid())
+    datasetRunId  String      @map("dataset_run_id")
+    datasetRun    DatasetRuns @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
+    datasetItemId String      @map("dataset_item_id")
+    datasetItem   DatasetItem @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
+    traceId       String      @map("trace_id")
+    observationId String?     @map("observation_id")
+    createdAt     DateTime    @default(now()) @map("created_at")
+    updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
 
     @@index([datasetRunId], type: Hash)
     @@index([datasetItemId], type: Hash)
