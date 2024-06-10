@@ -16,14 +16,9 @@ export const Tooltip = ({
   if (!active || !payload) return null;
 
   // Filter out duplicates and sort by value in descending order
-  const payloadSet = new Set();
-  const uniquePayload = payload.filter((category) => {
-    if (payloadSet.has(category.name)) {
-      return false;
-    }
-    payloadSet.add(category.name);
-    return true;
-  });
+  const uniquePayload = Array.from(
+    new Map(payload.map((category) => [category.name, category])).values(),
+  );
 
   const sortedPayload = uniquePayload.sort(
     (a, b) => (Number(b.value) ?? 0) - (Number(a.value) ?? 0),
