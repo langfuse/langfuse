@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { PlusIcon, Trash2 } from "lucide-react";
+import { PlusIcon, Trash } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -315,7 +315,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                                     index === 0 || index !== fields.length - 1
                                   }
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash className="h-4 w-4" />
                                 </Button>
                               )}
                             </div>

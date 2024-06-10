@@ -1,4 +1,4 @@
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import { ZodError } from "zod";
 
 // Create test cases

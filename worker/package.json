@@ -1,9 +1,8 @@
 {
   "name": "worker",
-  "version": "2.48.0",
+  "version": "2.49.1",
   "description": "",
   "license": "MIT",
-  "main": "index.js",
   "private": true,
   "engines": {
     "node": ">=20"
@@ -11,7 +10,7 @@
   "scripts": {
     "test": "dotenv -e ../.env -- vitest run --reporter=basic --disable-console-intercept",
     "coverage": "vitest run --coverage",
-    "start": "dotenv -e ../.env -- node dist/src/index.js",
+    "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
@@ -19,6 +18,7 @@
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
+    "@anthropic-ai/tokenizer": "^0.0.4",
     "@langfuse/shared": "workspace:*",
     "@sentry/node": "^7.113.0",
     "@sentry/profiling-node": "^7.113.0",
@@ -32,12 +32,14 @@
     "handlebars": "^4.7.8",
     "helmet": "^7.1.0",
     "ioredis": "^5.4.1",
+    "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",
     "lodash": "^4.17.21",
     "pg": "^8.11.5",
     "pino": "^8.20.0",
     "pino-http": "^9.0.0",
     "pino-pretty": "^10.3.1",
+    "tiktoken": "^1.0.15",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
   },
@@ -50,7 +52,7 @@
     "@types/lodash": "^4.17.4",
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.6",
-    "@typescript-eslint/parser": "^7.7.0",
+    "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { DatasetStatus, prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema } from "@langfuse/shared";
 import { v4 as uuidv4 } from "uuid";
 import { isPrismaException } from "@/src/utils/exceptions";
 

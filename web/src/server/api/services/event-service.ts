@@ -1,6 +1,6 @@
 import { type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { type NextApiRequest } from "next";
-import { type jsonSchema } from "@/src/utils/zod";
+import { type jsonSchema } from "@langfuse/shared";
 import lodash from "lodash";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
