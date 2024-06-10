@@ -11,6 +11,7 @@ import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "../env";
+import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -169,6 +170,12 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     });
   else if (provider.authProvider === "cognito")
     return CognitoProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
+  else if (provider.authProvider === "custom")
+    return CustomSSOProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
