@@ -286,13 +286,14 @@ export function CustomSSOProvider<P extends CustomSSOUser>(
     name: "CustomSSOProvider",
     type: "oauth",
     wellKnown: `${options.issuer}/.well-known/openid-configuration`,
-    authorization: { params: { scope: "openid profile" } },
+    authorization: { params: { scope: "openid email profile" } },
     checks: ["pkce", "state"],
     idToken: true,
     profile(profile) {
       return {
         id: profile.sub,
         name: profile.name,
+        email: profile.email,
         image: null,
       };
     },

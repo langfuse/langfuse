@@ -62,9 +62,8 @@ export type PageProps = {
 // eslint-disable-next-line @typescript-eslint/require-await
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   const sso: boolean = await isAnySsoConfigured();
-  console.log(env.AUTH_CUSTOM_NAME);
 
-  var x = {
+  return {
     props: {
       authProviders: {
         google:
@@ -102,7 +101,6 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
     },
   };
-  return x;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
