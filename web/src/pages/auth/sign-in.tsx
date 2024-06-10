@@ -50,19 +50,21 @@ export type PageProps = {
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
-    custom: boolean;
+    custom?: {
+      name: string;
+    };
     sso: boolean;
   };
   signUpDisabled: boolean;
-  customAuthProviderName: string;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
 // eslint-disable-next-line @typescript-eslint/require-await
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   const sso: boolean = await isAnySsoConfigured();
+  console.log(env.AUTH_CUSTOM_NAME);
 
-  return {
+  var x = {
     props: {
       authProviders: {
         google:
@@ -92,35 +94,30 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
           env.AUTH_CUSTOM_ISSUER !== undefined &&
-          env.AUTH_CUSTOM_NAME !== undefined,
+          env.AUTH_CUSTOM_NAME !== undefined
+            ? { name: env.AUTH_CUSTOM_NAME }
+            : undefined,
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
-      customAuthProviderName:
-        env.AUTH_CUSTOM_NAME === undefined ? "SSO" : env.AUTH_CUSTOM_NAME,
     },
   };
+  return x;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
 export function SSOButtons({
-  props,
+  authProviders,
   action = "sign in",
 }: {
-  props: PageProps;
+  authProviders: PageProps["authProviders"];
   action?: string;
 }) {
   const capture = usePostHogClientCapture();
-  console.log(props);
-  console.log(props.authProviders);
-  console.log(props.customAuthProviderName);
-  console.log("test");
-  const authProviders = props.authProviders;
-  const customAuthProviderName = props.customAuthProviderName;
 
   return (
     // any authprovider from props is enanbles
-    Object.entries(props.authProviders).some(
+    Object.entries(authProviders).some(
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
@@ -211,7 +208,7 @@ export function SSOButtons({
               variant="secondary"
             >
               <TbBrandOauth className="mr-3" size={18} />
-              {customAuthProviderName ? customAuthProviderName : "SSO"}
+              {authProviders.custom.name}
             </Button>
           )}
         </div>
