@@ -2,7 +2,7 @@ import { Card } from "@/src/components/ui/card";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { $Enums, type Score, type Trace } from "@langfuse/shared";
 
-import React from "react";
+import React, { useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 
@@ -19,8 +19,9 @@ import {
 import { TracePreview } from "@/src/components/trace/TracePreview";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 
-const scaleWidth = 800; // in pixels
-const labelWidth = 35;
+const SCALE_WIDTH = 800; // in pixels
+const LABEL_WIDTH = 35;
+const TREE_INDENTATION = 12;
 
 type TreeItemType = $Enums.ObservationType | "TRACE";
 
@@ -43,7 +44,7 @@ const calculateStepSize = (latency: number, scaleWidth: number) => {
   );
 };
 
-const renderTree = ({
+function TraceTreeItem({
   observation,
   level = 0,
   traceStartTime,
@@ -59,20 +60,22 @@ const renderTree = ({
   projectId: string;
   scores: Score[];
   observations: Array<ObservationReturnType>;
-}) => {
+}) {
   const { startTime, endTime } = observation || {};
+  const [backgroundColor, setBackgroundColor] = useState("");
 
   if (!endTime) return null;
 
   const latency = (endTime.getTime() - startTime.getTime()) / 1000;
   const startOffset =
     ((startTime.getTime() - traceStartTime.getTime()) / totalScaleSpan / 1000) *
-    scaleWidth;
+    SCALE_WIDTH;
 
   return (
     <TreeItem
       classes={{
-        content: "border-l border-dashed !rounded-none",
+        content: `border-l border-dashed !rounded-none ${backgroundColor}`,
+        selected: "!bg-background",
       }}
       key={observation.id}
       itemId={observation.id}
@@ -82,6 +85,8 @@ const renderTree = ({
           type={observation.type}
           startOffset={startOffset}
           totalScaleSpan={totalScaleSpan}
+          setBackgroundColor={setBackgroundColor}
+          level={level}
         >
           <div className="p-8">
             <h3 className="mb-6 text-2xl font-semibold tracking-tight">
@@ -99,21 +104,22 @@ const renderTree = ({
       }
     >
       {Array.isArray(observation.children)
-        ? observation.children.map((child) =>
-            renderTree({
-              observation: child,
-              level: level + 1,
-              traceStartTime,
-              totalScaleSpan,
-              projectId,
-              scores,
-              observations,
-            }),
-          )
+        ? observation.children.map((child) => (
+            <TraceTreeItem
+              key={child.id}
+              observation={child}
+              level={level + 1}
+              traceStartTime={traceStartTime}
+              totalScaleSpan={totalScaleSpan}
+              projectId={projectId}
+              scores={scores}
+              observations={observations}
+            />
+          ))
         : null}
     </TreeItem>
   );
-};
+}
 
 export function TraceTimelineChart({
   trace,
@@ -127,21 +133,26 @@ export function TraceTimelineChart({
   scores: Score[];
 }) {
   const { latency, name, id } = trace;
+  const [backgroundColor, setBackgroundColor] = useState("");
   if (!latency) return null;
+
   const nestedObservations = nestObservations(observations);
-  const stepSize = calculateStepSize(latency, scaleWidth);
-  const totalScaleSpan = stepSize * (scaleWidth / 100);
+  const stepSize = calculateStepSize(latency, SCALE_WIDTH);
+  const totalScaleSpan = stepSize * (SCALE_WIDTH / 100);
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col overflow-x-auto">
       <div className="grid w-full grid-cols-[1fr,auto] items-center p-2">
-        <h3 className="p-2 text-2xl font-semibold tracking-tight">
+        <h3 className="w-[248px] p-2 text-2xl font-semibold tracking-tight">
           Trace Timeline
         </h3>
-        <div className="relative mr-2 h-4" style={{ width: `${scaleWidth}px` }}>
-          {Array.from({ length: scaleWidth / 100 + 1 }).map((_, index) => {
+        <div
+          className="relative mr-2 h-4"
+          style={{ width: `${SCALE_WIDTH}px` }}
+        >
+          {Array.from({ length: SCALE_WIDTH / 100 + 1 }).map((_, index) => {
             const step = stepSize * index;
-            const isLastStep = index === scaleWidth / 100;
+            const isLastStep = index === SCALE_WIDTH / 100;
 
             return isLastStep ? (
               <span
@@ -175,11 +186,16 @@ export function TraceTimelineChart({
           <TreeItem
             key={id}
             itemId={id}
+            classes={{
+              content: backgroundColor,
+              selected: "!bg-background",
+            }}
             label={
               <TreeItemInner
                 name={name}
                 latency={latency}
                 totalScaleSpan={totalScaleSpan}
+                setBackgroundColor={setBackgroundColor}
                 type="TRACE"
               >
                 <div className="p-8">
@@ -195,17 +211,18 @@ export function TraceTimelineChart({
               </TreeItemInner>
             }
           >
-            {nestedObservations.map((observation) =>
-              renderTree({
-                observation,
-                level: 0,
-                traceStartTime: nestedObservations[0].startTime,
-                totalScaleSpan,
-                projectId,
-                scores,
-                observations,
-              }),
-            )}
+            {nestedObservations.map((observation) => (
+              <TraceTreeItem
+                key={observation.id}
+                observation={observation}
+                level={1}
+                traceStartTime={nestedObservations[0].startTime}
+                totalScaleSpan={totalScaleSpan}
+                projectId={projectId}
+                scores={scores}
+                observations={observations}
+              />
+            ))}
           </TreeItem>
         </SimpleTreeView>
       </div>
@@ -220,6 +237,9 @@ function TreeItemInner({
   startOffset = 0,
   name,
   children,
+  setBackgroundColor,
+  level = 0,
+  customLabelWidth = 212,
 }: {
   latency: number;
   totalScaleSpan: number;
@@ -227,13 +247,19 @@ function TreeItemInner({
   startOffset?: number;
   name?: string | null;
   children?: React.ReactNode;
+  setBackgroundColor: (color: string) => void;
+  level?: number;
+  customLabelWidth?: number;
 }) {
-  const itemWidth = (latency / totalScaleSpan) * scaleWidth;
-  const itemOffsetLabelWidth = itemWidth + startOffset + labelWidth;
+  const itemWidth = (latency / totalScaleSpan) * SCALE_WIDTH;
+  const itemOffsetLabelWidth = itemWidth + startOffset + LABEL_WIDTH;
 
   return (
     <div className="group my-1 grid w-full grid-cols-[1fr,auto] items-center">
-      <div className="grid min-w-[200px] grid-cols-[auto,max-content,1fr] items-center gap-2">
+      <div
+        className="grid grid-cols-[auto,max-content,1fr] items-center gap-2"
+        style={{ width: customLabelWidth - level * TREE_INDENTATION }}
+      >
         <span className={cn("rounded-sm p-1 text-xs", colors.get(type))}>
           {type}
         </span>
@@ -243,7 +269,9 @@ function TreeItemInner({
             event.stopPropagation();
           }}
         >
-          <Drawer>
+          <Drawer
+            onOpenChange={(open) => setBackgroundColor(open ? "!bg-muted" : "")}
+          >
             <DrawerTrigger asChild>
               <Button
                 className="focus:none active:none hidden justify-start hover:!bg-transparent group-hover:block"
@@ -254,14 +282,14 @@ function TreeItemInner({
                 <Search className="h-4 w-4"></Search>
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="h-1/3 w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
+            <DrawerContent className="h-1/3 w-full md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
               {children}
             </DrawerContent>
           </Drawer>
         </div>
       </div>
-      <div className="flex items-center" style={{ width: `${scaleWidth}px` }}>
-        <div className={`relative w-[${scaleWidth}px]`}>
+      <div className="flex items-center" style={{ width: `${SCALE_WIDTH}px` }}>
+        <div className={`relative w-[${SCALE_WIDTH}px]`}>
           <div className="ml-4 mr-4 h-full border-r-2"></div>
           <div
             className={cn(
@@ -275,8 +303,8 @@ function TreeItemInner({
           >
             <span
               className={cn(
-                "justify-end text-xs text-muted-foreground ",
-                itemOffsetLabelWidth > scaleWidth ? "mr-1" : "-mr-9",
+                "hidden justify-end text-xs text-muted-foreground group-hover:block",
+                itemOffsetLabelWidth > SCALE_WIDTH ? "mr-1" : "-mr-9",
               )}
             >
               {latency.toFixed(2)}s
