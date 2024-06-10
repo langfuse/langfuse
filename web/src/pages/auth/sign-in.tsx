@@ -54,12 +54,14 @@ export type PageProps = {
     sso: boolean;
   };
   signUpDisabled: boolean;
+  customAuthProviderName: string;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
 // eslint-disable-next-line @typescript-eslint/require-await
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   const sso: boolean = await isAnySsoConfigured();
+
   return {
     props: {
       authProviders: {
@@ -89,27 +91,36 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
-          env.AUTH_CUSTOM_ISSUER !== undefined,
+          env.AUTH_CUSTOM_ISSUER !== undefined &&
+          env.AUTH_CUSTOM_NAME !== undefined,
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
+      customAuthProviderName:
+        env.AUTH_CUSTOM_NAME === undefined ? "SSO" : env.AUTH_CUSTOM_NAME,
     },
   };
 };
 
 // Also used in src/pages/auth/sign-up.tsx
 export function SSOButtons({
-  authProviders,
+  props,
   action = "sign in",
 }: {
-  authProviders: PageProps["authProviders"];
+  props: PageProps;
   action?: string;
 }) {
   const capture = usePostHogClientCapture();
+  console.log(props);
+  console.log(props.authProviders);
+  console.log(props.customAuthProviderName);
+  console.log("test");
+  const authProviders = props.authProviders;
+  const customAuthProviderName = props.customAuthProviderName;
 
   return (
     // any authprovider from props is enanbles
-    Object.entries(authProviders).some(
+    Object.entries(props.authProviders).some(
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
@@ -200,7 +211,7 @@ export function SSOButtons({
               variant="secondary"
             >
               <TbBrandOauth className="mr-3" size={18} />
-              CustomSSO
+              {customAuthProviderName ? customAuthProviderName : "SSO"}
             </Button>
           )}
         </div>
