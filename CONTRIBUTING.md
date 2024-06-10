@@ -191,6 +191,16 @@ Requirements
     pnpm run dev
    ```
 
+7. Open the web app in the browser:
+
+   http://localhost:3000
+
+8. Log in as a test user (after you ran `db:seed` command):
+
+   Username: demo@langfuse.com
+
+   Password: password
+
 ## Monorepo quickstart
 
 - Available packages and their dependencies
