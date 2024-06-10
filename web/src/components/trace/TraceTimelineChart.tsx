@@ -238,29 +238,27 @@ function TreeItemInner({
           {type}
         </span>
         <span className="break-all text-sm">{name}</span>
-        <Drawer>
-          <DrawerTrigger asChild>
-            <Button
-              className="focus:none active:none hidden justify-start hover:!bg-transparent group-hover:block"
-              type="button"
-              size="xs"
-              variant="ghost"
-              onClick={(event) => {
-                event.stopPropagation();
-              }}
-            >
-              <Search className="h-4 w-4"></Search>
-            </Button>
-          </DrawerTrigger>
-          <DrawerContent
-            className="h-1/3 w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5"
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-          >
-            {children}
-          </DrawerContent>
-        </Drawer>
+        <div
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <Drawer>
+            <DrawerTrigger asChild>
+              <Button
+                className="focus:none active:none hidden justify-start hover:!bg-transparent group-hover:block"
+                type="button"
+                size="xs"
+                variant="ghost"
+              >
+                <Search className="h-4 w-4"></Search>
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent className="h-1/3 w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
+              {children}
+            </DrawerContent>
+          </Drawer>
+        </div>
       </div>
       <div className="flex items-center" style={{ width: `${scaleWidth}px` }}>
         <div className={`relative w-[${scaleWidth}px]`}>
