@@ -23,16 +23,15 @@ if (isSentryEnabled) {
   Sentry.init({
     dsn: String(env.SENTRY_DSN),
     integrations: [
-      // enable HTTP calls tracing
       new Sentry.Integrations.Http({ tracing: true }),
-      // enable Express.js middleware tracing
+
       new Sentry.Integrations.Express({ app }),
       nodeProfilingIntegration(),
       Sentry.metrics.metricsAggregatorIntegration(),
     ],
-    // Performance Monitoring
+
     tracesSampleRate: 0.01, //  Capture 100% of the transactions
-    // Set sampling rate for profiling - this is relative to tracesSampleRate
+
     profilesSampleRate: 0.01,
     sampleRate: 0.1,
   });

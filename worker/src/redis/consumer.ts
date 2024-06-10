@@ -5,7 +5,7 @@ import {
   QueueName,
   TQueueJobTypes,
 } from "@langfuse/shared";
-import { evaluate, createEvalJobs } from "../eval-service";
+import { evaluate, createEvalJobs } from "../features/evaluation/eval-service";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";

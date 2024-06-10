@@ -1,8 +1,105 @@
-import { AlertTriangle, Check } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Github,
+  HardDriveDownload,
+  Newspaper,
+} from "lucide-react";
 
 import { VERSION } from "@/src/constants";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/src/components/ui/dropdown-menu";
+import { ArrowUp } from "lucide-react";
+import { api } from "@/src/utils/api";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+
+const VersionLabel = ({ className }: { className?: string }) => {
+  const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
+    onError: (error) => console.error("checkUpdate error", error), // do not render default error message
+  });
+
+  const hasUpdate =
+    !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+    checkUpdate.data &&
+    checkUpdate.data.updateType;
+
+  const color =
+    checkUpdate.data?.updateType === "major"
+      ? "text-dark-red"
+      : checkUpdate.data?.updateType === "minor"
+        ? "text-dark-yellow"
+        : undefined;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="xs" className={className}>
+          {VERSION}
+          {hasUpdate && <ArrowUp className={`ml-1 h-3 w-3 ${color}`} />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        {hasUpdate ? (
+          <>
+            <DropdownMenuLabel>
+              New {checkUpdate.data?.updateType} version:{" "}
+              {checkUpdate.data?.latestRelease}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
+        ) : !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ? (
+          <>
+            <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
+
+        <DropdownMenuItem asChild>
+          <Link
+            href="https://github.com/langfuse/langfuse/releases"
+            target="_blank"
+          >
+            <Github size={16} className="mr-2" />
+            Releases
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="https://langfuse.com/changelog" target="_blank">
+            <Newspaper size={16} className="mr-2" />
+            Changelog
+          </Link>
+        </DropdownMenuItem>
+        {hasUpdate && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link
+                href="https://langfuse.com/docs/deployment/self-host#update"
+                target="_blank"
+              >
+                <HardDriveDownload size={16} className="mr-2" />
+                Update
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 export const LangfuseIcon = ({
   size = 32,
@@ -65,22 +162,12 @@ export const LangfuseLogo = ({
       <span
         className={cn(
           "ml-2 font-mono font-semibold",
-          size === "sm" ? "text-sm" : "text-xl",
+          size === "sm" ? "text-sm" : "text-lg",
         )}
       >
         Langfuse
       </span>
-      {version && (
-        <a
-          href="https://github.com/langfuse/langfuse/releases"
-          target="_blank"
-          rel="noopener"
-          title="View releases on GitHub"
-          className="ml-2 text-xs text-muted-foreground"
-        >
-          {VERSION}
-        </a>
-      )}
+      {version && <VersionLabel className="ml-2" />}
     </div>
   </div>
 );

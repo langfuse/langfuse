@@ -247,37 +247,3 @@ export const PromptDetail = () => {
     </div>
   );
 };
-
-export function UpdatePrompt({
-  projectId,
-  prompt,
-  isLoading,
-}: {
-  projectId: string;
-  prompt: Prompt | undefined;
-  isLoading: boolean;
-}) {
-  const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
-
-  const handlePromptEdit = () => {
-    void router.push(
-      `/project/${projectId}/prompts/${prompt?.id}/edit`,
-      undefined,
-      {
-        shallow: true,
-      },
-    );
-  };
-
-  return (
-    <Button
-      variant="outline"
-      size="icon"
-      onClick={() => handlePromptEdit()}
-      disabled={!hasAccess}
-      loading={isLoading}
-    >
-      <Pencil className="h-5 w-5" />
-    </Button>
-  );
-}
