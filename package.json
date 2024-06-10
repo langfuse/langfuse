@@ -38,7 +38,13 @@
   "release-it": {
     "git": {
       "commitMessage": "chore: release v${version}",
-      "tagName": "v${version}"
+      "tagName": "v${version}",
+      "commitArgs": [
+        "--no-verify"
+      ],
+      "pushArgs": [
+        "--no-verify"
+      ]
     },
     "plugins": {
       "@release-it/bumper": {
