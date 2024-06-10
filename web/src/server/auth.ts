@@ -24,12 +24,12 @@ import AzureADProvider from "next-auth/providers/azure-ad";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
-  CustomSSOProvider,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@langfuse/ee/sso";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
+import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -122,13 +122,16 @@ const staticProviders: Provider[] = [
 if (
   env.AUTH_CUSTOM_CLIENT_ID &&
   env.AUTH_CUSTOM_CLIENT_SECRET &&
-  env.AUTH_CUSTOM_ISSUER
+  env.AUTH_CUSTOM_ISSUER &&
+  env.AUTH_CUSTOM_NAME // name required by front-end, ignored here
 )
   staticProviders.push(
     CustomSSOProvider({
       clientId: env.AUTH_CUSTOM_CLIENT_ID,
       clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
       issuer: env.AUTH_CUSTOM_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 

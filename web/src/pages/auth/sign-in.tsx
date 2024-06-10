@@ -50,9 +50,11 @@ export type PageProps = {
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
-    custom?: {
-      name: string;
-    };
+    custom:
+      | {
+          name: string;
+        }
+      | false;
     sso: boolean;
   };
   signUpDisabled: boolean;
@@ -62,7 +64,6 @@ export type PageProps = {
 // eslint-disable-next-line @typescript-eslint/require-await
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   const sso: boolean = await isAnySsoConfigured();
-
   return {
     props: {
       authProviders: {
@@ -95,7 +96,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_CUSTOM_ISSUER !== undefined &&
           env.AUTH_CUSTOM_NAME !== undefined
             ? { name: env.AUTH_CUSTOM_NAME }
-            : undefined,
+            : false,
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",

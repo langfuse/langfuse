@@ -80,6 +80,7 @@ export const CustomProviderSchema = base.extend({
   authProvider: z.literal("custom"),
   authConfig: z
     .object({
+      name: z.string(),
       clientId: z.string(),
       clientSecret: z.string(),
       issuer: z.string(),

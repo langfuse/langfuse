@@ -5,13 +5,13 @@ import OktaProvider from "next-auth/providers/okta";
 import CognitoProvider from "next-auth/providers/cognito";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
-import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers/oauth";
 import { isEeAvailable } from "..";
 import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "../env";
+import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -269,34 +269,4 @@ export async function createNewSsoConfigHandler(
     console.log(e);
     res.status(500).json({ error: "Internal Server Error" });
   }
-}
-
-export interface CustomSSOUser extends Record<string, any> {
-  email: string;
-  id: string;
-  name: string;
-  verified: boolean;
-}
-
-export function CustomSSOProvider<P extends CustomSSOUser>(
-  options: OAuthUserConfig<P>
-): OAuthConfig<P> {
-  return {
-    id: "custom",
-    name: "CustomSSOProvider",
-    type: "oauth",
-    wellKnown: `${options.issuer}/.well-known/openid-configuration`,
-    authorization: { params: { scope: "openid email profile" } },
-    checks: ["pkce", "state"],
-    idToken: true,
-    profile(profile) {
-      return {
-        id: profile.sub,
-        name: profile.name,
-        email: profile.email,
-        image: null,
-      };
-    },
-    options,
-  };
 }
