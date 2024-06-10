@@ -65,9 +65,9 @@ function TraceTreeItem({
   const { startTime, endTime } = observation || {};
   const [backgroundColor, setBackgroundColor] = useState("");
 
-  if (!endTime) return null;
-
-  const latency = (endTime.getTime() - startTime.getTime()) / 1000;
+  const latency = endTime
+    ? (endTime.getTime() - startTime.getTime()) / 1000
+    : 0;
   const startOffset =
     ((startTime.getTime() - traceStartTime.getTime()) / totalScaleSpan / 1000) *
     SCALE_WIDTH;
@@ -311,14 +311,16 @@ function TreeItemInner({
               marginLeft: `${startOffset}px`,
             }}
           >
-            <span
-              className={cn(
-                "hidden justify-end text-xs text-muted-foreground group-hover:block",
-                itemOffsetLabelWidth > SCALE_WIDTH ? "mr-1" : "-mr-9",
-              )}
-            >
-              {latency.toFixed(2)}s
-            </span>
+            {!!latency && (
+              <span
+                className={cn(
+                  "hidden justify-end text-xs text-muted-foreground group-hover:block",
+                  itemOffsetLabelWidth > SCALE_WIDTH ? "mr-1" : "-mr-9",
+                )}
+              >
+                {latency.toFixed(2)}s
+              </span>
+            )}
           </div>
         </div>
       </div>

@@ -302,8 +302,13 @@ export function nestObservations(
     }
   }
 
+  // Step 4: Sort children by start time for each parent
+  for (const obj of map.values()) {
+    obj.children.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  }
+
   // TODO sum token amounts per level
 
-  // Step 4: Return the roots.
+  // Step 5: Return the roots.
   return Array.from(roots.values());
 }
