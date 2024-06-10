@@ -387,16 +387,15 @@ async function insertFinalRecords<T extends { id: string; project_id: string }>(
   console.log(
     `Inserting final records ${recordType} ${JSON.stringify(insert)}`
   );
-  await redis
-    ?.pipeline(
-      insert.map((record) => [
-        "setex",
-        `${recordType}:${record.id}-${projectId}`,
-        120,
-        JSON.stringify(record),
-      ])
-    )
-    .exec();
+  const multi = redis?.multi();
+  insert.forEach((record) => {
+    multi?.setex(
+      `${recordType}:${record.id}-${projectId}`,
+      120,
+      JSON.stringify(record)
+    );
+  });
+  await multi?.exec();
 
   await clickhouseClient.insert({
     table: recordType,
@@ -429,6 +428,13 @@ async function getDedupedAndUpdatedRecords<
     );
 
   console.log(`deduped ${recordType} ${JSON.stringify(dedupedSdkRecords)}`);
+
+  // get optimistic locks in redis
+  const keys = dedupedSdkRecords.map(
+    (m) => `${recordType}:${m.id}-${projectId}`
+  );
+  console.log(`keys to watch ${keys}`);
+  await redis?.watch(keys);
 
   const redisRecords = await getCurrentStateFromRedis(
     dedupedSdkRecords.map((m) => m.id),

@@ -1,7 +1,11 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
-import { prisma } from "@langfuse/shared/src/db";
+import {
+  ObservationLevel,
+  ObservationType,
+  prisma,
+} from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
@@ -11,6 +15,8 @@ import {
   getScores,
   getTraces,
 } from "@/src/server/api/repositories/clickhouse";
+import { type observationRecordRead } from "@langfuse/shared/backend";
+import Decimal from "decimal.js";
 
 const GetTraceSchema = z.object({
   traceId: z.string(),
@@ -75,9 +81,8 @@ export default async function handler(
     }
 
     const observations = env.SERVE_FROM_CLICKHOUSE
-      ? await queryObservationsFromClickhouse(
-          traceId,
-          authCheck.scope.projectId,
+      ? convertObservations(
+          await getObservations(traceId, authCheck.scope.projectId),
         )
       : await prisma.observationView.findMany({
           where: {
@@ -141,9 +146,59 @@ const queryTracesAndScoresFromClickhouse = async (
   };
 };
 
-const queryObservationsFromClickhouse = async (
-  traceId: string,
-  projectId: string,
-) => {
-  return getObservations(traceId, projectId);
-};
+function convertObservations(
+  observations: z.infer<typeof observationRecordRead>[],
+) {
+  return observations.map(convertObservationModelToApi);
+}
+
+function convertObservationModelToApi(
+  observation: z.infer<typeof observationRecordRead>,
+) {
+  return mapUsageOutput({
+    id: observation.id,
+    traceId: observation.trace_id ?? null,
+    projectId: observation.project_id,
+    startTime: new Date(observation.start_time) ?? null,
+    endTime: new Date(observation.end_time) ?? null,
+    createdAt: new Date(observation.created_at) ?? null,
+    inputPrice: observation.input_cost
+      ? new Decimal(observation.input_cost)
+      : null,
+    outputPrice: observation.output_cost
+      ? new Decimal(observation.output_cost)
+      : null,
+    totalPrice: observation.total_cost
+      ? new Decimal(observation.total_cost)
+      : null,
+    promptTokens: observation.input_usage ? observation.input_usage : 0,
+    completionTokens: observation.output_usage ? observation.output_usage : 0,
+    totalTokens: observation.total_usage ? observation.total_usage : 0,
+    parentObservationId: observation.parent_observation_id ?? null,
+    modelParameters: observation.model_parameters ?? null,
+    promptId: observation.prompt_id ?? null,
+    modelId: observation.internal_model ?? null,
+    statusMessage: observation.status_message ?? null,
+    calculatedInputCost: observation.input_cost
+      ? new Decimal(observation.input_cost)
+      : null,
+    calculatedOutputCost: observation.output_cost
+      ? new Decimal(observation.output_cost)
+      : null,
+    calculatedTotalCost: observation.total_cost
+      ? new Decimal(observation.total_cost)
+      : null,
+    completionStartTime: observation.completion_start_time ?? null,
+    timeToFirstToken: null,
+    latency: null,
+    type: ObservationType[observation.type as keyof typeof ObservationType],
+    name: observation.name ?? null,
+    level: ObservationLevel[observation.type as keyof typeof ObservationLevel],
+    version: observation.version ?? null,
+    model: observation.model ?? null,
+    input: observation.input ? JSON.parse(observation.input) : null,
+    output: observation.output ? JSON.parse(observation.output) : null,
+    unit: observation.unit ?? null,
+    metadata: observation.metadata,
+  });
+}

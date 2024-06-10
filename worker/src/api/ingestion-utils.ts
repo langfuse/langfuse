@@ -80,11 +80,11 @@ export function overwriteObject(
   },
   nonOverwritableKeys: string[]
 ) {
-  console.log(`Overwriting ${JSON.stringify(a)} with ${JSON.stringify(b)}`);
-
-  const result = _.mergeWith(a, b, (objValue, srcValue, key) => {
+  const result = _.mergeWith({}, a, b, (objValue, srcValue, key) => {
     if (nonOverwritableKeys.includes(key)) {
       return objValue;
+    } else {
+      return srcValue;
     }
   });
 

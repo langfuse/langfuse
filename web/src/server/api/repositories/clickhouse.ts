@@ -30,7 +30,7 @@ export const getObservations = async (traceId: string, projectId: string) => {
   const jsonRecords = await observations.json();
   console.log("observations", jsonRecords);
 
-  return convertObservations(jsonRecords);
+  return z.array(observationRecordRead).parse(jsonRecords);
 };
 
 export const getTraces = async (traceId: string, projectId: string) => {
@@ -112,9 +112,9 @@ function convertObservations(jsonRecords: unknown[]) {
         ? parseJsonPrioritised(record.model_parameters)
         : null,
       metadata: convertRecordToJsonSchema(record.metadata),
-      promptTokens: record.prompt_tokens,
-      completionTokens: record.completion_tokens,
-      totalTokens: record.total_tokens,
+      inputUsage: record.input_usage,
+      outputUsage: record.output_usage,
+      totalUsage: record.total_usage,
       inputCost: record.input_cost,
       outputCost: record.output_cost,
       totalCost: record.total_cost,
