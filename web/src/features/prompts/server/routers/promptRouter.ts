@@ -93,31 +93,47 @@ export const promptRouter = createTRPCRouter({
         };
       }
 
-      const observationCountQuery = DB.selectFrom("observations")
-        .fullJoin("prompts", "prompts.id", "observations.prompt_id")
-        .select(({ fn }) => [
-          "prompts.name",
-          fn.count("observations.id").as("count"),
-        ])
-        .where("prompts.project_id", "=", input.projectId)
-        .where("observations.project_id", "=", input.projectId)
-        .where("prompts.name", "in", promptNames)
-        .groupBy("prompts.name");
-
-      const compiledQuery = observationCountQuery.compile();
-
-      const promptCounts = await ctx.prisma.$queryRawUnsafe<
-        Array<{
-          name: string;
-          count: bigint;
-        }>
-      >(compiledQuery.sql, ...compiledQuery.parameters);
+      const promptCounts = (
+        await ctx.prisma.$queryRaw<
+          {
+            promptName: string;
+            observationCount: bigint;
+          }[]
+        >(
+          Prisma.sql`
+              WITH aggregated_prompts AS (
+                SELECT
+                  ARRAY_AGG(p.id) AS prompt_ids,
+                  p.name
+                FROM
+                  prompts p
+                WHERE
+                  p.project_id = ${input.projectId}
+                GROUP BY
+                  p. "name"
+              )
+              SELECT
+                ap.name AS "promptName",
+                oc.observation_count AS "observationCount"
+              FROM
+                aggregated_prompts ap
+                LEFT JOIN LATERAL (
+                  SELECT
+                    count(*) AS observation_count
+                  FROM
+                    observations o
+                  WHERE
+                    o.project_id = ${input.projectId}
+                    AND o.prompt_id = ANY (ap.prompt_ids)) AS oc ON TRUE    
+        `,
+        )
+      ).map((v) => ({ ...v, observationCount: Number(v.observationCount) }));
 
       const joinedPromptsAndCounts = prompts.map((p) => {
-        const matchedCount = promptCounts.find((c) => c.name === p.name);
+        const matchedCount = promptCounts.find((c) => c.promptName === p.name);
         return {
           ...p,
-          observationCount: Number(matchedCount?.count ?? 0),
+          observationCount: matchedCount?.observationCount ?? 0,
         };
       });
 
