@@ -119,10 +119,6 @@ const storeTraces = async (
   }
   const insert = convertEventToRecord(traces, projectId);
 
-  console.log(
-    `Inserting trace into clickhouse, ${env.CLICKHOUSE_URL} ${JSON.stringify(insert)}`
-  );
-
   const newRecords = await getDedupedAndUpdatedRecords(
     insert,
     projectId,
@@ -134,8 +130,6 @@ const storeTraces = async (
   if (newRecords.length === 0) {
     return;
   }
-
-  console.log(`Inserting trace into clickhouse ${JSON.stringify(newRecords)}`);
 
   await insertFinalRecords(projectId, "traces", newRecords);
 };

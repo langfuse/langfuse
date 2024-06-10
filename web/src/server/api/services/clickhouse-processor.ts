@@ -108,10 +108,6 @@ const storeTraces = async (
     created_at: Date.now() * 1000,
   }));
 
-  console.log(
-    `Inserting trace into clickhouse, ${env.CLICKHOUSE_URL} ${JSON.stringify(insert)}`,
-  );
-
   const existingTraces = await instrumentAsync(
     { name: "get-traces" },
     async () => {
