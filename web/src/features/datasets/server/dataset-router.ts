@@ -638,6 +638,7 @@ export const datasetRouter = createTRPCRouter({
         };
       });
 
+      // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
         totalRunItems,
         runItems: items,
