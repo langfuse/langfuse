@@ -1,16 +1,20 @@
 import { Card } from "@/src/components/ui/card";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { $Enums, type Score, type Trace } from "@langfuse/shared";
+import { type Score, type Trace } from "@langfuse/shared";
 
 import React, { useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 
 import { MinusIcon, PlusIcon, Search } from "lucide-react";
-import { nestObservations } from "@/src/components/trace/ObservationTree";
+import { nestObservations } from "@/src/components/trace/lib/helpers";
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
+import {
+  type TreeItemType,
+  treeItemColors,
+} from "@/src/components/trace/lib/helpers";
 import {
   Drawer,
   DrawerContent,
@@ -24,24 +28,15 @@ const SCALE_WIDTH = 800; // in pixels
 const LABEL_WIDTH = 35;
 const TREE_INDENTATION = 12;
 
-type TreeItemType = $Enums.ObservationType | "TRACE";
-
-const colors: Map<TreeItemType, string> = new Map([
-  [$Enums.ObservationType.SPAN, "bg-muted-blue"],
-  [$Enums.ObservationType.GENERATION, "bg-muted-orange"],
-  [$Enums.ObservationType.EVENT, "bg-muted-green"],
-  ["TRACE", "bg-input"],
-]);
-
-const predefinedStepSizes = [
+const PREDEFINED_STEP_SIZES = [
   0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10,
 ];
 
 const calculateStepSize = (latency: number, scaleWidth: number) => {
   const calculatedStepSize = latency / (scaleWidth / 100);
   return (
-    predefinedStepSizes.find((step) => step >= calculatedStepSize) ||
-    predefinedStepSizes[predefinedStepSizes.length - 1]
+    PREDEFINED_STEP_SIZES.find((step) => step >= calculatedStepSize) ||
+    PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1]
   );
 };
 
@@ -270,7 +265,9 @@ function TreeItemInner({
         className="grid grid-cols-[auto,max-content,1fr] items-center gap-2"
         style={{ width: customLabelWidth - level * TREE_INDENTATION }}
       >
-        <span className={cn("rounded-sm p-1 text-xs", colors.get(type))}>
+        <span
+          className={cn("rounded-sm p-1 text-xs", treeItemColors.get(type))}
+        >
           {type}
         </span>
         <span className="break-all text-sm">{name}</span>
@@ -304,7 +301,7 @@ function TreeItemInner({
           <div
             className={cn(
               "flex h-5 items-center justify-end rounded-sm",
-              colors.get(type),
+              treeItemColors.get(type),
             )}
             style={{
               width: `${itemWidth}px`,
