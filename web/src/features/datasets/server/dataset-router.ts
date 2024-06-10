@@ -537,6 +537,8 @@ export const datasetRouter = createTRPCRouter({
         skip: input.page * input.limit,
       });
 
+      if (runItems.length === 0) return { totalRunItems: 0, runItems: [] };
+
       const traceScores = await ctx.prisma.score.findMany({
         where: {
           projectId: ctx.session.projectId,
