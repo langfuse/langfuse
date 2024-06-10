@@ -124,7 +124,7 @@ function TraceTreeItem({
   );
 }
 
-export function TraceTimelineChart({
+export function TraceTimelineView({
   trace,
   observations,
   projectId,

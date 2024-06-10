@@ -32,7 +32,7 @@ import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { TraceTimelineChart } from "@/src/components/trace/TraceTimelineChart";
+import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 export function Trace(props: {
@@ -348,7 +348,7 @@ export function TracePage({ traceId }: { traceId: string }) {
               .
             </AlertDescription>
           </Alert>
-          <TraceTimelineChart
+          <TraceTimelineView
             key={trace.data.id}
             trace={trace.data}
             scores={trace.data.scores}
