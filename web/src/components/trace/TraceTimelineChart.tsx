@@ -74,8 +74,9 @@ function TraceTreeItem({
   return (
     <TreeItem
       classes={{
-        content: `border-l border-dashed !rounded-none ${backgroundColor}`,
-        selected: "!bg-background",
+        content: `border-l border-dashed !rounded-xs ${backgroundColor} !min-w-fit`,
+        selected: "!bg-background !important hover:!bg-muted",
+        label: "!min-w-fit",
       }}
       key={observation.id}
       itemId={observation.id}
@@ -141,7 +142,7 @@ export function TraceTimelineChart({
   const totalScaleSpan = stepSize * (SCALE_WIDTH / 100);
 
   return (
-    <Card className="flex flex-col overflow-x-auto">
+    <Card className="flex max-h-[calc(100dvh-24rem)] flex-col overflow-x-auto overflow-y-hidden">
       <div className="grid w-full grid-cols-[1fr,auto] items-center p-2">
         <h3 className="w-[248px] p-2 text-2xl font-semibold tracking-tight">
           Trace Timeline
@@ -175,7 +176,7 @@ export function TraceTimelineChart({
           })}
         </div>
       </div>
-      <div className="p-2">
+      <div className="min-w-fit overflow-y-auto p-2">
         <SimpleTreeView
           slots={{
             expandIcon: PlusIcon,
@@ -187,8 +188,9 @@ export function TraceTimelineChart({
             key={id}
             itemId={id}
             classes={{
-              content: backgroundColor,
-              selected: "!bg-background",
+              content: `${backgroundColor} !min-w-fit`,
+              selected: "!bg-background !important hover:!bg-muted",
+              label: "!min-w-fit",
             }}
             label={
               <TreeItemInner
@@ -255,7 +257,7 @@ function TreeItemInner({
   const itemOffsetLabelWidth = itemWidth + startOffset + LABEL_WIDTH;
 
   return (
-    <div className="group my-1 grid w-full grid-cols-[1fr,auto] items-center">
+    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
       <div
         className="grid grid-cols-[auto,max-content,1fr] items-center gap-2"
         style={{ width: customLabelWidth - level * TREE_INDENTATION }}
