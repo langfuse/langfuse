@@ -114,6 +114,7 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "objects:bookmark",
     "objects:tag",
     "scores:CUD",
+    "scoreConfigs:CUD",
     "scoreConfigs:read",
     "datasets:CUD",
     "prompts:CUD",

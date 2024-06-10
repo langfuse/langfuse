@@ -159,6 +159,7 @@ export const ObservationPreview = (props: {
               traceId={preloadedObservation.traceId}
               observationId={preloadedObservation.id}
               scores={props.scores}
+              type="observation"
             />
             {observationWithInputAndOutput.data?.type === "GENERATION" && (
               <JumpToPlaygroundButton
@@ -237,7 +238,7 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
   if (prompt.isLoading || !prompt.data) return null;
   return (
     <Link
-      href={`/project/${props.projectId}/prompts/${prompt.data.name}?version=${prompt.data.version}`}
+      href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
     >
       <Badge>
         Prompt: {prompt.data.name}

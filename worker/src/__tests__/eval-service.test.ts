@@ -3,7 +3,7 @@ import {
   createEvalJobs,
   evaluate,
   extractVariablesFromTrace,
-} from "../eval-service";
+} from "../features/evaluation/eval-service";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";

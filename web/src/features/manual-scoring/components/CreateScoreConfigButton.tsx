@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { PlusIcon, Trash2 } from "lucide-react";
+import { PlusIcon, Trash } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -37,6 +37,7 @@ import {
   isNumericDataType,
 } from "@/src/features/manual-scoring/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const availableDataTypes = [
   ScoreDataType.NUMERIC,
@@ -61,6 +62,7 @@ const formSchema = z.object({
 export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const capture = usePostHogClientCapture();
 
   const hasAccess = useHasAccess({
     projectId: projectId,
@@ -102,6 +104,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
         ...values,
       })
       .then(() => {
+        capture("score_configs:create_form_submit", {
+          dataType: values.dataType,
+        });
         form.reset();
         setOpen(false);
       })
@@ -310,7 +315,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                                     index === 0 || index !== fields.length - 1
                                   }
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash className="h-4 w-4" />
                                 </Button>
                               )}
                             </div>

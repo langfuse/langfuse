@@ -4,7 +4,7 @@ import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 import "react18-json-view/src/dark.css";
-import { deepParseJson } from "@/src/utils/json";
+import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
 
