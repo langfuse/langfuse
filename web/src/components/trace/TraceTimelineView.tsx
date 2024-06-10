@@ -6,7 +6,7 @@ import React, { useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 
-import { MinusIcon, PlusIcon, Search } from "lucide-react";
+import { MinusIcon, PlusIcon, PanelRightOpen } from "lucide-react";
 import { nestObservations } from "@/src/components/trace/lib/helpers";
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
@@ -22,11 +22,13 @@ import {
 } from "@/src/components/ui/drawer";
 import { TracePreview } from "@/src/components/trace/TracePreview";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
-import useLocalStorage from "@/src/components/useLocalStorage";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 const SCALE_WIDTH = 800; // in pixels
+const MAX_LABEL_WIDTH = 470;
 const LABEL_WIDTH = 35;
-const TREE_INDENTATION = 12;
+const TREE_INDENTATION = 12; // fixed in MUI X TreeView
+const MIN_LABEL_WIDTH = 212;
 
 const PREDEFINED_STEP_SIZES = [
   0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -132,7 +134,7 @@ export function TraceTimelineView({
 }) {
   const { latency, name, id } = trace;
   const [backgroundColor, setBackgroundColor] = useState("");
-  const [expandedItems, setExpandedItems] = useLocalStorage<string[]>(
+  const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${trace.id}-expanded`,
     [trace.id],
   );
@@ -146,7 +148,13 @@ export function TraceTimelineView({
   return (
     <Card className="flex max-h-[calc(100dvh-24rem)] flex-col overflow-x-auto overflow-y-hidden">
       <div className="grid w-full grid-cols-[1fr,auto] items-center p-2">
-        <h3 className="w-[248px] p-2 text-2xl font-semibold tracking-tight">
+        <h3
+          className="p-2 text-2xl font-semibold tracking-tight"
+          style={{
+            maxWidth: `${MAX_LABEL_WIDTH}px`,
+            minWidth: `${MIN_LABEL_WIDTH}px`,
+          }}
+        >
           Trace Timeline
         </h3>
         <div
@@ -202,6 +210,7 @@ export function TraceTimelineView({
                 totalScaleSpan={totalScaleSpan}
                 setBackgroundColor={setBackgroundColor}
                 type="TRACE"
+                customLabelWidth={MAX_LABEL_WIDTH}
               >
                 <div className="p-8">
                   <h3 className="mb-6 text-2xl font-semibold tracking-tight">
@@ -216,18 +225,20 @@ export function TraceTimelineView({
               </TreeItemInner>
             }
           >
-            {nestedObservations.map((observation) => (
-              <TraceTreeItem
-                key={observation.id}
-                observation={observation}
-                level={1}
-                traceStartTime={nestedObservations[0].startTime}
-                totalScaleSpan={totalScaleSpan}
-                projectId={projectId}
-                scores={scores}
-                observations={observations}
-              />
-            ))}
+            {Boolean(nestedObservations.length)
+              ? nestedObservations.map((observation) => (
+                  <TraceTreeItem
+                    key={observation.id}
+                    observation={observation}
+                    level={1}
+                    traceStartTime={nestedObservations[0].startTime}
+                    totalScaleSpan={totalScaleSpan}
+                    projectId={projectId}
+                    scores={scores}
+                    observations={observations}
+                  />
+                ))
+              : null}
           </TreeItem>
         </SimpleTreeView>
       </div>
@@ -244,7 +255,7 @@ function TreeItemInner({
   children,
   setBackgroundColor,
   level = 0,
-  customLabelWidth = 212,
+  customLabelWidth = 440,
 }: {
   latency: number;
   totalScaleSpan: number;
@@ -260,18 +271,23 @@ function TreeItemInner({
   const itemOffsetLabelWidth = itemWidth + startOffset + LABEL_WIDTH;
 
   return (
-    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
+    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,800px] items-center">
       <div
-        className="grid grid-cols-[auto,max-content,1fr] items-center gap-2"
-        style={{ width: customLabelWidth - level * TREE_INDENTATION }}
+        className="flex flex-row items-center gap-2"
+        style={{
+          maxWidth: customLabelWidth - level * TREE_INDENTATION,
+        }}
       >
         <span
           className={cn("rounded-sm p-1 text-xs", treeItemColors.get(type))}
         >
           {type}
         </span>
-        <span className="break-all text-sm">{name}</span>
+        <span className="w-fit-content overflow-hidden text-ellipsis whitespace-nowrap break-all text-sm">
+          {name}
+        </span>
         <div
+          className="w-6 flex-1"
           onClick={(event) => {
             event.stopPropagation();
           }}
@@ -286,7 +302,7 @@ function TreeItemInner({
                 size="xs"
                 variant="ghost"
               >
-                <Search className="h-4 w-4"></Search>
+                <PanelRightOpen className="h-4 w-4"></PanelRightOpen>
               </Button>
             </DrawerTrigger>
             <DrawerContent className="h-1/3 w-full overflow-y-auto md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
@@ -301,23 +317,27 @@ function TreeItemInner({
           <div
             className={cn(
               "flex h-5 items-center justify-end rounded-sm",
-              treeItemColors.get(type),
+              itemWidth
+                ? treeItemColors.get(type)
+                : "border border-dashed bg-muted",
             )}
             style={{
-              width: `${itemWidth}px`,
+              width: `${itemWidth || 10}px`,
               marginLeft: `${startOffset}px`,
             }}
           >
-            {!!latency && (
-              <span
-                className={cn(
-                  "hidden justify-end text-xs text-muted-foreground group-hover:block",
-                  itemOffsetLabelWidth > SCALE_WIDTH ? "mr-1" : "-mr-9",
-                )}
-              >
-                {latency.toFixed(2)}s
-              </span>
-            )}
+            <span
+              className={cn(
+                "hidden justify-end text-xs text-muted-foreground group-hover:block",
+                itemOffsetLabelWidth > SCALE_WIDTH
+                  ? "mr-1"
+                  : !!latency
+                    ? "-mr-9"
+                    : "-mr-6",
+              )}
+            >
+              {!!latency ? `${latency.toFixed(2)}s` : "n/a"}
+            </span>
           </div>
         </div>
       </div>

@@ -242,9 +242,17 @@ export function TracePage({ traceId }: { traceId: string }) {
             />
             <DetailPageNav
               currentId={traceId}
-              path={(id) =>
-                `/project/${router.query.projectId as string}/traces/${id}`
-              }
+              path={(id) => {
+                const { view, display } = router.query;
+                const queryParams = new URLSearchParams({
+                  ...(typeof view === "string" ? { view } : {}),
+                  ...(typeof display === "string" ? { display } : {}),
+                });
+                const queryParamString = Boolean(queryParams.size)
+                  ? `?${queryParams.toString()}`
+                  : "";
+                return `/project/${router.query.projectId as string}/traces/${id}${queryParamString}`;
+              }}
               listKey="traces"
             />
             <DeleteButton
