@@ -15,7 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import { SiOkta, SiAuth0, SiAmazoncognito } from "react-icons/si";
-import { TbBrandAzure } from "react-icons/tb";
+import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
@@ -51,6 +51,11 @@ export type PageProps = {
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
+    custom:
+      | {
+          name: string;
+        }
+      | false;
     sso: boolean;
   };
   signUpDisabled: boolean;
@@ -87,6 +92,13 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_COGNITO_CLIENT_ID !== undefined &&
           env.AUTH_COGNITO_CLIENT_SECRET !== undefined &&
           env.AUTH_COGNITO_ISSUER !== undefined,
+        custom:
+          env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
+          env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
+          env.AUTH_CUSTOM_ISSUER !== undefined &&
+          env.AUTH_CUSTOM_NAME !== undefined
+            ? { name: env.AUTH_CUSTOM_NAME }
+            : false,
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
@@ -189,6 +201,18 @@ export function SSOButtons({
             >
               <SiAmazoncognito className="mr-3" size={18} />
               Cognito
+            </Button>
+          )}
+          {authProviders.custom && (
+            <Button
+              onClick={() => {
+                capture("sign_in:button_click", { provider: "custom" });
+                void signIn("custom");
+              }}
+              variant="secondary"
+            >
+              <TbBrandOauth className="mr-3" size={18} />
+              {authProviders.custom.name}
             </Button>
           )}
         </div>

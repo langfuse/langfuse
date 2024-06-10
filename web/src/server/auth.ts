@@ -31,6 +31,7 @@ import {
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 import { sendResetPasswordVerificationRequest } from "@/src/features/auth-credentials/lib/sendResetPasswordVerificationRequest";
+import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -124,6 +125,22 @@ const staticProviders: Provider[] = [
     sendVerificationRequest: sendResetPasswordVerificationRequest,
   }),
 ];
+
+if (
+  env.AUTH_CUSTOM_CLIENT_ID &&
+  env.AUTH_CUSTOM_CLIENT_SECRET &&
+  env.AUTH_CUSTOM_ISSUER &&
+  env.AUTH_CUSTOM_NAME // name required by front-end, ignored here
+)
+  staticProviders.push(
+    CustomSSOProvider({
+      clientId: env.AUTH_CUSTOM_CLIENT_ID,
+      clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
+      issuer: env.AUTH_CUSTOM_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
 
 if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
   staticProviders.push(
