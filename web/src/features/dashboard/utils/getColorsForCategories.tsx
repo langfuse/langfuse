@@ -47,7 +47,7 @@ const predefinedColors: Color[] = [
   "stone",
 ];
 
-function getRandomColor() {
+export function getRandomColor() {
   return predefinedColors[Math.floor(Math.random() * predefinedColors.length)];
 }
 
