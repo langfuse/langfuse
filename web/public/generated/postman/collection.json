@@ -755,7 +755,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&source=&operator=&value=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&source=&operator=&value=&scoreIds=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -804,6 +804,11 @@
                   "key": "value",
                   "value": "",
                   "description": "Retrieve only scores with <operator> value."
+                },
+                {
+                  "key": "scoreIds",
+                  "value": "",
+                  "description": "Retrieve only scores with the given ids."
                 }
               ],
               "variable": []
