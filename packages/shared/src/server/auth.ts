@@ -1,6 +1,7 @@
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
+import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers/oauth";
 
 export function generateSecretKey() {
   return `sk-lf-${randomUUID()}`;
@@ -47,4 +48,34 @@ export function createShaHash(privateKey: string, salt: string): string {
     .digest("hex");
 
   return hash;
+}
+
+export interface CustomSSOUser extends Record<string, any> {
+  email: string;
+  id: string;
+  name: string;
+  verified: boolean;
+}
+
+export function CustomSSOProvider<P extends CustomSSOUser>(
+  options: OAuthUserConfig<P>
+): OAuthConfig<P> {
+  return {
+    id: "custom",
+    name: "CustomSSOProvider",
+    type: "oauth",
+    wellKnown: `${options.issuer}/.well-known/openid-configuration`,
+    authorization: { params: { scope: "openid email profile" } },
+    checks: ["pkce", "state"],
+    idToken: true,
+    profile(profile) {
+      return {
+        id: profile.sub,
+        name: profile.name,
+        email: profile.email,
+        image: null,
+      };
+    },
+    options,
+  };
 }
