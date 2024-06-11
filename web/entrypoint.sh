@@ -1,7 +1,5 @@
 #!/bin/sh
 
-source ./../env
-
 # Run cleanup script before running migrations
 # Check if DATABASE_URL is not set
 if [ -z "$DATABASE_URL" ]; then
@@ -20,6 +18,7 @@ fi
 if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL=$DATABASE_URL
 fi
+
 
 prisma db execute --url "$DIRECT_URL" --file "./scripts/cleanup.sql"
 
