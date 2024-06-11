@@ -120,6 +120,7 @@ jobs:
     strategy:
       matrix:
         node-version: [20]
+        postgres-version: [12, 15]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
