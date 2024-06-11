@@ -346,7 +346,7 @@ export function TracePage({ traceId }: { traceId: string }) {
             <AlertDescription>
               We value your feedback! Share your thoughts on{" "}
               <a
-                href="https://github.com/orgs/langfuse/discussions"
+                href="https://github.com/orgs/langfuse/discussions/2195"
                 target="_blank"
                 className="underline"
                 rel="noopener noreferrer"
