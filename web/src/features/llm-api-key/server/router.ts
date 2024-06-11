@@ -107,26 +107,28 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:read",
       });
 
-      const apiKeys = z.array(LLMApiKeySchema).parse(
-        await ctx.prisma.llmApiKeys.findMany({
-          // we must not return the secret key via the API, hence not selected
-          select: {
-            id: true,
-            createdAt: true,
-            updatedAt: true,
-            provider: true,
-            displaySecretKey: true,
-            projectId: true,
-            adapter: true,
-            baseURL: true,
-            customModels: true,
-            withDefaultModels: true,
-          },
-          where: {
-            projectId: input.projectId,
-          },
-        }),
-      );
+      const apiKeys = z
+        .array(LLMApiKeySchema.extend({ secretKey: z.undefined() }))
+        .parse(
+          await ctx.prisma.llmApiKeys.findMany({
+            // we must not return the secret key via the API, hence not selected
+            select: {
+              id: true,
+              createdAt: true,
+              updatedAt: true,
+              provider: true,
+              displaySecretKey: true,
+              projectId: true,
+              adapter: true,
+              baseURL: true,
+              customModels: true,
+              withDefaultModels: true,
+            },
+            where: {
+              projectId: input.projectId,
+            },
+          }),
+        );
 
       const count = await ctx.prisma.llmApiKeys.count({
         where: {
