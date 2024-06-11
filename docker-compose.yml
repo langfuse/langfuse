@@ -2,7 +2,7 @@ version: "3.5"
 
 services:
   langfuse-server:
-    image: ghcr.io/langfuse/langfuse:latest
+    image: langfuse/langfuse:2
     depends_on:
       db:
         condition: service_healthy
