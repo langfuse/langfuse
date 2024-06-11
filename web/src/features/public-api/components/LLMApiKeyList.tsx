@@ -47,8 +47,12 @@ export function LlmApiKeyList(props: { projectId: string }) {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
   return (
-    <div>
+    <div id="llm-api-keys">
       <Header title="LLM API keys" level="h3" />
+      <p className="mb-4 text-sm">
+        These keys are used to power the Langfuse playground and evaluations
+        feature and will incur costs based on usage with your key provider.
+      </p>
       <Card className="mb-4">
         <Table>
           <TableHeader>
