@@ -15,11 +15,10 @@ export async function telemetry() {
     if (process.env.NODE_ENV !== "production") return;
     // Do not run in Lanfuse cloud, separate telemetry is used
     if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
-    // Check if telemetry is not disabled, except for EE or cloud enabled
+    // Check if telemetry is not disabled, except for EE
     if (
       process.env.TELEMETRY_ENABLED === "false" &&
-      process.env.LANGFUSE_EE_LICENSE_KEY === undefined &&
-      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
+      process.env.LANGFUSE_EE_LICENSE_KEY === undefined
     )
       return;
     // Do not run in CI
