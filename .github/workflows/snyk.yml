@@ -7,19 +7,30 @@ jobs:
       - uses: actions/checkout@v2
       - name: Build a Docker image
         run: docker compose -f docker-compose.build.yml up -d
-      - name: Run Snyk to check Docker image for vulnerabilities
-        # Snyk can be used to break the build when it detects vulnerabilities.
-        # In this case we want to upload the issues to GitHub Code Scanning
+
+      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-server)
         continue-on-error: true
         uses: snyk/actions/docker@master
         env:
-          # In order to use the Snyk Action you will need to have a Snyk API token.
-          # More details in https://github.com/snyk/actions#getting-your-snyk-token
-          # or you can signup for free at https://snyk.io/login
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: langfuse-server
           args: --file=web/Dockerfile
+
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk.sarif
+
+      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-worker)
+        continue-on-error: true
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: langfuse-worker
+          args: --file=worker/Dockerfile
+
       - name: Upload result to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v2
         with:
