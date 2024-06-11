@@ -6,7 +6,7 @@ import { TracePreview } from "./TracePreview";
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import { StringParam, useQueryParam } from "use-query-params";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
@@ -18,12 +18,22 @@ import { ErrorPage } from "@/src/components/error-page";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
-import { Award, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import {
+  Award,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  ListTree,
+  Network,
+  Terminal,
+} from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -199,6 +209,11 @@ export function TracePage({ traceId }: { traceId: string }) {
 
   const totalCost = calculateDisplayTotalCost(trace.data?.observations ?? []);
 
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "display",
+    withDefault(StringParam, "details"),
+  );
+
   if (trace.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
   if (!trace.data) return <div>loading...</div>;
@@ -227,9 +242,17 @@ export function TracePage({ traceId }: { traceId: string }) {
             />
             <DetailPageNav
               currentId={traceId}
-              path={(id) =>
-                `/project/${router.query.projectId as string}/traces/${id}`
-              }
+              path={(id) => {
+                const { view, display, projectId } = router.query;
+                const queryParams = new URLSearchParams({
+                  ...(typeof view === "string" ? { view } : {}),
+                  ...(typeof display === "string" ? { display } : {}),
+                });
+                const queryParamString = Boolean(queryParams.size)
+                  ? `?${queryParams.toString()}`
+                  : "";
+                return `/project/${projectId as string}/traces/${id}${queryParamString}`;
+              }}
               listKey="traces"
             />
             <DeleteButton
@@ -281,15 +304,67 @@ export function TracePage({ traceId }: { traceId: string }) {
           />
         </div>
       </div>
-      <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
-        <Trace
-          key={trace.data.id}
-          trace={trace.data}
-          scores={trace.data.scores}
-          projectId={trace.data.projectId}
-          observations={trace.data.observations}
-        />
-      </div>
+      <Tabs
+        value={selectedTab}
+        onValueChange={setSelectedTab}
+        className="flex w-full justify-end border-b bg-background"
+      >
+        <TabsList className="bg-background py-0">
+          <TabsTrigger
+            value="details"
+            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+          >
+            <Network className="mr-1 h-4 w-4"></Network>
+            Tree
+          </TabsTrigger>
+          <TabsTrigger
+            value="timeline"
+            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+          >
+            <ListTree className="mr-1 h-4 w-4"></ListTree>
+            Timeline
+            <Badge className="pointer-events-none ml-2 px-1.5">Beta</Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {selectedTab === "details" && (
+        <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
+          <Trace
+            key={trace.data.id}
+            trace={trace.data}
+            scores={trace.data.scores}
+            projectId={trace.data.projectId}
+            observations={trace.data.observations}
+          />
+        </div>
+      )}
+      {selectedTab === "timeline" && (
+        <div className="mt-5 flex-1 flex-col space-y-5 overflow-hidden">
+          <Alert>
+            <Terminal className="h-4 w-4" />
+            <AlertTitle>New Trace Design Beta</AlertTitle>
+            <AlertDescription>
+              We value your feedback! Share your thoughts on{" "}
+              <a
+                href="https://github.com/orgs/langfuse/discussions/2195"
+                target="_blank"
+                className="underline"
+                rel="noopener noreferrer"
+              >
+                GitHub discussions
+              </a>
+              .
+            </AlertDescription>
+          </Alert>
+          <TraceTimelineView
+            key={trace.data.id}
+            trace={trace.data}
+            scores={trace.data.scores}
+            observations={trace.data.observations}
+            projectId={trace.data.projectId}
+          />
+        </div>
+      )}
     </div>
   );
 }
