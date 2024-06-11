@@ -24,12 +24,12 @@ import { TracePreview } from "@/src/components/trace/TracePreview";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 import useSessionStorage from "@/src/components/useSessionStorage";
 
-const SCALE_WIDTH = 800; // in pixels
-const MAX_LABEL_WIDTH = 470;
-const LABEL_WIDTH = 35;
-const TREE_INDENTATION = 12; // fixed in MUI X TreeView
-const MIN_LABEL_WIDTH = 250;
+// Fixed widths for styling for v1
+const SCALE_WIDTH = 800;
 const CARD_PADDING = 60;
+const LABEL_WIDTH = 35;
+const MIN_LABEL_WIDTH = 250;
+const TREE_INDENTATION = 12; // default in MUI X TreeView
 
 const PREDEFINED_STEP_SIZES = [
   0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -42,6 +42,107 @@ const calculateStepSize = (latency: number, scaleWidth: number) => {
     PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1]
   );
 };
+
+function TreeItemInner({
+  latency,
+  totalScaleSpan,
+  type,
+  startOffset = 0,
+  name,
+  children,
+  setBackgroundColor,
+  level = 0,
+  cardWidth,
+}: {
+  latency: number;
+  totalScaleSpan: number;
+  type: TreeItemType;
+  startOffset?: number;
+  name?: string | null;
+  children?: React.ReactNode;
+  setBackgroundColor: (color: string) => void;
+  level?: number;
+  cardWidth: number;
+}) {
+  const itemWidth = (latency / totalScaleSpan) * SCALE_WIDTH;
+  const itemOffsetLabelWidth = itemWidth + startOffset + LABEL_WIDTH;
+  const customLabelWidth = cardWidth - SCALE_WIDTH - CARD_PADDING;
+
+  return (
+    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
+      <div
+        className="flex flex-row items-center gap-2"
+        style={{
+          maxWidth: customLabelWidth - level * TREE_INDENTATION,
+          minWidth: MIN_LABEL_WIDTH - LABEL_WIDTH - level * TREE_INDENTATION,
+        }}
+      >
+        <span
+          className={cn("rounded-sm p-1 text-xs", treeItemColors.get(type))}
+        >
+          {type}
+        </span>
+        <span className="w-fit-content overflow-hidden text-ellipsis whitespace-nowrap break-all text-sm">
+          {name}
+        </span>
+        <div
+          className="w-6 flex-1"
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <Drawer
+            onOpenChange={(open) => setBackgroundColor(open ? "!bg-muted" : "")}
+          >
+            <DrawerTrigger asChild>
+              <Button
+                className="focus:none active:none hidden justify-start hover:!bg-transparent group-hover:block"
+                type="button"
+                size="xs"
+                variant="ghost"
+              >
+                <PanelRightOpen className="h-4 w-4"></PanelRightOpen>
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent className="h-1/3 w-full overflow-y-auto md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
+              {children}
+            </DrawerContent>
+          </Drawer>
+        </div>
+      </div>
+      <div className="flex items-center" style={{ width: `${SCALE_WIDTH}px` }}>
+        <div className={`relative w-[${SCALE_WIDTH}px]`}>
+          <div className="ml-4 mr-4 h-full border-r-2"></div>
+          <div
+            className={cn(
+              "flex h-5 items-center justify-end rounded-sm",
+              itemWidth
+                ? treeItemColors.get(type)
+                : "border border-dashed bg-muted",
+            )}
+            style={{
+              width: `${itemWidth || 10}px`,
+              marginLeft: `${startOffset}px`,
+            }}
+          >
+            <span
+              className={cn(
+                "hidden justify-end text-xs text-muted-foreground group-hover:block",
+                itemOffsetLabelWidth > SCALE_WIDTH
+                  ? "mr-1"
+                  : !!latency
+                    ? "-mr-9"
+                    : "-mr-6",
+              )}
+            >
+              {!!latency ? `${latency.toFixed(2)}s` : "n/a"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function TraceTreeItem({
   observation,
@@ -149,7 +250,6 @@ export function TraceTimelineView({
 
   useEffect(() => {
     const handleResize = () => {
-      console.log({ parentRef });
       if (parentRef.current) {
         const availableWidth = parentRef.current.offsetWidth;
         setCardWidth(availableWidth);
@@ -180,7 +280,6 @@ export function TraceTimelineView({
           <h3
             className="p-2 text-2xl font-semibold tracking-tight"
             style={{
-              maxWidth: `${MAX_LABEL_WIDTH}px`,
               minWidth: `${MIN_LABEL_WIDTH}px`,
             }}
           >
@@ -223,6 +322,7 @@ export function TraceTimelineView({
             }}
             expandedItems={expandedItems}
             onExpandedItemsChange={(_, itemIds) => setExpandedItems(itemIds)}
+            itemChildrenIndentation={TREE_INDENTATION}
           >
             <TreeItem
               key={id}
@@ -273,107 +373,6 @@ export function TraceTimelineView({
           </SimpleTreeView>
         </div>
       </Card>
-    </div>
-  );
-}
-
-function TreeItemInner({
-  latency,
-  totalScaleSpan,
-  type,
-  startOffset = 0,
-  name,
-  children,
-  setBackgroundColor,
-  level = 0,
-  cardWidth,
-}: {
-  latency: number;
-  totalScaleSpan: number;
-  type: TreeItemType;
-  startOffset?: number;
-  name?: string | null;
-  children?: React.ReactNode;
-  setBackgroundColor: (color: string) => void;
-  level?: number;
-  cardWidth: number;
-}) {
-  const itemWidth = (latency / totalScaleSpan) * SCALE_WIDTH;
-  const itemOffsetLabelWidth = itemWidth + startOffset + LABEL_WIDTH;
-  const customLabelWidth = cardWidth - SCALE_WIDTH - CARD_PADDING;
-
-  return (
-    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
-      <div
-        className="flex flex-row items-center gap-2"
-        style={{
-          maxWidth: customLabelWidth - level * TREE_INDENTATION,
-          minWidth: MIN_LABEL_WIDTH - LABEL_WIDTH - level * TREE_INDENTATION,
-        }}
-      >
-        <span
-          className={cn("rounded-sm p-1 text-xs", treeItemColors.get(type))}
-        >
-          {type}
-        </span>
-        <span className="w-fit-content flex-shrink overflow-hidden text-ellipsis whitespace-nowrap break-all text-sm">
-          {name}
-        </span>
-        <div
-          className="w-6 flex-1"
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
-        >
-          <Drawer
-            onOpenChange={(open) => setBackgroundColor(open ? "!bg-muted" : "")}
-          >
-            <DrawerTrigger asChild>
-              <Button
-                className="focus:none active:none hidden justify-start hover:!bg-transparent group-hover:block"
-                type="button"
-                size="xs"
-                variant="ghost"
-              >
-                <PanelRightOpen className="h-4 w-4"></PanelRightOpen>
-              </Button>
-            </DrawerTrigger>
-            <DrawerContent className="h-1/3 w-full overflow-y-auto md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
-              {children}
-            </DrawerContent>
-          </Drawer>
-        </div>
-      </div>
-      <div className="flex items-center" style={{ width: `${SCALE_WIDTH}px` }}>
-        <div className={`relative w-[${SCALE_WIDTH}px]`}>
-          <div className="ml-4 mr-4 h-full border-r-2"></div>
-          <div
-            className={cn(
-              "flex h-5 items-center justify-end rounded-sm",
-              itemWidth
-                ? treeItemColors.get(type)
-                : "border border-dashed bg-muted",
-            )}
-            style={{
-              width: `${itemWidth || 10}px`,
-              marginLeft: `${startOffset}px`,
-            }}
-          >
-            <span
-              className={cn(
-                "hidden justify-end text-xs text-muted-foreground group-hover:block",
-                itemOffsetLabelWidth > SCALE_WIDTH
-                  ? "mr-1"
-                  : !!latency
-                    ? "-mr-9"
-                    : "-mr-6",
-              )}
-            >
-              {!!latency ? `${latency.toFixed(2)}s` : "n/a"}
-            </span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
