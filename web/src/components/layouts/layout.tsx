@@ -32,6 +32,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { ProjectNavigation } from "@/src/components/projectNavigation";
 import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -76,6 +77,7 @@ export default function Layout(props: PropsWithChildren) {
     session.data?.environment.enableExperimentalFeatures ?? false;
 
   const projectId = router.query.projectId as string | undefined;
+  const isEeEnabled = useIsEeEnabled();
 
   const mapNavigation = (route: Route): NavigationItem | null => {
     // Project-level routes
@@ -91,11 +93,14 @@ export default function Layout(props: PropsWithChildren) {
     )
       return null;
 
-    // cloud only
+    // check ee or cloud requirements
     if (
-      route.cloudOnly !== undefined &&
-      // the feature should be available in local development
-      route.cloudOnly !== (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined)
+      route.requires !== undefined &&
+      !(
+        (route.requires === "cloud" &&
+          Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)) ||
+        (route.requires === "cloud-or-ee" && isEeEnabled)
+      )
     )
       return null;
 
