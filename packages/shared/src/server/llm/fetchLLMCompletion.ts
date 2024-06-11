@@ -104,14 +104,11 @@ export async function fetchLLMCompletion(
       },
     });
   } else if (modelParams.adapter === LLMAdapter.Azure) {
-    const [instance, deployment, version] = modelParams.model.split(":");
-
     chatModel = new ChatOpenAI({
       azureOpenAIApiKey: apiKey,
       azureOpenAIBasePath: baseURL,
-      azureOpenAIApiInstanceName: instance,
-      azureOpenAIApiDeploymentName: deployment,
-      azureOpenAIApiVersion: version,
+      azureOpenAIApiDeploymentName: modelParams.model,
+      azureOpenAIApiVersion: "2024-02-01",
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,

@@ -237,16 +237,19 @@ export function CreateLLMApiKeyDialog() {
                     Leave blank to use the default base URL for the given LLM
                     adapter.
                   </FormDescription>
-                  <Select
-                    defaultValue={field.value}
-                    onValueChange={(value) =>
-                      field.onChange(value as LLMAdapter)
-                    }
-                  >
-                    <FormControl>
-                      <Input {...field} placeholder="default" />
-                    </FormControl>
-                  </Select>
+
+                  {currentAdapter === LLMAdapter.Azure && (
+                    <FormDescription className="text-yellow-700">
+                      For Azure, please add the base URL in the following
+                      format:
+                      https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
+                    </FormDescription>
+                  )}
+
+                  <FormControl>
+                    <Input {...field} placeholder="default" />
+                  </FormControl>
+
                   <FormMessage />
                 </FormItem>
               )}
@@ -286,7 +289,7 @@ export function CreateLLMApiKeyDialog() {
                       {currentAdapter === LLMAdapter.Azure && (
                         <FormDescription className="text-yellow-700">
                           Azure LLM adapter does not support default models.
-                          Please add custom models.
+                          Please add a custom model with your deployment name.
                         </FormDescription>
                       )}
                     </span>
@@ -322,7 +325,7 @@ export function CreateLLMApiKeyDialog() {
                   {currentAdapter === LLMAdapter.Azure && (
                     <FormDescription className="text-yellow-700">
                       {
-                        "For Azure, add model names in the following format:'{instance-name}:{deployment-name}:{api-version}', e.g. 'myinstance:gpt-4o:2024-05-13'"
+                        "For Azure, the model name should be the same as the deployment name in Azure."
                       }
                     </FormDescription>
                   )}
