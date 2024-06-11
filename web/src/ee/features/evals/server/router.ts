@@ -8,7 +8,6 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DEFAULT_TRACE_JOB_DELAY, EvalTargetObject } from "@langfuse/shared";
 import {
-  EvalModelNames,
   ZodModelConfig,
   singleFilter,
   variableMapping,
@@ -19,7 +18,8 @@ export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
   projectId: z.string(),
   prompt: z.string(),
-  model: EvalModelNames,
+  provider: z.string(),
+  model: z.string(),
   modelParams: ZodModelConfig,
   vars: z.array(z.string()),
   outputSchema: z.object({
@@ -332,6 +332,7 @@ export const evalRouter = createTRPCRouter({
           modelParams: input.modelParams,
           vars: input.vars,
           outputSchema: input.outputSchema,
+          provider: input.provider,
         },
       });
 

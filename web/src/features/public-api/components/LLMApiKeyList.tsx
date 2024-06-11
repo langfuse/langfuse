@@ -1,3 +1,6 @@
+import { TrashIcon } from "lucide-react";
+import { useState } from "react";
+
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -10,23 +13,6 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Form,
-  FormDescription,
-} from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -38,15 +24,9 @@ import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
-import { type RouterOutput } from "@/src/utils/types";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ModelProvider, evalLLMModels } from "@langfuse/shared";
 import { DialogDescription } from "@radix-ui/react-dialog";
-import { PlusIcon, TrashIcon } from "lucide-react";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+
+import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 
 export function LlmApiKeyList(props: { projectId: string }) {
   const hasAccess = useHasAccess({
@@ -79,6 +59,12 @@ export function LlmApiKeyList(props: { projectId: string }) {
               <TableHead className="hidden text-primary md:table-cell">
                 Provider
               </TableHead>
+              <TableHead className="hidden text-primary md:table-cell">
+                Adapter
+              </TableHead>
+              <TableHead className="hidden text-primary md:table-cell">
+                Base URL
+              </TableHead>
               <TableHead className="text-primary">Secret Key</TableHead>
               <TableHead />
             </TableRow>
@@ -90,6 +76,10 @@ export function LlmApiKeyList(props: { projectId: string }) {
                   {apiKey.createdAt.toLocaleDateString()}
                 </TableCell>
                 <TableCell className="font-mono">{apiKey.provider}</TableCell>
+                <TableCell className="font-mono">{apiKey.adapter}</TableCell>
+                <TableCell className="font-mono">
+                  {apiKey.baseURL ?? "default"}
+                </TableCell>
                 <TableCell className="font-mono">
                   {apiKey.displaySecretKey}
                 </TableCell>
@@ -104,10 +94,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
           </TableBody>
         </Table>
       </Card>
-      <CreateLlmApiKeyComponent
-        projectId={props.projectId}
-        existingApiKeys={apiKeys.data?.data ?? []}
-      />
+      <CreateLLMApiKeyDialog />
     </div>
   );
 }
@@ -137,11 +124,11 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="mb-5">Delete API key</DialogTitle>
+          <DialogTitle className="mb-5">Delete LLM provider</DialogTitle>
         </DialogHeader>
         <DialogDescription>
-          Are you sure you want to delete this API key? This action cannot be
-          undone.
+          Are you sure you want to delete this LLM provider? This action cannot
+          be undone.
         </DialogDescription>
         <DialogFooter>
           <Button
@@ -170,145 +157,5 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-const formSchema = z.object({
-  secretKey: z.string().min(1),
-  provider: z.nativeEnum(ModelProvider),
-});
-
-export function CreateLlmApiKeyComponent(props: {
-  projectId: string;
-  existingApiKeys: RouterOutput["llmApiKey"]["all"]["data"];
-}) {
-  const capture = usePostHogClientCapture();
-  const [open, setOpen] = useState(false);
-  const hasAccess = useHasAccess({
-    projectId: props.projectId,
-    scope: "llmApiKeys:create",
-  });
-
-  const utils = api.useUtils();
-  const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
-    onSuccess: () => utils.llmApiKey.invalidate(),
-  });
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      secretKey: "",
-      provider: ModelProvider.OpenAI,
-    },
-  });
-
-  if (!hasAccess) return null;
-
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    if (
-      props.existingApiKeys.map((k) => k.provider).includes(values.provider)
-    ) {
-      form.setError("provider", {
-        type: "manual",
-        message: "There already exists an API key for this provider.",
-      });
-      return;
-    }
-    capture("project_settings:llm_api_key_create", {
-      provider: values.provider,
-    });
-
-    return mutCreateLlmApiKey
-      .mutateAsync({
-        projectId: props.projectId,
-        secretKey: values.secretKey,
-        provider: values.provider,
-      })
-      .then(() => {
-        form.reset();
-        setOpen(false);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }
-
-  return (
-    <>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="secondary" loading={mutCreateLlmApiKey.isLoading}>
-            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-            Add new LLM API key
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Store a LLM API Key</DialogTitle>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              className={cn("flex flex-col gap-6")}
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
-              onSubmit={form.handleSubmit(onSubmit)}
-            >
-              <FormField
-                control={form.control}
-                name="secretKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>API Key</FormLabel>
-                    <FormControl>
-                      <Input placeholder="sk-proj-...Uwj9" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Your API keys are stored encrypted on our servers.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="provider"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>LLM Provider</FormLabel>
-                    <Select
-                      defaultValue={field.value}
-                      onValueChange={(value) =>
-                        field.onChange(value as ModelProvider)
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a LLM provider" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {Object.values(ModelProvider).map((provider) => (
-                          <SelectItem value={provider} key={provider}>
-                            {provider}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                className="w-full"
-                loading={form.formState.isSubmitting}
-              >
-                Create API key
-              </Button>
-              <FormMessage />
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
