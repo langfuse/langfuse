@@ -117,7 +117,7 @@ export default async function handler(
         ? Prisma.sql`AND s."name" = ${obj.name}`
         : Prisma.empty;
       const fromTimestampCondition = obj.fromTimestamp
-        ? Prisma.sql`AND t."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+        ? Prisma.sql`AND s."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
       const sourceCondition = obj.source
         ? Prisma.sql`AND s."source" = ${obj.source}`
