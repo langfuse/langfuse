@@ -1,5 +1,8 @@
 #!/bin/sh
 
+source ./../env
+
+# Run cleanup script before running migrations
 # Check if DATABASE_URL is not set
 if [ -z "$DATABASE_URL" ]; then
     # Check if all required variables are provided
@@ -17,8 +20,8 @@ fi
 if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL=$DATABASE_URL
 fi
-# Run cleanup script before running migrations
-pnpm --filter=shared run db:migrations:fix-history
+
+prisma db execute --url "$DIRECT_URL" --file "./scripts/cleanup.sql"
 
 # Apply migrations
 prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
