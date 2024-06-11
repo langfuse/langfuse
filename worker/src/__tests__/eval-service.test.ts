@@ -9,7 +9,11 @@ import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { pruneDatabase } from "./utils";
 import { sql } from "kysely";
-import { LangfuseNotFoundError, variableMappingList } from "@langfuse/shared";
+import {
+  LLMAdapter,
+  LangfuseNotFoundError,
+  variableMappingList,
+} from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
@@ -275,6 +279,7 @@ describe("execute evals", () => {
         version: 1,
         prompt: "Please evaluate toxicity {{input}} {{output}}",
         model: "gpt-3.5-turbo",
+        provider: "openai",
         model_params: {},
         output_schema: {
           reasoning: "Please explain your reasoning",
@@ -326,6 +331,8 @@ describe("execute evals", () => {
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         secret_key: encrypt(String(OPENAI_API_KEY)),
         provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        custom_models: [],
         display_secret_key: "123456",
       })
       .execute();
@@ -387,6 +394,7 @@ describe("execute evals", () => {
         version: 1,
         prompt: "Please evaluate toxicity {{input}} {{output}}",
         model: "gpt-3.5-turbo",
+        provider: "openai",
         model_params: {},
         output_schema: {
           reasoning: "Please explain your reasoning",
@@ -480,6 +488,7 @@ describe("execute evals", () => {
         version: 1,
         prompt: "Please evaluate toxicity {{input}} {{output}}",
         model: "gpt-3.5-turbo",
+        provider: "openai",
         model_params: {},
         output_schema: {
           reasoning: "Please explain your reasoning",

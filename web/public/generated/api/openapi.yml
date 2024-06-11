@@ -997,9 +997,10 @@ paths:
         - name: source
           in: query
           description: Retrieve only scores from a specific source.
-          required: true
+          required: false
           schema:
             $ref: '#/components/schemas/ScoreSource'
+            nullable: true
         - name: operator
           in: query
           description: Retrieve only scores with <operator> value.

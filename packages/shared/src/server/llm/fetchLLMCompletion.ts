@@ -17,7 +17,7 @@ import {
   ChatMessageRole,
   LLMFunctionCall,
   ModelParams,
-  ModelProvider,
+  LLMAdapter,
 } from "./types";
 import zodToJsonSchema from "zod-to-json-schema";
 import { JsonOutputFunctionsParser } from "langchain/output_parsers";
@@ -27,7 +27,9 @@ type LLMCompletionParams = {
   modelParams: ModelParams;
   functionCall?: LLMFunctionCall;
   callbacks?: BaseCallbackHandler[];
+  baseURL?: string;
   apiKey?: string;
+  maxRetries?: number;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -57,7 +59,16 @@ export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
 ): Promise<string | IterableReadableStream<Uint8Array> | unknown> {
   // the apiKey must never be printed to the console
-  const { messages, modelParams, streaming, callbacks, apiKey } = params;
+  const {
+    messages,
+    modelParams,
+    streaming,
+    callbacks,
+    apiKey,
+    baseURL,
+    maxRetries,
+  } = params;
+
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
       return new HumanMessage(message.content);
@@ -68,16 +79,18 @@ export async function fetchLLMCompletion(
   });
 
   let chatModel: ChatOpenAI | ChatAnthropic;
-  if (modelParams.provider === ModelProvider.Anthropic) {
+  if (modelParams.adapter === LLMAdapter.Anthropic) {
     chatModel = new ChatAnthropic({
       anthropicApiKey: apiKey,
+      anthropicApiUrl: baseURL,
       modelName: modelParams.model,
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks,
+      clientOptions: { maxRetries },
     });
-  } else if (modelParams.provider === ModelProvider.OpenAI) {
+  } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
       modelName: modelParams.model,
@@ -85,14 +98,28 @@ export async function fetchLLMCompletion(
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks,
+      maxRetries,
+      configuration: {
+        baseURL,
+      },
+    });
+  } else if (modelParams.adapter === LLMAdapter.Azure) {
+    chatModel = new ChatOpenAI({
+      azureOpenAIApiKey: apiKey,
+      azureOpenAIBasePath: baseURL,
+      azureOpenAIApiDeploymentName: modelParams.model,
+      azureOpenAIApiVersion: "2024-02-01",
+      temperature: modelParams.temperature,
+      maxTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      callbacks,
+      maxRetries,
     });
   } else {
     // eslint-disable-next-line no-unused-vars
-    const _exhaustiveCheck: never = modelParams;
+    const _exhaustiveCheck: never = modelParams.adapter;
     throw new Error("This model provider is not supported.");
   }
-
-  console.log("Making LLM call with params: ", modelParams);
 
   if (params.functionCall) {
     const functionCallingModel = chatModel.bind({
