@@ -1,6 +1,4 @@
 import { z } from "zod";
-
-import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
