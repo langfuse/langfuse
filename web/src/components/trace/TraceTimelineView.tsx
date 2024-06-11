@@ -105,7 +105,7 @@ function TreeItemInner({
                 <PanelRightOpen className="h-4 w-4"></PanelRightOpen>
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="h-1/3 w-full overflow-y-auto md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
+            <DrawerContent className="h-1/2 w-full overflow-hidden md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
               {children}
             </DrawerContent>
           </Drawer>
@@ -194,18 +194,20 @@ function TraceTreeItem({
           level={level}
           cardWidth={cardWidth}
         >
-          <div className="p-8">
-            <h3 className="mb-6 text-2xl font-semibold tracking-tight">
+          <>
+            <h3 className="mb-6 px-8 pt-8 text-2xl font-semibold tracking-tight">
               Detail view
             </h3>
-            <ObservationPreview
-              observations={observations}
-              scores={scores}
-              projectId={projectId}
-              currentObservationId={observation.id}
-              traceId={observation.traceId}
-            />
-          </div>
+            <div className="overflow-y-auto px-8 pb-8 pt-2">
+              <ObservationPreview
+                observations={observations}
+                scores={scores}
+                projectId={projectId}
+                currentObservationId={observation.id}
+                traceId={observation.traceId}
+              />
+            </div>
+          </>
         </TreeItemInner>
       }
     >
@@ -344,7 +346,7 @@ export function TraceTimelineView({
                   type="TRACE"
                   cardWidth={cardWidth}
                 >
-                  <div className="p-8">
+                  <div className="overflow-y-auto p-8">
                     <h3 className="mb-6 text-2xl font-semibold tracking-tight">
                       Detail view
                     </h3>
