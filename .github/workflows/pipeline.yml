@@ -47,11 +47,11 @@ jobs:
 
       - name: Check server health
         run: |
-          until curl -f http://localhost:3000/api/public/health; do sleep 5; done
+          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
 
       - name: Check worker health
         run: |
-          until curl -f http://localhost:3030/api/health; do sleep 5; done
+          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
 
       - name: Ensure no unhealthy status
         run: |
@@ -67,6 +67,7 @@ jobs:
     strategy:
       matrix:
         node-version: [20]
+        postgres-version: [12, 15]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -97,6 +98,8 @@ jobs:
         run: |
           docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
+        env:
+          POSTGRES_VERSION: ${{ matrix.postgres-version }}
 
       - name: Seed DB
         run: |
@@ -117,6 +120,7 @@ jobs:
     strategy:
       matrix:
         node-version: [20]
+        postgres-version: [12, 15]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -146,6 +150,7 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
+          docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
@@ -184,6 +189,7 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
+          docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB

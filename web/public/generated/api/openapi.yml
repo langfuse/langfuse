@@ -1015,6 +1015,13 @@ paths:
             type: number
             format: double
             nullable: true
+        - name: scoreIds
+          in: query
+          description: Comma-separated list of score IDs to limit the results to.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
