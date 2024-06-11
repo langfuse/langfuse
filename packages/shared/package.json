@@ -38,7 +38,8 @@
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate",
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
-    "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load"
+    "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load",
+    "db:migrations:fix-history": "bash ./scripts/fix-migration-history.sh"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
