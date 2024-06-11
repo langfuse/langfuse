@@ -28,6 +28,14 @@ export const getPromptByName = async (
   return getProductionPrompt(params);
 };
 
+export const getPromptById = async (id: string): Promise<Prompt | null> => {
+  return await prisma.prompt.findFirst({
+    where: {
+      id,
+    },
+  });
+};
+
 const getProductionPrompt = async ({
   promptName,
   projectId,
