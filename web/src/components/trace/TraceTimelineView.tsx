@@ -2,7 +2,7 @@ import { Card } from "@/src/components/ui/card";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { type Score, type Trace } from "@langfuse/shared";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 
@@ -28,7 +28,8 @@ const SCALE_WIDTH = 800; // in pixels
 const MAX_LABEL_WIDTH = 470;
 const LABEL_WIDTH = 35;
 const TREE_INDENTATION = 12; // fixed in MUI X TreeView
-const MIN_LABEL_WIDTH = 212;
+const MIN_LABEL_WIDTH = 250;
+const CARD_PADDING = 60;
 
 const PREDEFINED_STEP_SIZES = [
   0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -50,6 +51,7 @@ function TraceTreeItem({
   projectId,
   scores,
   observations,
+  cardWidth,
 }: {
   observation: NestedObservation;
   level: number;
@@ -58,6 +60,7 @@ function TraceTreeItem({
   projectId: string;
   scores: Score[];
   observations: Array<ObservationReturnType>;
+  cardWidth: number;
 }) {
   const { startTime, endTime } = observation || {};
   const [backgroundColor, setBackgroundColor] = useState("");
@@ -87,6 +90,7 @@ function TraceTreeItem({
           totalScaleSpan={totalScaleSpan}
           setBackgroundColor={setBackgroundColor}
           level={level}
+          cardWidth={cardWidth}
         >
           <div className="p-8">
             <h3 className="mb-6 text-2xl font-semibold tracking-tight">
@@ -114,6 +118,7 @@ function TraceTreeItem({
               projectId={projectId}
               scores={scores}
               observations={observations}
+              cardWidth={cardWidth}
             />
           ))
         : null}
@@ -139,6 +144,26 @@ export function TraceTimelineView({
     [trace.id],
   );
 
+  const [cardWidth, setCardWidth] = useState(0);
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      console.log({ parentRef });
+      if (parentRef.current) {
+        const availableWidth = parentRef.current.offsetWidth;
+        setCardWidth(availableWidth);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize); // Recalculate on window resize
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
   if (!latency) return null;
 
   const nestedObservations = nestObservations(observations);
@@ -146,103 +171,109 @@ export function TraceTimelineView({
   const totalScaleSpan = stepSize * (SCALE_WIDTH / 100);
 
   return (
-    <Card className="flex max-h-[calc(100dvh-24rem)] flex-col overflow-x-auto overflow-y-hidden">
-      <div className="grid w-full grid-cols-[1fr,auto] items-center p-2">
-        <h3
-          className="p-2 text-2xl font-semibold tracking-tight"
-          style={{
-            maxWidth: `${MAX_LABEL_WIDTH}px`,
-            minWidth: `${MIN_LABEL_WIDTH}px`,
-          }}
-        >
-          Trace Timeline
-        </h3>
-        <div
-          className="relative mr-2 h-4"
-          style={{ width: `${SCALE_WIDTH}px` }}
-        >
-          {Array.from({ length: SCALE_WIDTH / 100 + 1 }).map((_, index) => {
-            const step = stepSize * index;
-            const isLastStep = index === SCALE_WIDTH / 100;
+    <div ref={parentRef} className="w-full">
+      <Card
+        className="flex max-h-[calc(100dvh-24rem)] flex-col overflow-x-auto overflow-y-hidden"
+        style={{ width: cardWidth }}
+      >
+        <div className="grid w-full grid-cols-[1fr,auto] items-center p-2">
+          <h3
+            className="p-2 text-2xl font-semibold tracking-tight"
+            style={{
+              maxWidth: `${MAX_LABEL_WIDTH}px`,
+              minWidth: `${MIN_LABEL_WIDTH}px`,
+            }}
+          >
+            Trace Timeline
+          </h3>
+          <div
+            className="relative mr-2 h-4"
+            style={{ width: `${SCALE_WIDTH}px` }}
+          >
+            {Array.from({ length: SCALE_WIDTH / 100 + 1 }).map((_, index) => {
+              const step = stepSize * index;
+              const isLastStep = index === SCALE_WIDTH / 100;
 
-            return isLastStep ? (
-              <span
-                className="absolute -right-2 text-xs text-muted-foreground"
-                key={index}
-              >
-                {step.toFixed(2)}s
-              </span>
-            ) : (
-              <div
-                key={index}
-                className="absolute h-full border border-l text-xs"
-                style={{ left: `${index * 100}px` }}
-              >
-                <span className="absolute left-2 text-xs text-muted-foreground">
+              return isLastStep ? (
+                <span
+                  className="absolute -right-2 text-xs text-muted-foreground"
+                  key={index}
+                >
                   {step.toFixed(2)}s
                 </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <div className="min-w-fit overflow-y-auto p-2">
-        <SimpleTreeView
-          slots={{
-            expandIcon: PlusIcon,
-            collapseIcon: MinusIcon,
-          }}
-          expandedItems={expandedItems}
-          onExpandedItemsChange={(_, itemIds) => setExpandedItems(itemIds)}
-        >
-          <TreeItem
-            key={id}
-            itemId={id}
-            classes={{
-              content: `${backgroundColor} !min-w-fit`,
-              selected: "!bg-background !important hover:!bg-muted",
-              label: "!min-w-fit",
-            }}
-            label={
-              <TreeItemInner
-                name={name}
-                latency={latency}
-                totalScaleSpan={totalScaleSpan}
-                setBackgroundColor={setBackgroundColor}
-                type="TRACE"
-                customLabelWidth={MAX_LABEL_WIDTH}
-              >
-                <div className="p-8">
-                  <h3 className="mb-6 text-2xl font-semibold tracking-tight">
-                    Detail view
-                  </h3>
-                  <TracePreview
-                    trace={trace}
-                    observations={observations}
-                    scores={scores}
-                  />
+              ) : (
+                <div
+                  key={index}
+                  className="absolute h-full border border-l text-xs"
+                  style={{ left: `${index * 100}px` }}
+                >
+                  <span className="absolute left-2 text-xs text-muted-foreground">
+                    {step.toFixed(2)}s
+                  </span>
                 </div>
-              </TreeItemInner>
-            }
+              );
+            })}
+          </div>
+        </div>
+        <div className="min-w-fit overflow-y-auto p-2">
+          <SimpleTreeView
+            slots={{
+              expandIcon: PlusIcon,
+              collapseIcon: MinusIcon,
+            }}
+            expandedItems={expandedItems}
+            onExpandedItemsChange={(_, itemIds) => setExpandedItems(itemIds)}
           >
-            {Boolean(nestedObservations.length)
-              ? nestedObservations.map((observation) => (
-                  <TraceTreeItem
-                    key={observation.id}
-                    observation={observation}
-                    level={1}
-                    traceStartTime={nestedObservations[0].startTime}
-                    totalScaleSpan={totalScaleSpan}
-                    projectId={projectId}
-                    scores={scores}
-                    observations={observations}
-                  />
-                ))
-              : null}
-          </TreeItem>
-        </SimpleTreeView>
-      </div>
-    </Card>
+            <TreeItem
+              key={id}
+              itemId={id}
+              classes={{
+                content: `${backgroundColor} !min-w-fit`,
+                selected: "!bg-background !important hover:!bg-muted",
+                label: "!min-w-fit",
+              }}
+              label={
+                <TreeItemInner
+                  name={name}
+                  latency={latency}
+                  totalScaleSpan={totalScaleSpan}
+                  setBackgroundColor={setBackgroundColor}
+                  type="TRACE"
+                  cardWidth={cardWidth}
+                >
+                  <div className="p-8">
+                    <h3 className="mb-6 text-2xl font-semibold tracking-tight">
+                      Detail view
+                    </h3>
+                    <TracePreview
+                      trace={trace}
+                      observations={observations}
+                      scores={scores}
+                    />
+                  </div>
+                </TreeItemInner>
+              }
+            >
+              {Boolean(nestedObservations.length)
+                ? nestedObservations.map((observation) => (
+                    <TraceTreeItem
+                      key={observation.id}
+                      observation={observation}
+                      level={1}
+                      traceStartTime={nestedObservations[0].startTime}
+                      totalScaleSpan={totalScaleSpan}
+                      projectId={projectId}
+                      scores={scores}
+                      observations={observations}
+                      cardWidth={cardWidth}
+                    />
+                  ))
+                : null}
+            </TreeItem>
+          </SimpleTreeView>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -255,7 +286,7 @@ function TreeItemInner({
   children,
   setBackgroundColor,
   level = 0,
-  customLabelWidth = 440,
+  cardWidth,
 }: {
   latency: number;
   totalScaleSpan: number;
@@ -265,17 +296,19 @@ function TreeItemInner({
   children?: React.ReactNode;
   setBackgroundColor: (color: string) => void;
   level?: number;
-  customLabelWidth?: number;
+  cardWidth: number;
 }) {
   const itemWidth = (latency / totalScaleSpan) * SCALE_WIDTH;
   const itemOffsetLabelWidth = itemWidth + startOffset + LABEL_WIDTH;
+  const customLabelWidth = cardWidth - SCALE_WIDTH - CARD_PADDING;
 
   return (
-    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,800px] items-center">
+    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
       <div
         className="flex flex-row items-center gap-2"
         style={{
           maxWidth: customLabelWidth - level * TREE_INDENTATION,
+          minWidth: MIN_LABEL_WIDTH - LABEL_WIDTH - level * TREE_INDENTATION,
         }}
       >
         <span
@@ -283,7 +316,7 @@ function TreeItemInner({
         >
           {type}
         </span>
-        <span className="w-fit-content overflow-hidden text-ellipsis whitespace-nowrap break-all text-sm">
+        <span className="w-fit-content flex-shrink overflow-hidden text-ellipsis whitespace-nowrap break-all text-sm">
           {name}
         </span>
         <div
