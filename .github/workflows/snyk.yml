@@ -21,6 +21,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: snyk.sarif
+          category: web
 
       - name: Run Snyk to check Docker image for vulnerabilities (langfuse-worker)
         continue-on-error: true
@@ -35,3 +36,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: snyk.sarif
+          category: worker
