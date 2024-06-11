@@ -342,7 +342,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         <div className="mt-5 flex-1 flex-col space-y-5 overflow-hidden">
           <Alert>
             <Terminal className="h-4 w-4" />
-            <AlertTitle>New Trace Design Beta</AlertTitle>
+            <AlertTitle>New Trace Timeline (beta)</AlertTitle>
             <AlertDescription>
               We value your feedback! Share your thoughts on{" "}
               <a
