@@ -8,7 +8,7 @@ services:
       - 6379:6379
 
   db:
-    image: postgres:12.19
+    image: postgres:${POSTGRES_VERSION:-latest}
     restart: always
     command: ["postgres", "-c", "log_statement=all"]
     environment:
