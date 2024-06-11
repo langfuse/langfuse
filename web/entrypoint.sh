@@ -18,7 +18,7 @@ if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL=$DATABASE_URL
 fi
 # Run cleanup script before running migrations
-pnpm --filter=shared db:migrations:fix-history
+node packages/shared/scripts/fix-migration-history.js
 
 # Apply migrations
 prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
