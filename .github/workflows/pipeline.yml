@@ -150,6 +150,7 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
+          docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Seed DB
