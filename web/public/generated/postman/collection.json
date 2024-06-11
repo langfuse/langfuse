@@ -808,7 +808,7 @@
                 {
                   "key": "scoreIds",
                   "value": "",
-                  "description": "Retrieve only scores with the given ids."
+                  "description": "Comma-separated list of score IDs to limit the results to."
                 }
               ],
               "variable": []
