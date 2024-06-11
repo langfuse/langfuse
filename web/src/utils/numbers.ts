@@ -1,5 +1,5 @@
 export const compactNumberFormatter = (number: number) => {
-  return Intl.NumberFormat("us", {
+  return Intl.NumberFormat("en-US", {
     notation: "compact",
     compactDisplay: "short",
     maximumFractionDigits: 2,
@@ -7,7 +7,7 @@ export const compactNumberFormatter = (number: number) => {
 };
 
 export const numberFormatter = (number: number) => {
-  return Intl.NumberFormat("us", {
+  return Intl.NumberFormat("en-US", {
     notation: "standard",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
