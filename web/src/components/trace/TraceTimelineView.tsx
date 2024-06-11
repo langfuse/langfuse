@@ -262,7 +262,7 @@ export function TraceTimelineView({
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [parentRef]);
 
   if (!latency) return null;
 
