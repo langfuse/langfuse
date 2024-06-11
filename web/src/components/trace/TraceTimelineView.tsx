@@ -176,7 +176,7 @@ function TraceTreeItem({
   return (
     <TreeItem
       classes={{
-        content: `border-l border-dashed !rounded-xs ${backgroundColor} !min-w-fit`,
+        content: `border-l border-dashed !rounded-xs ${backgroundColor} !min-w-fit hover:!bg-muted`,
         selected: "!bg-background !important hover:!bg-muted",
         label: "!min-w-fit",
       }}
@@ -328,7 +328,7 @@ export function TraceTimelineView({
               key={id}
               itemId={id}
               classes={{
-                content: `${backgroundColor} !min-w-fit`,
+                content: `${backgroundColor} !min-w-fit !hover:bg-muted`,
                 selected: "!bg-background !important hover:!bg-muted",
                 label: "!min-w-fit",
               }}
