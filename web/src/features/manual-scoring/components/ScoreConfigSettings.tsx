@@ -13,7 +13,7 @@ export function ScoreConfigSettings({ projectId }: { projectId: string }) {
   if (!hasReadAccess) return null;
 
   return (
-    <div>
+    <div id="score-configs">
       <Header title="Score Configs" level="h3" />
       <p className="mb-4 text-sm">
         Score configs define which scores are available for{" "}
