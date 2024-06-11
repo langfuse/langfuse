@@ -11,8 +11,6 @@ then
     sudo apt-get install postgresql-client -y
 fi
 
-# echo "$DATABASE_URL"
-
 # potential inputs in DATABASE_URL
 # - postgresql://postgres:postgres@localhost:5432/postgres?schema=something
 # - postgresql://postgres:postgres@localhost:5432/postgres
@@ -31,13 +29,13 @@ transform_database_url() {
     local transformed_url
 
     echo $conn_str
-    # Extract schema using regex
-    schema=$(echo "$conn_str" | grep -oP "(?<=schema=)[^&]+")
+    # search conn str for 'schema=' and grab the word after it. Pattern: sed 's/pattern/replacement/flags'
+    schema=$(echo "$conn_str" | sed 's/.*?schema=\([^&]*\).*/\1/p')
 
-    
+    echo "schema: $schema"    
     if [ -n "$schema" ]; then
         # Schema found, replace schema with search_path
-        transformed_url=$(echo "$conn_str" | sed "s/schema=$schema/search_path=$schema/")
+        transformed_url=$(echo "$conn_str" | sed 's/?schema=/?search_path=/')
     else
         # Schema not found, keep the original connection string
         transformed_url="$conn_str"
@@ -54,7 +52,6 @@ echo "Cleaning up migration history for database: $transformed_url"
 
 # Connect to the database and execute the query
 psql "${transformed_url}" -f "./scripts/cleanup.sql"
-
 
 
 echo "Migration history cleaned up successfully"
