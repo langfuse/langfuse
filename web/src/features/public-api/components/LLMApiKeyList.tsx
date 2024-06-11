@@ -20,31 +20,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 export function LlmApiKeyList(props: { projectId: string }) {
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:read",
   });
+  const isEeEnabled = useIsEeEnabled();
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
       projectId: props.projectId,
     },
     {
-      enabled: hasAccess && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined,
+      enabled: hasAccess && isEeEnabled,
     },
   );
 
   if (!hasAccess) return null;
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
+  if (!isEeEnabled) return null;
 
   return (
     <div id="llm-api-keys">

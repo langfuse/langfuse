@@ -102,6 +102,8 @@ export const env = createEnv({
     TURNSTILE_SECRET_KEY: z.string().optional(),
     // DB event log
     ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
+    // EE License
+    LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
   },
 
   /**
@@ -216,6 +218,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
     // db event log
     ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
+    // EE License
+    LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
