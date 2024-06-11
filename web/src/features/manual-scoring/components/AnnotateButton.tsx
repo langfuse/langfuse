@@ -477,7 +477,9 @@ export function AnnotateButton({
                         type: type,
                         source: source,
                       });
-                      router.push(`/project/${projectId}/settings`);
+                      router.push(
+                        `/project/${projectId}/settings#score-configs`,
+                      );
                     }}
                   >
                     Manage score configs
