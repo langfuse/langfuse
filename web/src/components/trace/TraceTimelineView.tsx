@@ -26,6 +26,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 800;
+const STEP_SIZE = 100;
 const CARD_PADDING = 60;
 const LABEL_WIDTH = 35;
 const MIN_LABEL_WIDTH = 250;
@@ -36,7 +37,7 @@ const PREDEFINED_STEP_SIZES = [
 ];
 
 const calculateStepSize = (latency: number, scaleWidth: number) => {
-  const calculatedStepSize = latency / (scaleWidth / 100);
+  const calculatedStepSize = latency / (scaleWidth / STEP_SIZE);
   return (
     PREDEFINED_STEP_SIZES.find((step) => step >= calculatedStepSize) ||
     PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1]
@@ -268,7 +269,7 @@ export function TraceTimelineView({
 
   const nestedObservations = nestObservations(observations);
   const stepSize = calculateStepSize(latency, SCALE_WIDTH);
-  const totalScaleSpan = stepSize * (SCALE_WIDTH / 100);
+  const totalScaleSpan = stepSize * (SCALE_WIDTH / STEP_SIZE);
 
   return (
     <div ref={parentRef} className="w-full">
@@ -289,29 +290,31 @@ export function TraceTimelineView({
             className="relative mr-2 h-4"
             style={{ width: `${SCALE_WIDTH}px` }}
           >
-            {Array.from({ length: SCALE_WIDTH / 100 + 1 }).map((_, index) => {
-              const step = stepSize * index;
-              const isLastStep = index === SCALE_WIDTH / 100;
+            {Array.from({ length: SCALE_WIDTH / STEP_SIZE + 1 }).map(
+              (_, index) => {
+                const step = stepSize * index;
+                const isLastStep = index === SCALE_WIDTH / STEP_SIZE;
 
-              return isLastStep ? (
-                <span
-                  className="absolute -right-2 text-xs text-muted-foreground"
-                  key={index}
-                >
-                  {step.toFixed(2)}s
-                </span>
-              ) : (
-                <div
-                  key={index}
-                  className="absolute h-full border border-l text-xs"
-                  style={{ left: `${index * 100}px` }}
-                >
-                  <span className="absolute left-2 text-xs text-muted-foreground">
+                return isLastStep ? (
+                  <span
+                    className="absolute -right-2 text-xs text-muted-foreground"
+                    key={index}
+                  >
                     {step.toFixed(2)}s
                   </span>
-                </div>
-              );
-            })}
+                ) : (
+                  <div
+                    key={index}
+                    className="absolute h-full border border-l text-xs"
+                    style={{ left: `${index * STEP_SIZE}px` }}
+                  >
+                    <span className="absolute left-2 text-xs text-muted-foreground">
+                      {step.toFixed(2)}s
+                    </span>
+                  </div>
+                );
+              },
+            )}
           </div>
         </div>
         <div className="min-w-fit overflow-y-auto p-2">
