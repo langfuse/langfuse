@@ -67,6 +67,7 @@ jobs:
     strategy:
       matrix:
         node-version: [20]
+        postgres-version: [12, 15]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -97,6 +98,8 @@ jobs:
         run: |
           docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
+        env:
+          POSTGRES_VERSION: ${{ matrix.postgres-version }}
 
       - name: Seed DB
         run: |
