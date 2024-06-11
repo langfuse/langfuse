@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { jsonSchema } from "@langfuse/shared";
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
 
 if (process.env.NEXT_PUBLIC_SENTRY_DSN)
   Sentry.init({
@@ -20,9 +21,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
       if (
         samplingContext.request &&
         samplingContext.request.url &&
-        samplingContext.request.url.includes("api/auth") &&
-        samplingContext.transactionContext.status !== "ok" &&
-        samplingContext.transactionContext.status !== "unauthenticated"
+        samplingContext.request.url.includes("api/auth")
       ) {
         return 0.1;
       }
@@ -32,8 +31,8 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
     profilesSampleRate: 0.1,
     integrations: [
       // Add profiling integration to list of integrations
-      new Sentry.Integrations.Prisma({ client: prisma }),
-      Sentry.metrics.metricsAggregatorIntegration(),
+      Sentry.prismaIntegration(),
+      nodeProfilingIntegration(),
     ],
 
     // filter out passwords from the signup request body
