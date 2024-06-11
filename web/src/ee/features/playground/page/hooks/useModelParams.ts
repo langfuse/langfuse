@@ -43,7 +43,10 @@ export const useModelParams = ({
       !selectedProviderApiKey
         ? []
         : evalModelsOnly
-          ? evalModelsByAdapter[selectedProviderApiKey.adapter]
+          ? [
+              ...evalModelsByAdapter[selectedProviderApiKey.adapter],
+              ...selectedProviderApiKey.customModels,
+            ]
           : selectedProviderApiKey.withDefaultModels
             ? [
                 ...selectedProviderApiKey.customModels,
