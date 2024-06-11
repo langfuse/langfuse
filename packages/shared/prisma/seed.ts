@@ -184,6 +184,7 @@ async function main() {
           secretKey: encrypt(OPENAI_API_KEY),
           displaySecretKey: getDisplaySecretKey(OPENAI_API_KEY),
           provider: "openai",
+          adapter: "openai",
         },
       });
     } else {
@@ -209,6 +210,7 @@ async function main() {
           "Please evaluate the toxicity of the following text {{input}} {{output}}",
         model: "gpt-3.5-turbo",
         vars: ["input", "output"],
+        provider: "openai",
         outputSchema: {
           score: "provide a score between 0 and 1",
           reasoning: "one sentence reasoning for the score",

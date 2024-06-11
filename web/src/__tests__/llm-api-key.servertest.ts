@@ -3,7 +3,7 @@
 
 import type { Session } from "next-auth";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelProvider } from "@langfuse/shared";
+import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -38,11 +38,20 @@ describe("llmApiKey.all RPC", () => {
 
   it("should create an llm api key", async () => {
     const secret = "test-secret";
+    const provider = "openai";
+    const adapter = LLMAdapter.OpenAI;
+    const customModels = ["fancy-gpt-3.5-turbo"];
+    const baseURL = "https://custom.openai.com/v1";
+    const withDefaultModels = false;
 
     await caller.llmApiKey.create({
       projectId,
       secretKey: secret,
-      provider: ModelProvider.OpenAI,
+      provider,
+      adapter,
+      baseURL,
+      customModels,
+      withDefaultModels,
     });
 
     const llmApiKeys = await prisma.llmApiKeys.findMany({
@@ -55,18 +64,31 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].projectId).toBe(projectId);
     expect(llmApiKeys[0].secretKey).not.toBeNull();
     expect(llmApiKeys[0].secretKey).not.toEqual(secret);
-    expect(llmApiKeys[0].provider).toBe(ModelProvider.OpenAI);
+    expect(llmApiKeys[0].provider).toBe(provider);
+    expect(llmApiKeys[0].adapter).toBe(adapter);
+    expect(llmApiKeys[0].baseURL).toBe(baseURL);
+    expect(llmApiKeys[0].customModels).toEqual(customModels);
+    expect(llmApiKeys[0].withDefaultModels).toBe(withDefaultModels);
     // this has to be 3 dots and the last 4 characters of the secret
     expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
   });
 
   it("should create and get an llm api key", async () => {
     const secret = "test-secret";
+    const provider = "openai";
+    const adapter = LLMAdapter.OpenAI;
+    const customModels = ["fancy-gpt-3.5-turbo"];
+    const baseURL = "https://custom.openai.com/v1";
+    const withDefaultModels = false;
 
     await caller.llmApiKey.create({
       projectId,
       secretKey: secret,
-      provider: ModelProvider.OpenAI,
+      provider,
+      adapter,
+      baseURL,
+      customModels,
+      withDefaultModels,
     });
 
     const dbLlmApiKeys = await prisma.llmApiKeys.findMany({
@@ -77,16 +99,23 @@ describe("llmApiKey.all RPC", () => {
 
     expect(dbLlmApiKeys.length).toBe(1);
 
-    const llmApiKeys = await caller.llmApiKey.all({
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
       projectId,
     });
 
-    expect(llmApiKeys.data.length).toBe(1);
-    expect(llmApiKeys.data[0].provider).toBe(ModelProvider.OpenAI);
+    expect(llmApiKeys.length).toBe(1);
+    expect(llmApiKeys[0].projectId).toBe(projectId);
+    expect(llmApiKeys[0].secretKey).not.toBeNull();
+    expect(llmApiKeys[0].secretKey).not.toEqual(secret);
+    expect(llmApiKeys[0].provider).toBe(provider);
+    expect(llmApiKeys[0].adapter).toBe(adapter);
+    expect(llmApiKeys[0].baseURL).toBe(baseURL);
+    expect(llmApiKeys[0].customModels).toEqual(customModels);
+    expect(llmApiKeys[0].withDefaultModels).toBe(withDefaultModels);
     // this has to be 3 dots and the last 4 characters of the secret
-    expect(llmApiKeys.data[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
+    expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
 
     // response must not contain the secret key itself
-    expect(llmApiKeys.data[0]).not.toHaveProperty("secretKey");
+    expect(llmApiKeys[0]).not.toHaveProperty("secretKey");
   });
 });
