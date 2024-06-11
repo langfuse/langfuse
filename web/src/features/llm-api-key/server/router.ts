@@ -16,6 +16,7 @@ import {
   supportedModels,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
 
 export function getDisplaySecretKey(secretKey: string) {
   return "..." + secretKey.slice(-4);
@@ -26,8 +27,10 @@ export const llmApiKeyRouter = createTRPCRouter({
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
       try {
-        if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-          throw new Error("Evals available in cloud only");
+        if (!isEeEnabled) {
+          throw new Error(
+            "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
+          );
         }
         throwIfNoAccess({
           session: ctx.session,
@@ -67,8 +70,10 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
+      if (!isEeEnabled) {
+        throw new Error(
+          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
+        );
       }
       throwIfNoAccess({
         session: ctx.session,
@@ -97,8 +102,10 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
+      if (!isEeEnabled) {
+        throw new Error(
+          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
+        );
       }
 
       throwIfNoAccess({
@@ -145,8 +152,10 @@ export const llmApiKeyRouter = createTRPCRouter({
   test: protectedProjectProcedure
     .input(CreateLlmApiKey)
     .mutation(async ({ input }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
+      if (!isEeEnabled) {
+        throw new Error(
+          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
+        );
       }
 
       try {

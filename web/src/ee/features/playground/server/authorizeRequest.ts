@@ -1,9 +1,9 @@
 import { getServerSession } from "next-auth";
 
-import { getIsCloudEnvironment } from "@/src/ee/utils/getIsCloudEnvironment";
 import { getAuthOptions } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { ApiError, ForbiddenError, UnauthorizedError } from "@langfuse/shared";
+import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
 
 export type AuthorizeRequestResult = {
   userId: string;
@@ -12,8 +12,10 @@ export type AuthorizeRequestResult = {
 export const authorizeRequestOrThrow = async (
   projectId: string,
 ): Promise<AuthorizeRequestResult> => {
-  if (!getIsCloudEnvironment())
-    throw new ApiError("This endpoint is available in Langfuse cloud only.");
+  if (!isEeEnabled)
+    throw new ApiError(
+      "LLM Playground is not yet available in the v2 open-source version.",
+    );
 
   const authOptions = await getAuthOptions();
   const session = await getServerSession(authOptions);
