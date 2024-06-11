@@ -7,28 +7,52 @@ service:
   base-path: /api/public
   endpoints:
     batch:
-      docs: Batched ingestion for Langfuse Tracing
+      docs: Batched ingestion for Langfuse Tracing. If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.
       method: POST
       path: /ingestion
       request:
         name: IngestionRequest
         body:
           properties:
-            batch: list<IngestionEvent>
-      response: IngestionResponse # will be reportet as 200 response, but endpoint returns 207
+            batch:
+              type: list<IngestionEvent>
+              docs: "Batch of tracing events to be ingested. Discriminated by attribute `type`."
+            metadata:
+              type: optional<unknown>
+              docs: Optional. Metadata field used by the Langfuse SDKs for debugging.
+      response:
+        type: IngestionResponse
+        status-code: 207
 
 types:
   IngestionEvent:
     discriminant: "type"
     union:
-      trace-create: TraceEvent
-      score-create: ScoreEvent
-      event-create: CreateEventEvent
-      generation-create: CreateGenerationEvent
-      generation-update: UpdateGenerationEvent
-      span-create: CreateSpanEvent
-      span-update: UpdateSpanEvent
-      sdk-log: SDKLogEvent
+      trace-create:
+        type: TraceEvent
+        docs: Creates a new trace. Upserts on id for updates if trace with id exists.
+      score-create:
+        type: ScoreEvent
+        docs: Creates a new score. Upserts on id for updates if score with id exists.
+      span-create:
+        type: CreateSpanEvent
+        docs: Creates a new span.
+      span-update:
+        type: UpdateSpanEvent
+        docs: Updates span based on id.
+      generation-create:
+        type: CreateGenerationEvent
+        docs: Creates a new generation.
+      generation-update:
+        type: UpdateGenerationEvent
+        docs: Updates a generation based on id.
+      event-create:
+        type: CreateEventEvent
+        docs: Creates an event.
+
+      sdk-log:
+        type: SDKLogEvent
+        docs: Langfuse SDKs only, used for debugging purposes.
 
       # both are legacy
       observation-create:
@@ -162,9 +186,15 @@ types:
 
   BaseEvent:
     properties:
-      id: string
-      timestamp: string
-      metadata: unknown
+      id:
+        type: string
+        docs: UUID v4 that identifies the event
+      timestamp:
+        type: string
+        docs: "Datetime (ISO 8601) of event creation in client. Should be as close to actual event creation in client as possible, this timestamp will be used for ordering of events in future release. Resolution: milliseconds (required), microseconds (optimal)."
+      metadata:
+        type: optional<unknown>
+        docs: Optional. Metadata field used by the Langfuse SDKs for debugging.
 
   TraceEvent:
     extends: BaseEvent

@@ -397,7 +397,10 @@ paths:
           description: ''
   /api/public/ingestion:
     post:
-      description: Batched ingestion for Langfuse Tracing
+      description: >-
+        Batched ingestion for Langfuse Tracing. If you want to use tracing via
+        the API, such as to build your own Langfuse client implementation, this
+        is the only API route you need to implement.
       operationId: ingestion_batch
       tags:
         - Ingestion
@@ -446,6 +449,14 @@ paths:
                   type: array
                   items:
                     $ref: '#/components/schemas/IngestionEvent'
+                  description: >-
+                    Batch of tracing events to be ingested. Discriminated by
+                    attribute `type`.
+                metadata:
+                  nullable: true
+                  description: >-
+                    Optional. Metadata field used by the Langfuse SDKs for
+                    debugging.
               required:
                 - batch
   /api/public/metrics/daily:
@@ -1972,8 +1983,19 @@ components:
                 type:
                   type: string
                   enum:
-                    - event-create
-            - $ref: '#/components/schemas/CreateEventEvent'
+                    - span-create
+            - $ref: '#/components/schemas/CreateSpanEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - span-update
+            - $ref: '#/components/schemas/UpdateSpanEvent'
           required:
             - type
         - type: object
@@ -2005,19 +2027,8 @@ components:
                 type:
                   type: string
                   enum:
-                    - span-create
-            - $ref: '#/components/schemas/CreateSpanEvent'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - span-update
-            - $ref: '#/components/schemas/UpdateSpanEvent'
+                    - event-create
+            - $ref: '#/components/schemas/CreateEventEvent'
           required:
             - type
         - type: object
@@ -2340,13 +2351,20 @@ components:
       properties:
         id:
           type: string
+          description: UUID v4 that identifies the event
         timestamp:
           type: string
-        metadata: {}
+          description: >-
+            Datetime (ISO 8601) of event creation in client. Should be as close
+            to actual event creation in client as possible, this timestamp will
+            be used for ordering of events in future release. Resolution:
+            milliseconds (required), microseconds (optimal).
+        metadata:
+          nullable: true
+          description: Optional. Metadata field used by the Langfuse SDKs for debugging.
       required:
         - id
         - timestamp
-        - metadata
     TraceEvent:
       title: TraceEvent
       type: object
