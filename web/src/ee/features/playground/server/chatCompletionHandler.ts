@@ -39,6 +39,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
       streaming: true,
       callbacks: [new PosthogCallbackHandler("playground", body, userId)],
       apiKey: decrypt(LLMApiKey.secretKey),
+      baseURL: LLMApiKey.baseURL || undefined,
     });
 
     return new StreamingTextResponse(stream);

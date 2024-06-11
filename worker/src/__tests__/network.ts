@@ -1,6 +1,5 @@
 import { setupServer } from "msw/node";
 import { HttpResponse, http } from "msw";
-import { Http } from "@sentry/node";
 
 const DEFAULT_RESPONSE = {
   id: "chatcmpl-9MhZ73aGSmhfAtjU9DwoL4om73hJ7",
