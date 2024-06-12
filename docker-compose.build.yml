@@ -11,7 +11,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres?schema=test
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
       - NEXTAUTH_SECRET=mysecret
       - SALT=mysalt
       - NEXTAUTH_URL=http://localhost:3000
