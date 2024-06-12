@@ -1,3 +1,5 @@
+import { Time } from "@internationalized/date";
+
 export const utcDateOffsetByDays = (days: number) => {
   const date = new Date();
   date.setUTCHours(0, 0, 0, 0);
@@ -27,4 +29,11 @@ export const formatIntervalSeconds = (seconds: number, scale: number = 2) => {
   if (hrs > 0) return `${hrs}h ${pad(mins)}m ${pad(secs)}s`;
   if (mins > 0) return `${mins}m ${pad(secs)}s`;
   return `${seconds.toFixed(scale)}s`;
+};
+
+export const createTimeFromDate = (date?: Date): Time => {
+  if (!date) {
+    return new Time(0, 0, 0);
+  }
+  return new Time(date.getHours(), date.getMinutes(), date.getSeconds());
 };
