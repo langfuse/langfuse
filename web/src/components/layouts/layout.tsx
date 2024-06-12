@@ -152,6 +152,7 @@ export default function Layout(props: PropsWithChildren) {
     !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
+    console.warn("Layout: User was signed out as db user was not found");
     signOutUser();
 
     return <Spinner message="Redirecting" />;

@@ -1,8 +1,10 @@
 import {
   AlertTriangle,
+  BadgeCheck,
   Check,
   Github,
   HardDriveDownload,
+  Map,
   Newspaper,
 } from "lucide-react";
 
@@ -71,7 +73,8 @@ const VersionLabel = ({ className }: { className?: string }) => {
         ) : null}
         {isEeVersion && (
           <>
-            <DropdownMenuLabel className="font-normal italic">
+            <DropdownMenuLabel className="flex items-center font-normal">
+              <BadgeCheck size={16} className="mr-2" />
               Enterprise Edition
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -90,6 +93,12 @@ const VersionLabel = ({ className }: { className?: string }) => {
           <Link href="https://langfuse.com/changelog" target="_blank">
             <Newspaper size={16} className="mr-2" />
             Changelog
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="https://langfuse.com/roadmap" target="_blank">
+            <Map size={16} className="mr-2" />
+            Roadmap
           </Link>
         </DropdownMenuItem>
         {hasUpdate && (
