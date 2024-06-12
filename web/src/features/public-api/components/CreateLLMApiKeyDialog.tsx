@@ -165,7 +165,7 @@ export function CreateLLMApiKeyDialog() {
           Add new LLM API key
         </Button>
       </DialogTrigger>
-      <DialogContent className="h-[90%] min-w-[40vw]">
+      <DialogContent className="max-h-[90%]  min-w-[40vw] overflow-auto">
         <DialogHeader>
           <DialogTitle>Add new LLM API key</DialogTitle>
         </DialogHeader>
