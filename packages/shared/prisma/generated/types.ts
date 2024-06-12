@@ -204,7 +204,7 @@ export type LlmApiKeys = {
     display_secret_key: string;
     secret_key: string;
     base_url: string | null;
-    custom_models: string[];
+    custom_models: Generated<string[]>;
     with_default_models: Generated<boolean>;
     project_id: string;
 };
