@@ -149,7 +149,7 @@ model LlmApiKeys {
     displaySecretKey  String   @map("display_secret_key")
     secretKey         String   @map("secret_key")
     baseURL           String?  @map("base_url")
-    customModels      String[] @map("custom_models")
+    customModels      String[] @default([]) @map("custom_models")
     withDefaultModels Boolean  @default(true) @map("with_default_models")
 
     projectId String  @map("project_id")
@@ -333,6 +333,7 @@ model Observation {
     @@index(parentObservationId)
     @@index(model)
     @@index(internalModel)
+    @@index([projectId, promptId])
     @@index(promptId)
     @@index([projectId, startTime, type])
     @@map("observations")
