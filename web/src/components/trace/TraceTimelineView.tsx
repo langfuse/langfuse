@@ -177,7 +177,7 @@ function TraceTreeItem({
   return (
     <TreeItem
       classes={{
-        content: `border-l border-dashed !rounded-xs ${backgroundColor} !min-w-fit hover:!bg-muted`,
+        content: `border-l border-dashed !rounded-none ${backgroundColor} !min-w-fit hover:!bg-muted`,
         selected: "!bg-background !important hover:!bg-muted",
         label: "!min-w-fit",
       }}
