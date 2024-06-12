@@ -19,14 +19,15 @@ import {
 } from "@/src/components/ui/popover";
 import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
-import { getIsCloudEnvironment } from "@/src/ee/utils/getIsCloudEnvironment";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 export const SaveToPromptButton: React.FC = () => {
+  const isEeEnabled = useIsEeEnabled();
   const [open, setOpen] = useState(false);
   const [selectedPromptId, setSelectedPromptId] = useState("");
   const { modelParams, messages, output, promptVariables } =
@@ -83,7 +84,7 @@ export const SaveToPromptButton: React.FC = () => {
     );
   };
 
-  if (!getIsCloudEnvironment()) return null;
+  if (!isEeEnabled) return null;
 
   return (
     <Popover>

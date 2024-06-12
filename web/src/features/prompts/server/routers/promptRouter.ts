@@ -7,7 +7,6 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { DB } from "@/src/server/db";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 
 import { createPrompt } from "../actions/createPrompt";
@@ -83,65 +82,58 @@ export const promptRouter = createTRPCRouter({
         ),
       );
 
-      const promptNames = prompts.map((p) => p.name);
-      // Return as observationCountQuery is unnecessary if there are no prompts
-      if (promptNames.length === 0) {
-        return {
-          prompts: [],
-          totalCount:
-            promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
-        };
-      }
-
-      const promptCounts = (
-        await ctx.prisma.$queryRaw<
-          {
-            promptName: string;
-            observationCount: bigint;
-          }[]
-        >(
-          Prisma.sql`
-              WITH aggregated_prompts AS (
+      return {
+        prompts: prompts,
+        totalCount:
+          promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
+      };
+    }),
+  metrics: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        promptNames: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (input.promptNames.length === 0) return [];
+      const promptCounts = await ctx.prisma.$queryRaw<
+        {
+          promptName: string;
+          observationCount: bigint;
+        }[]
+      >(
+        Prisma.sql`
+              WITH prompt_ids AS (
                 SELECT
-                  ARRAY_AGG(p.id) AS prompt_ids,
+                  p.id,
                   p.name
                 FROM
                   prompts p
                 WHERE
                   p.project_id = ${input.projectId}
-                GROUP BY
-                  p. "name"
+                  AND p.name IN (${Prisma.join(input.promptNames)})
               )
               SELECT
-                ap.name AS "promptName",
-                oc.observation_count AS "observationCount"
+                p.name AS "promptName", SUM(oc.observation_count) AS "observationCount"
               FROM
-                aggregated_prompts ap
+                prompt_ids p
                 LEFT JOIN LATERAL (
                   SELECT
-                    count(*) AS observation_count
+                    COUNT(*) AS observation_count
                   FROM
                     observations o
                   WHERE
                     o.project_id = ${input.projectId}
-                    AND o.prompt_id = ANY (ap.prompt_ids)) AS oc ON TRUE    
+                    AND o.prompt_id = p.id) oc ON TRUE
+              GROUP BY
+                p.name
         `,
-        )
-      ).map((v) => ({ ...v, observationCount: Number(v.observationCount) }));
-
-      const joinedPromptsAndCounts = prompts.map((p) => {
-        const matchedCount = promptCounts.find((c) => c.promptName === p.name);
-        return {
-          ...p,
-          observationCount: matchedCount?.observationCount ?? 0,
-        };
-      });
-
-      return {
-        prompts: joinedPromptsAndCounts,
-        totalCount:
-          promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
-      };
+      );
+      return promptCounts.map(({ promptName, observationCount }) => ({
+        promptName,
+        observationCount: Number(observationCount),
+      }));
     }),
   byId: protectedProjectProcedure
     .input(
@@ -573,7 +565,7 @@ export const promptRouter = createTRPCRouter({
       });
       return { promptVersions: joinedPromptAndUsers, totalCount };
     }),
-  metrics: protectedProjectProcedure
+  versionMetrics: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
