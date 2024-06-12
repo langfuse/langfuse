@@ -283,6 +283,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             },
           },
         });
+
         return {
           ...session,
           environment: {
@@ -332,15 +333,19 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           throw new Error(`You must sign in via SSO for this domain.`);
         }
 
-        // Validate authorised email domains for google provider
-        if (account?.provider === "google") {
+        // Optional configuration: validate authorised email domains for google provider
+        // uses hd (hosted domain) claim from google profile as the domain
+        // https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload
+        if (env.AUTH_GOOGLE_ALLOWED_DOMAINS && account?.provider === "google") {
           const allowedDomains =
             env.AUTH_GOOGLE_ALLOWED_DOMAINS?.split(",").map((domain) =>
-              domain.trim(),
+              domain.trim().toLowerCase(),
             ) ?? [];
           if (allowedDomains.length > 0) {
             return await Promise.resolve(
-              allowedDomains.includes((profile as GoogleProfile).hd),
+              allowedDomains.includes(
+                (profile as GoogleProfile).hd.toLowerCase(),
+              ),
             );
           }
         }
