@@ -83,7 +83,10 @@ function TreeItemInner({
         >
           {type}
         </span>
-        <span className="w-fit-content overflow-hidden text-ellipsis whitespace-nowrap break-all text-sm">
+        <span
+          className="w-fit-content overflow-hidden text-ellipsis whitespace-nowrap break-all text-sm"
+          title={name ?? undefined}
+        >
           {name}
         </span>
         <div
