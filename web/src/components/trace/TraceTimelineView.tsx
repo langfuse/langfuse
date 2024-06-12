@@ -83,7 +83,10 @@ function TreeItemInner({
         >
           {type}
         </span>
-        <span className="w-fit-content overflow-hidden text-ellipsis whitespace-nowrap break-all text-sm">
+        <span
+          className="w-fit-content overflow-hidden text-ellipsis whitespace-nowrap break-all text-sm"
+          title={name ?? undefined}
+        >
           {name}
         </span>
         <div
@@ -177,7 +180,7 @@ function TraceTreeItem({
   return (
     <TreeItem
       classes={{
-        content: `border-l border-dashed !rounded-xs ${backgroundColor} !min-w-fit hover:!bg-muted`,
+        content: `border-l border-dashed !rounded-none ${backgroundColor} !min-w-fit hover:!bg-muted`,
         selected: "!bg-background !important hover:!bg-muted",
         label: "!min-w-fit",
       }}
