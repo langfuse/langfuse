@@ -7,7 +7,6 @@ import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEm
 import { Button } from "@/src/components/ui/button";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
 import { type PlaygroundCache } from "@/src/ee/features/playground/page/types";
-import { getIsCloudEnvironment } from "@/src/ee/utils/getIsCloudEnvironment";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -19,6 +18,7 @@ import {
   type UIModelParams,
   ZodModelConfig,
 } from "@langfuse/shared";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -42,6 +42,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const projectId = useProjectIdFromURL();
   const { setPlaygroundCache } = usePlaygroundCache();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
+  const isEeEnabled = useIsEeEnabled();
 
   useEffect(() => {
     if (props.source === "prompt") {
@@ -56,7 +57,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     setPlaygroundCache(capturedState);
   };
 
-  if (!getIsCloudEnvironment()) return null;
+  if (!isEeEnabled) return null;
 
   return (
     <Button

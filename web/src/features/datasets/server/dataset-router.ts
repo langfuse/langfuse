@@ -537,6 +537,8 @@ export const datasetRouter = createTRPCRouter({
         skip: input.page * input.limit,
       });
 
+      if (runItems.length === 0) return { totalRunItems: 0, runItems: [] };
+
       const traceScores = await ctx.prisma.score.findMany({
         where: {
           projectId: ctx.session.projectId,
@@ -636,6 +638,7 @@ export const datasetRouter = createTRPCRouter({
         };
       });
 
+      // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
         totalRunItems,
         runItems: items,

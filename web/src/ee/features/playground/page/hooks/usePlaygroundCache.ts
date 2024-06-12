@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
-import { getIsCloudEnvironment } from "@/src/ee/utils/getIsCloudEnvironment";
 import { type PlaygroundCache } from "../types";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 const playgroundCacheKey = "playgroundCache";
 
 export default function usePlaygroundCache() {
   const [cache, setCache] = useState<PlaygroundCache>(null);
-
+  const isEeEnabled = useIsEeEnabled();
   const setPlaygroundCache = (cache: PlaygroundCache) => {
     sessionStorage.setItem(playgroundCacheKey, JSON.stringify(cache));
   };
@@ -24,7 +24,7 @@ export default function usePlaygroundCache() {
   }, []);
 
   return {
-    playgroundCache: getIsCloudEnvironment() ? cache : null,
-    setPlaygroundCache: getIsCloudEnvironment() ? setPlaygroundCache : () => {},
+    playgroundCache: isEeEnabled ? cache : null,
+    setPlaygroundCache: isEeEnabled ? setPlaygroundCache : () => {},
   };
 }

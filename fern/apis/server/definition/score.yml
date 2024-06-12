@@ -31,7 +31,7 @@ service:
             type: optional<datetime>
             docs: Retrieve only scores newer than this datetime (ISO 8601).
           source:
-            type: commons.ScoreSource
+            type: optional<commons.ScoreSource>
             docs: Retrieve only scores from a specific source.
           operator:
             type: optional<string>
@@ -39,6 +39,9 @@ service:
           value:
             type: optional<double>
             docs: Retrieve only scores with <operator> value.
+          scoreIds:
+            type: optional<string>
+            docs: Comma-separated list of score IDs to limit the results to.
       response: Scores
     get-by-id:
       docs: Get a score

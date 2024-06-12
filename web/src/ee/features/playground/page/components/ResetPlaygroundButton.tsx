@@ -3,9 +3,10 @@ import { useRouter } from "next/router";
 
 import { Button } from "@/src/components/ui/button";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
-import { getIsCloudEnvironment } from "@/src/ee/utils/getIsCloudEnvironment";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 export const ResetPlaygroundButton: React.FC = () => {
+  const isEeEnabled = useIsEeEnabled();
   const router = useRouter();
   const { setPlaygroundCache } = usePlaygroundCache();
 
@@ -15,7 +16,9 @@ export const ResetPlaygroundButton: React.FC = () => {
     router.reload();
   };
 
-  return getIsCloudEnvironment() ? (
+  if (!isEeEnabled) return null;
+
+  return (
     <Button
       variant={"outline"}
       title="Reset playground state"
@@ -24,5 +27,5 @@ export const ResetPlaygroundButton: React.FC = () => {
       <ListRestartIcon className="mr-1 h-5 w-5" />
       <span>Reset playground</span>
     </Button>
-  ) : null;
+  );
 };
