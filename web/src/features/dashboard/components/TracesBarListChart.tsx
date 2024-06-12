@@ -91,7 +91,7 @@ export const TracesBarListChart = ({
             <BarList
               data={adjustedData}
               valueFormatter={(number: number) =>
-                Intl.NumberFormat("us").format(number).toString()
+                Intl.NumberFormat("en-US").format(number).toString()
               }
               className="mt-6"
               showAnimation={true}

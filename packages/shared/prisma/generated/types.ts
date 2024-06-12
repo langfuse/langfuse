@@ -36,17 +36,6 @@ export const ScoreDataType = {
     BOOLEAN: "BOOLEAN"
 } as const;
 export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
-export const PricingUnit = {
-    PER_1000_TOKENS: "PER_1000_TOKENS",
-    PER_1000_CHARS: "PER_1000_CHARS"
-} as const;
-export type PricingUnit = (typeof PricingUnit)[keyof typeof PricingUnit];
-export const TokenType = {
-    PROMPT: "PROMPT",
-    COMPLETION: "COMPLETION",
-    TOTAL: "TOTAL"
-} as const;
-export type TokenType = (typeof TokenType)[keyof typeof TokenType];
 export const DatasetStatus = {
     ACTIVE: "ACTIVE",
     ARCHIVED: "ARCHIVED"
@@ -163,6 +152,7 @@ export type EvalTemplate = {
     version: number;
     prompt: string;
     model: string;
+    provider: string;
     model_params: unknown;
     vars: Generated<string[]>;
     output_schema: unknown;
@@ -210,8 +200,12 @@ export type LlmApiKeys = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     provider: string;
+    adapter: string;
     display_secret_key: string;
     secret_key: string;
+    base_url: string | null;
+    custom_models: string[];
+    with_default_models: Generated<boolean>;
     project_id: string;
 };
 export type MembershipInvitation = {
@@ -309,14 +303,6 @@ export type PosthogIntegration = {
     last_sync_at: Timestamp | null;
     enabled: boolean;
     created_at: Generated<Timestamp>;
-};
-export type Pricing = {
-    id: string;
-    model_name: string;
-    pricing_unit: Generated<PricingUnit>;
-    price: string;
-    currency: Generated<string>;
-    token_type: TokenType;
 };
 export type Project = {
     id: string;
@@ -471,7 +457,6 @@ export type DB = {
     observations: Observation;
     observations_view: ObservationView;
     posthog_integrations: PosthogIntegration;
-    pricings: Pricing;
     project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;

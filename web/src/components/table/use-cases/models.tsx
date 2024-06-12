@@ -1,6 +1,12 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { useState } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
@@ -10,6 +16,7 @@ import { type Prisma, type Model } from "@langfuse/shared/src/db";
 import Decimal from "decimal.js";
 import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { cn } from "@/src/utils/tailwind";
 
 export type ModelTableRow = {
   modelId: string;
@@ -222,13 +229,12 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       accessorKey: "actions",
       header: "Actions",
       cell: ({ row }) => {
-        return row.original.maintainer === "User" ? (
+        return (
           <DeleteModelButton
             projectId={projectId}
             modelId={row.original.modelId}
+            isBuiltIn={row.original.maintainer === "Langfuse"}
           />
-        ) : (
-          <div className="h-6" />
         );
       },
     },
@@ -287,10 +293,13 @@ export default function ModelTable({ projectId }: { projectId: string }) {
 const DeleteModelButton = ({
   modelId,
   projectId,
+  isBuiltIn,
 }: {
   modelId: string;
   projectId: string;
+  isBuiltIn?: boolean;
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const mut = api.models.delete.useMutation({
@@ -304,32 +313,48 @@ const DeleteModelButton = ({
     scope: "models:CUD",
   });
 
-  if (!hasAccess) {
-    return null;
-  }
-
   return (
-    <Button
-      size="xs"
-      variant="ghost"
-      onClick={() => {
-        const confirmDelete = window.confirm(
-          "Are you sure you want to delete this model?",
-        );
-        if (confirmDelete) {
-          capture("models:delete_button_click");
-          mut
-            .mutateAsync({
-              projectId,
-              modelId,
-            })
-            .catch((error) => {
-              console.error(error);
-            });
-        }
-      }}
-    >
-      <Trash size={14} />
-    </Button>
+    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="xs"
+          disabled={!hasAccess || isBuiltIn}
+          title={
+            isBuiltIn ? "Built-in models cannot be deleted" : "Delete model"
+          }
+          className={cn(
+            isBuiltIn &&
+              "disabled:pointer-events-auto disabled:cursor-not-allowed",
+          )}
+        >
+          <Trash className="h-4 w-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent>
+        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <p className="mb-3 text-sm">
+          This action permanently deletes this model definition.
+        </p>
+        <div className="flex justify-end space-x-4">
+          <Button
+            type="button"
+            variant="destructive"
+            loading={mut.isLoading}
+            onClick={() => {
+              capture("models:delete_button_click");
+              mut.mutateAsync({
+                projectId,
+                modelId,
+              });
+
+              setIsOpen(false);
+            }}
+          >
+            Delete Model
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };

@@ -1,0 +1,14 @@
+{
+	"name": "langfuse dev",
+    "image": "mcr.microsoft.com/devcontainers/javascript-node:20-bookworm",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+        "version": "latest",
+        "moby": true
+        }
+    },
+    "forwardPorts": [3000],
+
+    "onCreateCommand": "npm install -g pnpm@8.15.5",
+    "postCreateCommand": "cp .env.dev.example .env && pnpm run dx-f"
+}
