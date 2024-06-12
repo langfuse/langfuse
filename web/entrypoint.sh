@@ -19,7 +19,7 @@ if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL=$DATABASE_URL
 fi
 
-prisma db execute --url "$DIRECT_URL" --file "./scripts/cleanup.sql"
+prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
 
 # Apply migrations
 prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma

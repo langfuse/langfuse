@@ -78,9 +78,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
-COPY --chown=nextjs:nodejs ./packages/shared/scripts/fix-migration-history.sh ./packages/shared/scripts/fix-migration-history.sh
+COPY --chown=nextjs:nodejs ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
 RUN chmod +x ./web/entrypoint.sh
-RUN chmod +x ./packages/shared/scripts/fix-migration-history.sh
 
 USER nextjs
 
