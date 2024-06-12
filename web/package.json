@@ -62,6 +62,7 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@react-email/components": "^0.0.19",
     "@react-email/render": "^0.0.15",
+    "@react-stately/datepicker": "^3.9.4",
     "@remixicon/react": "^4.2.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
