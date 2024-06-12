@@ -57,6 +57,7 @@ export const env = createEnv({
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
+    AUTH_GOOGLE_ALLOWED_DOMAINS: z.string().optional(),
     AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
@@ -102,6 +103,8 @@ export const env = createEnv({
     TURNSTILE_SECRET_KEY: z.string().optional(),
     // DB event log
     ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
+    // EE License
+    LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
   },
 
   /**
@@ -158,6 +161,7 @@ export const env = createEnv({
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: process.env.AUTH_GOOGLE_CLIENT_ID,
     AUTH_GOOGLE_CLIENT_SECRET: process.env.AUTH_GOOGLE_CLIENT_SECRET,
+    AUTH_GOOGLE_ALLOWED_DOMAINS: process.env.AUTH_GOOGLE_ALLOWED_DOMAINS,
     AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING,
     AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
@@ -216,6 +220,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
     // db event log
     ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
+    // EE License
+    LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
