@@ -178,6 +178,7 @@ export function Trace(props: {
 }
 
 export function TracePage({ traceId }: { traceId: string }) {
+  const capture = usePostHogClientCapture();
   const router = useRouter();
   const utils = api.useUtils();
   const trace = api.traces.byId.useQuery(
@@ -306,7 +307,10 @@ export function TracePage({ traceId }: { traceId: string }) {
       </div>
       <Tabs
         value={selectedTab}
-        onValueChange={setSelectedTab}
+        onValueChange={(tab) => {
+          setSelectedTab(tab);
+          capture("trace_detail:display_mode_switch", { view: tab });
+        }}
         className="flex w-full justify-end border-b bg-background"
       >
         <TabsList className="bg-background py-0">
