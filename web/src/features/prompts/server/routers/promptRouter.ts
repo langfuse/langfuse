@@ -104,31 +104,30 @@ export const promptRouter = createTRPCRouter({
         }[]
       >(
         Prisma.sql`
-              WITH aggregated_prompts AS (
+              WITH prompt_ids AS (
                 SELECT
-                  ARRAY_AGG(p.id) AS prompt_ids,
+                  p.id,
                   p.name
                 FROM
                   prompts p
                 WHERE
                   p.project_id = ${input.projectId}
                   AND p.name IN (${Prisma.join(input.promptNames)})
-                GROUP BY
-                  p. "name"
               )
               SELECT
-                ap.name AS "promptName",
-                oc.observation_count AS "observationCount"
+                p.name AS "promptName", SUM(oc.observation_count) AS "observationCount"
               FROM
-                aggregated_prompts ap
+                prompt_ids p
                 LEFT JOIN LATERAL (
                   SELECT
-                    count(*) AS observation_count
+                    COUNT(*) AS observation_count
                   FROM
                     observations o
                   WHERE
                     o.project_id = ${input.projectId}
-                    AND o.prompt_id = ANY (ap.prompt_ids)) AS oc ON TRUE    
+                    AND o.prompt_id = p.id) oc ON TRUE
+              GROUP BY
+                p.name
         `,
       );
       return promptCounts.map(({ promptName, observationCount }) => ({
