@@ -28,6 +28,7 @@ import {
 import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { createTimeFromDate } from "@/src/utils/dates";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -152,7 +153,7 @@ export function InlineFilterState({
           : ""}{" "}
         {filter.operator}{" "}
         {filter.type === "datetime"
-          ? new Date(filter.value).toLocaleDateString()
+          ? new Date(filter.value).toLocaleString()
           : filter.type === "stringOptions" || filter.type === "arrayOptions"
             ? filter.value.length > 2
               ? `${filter.value.length} selected`
@@ -405,6 +406,9 @@ function FilterBuilderForm({
                           i,
                         );
                       }}
+                      time={createTimeFromDate(
+                        filter.value ? new Date(filter.value) : undefined,
+                      )}
                     />
                   ) : filter.type === "stringOptions" ||
                     filter.type === "arrayOptions" ? (
