@@ -641,10 +641,7 @@ export function AnnotateDrawer({
                                                     type="button"
                                                     size="sm"
                                                     className="text-xs"
-                                                    disabled={
-                                                      !field.value ||
-                                                      config.isArchived
-                                                    }
+                                                    disabled={!field.value}
                                                     onClick={() => {
                                                       form.setValue(
                                                         `scoreData.${index}.comment`,
@@ -716,7 +713,7 @@ export function AnnotateDrawer({
                                         (
                                           (config.categories as ConfigCategory[]) ??
                                           []
-                                        ).length > 3 ? (
+                                        ).length > 2 ? (
                                         <Select
                                           defaultValue={score.stringValue}
                                           disabled={config.isArchived}
