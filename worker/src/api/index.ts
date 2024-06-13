@@ -10,7 +10,7 @@ import { env } from "../env";
 import { QueueJobs, QueueName, TQueueJobTypes } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { ingestionApiSchema } from "@langfuse/shared/backend";
-import { processEvents } from "./ingestion-service";
+import { ingestData } from "./data-ingestion-service";
 
 const router = express.Router();
 
@@ -97,11 +97,12 @@ router.post("/ingestion", async (req, res) => {
         status: "error",
       });
     }
+
+    await ingestData(events.data.batch, "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+
     res.json({
       status: "success",
     });
-
-    await processEvents(events.data.batch);
   } catch (e) {
     logger.error(e, "Failed to process ingestion event");
     if (!res.headersSent) {

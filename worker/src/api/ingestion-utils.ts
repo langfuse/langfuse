@@ -51,6 +51,7 @@ export function dedupeAndOverwriteObjectById(
   }[],
   nonOverwritableKeys: string[]
 ) {
+  console.log(`dedupe ${JSON.stringify(insert)}`);
   return insert.reduce(
     (acc, curr) => {
       const existing = acc.find(

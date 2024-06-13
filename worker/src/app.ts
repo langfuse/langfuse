@@ -7,6 +7,7 @@ import * as middlewares from "./middlewares";
 import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
 import { env } from "./env";
+import { redis } from "./redis/redis";
 
 require("dotenv").config();
 
@@ -14,6 +15,7 @@ import logger from "./logger";
 
 import { evalJobCreator, evalJobExecutor } from "./redis/consumer";
 import helmet from "helmet";
+import { flushEvents } from "./api/data-aggregation-service";
 
 const app = express();
 
@@ -70,5 +72,8 @@ evalJobCreator?.on("failed", (job, err) => {
     `Eval execution Job with id ${job?.id} failed with error ${err}`
   );
 });
+
+// set interval to flush redis to clickhouse regularly
+setInterval(flushEvents, 2000);
 
 export default app;
