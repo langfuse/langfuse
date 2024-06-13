@@ -176,6 +176,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
               <div className="flex justify-end space-x-4">
                 <Button
                   type="button"
+                  variant={isArchived ? "default" : "destructive"}
                   loading={configMutation.isLoading}
                   onClick={() => {
                     void configMutation.mutateAsync({
