@@ -7,6 +7,7 @@ import {
   MessageCircle,
   X,
   SquarePen,
+  Archive,
 } from "lucide-react";
 import {
   type ControllerRenderProps,
@@ -63,6 +64,7 @@ import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { cn } from "@/src/utils/tailwind";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -149,15 +151,21 @@ export function AnnotateDrawer({
       const updatedScoreIndex = fields.findIndex(
         (field) => field.scoreId === id,
       );
-      update(updatedScoreIndex, {
-        name,
-        dataType,
-        configId: configId ?? undefined,
-        value: null,
-        scoreId: undefined,
-        stringValue: undefined,
-        comment: undefined,
-      });
+
+      const config = configs.find((config) => config.id === configId);
+      if (config && config.isArchived) {
+        remove(updatedScoreIndex);
+      } else {
+        update(updatedScoreIndex, {
+          name,
+          dataType,
+          configId: configId ?? undefined,
+          value: null,
+          scoreId: undefined,
+          stringValue: undefined,
+          comment: undefined,
+        });
+      }
 
       await Promise.all([
         utils.scores.invalidate(),
@@ -457,13 +465,21 @@ export function AnnotateDrawer({
                 items="empty scores"
                 className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
                 onValueChange={handleOnCheckedChange}
-                options={configs.map((config) => ({
-                  key: config.id,
-                  value: config.name,
-                  disabled: fields.some(
-                    (field) => !!field.scoreId && field.configId === config.id,
-                  ),
-                }))}
+                options={configs
+                  .filter(
+                    (config) =>
+                      !config.isArchived ||
+                      fields.find((field) => field.configId === config.id),
+                  )
+                  .map((config) => ({
+                    key: config.id,
+                    value: config.name,
+                    disabled: fields.some(
+                      (field) =>
+                        !!field.scoreId && field.configId === config.id,
+                    ),
+                    isArchived: config.isArchived,
+                  }))}
                 values={fields
                   .filter((field) => !!field.configId)
                   .map((field) => ({
@@ -513,7 +529,14 @@ export function AnnotateDrawer({
                               isPresent(config.minValue) ? (
                                 <HoverCard>
                                   <HoverCardTrigger asChild>
-                                    <span className="line-clamp-2 break-words text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-2">
+                                    <span
+                                      className={cn(
+                                        "line-clamp-2 break-words text-xs font-medium underline decoration-muted-gray decoration-dashed underline-offset-2",
+                                        config.isArchived
+                                          ? "text-foreground/40"
+                                          : "",
+                                      )}
+                                    >
                                       {score.name}
                                     </span>
                                   </HoverCardTrigger>
@@ -523,7 +546,12 @@ export function AnnotateDrawer({
                                 </HoverCard>
                               ) : (
                                 <span
-                                  className="line-clamp-2 break-words text-xs font-medium"
+                                  className={cn(
+                                    "line-clamp-2 break-words text-xs font-medium",
+                                    config.isArchived
+                                      ? "text-foreground/40"
+                                      : "",
+                                  )}
                                   title={score.name}
                                 >
                                   {score.name}
@@ -537,7 +565,10 @@ export function AnnotateDrawer({
                                     size="xs"
                                     title="Add or view score comment"
                                     className="h-full items-start px-0 pl-1 disabled:text-primary/50 disabled:opacity-100"
-                                    disabled={isScoreUnsaved(score.scoreId)}
+                                    disabled={
+                                      isScoreUnsaved(score.scoreId) ||
+                                      (config.isArchived && !score.comment)
+                                    }
                                   >
                                     {score.comment ? (
                                       <MessageCircleMore className="h-4 w-4" />
@@ -589,7 +620,10 @@ export function AnnotateDrawer({
                                                   type="button"
                                                   size="sm"
                                                   className="text-xs"
-                                                  disabled={!field.value}
+                                                  disabled={
+                                                    !field.value ||
+                                                    config.isArchived
+                                                  }
                                                   loading={
                                                     mutUpdateScores.isLoading
                                                   }
@@ -607,7 +641,10 @@ export function AnnotateDrawer({
                                                     type="button"
                                                     size="sm"
                                                     className="text-xs"
-                                                    disabled={!field.value}
+                                                    disabled={
+                                                      !field.value ||
+                                                      config.isArchived
+                                                    }
                                                     onClick={() => {
                                                       form.setValue(
                                                         `scoreData.${index}.comment`,
@@ -653,7 +690,7 @@ export function AnnotateDrawer({
                                 </PopoverContent>
                               </Popover>
                             </div>
-                            <div className="grid grid-cols-[11fr,1fr]">
+                            <div className="grid grid-cols-[11fr,1fr] items-center">
                               <FormField
                                 control={form.control}
                                 name={`scoreData.${index}.value`}
@@ -666,6 +703,7 @@ export function AnnotateDrawer({
                                           value={field.value ?? undefined}
                                           type="number"
                                           className="text-xs"
+                                          disabled={config.isArchived}
                                           onBlur={handleOnBlur({
                                             config,
                                             field,
@@ -681,6 +719,7 @@ export function AnnotateDrawer({
                                         ).length > 3 ? (
                                         <Select
                                           defaultValue={score.stringValue}
+                                          disabled={config.isArchived}
                                           onValueChange={handleOnValueChange(
                                             score,
                                             index,
@@ -714,6 +753,7 @@ export function AnnotateDrawer({
                                         <ToggleGroup
                                           type="single"
                                           defaultValue={score.stringValue}
+                                          disabled={config.isArchived}
                                           className={`grid grid-cols-${((config.categories as ConfigCategory[]) ?? [])?.length}`}
                                           onValueChange={handleOnValueChange(
                                             score,
@@ -748,31 +788,80 @@ export function AnnotateDrawer({
                                   </FormItem>
                                 )}
                               />
-                              <Button
-                                variant="link"
-                                type="button"
-                                className="px-0 pl-1"
-                                title="Delete score from trace/observation"
-                                disabled={isScoreUnsaved(score.scoreId)}
-                                loading={mutDeleteScore.isLoading}
-                                onClick={async () => {
-                                  if (score.scoreId) {
-                                    await mutDeleteScore.mutateAsync({
-                                      id: score.scoreId,
-                                      projectId,
-                                    });
-                                    capture("score:delete", {
-                                      type: type,
-                                      source: source,
-                                    });
-                                    form.clearErrors(
-                                      `scoreData.${index}.value`,
-                                    );
-                                  }
-                                }}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
+                              {config.isArchived ? (
+                                <Popover key={score.id}>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="link"
+                                      type="button"
+                                      className="px-0 pl-1"
+                                      title="Delete archived score"
+                                      disabled={isScoreUnsaved(score.scoreId)}
+                                    >
+                                      <Archive className="h-4 w-4"></Archive>
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent>
+                                    <h2 className="text-md mb-3 font-semibold">
+                                      Your score is archived
+                                    </h2>
+                                    <p className="mb-3 text-sm">
+                                      This action will delete your score
+                                      irreversibly.
+                                    </p>
+                                    <div className="flex justify-end space-x-4">
+                                      <Button
+                                        type="button"
+                                        variant="destructive"
+                                        loading={mutDeleteScore.isLoading}
+                                        onClick={async () => {
+                                          if (score.scoreId) {
+                                            await mutDeleteScore.mutateAsync({
+                                              id: score.scoreId,
+                                              projectId,
+                                            });
+                                            capture("score:delete", {
+                                              type: type,
+                                              source: source,
+                                            });
+                                            form.clearErrors(
+                                              `scoreData.${index}.value`,
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              ) : (
+                                <Button
+                                  variant="link"
+                                  type="button"
+                                  className="px-0 pl-1"
+                                  title="Delete score from trace/observation"
+                                  disabled={isScoreUnsaved(score.scoreId)}
+                                  loading={mutDeleteScore.isLoading}
+                                  onClick={async () => {
+                                    if (score.scoreId) {
+                                      await mutDeleteScore.mutateAsync({
+                                        id: score.scoreId,
+                                        projectId,
+                                      });
+                                      capture("score:delete", {
+                                        type: type,
+                                        source: source,
+                                      });
+                                      form.clearErrors(
+                                        `scoreData.${index}.value`,
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           </div>
                         );

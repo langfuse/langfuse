@@ -19,6 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -50,6 +51,9 @@ function getConfigRange(
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
+    string[]
+  >("emptySelectedConfigIds", []);
 
   const hasAccess = useHasAccess({
     projectId: projectId,
@@ -179,6 +183,9 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                       id: configId,
                       isArchived: !isArchived,
                     });
+                    setEmptySelectedConfigIds(
+                      emptySelectedConfigIds.filter((id) => id !== configId),
+                    );
                     capture("score_configs:archive_form_submit");
                   }}
                 >
