@@ -85,7 +85,7 @@ type ConfigCategory = {
   value: string;
 };
 
-export function AnnotateButton({
+export function AnnotateDrawer({
   traceId,
   scores,
   observationId,
