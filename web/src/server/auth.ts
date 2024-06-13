@@ -15,7 +15,7 @@ import { type Adapter } from "next-auth/adapters";
 
 // Providers
 import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
+import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
 import Auth0Provider from "next-auth/providers/auth0";
@@ -29,6 +29,7 @@ import {
 } from "@langfuse/ee/sso";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
+import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -117,6 +118,22 @@ const staticProviders: Provider[] = [
     },
   }),
 ];
+
+if (
+  env.AUTH_CUSTOM_CLIENT_ID &&
+  env.AUTH_CUSTOM_CLIENT_SECRET &&
+  env.AUTH_CUSTOM_ISSUER &&
+  env.AUTH_CUSTOM_NAME // name required by front-end, ignored here
+)
+  staticProviders.push(
+    CustomSSOProvider({
+      clientId: env.AUTH_CUSTOM_CLIENT_ID,
+      clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
+      issuer: env.AUTH_CUSTOM_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
 
 if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
   staticProviders.push(
@@ -276,6 +293,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
             defaultTableDateTimeOffset:
               env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
+            // Enables features that are only available under an enterprise license when self-hosting Langfuse
+            // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
+            eeEnabled: env.LANGFUSE_EE_LICENSE_KEY !== undefined,
           },
           user:
             dbUser !== null
@@ -296,7 +316,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               : null,
         };
       },
-      async signIn({ user, account }) {
+      async signIn({ user, account, profile }) {
         // Block sign in without valid user.email
         const email = user.email?.toLowerCase();
         if (!email) {
@@ -313,7 +333,24 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           throw new Error(`You must sign in via SSO for this domain.`);
         }
 
-        return true;
+        // Optional configuration: validate authorised email domains for google provider
+        // uses hd (hosted domain) claim from google profile as the domain
+        // https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload
+        if (env.AUTH_GOOGLE_ALLOWED_DOMAINS && account?.provider === "google") {
+          const allowedDomains =
+            env.AUTH_GOOGLE_ALLOWED_DOMAINS?.split(",").map((domain) =>
+              domain.trim().toLowerCase(),
+            ) ?? [];
+          if (allowedDomains.length > 0) {
+            return await Promise.resolve(
+              allowedDomains.includes(
+                (profile as GoogleProfile).hd.toLowerCase(),
+              ),
+            );
+          }
+        }
+
+        return await Promise.resolve(true);
       },
     },
     adapter: extendedPrismaAdapter,

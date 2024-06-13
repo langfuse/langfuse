@@ -1,0 +1,39 @@
+name: Snyk Container
+on: push
+jobs:
+  snyk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build a Docker image
+        run: docker compose -f docker-compose.build.yml up -d
+
+      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-server)
+        continue-on-error: true
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: langfuse-server
+          args: --file=web/Dockerfile
+
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk.sarif
+          category: web
+
+      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-worker)
+        continue-on-error: true
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: langfuse-worker
+          args: --file=worker/Dockerfile
+
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk.sarif
+          category: worker

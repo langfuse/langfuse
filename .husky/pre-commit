@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# Get the current branch
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+# Define the protected branch
+protected_branch="main"
+
+# Check if the current branch is the protected branch
+if [ "$current_branch" = "$protected_branch" ]; then
+    echo "🚨 You are about to commit to the $protected_branch branch. Are you sure? (y/n)"
+    read -r answer < /dev/tty
+    if [ "$answer" != "${answer#[Yy]}" ]; then
+        exit 0 # Commit will proceed
+    else
+        echo "Commit to $protected_branch branch has been canceled."
+        exit 1 # Commit will be blocked
+    fi
+fi
+
+# If not the protected branch, proceed with the commit
+exit 0

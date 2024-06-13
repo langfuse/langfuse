@@ -1,5 +1,5 @@
-import { type Span } from "@sentry/nextjs/types/server";
 import * as Sentry from "@sentry/nextjs";
+import { type Span } from "@sentry/nextjs";
 
 type CallbackFn<T> = (span?: Span) => T;
 

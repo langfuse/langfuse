@@ -21,7 +21,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
         <select
           id="tabs"
           name="tabs"
-          className="focus:border-primary-accent focus:ring-primary-accent block w-full rounded-md border-border py-2 pl-3 pr-10 text-base focus:outline-none sm:text-sm"
+          className="block w-full rounded-md border-border bg-background py-2 pl-3 pr-10 text-base focus:border-primary-accent focus:outline-none focus:ring-primary-accent sm:text-sm"
           defaultValue={0}
           onChange={(e) => setSelectedIndex(Number(e.target.selectedIndex))}
         >

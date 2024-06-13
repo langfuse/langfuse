@@ -1,5 +1,3 @@
-version: "3.5"
-
 services:
   clickhouse:
     image: clickhouse/clickhouse-server
@@ -29,7 +27,7 @@ services:
       - 6379:6379
 
   db:
-    image: postgres
+    image: postgres:${POSTGRES_VERSION:-latest}
     restart: always
     environment:
       - POSTGRES_USER=postgres

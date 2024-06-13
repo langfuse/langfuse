@@ -132,5 +132,6 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "scoreConfigs:read",
     "evalJob:read",
     "evalJobExecution:read",
+    "llmApiKeys:read",
   ],
 };

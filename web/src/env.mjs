@@ -57,6 +57,7 @@ export const env = createEnv({
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
+    AUTH_GOOGLE_ALLOWED_DOMAINS: z.string().optional(),
     AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
@@ -77,6 +78,11 @@ export const env = createEnv({
     AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
     AUTH_COGNITO_ISSUER: z.string().url().optional(),
     AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
+    AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
+    AUTH_CUSTOM_ISSUER: z.string().url().optional(),
+    AUTH_CUSTOM_NAME: z.string().optional(),
+    AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
@@ -94,9 +100,6 @@ export const env = createEnv({
     // Worker
     LANGFUSE_WORKER_HOST: z.string().optional(),
     LANGFUSE_WORKER_PASSWORD: z.string().optional(),
-    // Prompt playground
-    OPENAI_API_KEY: z.string().optional(),
-    ANTHROPIC_API_KEY: z.string().optional(),
     TURNSTILE_SECRET_KEY: z.string().optional(),
     // DB event log
     ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
@@ -106,6 +109,8 @@ export const env = createEnv({
     CLICKHOUSE_PASSWORD: z.string().optional(),
     SERVE_FROM_CLICKHOUSE: z.enum(["true", "false"]).optional().default("true"),
     TRACE_IN_POSTGRES: z.enum(["true", "false"]).optional().default("true"),
+    // EE License
+    LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
   },
 
   /**
@@ -162,6 +167,7 @@ export const env = createEnv({
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: process.env.AUTH_GOOGLE_CLIENT_ID,
     AUTH_GOOGLE_CLIENT_SECRET: process.env.AUTH_GOOGLE_CLIENT_SECRET,
+    AUTH_GOOGLE_ALLOWED_DOMAINS: process.env.AUTH_GOOGLE_ALLOWED_DOMAINS,
     AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING,
     AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
@@ -186,7 +192,14 @@ export const env = createEnv({
     AUTH_COGNITO_CLIENT_ID: process.env.AUTH_COGNITO_CLIENT_ID,
     AUTH_COGNITO_CLIENT_SECRET: process.env.AUTH_COGNITO_CLIENT_SECRET,
     AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
-    AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: process.env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING,
+    AUTH_COGNITO_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING,
+    AUTH_CUSTOM_CLIENT_ID: process.env.AUTH_CUSTOM_CLIENT_ID,
+    AUTH_CUSTOM_CLIENT_SECRET: process.env.AUTH_CUSTOM_CLIENT_SECRET,
+    AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,
+    AUTH_CUSTOM_NAME: process.env.AUTH_CUSTOM_NAME,
+    AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
@@ -205,9 +218,6 @@ export const env = createEnv({
     // Worker
     LANGFUSE_WORKER_HOST: process.env.LANGFUSE_WORKER_HOST,
     LANGFUSE_WORKER_PASSWORD: process.env.LANGFUSE_WORKER_PASSWORD,
-    // Prompt playground
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
@@ -222,6 +232,8 @@ export const env = createEnv({
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     SERVE_FROM_CLICKHOUSE: process.env.SERVE_FROM_CLICKHOUSE,
     TRACE_IN_POSTGRES: process.env.TRACE_IN_POSTGRES,
+    // EE License
+    LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
