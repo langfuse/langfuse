@@ -1,10 +1,22 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
-import { prisma } from "@langfuse/shared/src/db";
+import {
+  ObservationLevel,
+  ObservationType,
+  prisma,
+} from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
+import { env } from "@/src/env.mjs";
+import {
+  getObservations,
+  getScores,
+  getTraces,
+} from "@/src/server/api/repositories/clickhouse";
+import { type observationRecordRead } from "@langfuse/shared/backend";
+import Decimal from "decimal.js";
 
 const GetTraceSchema = z.object({
   traceId: z.string(),
@@ -43,12 +55,24 @@ export default async function handler(
     }
     // END CHECK ACCESS SCOPE
 
-    const trace = await prisma.trace.findFirst({
-      where: {
-        id: traceId,
-        projectId: authCheck.scope.projectId,
-      },
-    });
+    console.log(
+      `get trace ${traceId} for project ${authCheck.scope.projectId}`,
+    );
+
+    const trace = env.SERVE_FROM_CLICKHOUSE
+      ? await queryTracesAndScoresFromClickhouse(
+          traceId,
+          authCheck.scope.projectId,
+        )
+      : await prisma.trace.findFirst({
+          where: {
+            id: traceId,
+            projectId: authCheck.scope.projectId,
+          },
+          include: {
+            scores: true,
+          },
+        });
 
     if (!trace) {
       return res.status(404).json({
@@ -56,31 +80,28 @@ export default async function handler(
       });
     }
 
-    const scores = await prisma.score.findMany({
-      where: {
-        traceId: traceId,
-        projectId: authCheck.scope.projectId,
-      },
-    });
+    const observations = env.SERVE_FROM_CLICKHOUSE
+      ? convertObservations(
+          await getObservations(traceId, authCheck.scope.projectId),
+        )
+      : await prisma.observationView.findMany({
+          where: {
+            traceId: traceId,
+            projectId: authCheck.scope.projectId,
+          },
+        });
 
-    const observations = await prisma.observationView.findMany({
-      where: {
-        traceId: traceId,
-        projectId: authCheck.scope.projectId,
-      },
-    });
-
-    const outObservations = observations.map(mapUsageOutput);
-
+    console.log("Return trace:", trace, observations);
     return res.status(200).json({
       ...trace,
-      scores,
+      externalId: null,
       htmlPath: `/project/${authCheck.scope.projectId}/traces/${traceId}`,
-      totalCost: outObservations.reduce(
-        (acc, obs) => acc + (obs.calculatedTotalCost ?? 0),
-        0,
-      ),
-      observations: outObservations,
+      totalCost: 0,
+      // observations.reduce(
+      //   (acc, obs) => acc + (obs.calculatedTotalCost ?? 0),
+      //   0,
+      // ),
+      observations: observations,
     });
   } catch (error: unknown) {
     console.error(error);
@@ -102,4 +123,82 @@ export default async function handler(
       error: errorMessage,
     });
   }
+}
+
+const queryTracesAndScoresFromClickhouse = async (
+  traceId: string,
+  projectId: string,
+): Promise<any> => {
+  const traces = await getTraces(traceId, projectId);
+  const scores = await getScores(traceId, projectId);
+
+  if (traces.length === 0) {
+    return undefined;
+  }
+
+  if (traces.length > 1) {
+    throw new Error("Multiple traces found");
+  }
+
+  return {
+    ...traces[0],
+    scores: scores,
+  };
+};
+
+function convertObservations(
+  observations: z.infer<typeof observationRecordRead>[],
+) {
+  return observations.map(convertObservationModelToApi);
+}
+
+function convertObservationModelToApi(
+  observation: z.infer<typeof observationRecordRead>,
+) {
+  return mapUsageOutput({
+    id: observation.id,
+    traceId: observation.trace_id ?? null,
+    projectId: observation.project_id,
+    startTime: new Date(observation.start_time) ?? null,
+    endTime: new Date(observation.end_time) ?? null,
+    createdAt: new Date(observation.created_at) ?? null,
+    inputPrice: observation.input_cost
+      ? new Decimal(observation.input_cost)
+      : null,
+    outputPrice: observation.output_cost
+      ? new Decimal(observation.output_cost)
+      : null,
+    totalPrice: observation.total_cost
+      ? new Decimal(observation.total_cost)
+      : null,
+    promptTokens: observation.input_usage ? observation.input_usage : 0,
+    completionTokens: observation.output_usage ? observation.output_usage : 0,
+    totalTokens: observation.total_usage ? observation.total_usage : 0,
+    parentObservationId: observation.parent_observation_id ?? null,
+    modelParameters: observation.model_parameters ?? null,
+    promptId: observation.prompt_id ?? null,
+    modelId: observation.internal_model ?? null,
+    statusMessage: observation.status_message ?? null,
+    calculatedInputCost: observation.input_cost
+      ? new Decimal(observation.input_cost)
+      : null,
+    calculatedOutputCost: observation.output_cost
+      ? new Decimal(observation.output_cost)
+      : null,
+    calculatedTotalCost: observation.total_cost
+      ? new Decimal(observation.total_cost)
+      : null,
+    completionStartTime: observation.completion_start_time ?? null,
+    timeToFirstToken: null,
+    latency: null,
+    type: ObservationType[observation.type as keyof typeof ObservationType],
+    name: observation.name ?? null,
+    level: ObservationLevel[observation.type as keyof typeof ObservationLevel],
+    version: observation.version ?? null,
+    model: observation.model ?? null,
+    input: observation.input ? JSON.parse(observation.input) : null,
+    output: observation.output ? JSON.parse(observation.output) : null,
+    unit: observation.unit ?? null,
+    metadata: observation.metadata,
+  });
 }

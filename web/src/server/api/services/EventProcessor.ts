@@ -1,18 +1,15 @@
-import { tokenCount } from "@/src/features/ingest/lib/usage";
+import { tokenCount } from "@/src/features/ingest/usage";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import {
   type legacyObservationCreateEvent,
   eventTypes,
   type scoreEvent,
-  type eventCreateEvent,
-  type spanCreateEvent,
   type generationCreateEvent,
-  type spanUpdateEvent,
-  type generationUpdateEvent,
-  type legacyObservationUpdateEvent,
   type sdkLogEvent,
   type traceEvent,
-} from "@langfuse/shared";
+  type ObservationEvent,
+  findModel,
+} from "@langfuse/shared/backend";
 import { prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@langfuse/shared";
@@ -20,7 +17,7 @@ import {
   type Trace,
   type Observation,
   type Score,
-  Prisma,
+  type Prisma,
   type Model,
 } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
@@ -36,81 +33,13 @@ export interface EventProcessor {
   ): Promise<Trace | Observation | Score> | undefined;
 }
 
-export async function findModel(p: {
-  event: {
-    projectId: string;
-    model?: string;
-    unit?: string;
-    startTime?: Date;
-  };
-  existingDbObservation?: Observation;
-}): Promise<Model | null> {
-  const { event, existingDbObservation } = p;
-  // either get the model from the existing observation
-  // or match pattern on the user provided model name
-  const modelCondition = event.model
-    ? Prisma.sql`AND ${event.model} ~ match_pattern`
-    : existingDbObservation?.internalModel
-      ? Prisma.sql`AND model_name = ${existingDbObservation.internalModel}`
-      : undefined;
-  if (!modelCondition) return null;
-
-  // unit based on the current event or the existing observation, both can be undefined
-  const mergedUnit = event.unit ?? existingDbObservation?.unit;
-
-  const unitCondition = mergedUnit
-    ? Prisma.sql`AND unit = ${mergedUnit}`
-    : Prisma.empty;
-
-  const sql = Prisma.sql`
-    SELECT
-      id,
-      created_at AS "createdAt",
-      updated_at AS "updatedAt",
-      project_id AS "projectId",
-      model_name AS "modelName",
-      match_pattern AS "matchPattern",
-      start_date AS "startDate",
-      input_price AS "inputPrice",
-      output_price AS "outputPrice",
-      total_price AS "totalPrice",
-      unit, 
-      tokenizer_id AS "tokenizerId",
-      tokenizer_config AS "tokenizerConfig"
-    FROM
-      models
-    WHERE (project_id = ${event.projectId}
-      OR project_id IS NULL)
-    ${modelCondition}
-    ${unitCondition}
-    AND (start_date IS NULL OR start_date <= ${
-      event.startTime ? new Date(event.startTime) : new Date()
-    }::timestamp with time zone at time zone 'UTC')
-    ORDER BY
-      project_id ASC,
-      start_date DESC
-    LIMIT 1
-  `;
-
-  const foundModels = await prisma.$queryRaw<Array<Model>>(sql);
-
-  return foundModels[0] ?? null;
-}
-
-type ObservationEvent =
-  | z.infer<typeof legacyObservationCreateEvent>
-  | z.infer<typeof legacyObservationUpdateEvent>
-  | z.infer<typeof eventCreateEvent>
-  | z.infer<typeof spanCreateEvent>
-  | z.infer<typeof spanUpdateEvent>
-  | z.infer<typeof generationCreateEvent>
-  | z.infer<typeof generationUpdateEvent>;
-
 export class ObservationProcessor implements EventProcessor {
   event: ObservationEvent;
+  eventTs: Date;
 
-  constructor(event: ObservationEvent) {
+  constructor(event: ObservationEvent, eventTs: Date) {
     this.event = event;
+    this.eventTs = eventTs;
   }
 
   async convertToObservation(
@@ -395,20 +324,27 @@ export class ObservationProcessor implements EventProcessor {
 
     // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
     // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
-    return await prisma.observation.upsert({
+    const returnObs = await prisma.observation.upsert({
       where: {
         id: obs.id,
       },
       create: obs.create,
       update: obs.update,
     });
+    console.log(
+      `Upserted observation ${obs.id} for project ${apiScope.projectId}`,
+    );
+
+    return returnObs;
   }
 }
 export class TraceProcessor implements EventProcessor {
   event: z.infer<typeof traceEvent>;
+  eventTs: Date;
 
-  constructor(event: z.infer<typeof traceEvent>) {
+  constructor(event: z.infer<typeof traceEvent>, eventTs: Date) {
     this.event = event;
+    this.eventTs = eventTs;
   }
 
   async process(
@@ -474,7 +410,7 @@ export class TraceProcessor implements EventProcessor {
 
     // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
     // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
-    const upsertedTrace = await prisma.trace.upsert({
+    return await prisma.trace.upsert({
       where: {
         id: internalId,
       },
@@ -511,14 +447,15 @@ export class TraceProcessor implements EventProcessor {
         tags: mergedTags ?? undefined,
       },
     });
-    return upsertedTrace;
   }
 }
 export class ScoreProcessor implements EventProcessor {
   event: z.infer<typeof scoreEvent>;
+  eventTs: Date;
 
-  constructor(event: z.infer<typeof scoreEvent>) {
+  constructor(event: z.infer<typeof scoreEvent>, eventTs: Date) {
     this.event = event;
+    this.eventTs = eventTs;
   }
 
   async process(

@@ -105,6 +105,8 @@ export const traceRouter = createTRPCRouter({
         orderByCondition,
       );
 
+      console.log("tracesQuery", tracesQuery.inspect());
+
       const traces = await instrumentAsync(
         { name: "get-all-traces" },
         async () =>

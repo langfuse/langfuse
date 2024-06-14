@@ -172,11 +172,11 @@ export default function Start() {
             id="date"
             variant={"outline"}
             className={
-              "hover:text-primary-accent group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground"
+              "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
             }
           >
             <BarChart2
-              className="group-hover:text-primary-accent hidden h-6 w-6 shrink-0 text-primary lg:block"
+              className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
               aria-hidden="true"
             />
             Request Chart

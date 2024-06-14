@@ -17,6 +17,10 @@
       "import": "./dist/src/db.js",
       "require": "./dist/src/db.js"
     },
+    "./backend": {
+      "import": "./dist/src/backend/index.js",
+      "require": "./dist/src/backend/index.js"
+    },
     "./src/server/auth": {
       "import": "./dist/src/server/auth.js",
       "require": "./dist/src/server/auth.js"
@@ -38,23 +42,32 @@
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate",
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
-    "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load"
+    "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load",
+    "ch:status": "dotenv -e ../../.env -- goose -dir './clickhouse/migrations/' status",
+    "ch:up": "bash clickhouse/scripts/up.sh",
+    "ch:down": "bash clickhouse/scripts/down.sh",
+    "ch:drop": "bash clickhouse/scripts/drop.sh",
+    "ch:reset": "pnpm run ch:down && pnpm run ch:up"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/tokenizer": "^0.0.4",
+    "@clickhouse/client": "^1.0.1",
     "@langchain/anthropic": "^0.1.21",
     "@langchain/core": "^0.1.61",
     "@langchain/openai": "^0.0.33",
     "@prisma/client": "^5.13.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
+    "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",
     "langchain": "^0.1.36",
     "lodash": "^4.17.21",
     "next-auth": "^4.24.7",
     "prisma-extension-kysely": "^2.1.0",
+    "uuid": "^9.0.1",
     "zod": "^3.22.4",
     "zod-to-json-schema": "^3.22.5"
   },
