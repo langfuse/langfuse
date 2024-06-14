@@ -119,12 +119,18 @@ const staticProviders: Provider[] = [
       return userObj;
     },
   }),
-  EmailProvider({
-    server: env.SMTP_CONNECTION_URL,
-    from: env.EMAIL_FROM_ADDRESS,
-    sendVerificationRequest: sendResetPasswordVerificationRequest,
-  }),
 ];
+
+// Password-reset for password reset of credentials provider
+if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
+  staticProviders.push(
+    EmailProvider({
+      server: env.SMTP_CONNECTION_URL,
+      from: env.EMAIL_FROM_ADDRESS,
+      sendVerificationRequest: sendResetPasswordVerificationRequest,
+    }),
+  );
+}
 
 if (
   env.AUTH_CUSTOM_CLIENT_ID &&
