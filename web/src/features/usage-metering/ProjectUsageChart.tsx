@@ -18,9 +18,18 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   projectId,
 }) => {
-  const usage = api.usageMetering.last30d.useQuery({
-    projectId,
-  });
+  const usage = api.usageMetering.last30d.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
   const capture = usePostHogClientCapture();
   const project = api.projects.byId.useQuery({ projectId });
   const planLimit =
