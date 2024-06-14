@@ -69,6 +69,7 @@ export function MultiSelect({
     if (!!freeTextInput) {
       selectedValues.delete(freeTextInput);
       selectedValues.add(value);
+      selectedValues.delete("");
       const filterValues = Array.from(selectedValues);
       onValueChange(filterValues.length ? filterValues : []);
     }
@@ -211,12 +212,6 @@ export function MultiSelect({
                     value={freeText}
                     onChange={(e) => {
                       setFreeText(e.target.value);
-                      if (e.target.value === "") {
-                        selectedValues.delete("");
-                        const filterValues = Array.from(selectedValues);
-                        onValueChange(filterValues.length ? filterValues : []);
-                      }
-
                       if (debounceTimeout.current) {
                         clearTimeout(debounceTimeout.current);
                       }
