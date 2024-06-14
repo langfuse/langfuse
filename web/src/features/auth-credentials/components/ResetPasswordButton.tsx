@@ -1,4 +1,4 @@
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
 
@@ -13,6 +13,7 @@ export function RequestResetPasswordEmailButton({
 }) {
   const [isEmailSent, setIsEmailSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const session = useSession();
 
   const handleResetPassword = async () => {
     setIsLoading(true);
@@ -38,7 +39,13 @@ export function RequestResetPasswordEmailButton({
       disabled={isEmailSent}
       variant={variant}
     >
-      {isEmailSent ? "Email sent if account exists" : "Request password reset"}
+      {isEmailSent
+        ? session.status === "authenticated"
+          ? "Email sent. Please check your inbox"
+          : "Email sent if account exists"
+        : session.status === "authenticated"
+          ? "Verify email to change password"
+          : "Request password reset"}
     </Button>
   );
 }

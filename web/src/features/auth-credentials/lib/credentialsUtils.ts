@@ -1,3 +1,7 @@
+/**
+ * Checks if the email is verified. Verification can expire to make password reset safe.
+ */
+
 export function isEmailVerified(isVerified: string | null | undefined):
   | {
       verified: false;
