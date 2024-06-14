@@ -189,6 +189,7 @@ export function MultiSelect({
                     } else {
                       selectedValues.add(freeText);
                     }
+                    selectedValues.delete("");
                     const filterValues = Array.from(selectedValues);
                     onValueChange(filterValues.length ? filterValues : []);
                   }}
@@ -223,7 +224,7 @@ export function MultiSelect({
                       e.stopPropagation();
                     }}
                     placeholder="Enter custom value"
-                    className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dashed p-0 text-sm"
+                    className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dotted p-0 text-sm"
                   />
                 </CommandItem>
               )}
