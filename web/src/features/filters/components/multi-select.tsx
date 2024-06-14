@@ -74,6 +74,19 @@ export function MultiSelect({
     }
   };
 
+  function getSelectedOptions() {
+    const selectedOptions = options.filter(({ value }) =>
+      selectedValues.has(value),
+    );
+
+    const hasCustomOption =
+      !!freeText &&
+      !!getFreeTextInput(isCustomSelectEnabled, values, optionValues);
+    const customOption = hasCustomOption ? [{ value: freeText }] : [];
+
+    return [...selectedOptions, ...customOption];
+  }
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -105,17 +118,15 @@ export function MultiSelect({
                     {selectedValues.size} selected
                   </Badge>
                 ) : (
-                  [...options, ...(!!freeText ? [{ value: freeText }] : [])]
-                    .filter((option) => selectedValues.has(option.value))
-                    .map((option) => (
-                      <Badge
-                        variant="secondary"
-                        key={option.value}
-                        className="rounded-sm px-1 font-normal"
-                      >
-                        {option.value}
-                      </Badge>
-                    ))
+                  getSelectedOptions().map((option) => (
+                    <Badge
+                      variant="secondary"
+                      key={option.value}
+                      className="rounded-sm px-1 font-normal"
+                    >
+                      {option.value}
+                    </Badge>
+                  ))
                 )}
               </div>
             </>
