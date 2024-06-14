@@ -1,5 +1,7 @@
 /**
  * Checks if the email is verified. Verification can expire to make password reset safe.
+ *
+ * @param isVerified - The date when the email was verified. Stringified date in ISO format.
  */
 
 export function isEmailVerified(isVerified: string | null | undefined):
