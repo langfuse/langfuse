@@ -7,7 +7,7 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
-import { verifyPassword } from "@/src/features/auth/lib/emailPassword";
+import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -18,6 +18,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
+import EmailProvider from "next-auth/providers/email";
 import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
@@ -29,6 +30,7 @@ import {
 } from "@langfuse/ee/sso";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
+import { sendResetPasswordVerificationRequest } from "@/src/features/auth-credentials/lib/sendResetPasswordVerificationRequest";
 import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
 
 const staticProviders: Provider[] = [
@@ -109,7 +111,7 @@ const staticProviders: Provider[] = [
         name: dbUser.name,
         email: dbUser.email,
         image: dbUser.image,
-        emailVerified: dbUser.emailVerified,
+        emailVerified: dbUser.emailVerified?.toISOString(),
         featureFlags: parseFlags(dbUser.featureFlags),
         projects: [],
       };
@@ -118,6 +120,17 @@ const staticProviders: Provider[] = [
     },
   }),
 ];
+
+// Password-reset for password reset of credentials provider
+if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
+  staticProviders.push(
+    EmailProvider({
+      server: env.SMTP_CONNECTION_URL,
+      from: env.EMAIL_FROM_ADDRESS,
+      sendVerificationRequest: sendResetPasswordVerificationRequest,
+    }),
+  );
+}
 
 if (
   env.AUTH_CUSTOM_CLIENT_ID &&
@@ -274,6 +287,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             name: true,
             email: true,
             image: true,
+            emailVerified: true,
             featureFlags: true,
             admin: true,
             projectMemberships: {
@@ -306,6 +320,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                   email: dbUser.email,
                   image: dbUser.image,
                   admin: dbUser.admin,
+                  emailVerified: dbUser.emailVerified?.toISOString(),
                   projects: dbUser.projectMemberships.map((membership) => ({
                     id: membership.project.id,
                     name: membership.project.name,
@@ -326,11 +341,31 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           throw new Error("Invalid email found in user object");
         }
 
-        // EE: Check custom SSO enforcement, enforce the specific SSO provider
+        // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
+        // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
         const domain = email.split("@")[1];
         const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
         if (customSsoProvider && account?.provider !== customSsoProvider) {
           throw new Error(`You must sign in via SSO for this domain.`);
+        }
+
+        // Only allow sign in via email link if user is already in db as this is used for password reset
+        if (account?.provider === "email") {
+          const user = await prisma.user.findUnique({
+            where: {
+              email: email,
+            },
+          });
+          if (user) {
+            return true;
+          } else {
+            // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 2000 + 200),
+            );
+            // Prevents sign in with email link if user does not exist
+            return false;
+          }
         }
 
         // Optional configuration: validate authorised email domains for google provider

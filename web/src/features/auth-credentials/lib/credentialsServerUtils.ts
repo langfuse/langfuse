@@ -47,6 +47,21 @@ export async function createUserEmailPassword(
   return newUser.id;
 }
 
+export async function updateUserPassword(userId: string, password: string) {
+  if (!isValidPassword(password))
+    throw new Error("Password needs to be at least 8 characters long.");
+
+  const hashedPassword = await hashPassword(password);
+  await prisma.user.update({
+    where: {
+      id: userId,
+    },
+    data: {
+      password: hashedPassword,
+    },
+  });
+}
+
 export async function hashPassword(password: string) {
   const hashedPassword = await hash(password, 12);
   return hashedPassword;
