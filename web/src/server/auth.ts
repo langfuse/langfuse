@@ -353,7 +353,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           if (user) {
             return true;
           } else {
-            // Simulate email verification delay to prevent leaking if user exists
+            // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
             await new Promise((resolve) =>
               setTimeout(resolve, Math.random() * 2000 + 200),
             );

@@ -1,3 +1,7 @@
+/*
+ * To be used in the `sendVerificationRequest` function of the `email` provider of NextAuth.js.
+ */
+
 import * as React from "react";
 import {
   Body,
