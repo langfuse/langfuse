@@ -11,8 +11,8 @@ import { env } from "./src/env.mjs";
  * img-src https to allow loading images from SSO providers
  */
 const cspHeader = `
-  default-src 'self' https://ph.langfuse.com https://*.posthog.com wss://*.crisp.chat https://*.crisp.chat;
-  script-src 'self' 'unsafe-eval' https://*.crisp.chat https://challenges.cloudflare.com https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
+  default-src 'self' https://ph.langfuse.com https://*.posthog.com https://*.sentry.io wss://*.crisp.chat https://*.crisp.chat;
+  script-src 'self' 'unsafe-eval' https://*.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
   style-src 'self' 'unsafe-inline' https://*.crisp.chat;
   img-src 'self' https: blob: data:;
   font-src 'self' https://*.crisp.chat;
