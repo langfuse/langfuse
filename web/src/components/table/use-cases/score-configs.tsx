@@ -10,6 +10,16 @@ import { type ScoreDataType, type Prisma } from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
+import { Archive } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -23,6 +33,7 @@ type ScoreConfigTableRow = {
     categories?: Prisma.JsonValue | null;
   };
   description?: string | null;
+  isArchived: boolean;
 };
 
 function getConfigRange(
@@ -38,6 +49,17 @@ function getConfigRange(
 }
 
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
+  const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
+    string[]
+  >("emptySelectedConfigIds", []);
+
+  const hasAccess = useHasAccess({
+    projectId: projectId,
+    scope: "scoreConfigs:CUD",
+  });
+
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -109,6 +131,73 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       defaultHidden: true,
     },
+    {
+      accessorKey: "isArchived",
+      id: "isArchived",
+      header: "Status",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const { isArchived } = row.original;
+        return isArchived ? "Archived" : "Active";
+      },
+    },
+    {
+      accessorKey: "action",
+      header: "Action",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const { id: configId, isArchived, name } = row.original;
+        const configMutation = api.scoreConfigs.update.useMutation({
+          onSuccess: () => void utils.scoreConfigs.invalidate(),
+        });
+
+        return (
+          <Popover key={configId}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={!hasAccess}
+                onClick={() => capture("score_configs:archive_form_open")}
+              >
+                <Archive className="h-4 w-4"></Archive>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent>
+              <h2 className="text-md mb-3 font-semibold">
+                {isArchived ? "Restore config" : "Archive config"}
+              </h2>
+              <p className="mb-3 text-sm">
+                Your config is currently{" "}
+                {isArchived
+                  ? `archived. Restore if you want to use "${name}" in annotation again.`
+                  : `active. Archive if you no longer want to use "${name}" in annotation. Historic "${name}" scores will still be shown and can be deleted. You can restore your config at any point.`}
+              </p>
+              <div className="flex justify-end space-x-4">
+                <Button
+                  type="button"
+                  variant={isArchived ? "default" : "destructive"}
+                  loading={configMutation.isLoading}
+                  onClick={() => {
+                    void configMutation.mutateAsync({
+                      projectId,
+                      id: configId,
+                      isArchived: !isArchived,
+                    });
+                    setEmptySelectedConfigIds(
+                      emptySelectedConfigIds.filter((id) => id !== configId),
+                    );
+                    capture("score_configs:archive_form_submit");
+                  }}
+                >
+                  Confirm
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        );
+      },
+    },
   ];
 
   const [columnVisibility, setColumnVisibility] =
@@ -153,6 +242,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                         minValue: config.minValue,
                         categories: config.categories,
                       },
+                      isArchived: config.isArchived,
                     })),
                   }
           }

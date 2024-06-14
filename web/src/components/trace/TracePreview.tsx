@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
-import { AnnotateButton } from "@/src/features/manual-scoring/components/AnnotateButton";
+import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
 
 export const TracePreview = ({
   trace,
@@ -95,7 +95,7 @@ export const TracePreview = ({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <AnnotateButton
+            <AnnotateDrawer
               projectId={trace.projectId}
               traceId={trace.id}
               scores={scores}
