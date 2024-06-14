@@ -47,7 +47,7 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
       <Card className="p-4 lg:w-1/2">
         {usage.data !== undefined && (
           <>
-            <Text>Observations / month</Text>
+            <Text>Observations / last 30d</Text>
             <Metric>{usage.data}</Metric>
             {plan === "Hobby" && (
               <>
