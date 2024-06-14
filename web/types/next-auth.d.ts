@@ -31,7 +31,7 @@ declare module "next-auth" {
     email?: PrismaUser["email"];
     image?: PrismaUser["image"];
     admin?: PrismaUser["admin"];
-    emailVerified?: string | null;
+    emailVerified?: string | null; // iso datetime string
     projects: {
       id: PrismaProject["id"];
       name: PrismaProject["name"];
