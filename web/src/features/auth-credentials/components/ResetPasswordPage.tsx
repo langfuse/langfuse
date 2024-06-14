@@ -47,7 +47,6 @@ export function ResetPasswordPage() {
     useState(false);
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
-  console.log(session.data?.user);
   const emailVerified = isEmailVerified(session.data?.user?.emailVerified);
 
   const form = useForm<z.infer<typeof resetPasswordSchema>>({
@@ -64,7 +63,7 @@ export function ResetPasswordPage() {
     setShowResetPasswordEmailButton(false);
     setIsSuccess(false);
     await mutResetPassword
-      .mutateAsync(values)
+      .mutateAsync({ password: values.password })
       .then(() => {
         setIsSuccess(true);
         setTimeout(() => {
