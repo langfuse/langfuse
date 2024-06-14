@@ -1,8 +1,10 @@
 import {
   AlertTriangle,
+  BadgeCheck,
   Check,
   Github,
   HardDriveDownload,
+  Map,
   Newspaper,
 } from "lucide-react";
 
@@ -21,6 +23,7 @@ import { ArrowUp } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 const VersionLabel = ({ className }: { className?: string }) => {
   const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
@@ -30,6 +33,8 @@ const VersionLabel = ({ className }: { className?: string }) => {
     enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
     onError: (error) => console.error("checkUpdate error", error), // do not render default error message
   });
+  const isEeVersion =
+    useIsEeEnabled() && !Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   const hasUpdate =
     !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
@@ -66,7 +71,15 @@ const VersionLabel = ({ className }: { className?: string }) => {
             <DropdownMenuSeparator />
           </>
         ) : null}
-
+        {isEeVersion && (
+          <>
+            <DropdownMenuLabel className="flex items-center font-normal">
+              <BadgeCheck size={16} className="mr-2" />
+              Enterprise Edition
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem asChild>
           <Link
             href="https://github.com/langfuse/langfuse/releases"
@@ -80,6 +93,12 @@ const VersionLabel = ({ className }: { className?: string }) => {
           <Link href="https://langfuse.com/changelog" target="_blank">
             <Newspaper size={16} className="mr-2" />
             Changelog
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="https://langfuse.com/roadmap" target="_blank">
+            <Map size={16} className="mr-2" />
+            Roadmap
           </Link>
         </DropdownMenuItem>
         {hasUpdate && (

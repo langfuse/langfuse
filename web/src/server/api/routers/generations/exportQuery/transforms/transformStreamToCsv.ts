@@ -1,7 +1,7 @@
 import { Transform, type TransformCallback } from "stream";
 
 import { type ObservationViewWithScores } from "@/src/server/api/routers/generations/getAllQuery";
-import { formatIntervalSeconds, intervalInSeconds } from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function transformStreamToCsv(): Transform {
   let isFirstChunk = true;

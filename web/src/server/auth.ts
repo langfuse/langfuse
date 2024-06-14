@@ -15,7 +15,7 @@ import { type Adapter } from "next-auth/adapters";
 
 // Providers
 import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
+import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
 import EmailProvider from "next-auth/providers/email";
@@ -301,6 +301,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
             defaultTableDateTimeOffset:
               env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
+            // Enables features that are only available under an enterprise license when self-hosting Langfuse
+            // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
+            eeEnabled: env.LANGFUSE_EE_LICENSE_KEY !== undefined,
           },
           user:
             dbUser !== null
@@ -322,7 +325,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               : null,
         };
       },
-      async signIn({ user, account }) {
+      async signIn({ user, account, profile }) {
         // Block sign in without valid user.email
         const email = user.email?.toLowerCase();
         if (!email) {
@@ -332,7 +335,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           throw new Error("Invalid email found in user object");
         }
 
-        // EE: Check custom SSO enforcement, enforce the specific SSO provider
+        // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
+        // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
         const domain = email.split("@")[1];
         const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
         if (customSsoProvider && account?.provider !== customSsoProvider) {
@@ -358,7 +362,24 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           }
         }
 
-        return true;
+        // Optional configuration: validate authorised email domains for google provider
+        // uses hd (hosted domain) claim from google profile as the domain
+        // https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload
+        if (env.AUTH_GOOGLE_ALLOWED_DOMAINS && account?.provider === "google") {
+          const allowedDomains =
+            env.AUTH_GOOGLE_ALLOWED_DOMAINS?.split(",").map((domain) =>
+              domain.trim().toLowerCase(),
+            ) ?? [];
+          if (allowedDomains.length > 0) {
+            return await Promise.resolve(
+              allowedDomains.includes(
+                (profile as GoogleProfile).hd.toLowerCase(),
+              ),
+            );
+          }
+        }
+
+        return await Promise.resolve(true);
       },
     },
     adapter: extendedPrismaAdapter,

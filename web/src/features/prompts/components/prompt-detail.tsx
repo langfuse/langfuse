@@ -1,9 +1,8 @@
-import { Pencil, Terminal } from "lucide-react";
+import { Pencil } from "lucide-react";
 import Link from "next/link";
-import router, { useRouter } from "next/router";
+import { useRouter } from "next/router";
 import { NumberParam, useQueryParam } from "use-query-params";
 import type { z } from "zod";
-
 import Header from "@/src/components/layouts/header";
 import {
   ChatMlArraySchema,
@@ -16,11 +15,9 @@ import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
-import { type Prompt } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";

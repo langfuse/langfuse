@@ -8,13 +8,11 @@ import {
   availableEvalVariables,
   ChatMessageRole,
   EvalExecutionEvent,
-  evalLLMModels,
-  EvalModelNames,
   evalTableCols,
   fetchLLMCompletion,
   ForbiddenError,
   LangfuseNotFoundError,
-  ModelProvider,
+  LLMApiKeySchema,
   Prisma,
   QueueJobs,
   QueueName,
@@ -249,34 +247,21 @@ export const evaluate = async ({
     reasoning: z.string().describe(parsedOutputSchema.reasoning),
   });
 
-  const evalModel = EvalModelNames.parse(template.model);
-  const provider = evalLLMModels.find((m) => m.model.value === evalModel)
-    ?.provider.value;
   const modelParams = ZodModelConfig.parse(template.model_params);
 
-  if (!provider) {
-    throw new LangfuseNotFoundError(`Model ${evalModel} provider not found`);
-  }
-
-  if (provider !== ModelProvider.OpenAI) {
-    // Needed for type checking downstream in the fetchLLMCompletion function
-    throw new ForbiddenError(
-      `Model ${evalModel} provider ${provider} not supported`
-    );
-  }
-
   // the apiKey.secret_key must never be printed to the console or returned to the client.
-  const apiKey = await kyselyPrisma.$kysely
-    .selectFrom("llm_api_keys")
-    .selectAll()
-    .where("project_id", "=", event.projectId)
-    .where("provider", "=", provider)
-    .executeTakeFirst();
+  const apiKey = await prisma.llmApiKeys.findFirst({
+    where: {
+      projectId: event.projectId,
+      provider: template.provider,
+    },
+  });
+  const parsedKey = LLMApiKeySchema.safeParse(apiKey);
 
-  if (!apiKey) {
+  if (!parsedKey.success) {
     // this will fail the eval execution if a user deletes the API key.
     throw new LangfuseNotFoundError(
-      `API key for provider ${provider} and project ${event.projectId} not found.`
+      `API key for provider ${template.provider} and project ${event.projectId} not found.`
     );
   }
 
@@ -284,11 +269,13 @@ export const evaluate = async ({
   try {
     completion = await fetchLLMCompletion({
       streaming: false,
-      apiKey: decrypt(apiKey.secret_key), // decrypt the secret key
+      apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
+      baseURL: parsedKey.data.baseURL || undefined,
       messages: [{ role: ChatMessageRole.System, content: prompt }],
       modelParams: {
-        provider,
-        model: evalModel,
+        provider: template.provider,
+        model: template.model,
+        adapter: parsedKey.data.adapter,
         ...modelParams,
       },
       functionCall: {

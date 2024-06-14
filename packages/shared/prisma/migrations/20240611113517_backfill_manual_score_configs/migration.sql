@@ -10,7 +10,7 @@ INSERT INTO score_configs (id,
 		max_value,
 		description)
 SELECT
-	gen_random_uuid () AS id,
+	md5(random()::text || clock_timestamp()::text || s.project_id::text)::uuid AS id,
 	s.project_id,
 	'manual-score',
 	'NUMERIC',
@@ -24,6 +24,7 @@ FROM ( SELECT DISTINCT
 		scores
 	WHERE
 		name = 'manual-score'
+		AND config_id IS NULL
 		AND source = 'ANNOTATION') s
 WHERE
 	NOT EXISTS (

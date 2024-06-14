@@ -33,7 +33,7 @@ type PromptVersionTableRow = {
 };
 
 type PromptCoreOutput = RouterOutput["prompts"]["allVersions"];
-type PromptMetricsOutput = RouterOutput["prompts"]["metrics"];
+type PromptMetricsOutput = RouterOutput["prompts"]["versionMetrics"];
 type PromptMetric = PromptMetricsOutput[number];
 type PromptCoreData = PromptCoreOutput["promptVersions"][number];
 
@@ -102,7 +102,7 @@ export default function PromptVersionTable() {
     ? promptVersions.data?.promptVersions.map((prompt) => prompt.id)
     : [];
 
-  const promptMetrics = api.prompts.metrics.useQuery(
+  const promptMetrics = api.prompts.versionMetrics.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,

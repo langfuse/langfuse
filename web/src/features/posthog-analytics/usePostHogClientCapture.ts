@@ -25,6 +25,7 @@ const events = {
     "observation_tree_toggle_metrics",
     "io_mode_switch",
     "test_in_playground_button_click",
+    "display_mode_switch",
   ],
   generations: ["export"],
   score: [

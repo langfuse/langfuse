@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "2.50.0",
+  "version": "2.54.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -30,10 +30,11 @@
   },
   "devDependencies": {
     "@release-it/bumper": "^6.0.1",
+    "braces": "3.0.3",
     "dotenv-cli": "^7.4.2",
     "husky": "^9.0.11",
     "prettier": "^3.2.5",
-    "release-it": "^17.2.1",
+    "release-it": "^17.3.0",
     "turbo": "^1.13.3"
   },
   "release-it": {
