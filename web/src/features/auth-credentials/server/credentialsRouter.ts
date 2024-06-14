@@ -3,7 +3,7 @@ import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { passwordSchema } from "@/src/features/auth-credentials/types";
 import { updateUserPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { TRPCError } from "@trpc/server";
-import { isEmailVerified } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
 export const credentialsRouter = createTRPCRouter({
   resetPassword: protectedProcedure
@@ -22,7 +22,7 @@ export const credentialsRouter = createTRPCRouter({
         },
       });
 
-      const emailVerificationStatus = isEmailVerified(
+      const emailVerificationStatus = isEmailVerifiedWithinCutoff(
         user?.emailVerified?.toISOString(),
       );
 

@@ -21,7 +21,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
 import { TRPCClientError } from "@trpc/client";
-import { isEmailVerified } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
 const resetPasswordSchema = z
   .object({
@@ -47,7 +47,9 @@ export function ResetPasswordPage() {
     useState(false);
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
-  const emailVerified = isEmailVerified(session.data?.user?.emailVerified);
+  const emailVerified = isEmailVerifiedWithinCutoff(
+    session.data?.user?.emailVerified,
+  );
 
   const form = useForm<z.infer<typeof resetPasswordSchema>>({
     resolver: zodResolver(resetPasswordSchema),
