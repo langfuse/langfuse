@@ -1,4 +1,8 @@
-import { parseJsonPrioritised, type JsonNested } from "@langfuse/shared";
+import {
+  jsonSchema,
+  parseJsonPrioritised,
+  type JsonNested,
+} from "@langfuse/shared";
 import {
   clickhouseClient,
   convertTraces,
@@ -28,9 +32,8 @@ export const getObservations = async (traceId: string, projectId: string) => {
     format: "JSONEachRow",
   });
   const jsonRecords = await observations.json();
-  console.log("observations", jsonRecords);
 
-  return z.array(observationRecordRead).parse(jsonRecords);
+  return convertObservations(jsonRecords);
 };
 
 export const getTraces = async (traceId: string, projectId: string) => {
@@ -89,7 +92,7 @@ export const convertRecordToJsonSchema = (
 function convertObservations(jsonRecords: unknown[]) {
   const parsedRecord = z.array(observationRecordRead).parse(jsonRecords);
 
-  return parsedRecord.map((record) => {
+  const a = parsedRecord.map((record) => {
     return {
       id: record.id,
       traceId: record.trace_id,
@@ -122,4 +125,7 @@ function convertObservations(jsonRecords: unknown[]) {
       promptId: record.prompt_id,
     };
   });
+
+  console.log("🚨🚨🚨🚨", JSON.stringify(a));
+  return a;
 }

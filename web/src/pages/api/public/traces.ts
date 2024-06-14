@@ -85,6 +85,7 @@ export default async function handler(
       const result = await handleBatch([event], {}, req, authCheck);
       handleBatchResultLegacy(result.errors, result.results, res);
     } else if (req.method === "GET") {
+      console.log("🚨🚨 THIS IS THE GET");
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({
           message: "Access denied - need to use basic auth with secret key",

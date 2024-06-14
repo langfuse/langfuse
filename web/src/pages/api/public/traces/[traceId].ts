@@ -81,9 +81,7 @@ export default async function handler(
     }
 
     const observations = env.SERVE_FROM_CLICKHOUSE
-      ? convertObservations(
-          await getObservations(traceId, authCheck.scope.projectId),
-        )
+      ? await getObservations(traceId, authCheck.scope.projectId)
       : await prisma.observationView.findMany({
           where: {
             traceId: traceId,
@@ -159,8 +157,8 @@ function convertObservationModelToApi(
     id: observation.id,
     traceId: observation.trace_id ?? null,
     projectId: observation.project_id,
-    startTime: new Date(observation.start_time) ?? null,
-    endTime: new Date(observation.end_time) ?? null,
+    startTime: new Date(observation.start_time),
+    endTime: observation.end_time ? new Date(observation.end_time) : null,
     createdAt: new Date(observation.created_at) ?? null,
     inputPrice: observation.input_cost
       ? new Decimal(observation.input_cost)
@@ -196,8 +194,8 @@ function convertObservationModelToApi(
     level: ObservationLevel[observation.type as keyof typeof ObservationLevel],
     version: observation.version ?? null,
     model: observation.model ?? null,
-    input: observation.input ? JSON.parse(observation.input) : null,
-    output: observation.output ? JSON.parse(observation.output) : null,
+    input: observation.input ?? null,
+    output: observation.output ?? null,
     unit: observation.unit ?? null,
     metadata: observation.metadata,
   });

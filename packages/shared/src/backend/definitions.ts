@@ -1,4 +1,5 @@
 import z from "zod";
+import { jsonSchema } from "../utils/zod";
 export const clickhouseStringDate = z
   .string()
   // clickhouse stores UTC like '2024-05-23 18:33:41.602000'
@@ -42,7 +43,7 @@ export const observationRecordBase = z.object({
 export const observationRecordRead = observationRecordBase.extend({
   created_at: clickhouseStringDate,
   start_time: clickhouseStringDate,
-  end_time: clickhouseStringDate,
+  end_time: clickhouseStringDate.nullish(),
 });
 
 export const observationRecordInsert = observationRecordBase.extend({
@@ -116,7 +117,7 @@ export const convertObservationReadToInsert = (
     ...record,
     created_at: new Date(record.created_at).getTime(),
     start_time: new Date(record.start_time).getTime(),
-    end_time: new Date(record.end_time).getTime(),
+    end_time: record.end_time ? new Date(record.end_time).getTime() : undefined,
   };
 };
 

@@ -21,7 +21,7 @@ import z from "zod";
 import { instrumentAsync } from "../instrumentation";
 import { redis } from "../redis/redis";
 import { v4 } from "uuid";
-import _ from "lodash";
+import _, { create } from "lodash";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "../features/tokenisation/usage";
 import {
@@ -66,8 +66,6 @@ const getRedisEvents = async () => {
     extractedKeys.map((key) => redis?.lrange(key, 0, -1))
   );
 
-  console.log(`Full events ${JSON.stringify(fullEvents)}`);
-
   return await parseRedisEvents(fullEvents.filter(Boolean) as string[][]);
 };
 
@@ -76,8 +74,6 @@ const projectBatchEvent = ingestionEvent.and(
 );
 
 export const parseRedisEvents = async (events: string[][]) => {
-  console.log(`Processing redis events ${JSON.stringify(events)}`);
-
   // we get string[][] which is for each projectid+id a list of elements
   // return a map of projectId -> event[][]
 
@@ -92,7 +88,6 @@ export const parseRedisEvents = async (events: string[][]) => {
     });
   });
 
-  console.log(`Parsed events ${JSON.stringify(parsedEvents)}`);
   // group them by projectId
   return parsedEvents.reduce<{
     [key: string]: z.infer<typeof projectBatchEvent>[][];
@@ -175,6 +170,7 @@ const storeScores = async (
       trace_id: score.body.traceId,
       observation_id: score.body.observationId ?? null,
       project_id: projectId,
+      created_at: Date.now() * 1000,
     }))
   );
 
@@ -185,6 +181,8 @@ const storeScores = async (
     scoreRecordInsert,
     scoreRecordRead
   );
+
+  console.log(`new score records ${JSON.stringify(newRecords)}`);
 
   if (newRecords.length === 0) {
     return;
@@ -233,16 +231,18 @@ const storeObservations = async (
     promptMapping
   );
 
-  console.log(`hehe check: ${JSON.stringify(insert)}`);
-
   // merge observations with same id and project id into one
-  const newRecords = await getDedupedAndUpdatedRecords(
-    insert,
-    projectId,
-    "observations",
-    observationRecordInsert,
-    observationRecordRead
-  );
+  const newRecords = z
+    .array(observationRecordInsert)
+    .parse(
+      await getDedupedAndUpdatedRecords(
+        insert,
+        projectId,
+        "observations",
+        observationRecordInsert,
+        observationRecordRead
+      )
+    );
 
   if (newRecords.length === 0) {
     return;
@@ -250,9 +250,13 @@ const storeObservations = async (
 
   // model match of observations
 
-  // const modelMatchedRecords = await modelMatchAndTokenization(newRecords);
+  const modelMatchedRecords = await modelMatchAndTokenization(newRecords);
 
-  return await insertFinalRecords(projectId, "observations", newRecords);
+  return await insertFinalRecords(
+    projectId,
+    "observations",
+    modelMatchedRecords
+  );
 };
 
 type PromptMapping = {
@@ -266,8 +270,6 @@ export const findPrompt = async (
   projectId: string,
   events: ObservationEvent[][]
 ): Promise<PromptMapping[]> => {
-  console.log(`events to find prompts ${JSON.stringify(events)}`);
-
   const uniquePrompts: PromptMapping[] = events
     .flat()
     .map((event) => {
@@ -417,17 +419,20 @@ export const modelMatchAndTokenization = async (
           !updatedObservation.provided_output_cost &&
           !updatedObservation.provided_total_cost
         ) {
+          const calculatedInputCost =
+            (foundModel.inputPrice?.toNumber() ?? 0) *
+            (updatedObservation.input_usage ?? 0);
+          const calculatedOutputCost =
+            (foundModel.outputPrice?.toNumber() ?? 0) *
+            (updatedObservation.output_usage ?? 0);
+          const calculatedTotalCost =
+            calculatedInputCost + calculatedOutputCost;
+
           updatedObservation = {
             ...updatedObservation,
-            input_cost:
-              (foundModel.inputPrice?.toNumber() ?? 0) *
-                (updatedObservation.input_usage ?? 0) || null,
-            output_cost:
-              (foundModel.outputPrice?.toNumber() ?? 0) *
-                (updatedObservation.output_usage ?? 0) || null,
-            total_cost:
-              (updatedObservation.input_cost ?? 0) +
-                (updatedObservation.output_cost ?? 0) || null,
+            input_cost: calculatedInputCost || null,
+            output_cost: calculatedOutputCost || null,
+            total_cost: calculatedTotalCost || null,
           };
         }
 
@@ -538,7 +543,7 @@ async function getDedupedAndUpdatedRecords<
       return deduped;
     })
     .flat();
-  return newRecords;
+  return z.array(recordInsert).parse(newRecords);
 }
 
 function convertEventToRecord(

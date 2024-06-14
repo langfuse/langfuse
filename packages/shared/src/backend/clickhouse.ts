@@ -3,6 +3,7 @@ import { env } from "../env";
 import { observationRecordRead, traceRecordRead } from "./definitions";
 import z from "zod";
 import { convertRecordToJsonSchema, parseJsonPrioritised } from "../utils/json";
+import { jsonSchema } from "../utils/zod";
 
 export const clickhouseClient = createClient({
   url: env.CLICKHOUSE_URL ?? "http://localhost:8123",
