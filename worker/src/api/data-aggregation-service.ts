@@ -225,12 +225,12 @@ const storeObservations = async (
   if (observations.length === 0) {
     return;
   }
-  // const observationMap = await findPrompt(projectId, observations);
+  const promptMapping = await findPrompt(projectId, observations);
   // console.log("observation map ", JSON.stringify(observationMap));
   const insert = convertEventToObservation(
     observations,
     projectId,
-    new Map<string, string>()
+    promptMapping
   );
 
   console.log(`hehe check: ${JSON.stringify(insert)}`);
@@ -255,58 +255,72 @@ const storeObservations = async (
   return await insertFinalRecords(projectId, "observations", newRecords);
 };
 
-// export const findPrompt = async (
-//   projectId: string,
-//   events: ObservationEvent[][]
-// ) => {
-//   const observationMap = new Map<string, string>(); // contains prompt id for each matching observation
-//   // find all unique combinations of prompt names + versions alongside all observations
-//   console.log(`events to find prompts ${JSON.stringify(events)}`);
+type PromptMapping = {
+  name: string;
+  version: number;
+  projectId: string;
+  promptId?: string;
+};
 
-//   const uniquePrompts: {
-//     name: string;
-//     version: number;
-//     projectId: string;
-//   }[] = events
-//     .flat()
-//     .map((event) => {
-//       if (
-//         "promptName" in event.body &&
-//         typeof event.body.promptName === "string" &&
-//         "promptVersion" in event.body &&
-//         typeof event.body.promptVersion === "number"
-//       ) {
-//         return {
-//           name: event.body.promptName,
-//           version: event.body.promptVersion,
-//           projectId: projectId,
-//         };
-//       }
-//       return null;
-//     })
-//     .filter(Boolean);
+export const findPrompt = async (
+  projectId: string,
+  events: ObservationEvent[][]
+): Promise<PromptMapping[]> => {
+  console.log(`events to find prompts ${JSON.stringify(events)}`);
 
-//   // for all unique prompts, find the prompt in the database
+  const uniquePrompts: PromptMapping[] = events
+    .flat()
+    .map((event) => {
+      if (hasPromptInformation(event)) {
+        return {
+          name: event.body.promptName,
+          version: event.body.promptVersion,
+          projectId: projectId,
+        };
+      }
+      return null;
+    })
+    .filter((prompt): prompt is PromptMapping => Boolean(prompt));
 
-//   const prompts = await prisma.prompt.findMany({
-//     where: {
-//       projectId,
-//       name: {
-//         in: uniquePrompts.map((uP) => uP.name),
-//       },
-//       version: {
-//         in: uniquePrompts.map((uP) => uP.version),
-//       },
-//     },
-//   });
+  // get all prompts
+  const prompts = await prisma.prompt.findMany({
+    where: {
+      projectId: projectId,
+      name: {
+        in: [...new Set(uniquePrompts.map((p) => p.name))],
+      },
+      version: {
+        in: [...new Set(uniquePrompts.map((p) => p.version))],
+      },
+    },
+  });
 
-//   // return map of promptname+version -> promptId
-//   return prompts.reduce((acc, prompt) => {
-//     acc.set(`${prompt.name}-${prompt.version}`, prompt.id);
-//     return acc;
-//   }, observationMap);
-// };
+  // assign promptid to events
+  return uniquePrompts.map((uP) => {
+    const foundPrompt = prompts.find((p) => {
+      p.name === uP.name &&
+        p.version === uP.version &&
+        uP.projectId === projectId;
+    });
+    return {
+      ...uP,
+      promptId: foundPrompt?.id,
+    };
+  });
+};
 
+function hasPromptInformation(
+  event: ObservationEvent
+): event is ObservationEvent & {
+  body: { promptName: string; promptVersion: number };
+} {
+  return (
+    "promptName" in event.body &&
+    typeof event.body.promptName === "string" &&
+    "promptVersion" in event.body &&
+    typeof event.body.promptVersion === "number"
+  );
+}
 export const modelMatchAndTokenization = async (
   observations: z.infer<typeof observationRecordInsert>[]
 ) => {
@@ -474,20 +488,8 @@ async function getDedupedAndUpdatedRecords<
     scores: ["id", "project_id", "timestamp", "type", "trace_id", "created_at"],
     observations: ["id", "project_id", "trace_id", "timestamp", "created_at"],
   };
-  // const dedupedSdkRecords = z
-  //   .array(recordInsert)
-  //   .parse(
-  //     dedupeAndOverwriteObjectById(
-  //       insert,
-  //       nonOverwritableProperties[recordType]
-  //     )
-  //   );
 
   const uniqueIds = new Set(insert.map((obs) => obs[0].id));
-
-  // console.log(`deduped ${recordType} ${JSON.stringify(dedupedSdkRecords)}`);
-
-  // get optimistic locks in redis
 
   const chRecords = await instrumentAsync(
     { name: `get-${recordType}` },
@@ -575,42 +577,10 @@ function convertEventToRecord(
   );
 }
 
-async function getCurrentStateFromRedis<T extends z.ZodType<any, any>>(
-  ids: string[],
-  projectId: string,
-  record: T,
-  recordType: "traces" | "scores" | "observations"
-) {
-  const keys = ids.map((id) => `${recordType}:${id}-${projectId}`);
-
-  if (keys.length === 0) {
-    return [];
-  }
-
-  const redisObjects =
-    keys.length === 1
-      ? [await redis?.get(keys[0])]
-      : await redis?.mget(...keys);
-
-  console.log(
-    `redisObjects  ${recordType} ${keys} ${JSON.stringify(redisObjects)}`
-  );
-
-  const redisObservations =
-    redisObjects?.map((redisObject) =>
-      redisObject ? JSON.parse(redisObject) : undefined
-    ) ?? [];
-
-  return z
-    .array(record.nullish())
-    .parse(redisObservations)
-    .filter((item): item is z.infer<typeof record> => !!item);
-}
-
 function convertEventToObservation(
   observationsToStore: ObservationEvent[][],
   projectId: string,
-  observationMap: Map<string, string>
+  promptMapping: PromptMapping[]
 ) {
   return observationsToStore.map((observationsById) =>
     observationsById.map((obs) => {
@@ -700,7 +670,15 @@ function convertEventToObservation(
           "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
         provided_total_cost:
           "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
-        prompt_id: obs.body.id ? observationMap.get(obs.body.id) : undefined,
+        prompt_id: obs.body.id
+          ? promptMapping.find(
+              (p) =>
+                hasPromptInformation(obs) &&
+                p.name === obs.body.promptName &&
+                p.version === obs.body.promptVersion &&
+                p.projectId === projectId
+            )?.promptId
+          : undefined,
         created_at: Date.now(),
       });
     })
