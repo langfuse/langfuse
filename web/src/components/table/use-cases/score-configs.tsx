@@ -170,8 +170,8 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
               <p className="mb-3 text-sm">
                 Your config is currently{" "}
                 {isArchived
-                  ? `archived. This action will allow selecting ${name} scores in the future. Historic ${name} scores can be updated.`
-                  : `active. This action will prevent selecting ${name} scores in the future. Historic ${name} scores will still be shown and can be deleted, but no longer updated.`}
+                  ? `archived. Restore if you want to use "${name}" in annotation again.`
+                  : `active. Archive if you no longer want to use "${name}" in annotation. Historic "${name}" scores will still be shown and can be deleted. You can restore your config at any point.`}
               </p>
               <div className="flex justify-end space-x-4">
                 <Button
