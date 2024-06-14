@@ -32,6 +32,7 @@ import { Shield } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -58,6 +59,7 @@ export type PageProps = {
     sso: boolean;
   };
   signUpDisabled: boolean;
+  passwordResetAvailable: boolean;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
@@ -100,6 +102,9 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
+      passwordResetAvailable:
+        env.SMTP_CONNECTION_URL !== undefined &&
+        env.EMAIL_FROM_ADDRESS !== undefined,
     },
   };
 };
@@ -224,7 +229,11 @@ const signInErrors = [
   },
 ];
 
-export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
+export default function SignIn({
+  authProviders,
+  signUpDisabled,
+  passwordResetAvailable,
+}: PageProps) {
   const router = useRouter();
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
@@ -431,7 +440,16 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}
                 <br />
-                Contact support if this error is unexpected.
+                {credentialsFormError === "Invalid credentials" &&
+                passwordResetAvailable ? (
+                  <RequestResetPasswordEmailButton
+                    email={credentialsForm.getValues("email")}
+                    className="mt-6 w-full"
+                    variant="secondary"
+                  />
+                ) : (
+                  "Contact support if this error is unexpected."
+                )}
               </div>
             ) : null}
             <SSOButtons authProviders={authProviders} />
