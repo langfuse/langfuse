@@ -16,10 +16,15 @@ export function nestObservations(
 ): NestedObservation[] {
   if (list.length === 0) return [];
 
+  // Step 0: Sort the list by start time to ensure observations are in right order
+  const sortedObservations = list.sort(
+    (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+  );
+
   // Step 1: Create a map where the keys are object IDs, and the values are
   // the corresponding objects with an added 'children' property.
   const map = new Map<string, NestedObservation>();
-  for (const obj of list) {
+  for (const obj of sortedObservations) {
     map.set(obj.id, { ...obj, children: [] });
   }
 
