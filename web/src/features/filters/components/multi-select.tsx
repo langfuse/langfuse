@@ -21,7 +21,16 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import { type FilterOption } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+
+const getFreeTextInput = (
+  isCustomSelectEnabled: boolean,
+  values: string[],
+  optionValues: Set<string>,
+): string | undefined =>
+  isCustomSelectEnabled
+    ? Array.from(values.values()).find((value) => !optionValues.has(value))
+    : undefined;
 
 export function MultiSelect({
   title,
@@ -30,6 +39,7 @@ export function MultiSelect({
   options,
   className,
   disabled,
+  isCustomSelectEnabled = false,
 }: {
   title?: string;
   values: string[];
@@ -37,18 +47,23 @@ export function MultiSelect({
   options: FilterOption[] | readonly FilterOption[];
   className?: string;
   disabled?: boolean;
+  isCustomSelectEnabled?: boolean;
 }) {
   const selectedValues = new Set(values);
   const optionValues = new Set(options.map((option) => option.value));
-  const freeTextInput = Array.from(selectedValues.values()).find(
-    (value) => !optionValues.has(value),
+  const freeTextInput = getFreeTextInput(
+    isCustomSelectEnabled,
+    values,
+    optionValues,
   );
-  const [freeText, setFreeText] = React.useState(freeTextInput || "");
+  const [freeText, setFreeText] = useState(freeTextInput || "");
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const handleDebouncedChange = (value: string) => {
-    const freeTextInput = Array.from(selectedValues.values()).find(
-      (value) => !optionValues.has(value),
+    const freeTextInput = getFreeTextInput(
+      isCustomSelectEnabled,
+      values,
+      optionValues,
     );
 
     if (!!freeTextInput) {
@@ -147,59 +162,65 @@ export function MultiSelect({
                   </CommandItem>
                 );
               })}
-              <CommandItem
-                key="freeTextField"
-                onSelect={() => {
-                  const freeTextInput = Array.from(
-                    selectedValues.values(),
-                  ).find((value) => !optionValues.has(value));
+              {isCustomSelectEnabled && (
+                <CommandItem
+                  key="freeTextField"
+                  onSelect={() => {
+                    const freeTextInput = getFreeTextInput(
+                      isCustomSelectEnabled,
+                      values,
+                      optionValues,
+                    );
 
-                  if (!!freeTextInput) {
-                    selectedValues.delete(freeTextInput);
-                  } else {
-                    selectedValues.add(freeText);
-                  }
-                  const filterValues = Array.from(selectedValues);
-                  onValueChange(filterValues.length ? filterValues : []);
-                }}
-              >
-                <div
-                  className={cn(
-                    "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                    Array.from(selectedValues.values()).some(
-                      (value) => !optionValues.has(value),
-                    ) || optionValues.has(freeText)
-                      ? "bg-primary text-primary-foreground"
-                      : "opacity-50 [&_svg]:invisible",
-                  )}
+                    if (!!freeTextInput) {
+                      selectedValues.delete(freeTextInput);
+                    } else {
+                      selectedValues.add(freeText);
+                    }
+                    const filterValues = Array.from(selectedValues);
+                    onValueChange(filterValues.length ? filterValues : []);
+                  }}
                 >
-                  <Check className="h-4 w-4" />
-                </div>
-                <Input
-                  type="text"
-                  value={freeText}
-                  onChange={(e) => {
-                    setFreeText(e.target.value);
-                    if (e.target.value === "") {
-                      selectedValues.delete("");
-                      const filterValues = Array.from(selectedValues);
-                      onValueChange(filterValues.length ? filterValues : []);
-                    }
+                  <div
+                    className={cn(
+                      "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                      getFreeTextInput(
+                        isCustomSelectEnabled,
+                        values,
+                        optionValues,
+                      ) || optionValues.has(freeText)
+                        ? "bg-primary text-primary-foreground"
+                        : "opacity-50 [&_svg]:invisible",
+                    )}
+                  >
+                    <Check className="h-4 w-4" />
+                  </div>
+                  <Input
+                    type="text"
+                    value={freeText}
+                    onChange={(e) => {
+                      setFreeText(e.target.value);
+                      if (e.target.value === "") {
+                        selectedValues.delete("");
+                        const filterValues = Array.from(selectedValues);
+                        onValueChange(filterValues.length ? filterValues : []);
+                      }
 
-                    if (debounceTimeout.current) {
-                      clearTimeout(debounceTimeout.current);
-                    }
-                    debounceTimeout.current = setTimeout(() => {
-                      handleDebouncedChange(e.target.value);
-                    }, 500);
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                  placeholder="Enter custom value"
-                  className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dashed p-1 text-sm"
-                />
-              </CommandItem>
+                      if (debounceTimeout.current) {
+                        clearTimeout(debounceTimeout.current);
+                      }
+                      debounceTimeout.current = setTimeout(() => {
+                        handleDebouncedChange(e.target.value);
+                      }, 500);
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    placeholder="Enter custom value"
+                    className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dashed p-1 text-sm"
+                  />
+                </CommandItem>
+              )}
             </CommandGroup>
             {selectedValues.size > 0 && (
               <>
