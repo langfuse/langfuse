@@ -20,6 +20,8 @@ import {
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
 import { type FilterOption } from "@langfuse/shared";
+import { Input } from "@/src/components/ui/input";
+import { useRef } from "react";
 
 export function MultiSelect({
   title,
@@ -37,6 +39,25 @@ export function MultiSelect({
   disabled?: boolean;
 }) {
   const selectedValues = new Set(values);
+  const optionValues = new Set(options.map((option) => option.value));
+  const freeTextInput = Array.from(selectedValues.values()).find(
+    (value) => !optionValues.has(value),
+  );
+  const [freeText, setFreeText] = React.useState(freeTextInput || "");
+
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const handleDebouncedChange = (value: string) => {
+    const freeTextInput = Array.from(selectedValues.values()).find(
+      (value) => !optionValues.has(value),
+    );
+
+    if (!!freeTextInput) {
+      selectedValues.delete(freeTextInput);
+      selectedValues.add(value);
+      const filterValues = Array.from(selectedValues);
+      onValueChange(filterValues.length ? filterValues : []);
+    }
+  };
 
   return (
     <Popover>
@@ -69,7 +90,7 @@ export function MultiSelect({
                     {selectedValues.size} selected
                   </Badge>
                 ) : (
-                  options
+                  [...options, ...(!!freeText ? [{ value: freeText }] : [])]
                     .filter((option) => selectedValues.has(option.value))
                     .map((option) => (
                       <Badge
@@ -126,6 +147,59 @@ export function MultiSelect({
                   </CommandItem>
                 );
               })}
+              <CommandItem
+                key="freeTextField"
+                onSelect={() => {
+                  const freeTextInput = Array.from(
+                    selectedValues.values(),
+                  ).find((value) => !optionValues.has(value));
+
+                  if (!!freeTextInput) {
+                    selectedValues.delete(freeTextInput);
+                  } else {
+                    selectedValues.add(freeText);
+                  }
+                  const filterValues = Array.from(selectedValues);
+                  onValueChange(filterValues.length ? filterValues : []);
+                }}
+              >
+                <div
+                  className={cn(
+                    "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                    Array.from(selectedValues.values()).some(
+                      (value) => !optionValues.has(value),
+                    ) || optionValues.has(freeText)
+                      ? "bg-primary text-primary-foreground"
+                      : "opacity-50 [&_svg]:invisible",
+                  )}
+                >
+                  <Check className="h-4 w-4" />
+                </div>
+                <Input
+                  type="text"
+                  value={freeText}
+                  onChange={(e) => {
+                    setFreeText(e.target.value);
+                    if (e.target.value === "") {
+                      selectedValues.delete("");
+                      const filterValues = Array.from(selectedValues);
+                      onValueChange(filterValues.length ? filterValues : []);
+                    }
+
+                    if (debounceTimeout.current) {
+                      clearTimeout(debounceTimeout.current);
+                    }
+                    debounceTimeout.current = setTimeout(() => {
+                      handleDebouncedChange(e.target.value);
+                    }, 500);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  placeholder="Enter custom value"
+                  className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dashed p-1 text-sm"
+                />
+              </CommandItem>
             </CommandGroup>
             {selectedValues.size > 0 && (
               <>
