@@ -37,7 +37,12 @@ const events = {
     "update_comment",
     "delete_comment",
   ],
-  score_configs: ["create_form_submit", "manage_configs_item_click"],
+  score_configs: [
+    "create_form_submit",
+    "manage_configs_item_click",
+    "archive_form_open",
+    "archive_form_submit",
+  ],
   models: ["delete_button_click", "new_form_submit", "new_form_open"],
   prompts: [
     "new_form_submit",

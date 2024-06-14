@@ -13,7 +13,7 @@ import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AnnotateButton } from "@/src/features/manual-scoring/components/AnnotateButton";
+import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
@@ -125,7 +125,7 @@ export const SessionPage: React.FC<{
               <div className="mb-1 flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>
-              <AnnotateButton
+              <AnnotateDrawer
                 projectId={projectId}
                 traceId={trace.id}
                 scores={trace.scores}
