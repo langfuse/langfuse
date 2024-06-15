@@ -2,6 +2,7 @@ import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function RequestResetPasswordEmailButton({
   email,
@@ -16,6 +17,7 @@ export function RequestResetPasswordEmailButton({
   const [isLoading, setIsLoading] = useState(false);
   const [isValidEmail, setIsValidEmail] = useState(false);
   const session = useSession();
+  const capture = usePostHogClientCapture();
 
   useEffect(() => {
     const isValidEmail = z.string().email().safeParse(email).success;
@@ -24,6 +26,7 @@ export function RequestResetPasswordEmailButton({
 
   const handleResetPassword = async () => {
     if (!isValidEmail) return;
+    capture("auth:reset_password_email_requested");
     setIsLoading(true);
     try {
       await signIn("email", {

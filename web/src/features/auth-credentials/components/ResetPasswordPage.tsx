@@ -24,6 +24,7 @@ import { TRPCClientError } from "@trpc/client";
 import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const resetPasswordSchema = z
   .object({
@@ -52,6 +53,8 @@ export function ResetPasswordPage({
   const [showResetPasswordEmailButton, setShowResetPasswordEmailButton] =
     useState(false);
 
+  const capture = usePostHogClientCapture();
+
   const mutResetPassword = api.credentials.resetPassword.useMutation();
   const emailVerified = isEmailVerifiedWithinCutoff(
     session.data?.user?.emailVerified,
@@ -70,6 +73,7 @@ export function ResetPasswordPage({
     setFormError(null);
     setShowResetPasswordEmailButton(false);
     setIsSuccess(false);
+    capture("auth:update_password_form_submit");
     await mutResetPassword
       .mutateAsync({ password: values.password })
       .then(() => {
