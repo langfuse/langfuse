@@ -22,6 +22,9 @@ import { useRouter } from "next/router";
 import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
 import { TRPCClientError } from "@trpc/client";
 import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import Link from "next/link";
+import { ErrorPage } from "@/src/components/error-page";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const resetPasswordSchema = z
   .object({
@@ -38,13 +41,19 @@ const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
-export function ResetPasswordPage() {
+export function ResetPasswordPage({
+  passwordResetAvailable,
+}: {
+  passwordResetAvailable: boolean;
+}) {
   const session = useSession();
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showResetPasswordEmailButton, setShowResetPasswordEmailButton] =
     useState(false);
+
+  const capture = usePostHogClientCapture();
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
   const emailVerified = isEmailVerifiedWithinCutoff(
@@ -64,6 +73,7 @@ export function ResetPasswordPage() {
     setFormError(null);
     setShowResetPasswordEmailButton(false);
     setIsSuccess(false);
+    capture("auth:update_password_form_submit");
     await mutResetPassword
       .mutateAsync({ password: values.password })
       .then(() => {
@@ -87,6 +97,18 @@ export function ResetPasswordPage() {
       });
   }
 
+  if (!passwordResetAvailable)
+    return (
+      <ErrorPage
+        title="Not available"
+        message="Password reset is not configured on this instance"
+        additionalButton={{
+          label: "Setup instructions",
+          href: "https://langfuse.com/docs/deployment/self-host#emailpassword",
+        }}
+      />
+    );
+
   return (
     <>
       <Head>
@@ -94,7 +116,9 @@ export function ResetPasswordPage() {
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="mx-auto" />
+          <Link href="/">
+            <LangfuseIcon className="mx-auto" />
+          </Link>
           <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
             Reset your password
           </h2>
@@ -118,7 +142,7 @@ export function ResetPasswordPage() {
                         <div className="relative">
                           <Input
                             placeholder="jsdoe@example.com"
-                            disabled
+                            disabled={session.status === "authenticated"}
                             {...field}
                           />
                           {emailVerified.verified && (
@@ -177,7 +201,7 @@ export function ResetPasswordPage() {
                     </Button>
                   ) : (
                     <RequestResetPasswordEmailButton
-                      email={form.getValues("email")}
+                      email={form.watch("email")}
                       className="w-full"
                     />
                   )}
@@ -202,6 +226,17 @@ export function ResetPasswordPage() {
             )}
           </div>
         </div>
+        {session.status !== "authenticated" && (
+          <div className="mx-auto mt-10 max-w-lg text-center text-xs text-muted-foreground">
+            You will only receive an email if an account with this email exists
+            and you have signed up with email and password. If you used an
+            authentication provider like Google, Okta, or GitHub, please{" "}
+            <Link href="/auth/sign-in" className="underline">
+              sign in
+            </Link>
+            .
+          </div>
+        )}
       </div>
     </>
   );

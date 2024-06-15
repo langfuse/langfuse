@@ -32,7 +32,6 @@ import { Shield } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -59,7 +58,6 @@ export type PageProps = {
     sso: boolean;
   };
   signUpDisabled: boolean;
-  passwordResetAvailable: boolean;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
@@ -102,9 +100,6 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
-      passwordResetAvailable:
-        env.SMTP_CONNECTION_URL !== undefined &&
-        env.EMAIL_FROM_ADDRESS !== undefined,
     },
   };
 };
@@ -229,11 +224,7 @@ const signInErrors = [
   },
 ];
 
-export default function SignIn({
-  authProviders,
-  signUpDisabled,
-  passwordResetAvailable,
-}: PageProps) {
+export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
   const router = useRouter();
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
@@ -385,7 +376,16 @@ export default function SignIn({
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Password</FormLabel>
+                        <FormLabel>
+                          Password{" "}
+                          <Link
+                            href="/auth/reset-password"
+                            className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+                            title="What is this?"
+                          >
+                            (forgot password?)
+                          </Link>
+                        </FormLabel>
                         <FormControl>
                           <PasswordInput {...field} />
                         </FormControl>
@@ -440,16 +440,9 @@ export default function SignIn({
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}
                 <br />
-                {credentialsFormError === "Invalid credentials" &&
-                passwordResetAvailable ? (
-                  <RequestResetPasswordEmailButton
-                    email={credentialsForm.getValues("email")}
-                    className="mt-6 w-full"
-                    variant="secondary"
-                  />
-                ) : (
-                  "Contact support if this error is unexpected."
-                )}
+                Contact support if this error is unexpected.{" "}
+                {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+                  "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
             <SSOButtons authProviders={authProviders} />
