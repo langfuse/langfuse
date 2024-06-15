@@ -64,9 +64,11 @@ const unauthenticatedPaths: string[] = [
   "/auth/sign-up",
   "/auth/error",
 ];
+// auth or unauthed
 const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
+  "/auth/reset-password",
 ];
 
 export default function Layout(props: PropsWithChildren) {
