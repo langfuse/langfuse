@@ -60,7 +60,7 @@ export function CloudRegionSwitch({
 
   return (
     <div>
-      <div className="mb-6 flex w-full flex-col gap-3">
+      <div className="mb-6 flex w-full flex-col gap-2">
         <div>
           <span className="text-sm font-medium leading-none">
             Data Region
@@ -113,7 +113,7 @@ const DataRegionInfo = () => (
     <DialogTrigger asChild>
       <a
         href="#"
-        className="hover:text-hover-primary-accent ml-1 text-xs text-primary-accent"
+        className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
         title="What is this?"
       >
         (what is this?)
