@@ -18,6 +18,7 @@ import { posthogIntegrationRouter } from "@/src/features/posthog-integration/pos
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
 import { publicRouter } from "@/src/server/api/routers/public";
+import { credentialsRouter } from "@/src/features/auth-credentials/server/credentialsRouter";
 
 /**
  * This is the primary router for your server.
@@ -44,6 +45,7 @@ export const appRouter = createTRPCRouter({
   posthogIntegration: posthogIntegrationRouter,
   llmApiKey: llmApiKeyRouter,
   public: publicRouter,
+  credentials: credentialsRouter,
 });
 
 // export type definition of API

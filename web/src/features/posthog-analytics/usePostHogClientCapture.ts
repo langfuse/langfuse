@@ -37,7 +37,12 @@ const events = {
     "update_comment",
     "delete_comment",
   ],
-  score_configs: ["create_form_submit", "manage_configs_item_click"],
+  score_configs: [
+    "create_form_submit",
+    "manage_configs_item_click",
+    "archive_form_open",
+    "archive_form_submit",
+  ],
   models: ["delete_button_click", "new_form_submit", "new_form_open"],
   prompts: [
     "new_form_submit",
@@ -63,6 +68,7 @@ const events = {
   ],
   integrations: ["posthog_form_submitted"],
   sign_in: ["cloud_region_switch", "button_click"],
+  auth: ["reset_password_email_requested", "update_password_form_submit"],
   playground: [
     "execute_button_click",
     "save_to_new_prompt_button_click",

@@ -58,7 +58,6 @@ export const scoreConfigsRouter = createTRPCRouter({
         console.log(error);
       }
     }),
-
   create: protectedProjectProcedure
     .input(
       z.object({
@@ -95,6 +94,37 @@ export const scoreConfigsRouter = createTRPCRouter({
         const config = await ctx.prisma.scoreConfig.create({
           data: {
             ...input,
+          },
+        });
+
+        return config;
+      } catch (error) {
+        console.log(error);
+      }
+    }),
+  update: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string(),
+        isArchived: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "scoreConfigs:CUD",
+      });
+
+      try {
+        const config = await ctx.prisma.scoreConfig.update({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
+          data: {
+            isArchived: input.isArchived,
           },
         });
 

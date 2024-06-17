@@ -14,21 +14,28 @@ import {
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 
 export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
   projectId,
 }) => {
-  const usage = api.usageMetering.last30d.useQuery({
-    projectId,
-  });
+  const usage = api.usageMetering.last30d.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
   const capture = usePostHogClientCapture();
   const project = api.projects.byId.useQuery({ projectId });
   const planLimit =
     project.data?.cloudConfig?.monthlyObservationLimit ?? 50_000;
   const plan = project.data?.cloudConfig?.plan ?? "Hobby";
-  const currentMonth = new Date().toLocaleDateString("en-US", {
-    month: "short",
-  });
 
   if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
 
@@ -36,22 +43,15 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
     <div>
       <Header title="Usage & Billing" level="h3" />
       <Card className="p-4 lg:w-1/2">
-        {usage.data !== undefined && (
+        {usage.data !== undefined ? (
           <>
-            <Text>Observations / month</Text>
-            <Metric>{usage.data}</Metric>
+            <Text>Observations / last 30d</Text>
+            <Metric>{numberFormatter(usage.data, 0)}</Metric>
             {plan === "Hobby" && (
               <>
                 <Flex className="mt-4">
-                  <Text>
-                    {`${currentMonth}: ${usage.data} (${(
-                      (usage.data / planLimit) *
-                      100
-                    ).toLocaleString(undefined, {
-                      maximumFractionDigits: 2,
-                    })}%)`}
-                  </Text>
-                  <Text>Plan limit: {simplifyNumber(planLimit)}</Text>
+                  <Text>{`${numberFormatter(usage.data / planLimit)}%`}</Text>
+                  <Text>Plan limit: {compactNumberFormatter(planLimit)}</Text>
                 </Flex>
                 <MarkerBar
                   value={Math.min((usage.data / planLimit) * 100, 100)}
@@ -60,6 +60,8 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
               </>
             )}
           </>
+        ) : (
+          "Loading (might take a moment) ..."
         )}
       </Card>
       <div className="mt-4 flex flex-row items-center gap-2">
@@ -110,9 +112,3 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
     </div>
   );
 };
-
-function simplifyNumber(num: number) {
-  if (num >= 1000000) return num / 1000000 + "m";
-  if (num >= 1000) return num / 1000 + "k";
-  return num.toString();
-}
