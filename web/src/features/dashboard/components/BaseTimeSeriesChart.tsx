@@ -2,11 +2,8 @@ import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/tim
 import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { AreaChart, LineChart } from "@tremor/react";
-import {
-  CurrencyTooltip,
-  NumberTooltip,
-} from "@/src/features/dashboard/components/Tooltip";
+import { AreaChart, type CustomTooltipProps, LineChart } from "@tremor/react";
+import { Tooltip } from "@/src/features/dashboard/components/Tooltip";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
@@ -62,9 +59,12 @@ export function BaseTimeSeriesChart(props: {
   };
 
   const ChartComponent = props.chartType === "area" ? AreaChart : LineChart;
-  const TooltipComponent = props.valueFormatter
-    ? CurrencyTooltip
-    : NumberTooltip;
+  const TooltipComponent = (tooltipProps: CustomTooltipProps) => (
+    <Tooltip
+      {...tooltipProps}
+      formatter={props.valueFormatter ?? compactNumberFormatter}
+    />
+  );
   const colors = getColorsForCategories(Array.from(labels));
 
   return (
