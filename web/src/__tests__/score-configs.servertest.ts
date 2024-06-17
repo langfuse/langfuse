@@ -4,9 +4,14 @@ import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 import {
   type ScoreConfig,
-  prisma,
   ScoreDataType,
+  prisma,
 } from "@langfuse/shared/src/db";
+import { type ConfigCategory } from "@langfuse/shared";
+
+type CastedConfig = Omit<ScoreConfig, "categories"> & {
+  categories: ConfigCategory[] | null;
+};
 
 const CONFIG_ID_ONE = uuidv4();
 const CONFIG_ID_TWO = uuidv4();
@@ -94,7 +99,7 @@ describe("/api/public/score-configs API Endpoint", () => {
 
   it("should GET all score configs", async () => {
     const fetchedConfigs = await makeAPICall<{
-      data: ScoreConfig[];
+      data: CastedConfig[];
       meta: object;
     }>("GET", `/api/public/score-configs?limit=50&page=1`);
 
