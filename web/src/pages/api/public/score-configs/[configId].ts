@@ -1,13 +1,18 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { type ScoreConfig, prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { type ConfigCategory } from "@langfuse/shared";
 
 const ConfigSchema = z.object({
   configId: z.string(),
 });
+
+type CastedConfig = Omit<ScoreConfig, "categories"> & {
+  categories: ConfigCategory[] | null;
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -50,7 +55,9 @@ export default async function handler(
         });
       }
 
-      return res.status(200).json(config);
+      const castedConfig = config as CastedConfig;
+
+      return res.status(200).json(castedConfig);
     } catch (error: unknown) {
       console.error(error);
       if (isPrismaException(error)) {
