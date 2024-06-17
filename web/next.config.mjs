@@ -29,6 +29,9 @@ const cspHeader = `
 const nextConfig = {
   transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
+  experimental: {
+    instrumentationHook: true,
+  },
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config
@@ -77,22 +80,22 @@ const nextConfig = {
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
-          {
-            source: "/api/auth/session",
-            headers: [
-              {
-                key: "Access-Control-Allow-Origin",
-                value: "https://langfuse.com",
-              },
-              { key: "Access-Control-Allow-Credentials", value: "true" },
-              { key: "Access-Control-Allow-Methods", value: "GET,POST" },
-              {
-                key: "Access-Control-Allow-Headers",
-                value: "Content-Type, Authorization",
-              },
-            ],
-          },
-        ]
+            {
+              source: "/api/auth/session",
+              headers: [
+                {
+                  key: "Access-Control-Allow-Origin",
+                  value: "https://langfuse.com",
+                },
+                { key: "Access-Control-Allow-Credentials", value: "true" },
+                { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+                {
+                  key: "Access-Control-Allow-Headers",
+                  value: "Content-Type, Authorization",
+                },
+              ],
+            },
+          ]
         : []),
     ];
   },
@@ -106,26 +109,9 @@ const nextConfig = {
 
     return config;
   },
-  sentry: {
-    // See the sections below for information on the following options:
-    //   'Configure Source Maps':
-    //     - disableServerWebpackPlugin
-    //     - disableClientWebpackPlugin
-    //     - hideSourceMaps
-    hideSourceMaps: true,
-    //     - widenClientFileUpload
-    //   'Configure Legacy Browser Support':
-    //     - transpileClientSDK
-    //   'Configure Serverside Auto-instrumentation':
-    //     - autoInstrumentServerFunctions
-    //     - excludeServerRoutes
-    //   'Configure Tunneling':
-    //     - tunnelRoute
-    tunnelRoute: "/api/monitoring-tunnel",
-  },
 };
 
-const sentryWebpackPluginOptions = {
+const sentryOptions = {
   // Additional config options for the Sentry Webpack plugin. Keep in mind that
   // the following options are set automatically, and overriding them is not
   // recommended:
@@ -139,6 +125,22 @@ const sentryWebpackPluginOptions = {
 
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options.
+
+  // See the sections below for information on the following options:
+  //   'Configure Source Maps':
+  //     - disableServerWebpackPlugin
+  //     - disableClientWebpackPlugin
+  //     - hideSourceMaps
+  hideSourceMaps: true,
+  //     - widenClientFileUpload
+  //   'Configure Legacy Browser Support':
+  //     - transpileClientSDK
+  //   'Configure Serverside Auto-instrumentation':
+  //     - autoInstrumentServerFunctions
+  //     - excludeServerRoutes
+  //   'Configure Tunneling':
+  //     - tunnelRoute
+  tunnelRoute: "/api/monitoring-tunnel",
 };
 
-export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);
+export default withSentryConfig(nextConfig, sentryOptions);
