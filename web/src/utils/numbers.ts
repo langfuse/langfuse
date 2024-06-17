@@ -14,6 +14,17 @@ export const numberFormatter = (number: number, fractionDigits?: number) => {
   }).format(number);
 };
 
+export const latencyFormatter = (number: number, fractionDigits?: number) => {
+  return Intl.NumberFormat("en-US", {
+    style: "unit",
+    unit: "second",
+    unitDisplay: "narrow",
+    notation: "compact",
+    minimumFractionDigits: fractionDigits ?? 2,
+    maximumFractionDigits: fractionDigits ?? 2,
+  }).format(number);
+};
+
 export const usdFormatter = (
   number: number,
   minimumFractionDigits: number = 2,
