@@ -14,7 +14,7 @@ import {
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
 import type { FilterState, ScoreDataType } from "@langfuse/shared";
 import { useSession } from "next-auth/react";
@@ -90,7 +90,7 @@ export default function ScoresTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(
+        value: localtimeDateOffsetByDays(
           session.data?.environment.defaultTableDateTimeOffset ?? -7,
         ),
       },
