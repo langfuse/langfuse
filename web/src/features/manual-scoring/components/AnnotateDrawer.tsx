@@ -658,7 +658,7 @@ export function AnnotateDrawer({
                                                 </Button>
                                                 <PopoverClose asChild>
                                                   <Button
-                                                    variant="secondary"
+                                                    variant="destructive"
                                                     type="button"
                                                     size="sm"
                                                     className="text-xs"
