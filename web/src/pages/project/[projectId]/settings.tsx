@@ -24,7 +24,7 @@ export default function SettingsPage() {
   const { project, organization } = useQueryProject();
   if (!project || !organization) return null;
   return (
-    <div className="md:container">
+    <div className="lg:container">
       <Header title="Project Settings" />
       <PagedSettingsContainer
         pages={[

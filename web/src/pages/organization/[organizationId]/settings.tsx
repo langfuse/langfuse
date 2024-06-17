@@ -13,7 +13,7 @@ const OrgSettingsPage = () => {
   if (!organization) return null;
 
   return (
-    <div className="md:container">
+    <div className="lg:container">
       <Header title="Organization Settings" />
       <PagedSettingsContainer
         pages={[

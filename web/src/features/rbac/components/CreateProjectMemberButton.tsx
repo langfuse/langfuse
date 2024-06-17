@@ -75,8 +75,6 @@ export function CreateProjectMemberButton(props: {
     },
   });
 
-  if (!hasAccess) return null;
-
   function onSubmit(values: z.infer<typeof formSchema>) {
     capture(
       props.projectId
@@ -115,6 +113,7 @@ export function CreateProjectMemberButton(props: {
           <Button
             variant="secondary"
             loading={mutCreateProjectMember.isLoading}
+            disabled={!hasAccess}
           >
             <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
             Add new member

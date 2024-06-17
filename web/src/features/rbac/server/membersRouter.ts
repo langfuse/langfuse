@@ -354,6 +354,185 @@ export const membersRouter = createTRPCRouter({
         },
       });
     }),
+  updateOrgMembership: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        orgMembershipId: z.string(),
+        role: z.nativeEnum(OrganizationRole),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "members:CUD",
+      });
+
+      const membership = await ctx.prisma.organizationMembership.findFirst({
+        where: {
+          orgId: input.orgId,
+          id: input.orgMembershipId,
+        },
+      });
+      if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // check if this is the only remaining owner
+      const otherOwners = await ctx.prisma.organizationMembership.count({
+        where: {
+          orgId: input.orgId,
+          role: OrganizationRole.OWNER,
+          id: {
+            not: membership.id,
+          },
+        },
+      });
+      if (otherOwners === 0) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
+        });
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "orgMembership",
+        resourceId: membership.id,
+        action: "update",
+        before: membership,
+      });
+
+      return await ctx.prisma.organizationMembership.update({
+        where: {
+          id: membership.id,
+          orgId: input.orgId,
+        },
+        data: {
+          role: input.role,
+        },
+      });
+    }),
+  updateDefaultProjectMembership: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        orgMembershipId: z.string(),
+        defaultProjectRole: z.nativeEnum(ProjectRole).nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "members:CUD",
+      });
+
+      const membership = await ctx.prisma.organizationMembership.findFirst({
+        where: {
+          orgId: input.orgId,
+          id: input.orgMembershipId,
+        },
+      });
+      if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "orgMembership",
+        resourceId: membership.id,
+        action: "update",
+        before: membership,
+      });
+
+      return await ctx.prisma.organizationMembership.update({
+        where: {
+          id: membership.id,
+          orgId: input.orgId,
+        },
+        data: {
+          defaultProjectRole: input.defaultProjectRole,
+        },
+      });
+    }),
+  updateProjectRole: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        orgMembershipId: z.string(),
+        userId: z.string(),
+        projectId: z.string(),
+        projectRole: z.nativeEnum(ProjectRole).nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "members:CUD",
+      });
+
+      const projectMembership = await ctx.prisma.projectMembership.findFirst({
+        where: {
+          projectId: input.projectId,
+          userId: input.userId,
+          orgMembershipId: input.orgMembershipId,
+        },
+      });
+
+      // If the project role is set to null, delete the project membership
+      if (input.projectRole === null) {
+        if (projectMembership) {
+          await ctx.prisma.projectMembership.delete({
+            where: {
+              projectId_userId: {
+                projectId: input.projectId,
+                userId: input.userId,
+              },
+              orgMembershipId: input.orgMembershipId,
+            },
+          });
+
+          await auditLog({
+            session: ctx.session,
+            resourceType: "projectMembership",
+            resourceId: `${input.orgMembershipId}--${input.projectId}`,
+            action: "delete",
+            before: projectMembership,
+          });
+        }
+        return null;
+      }
+
+      const updatedProjectMembership =
+        await ctx.prisma.projectMembership.upsert({
+          where: {
+            projectId_userId: {
+              projectId: input.projectId,
+              userId: input.userId,
+            },
+            orgMembershipId: input.orgMembershipId,
+          },
+          update: {
+            role: input.projectRole,
+          },
+          create: {
+            projectId: input.projectId,
+            userId: input.userId,
+            role: input.projectRole,
+            orgMembershipId: input.orgMembershipId,
+          },
+        });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "projectMembership",
+        resourceId: input.projectId + "--" + input.userId,
+        action: "update",
+        before: projectMembership,
+      });
+
+      return updatedProjectMembership;
+    }),
 });
 
 // delete: protectedProjectProcedure

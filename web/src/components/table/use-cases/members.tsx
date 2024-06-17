@@ -6,12 +6,20 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import type { RouterOutput } from "@/src/utils/types";
-import { type ProjectRole, type OrganizationRole } from "@langfuse/shared";
+import { ProjectRole, OrganizationRole } from "@langfuse/shared";
+import { type Row } from "@tanstack/react-table";
 import { Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -103,6 +111,20 @@ export default function MembersTable({
       id: "orgRole",
       header: "Organization Role",
       enableHiding: true,
+      cell: ({ row }) => {
+        const orgRole = row.getValue("orgRole") as MembersTableRow["orgRole"];
+        const { orgMembershipId } = row.getValue(
+          "meta",
+        ) as MembersTableRow["meta"];
+        return (
+          <OrgRoleDropdown
+            orgMembershipId={orgMembershipId}
+            currentRole={orgRole}
+            orgId={orgId}
+            hasCudAccess={hasCudAccess}
+          />
+        );
+      },
     },
     {
       accessorKey: "createdAt",
@@ -124,6 +146,23 @@ export default function MembersTable({
         description:
           "The default role for this user in all projects within this organization. Organization owners are automatically project owners.",
       },
+      cell: ({ row }) => {
+        const defaultProjectRole = row.getValue(
+          "defaultProjectRole",
+        ) as MembersTableRow["defaultProjectRole"];
+        const { orgMembershipId, userId } = row.getValue(
+          "meta",
+        ) as MembersTableRow["meta"];
+        return (
+          <ProjectRoleDropdown
+            orgMembershipId={orgMembershipId}
+            userId={userId}
+            currentProjectRole={defaultProjectRole}
+            orgId={orgId}
+            hasCudAccess={hasCudAccess}
+          />
+        );
+      },
     },
     ...(projectId
       ? [
@@ -132,6 +171,28 @@ export default function MembersTable({
             id: "projectRole",
             header: "Project Role",
             enableHiding: true,
+            cell: ({
+              row,
+            }: {
+              row: Row<MembersTableRow>; // need to specify the type here due to conditional rendering
+            }) => {
+              const projectRole = row.getValue(
+                "projectRole",
+              ) as MembersTableRow["projectRole"];
+              const { orgMembershipId, userId } = row.getValue(
+                "meta",
+              ) as MembersTableRow["meta"];
+              return (
+                <ProjectRoleDropdown
+                  orgMembershipId={orgMembershipId}
+                  userId={userId}
+                  currentProjectRole={projectRole}
+                  orgId={orgId}
+                  projectId={projectId}
+                  hasCudAccess={hasCudAccess}
+                />
+              );
+            },
           },
         ]
       : []),
@@ -230,3 +291,104 @@ export default function MembersTable({
     </>
   );
 }
+
+const OrgRoleDropdown = ({
+  orgMembershipId,
+  currentRole,
+  orgId,
+  hasCudAccess,
+}: {
+  orgMembershipId: string;
+  currentRole: OrganizationRole;
+  orgId: string;
+  hasCudAccess: boolean;
+}) => {
+  const utils = api.useUtils();
+  const mut = api.members.updateOrgMembership.useMutation({
+    onSuccess: () => utils.members.invalidate(),
+  });
+
+  return (
+    <Select
+      disabled={!hasCudAccess || mut.isLoading}
+      value={currentRole}
+      onValueChange={(value) =>
+        mut.mutate({ orgId, orgMembershipId, role: value as OrganizationRole })
+      }
+    >
+      <SelectTrigger className="w-[180px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {Object.values(OrganizationRole).map((role) => (
+          <SelectItem key={role} value={role}>
+            {role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
+const ProjectRoleDropdown = ({
+  orgId,
+  userId,
+  orgMembershipId,
+  projectId,
+  currentProjectRole,
+  hasCudAccess,
+}: {
+  orgMembershipId: string;
+  userId: string;
+  currentProjectRole?: ProjectRole;
+  orgId: string;
+  projectId?: string; // if concerns a specific project, undefined if it's the default project role
+  hasCudAccess: boolean;
+}) => {
+  const utils = api.useUtils();
+  const mutDefault = api.members.updateDefaultProjectMembership.useMutation({
+    onSuccess: () => utils.members.invalidate(),
+  });
+  const mutProj = api.members.updateProjectRole.useMutation({
+    onSuccess: () => utils.members.invalidate(),
+  });
+
+  return (
+    <Select
+      disabled={!hasCudAccess || mutDefault.isLoading || mutProj.isLoading}
+      value={currentProjectRole ?? "None"}
+      onValueChange={(value) => {
+        if (projectId) {
+          mutProj.mutate({
+            orgId,
+            orgMembershipId,
+            projectId,
+            userId,
+            projectRole: value === "None" ? null : (value as ProjectRole),
+          });
+        } else {
+          mutDefault.mutate({
+            orgId,
+            orgMembershipId,
+            defaultProjectRole:
+              value === "None" ? null : (value as ProjectRole),
+          });
+        }
+      }}
+    >
+      <SelectTrigger className="w-[180px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {Object.values(ProjectRole).map((role) => (
+          <SelectItem key={role} value={role}>
+            {role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()}
+          </SelectItem>
+        ))}
+        <SelectItem key="None" value="None">
+          None
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  );
+};
