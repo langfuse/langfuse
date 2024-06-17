@@ -75,9 +75,7 @@ describe("/api/public/observations API Endpoint", () => {
         },
         internalModel: "gpt-3.5-turbo",
         unit: ModelUsageUnit.Tokens,
-        prompt: {
-          connect: { id: prompt.id },
-        },
+        promptId: prompt.id,
       },
     });
 
