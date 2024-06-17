@@ -725,7 +725,7 @@ export function AnnotateDrawer({
                                 </PopoverContent>
                               </Popover>
                             </div>
-                            <div className="grid grid-cols-[11fr,1fr] items-center">
+                            <div className="grid grid-cols-[11fr,1fr] items-center py-1">
                               <FormField
                                 control={form.control}
                                 name={`scoreData.${index}.value`}
