@@ -130,7 +130,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
             Add new score config
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add new score config</DialogTitle>
           </DialogHeader>
