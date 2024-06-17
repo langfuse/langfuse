@@ -111,7 +111,23 @@ types:
       totalCost:
         docs: USD total cost, defaults to input+output
         type: optional<double>
-
+  ScoreConfig: 
+    properties:
+      id: string
+      name: string
+      createdAt: datetime
+      updatedAt: datetime
+      projectId: string
+      dataType: ScoreDataType
+      isArchived: boolean
+      minValue: optional<double>
+      maxValue: optional<double>
+      categories: list<ConfigCategory>
+      description: optional<string>
+  ConfigCategory:
+    properties:
+      value: double
+      label: string
   Score:
     properties:
       id: string
@@ -212,6 +228,11 @@ types:
       - ANNOTATION
       - API
       - EVAL
+  ScoreDataType: 
+    enum:
+      - NUMERIC
+      - BOOLEAN
+      - CATEGORICAL
 
 errors:
   Error:
