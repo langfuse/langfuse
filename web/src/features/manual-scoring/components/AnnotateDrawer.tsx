@@ -89,6 +89,20 @@ const AnnotateFormSchema = z.object({
 type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
 type AnnotationScoreSchemaType = z.infer<typeof AnnotationScoreDataSchema>;
 
+const CHAR_CUTOFF = 6;
+
+const renderSelect = (categories: ConfigCategory[]) => {
+  const hasMoreThanThreeCategories = categories.length > 3;
+  const hasLongCategoryNames = categories.some(
+    ({ label }) => label.length > CHAR_CUTOFF,
+  );
+
+  return (
+    hasMoreThanThreeCategories ||
+    (categories.length > 1 && hasLongCategoryNames)
+  );
+};
+
 const getFormError = ({
   value,
   minValue,
@@ -471,7 +485,7 @@ export function AnnotateDrawer({
       </DrawerTrigger>
       <DrawerContent className="h-1/3">
         <div className="mx-auto w-full overflow-y-auto md:max-h-full">
-          <DrawerHeader className="sticky top-0 z-10 rounded bg-background">
+          <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
             <Header
               title="Annotate"
               level="h3"
@@ -751,7 +765,7 @@ export function AnnotateDrawer({
                                           }}
                                         />
                                       ) : config.categories &&
-                                        categories.length > 2 ? (
+                                        renderSelect(categories) ? (
                                         <Select
                                           defaultValue={score.stringValue}
                                           disabled={config.isArchived}
