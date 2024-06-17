@@ -15,8 +15,8 @@ import {
   Grid2X2,
 } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import { VERSION } from "@/src/constants";
 import { type ReactNode } from "react";
+import { VersionLabel } from "@/src/components/VersionLabel";
 
 export type Route = {
   name: string;
@@ -36,7 +36,7 @@ export const ROUTES: Route[] = [
     name: "Langfuse",
     pathname: "/",
     icon: LangfuseIcon,
-    label: <span className="text-xs">{VERSION}</span>,
+    label: <VersionLabel />,
   },
   {
     name: "Projects",
