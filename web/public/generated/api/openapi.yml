@@ -946,7 +946,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Configs'
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScoreConfig'
         '400':
           description: ''
           content:
