@@ -16,7 +16,7 @@ import { Switch } from "@/src/components/ui/switch";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,7 +30,10 @@ import { type z } from "zod";
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const hasAccess = useHasAccess({ projectId, scope: "integrations:CRUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "integrations:CRUD",
+  });
   const state = api.posthogIntegration.get.useQuery(
     { projectId },
     {

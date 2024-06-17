@@ -4,14 +4,13 @@ import {
   createTRPCRouter,
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
-import { OrganizationRole, ProjectRole } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { paginationZod } from "@/src/utils/zod";
+import { OrganizationRole, ProjectRole, paginationZod } from "@langfuse/shared";
 
 export const membersRouter = createTRPCRouter({
   all: protectedOrganizationProcedure

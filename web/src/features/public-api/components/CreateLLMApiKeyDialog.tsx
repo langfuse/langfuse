@@ -30,12 +30,12 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/ui/switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LLMAdapter } from "@langfuse/shared";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 const formSchema = z
   .object({
@@ -57,7 +57,7 @@ export function CreateLLMApiKeyDialog() {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId,
     scope: "llmApiKeys:create",
   });

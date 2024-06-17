@@ -21,13 +21,13 @@ import {
 import { Archive } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -76,7 +76,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     string[]
   >("emptySelectedConfigIds", []);
 
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "scoreConfigs:CUD",
   });

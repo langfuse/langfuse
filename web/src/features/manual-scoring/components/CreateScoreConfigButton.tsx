@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { z } from "zod";
 import {
   Dialog,
@@ -38,6 +37,7 @@ import {
 } from "@/src/features/manual-scoring/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 const availableDataTypes = [
   ScoreDataType.NUMERIC,
@@ -64,7 +64,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
 
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "scoreConfigs:CUD",
   });

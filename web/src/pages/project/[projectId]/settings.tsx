@@ -18,7 +18,6 @@ import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
-import { TransferOrganizationButton } from "@/src/features/projects/components/TransferOrganizationButton";
 import { ScoreConfigSettings } from "@/src/features/manual-scoring/components/ScoreConfigSettings";
 
 export default function SettingsPage() {
@@ -50,7 +49,6 @@ export default function SettingsPage() {
                     projectId={project.id}
                     orgId={organization.id}
                   />
-                  <TransferOrganizationButton projectId={project.id} />
                 </div>
               </div>
             ),
