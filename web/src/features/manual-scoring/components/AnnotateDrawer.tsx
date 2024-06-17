@@ -30,7 +30,12 @@ import {
   DrawerHeader,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
-import { ScoreDataType, type Score, type ScoreConfig } from "@langfuse/shared";
+import {
+  type ConfigCategory,
+  ScoreDataType,
+  type Score,
+  type ScoreConfig,
+} from "@langfuse/shared";
 import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -83,10 +88,6 @@ const AnnotateFormSchema = z.object({
 
 type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
 type AnnotationScoreSchemaType = z.infer<typeof AnnotationScoreDataSchema>;
-type ConfigCategory = {
-  label: string;
-  value: string;
-};
 
 const getFormError = ({
   value,
@@ -538,6 +539,8 @@ export function AnnotateDrawer({
                           (config) => config.id === score.configId,
                         );
                         if (!config) return null;
+                        const categories =
+                          (config.categories as ConfigCategory[]) ?? [];
 
                         return (
                           <div
@@ -748,18 +751,14 @@ export function AnnotateDrawer({
                                           }}
                                         />
                                       ) : config.categories &&
-                                        (
-                                          (config.categories as ConfigCategory[]) ??
-                                          []
-                                        ).length > 2 ? (
+                                        categories.length > 2 ? (
                                         <Select
                                           defaultValue={score.stringValue}
                                           disabled={config.isArchived}
                                           onValueChange={handleOnValueChange(
                                             score,
                                             index,
-                                            (config.categories as ConfigCategory[]) ??
-                                              [],
+                                            categories,
                                           )}
                                         >
                                           <SelectTrigger>
@@ -768,10 +767,7 @@ export function AnnotateDrawer({
                                             </div>
                                           </SelectTrigger>
                                           <SelectContent>
-                                            {(
-                                              (config.categories as ConfigCategory[]) ??
-                                              []
-                                            ).map(
+                                            {categories.map(
                                               (category: ConfigCategory) => (
                                                 <SelectItem
                                                   key={category.value}
@@ -789,33 +785,31 @@ export function AnnotateDrawer({
                                           type="single"
                                           defaultValue={score.stringValue}
                                           disabled={config.isArchived}
-                                          className={`grid grid-cols-${((config.categories as ConfigCategory[]) ?? [])?.length}`}
+                                          className={`grid grid-cols-${categories.length}`}
                                           onValueChange={handleOnValueChange(
                                             score,
                                             index,
-                                            (config.categories as ConfigCategory[]) ??
-                                              [],
+                                            categories,
                                           )}
                                         >
-                                          {(
-                                            (config.categories as ConfigCategory[]) ??
-                                            []
-                                          ).map((category: ConfigCategory) => (
-                                            <ToggleGroupItem
-                                              key={category.value}
-                                              value={category.label}
-                                              variant="outline"
-                                              className="grid grid-flow-col gap-1 text-nowrap px-1 text-xs font-normal"
-                                            >
-                                              <span
-                                                className="truncate"
-                                                title={category.label}
+                                          {categories.map(
+                                            (category: ConfigCategory) => (
+                                              <ToggleGroupItem
+                                                key={category.value}
+                                                value={category.label}
+                                                variant="outline"
+                                                className="grid grid-flow-col gap-1 text-nowrap px-1 text-xs font-normal"
                                               >
-                                                {category.label}
-                                              </span>
-                                              <span className="text-primary/60">{`(${category.value})`}</span>
-                                            </ToggleGroupItem>
-                                          ))}
+                                                <span
+                                                  className="truncate"
+                                                  title={category.label}
+                                                >
+                                                  {category.label}
+                                                </span>
+                                                <span className="text-primary/60">{`(${category.value})`}</span>
+                                              </ToggleGroupItem>
+                                            ),
+                                          )}
                                         </ToggleGroup>
                                       )}
                                     </FormControl>
