@@ -7,7 +7,7 @@ import React from "react";
 
 export function ScoreConfigDetails({ config }: { config: ScoreConfig }) {
   const { name, description, minValue, maxValue, dataType } = config;
-  if (!description && !minValue && !maxValue) return null;
+  if (!description && !isPresent(minValue) && !isPresent(maxValue)) return null;
   const isNameTruncated = name.length > 20;
 
   return (
