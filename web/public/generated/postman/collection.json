@@ -756,7 +756,7 @@
           "_type": "endpoint",
           "name": "Get By Id",
           "request": {
-            "description": "Get a config",
+            "description": "Get a score config",
             "url": {
               "raw": "{{baseUrl}}/api/public/score-configs/:configId",
               "host": [

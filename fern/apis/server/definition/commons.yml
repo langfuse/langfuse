@@ -122,7 +122,7 @@ types:
       isArchived: boolean
       minValue: optional<double>
       maxValue: optional<double>
-      categories: list<ConfigCategory>
+      categories: optional<list<ConfigCategory>>
       description: optional<string>
   ConfigCategory:
     properties:

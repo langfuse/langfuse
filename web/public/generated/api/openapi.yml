@@ -977,7 +977,7 @@ paths:
       security: *ref_0
   /api/public/score-configs/{configId}:
     get:
-      description: Get a config
+      description: Get a score config
       operationId: scoreConfigs_get-by-id
       tags:
         - ScoreConfigs
@@ -1750,6 +1750,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ConfigCategory'
+          nullable: true
         description:
           type: string
           nullable: true
@@ -1761,7 +1762,6 @@ components:
         - projectId
         - dataType
         - isArchived
-        - categories
     ConfigCategory:
       title: ConfigCategory
       type: object
