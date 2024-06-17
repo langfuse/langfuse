@@ -470,7 +470,7 @@ export function AnnotateDrawer({
       </DrawerTrigger>
       <DrawerContent className="h-1/3">
         <div className="mx-auto w-full overflow-y-auto md:max-h-full">
-          <DrawerHeader className="sticky top-0 z-10 bg-background">
+          <DrawerHeader className="sticky top-0 z-10">
             <Header
               title="Annotate"
               level="h3"
