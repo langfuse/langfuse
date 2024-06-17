@@ -1,7 +1,6 @@
 import { type DefaultSession, type DefaultUser } from "next-auth";
 import {
   type User as PrismaUser,
-  type ProjectMembership as PrismaProjectMembership,
   type Project as PrismaProject,
   type Organization as PrismaOrganization,
   type OrganizationMembership as PrismaOrganizationMembership,
