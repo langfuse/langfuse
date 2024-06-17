@@ -6,10 +6,18 @@ import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
-import { type ScoreDataType, type Prisma } from "@langfuse/shared";
+import {
+  type ScoreDataType,
+  type Prisma,
+  type ConfigCategory,
+} from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
+import {
+  isBooleanDataType,
+  isCategoricalDataType,
+  isNumericDataType,
+} from "@/src/features/manual-scoring/lib/helpers";
 import { Archive } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -40,12 +48,25 @@ function getConfigRange(
   originalRow: ScoreConfigTableRow,
 ): Prisma.JsonValue | undefined {
   const { range, dataType } = originalRow;
+
   if (isNumericDataType(dataType)) {
-    return [
-      { minValue: range.minValue ?? "-∞", maxValue: range.maxValue ?? "∞" },
-    ];
+    return {
+      Minimum: range.minValue ?? "-∞",
+      Maximum: range.maxValue ?? "∞",
+    };
   }
-  return range.categories;
+
+  if (isCategoricalDataType(dataType) || isBooleanDataType(dataType)) {
+    const configCategories = (range.categories as ConfigCategory[]) ?? [];
+
+    return configCategories.reduce(
+      (acc, category) => {
+        acc[category.value] = category.label;
+        return acc;
+      },
+      {} as Record<number, string>,
+    );
+  }
 }
 
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
@@ -215,7 +236,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
-      <Card className="mb-4 flex max-h-[calc(100dvh-40rem)] flex-col overflow-hidden">
+      <Card className="mb-4 flex max-h-[calc(100dvh-30rem)] flex-col overflow-hidden">
         <DataTable
           columns={columns}
           data={
