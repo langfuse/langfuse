@@ -34,10 +34,12 @@ export function PopoverFilterBuilder({
   columns,
   filterState,
   onChange,
+  columnsWithCustomSelect = [],
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
   onChange: Dispatch<SetStateAction<FilterState>>;
+  columnsWithCustomSelect?: string[];
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
@@ -118,6 +120,7 @@ export function PopoverFilterBuilder({
             columns={columns}
             filterState={wipFilterState}
             onChange={setWipFilterState}
+            columnsWithCustomSelect={columnsWithCustomSelect}
           />
         </PopoverContent>
       </Popover>
@@ -211,11 +214,13 @@ function FilterBuilderForm({
   filterState,
   onChange,
   disabled,
+  columnsWithCustomSelect = [],
 }: {
   columns: ColumnDefinition[];
   filterState: WipFilterState;
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;
+  columnsWithCustomSelect?: string[];
 }) {
   const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
@@ -419,6 +424,10 @@ function FilterBuilderForm({
                       }
                       values={Array.isArray(filter.value) ? filter.value : []}
                       disabled={disabled}
+                      isCustomSelectEnabled={
+                        column?.type === filter.type &&
+                        columnsWithCustomSelect.includes(column.id)
+                      }
                     />
                   ) : filter.type === "boolean" ? (
                     <Select

@@ -150,7 +150,6 @@ export const InnerEvalConfigForm = (props: {
 
   const traceFilterOptions = api.traces.filterOptions.useQuery({
     projectId: props.projectId,
-    ...form.getFieldState("filter"),
   });
 
   useEffect(() => {
