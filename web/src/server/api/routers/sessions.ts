@@ -134,18 +134,33 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const userIds: { value: string; count: number }[] = await ctx.prisma
-        .$queryRaw`
-      SELECT traces.user_id as value, COUNT(traces.user_id)::int as count
-      FROM traces
-      WHERE traces.session_id IS NOT NULL
-      AND traces.project_id = ${input.projectId}
-      GROUP BY traces.user_id;
-    `;
-      const res: SessionOptions = {
-        userIds: userIds,
-      };
-      return res;
+      try {
+        const userIds = await ctx.prisma.$queryRaw<
+          Array<{ value: string }>
+        >(Prisma.sql`
+        SELECT 
+          traces.user_id AS value
+        FROM traces
+        WHERE 
+          traces.session_id IS NOT NULL
+          AND traces.user_id IS NOT NULL
+          AND traces.project_id = ${input.projectId}
+        GROUP BY
+          traces.user_id
+        LIMIT 1000;
+      `);
+
+        const res: SessionOptions = {
+          userIds: userIds,
+        };
+        return res;
+      } catch (e) {
+        console.error(e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "unable to get session filter options",
+        });
+      }
     }),
   byId: protectedGetSessionProcedure
     .input(z.object({ projectId: z.string(), sessionId: z.string() }))

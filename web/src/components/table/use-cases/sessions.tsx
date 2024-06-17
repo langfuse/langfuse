@@ -343,6 +343,7 @@ export default function SessionsTable({
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnsWithCustomSelect={["userIds"]}
       />
       <DataTable
         columns={columns}
