@@ -20,8 +20,8 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@langfuse/shared": "workspace:*",
-    "@sentry/node": "^8.8.0",
-    "@sentry/profiling-node": "^8.8.0",
+    "@sentry/node": "^8.9.2",
+    "@sentry/profiling-node": "^8.9.2",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
