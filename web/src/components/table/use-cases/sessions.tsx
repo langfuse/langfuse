@@ -11,7 +11,10 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { sessionsTableColsWithOptions } from "@/src/server/api/definitions/sessionsView";
 import { api } from "@/src/utils/api";
-import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
+import {
+  formatIntervalSeconds,
+  localtimeDateOffsetByDays,
+} from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
@@ -54,7 +57,7 @@ export default function SessionsTable({
         column: "Created At",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(
+        value: localtimeDateOffsetByDays(
           session.data?.environment.defaultTableDateTimeOffset ?? -7,
         ),
       },
