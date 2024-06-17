@@ -13,7 +13,7 @@ import {
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { numberFormatter } from "@/src/utils/numbers";
+import { latencyFormatter } from "@/src/utils/numbers";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export const GenerationLatencyChart = ({
@@ -120,7 +120,7 @@ export const GenerationLatencyChart = ({
                     agg={agg}
                     data={item.data}
                     connectNulls={true}
-                    valueFormatter={numberFormatter}
+                    valueFormatter={latencyFormatter}
                   />
                 ) : (
                   <NoData noDataText="No data" />
