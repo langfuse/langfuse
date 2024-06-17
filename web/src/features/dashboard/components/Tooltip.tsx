@@ -2,7 +2,6 @@ import {
   ChartTooltipFrame,
   ChartTooltipRow,
 } from "@tremor/react/dist/components/chart-elements/common/ChartTooltip";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { type CustomTooltipProps } from "@tremor/react";
 import { getRandomColor } from "@/src/features/dashboard/utils/getColorsForCategories";
@@ -61,11 +60,3 @@ export const Tooltip = ({
     </ChartTooltipFrame>
   );
 };
-
-export const NumberTooltip = (props: CustomTooltipProps) => (
-  <Tooltip {...props} formatter={compactNumberFormatter} />
-);
-
-export const CurrencyTooltip = (props: CustomTooltipProps) => (
-  <Tooltip {...props} formatter={usdFormatter} />
-);
