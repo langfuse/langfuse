@@ -471,7 +471,7 @@ export function AnnotateDrawer({
       </DrawerTrigger>
       <DrawerContent className="h-1/3">
         <div className="mx-auto w-full overflow-y-auto md:max-h-full">
-          <DrawerHeader className="sticky top-0 z-10">
+          <DrawerHeader className="sticky top-0 z-10 rounded bg-background">
             <Header
               title="Annotate"
               level="h3"
@@ -564,7 +564,7 @@ export function AnnotateDrawer({
                                       {score.name}
                                     </span>
                                   </HoverCardTrigger>
-                                  <HoverCardContent>
+                                  <HoverCardContent className="z-20 max-h-[60vh] max-w-64 overflow-y-auto rounded border">
                                     <ScoreConfigDetails config={config} />
                                   </HoverCardContent>
                                 </HoverCard>
