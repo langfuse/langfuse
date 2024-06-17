@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Archive, Check, ChevronDown } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
@@ -25,6 +25,7 @@ type MultiSelectOptions = {
   key?: string;
   count?: number;
   disabled?: boolean;
+  isArchived?: boolean;
 };
 
 export function MultiSelectKeyValues<
@@ -157,9 +158,21 @@ export function MultiSelectKeyValues<
                         option.disabled ? "opacity-50" : null,
                       )}
                     >
-                      <Check className={cn("h-4 w-4")} />
+                      <Check className="h-4 w-4" />
                     </div>
-                    <span className="overflow-x-scroll">{option.value}</span>
+                    <span
+                      className={cn(
+                        "overflow-x-scroll",
+                        option.isArchived ? "text-foreground/50" : "",
+                      )}
+                    >
+                      {option.value}
+                    </span>
+                    {option.isArchived ? (
+                      <div className="ml-1 mt-1 flex h-4 w-4">
+                        <Archive className="h-4 w-4 text-foreground/50"></Archive>
+                      </div>
+                    ) : null}
                     {option.count !== undefined ? (
                       <span className="ml-auto flex h-4 w-4 items-center justify-center pl-1 font-mono text-xs">
                         {option.count}

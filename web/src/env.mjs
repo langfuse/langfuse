@@ -87,8 +87,8 @@ export const env = createEnv({
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
     // EMAIL
-    EMAIL_FROM_ADDRESS: z.string().optional(),
-    SMTP_CONNECTION_URL: z.string().optional(),
+    EMAIL_FROM_ADDRESS: z.string().optional().transform((v) => v === "" ? undefined : v),
+    SMTP_CONNECTION_URL: z.string().optional().transform((v) => v === "" ? undefined : v),
     // S3
     S3_ENDPOINT: z.string().optional(),
     S3_ACCESS_KEY_ID: z.string().optional(),

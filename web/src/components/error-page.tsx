@@ -4,13 +4,19 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { useEffect } from "react";
+import Link from "next/link";
 
 export const ErrorPage = ({
   title = "Error",
   message,
+  additionalButton,
 }: {
   title?: string;
   message: string;
+  additionalButton?: {
+    label: string;
+    href: string;
+  };
 }) => {
   const session = useSession();
   const router = useRouter();
@@ -18,20 +24,27 @@ export const ErrorPage = ({
 
   return (
     <div className="flex h-screen flex-col items-center justify-center">
-      <AlertCircle className="text-dark-red mb-4 h-12 w-12" />
+      <AlertCircle className="mb-4 h-12 w-12 text-dark-red" />
       <h1 className="mb-4 text-xl font-bold">{title}</h1>
-      <p className="mb-8 text-center">{message}</p>
-      {session.status === "unauthenticated" ? (
-        <Button
-          onClick={() =>
-            void router.push(
-              `/auth/sign-in?targetPath=${encodeURIComponent(newTargetPath)}`,
-            )
-          }
-        >
-          Sign In
-        </Button>
-      ) : null}
+      <p className="mb-6 text-center">{message}</p>
+      <div className="flex gap-3">
+        {session.status === "unauthenticated" ? (
+          <Button
+            onClick={() =>
+              void router.push(
+                `/auth/sign-in?targetPath=${encodeURIComponent(newTargetPath)}`,
+              )
+            }
+          >
+            Sign In
+          </Button>
+        ) : null}
+        {additionalButton ? (
+          <Button variant="secondary" asChild>
+            <Link href={additionalButton.href}>{additionalButton.label}</Link>
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 };

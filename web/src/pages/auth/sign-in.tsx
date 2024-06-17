@@ -376,7 +376,16 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Password</FormLabel>
+                        <FormLabel>
+                          Password{" "}
+                          <Link
+                            href="/auth/reset-password"
+                            className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+                            title="What is this?"
+                          >
+                            (forgot password?)
+                          </Link>
+                        </FormLabel>
                         <FormControl>
                           <PasswordInput {...field} />
                         </FormControl>
@@ -431,7 +440,9 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}
                 <br />
-                Contact support if this error is unexpected.
+                Contact support if this error is unexpected.{" "}
+                {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+                  "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
             <SSOButtons authProviders={authProviders} />

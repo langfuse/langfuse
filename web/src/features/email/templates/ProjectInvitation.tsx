@@ -72,7 +72,7 @@ export const ProjectInvitationTemplate = ({
             </Text>
             <Section className="mb-4 mt-8 text-center">
               <Button
-                className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-background no-underline"
+                className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
                 href={inviteLink}
               >
                 Accept Invitation
