@@ -1,7 +1,6 @@
 import { Transform } from "stream";
 
-import { BatchExportFileFormat } from "@langfuse/shared";
-
+import { BatchExportFileFormat } from "../../../features/batchExport/types";
 import { transformStreamToCsv } from "./transformStreamToCsv";
 import { transformStreamToJson } from "./transformStreamToJson";
 

@@ -1,7 +1,7 @@
 import {
   type OptionsDefinition,
   type ColumnDefinition,
-} from "@langfuse/shared";
+} from "../tableDefinitions/types";
 
 export const sessionsViewCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "s.bookmarked" },

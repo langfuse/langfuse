@@ -1,6 +1,9 @@
-import { type ColumnDefinition, type OrderByState } from "@langfuse/shared";
-import { Prisma } from "@langfuse/shared";
 import { z } from "zod";
+
+import { Prisma } from "@prisma/client";
+
+import type { ColumnDefinition } from "./tableDefinitions/types";
+import type { OrderByState } from "./interfaces/orderBy";
 
 /**
  * Convert orderBy to SQL ORDER BY clause

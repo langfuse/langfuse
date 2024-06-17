@@ -1,14 +1,11 @@
 import { z } from "zod";
 
-import {
-  orderByToPrismaSql,
-  Prisma,
-  sessionsViewCols,
-  tableColumnsToSqlFilterAndPrefix,
-} from "@langfuse/shared";
-
+import { Prisma } from "@prisma/client";
+import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { singleFilter } from "../interfaces/filters";
 import { orderBy } from "../interfaces/orderBy";
+import { orderByToPrismaSql } from "../orderByToPrisma";
+import { sessionsViewCols } from "../tableDefinitions/index";
 
 const GetSessionTableSQLParamsSchema = z.object({
   projectId: z.string(),
