@@ -7,11 +7,11 @@ import React from "react";
 
 export function ScoreConfigDetails({ config }: { config: ScoreConfig }) {
   const { name, description, minValue, maxValue, dataType } = config;
-  if (!description && !minValue && !maxValue) return null;
+  if (!description && !isPresent(minValue) && !isPresent(maxValue)) return null;
   const isNameTruncated = name.length > 20;
 
   return (
-    <div className="max-w-48 overflow-hidden text-wrap rounded border bg-background p-2 text-xs font-light">
+    <div className="text-wrap bg-background p-2 text-xs font-light">
       {!!description && <p>{`Description: ${description}`}</p>}
       {isNumericDataType(dataType) &&
       (isPresent(minValue) || isPresent(maxValue)) ? (
