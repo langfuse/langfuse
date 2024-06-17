@@ -1,9 +1,8 @@
-import { Pencil, Terminal } from "lucide-react";
+import { Pencil } from "lucide-react";
 import Link from "next/link";
-import router, { useRouter } from "next/router";
+import { useRouter } from "next/router";
 import { NumberParam, useQueryParam } from "use-query-params";
 import type { z } from "zod";
-
 import Header from "@/src/components/layouts/header";
 import {
   ChatMlArraySchema,
@@ -20,7 +19,6 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
-import { type Prompt } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
@@ -34,6 +32,7 @@ import {
 } from "@/src/components/ui/accordion";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+import { type Prompt } from "@langfuse/shared";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -258,6 +257,7 @@ export function UpdatePrompt({
   isLoading: boolean;
 }) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
+  const router = useRouter();
 
   const handlePromptEdit = () => {
     void router.push(

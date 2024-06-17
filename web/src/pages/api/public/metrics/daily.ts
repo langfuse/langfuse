@@ -3,9 +3,9 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { stringDate } from "@/src/features/public-api/server/ingestion-api-schema";
+import { stringDate } from "@langfuse/shared";
 
 const GetUsageSchema = z.object({
   ...paginationZod,
@@ -68,12 +68,15 @@ export default async function handler(
             DATE_TRUNC('DAY',
               o.start_time) "date",
             o.model,
-            SUM(o.prompt_tokens) inputUsage,
-            SUM(o.completion_tokens) outputUsage,
-            SUM(o.total_tokens) totalUsage
+            count(distinct o.id)::integer as "countObservations",
+            count(distinct t.id)::integer as "countTraces",
+            SUM(o.prompt_tokens) "inputUsage",
+            SUM(o.completion_tokens) "outputUsage",
+            SUM(o.total_tokens) "totalUsage",
+            COALESCE(SUM(o.calculated_total_cost), 0)::DOUBLE PRECISION as "totalCost"
           FROM
             traces t
-          LEFT JOIN observations o ON o.trace_id = t.id AND o.project_id = t.project_id
+          LEFT JOIN observations_view o ON o.trace_id = t.id AND o.project_id = t.project_id
           WHERE o.start_time IS NOT NULL
             AND t.project_id = ${authCheck.scope.projectId}
             ${traceNameCondition}
@@ -94,11 +97,17 @@ export default async function handler(
             json_agg(json_build_object('model',
                 model,
                 'inputUsage',
-                inputUsage,
+                "inputUsage",
                 'outputUsage',
-                outputUsage,
+                "outputUsage",
                 'totalUsage',
-                totalUsage)) daily_usage_json
+                "totalUsage",
+                'totalCost',
+                "totalCost",
+                'countObservations',
+                "countObservations",
+                'countTraces',
+                "countTraces")) daily_usage_json
           FROM
             model_usage
           GROUP BY

@@ -1,16 +1,27 @@
 export const compactNumberFormatter = (number: number) => {
-  return Intl.NumberFormat("us", {
+  return Intl.NumberFormat("en-US", {
     notation: "compact",
     compactDisplay: "short",
     maximumFractionDigits: 2,
   }).format(number);
 };
 
-export const numberFormatter = (number: number) => {
-  return Intl.NumberFormat("us", {
+export const numberFormatter = (number: number, fractionDigits?: number) => {
+  return Intl.NumberFormat("en-US", {
     notation: "standard",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: fractionDigits ?? 2,
+    maximumFractionDigits: fractionDigits ?? 2,
+  }).format(number);
+};
+
+export const latencyFormatter = (number: number, fractionDigits?: number) => {
+  return Intl.NumberFormat("en-US", {
+    style: "unit",
+    unit: "second",
+    unitDisplay: "narrow",
+    notation: "compact",
+    minimumFractionDigits: fractionDigits ?? 2,
+    maximumFractionDigits: fractionDigits ?? 2,
   }).format(number);
 };
 

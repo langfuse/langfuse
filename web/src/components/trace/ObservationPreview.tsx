@@ -8,7 +8,6 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -22,6 +21,7 @@ import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -154,11 +154,12 @@ export const ObservationPreview = (props: {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <ManualScoreButton
+            <AnnotateDrawer
               projectId={props.projectId}
               traceId={preloadedObservation.traceId}
               observationId={preloadedObservation.id}
               scores={props.scores}
+              type="observation"
             />
             {observationWithInputAndOutput.data?.type === "GENERATION" && (
               <JumpToPlaygroundButton
@@ -237,7 +238,7 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
   if (prompt.isLoading || !prompt.data) return null;
   return (
     <Link
-      href={`/project/${props.projectId}/prompts/${prompt.data.name}?version=${prompt.data.version}`}
+      href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
     >
       <Badge>
         Prompt: {prompt.data.name}

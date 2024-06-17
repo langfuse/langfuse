@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
@@ -19,6 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
+import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
 
 export const TracePreview = ({
   trace,
@@ -54,13 +54,13 @@ export const TracePreview = ({
           <TabsList className="bg-background py-0">
             <TabsTrigger
               value="preview"
-              className="data-[state=active]:border-primary-accent h-full rounded-none border-b-4 border-transparent data-[state=active]:shadow-none"
+              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
             >
               Preview
             </TabsTrigger>
             <TabsTrigger
               value="scores"
-              className="data-[state=active]:border-primary-accent h-full rounded-none border-b-4 border-transparent data-[state=active]:shadow-none"
+              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
             >
               Scores
             </TabsTrigger>
@@ -95,7 +95,7 @@ export const TracePreview = ({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <ManualScoreButton
+            <AnnotateDrawer
               projectId={trace.projectId}
               traceId={trace.id}
               scores={scores}

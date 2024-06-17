@@ -53,16 +53,13 @@ export function DeleteButton({
     },
   });
 
-  if (!hasAccess) {
-    return null;
-  }
-
   return (
     <Popover key={itemId}>
       <PopoverTrigger asChild>
         <Button
           variant={isTableAction ? "ghost" : "outline"}
           size={isTableAction ? "xs" : "icon"}
+          disabled={!hasAccess}
           onClick={() =>
             type === "trace"
               ? capture("trace:delete_form_open", {

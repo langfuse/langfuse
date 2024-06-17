@@ -20,11 +20,12 @@ import { promptsTableColsWithOptions } from "@/src/server/api/definitions/prompt
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 type PromptTableRow = {
   name: string;
   version: number;
-  id: string;
   createdAt: Date;
   labels: string[];
   type: string;
@@ -60,8 +61,47 @@ export function PromptTable() {
       filter: filterState,
       orderBy: orderByState,
     },
-    { enabled: Boolean(projectId) },
+    {
+      enabled: Boolean(projectId),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
   );
+  const promptMetrics = api.prompts.metrics.useQuery(
+    {
+      projectId: projectId as string,
+      promptNames: prompts.data?.prompts.map((p) => p.name) ?? [],
+    },
+    {
+      enabled:
+        Boolean(projectId) && prompts.data && prompts.data.totalCount > 0,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  type CoreOutput = RouterOutput["prompts"]["all"]["prompts"][number];
+  type MetricsOutput = RouterOutput["prompts"]["metrics"][number];
+
+  type CoreType = Omit<CoreOutput, "name"> & { id: string };
+  type MetricType = Omit<MetricsOutput, "promptName"> & { id: string };
+
+  const promptsRowData = joinTableCoreAndMetrics<CoreType, MetricType>(
+    prompts.data?.prompts.map((p) => ({
+      ...p,
+      id: p.name,
+    })),
+    promptMetrics.data?.map((pm) => ({
+      ...pm,
+      id: pm.promptName,
+    })),
+  );
+
   const promptFilterOptions = api.prompts.filterOptions.useQuery(
     {
       projectId: projectId as string,
@@ -139,6 +179,9 @@ export function PromptTable() {
         const filter = encodeURIComponent(
           `promptName;stringOptions;;any of;${name}`,
         );
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
         return (
           <TableLink
             path={`/project/${projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
@@ -180,21 +223,6 @@ export function PromptTable() {
       },
     }),
   ] as LangfuseColumnDef<PromptTableRow>[];
-
-  const convertToTableRow = (
-    item: RouterOutput["prompts"]["all"]["prompts"][number],
-  ): PromptTableRow => {
-    return {
-      id: item.id,
-      name: item.name,
-      version: item.version,
-      createdAt: item.createdAt,
-      type: item.type,
-      labels: item.labels,
-      numberOfObservations: Number(item.observationCount),
-      tags: item.tags,
-    };
-  };
 
   return (
     <div>
@@ -242,7 +270,16 @@ export function PromptTable() {
               : {
                   isLoading: false,
                   isError: false,
-                  data: prompts.data.prompts.map((t) => convertToTableRow(t)),
+                  data: promptsRowData.rows?.map((item) => ({
+                    id: item.id,
+                    name: item.id, // was renamed to id to match the core and metrics
+                    version: item.version,
+                    createdAt: item.createdAt,
+                    type: item.type,
+                    labels: item.labels,
+                    numberOfObservations: Number(item.observationCount ?? 0),
+                    tags: item.tags,
+                  })),
                 }
         }
         orderBy={orderByState}

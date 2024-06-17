@@ -25,14 +25,23 @@ const events = {
     "observation_tree_toggle_metrics",
     "io_mode_switch",
     "test_in_playground_button_click",
+    "display_mode_switch",
   ],
   generations: ["export"],
   score: [
+    "create",
+    "update",
     "delete",
     "update_form_open",
     "create_form_open",
-    "update_form_submit",
+    "update_comment",
+    "delete_comment",
+  ],
+  score_configs: [
     "create_form_submit",
+    "manage_configs_item_click",
+    "archive_form_open",
+    "archive_form_submit",
   ],
   models: ["delete_button_click", "new_form_submit", "new_form_open"],
   prompts: [
@@ -59,6 +68,7 @@ const events = {
   ],
   integrations: ["posthog_form_submitted"],
   sign_in: ["cloud_region_switch", "button_click"],
+  auth: ["reset_password_email_requested", "update_password_form_submit"],
   playground: [
     "execute_button_click",
     "save_to_new_prompt_button_click",

@@ -17,6 +17,9 @@ const scopes = [
 
   "scores:CUD",
 
+  "scoreConfigs:CUD",
+  "scoreConfigs:read",
+
   "project:update",
   "integrations:CRUD",
 
@@ -55,6 +58,8 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "objects:tag",
     "traces:delete",
     "scores:CUD",
+    "scoreConfigs:CUD",
+    "scoreConfigs:read",
     "project:update",
     "datasets:CUD",
     "prompts:CUD",
@@ -83,6 +88,8 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "objects:tag",
     "traces:delete",
     "scores:CUD",
+    "scoreConfigs:CUD",
+    "scoreConfigs:read",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
@@ -103,6 +110,8 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "objects:bookmark",
     "objects:tag",
     "scores:CUD",
+    "scoreConfigs:CUD",
+    "scoreConfigs:read",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
@@ -116,7 +125,9 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
   VIEWER: [
     "prompts:read",
     "evalTemplate:read",
+    "scoreConfigs:read",
     "evalJob:read",
     "evalJobExecution:read",
+    "llmApiKeys:read",
   ],
 };

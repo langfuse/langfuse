@@ -17,6 +17,9 @@ import { evalRouter } from "@/src/ee/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
+import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
+import { publicRouter } from "@/src/server/api/routers/public";
+import { credentialsRouter } from "@/src/features/auth-credentials/server/credentialsRouter";
 
 /**
  * This is the primary router for your server.
@@ -28,6 +31,7 @@ export const appRouter = createTRPCRouter({
   sessions: sessionRouter,
   generations: generationsRouter,
   scores: scoresRouter,
+  scoreConfigs: scoreConfigsRouter,
   dashboard: dashboardRouter,
   organizations: organizationsRouter,
   projects: projectsRouter,
@@ -42,6 +46,8 @@ export const appRouter = createTRPCRouter({
   evals: evalRouter,
   posthogIntegration: posthogIntegrationRouter,
   llmApiKey: llmApiKeyRouter,
+  public: publicRouter,
+  credentials: credentialsRouter,
 });
 
 // export type definition of API

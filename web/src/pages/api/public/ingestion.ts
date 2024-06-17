@@ -10,7 +10,7 @@ import {
   type ingestionApiSchema,
   eventTypes,
   ingestionEvent,
-} from "@/src/features/public-api/server/ingestion-api-schema";
+} from "@langfuse/shared";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";
@@ -24,7 +24,7 @@ import { ObservationProcessor } from "../../../server/api/services/EventProcesso
 import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema } from "@langfuse/shared";
 import * as Sentry from "@sentry/nextjs";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { env } from "@/src/env.mjs";

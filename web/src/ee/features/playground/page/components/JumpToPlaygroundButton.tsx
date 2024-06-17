@@ -1,24 +1,24 @@
 import { Terminal } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { z } from "zod";
 
+import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { Button } from "@/src/components/ui/button";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
 import { type PlaygroundCache } from "@/src/ee/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
-  supportedModels as playgroundSupportedModels,
   type Observation,
   type Prompt,
+  supportedModels as playgroundSupportedModels,
   type UIModelParams,
   ZodModelConfig,
 } from "@langfuse/shared";
-import { useEffect, useState } from "react";
-import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import { ChatMessageListSchema } from "@/src/features/prompts/components/NewPromptForm/validation";
-import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import { getIsCloudEnvironment } from "@/src/ee/utils/getIsCloudEnvironment";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -42,6 +42,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const projectId = useProjectIdFromURL();
   const { setPlaygroundCache } = usePlaygroundCache();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
+  const isEeEnabled = useIsEeEnabled();
 
   useEffect(() => {
     if (props.source === "prompt") {
@@ -56,7 +57,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     setPlaygroundCache(capturedState);
   };
 
-  if (!getIsCloudEnvironment()) return null;
+  if (!isEeEnabled) return null;
 
   return (
     <Button
@@ -76,9 +77,19 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   );
 };
 
+const ParsedChatMessageListSchema = z.array(
+  z.object({
+    role: z.nativeEnum(ChatMessageRole),
+    content: z.union([
+      z.string(),
+      z.any().transform((v) => JSON.stringify(v, null, 2)),
+    ]),
+  }),
+);
+
 const parsePrompt = (prompt: Prompt): PlaygroundCache => {
   if (prompt.type === PromptType.Chat) {
-    const parsedMessages = ChatMessageListSchema.safeParse(prompt.prompt);
+    const parsedMessages = ParsedChatMessageListSchema.safeParse(prompt.prompt);
 
     return parsedMessages.success ? { messages: parsedMessages.data } : null;
   } else {
@@ -109,14 +120,16 @@ const parseGeneration = (generation: Observation): PlaygroundCache => {
   }
 
   if (typeof input === "object") {
-    const parsedMessages = ChatMessageListSchema.safeParse(input);
+    const parsedMessages = ParsedChatMessageListSchema.safeParse(input);
 
     if (parsedMessages.success)
       return { messages: parsedMessages.data, modelParams };
   }
 
   if (typeof input === "object" && "messages" in input) {
-    const parsedMessages = ChatMessageListSchema.safeParse(input["messages"]);
+    const parsedMessages = ParsedChatMessageListSchema.safeParse(
+      input["messages"],
+    );
 
     if (parsedMessages.success)
       return { messages: parsedMessages.data, modelParams };

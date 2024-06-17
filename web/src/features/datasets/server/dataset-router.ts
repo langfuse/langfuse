@@ -12,7 +12,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -167,6 +167,7 @@ export const datasetRouter = createTRPCRouter({
                 JOIN traces t ON t.id = s.trace_id
               WHERE 
                 t.project_id = ${input.projectId}
+                AND s.data_type != 'CATEGORICAL'
                 AND ri.dataset_run_id = runs.id
               GROUP BY s.name
             ) s
@@ -524,24 +525,14 @@ export const datasetRouter = createTRPCRouter({
             },
           },
         },
-        include: {
-          observation: {
-            select: {
-              id: true,
-            },
-          },
-          trace: {
-            select: {
-              id: true,
-            },
-          },
-        },
         orderBy: {
           createdAt: "desc",
         },
         take: input.limit,
         skip: input.page * input.limit,
       });
+
+      if (runItems.length === 0) return { totalRunItems: 0, runItems: [] };
 
       const traceScores = await ctx.prisma.score.findMany({
         where: {
@@ -592,18 +583,37 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      const traces = await ctx.prisma.traceView.findMany({
-        where: {
-          id: {
-            in: runItems.map((ri) => ri.traceId).filter(Boolean) as string[],
-          },
-          projectId: ctx.session.projectId,
-        },
-        select: {
-          id: true,
-          duration: true,
-        },
-      });
+      // Directly access 'traces' table and calculate duration via lateral join
+      // Previously used 'traces_view' was not performant enough
+      const traceIdsSQL = Prisma.sql`ARRAY[${Prisma.join(runItems.map((ri) => ri.traceId))}]`;
+      const traces = await ctx.prisma.$queryRaw<
+        {
+          id: string;
+          duration: number;
+        }[]
+      >(
+        Prisma.sql`
+            SELECT
+              t.id,
+              o.duration
+            FROM
+              traces t
+              LEFT JOIN LATERAL (
+                SELECT
+                  EXTRACT(epoch FROM COALESCE(max(o1.end_time), max(o1.start_time)))::double precision - EXTRACT(epoch FROM min(o1.start_time))::double precision AS duration
+                FROM
+                  observations o1
+                WHERE
+                  o1.project_id = t.project_id
+                  AND o1.trace_id = t.id
+                GROUP BY
+                  o1.project_id,
+                  o1.trace_id) o ON TRUE
+            WHERE
+              t.project_id = ${input.projectId}
+              AND t.id = ANY(${traceIdsSQL})        
+        `,
+      );
 
       const items = runItems.map((ri) => {
         return {
@@ -623,6 +633,7 @@ export const datasetRouter = createTRPCRouter({
         };
       });
 
+      // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
         totalRunItems,
         runItems: items,

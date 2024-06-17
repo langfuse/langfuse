@@ -32,6 +32,7 @@ import { useQueryProject } from "@/src/features/projects/utils/useProject";
 import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { EnvLabel } from "@/src/components/EnvLabel";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -54,15 +55,20 @@ const userNavigation = [
   },
 ];
 
-const pathsWithoutNavigation: string[] = ["/onboarding"];
+const pathsWithoutNavigation: string[] = [
+  "/onboarding",
+  "/auth/reset-password",
+];
 const unauthenticatedPaths: string[] = [
   "/auth/sign-in",
   "/auth/sign-up",
   "/auth/error",
 ];
+// auth or unauthed
 const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
+  "/auth/reset-password",
 ];
 
 export default function Layout(props: PropsWithChildren) {
@@ -79,6 +85,7 @@ export default function Layout(props: PropsWithChildren) {
   const { project, organization } = useQueryProject();
   // org info based on organizationId in the URL
   const queryOrg = useQueryOrganization();
+  const isEeEnabled = useIsEeEnabled();
 
   const mapNavigation = (route: Route): NavigationItem | null => {
     // Project-level routes
@@ -97,11 +104,14 @@ export default function Layout(props: PropsWithChildren) {
     )
       return null;
 
-    // cloud only
+    // check ee or cloud requirements
     if (
-      route.cloudOnly !== undefined &&
-      // the feature should be available in local development
-      route.cloudOnly !== (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined)
+      route.requires !== undefined &&
+      !(
+        (route.requires === "cloud" &&
+          Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)) ||
+        (route.requires === "cloud-or-ee" && isEeEnabled)
+      )
     )
       return null;
 
@@ -154,6 +164,7 @@ export default function Layout(props: PropsWithChildren) {
     !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
+    console.warn("Layout: User was signed out as db user was not found");
     signOutUser();
 
     return <Spinner message="Redirecting" />;
@@ -494,9 +505,9 @@ const MainNavigation: React.FC<{
   onNavitemClick?: () => void;
   className?: string;
 }> = ({ nav, onNavitemClick, className }) => {
-  const [isOpen, setIsOpen] = useLocalStorage(
-    "sidebar-tracing-default-open",
-    false,
+  const [isOpen, setIsOpen] = useLocalStorage<Record<string, boolean>>(
+    "sidebar-item-default-open",
+    {},
   );
 
   return (
@@ -549,14 +560,20 @@ const MainNavigation: React.FC<{
               <Disclosure
                 as="div"
                 defaultOpen={
-                  item.children.some((child) => child.current) || isOpen
+                  item.children.some((child) => child.current) ||
+                  isOpen[item.name]
                 }
               >
                 {({ open }) => (
                   <>
                     <Disclosure.Button
                       className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold hover:bg-primary-foreground hover:text-primary-accent"
-                      onClick={() => setIsOpen(!isOpen)}
+                      onClick={() =>
+                        setIsOpen((prev) => ({
+                          ...prev,
+                          [item.name]: !prev[item.name],
+                        }))
+                      }
                     >
                       {item.icon && (
                         <item.icon

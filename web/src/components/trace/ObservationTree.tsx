@@ -1,6 +1,6 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
-import { type Trace, type Score, $Enums } from "@langfuse/shared";
+import { type Trace, type Score, type $Enums } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
@@ -10,6 +10,10 @@ import { MinusCircle, MinusIcon, PlusCircleIcon, PlusIcon } from "lucide-react";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  nestObservations,
+  treeItemColors,
+} from "@/src/components/trace/lib/helpers";
 
 export const ObservationTree = (props: {
   observations: ObservationReturnType[];
@@ -257,53 +261,14 @@ const ObservationTreeNode = (props: {
 const ColorCodedObservationType = (props: {
   observationType: $Enums.ObservationType;
 }) => {
-  const colors: Record<$Enums.ObservationType, string> = {
-    [$Enums.ObservationType.SPAN]: "bg-muted-blue",
-    [$Enums.ObservationType.GENERATION]: "bg-muted-orange",
-    [$Enums.ObservationType.EVENT]: "bg-muted-green",
-  };
-
   return (
     <span
       className={cn(
         "self-start rounded-sm p-1 text-xs",
-        colors[props.observationType],
+        treeItemColors.get(props.observationType),
       )}
     >
       {props.observationType}
     </span>
   );
 };
-
-export function nestObservations(
-  list: ObservationReturnType[],
-): NestedObservation[] {
-  if (list.length === 0) return [];
-
-  // Step 1: Create a map where the keys are object IDs, and the values are
-  // the corresponding objects with an added 'children' property.
-  const map = new Map<string, NestedObservation>();
-  for (const obj of list) {
-    map.set(obj.id, { ...obj, children: [] });
-  }
-
-  // Step 2: Create another map for the roots of all trees.
-  const roots = new Map<string, NestedObservation>();
-
-  // Step 3: Populate the 'children' arrays and root map.
-  for (const obj of map.values()) {
-    if (obj.parentObservationId) {
-      const parent = map.get(obj.parentObservationId);
-      if (parent) {
-        parent.children.push(obj);
-      }
-    } else {
-      roots.set(obj.id, obj);
-    }
-  }
-
-  // TODO sum token amounts per level
-
-  // Step 4: Return the roots.
-  return Array.from(roots.values());
-}

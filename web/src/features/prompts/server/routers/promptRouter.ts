@@ -7,13 +7,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { DB } from "@/src/server/db";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 
 import { createPrompt } from "../actions/createPrompt";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
-import { optionalPaginationZod, paginationZod } from "@/src/utils/zod";
+import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
 import {
   orderBy,
   singleFilter,
@@ -83,49 +82,58 @@ export const promptRouter = createTRPCRouter({
         ),
       );
 
-      const promptNames = prompts.map((p) => p.name);
-      // Return as observationCountQuery is unnecessary if there are no prompts
-      if (promptNames.length === 0) {
-        return {
-          prompts: [],
-          totalCount:
-            promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
-        };
-      }
-
-      const observationCountQuery = DB.selectFrom("observations")
-        .fullJoin("prompts", "prompts.id", "observations.prompt_id")
-        .select(({ fn }) => [
-          "prompts.name",
-          fn.count("observations.id").as("count"),
-        ])
-        .where("prompts.project_id", "=", input.projectId)
-        .where("observations.project_id", "=", input.projectId)
-        .where("prompts.name", "in", promptNames)
-        .groupBy("prompts.name");
-
-      const compiledQuery = observationCountQuery.compile();
-
-      const promptCounts = await ctx.prisma.$queryRawUnsafe<
-        Array<{
-          name: string;
-          count: bigint;
-        }>
-      >(compiledQuery.sql, ...compiledQuery.parameters);
-
-      const joinedPromptsAndCounts = prompts.map((p) => {
-        const matchedCount = promptCounts.find((c) => c.name === p.name);
-        return {
-          ...p,
-          observationCount: Number(matchedCount?.count ?? 0),
-        };
-      });
-
       return {
-        prompts: joinedPromptsAndCounts,
+        prompts: prompts,
         totalCount:
           promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
       };
+    }),
+  metrics: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        promptNames: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (input.promptNames.length === 0) return [];
+      const promptCounts = await ctx.prisma.$queryRaw<
+        {
+          promptName: string;
+          observationCount: bigint;
+        }[]
+      >(
+        Prisma.sql`
+              WITH prompt_ids AS (
+                SELECT
+                  p.id,
+                  p.name
+                FROM
+                  prompts p
+                WHERE
+                  p.project_id = ${input.projectId}
+                  AND p.name IN (${Prisma.join(input.promptNames)})
+              )
+              SELECT
+                p.name AS "promptName", SUM(oc.observation_count) AS "observationCount"
+              FROM
+                prompt_ids p
+                LEFT JOIN LATERAL (
+                  SELECT
+                    COUNT(*) AS observation_count
+                  FROM
+                    observations o
+                  WHERE
+                    o.project_id = ${input.projectId}
+                    AND o.prompt_id = p.id) oc ON TRUE
+              GROUP BY
+                p.name
+        `,
+      );
+      return promptCounts.map(({ promptName, observationCount }) => ({
+        promptName,
+        observationCount: Number(observationCount),
+      }));
     }),
   byId: protectedProjectProcedure
     .input(
@@ -557,7 +565,7 @@ export const promptRouter = createTRPCRouter({
       });
       return { promptVersions: joinedPromptAndUsers, totalCount };
     }),
-  metrics: protectedProjectProcedure
+  versionMetrics: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -626,6 +634,7 @@ export const promptRouter = createTRPCRouter({
           LEFT JOIN scores s ON o.trace_id = s.trace_id AND s.observation_id = o.id AND s.project_id = ${input.projectId}
           WHERE
               o.type = 'GENERATION'
+              AND s.data_type != 'CATEGORICAL'
               AND o.prompt_id IS NOT NULL
               AND o.project_id = ${input.projectId}
               AND p.id IN (${Prisma.join(input.promptIds)})
@@ -681,6 +690,8 @@ export const promptRouter = createTRPCRouter({
             traces_by_prompt_id tp
           JOIN prompts AS p ON tp.prompt_id = p.id AND p.project_id = ${input.projectId}
           LEFT JOIN scores s ON tp.trace_id = s.trace_id AND s.observation_id IS NULL AND s.project_id = ${input.projectId}
+          WHERE 
+              s.data_type != 'CATEGORICAL'
         ), average_scores_by_prompt AS (
           SELECT 
               prompt_id,

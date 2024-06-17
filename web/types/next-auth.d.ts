@@ -24,6 +24,8 @@ declare module "next-auth" {
       enableExperimentalFeatures: boolean;
       disableExpensivePostgresQueries: boolean;
       defaultTableDateTimeOffset?: number;
+      // Enables features that are only available under an enterprise license when self-hosting Langfuse
+      eeEnabled: boolean;
     };
   }
 
@@ -33,7 +35,7 @@ declare module "next-auth" {
     email?: PrismaUser["email"];
     image?: PrismaUser["image"];
     admin?: PrismaUser["admin"];
-    emailVerified?: PrismaUser["emailVerified"];
+    emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
     organizations: {
       id: PrismaOrganization["id"];
       name: PrismaOrganization["name"];

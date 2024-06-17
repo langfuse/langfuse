@@ -1,19 +1,25 @@
-import Header from "@/src/components/layouts/header";
-
-import { api } from "@/src/utils/api";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
-import { useEffect, useState } from "react";
-import TableLink from "@/src/components/table/table-link";
-import { DataTable } from "@/src/components/table/data-table";
 import { useRouter } from "next/router";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { useEffect } from "react";
+import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { type Score } from "@langfuse/shared";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import Header from "@/src/components/layouts/header";
+import { DataTable } from "@/src/components/table/data-table";
+import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { api } from "@/src/utils/api";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { type RouterInput, type RouterOutput } from "@/src/utils/types";
+import { type Score } from "@langfuse/shared";
+import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { useSession } from "next-auth/react";
+import { usersTableCols } from "@/src/server/api/definitions/usersTable";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -26,8 +32,22 @@ type RowData = {
 
 export default function UsersPage() {
   const router = useRouter();
+  const session = useSession();
   const projectId = router.query.projectId as string;
-  const [queryOptions] = useState<ScoreFilterInput>({});
+
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [
+      {
+        column: "timestamp",
+        type: "datetime",
+        operator: ">",
+        value: utcDateOffsetByDays(
+          session.data?.environment.defaultTableDateTimeOffset ?? -7,
+        ),
+      },
+    ],
+    "users",
+  );
 
   const { setDetailPageList } = useDetailPageLists();
 
@@ -37,7 +57,7 @@ export default function UsersPage() {
   });
 
   const users = api.users.all.useQuery({
-    ...queryOptions,
+    filter: userFilterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
@@ -212,7 +232,12 @@ export default function UsersPage() {
           href: "https://langfuse.com/docs/user-explorer",
         }}
       />
-
+      <DataTableToolbar
+        filterColumnDefinition={usersTableCols}
+        filterState={userFilterState}
+        setFilterState={setUserFilterState}
+        columns={columns}
+      />
       <DataTable
         columns={columns}
         data={
@@ -259,51 +284,4 @@ export default function UsersPage() {
       />
     </FullScreenPage>
   );
-}
-
-function joinTableCoreAndMetrics<
-  Core extends { id: string },
-  Metric extends { id: string },
->(
-  userCoreData?: Core[],
-  userMetricsData?: Metric[],
-): {
-  status: "loading" | "error" | "success";
-  rows: (Core & Partial<Metric>)[] | undefined;
-} {
-  if (!userCoreData) {
-    return { status: "error", rows: undefined };
-  }
-
-  const userCoreDataProcessed = userCoreData;
-
-  if (!userMetricsData) {
-    // create an object with all the keys of the UserMetrics type with undefined value
-
-    return {
-      status: "success",
-      rows: userCoreDataProcessed.map((u) => ({
-        ...u,
-        ...({} as Partial<Metric>),
-      })),
-    };
-  }
-
-  const metricsById = userMetricsData.reduce<Record<string, Metric>>(
-    (acc, metric) => {
-      acc[metric.id] = metric;
-      return acc;
-    },
-    {},
-  );
-
-  const joinedData = userCoreDataProcessed.map((userCore) => {
-    const metrics = metricsById[userCore.id];
-    return {
-      ...userCore,
-      ...(metrics ?? ({} as Partial<Metric>)),
-    };
-  });
-
-  return { status: "success", rows: joinedData };
 }

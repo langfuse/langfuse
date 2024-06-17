@@ -16,6 +16,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { ScoreDataType } from "@langfuse/shared";
 
 type PromptVersionTableRow = {
   version: number;
@@ -32,7 +33,7 @@ type PromptVersionTableRow = {
 };
 
 type PromptCoreOutput = RouterOutput["prompts"]["allVersions"];
-type PromptMetricsOutput = RouterOutput["prompts"]["metrics"];
+type PromptMetricsOutput = RouterOutput["prompts"]["versionMetrics"];
 type PromptMetric = PromptMetricsOutput[number];
 type PromptCoreData = PromptCoreOutput["promptVersions"][number];
 
@@ -101,7 +102,7 @@ export default function PromptVersionTable() {
     ? promptVersions.data?.promptVersions.map((prompt) => prompt.id)
     : [];
 
-  const promptMetrics = api.prompts.metrics.useQuery(
+  const promptMetrics = api.prompts.versionMetrics.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
@@ -247,6 +248,7 @@ export default function PromptVersionTable() {
               scores={Object.entries(scores).map(([k, v]) => ({
                 name: k,
                 value: v,
+                dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
               }))}
               variant="headings"
             />
@@ -273,6 +275,7 @@ export default function PromptVersionTable() {
               scores={Object.entries(scores).map(([k, v]) => ({
                 name: k,
                 value: v,
+                dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
               }))}
               variant="headings"
             />

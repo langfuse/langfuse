@@ -200,7 +200,7 @@ export const tableDefinitions: TableDefinitions = {
     ],
   },
   traces_scores: {
-    table: ` traces t JOIN scores s ON t.id = s.trace_id AND t.project_id = s.project_id`,
+    table: ` traces t JOIN scores s ON t.id = s.trace_id AND s.data_type != 'CATEGORICAL' AND t.project_id = s.project_id`,
     columns: [
       tracesProjectId,
       { name: "value", id: "value", type: "number", internal: 's."value"' },

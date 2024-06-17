@@ -19,6 +19,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
 import { TransferOrganizationButton } from "@/src/features/projects/components/TransferOrganizationButton";
+import { ScoreConfigSettings } from "@/src/features/manual-scoring/components/ScoreConfigSettings";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -62,6 +63,10 @@ export default function SettingsPage() {
                 <LlmApiKeyList projectId={project.id} />
               </div>
             ),
+          },
+          {
+            title: "Scores / Evaluation",
+            content: <ScoreConfigSettings projectId={project.id} />,
           },
           {
             title: "Members",

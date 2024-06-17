@@ -24,6 +24,8 @@
    </div>
    <span>Langfuse uses <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests.</span>
    <br/>
+   <span>We're hiring. <a href="https://langfuse.com/careers"><strong>Join us</strong></a> in Backend Engineering, Product Engineering, and Developer Relations.</span>
+   <br/>
    <br/>
    <div>
       <a href="https://github.com/langfuse/langfuse/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License"></a>

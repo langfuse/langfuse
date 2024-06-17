@@ -151,6 +151,8 @@ Requirements
 - Node.js 20 as specified in the [.nvmrc](.nvmrc)
 - Docker to run the database locally
 
+**Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
+
 **Steps**
 
 1. Fork the repository and clone it locally
@@ -190,6 +192,16 @@ Requirements
    ```bash
     pnpm run dev
    ```
+
+7. Open the web app in the browser:
+
+   http://localhost:3000
+
+8. Log in as a test user (after you ran `db:seed` command):
+
+   Username: demo@langfuse.com
+
+   Password: password
 
 ## Monorepo quickstart
 
@@ -358,7 +370,9 @@ The background color of the following component will be `hsl(var(--primary))` an
 
 By following these guidelines, you can ensure that any contributions to our theme are consistent, maintainable, and aligned with our design system.
 
-## Using secrets stored in 1Password
+## Maintainers
+
+### Using secrets stored in 1Password
 
 When applying changes to non-local environments, you may need to use secrets stored in 1Password. We use the 1Password CLI for this purpose.
 

@@ -397,7 +397,10 @@ paths:
           description: ''
   /api/public/ingestion:
     post:
-      description: Batched ingestion for Langfuse Tracing
+      description: >-
+        Batched ingestion for Langfuse Tracing. If you want to use tracing via
+        the API, such as to build your own Langfuse client implementation, this
+        is the only API route you need to implement.
       operationId: ingestion_batch
       tags:
         - Ingestion
@@ -446,6 +449,14 @@ paths:
                   type: array
                   items:
                     $ref: '#/components/schemas/IngestionEvent'
+                  description: >-
+                    Batch of tracing events to be ingested. Discriminated by
+                    attribute `type`.
+                metadata:
+                  nullable: true
+                  description: >-
+                    Optional. Metadata field used by the Langfuse SDKs for
+                    debugging.
               required:
                 - batch
   /api/public/metrics/daily:
@@ -997,9 +1008,10 @@ paths:
         - name: source
           in: query
           description: Retrieve only scores from a specific source.
-          required: true
+          required: false
           schema:
             $ref: '#/components/schemas/ScoreSource'
+            nullable: true
         - name: operator
           in: query
           description: Retrieve only scores with <operator> value.
@@ -1014,6 +1026,13 @@ paths:
           schema:
             type: number
             format: double
+            nullable: true
+        - name: scoreIds
+          in: query
+          description: Comma-separated list of score IDs to limit the results to.
+          required: false
+          schema:
+            type: string
             nullable: true
       responses:
         '200':
@@ -1137,7 +1156,10 @@ paths:
       security: *ref_0
   /api/public/sessions/{sessionId}:
     get:
-      description: Get a session
+      description: >-
+        Get a session. Please note that `traces` on this endpoint are not
+        paginated, if you plan to fetch large sessions, consider `GET
+        /api/public/traces?sessionId=<sessionId>`
       operationId: sessions_get
       tags:
         - Sessions
@@ -1257,6 +1279,12 @@ paths:
             type: string
             nullable: true
         - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sessionId
           in: query
           required: false
           schema:
@@ -1955,8 +1983,19 @@ components:
                 type:
                   type: string
                   enum:
-                    - event-create
-            - $ref: '#/components/schemas/CreateEventEvent'
+                    - span-create
+            - $ref: '#/components/schemas/CreateSpanEvent'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - span-update
+            - $ref: '#/components/schemas/UpdateSpanEvent'
           required:
             - type
         - type: object
@@ -1988,19 +2027,8 @@ components:
                 type:
                   type: string
                   enum:
-                    - span-create
-            - $ref: '#/components/schemas/CreateSpanEvent'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - span-update
-            - $ref: '#/components/schemas/UpdateSpanEvent'
+                    - event-create
+            - $ref: '#/components/schemas/CreateEventEvent'
           required:
             - type
         - type: object
@@ -2323,13 +2351,20 @@ components:
       properties:
         id:
           type: string
+          description: UUID v4 that identifies the event
         timestamp:
           type: string
-        metadata: {}
+          description: >-
+            Datetime (ISO 8601) of event creation in client. Should be as close
+            to actual event creation in client as possible, this timestamp will
+            be used for ordering of events in future release. Resolution:
+            milliseconds (required), microseconds (optimal).
+        metadata:
+          nullable: true
+          description: Optional. Metadata field used by the Langfuse SDKs for debugging.
       required:
         - id
         - timestamp
-        - metadata
     TraceEvent:
       title: TraceEvent
       type: object
@@ -2499,6 +2534,7 @@ components:
         totalCost:
           type: number
           format: double
+          description: Total model cost in USD
         usage:
           type: array
           items:
@@ -2521,14 +2557,28 @@ components:
           nullable: true
         inputUsage:
           type: integer
+          description: Total number of generation input units (e.g. tokens)
         outputUsage:
           type: integer
+          description: Total number of generation output units (e.g. tokens)
         totalUsage:
           type: integer
+          description: Total number of generation total units (e.g. tokens)
+        countTraces:
+          type: integer
+        countObservations:
+          type: integer
+        totalCost:
+          type: number
+          format: double
+          description: Total model cost in USD
       required:
         - inputUsage
         - outputUsage
         - totalUsage
+        - countTraces
+        - countObservations
+        - totalCost
     Observations:
       title: Observations
       type: object

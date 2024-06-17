@@ -23,25 +23,18 @@ if (isSentryEnabled) {
   Sentry.init({
     dsn: String(env.SENTRY_DSN),
     integrations: [
-      // enable HTTP calls tracing
-      new Sentry.Integrations.Http({ tracing: true }),
-      // enable Express.js middleware tracing
-      new Sentry.Integrations.Express({ app }),
+      Sentry.httpIntegration(),
+      Sentry.expressIntegration(),
       nodeProfilingIntegration(),
-      Sentry.metrics.metricsAggregatorIntegration(),
+      Sentry.redisIntegration(),
     ],
-    // Performance Monitoring
+
     tracesSampleRate: 0.01, //  Capture 100% of the transactions
-    // Set sampling rate for profiling - this is relative to tracesSampleRate
+
     profilesSampleRate: 0.01,
     sampleRate: 0.1,
   });
 
-  // The request handler must be the first middleware on the app
-  app.use(Sentry.Handlers.requestHandler());
-
-  // TracingHandler creates a trace for every incoming request
-  app.use(Sentry.Handlers.tracingHandler());
   logger.info("Sentry enabled");
 }
 
@@ -58,7 +51,7 @@ app.use("/api", api);
 
 if (isSentryEnabled) {
   // The error handler must be before any other error middleware and after all controllers
-  app.use(Sentry.Handlers.errorHandler());
+  app.use(Sentry.expressErrorHandler());
 }
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);

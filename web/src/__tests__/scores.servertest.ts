@@ -591,5 +591,37 @@ describe("/api/public/scores API Endpoint", () => {
         message: "Invalid request data",
       });
     });
+
+    it("should filter scores by score IDs", async () => {
+      const getScore = await makeAPICall<{
+        data: [
+          {
+            id: string;
+            name: string;
+            value: number;
+          },
+        ];
+        meta: object;
+      }>("GET", `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`);
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 2,
+        totalPages: 1,
+      });
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_2,
+          name: scoreName,
+          value: 50.5,
+        },
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
+        },
+      ]);
+    });
   });
 });
