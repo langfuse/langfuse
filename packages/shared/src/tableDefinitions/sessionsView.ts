@@ -85,7 +85,7 @@ export type SessionOptions = {
 };
 
 export function sessionsTableColsWithOptions(
-  options?: SessionOptions,
+  options?: SessionOptions
 ): ColumnDefinition[] {
   return sessionsViewCols.map((col) => {
     if (col.id === "userIds") {

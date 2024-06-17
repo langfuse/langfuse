@@ -25,6 +25,18 @@ const EnvSchema = z.object({
     .default(6379),
   REDIS_AUTH: z.string(),
   LANGFUSE_WORKER_PASSWORD: z.string(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_BUCKET_NAME: z.string().optional(),
+  S3_ENDPOINT: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
+  BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS: z.coerce
+    .number()
+    .positive()
+    .default(24),
+  EMAIL_FROM_ADDRESS: z.string().optional(),
+  SMTP_CONNECTION_URL: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);

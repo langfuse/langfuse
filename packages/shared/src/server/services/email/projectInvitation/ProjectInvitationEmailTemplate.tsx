@@ -15,14 +15,13 @@ import {
   Text,
 } from "@react-email/components";
 
-import { env } from "@/src/env.mjs";
-
 interface ProjectInvitationTemplateProps {
   invitedByUsername: string;
   invitedByUserEmail: string;
   projectName: string;
   recieverEmail: string;
   inviteLink: string;
+  emailFromAddress: string;
   langfuseCloudRegion?: string;
 }
 
@@ -32,6 +31,7 @@ export const ProjectInvitationTemplate = ({
   projectName,
   recieverEmail,
   inviteLink,
+  emailFromAddress,
   langfuseCloudRegion,
 }: ProjectInvitationTemplateProps) => {
   const previewText = `Join ${invitedByUsername} on Langfuse`;
@@ -92,8 +92,8 @@ export const ProjectInvitationTemplate = ({
               This invitation was intended for{" "}
               <span className="text-black">{recieverEmail}</span>. This invite
               was sent from{" "}
-              <span className="text-black">{env.EMAIL_FROM_ADDRESS}</span>. If
-              you were not expecting this invitation, you can ignore this email.
+              <span className="text-black">{emailFromAddress}</span>. If you
+              were not expecting this invitation, you can ignore this email.
             </Text>
           </Container>
         </Body>

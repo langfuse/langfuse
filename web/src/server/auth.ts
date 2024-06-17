@@ -31,7 +31,7 @@ import {
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 import { sendResetPasswordVerificationRequest } from "@/src/features/auth-credentials/lib/sendResetPasswordVerificationRequest";
-import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
+import { CustomSSOProvider } from "@langfuse/shared/src/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
