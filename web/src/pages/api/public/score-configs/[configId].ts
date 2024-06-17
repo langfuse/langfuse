@@ -1,18 +1,14 @@
-import { type ScoreConfig, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { type ConfigCategory } from "@langfuse/shared";
+import { type CastedConfig } from "@langfuse/shared";
 
 const ConfigSchema = z.object({
   configId: z.string(),
 });
-
-type CastedConfig = Omit<ScoreConfig, "categories"> & {
-  categories: ConfigCategory[] | null;
-};
 
 export default async function handler(
   req: NextApiRequest,

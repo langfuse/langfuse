@@ -1,4 +1,4 @@
-import { type ConfigCategory, paginationZod } from "@langfuse/shared";
+import { type CastedConfig, paginationZod } from "@langfuse/shared";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma, type ScoreConfig } from "@langfuse/shared/src/db";
@@ -10,10 +10,6 @@ import { isPrismaException } from "@/src/utils/exceptions";
 const ScoreConfigsGetSchema = z.object({
   ...paginationZod,
 });
-
-type CastedConfig = Omit<ScoreConfig, "categories"> & {
-  categories: ConfigCategory[] | null;
-};
 
 export default async function handler(
   req: NextApiRequest,

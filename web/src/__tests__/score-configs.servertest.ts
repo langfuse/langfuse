@@ -2,16 +2,8 @@
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
-import {
-  type ScoreConfig,
-  ScoreDataType,
-  prisma,
-} from "@langfuse/shared/src/db";
-import { type ConfigCategory } from "@langfuse/shared";
-
-type CastedConfig = Omit<ScoreConfig, "categories"> & {
-  categories: ConfigCategory[] | null;
-};
+import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
+import { type CastedConfig } from "@langfuse/shared";
 
 const CONFIG_ID_ONE = uuidv4();
 const CONFIG_ID_TWO = uuidv4();
