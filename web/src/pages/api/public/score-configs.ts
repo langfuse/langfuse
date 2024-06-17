@@ -56,7 +56,7 @@ export default async function handler(
           WHERE 
             sc.project_id = ${authCheck.scope.projectId}
           ORDER BY 
-            sc."createdAt" DESC
+            sc."created_at" DESC
           LIMIT ${obj.limit} OFFSET ${skipValue}
           `)) as CastedConfig[];
 
