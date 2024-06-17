@@ -138,7 +138,10 @@ export function MultiSelect({
         <Command>
           <CommandInput placeholder={title} />
           <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
+            {/* if isCustomSelectEnabled we always show custom select hence never empty */}
+            {!isCustomSelectEnabled && (
+              <CommandEmpty>No results found.</CommandEmpty>
+            )}
             <CommandGroup>
               {options.map((option) => {
                 const isSelected = selectedValues.has(option.value);
@@ -174,7 +177,10 @@ export function MultiSelect({
                   </CommandItem>
                 );
               })}
-              {isCustomSelectEnabled && (
+            </CommandGroup>
+            {isCustomSelectEnabled && (
+              <CommandGroup forceMount={true}>
+                <CommandSeparator />
                 <CommandItem
                   key="freeTextField"
                   onSelect={() => {
@@ -201,7 +207,9 @@ export function MultiSelect({
                         isCustomSelectEnabled,
                         values,
                         optionValues,
-                      ) || optionValues.has(freeText)
+                      ) ||
+                        (optionValues.has(freeText) &&
+                          selectedValues.has(freeText))
                         ? "bg-primary text-primary-foreground"
                         : "opacity-50 [&_svg]:invisible",
                     )}
@@ -227,8 +235,8 @@ export function MultiSelect({
                     className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dotted p-0 text-sm"
                   />
                 </CommandItem>
-              )}
-            </CommandGroup>
+              </CommandGroup>
+            )}
             {selectedValues.size > 0 && (
               <>
                 <CommandSeparator />
