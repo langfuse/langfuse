@@ -13,6 +13,7 @@ import {
   type ControllerRenderProps,
   useFieldArray,
   useForm,
+  type ErrorOption,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -87,6 +88,27 @@ type ConfigCategory = {
   value: string;
 };
 
+const getFormError = ({
+  value,
+  minValue,
+  maxValue,
+}: {
+  value?: number | null;
+  minValue?: number | null;
+  maxValue?: number | null;
+}): ErrorOption | null => {
+  if (
+    (isPresent(maxValue) && Number(value) > maxValue) ||
+    (isPresent(minValue) && Number(value) < minValue)
+  ) {
+    return {
+      type: "custom",
+      message: `Not in range: [${minValue ?? "-∞"},${maxValue ?? "∞"}]`,
+    };
+  }
+  return null;
+};
+
 export function AnnotateDrawer({
   traceId,
   scores,
@@ -120,7 +142,7 @@ export function AnnotateDrawer({
     string[]
   >("emptySelectedConfigIds", []);
 
-  const form = useForm<z.infer<typeof AnnotateFormSchema>>({
+  const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
       scoreData: getDefaultScoreData({
@@ -357,14 +379,13 @@ export function AnnotateDrawer({
       const { maxValue, minValue, dataType } = config;
 
       if (isNumericDataType(dataType)) {
-        if (
-          (isPresent(maxValue) && Number(field.value) > maxValue) ||
-          (isPresent(minValue) && Number(field.value) < minValue)
-        ) {
-          form.setError(`scoreData.${index}.value`, {
-            type: "custom",
-            message: `Not in range: [${minValue ?? "-∞"},${maxValue ?? "∞"}]`,
-          });
+        const formError = getFormError({
+          value: field.value,
+          maxValue,
+          minValue,
+        });
+        if (!!formError) {
+          form.setError(`scoreData.${index}.value`, formError);
           return;
         }
       }
@@ -708,6 +729,23 @@ export function AnnotateDrawer({
                                             score,
                                           })}
                                           onKeyDown={handleOnKeyDown}
+                                          onKeyUp={() => {
+                                            const formError = getFormError({
+                                              value: field.value,
+                                              maxValue: config.maxValue,
+                                              minValue: config.minValue,
+                                            });
+                                            if (!!formError) {
+                                              form.setError(
+                                                `scoreData.${index}.value`,
+                                                formError,
+                                              );
+                                            } else {
+                                              form.clearErrors(
+                                                `scoreData.${index}.value`,
+                                              );
+                                            }
+                                          }}
                                         />
                                       ) : config.categories &&
                                         (
