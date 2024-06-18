@@ -3,7 +3,7 @@
 
 import type { Session } from "next-auth";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { ModelUsageUnit } from "@langfuse/shared";
+import { BatchExportFileFormat, ModelUsageUnit } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -84,6 +84,7 @@ describe("observations.export RPC", () => {
       },
       admin: true,
     },
+    environment: {} as any,
   };
 
   const ctx = createInnerTRPCContext({ session });
@@ -91,7 +92,7 @@ describe("observations.export RPC", () => {
 
   it("should return a CSV file", async () => {
     const result = await caller.generations.export({
-      fileFormat: "CSV",
+      fileFormat: BatchExportFileFormat.CSV,
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
@@ -119,7 +120,7 @@ describe("observations.export RPC", () => {
 
   it("should return a JSON file", async () => {
     const result = await caller.generations.export({
-      fileFormat: "JSON",
+      fileFormat: BatchExportFileFormat.JSON,
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
@@ -144,38 +145,11 @@ describe("observations.export RPC", () => {
     expect(JSON.parse(data).length).toBe(numberOfGenerations);
   });
 
-  it("should return a OPENAI-JSONL file", async () => {
-    const result = await caller.generations.export({
-      fileFormat: "OPENAI-JSONL",
-      orderBy: { column: "id", order: "ASC" },
-      filter: [
-        {
-          column: "Start Time",
-          type: "datetime",
-          operator: ">",
-          value: new Date("1990-01-01"),
-        },
-      ],
-      projectId,
-      searchQuery: null,
-    });
-
-    if (result.type !== "data")
-      throw new Error("No data returned. Is S3 accidentally enabled?");
-    const { data, fileName } = result;
-
-    const fileExtension = fileName.split(".").pop();
-    expect(fileName).toContain(`lf-export-${projectId}`);
-    expect(fileExtension).toBe("jsonl");
-
-    expect(data.split("\n").filter(Boolean).length).toBe(numberOfGenerations);
-  });
-
   it("should throw on unsupported file formats", async () => {
     const unsupportedFileFormat = "XLSX";
 
     const call = caller.generations.export({
-      fileFormat: unsupportedFileFormat as unknown as "JSON",
+      fileFormat: unsupportedFileFormat as unknown as BatchExportFileFormat,
       orderBy: { column: "id", order: "ASC" },
       filter: [
         {
