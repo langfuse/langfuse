@@ -40,16 +40,6 @@ export type DashboardDateRange = {
   to: Date;
 };
 
-// export function ABC() {
-
-//   const project = api.projects.byId.useQuery({ projectId });
-//   project.data?.cloudConfig?.defaultLookBackDays ?? 50_000;
-
-//   return (
-
-//   )
-// }
-
 export default function Start() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
