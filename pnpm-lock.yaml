@@ -39,7 +39,7 @@ importers:
         version: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
       next-auth:
         specifier: ^4.24.7
-        version: 4.24.7(next@14.2.3)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
+        version: 4.24.7(next@14.2.3)(react-dom@18.2.0)(react@18.2.0)
       zod:
         specifier: ^3.22.4
         version: 3.22.4
@@ -159,7 +159,7 @@ importers:
         version: 4.17.21
       next-auth:
         specifier: ^4.24.7
-        version: 4.24.7(next@14.2.3)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
+        version: 4.24.7(next@14.2.4)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
       nodemailer:
         specifier: ^6.9.13
         version: 6.9.13
@@ -463,7 +463,7 @@ importers:
         version: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
       next-auth:
         specifier: ^4.24.7
-        version: 4.24.7(next@14.2.3)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
+        version: 4.24.7(next@14.2.3)(react-dom@18.2.0)(react@18.2.0)
       next-query-params:
         specifier: ^5.0.0
         version: 5.0.0(next@14.2.3)(react@18.2.0)(use-query-params@2.2.1)
@@ -4588,6 +4588,26 @@ packages:
       react: 18.2.0
     dev: false
 
+  /@mui/private-theming@5.15.20(@types/react@18.2.79)(react@18.2.0):
+    resolution:
+      {
+        integrity: sha512-BK8F94AIqSrnaPYXf2KAOjGZJgWfvqAVQ2gVR3EryvQFtuBnG6RwodxrCvd3B48VuMy6Wsk897+lQMUxJyk+6g==,
+      }
+    engines: { node: ">=12.0.0" }
+    peerDependencies:
+      "@types/react": ^17.0.0 || ^18.0.0
+      react: ^17.0.0 || ^18.0.0
+    peerDependenciesMeta:
+      "@types/react":
+        optional: true
+    dependencies:
+      "@babel/runtime": 7.24.7
+      "@mui/utils": 5.15.20(@types/react@18.2.79)(react@18.2.0)
+      "@types/react": 18.2.79
+      prop-types: 15.8.1
+      react: 18.2.0
+    dev: false
+
   /@mui/styled-engine@5.15.14(@emotion/react@11.11.4)(@emotion/styled@11.11.5)(react@18.2.0):
     resolution:
       {
@@ -4636,6 +4656,39 @@ packages:
       "@emotion/react": 11.11.4(@types/react@18.2.79)(react@18.2.0)
       "@emotion/styled": 11.11.5(@emotion/react@11.11.4)(@types/react@18.2.79)(react@18.2.0)
       "@mui/private-theming": 5.15.14(@types/react@18.2.79)(react@18.2.0)
+      "@mui/styled-engine": 5.15.14(@emotion/react@11.11.4)(@emotion/styled@11.11.5)(react@18.2.0)
+      "@mui/types": 7.2.14(@types/react@18.2.79)
+      "@mui/utils": 5.15.20(@types/react@18.2.79)(react@18.2.0)
+      "@types/react": 18.2.79
+      clsx: 2.1.1
+      csstype: 3.1.3
+      prop-types: 15.8.1
+      react: 18.2.0
+    dev: false
+
+  /@mui/system@5.15.20(@emotion/react@11.11.4)(@emotion/styled@11.11.5)(@types/react@18.2.79)(react@18.2.0):
+    resolution:
+      {
+        integrity: sha512-LoMq4IlAAhxzL2VNUDBTQxAb4chnBe8JvRINVNDiMtHE2PiPOoHlhOPutSxEbaL5mkECPVWSv6p8JEV+uykwIA==,
+      }
+    engines: { node: ">=12.0.0" }
+    peerDependencies:
+      "@emotion/react": ^11.5.0
+      "@emotion/styled": ^11.3.0
+      "@types/react": ^17.0.0 || ^18.0.0
+      react: ^17.0.0 || ^18.0.0
+    peerDependenciesMeta:
+      "@emotion/react":
+        optional: true
+      "@emotion/styled":
+        optional: true
+      "@types/react":
+        optional: true
+    dependencies:
+      "@babel/runtime": 7.24.7
+      "@emotion/react": 11.11.4(@types/react@18.2.79)(react@18.2.0)
+      "@emotion/styled": 11.11.5(@emotion/react@11.11.4)(@types/react@18.2.79)(react@18.2.0)
+      "@mui/private-theming": 5.15.20(@types/react@18.2.79)(react@18.2.0)
       "@mui/styled-engine": 5.15.14(@emotion/react@11.11.4)(@emotion/styled@11.11.5)(react@18.2.0)
       "@mui/types": 7.2.14(@types/react@18.2.79)
       "@mui/utils": 5.15.20(@types/react@18.2.79)(react@18.2.0)
@@ -4721,7 +4774,7 @@ packages:
       next-auth: ^4
     dependencies:
       "@prisma/client": 5.15.0(prisma@5.13.0)
-      next-auth: 4.24.7(next@14.2.3)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0)
+      next-auth: 4.24.7(next@14.2.3)(react-dom@18.2.0)(react@18.2.0)
     dev: false
 
   /@next/env@14.2.3:
@@ -19076,7 +19129,7 @@ packages:
       type-fest: 2.19.0
     dev: true
 
-  /next-auth@4.24.7(next@14.2.3)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0):
+  /next-auth@4.24.7(next@14.2.3)(react-dom@18.2.0)(react@18.2.0):
     resolution:
       {
         integrity: sha512-iChjE8ov/1K/z98gdKbn2Jw+2vLgJtVV39X+rCP5SGnVQuco7QOr19FRNGMIrD8d3LYhHWV9j9sKLzq1aDWWQQ==,
@@ -19095,7 +19148,6 @@ packages:
       cookie: 0.5.0
       jose: 4.15.5
       next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0)(react@18.2.0)
-      nodemailer: 6.9.13
       oauth: 0.9.15
       openid-client: 5.6.5
       preact: 10.19.7
@@ -19105,7 +19157,7 @@ packages:
       uuid: 8.3.2
     dev: false
 
-  /next-auth@4.24.7(next@14.2.4)(react-dom@18.2.0)(react@18.2.0):
+  /next-auth@4.24.7(next@14.2.4)(nodemailer@6.9.13)(react-dom@18.2.0)(react@18.2.0):
     resolution:
       {
         integrity: sha512-iChjE8ov/1K/z98gdKbn2Jw+2vLgJtVV39X+rCP5SGnVQuco7QOr19FRNGMIrD8d3LYhHWV9j9sKLzq1aDWWQQ==,
@@ -19124,6 +19176,7 @@ packages:
       cookie: 0.5.0
       jose: 4.15.5
       next: 14.2.4(react-dom@18.2.0)(react@18.2.0)
+      nodemailer: 6.9.13
       oauth: 0.9.15
       openid-client: 5.6.5
       preact: 10.19.7
