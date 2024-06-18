@@ -40,7 +40,7 @@ export default function UsersPage() {
         column: "timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
       },
     ],
     "users",

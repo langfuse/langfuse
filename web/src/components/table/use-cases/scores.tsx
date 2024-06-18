@@ -90,7 +90,7 @@ export default function ScoresTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
       },
     ],
     "scores",

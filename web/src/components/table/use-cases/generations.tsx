@@ -113,7 +113,7 @@ export default function GenerationsTable({
         column: "Start Time",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
       },
     ],
     "generations",
