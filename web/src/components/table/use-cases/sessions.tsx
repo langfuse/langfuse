@@ -17,7 +17,7 @@ import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { useSession } from "next-auth/react";
+import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 
 export type SessionTableRow = {
   id: string;
@@ -46,11 +46,6 @@ export default function SessionsTable({
   omittedFilter = [],
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
-  const session = useSession();
-
-  const lookBackDays =
-    session.data?.user?.projects.find((project) => project.id === projectId)
-      ?.cloudConfig?.defaultLookBackDays ?? 7;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [
@@ -58,9 +53,7 @@ export default function SessionsTable({
         column: "Created At",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -lookBackDays,
-        ),
+        value: utcDateOffsetByDays(useLookBackDays(projectId)),
       },
     ],
     "sessions",

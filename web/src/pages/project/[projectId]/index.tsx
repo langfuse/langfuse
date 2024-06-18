@@ -34,6 +34,7 @@ import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 
 export type DashboardDateRange = {
   from: Date;
@@ -49,10 +50,6 @@ export default function Start() {
   const disableExpensiveDashboardComponents =
     session.data?.environment.disableExpensivePostgresQueries ?? true;
 
-  const lookBackDays =
-    session.data?.user?.projects.find((project) => project.id === projectId)
-      ?.cloudConfig?.defaultLookBackDays ?? 7;
-
   const project = session.data?.user?.projects.find(
     (project) => project.id === projectId,
   );
@@ -62,7 +59,7 @@ export default function Start() {
   const [urlParams, setUrlParams] = useQueryParams({
     from: withDefault(
       NumberParam,
-      addDays(memoizedDate, -lookBackDays).getTime(),
+      addDays(memoizedDate, -useLookBackDays(projectId)).getTime(),
     ),
     to: withDefault(NumberParam, memoizedDate.getTime()),
     select: withDefault(StringParam, "Select a date range"),

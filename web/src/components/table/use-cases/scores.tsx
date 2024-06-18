@@ -9,6 +9,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 import {
   type ScoreOptions,
   scoresTableColsWithOptions,
@@ -17,7 +18,6 @@ import { api } from "@/src/utils/api";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
 import type { FilterState, ScoreDataType } from "@langfuse/shared";
-import { useSession } from "next-auth/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
@@ -81,21 +81,16 @@ export default function ScoresTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-  const session = useSession();
+
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
 
-  const lookBackDays =
-    session.data?.user?.projects.find((project) => project.id === projectId)
-      ?.cloudConfig?.defaultLookBackDays ?? 7;
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [
       {
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -lookBackDays,
-        ),
+        value: utcDateOffsetByDays(useLookBackDays(projectId)),
       },
     ],
     "scores",

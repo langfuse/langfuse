@@ -44,7 +44,7 @@ import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAl
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useSession } from "next-auth/react";
+import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 
 export type GenerationsTableRow = {
   id: string;
@@ -90,7 +90,6 @@ export default function GenerationsTable({
   promptVersion,
   omittedFilter = [],
 }: GenerationsTableProps) {
-  const session = useSession();
   const capture = usePostHogClientCapture();
   const [isExporting, setIsExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -107,18 +106,14 @@ export default function GenerationsTable({
     "generations",
     "s",
   );
-  const lookBackDays =
-    session.data?.user?.projects.find((project) => project.id === projectId)
-      ?.cloudConfig?.defaultLookBackDays ?? 7;
+
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [
       {
         column: "Start Time",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -lookBackDays,
-        ),
+        value: utcDateOffsetByDays(useLookBackDays(projectId)),
       },
     ],
     "generations",
