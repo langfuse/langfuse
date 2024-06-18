@@ -17,9 +17,9 @@ import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@langfuse/shared";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
-import { useSession } from "next-auth/react";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -32,7 +32,6 @@ type RowData = {
 
 export default function UsersPage() {
   const router = useRouter();
-  const session = useSession();
   const projectId = router.query.projectId as string;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
@@ -41,9 +40,7 @@ export default function UsersPage() {
         column: "timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -7,
-        ),
+        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
       },
     ],
     "users",
