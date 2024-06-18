@@ -29,7 +29,7 @@ export const BatchExportSuccessEmailTemplate = ({
   batchExportName,
   expiresInHours,
 }: BatchExportSuccessTemplateProps) => {
-  const previewText = `Your export is ready for download`;
+  const previewText = `Download your data export from Langfuse`;
 
   return (
     <Html>
@@ -48,17 +48,20 @@ export const BatchExportSuccessEmailTemplate = ({
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-              Your data export is ready for download
+              Your data export is ready
             </Heading>
-            <Text className="text-sm leading-6 text-black">Hello,</Text>
             <Text className="text-sm leading-6 text-black">
-              <strong>{userName}</strong> Your data export {batchExportName} is
-              ready for download. The download link will expire in{" "}
+              Hello <strong>{userName}</strong>
+            </Text>
+            <Text className="text-sm leading-6 text-black">
+              Your data export{" "}
+              <span className="font-mono">{batchExportName}</span> is ready to
+              download. The download link will expire in{" "}
               <strong>{expiresInHours} hours</strong>.
             </Text>
             <Section className="mb-4 mt-8 text-center">
               <Button
-                className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-background no-underline"
+                className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
                 href={downloadLink}
               >
                 Download Export
