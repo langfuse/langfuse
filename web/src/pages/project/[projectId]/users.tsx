@@ -34,7 +34,9 @@ export default function UsersPage() {
   const router = useRouter();
   const session = useSession();
   const projectId = router.query.projectId as string;
-
+  const lookBackDays =
+    session.data?.user?.projects.find((project) => project.id === projectId)
+      ?.cloudConfig?.defaultLookBackDays ?? 7;
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [
       {
@@ -42,7 +44,7 @@ export default function UsersPage() {
         type: "datetime",
         operator: ">",
         value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -7,
+          session.data?.environment.defaultTableDateTimeOffset ?? -lookBackDays,
         ),
       },
     ],
