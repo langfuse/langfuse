@@ -32,6 +32,7 @@ import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 import { sendResetPasswordVerificationRequest } from "@/src/features/auth-credentials/lib/sendResetPasswordVerificationRequest";
 import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
+import { cloudConfigSchema } from "@/src/features/projects/server/projectsRouter";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -325,6 +326,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     id: membership.project.id,
                     name: membership.project.name,
                     role: membership.role,
+                    cloudConfig: {
+                      defaultLookBackDays: cloudConfigSchema.parse(
+                        membership.project.cloudConfig,
+                      )?.defaultLookBackDays,
+                    },
                   })),
                   featureFlags: parseFlags(dbUser.featureFlags),
                 }

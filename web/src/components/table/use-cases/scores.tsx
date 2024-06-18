@@ -84,6 +84,9 @@ export default function ScoresTable({
   const session = useSession();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
 
+  const lookBackDays =
+    session.data?.user?.projects.find((project) => project.id === projectId)
+      ?.cloudConfig?.defaultLookBackDays ?? 7;
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [
       {
@@ -91,7 +94,7 @@ export default function ScoresTable({
         type: "datetime",
         operator: ">",
         value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -7,
+          session.data?.environment.defaultTableDateTimeOffset ?? -lookBackDays,
         ),
       },
     ],

@@ -40,6 +40,16 @@ export type DashboardDateRange = {
   to: Date;
 };
 
+// export function ABC() {
+
+//   const project = api.projects.byId.useQuery({ projectId });
+//   project.data?.cloudConfig?.defaultLookBackDays ?? 50_000;
+
+//   return (
+
+//   )
+// }
+
 export default function Start() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -48,6 +58,11 @@ export default function Start() {
   const session = useSession();
   const disableExpensiveDashboardComponents =
     session.data?.environment.disableExpensivePostgresQueries ?? true;
+
+  const lookBackDays =
+    session.data?.user?.projects.find((project) => project.id === projectId)
+      ?.cloudConfig?.defaultLookBackDays ?? 7;
+
   const project = session.data?.user?.projects.find(
     (project) => project.id === projectId,
   );
@@ -55,7 +70,10 @@ export default function Start() {
   const memoizedDate = useMemo(() => new Date(), []);
 
   const [urlParams, setUrlParams] = useQueryParams({
-    from: withDefault(NumberParam, addDays(memoizedDate, -7).getTime()),
+    from: withDefault(
+      NumberParam,
+      addDays(memoizedDate, -lookBackDays).getTime(),
+    ),
     to: withDefault(NumberParam, memoizedDate.getTime()),
     select: withDefault(StringParam, "Select a date range"),
   });
@@ -172,11 +190,11 @@ export default function Start() {
             id="date"
             variant={"outline"}
             className={
-              "hover:text-primary-accent group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground"
+              "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
             }
           >
             <BarChart2
-              className="group-hover:text-primary-accent hidden h-6 w-6 shrink-0 text-primary lg:block"
+              className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
               aria-hidden="true"
             />
             Request Chart

@@ -107,7 +107,9 @@ export default function GenerationsTable({
     "generations",
     "s",
   );
-
+  const lookBackDays =
+    session.data?.user?.projects.find((project) => project.id === projectId)
+      ?.cloudConfig?.defaultLookBackDays ?? 7;
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [
       {
@@ -115,7 +117,7 @@ export default function GenerationsTable({
         type: "datetime",
         operator: ">",
         value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -7,
+          session.data?.environment.defaultTableDateTimeOffset ?? -lookBackDays,
         ),
       },
     ],

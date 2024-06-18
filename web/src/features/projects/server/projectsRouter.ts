@@ -9,6 +9,13 @@ import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
+export const cloudConfigSchema = z.object({
+  plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
+  monthlyObservationLimit: z.number().int().positive().optional(),
+  // used for table and dashboard queries
+  defaultLookBackDays: z.number().int().positive().optional(),
+});
+
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
     const memberships = await ctx.prisma.projectMembership.findMany({
@@ -41,10 +48,6 @@ export const projectsRouter = createTRPCRouter({
       });
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const cloudConfigSchema = z.object({
-        plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
-        monthlyObservationLimit: z.number().int().positive().optional(),
-      });
       const cloudConfig = cloudConfigSchema.safeParse(project.cloudConfig);
 
       return {

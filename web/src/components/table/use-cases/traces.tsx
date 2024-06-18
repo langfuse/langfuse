@@ -89,6 +89,9 @@ export default function TracesTable({
     "search",
     withDefault(StringParam, null),
   );
+  const lookBackDays =
+    session.data?.user?.projects.find((project) => project.id === projectId)
+      ?.cloudConfig?.defaultLookBackDays ?? 7;
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [
       {
@@ -96,7 +99,7 @@ export default function TracesTable({
         type: "datetime",
         operator: ">",
         value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -7,
+          session.data?.environment.defaultTableDateTimeOffset ?? -lookBackDays,
         ),
       },
     ],
