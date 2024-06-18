@@ -21,7 +21,7 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
-import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { orderByToPrismaSql } from "@langfuse/shared";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";

@@ -1,7 +1,7 @@
 import {
   type OptionsDefinition,
   type ColumnDefinition,
-} from "@langfuse/shared";
+} from "../tableDefinitions/types";
 
 export const sessionsViewCols: ColumnDefinition[] = [
   { name: "⭐️", id: "bookmarked", type: "boolean", internal: "s.bookmarked" },
@@ -85,7 +85,7 @@ export type SessionOptions = {
 };
 
 export function sessionsTableColsWithOptions(
-  options?: SessionOptions,
+  options?: SessionOptions
 ): ColumnDefinition[] {
   return sessionsViewCols.map((col) => {
     if (col.id === "userIds") {
