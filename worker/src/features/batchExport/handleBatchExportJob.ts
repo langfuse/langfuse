@@ -128,7 +128,7 @@ export const handleBatchExportJob = async (
     data: fileStream,
   });
 
-  logger.info(`Batch export file uploaded to S3: ${signedUrl}`);
+  logger.info(`Batch export file uploaded to S3`);
 
   // Update job status
   await prisma.batchExport.update({
@@ -164,6 +164,6 @@ export const handleBatchExportJob = async (
       expiresInHours: env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS,
     });
 
-    logger.info(`Batch export success email sent to ${user.email}`);
+    logger.info(`Batch export success email sent to user ${user.id}`);
   }
 };

@@ -14,8 +14,6 @@ import logger from "../logger";
 import { redis } from "../redis";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 
-// TODO: seed the queue with existing batch exports
-
 export const batchExportQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(QueueName.BatchExport, {
       connection: redis,

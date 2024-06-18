@@ -43,12 +43,14 @@ export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   BatchExport = "batch-export-queue",
+  RepeatQueue = "repeat-queue",
 }
 
 export enum QueueJobs {
   TraceUpsert = "trace-upsert",
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
+  EnqueueBatchExportJobs = "enqueue-batch-export-jobs",
 }
 
 export type TQueueJobTypes = {
