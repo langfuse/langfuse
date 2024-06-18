@@ -198,6 +198,25 @@ describe("create eval jobs", () => {
       })
       .execute();
 
+    const templateId = randomUUID();
+    await kyselyPrisma.$kysely
+      .insertInto("eval_templates")
+      .values({
+        id: templateId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        name: "test-template",
+        version: 1,
+        prompt: "Please evaluate toxicity {{input}} {{output}}",
+        model: "gpt-3.5-turbo",
+        provider: "openai",
+        model_params: {},
+        output_schema: {
+          reasoning: "Please explain your reasoning",
+          score: "Please provide a score between 0 and 1",
+        },
+      })
+      .executeTakeFirst();
+
     await prisma.jobConfiguration.create({
       data: {
         id: randomUUID(),
@@ -216,6 +235,7 @@ describe("create eval jobs", () => {
         targetObject: "traces",
         scoreName: "score",
         variableMapping: JSON.parse("[]"),
+        evalTemplateId: templateId,
       },
     });
 
