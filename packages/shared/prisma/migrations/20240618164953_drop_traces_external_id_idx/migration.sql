@@ -1,2 +1,2 @@
 -- DropIndex
-DROP INDEX IF EXISTS "traces_external_id_idx";
+DROP INDEX CONCURRENTLY IF EXISTS "traces_external_id_idx";

@@ -1,2 +1,2 @@
 -- DropIndex
-DROP INDEX IF EXISTS "scores_updated_at_idx";
+DROP INDEX CONCURRENTLY IF EXISTS "scores_updated_at_idx";
