@@ -32,7 +32,13 @@ import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 import { sendResetPasswordVerificationRequest } from "@/src/features/auth-credentials/lib/sendResetPasswordVerificationRequest";
 import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
-import { cloudConfigSchema } from "@/src/features/projects/server/projectsRouter";
+
+export const cloudConfigSchema = z.object({
+  plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
+  monthlyObservationLimit: z.number().int().positive().optional(),
+  // used for table and dashboard queries
+  defaultLookBackDays: z.number().int().positive().optional(),
+});
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
