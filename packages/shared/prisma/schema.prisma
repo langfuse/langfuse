@@ -242,14 +242,12 @@ model Trace {
     JobExecution JobExecution[]
 
     @@index([projectId])
+    @@index([projectId, timestamp])
     @@index([sessionId])
     @@index([name])
     @@index([userId])
     @@index([id, userId])
-    @@index([externalId])
     @@index(timestamp)
-    @@index(release)
-    @@index(updatedAt)
     @@index(createdAt)
     @@index([tags(ops: ArrayOps)], type: Gin)
     @@map("traces")
@@ -328,9 +326,7 @@ model Observation {
     @@index([type])
     @@index(startTime)
     @@index(createdAt)
-    @@index(updatedAt)
     @@index(projectId)
-    @@index(parentObservationId)
     @@index(model)
     @@index(internalModel)
     @@index([projectId, promptId])
@@ -429,7 +425,6 @@ model Score {
     @@index([observationId], type: Hash)
     @@index([source])
     @@index([createdAt])
-    @@index([updatedAt])
     @@map("scores")
 }
 
