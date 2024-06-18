@@ -98,6 +98,21 @@ export type AuditLog = {
     before: string | null;
     after: string | null;
 };
+export type BatchExport = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    user_id: string;
+    finished_at: Timestamp | null;
+    expires_at: Timestamp | null;
+    name: string;
+    status: string;
+    query: unknown;
+    format: string;
+    url: string | null;
+    log: string | null;
+};
 export type CronJobs = {
     name: string;
     last_run: Timestamp | null;
@@ -442,6 +457,7 @@ export type DB = {
     Account: Account;
     api_keys: ApiKey;
     audit_logs: AuditLog;
+    batch_exports: BatchExport;
     cron_jobs: CronJobs;
     dataset_items: DatasetItem;
     dataset_run_items: DatasetRunItems;

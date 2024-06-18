@@ -1,6 +1,7 @@
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
+    "jsx": "react",
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
     "lib": ["ES2020"],
