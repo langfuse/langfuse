@@ -241,6 +241,7 @@ export default function ScoresTable({
       accessorKey: "author",
       id: "author",
       header: "Author",
+      enableHiding: true,
       cell: ({ row }) => {
         const { name, image } = row.getValue(
           "author",

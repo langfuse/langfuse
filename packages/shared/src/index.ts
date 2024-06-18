@@ -21,6 +21,9 @@ export * from "./server/llm/fetchLLMCompletion";
 // evals
 export * from "./features/evals/types";
 
+// annotation
+export * from "./features/annotation/types";
+
 // export db types only
 export * from "@prisma/client";
 export { type DB } from "../prisma/generated/types";

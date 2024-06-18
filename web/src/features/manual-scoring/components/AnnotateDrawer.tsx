@@ -13,6 +13,7 @@ import {
   type ControllerRenderProps,
   useFieldArray,
   useForm,
+  type ErrorOption,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -29,7 +30,12 @@ import {
   DrawerHeader,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
-import { ScoreDataType, type Score, type ScoreConfig } from "@langfuse/shared";
+import {
+  type ConfigCategory,
+  ScoreDataType,
+  type Score,
+  type ScoreConfig,
+} from "@langfuse/shared";
 import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -82,9 +88,40 @@ const AnnotateFormSchema = z.object({
 
 type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
 type AnnotationScoreSchemaType = z.infer<typeof AnnotationScoreDataSchema>;
-type ConfigCategory = {
-  label: string;
-  value: string;
+
+const CHAR_CUTOFF = 6;
+
+const renderSelect = (categories: ConfigCategory[]) => {
+  const hasMoreThanThreeCategories = categories.length > 3;
+  const hasLongCategoryNames = categories.some(
+    ({ label }) => label.length > CHAR_CUTOFF,
+  );
+
+  return (
+    hasMoreThanThreeCategories ||
+    (categories.length > 1 && hasLongCategoryNames)
+  );
+};
+
+const getFormError = ({
+  value,
+  minValue,
+  maxValue,
+}: {
+  value?: number | null;
+  minValue?: number | null;
+  maxValue?: number | null;
+}): ErrorOption | null => {
+  if (
+    (isPresent(maxValue) && Number(value) > maxValue) ||
+    (isPresent(minValue) && Number(value) < minValue)
+  ) {
+    return {
+      type: "custom",
+      message: `Not in range: [${minValue ?? "-∞"},${maxValue ?? "∞"}]`,
+    };
+  }
+  return null;
 };
 
 export function AnnotateDrawer({
@@ -120,7 +157,7 @@ export function AnnotateDrawer({
     string[]
   >("emptySelectedConfigIds", []);
 
-  const form = useForm<z.infer<typeof AnnotateFormSchema>>({
+  const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
       scoreData: getDefaultScoreData({
@@ -357,14 +394,13 @@ export function AnnotateDrawer({
       const { maxValue, minValue, dataType } = config;
 
       if (isNumericDataType(dataType)) {
-        if (
-          (isPresent(maxValue) && Number(field.value) > maxValue) ||
-          (isPresent(minValue) && Number(field.value) < minValue)
-        ) {
-          form.setError(`scoreData.${index}.value`, {
-            type: "custom",
-            message: `Not in range: [${minValue ?? "-∞"},${maxValue ?? "∞"}]`,
-          });
+        const formError = getFormError({
+          value: field.value,
+          maxValue,
+          minValue,
+        });
+        if (!!formError) {
+          form.setError(`scoreData.${index}.value`, formError);
           return;
         }
       }
@@ -449,7 +485,7 @@ export function AnnotateDrawer({
       </DrawerTrigger>
       <DrawerContent className="h-1/3">
         <div className="mx-auto w-full overflow-y-auto md:max-h-full">
-          <DrawerHeader className="sticky top-0 z-10 bg-background">
+          <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
             <Header
               title="Annotate"
               level="h3"
@@ -517,6 +553,8 @@ export function AnnotateDrawer({
                           (config) => config.id === score.configId,
                         );
                         if (!config) return null;
+                        const categories =
+                          (config.categories as ConfigCategory[]) ?? [];
 
                         return (
                           <div
@@ -540,7 +578,7 @@ export function AnnotateDrawer({
                                       {score.name}
                                     </span>
                                   </HoverCardTrigger>
-                                  <HoverCardContent>
+                                  <HoverCardContent className="z-20 max-h-[60vh] max-w-64 overflow-y-auto rounded border">
                                     <ScoreConfigDetails config={config} />
                                   </HoverCardContent>
                                 </HoverCard>
@@ -637,7 +675,7 @@ export function AnnotateDrawer({
                                                 </Button>
                                                 <PopoverClose asChild>
                                                   <Button
-                                                    variant="secondary"
+                                                    variant="destructive"
                                                     type="button"
                                                     size="sm"
                                                     className="text-xs"
@@ -687,7 +725,7 @@ export function AnnotateDrawer({
                                 </PopoverContent>
                               </Popover>
                             </div>
-                            <div className="grid grid-cols-[11fr,1fr] items-center">
+                            <div className="grid grid-cols-[11fr,1fr] items-center py-1">
                               <FormField
                                 control={form.control}
                                 name={`scoreData.${index}.value`}
@@ -708,20 +746,33 @@ export function AnnotateDrawer({
                                             score,
                                           })}
                                           onKeyDown={handleOnKeyDown}
+                                          onKeyUp={() => {
+                                            const formError = getFormError({
+                                              value: field.value,
+                                              maxValue: config.maxValue,
+                                              minValue: config.minValue,
+                                            });
+                                            if (!!formError) {
+                                              form.setError(
+                                                `scoreData.${index}.value`,
+                                                formError,
+                                              );
+                                            } else {
+                                              form.clearErrors(
+                                                `scoreData.${index}.value`,
+                                              );
+                                            }
+                                          }}
                                         />
                                       ) : config.categories &&
-                                        (
-                                          (config.categories as ConfigCategory[]) ??
-                                          []
-                                        ).length > 2 ? (
+                                        renderSelect(categories) ? (
                                         <Select
                                           defaultValue={score.stringValue}
                                           disabled={config.isArchived}
                                           onValueChange={handleOnValueChange(
                                             score,
                                             index,
-                                            (config.categories as ConfigCategory[]) ??
-                                              [],
+                                            categories,
                                           )}
                                         >
                                           <SelectTrigger>
@@ -730,10 +781,7 @@ export function AnnotateDrawer({
                                             </div>
                                           </SelectTrigger>
                                           <SelectContent>
-                                            {(
-                                              (config.categories as ConfigCategory[]) ??
-                                              []
-                                            ).map(
+                                            {categories.map(
                                               (category: ConfigCategory) => (
                                                 <SelectItem
                                                   key={category.value}
@@ -751,33 +799,31 @@ export function AnnotateDrawer({
                                           type="single"
                                           defaultValue={score.stringValue}
                                           disabled={config.isArchived}
-                                          className={`grid grid-cols-${((config.categories as ConfigCategory[]) ?? [])?.length}`}
+                                          className={`grid grid-cols-${categories.length}`}
                                           onValueChange={handleOnValueChange(
                                             score,
                                             index,
-                                            (config.categories as ConfigCategory[]) ??
-                                              [],
+                                            categories,
                                           )}
                                         >
-                                          {(
-                                            (config.categories as ConfigCategory[]) ??
-                                            []
-                                          ).map((category: ConfigCategory) => (
-                                            <ToggleGroupItem
-                                              key={category.value}
-                                              value={category.label}
-                                              variant="outline"
-                                              className="grid grid-flow-col gap-1 text-nowrap px-1 text-xs font-normal"
-                                            >
-                                              <span
-                                                className="truncate"
-                                                title={category.label}
+                                          {categories.map(
+                                            (category: ConfigCategory) => (
+                                              <ToggleGroupItem
+                                                key={category.value}
+                                                value={category.label}
+                                                variant="outline"
+                                                className="grid grid-flow-col gap-1 text-nowrap px-1 text-xs font-normal"
                                               >
-                                                {category.label}
-                                              </span>
-                                              <span className="text-primary/60">{`(${category.value})`}</span>
-                                            </ToggleGroupItem>
-                                          ))}
+                                                <span
+                                                  className="truncate"
+                                                  title={category.label}
+                                                >
+                                                  {category.label}
+                                                </span>
+                                                <span className="text-primary/60">{`(${category.value})`}</span>
+                                              </ToggleGroupItem>
+                                            ),
+                                          )}
                                         </ToggleGroup>
                                       )}
                                     </FormControl>
