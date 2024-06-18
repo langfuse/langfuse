@@ -35,6 +35,13 @@ import {
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
 
+export const cloudConfigSchema = z.object({
+  plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
+  monthlyObservationLimit: z.number().int().positive().optional(),
+  // used for table and dashboard queries
+  defaultLookBackDays: z.number().int().positive().optional(),
+});
+
 const staticProviders: Provider[] = [
   CredentialsProvider({
     name: "credentials",
@@ -327,6 +334,13 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     id: membership.project.id,
                     name: membership.project.name,
                     role: membership.role,
+                    cloudConfig: {
+                      defaultLookBackDays:
+                        cloudConfigSchema
+                          .nullish()
+                          .parse(membership.project.cloudConfig)
+                          ?.defaultLookBackDays ?? null,
+                    },
                   })),
                   featureFlags: parseFlags(dbUser.featureFlags),
                 }

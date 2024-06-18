@@ -20,7 +20,7 @@ import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { useSession } from "next-auth/react";
+import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 export type SessionTableRow = {
@@ -50,7 +50,6 @@ export default function SessionsTable({
   omittedFilter = [],
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
-  const session = useSession();
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [
@@ -58,9 +57,7 @@ export default function SessionsTable({
         column: "Created At",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -7,
-        ),
+        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
       },
     ],
     "sessions",
