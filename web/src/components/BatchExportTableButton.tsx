@@ -15,6 +15,7 @@ import {
 import React from "react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -48,6 +49,8 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
       description: "You will receive an email when the export is ready.",
     });
   };
+
+  if (!isEeEnabled) return null;
 
   return (
     <DropdownMenu>
