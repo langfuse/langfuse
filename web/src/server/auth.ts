@@ -304,20 +304,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             },
           },
         });
-        console.log(
-          `🚨🚨 hello world ${JSON.stringify(
-            dbUser?.projectMemberships.map((membership) => ({
-              id: membership.project.id,
-              name: membership.project.name,
-              role: membership.role,
-              cloudConfig: {
-                defaultLookBackDays: cloudConfigSchema
-                  .nullish()
-                  .parse(membership.project.cloudConfig)?.defaultLookBackDays,
-              },
-            })),
-          )}`,
-        );
+
         return {
           ...session,
           environment: {
