@@ -12,8 +12,7 @@ import {
 import { TraceBody, eventTypes, stringDate } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
-import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
-import { tracesTableCols, orderBy } from "@langfuse/shared";
+import { tracesTableCols, orderBy, orderByToPrismaSql } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 
 const GetTracesSchema = z.object({

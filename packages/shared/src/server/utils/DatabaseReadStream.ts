@@ -26,9 +26,10 @@ export class DatabaseReadStream<EntityType> extends Readable {
     // the delegate function takes care of querying the database in a paginated manner
     private queryDelegate: (
       pageSize: number,
-      offset: number,
+      offset: number
     ) => Promise<Array<EntityType>>,
     private pageSize: number,
+    private maxRecords?: number
   ) {
     super({ objectMode: true }); // Set object mode to true to allow pushing objects to the stream rather than strings or buffers
 
@@ -43,10 +44,19 @@ export class DatabaseReadStream<EntityType> extends Readable {
     this.isReading = true;
 
     try {
+      // Stop reading if the maximum number of records has been reached
+      if (this.maxRecords && this.offset >= this.maxRecords) {
+        this.hasNextPage = false;
+        this.push(null); // Signal end of stream
+
+        return;
+      }
+
       const rows = await this.queryDelegate(this.pageSize, this.offset);
+
       if (rows.length > 0) {
         rows.forEach((row) => this.push(row));
-        this.offset += rows.length;
+        this.offset += this.pageSize;
       } else {
         this.hasNextPage = false;
         this.push(null); // Signal end of stream

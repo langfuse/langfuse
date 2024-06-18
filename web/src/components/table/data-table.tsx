@@ -1,4 +1,5 @@
 "use client";
+import { type OrderByState } from "@langfuse/shared";
 
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
@@ -16,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { type OrderByState } from "@/src/features/orderBy/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {

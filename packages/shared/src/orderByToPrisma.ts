@@ -1,7 +1,9 @@
-import { type OrderByState } from "@/src/features/orderBy/types";
-import { type ColumnDefinition } from "@langfuse/shared";
-import { Prisma } from "@langfuse/shared";
 import { z } from "zod";
+
+import { Prisma } from "@prisma/client";
+
+import type { ColumnDefinition } from "./tableDefinitions/types";
+import type { OrderByState } from "./interfaces/orderBy";
 
 /**
  * Convert orderBy to SQL ORDER BY clause
@@ -11,7 +13,7 @@ import { z } from "zod";
  */
 export function orderByToPrismaSql(
   orderBy: OrderByState,
-  tableColumns: ColumnDefinition[],
+  tableColumns: ColumnDefinition[]
 ): Prisma.Sql {
   if (!orderBy) {
     return Prisma.sql`ORDER BY t.timestamp DESC NULLS LAST`;
@@ -20,7 +22,7 @@ export function orderByToPrismaSql(
   const col = tableColumns.find(
     // TODO: Only use id instead of name.
     // It's less error-prone & decouples data fetching from the human-readable UI labels
-    (c) => c.name === orderBy.column || c.id === orderBy.column,
+    (c) => c.name === orderBy.column || c.id === orderBy.column
   );
 
   if (!col) {
@@ -38,6 +40,6 @@ export function orderByToPrismaSql(
 
   // Both column and order are safe, can use raw SQL
   return Prisma.raw(
-    `ORDER BY ${col.internal} ${order.data} ${orderBy.order === "DESC" ? "NULLS LAST" : "NULLS FIRST"}`,
+    `ORDER BY ${col.internal} ${order.data} ${orderBy.order === "DESC" ? "NULLS LAST" : "NULLS FIRST"}`
   );
 }
