@@ -946,7 +946,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Configs'
+                $ref: '#/components/schemas/ScoreConfigs'
         '400':
           description: ''
           content:
@@ -1719,6 +1719,7 @@ components:
     ScoreConfig:
       title: ScoreConfig
       type: object
+      description: Configuration for a score
       properties:
         id:
           type: string
@@ -2989,8 +2990,8 @@ components:
         - prompt
       allOf:
         - $ref: '#/components/schemas/BasePrompt'
-    Configs:
-      title: Configs
+    ScoreConfigs:
+      title: ScoreConfigs
       type: object
       properties:
         data:

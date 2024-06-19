@@ -111,7 +111,8 @@ types:
       totalCost:
         docs: USD total cost, defaults to input+output
         type: optional<double>
-  ScoreConfig: 
+  ScoreConfig:
+    docs: Configuration for a score
     properties:
       id: string
       name: string
@@ -228,7 +229,7 @@ types:
       - ANNOTATION
       - API
       - EVAL
-  ScoreDataType: 
+  ScoreDataType:
     enum:
       - NUMERIC
       - BOOLEAN
