@@ -17,7 +17,8 @@ export type AuditableResource =
   | "evalTemplate"
   | "job"
   | "posthogIntegration"
-  | "llmApiKey";
+  | "llmApiKey"
+  | "batchExport";
 
 type AuditLog = {
   resourceType: AuditableResource;

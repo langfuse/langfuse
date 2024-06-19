@@ -1,14 +1,23 @@
-import express from "express";
-import emojis from "./emojis";
-import { z } from "zod";
-import logger from "../logger";
 import { Queue } from "bullmq";
-import { redis } from "../redis/redis";
 import { randomUUID } from "crypto";
+import express from "express";
 import basicAuth from "express-basic-auth";
-import { env } from "../env";
-import { QueueJobs, QueueName, TQueueJobTypes } from "@langfuse/shared";
+
+import {
+  EventBodySchema,
+  EventName,
+  QueueJobs,
+  QueueName,
+  TQueueJobTypes,
+  TraceUpsertEventType,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+
+import { env } from "../env";
+import logger from "../logger";
+import { batchExportQueue } from "../queues/batchExportQueue";
+import { redis } from "../redis";
+import emojis from "./emojis";
 
 const router = express.Router();
 
@@ -17,13 +26,6 @@ export const evalQueue = redis
       connection: redis,
     })
   : null;
-
-const eventBody = z.array(
-  z.object({
-    traceId: z.string(),
-    projectId: z.string(),
-  })
-);
 
 type EventsResponse = {
   status: "success";
@@ -69,24 +71,40 @@ router
     const { body } = req;
     logger.info(`Received events, ${JSON.stringify(body)}`);
 
-    const events = eventBody.parse(body);
+    const event = EventBodySchema.parse(body);
 
-    // Find set of traces per project. There might be two events for the same trace in one API call.
-    // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
-    const jobs = createRedisEvents(events);
+    if (event.name === EventName.TraceUpsert) {
+      // Find set of traces per project. There might be two events for the same trace in one API call.
+      // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
+      const jobs = createRedisEvents(event.payload);
+      await evalQueue?.addBulk(jobs); // add all jobs as bulk
 
-    await evalQueue?.addBulk(jobs); // add all jobs as bulk
+      return res.json({
+        status: "success",
+      });
+    }
 
-    res.json({
-      status: "success",
-    });
+    if (event.name === EventName.BatchExport) {
+      await batchExportQueue?.add(event.name, {
+        id: event.payload.batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
+        name: QueueJobs.BatchExportJob,
+        timestamp: new Date(),
+        payload: event.payload,
+      });
+
+      return res.json({
+        status: "success",
+      });
+    }
+
+    return res.status(400);
   });
 
 router.use("/emojis", emojis);
 
 export default router;
 
-export function createRedisEvents(events: z.infer<typeof eventBody>) {
+export function createRedisEvents(events: TraceUpsertEventType[]) {
   const uniqueTracesPerProject = events.reduce((acc, event) => {
     if (!acc.get(event.projectId)) {
       acc.set(event.projectId, new Set());

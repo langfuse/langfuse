@@ -6,20 +6,16 @@ import {
 } from "@/src/server/api/trpc";
 import {
   singleFilter,
-  tableColumnsToSqlFilterAndPrefix,
+  type SessionOptions,
+  getSessionTableSQL,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { paginationZod } from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
-import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type Decimal from "decimal.js";
-import {
-  type SessionOptions,
-  sessionsViewCols,
-} from "@/src/server/api/definitions/sessionsView";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -33,16 +29,7 @@ export const sessionRouter = createTRPCRouter({
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
       try {
-        const filterCondition = tableColumnsToSqlFilterAndPrefix(
-          input.filter ?? [],
-          sessionsViewCols,
-          "sessions",
-        );
-
-        const orderByCondition = orderByToPrismaSql(
-          input.orderBy,
-          sessionsViewCols,
-        );
+        const query = getSessionTableSQL(input);
 
         const sessions = await ctx.prisma.$queryRaw<
           Array<{
@@ -61,60 +48,8 @@ export const sessionRouter = createTRPCRouter({
             completionTokens: number;
             totalTokens: number;
           }>
-        >(Prisma.sql`
-        SELECT
-        s.id,
-        s. "created_at" AS "createdAt",
-        s.bookmarked,
-        s.public,
-        t. "userIds",
-        t. "countTraces",
-        o. "sessionDuration",
-        o. "totalCost" AS "totalCost",
-        o. "inputCost" AS "inputCost",
-        o. "outputCost" AS "outputCost",
-        o. "promptTokens" AS "promptTokens",
-        o. "completionTokens" AS "completionTokens",
-        o. "totalTokens" AS "totalTokens",
-        (count(*) OVER ())::int AS "totalCount"
-      FROM
-        trace_sessions AS s
-        LEFT JOIN LATERAL (
-          SELECT
-            t.session_id,
-            MAX(t. "timestamp") AS "max_timestamp",
-            MIN(t. "timestamp") AS "min_timestamp",
-            array_agg(t.id) AS "traceIds",
-            array_agg(DISTINCT t.user_id) AS "userIds",
-            count(t.id)::int AS "countTraces"
-          FROM
-            traces t
-          WHERE
-            t.project_id = ${input.projectId}
-            AND t.session_id = s.id
-          GROUP BY
-            t.session_id) AS t ON TRUE
-        LEFT JOIN LATERAL (
-          SELECT
-            EXTRACT(EPOCH FROM COALESCE(MAX(o. "end_time"), MAX(o. "start_time"), t. "max_timestamp")) - EXTRACT(EPOCH FROM COALESCE(MIN(o. "start_time"), t. "min_timestamp"))::double precision AS "sessionDuration",
-            SUM(COALESCE(o. "calculated_input_cost", 0)) AS "inputCost",
-            SUM(COALESCE(o. "calculated_output_cost", 0)) AS "outputCost",
-            SUM(COALESCE(o. "calculated_total_cost", 0)) AS "totalCost",
-            SUM(o.prompt_tokens) AS "promptTokens",
-            SUM(o.completion_tokens) AS "completionTokens",
-            SUM(o.total_tokens) AS "totalTokens"
-          FROM
-            observations_view o
-          WHERE
-            o.project_id = ${input.projectId}
-            AND o.trace_id = ANY (t. "traceIds")) AS o ON TRUE
-      WHERE
-        s. "project_id" = ${input.projectId}
-        ${filterCondition}
-      ${orderByCondition}
-      LIMIT ${input.limit}
-      OFFSET ${input.page * input.limit}
-    `);
+        >(query);
+
         return sessions.map((s) => ({
           ...s,
           userIds: (s.userIds?.filter((t) => t !== null) ?? []) as string[],

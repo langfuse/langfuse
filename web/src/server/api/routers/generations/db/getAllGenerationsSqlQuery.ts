@@ -3,7 +3,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   observationsTableCols,
 } from "@langfuse/shared";
-import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { orderByToPrismaSql } from "@langfuse/shared";
 import { type ObservationView, Prisma } from "@langfuse/shared/src/db";
 import { prisma } from "@langfuse/shared/src/db";
 import { type GetAllGenerationsInput } from "../getAllQuery";

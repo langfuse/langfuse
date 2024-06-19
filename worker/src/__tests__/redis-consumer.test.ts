@@ -1,10 +1,10 @@
 import { expect, test, describe, vi } from "vitest";
 import { evalQueue } from "../api";
-import { QueueJobs, TraceUpsertEvent } from "@langfuse/shared";
+import { QueueJobs, TraceUpsertEventSchema } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import logger from "../logger";
-import { evalJobCreator } from "../redis/consumer";
+import { evalJobCreator } from "../queues/evalQueue";
 
 describe.sequential("handle redis events", () => {
   test("handle redis job succeeding", async () => {
@@ -12,7 +12,7 @@ describe.sequential("handle redis events", () => {
       createEvalJobs: async ({
         data,
       }: {
-        data: z.infer<typeof TraceUpsertEvent>;
+        data: z.infer<typeof TraceUpsertEventSchema>;
       }) => {
         return true;
       },

@@ -12,7 +12,7 @@ import { parseArgs } from "node:util";
 import { chunk } from "lodash";
 import { v4 } from "uuid";
 import { ModelUsageUnit } from "../src";
-import { getDisplaySecretKey, hashSecretKey } from "../src/server/auth";
+import { getDisplaySecretKey, hashSecretKey } from "../src/server";
 import { encrypt } from "../src/encryption";
 
 const LOAD_TRACE_VOLUME = 10_000;

@@ -17,9 +17,9 @@
       "import": "./dist/src/db.js",
       "require": "./dist/src/db.js"
     },
-    "./src/server/auth": {
-      "import": "./dist/src/server/auth.js",
-      "require": "./dist/src/server/auth.js"
+    "./src/server": {
+      "import": "./dist/src/server/index.js",
+      "require": "./dist/src/server/index.js"
     },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
@@ -44,16 +44,22 @@
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.550.0",
+    "@aws-sdk/lib-storage": "^3.568.0",
+    "@aws-sdk/s3-request-presigner": "^3.554.0",
     "@langchain/anthropic": "^0.1.21",
     "@langchain/core": "^0.1.61",
     "@langchain/openai": "^0.0.33",
     "@prisma/client": "^5.13.0",
+    "@react-email/components": "^0.0.19",
+    "@react-email/render": "^0.0.15",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "kysely": "^0.27.3",
     "langchain": "^0.1.36",
     "lodash": "^4.17.21",
     "next-auth": "^4.24.7",
+    "nodemailer": "^6.9.13",
     "prisma-extension-kysely": "^2.1.0",
     "zod": "^3.22.4",
     "zod-to-json-schema": "^3.22.5"
@@ -63,6 +69,7 @@
     "@repo/typescript-config": "*",
     "@types/lodash": "^4.17.5",
     "@types/node": "^20.11.29",
+    "@types/nodemailer": "^6.4.15",
     "@types/pg": "^8.11.6",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.12.0",
@@ -80,5 +87,9 @@
     "tsc-watch": "^6.2.0",
     "typescript": "^5.4.5",
     "vitest": "^1.5.3"
+  },
+  "peerDependencies": {
+    "@types/react": "^18.2.79",
+    "react": "^18.0.0"
   }
 }

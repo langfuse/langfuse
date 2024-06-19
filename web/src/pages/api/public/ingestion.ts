@@ -10,6 +10,9 @@ import {
   type ingestionApiSchema,
   eventTypes,
   ingestionEvent,
+  type TraceUpsertEventType,
+  type EventBodyType,
+  EventName,
 } from "@langfuse/shared";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
@@ -446,17 +449,22 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      const traceEvents = batchResults
+      const traceEvents: TraceUpsertEventType[] = batchResults
         .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
         .map((result) =>
           result.result &&
           typeof result.result === "object" &&
           "id" in result.result
             ? // ingestion API only gets traces for one projectId
-              { traceId: result.result.id, projectId: projectId }
+              { traceId: result.result.id as string, projectId }
             : null,
         )
         .filter(isNotNullOrUndefined);
+
+      const body: EventBodyType = {
+        name: EventName.TraceUpsert,
+        payload: traceEvents,
+      };
 
       if (traceEvents.length > 0) {
         await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
@@ -469,7 +477,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
                 "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
               ).toString("base64"),
           },
-          body: JSON.stringify(traceEvents),
+          body: JSON.stringify(body),
         });
       }
     }
