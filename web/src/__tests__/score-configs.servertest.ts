@@ -120,4 +120,25 @@ describe("/api/public/score-configs API Endpoint", () => {
       updatedAt: "2024-05-11T00:00:00.000Z",
     });
   });
+
+  it("should return 500 when hitting corrupted score config", async () => {
+    const configId = "corrupted-config-id";
+
+    await prisma.scoreConfig.create({
+      data: {
+        ...configThree[0],
+        id: configId,
+        categories: "invalid-categories",
+      },
+    });
+
+    const getScoreConfig = await makeAPICall<{
+      message: string;
+    }>("GET", `/api/public/score-configs/${configId}`);
+
+    expect(getScoreConfig.status).toBe(500);
+    expect(getScoreConfig.body).toMatchObject({
+      message: "Internal Server Error",
+    });
+  });
 });
