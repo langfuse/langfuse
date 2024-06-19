@@ -114,6 +114,8 @@ export const handleBatchExportJob = async (
   const fileExtension =
     exportOptions[jobDetails.format as BatchExportFileFormat].extension;
   const fileName = `${fileDate}-lf-${tableName}-export-${projectId}.${fileExtension}`;
+  const expiresInSeconds =
+    env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS * 3600;
 
   const { signedUrl } = await new S3StorageService({
     accessKeyId,
@@ -126,6 +128,7 @@ export const handleBatchExportJob = async (
     fileType:
       exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
     data: fileStream,
+    expiresInSeconds,
   });
 
   logger.info(`Batch export file uploaded to S3`);
@@ -140,10 +143,7 @@ export const handleBatchExportJob = async (
       status: BatchExportStatus.COMPLETED,
       url: signedUrl,
       finishedAt: new Date(),
-      expiresAt: new Date(
-        Date.now() +
-          env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS * 3600 * 1000
-      ),
+      expiresAt: new Date(Date.now() + expiresInSeconds * 1000),
     },
   });
 

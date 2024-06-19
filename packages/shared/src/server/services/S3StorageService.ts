@@ -7,7 +7,7 @@ type UploadFile = {
   fileName: string;
   fileType: string;
   data: Readable | string;
-  expiresInMinutes?: number;
+  expiresInSeconds: number;
 };
 
 export class S3StorageService {
@@ -39,7 +39,7 @@ export class S3StorageService {
     fileName,
     fileType,
     data,
-    expiresInMinutes,
+    expiresInSeconds,
   }: UploadFile): Promise<{ signedUrl: string }> {
     try {
       await new Upload({
@@ -52,8 +52,7 @@ export class S3StorageService {
         },
       }).done();
 
-      const expiresIn = (expiresInMinutes ?? 60) * 60; // Convert minutes to seconds, default to 1 hour
-      const signedUrl = await this.getSignedUrl(fileName, expiresIn);
+      const signedUrl = await this.getSignedUrl(fileName, expiresInSeconds);
 
       return { signedUrl };
     } catch (err) {
