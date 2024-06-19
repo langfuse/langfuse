@@ -4,9 +4,9 @@ import {
   observationsTableCols,
   tracesTableCols,
   singleFilter,
+  sessionsViewCols,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
-import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
 import { useState } from "react";
 import {
   useQueryParam,

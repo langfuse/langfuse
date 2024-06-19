@@ -32,6 +32,8 @@ const scopes = [
 
   "models:CUD",
 
+  "batchExport:create",
+
   "evalTemplate:create",
   "evalTemplate:read",
   "evalJob:read",
@@ -77,6 +79,7 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "llmApiKeys:read",
     "llmApiKeys:create",
     "llmApiKeys:delete",
+    "batchExport:create",
   ],
   ADMIN: [
     "project:update",
@@ -106,6 +109,7 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "llmApiKeys:read",
     "llmApiKeys:create",
     "llmApiKeys:delete",
+    "batchExport:create",
   ],
   MEMBER: [
     "members:read",
@@ -125,6 +129,7 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "evalJob:CUD",
     "evalJobExecution:read",
     "llmApiKeys:read",
+    "batchExport:create",
   ],
   VIEWER: [
     "prompts:read",

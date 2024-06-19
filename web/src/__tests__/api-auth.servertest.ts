@@ -1,7 +1,7 @@
 import {
   getDisplaySecretKey,
   hashSecretKey,
-} from "@langfuse/shared/src/server/auth";
+} from "@langfuse/shared/src/server";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { prisma } from "@langfuse/shared/src/db";
 

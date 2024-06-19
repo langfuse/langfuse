@@ -6,3 +6,5 @@ export const orderBy = z
     order: z.enum(["ASC", "DESC"]),
   })
   .nullable();
+
+export type OrderByState = z.infer<typeof orderBy>;

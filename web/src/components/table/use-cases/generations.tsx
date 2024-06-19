@@ -38,7 +38,7 @@ import { LevelColors } from "@/src/components/level-colors";
 import { usdFormatter } from "@/src/utils/numbers";
 import {
   exportOptions,
-  type ExportFileFormats,
+  type BatchExportFileFormat,
   observationsTableColsWithOptions,
 } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -47,7 +47,7 @@ import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAl
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useSession } from "next-auth/react";
+import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 
 export type GenerationsTableRow = {
   id: string;
@@ -93,7 +93,6 @@ export default function GenerationsTable({
   promptVersion,
   omittedFilter = [],
 }: GenerationsTableProps) {
-  const session = useSession();
   const capture = usePostHogClientCapture();
   const [isExporting, setIsExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -117,9 +116,7 @@ export default function GenerationsTable({
         column: "Start Time",
         type: "datetime",
         operator: ">",
-        value: localtimeDateOffsetByDays(
-          session.data?.environment.defaultTableDateTimeOffset ?? -7,
-        ),
+        value: localtimeDateOffsetByDays(-useLookBackDays(projectId)),
       },
     ],
     "generations",
@@ -189,15 +186,11 @@ export default function GenerationsTable({
     );
   };
 
-  const handleExport = async (fileFormat: ExportFileFormats) => {
+  const handleExport = async (fileFormat: BatchExportFileFormat) => {
     if (isExporting) return;
 
     setIsExporting(true);
     capture("generations:export", { file_format: fileFormat });
-    if (fileFormat === "OPENAI-JSONL")
-      alert(
-        "When exporting in OpenAI-JSONL, only generations that exactly match the `ChatML` format will be exported. For any questions, reach out to support.",
-      );
     try {
       const fileData = await directApi.generations.export.query({
         projectId,
@@ -676,7 +669,9 @@ export default function GenerationsTable({
                 <DropdownMenuItem
                   key={key}
                   className="capitalize"
-                  onClick={() => void handleExport(key as ExportFileFormats)}
+                  onClick={() =>
+                    void handleExport(key as BatchExportFileFormat)
+                  }
                 >
                   as {options.label}
                 </DropdownMenuItem>

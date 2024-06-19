@@ -36,6 +36,9 @@ declare module "next-auth" {
       id: PrismaProject["id"];
       name: PrismaProject["name"];
       role: PrismaMembership["role"];
+      cloudConfig: {
+        defaultLookBackDays: number | null;
+      };
     }[];
     featureFlags: Flags;
   }
