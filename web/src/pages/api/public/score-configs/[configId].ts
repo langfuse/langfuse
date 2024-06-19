@@ -4,7 +4,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { type CastedConfig } from "@langfuse/shared";
+import { isCastedConfig } from "@/src/features/manual-scoring/lib/helpers";
 
 const ConfigSchema = z.object({
   configId: z.string(),
@@ -51,9 +51,14 @@ export default async function handler(
         });
       }
 
-      const castedConfig = config as CastedConfig;
-
-      return res.status(200).json(castedConfig);
+      if (isCastedConfig(config)) {
+        return res.status(200).json(config);
+      } else {
+        return res.status(500).json({
+          message: "Internal Server Error",
+          error: "Invalid config format encountered",
+        });
+      }
     } catch (error: unknown) {
       console.error(error);
       if (isPrismaException(error)) {

@@ -1,11 +1,12 @@
 import { type CastedConfig, paginationZod } from "@langfuse/shared";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
-import { Prisma, type ScoreConfig } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { isCastedConfig } from "@/src/features/manual-scoring/lib/helpers";
 
 const ScoreConfigsGetSchema = z.object({
   ...paginationZod,
@@ -42,7 +43,7 @@ export default async function handler(
 
       const obj = ScoreConfigsGetSchema.parse(req.query);
 
-      const configs = await prisma.scoreConfig.findMany({
+      const rawConfigs = await prisma.scoreConfig.findMany({
         where: {
           projectId: authCheck.scope.projectId,
         },
@@ -52,6 +53,15 @@ export default async function handler(
         take: obj.limit,
         skip: (obj.page - 1) * obj.limit,
       });
+
+      const configs: CastedConfig[] = rawConfigs.filter(isCastedConfig);
+
+      if (configs.length !== rawConfigs.length) {
+        return res.status(500).json({
+          message: "Internal Server Error",
+          error: "Invalid config format encountered",
+        });
+      }
 
       const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>(
         Prisma.sql`

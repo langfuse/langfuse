@@ -85,8 +85,8 @@ describe("/api/public/score-configs API Endpoint", () => {
     });
   });
 
-  it("test invalid config id input", async () => {
-    const configId = "invalid-config-id";
+  it("test non-existent config id input", async () => {
+    const configId = "non-existent-config-id";
 
     const getScoreConfig = await makeAPICall<{
       message: string;
@@ -118,6 +118,27 @@ describe("/api/public/score-configs API Endpoint", () => {
       isArchived: false,
       createdAt: "2024-05-11T00:00:00.000Z",
       updatedAt: "2024-05-11T00:00:00.000Z",
+    });
+  });
+
+  it("should return 500 when hitting invalid score config", async () => {
+    const configId = "invalid-config-id";
+
+    await prisma.scoreConfig.create({
+      data: {
+        ...configThree[0],
+        id: configId,
+        categories: "invalid-categories",
+      },
+    });
+
+    const getScoreConfig = await makeAPICall<{
+      message: string;
+    }>("GET", `/api/public/score-configs/${configId}`);
+
+    expect(getScoreConfig.status).toBe(500);
+    expect(getScoreConfig.body).toMatchObject({
+      message: "Internal Server Error",
     });
   });
 });
