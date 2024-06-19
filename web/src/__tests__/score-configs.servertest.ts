@@ -85,8 +85,8 @@ describe("/api/public/score-configs API Endpoint", () => {
     });
   });
 
-  it("test non-existent config id input", async () => {
-    const configId = "non-existent-config-id";
+  it("test invalid config id input", async () => {
+    const configId = "invalid-config-id";
 
     const getScoreConfig = await makeAPICall<{
       message: string;
@@ -121,8 +121,8 @@ describe("/api/public/score-configs API Endpoint", () => {
     });
   });
 
-  it("should return 500 when hitting invalid score config", async () => {
-    const configId = "invalid-config-id";
+  it("should return 500 when hitting corrupted score config", async () => {
+    const configId = "corrupted-config-id";
 
     await prisma.scoreConfig.create({
       data: {
