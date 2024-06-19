@@ -42,19 +42,16 @@ export default async function handler(
 
       const obj = ScoreConfigsGetSchema.parse(req.query);
 
-      const skipValue = (obj.page - 1) * obj.limit;
-
-      const configs = (await prisma.$queryRaw<Array<ScoreConfig>>(Prisma.sql`
-          SELECT
-            *
-          FROM 
-            "score_configs" AS sc
-          WHERE 
-            sc.project_id = ${authCheck.scope.projectId}
-          ORDER BY 
-            sc."created_at" DESC
-          LIMIT ${obj.limit} OFFSET ${skipValue}
-          `)) as CastedConfig[];
+      const configs = await prisma.scoreConfig.findMany({
+        where: {
+          projectId: authCheck.scope.projectId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: obj.limit,
+        skip: (obj.page - 1) * obj.limit,
+      });
 
       const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>(
         Prisma.sql`
