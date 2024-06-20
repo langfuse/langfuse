@@ -83,6 +83,7 @@ export const generationsExportQuery = protectedProjectProcedure
         fileName,
         fileType: exportOptions[input.fileFormat].fileType,
         data: fileStream,
+        expiresInSeconds: 60 * 60, // 1 hour
       });
 
       return {
