@@ -42,6 +42,7 @@ import {
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useDateRange } from "@/src/components/useDateRange";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -92,15 +93,11 @@ export default function TracesTable({
     withDefault(StringParam, null),
   );
 
+  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
+    localtimeDateOffsetByDays(-useLookBackDays(projectId)),
+  );
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Timestamp",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useLookBackDays(projectId)),
-      },
-    ],
+    [],
     "traces",
   );
   const [orderByState, setOrderByState] = useOrderByState({
@@ -124,6 +121,7 @@ export default function TracesTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
   const tracesAllQueryFilter = {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
@@ -132,6 +130,8 @@ export default function TracesTable({
     searchQuery,
     orderBy: orderByState,
     returnIO: false,
+    from: dateRange?.from ?? null,
+    to: dateRange?.to ?? null,
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
 
@@ -633,6 +633,8 @@ export default function TracesTable({
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
         columns={columns}
