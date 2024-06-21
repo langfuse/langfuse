@@ -25,6 +25,7 @@ import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useDateRange } from "@/src/components/useDateRange";
 
 export type SessionTableRow = {
   id: string;
@@ -53,16 +54,12 @@ export default function SessionsTable({
   omittedFilter = [],
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
+  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
+    localtimeDateOffsetByDays(-useLookBackDays(projectId)),
+  );
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Created At",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useLookBackDays(projectId)),
-      },
-    ],
+    [],
     "sessions",
   );
 
@@ -95,6 +92,8 @@ export default function SessionsTable({
     projectId,
     filter: filterState,
     orderBy: orderByState,
+    from: dateRange?.from ?? null,
+    to: dateRange?.to ?? null,
   });
 
   const filterOptions = api.sessions.filterOptions.useQuery(
@@ -354,6 +353,8 @@ export default function SessionsTable({
             key="batchExport"
           />,
         ]}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
         columnsWithCustomSelect={["userIds"]}
       />
       <DataTable
