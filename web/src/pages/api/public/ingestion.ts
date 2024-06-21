@@ -62,6 +62,31 @@ export default async function handler(
 
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
+    // with a chance defined by the environment variable, forward the request to another URL
+    const redirectProbability = env.LANGFUSE_REDIRECT_PROBABILITY
+      ? env.LANGFUSE_REDIRECT_PROBABILITY
+      : undefined;
+    const redirectUrl = env.LANGFUSE_REDIRECT_URL;
+
+    if (
+      redirectProbability &&
+      redirectUrl &&
+      Math.random() < redirectProbability
+    ) {
+      const requestHeaders: HeadersInit = new Headers();
+      for (const [key, value] of Object.entries(req.headers)) {
+        requestHeaders.set(key, value as string);
+      }
+
+      const response = await fetch(redirectUrl, {
+        method: "POST",
+        headers: requestHeaders,
+        body: JSON.stringify(req.body),
+      });
+      const data = await response.json();
+      return res.status(response.status).json(data);
+    }
+
     // CHECK AUTH FOR ALL EVENTS
     const authCheck = await verifyAuthHeaderAndReturnScope(
       req.headers.authorization,

@@ -87,8 +87,14 @@ export const env = createEnv({
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
     // EMAIL
-    EMAIL_FROM_ADDRESS: z.string().optional().transform((v) => v === "" ? undefined : v),
-    SMTP_CONNECTION_URL: z.string().optional().transform((v) => v === "" ? undefined : v),
+    EMAIL_FROM_ADDRESS: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    SMTP_CONNECTION_URL: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
     // S3
     S3_ENDPOINT: z.string().optional(),
     S3_ACCESS_KEY_ID: z.string().optional(),
@@ -105,6 +111,9 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+    // Langfuse Maintenance
+    LANGFUSE_REDIRECT_PROBABILITY: z.number().optional(),
+    LANGFUSE_REDIRECT_URL: z.string().optional(),
   },
 
   /**
@@ -222,6 +231,9 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
+    // Langfuse Maintenance
+    LANGFUSE_REDIRECT_PROBABILITY: process.env.LANGFUSE_REDIRECT_PROBABILITY,
+    LANGFUSE_REDIRECT_URL: process.env.LANGFUSE_REDIRECT_URL,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
