@@ -48,6 +48,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useDateRange } from "@/src/components/useDateRange";
 
 export type GenerationsTableRow = {
   id: string;
@@ -110,15 +111,12 @@ export default function GenerationsTable({
     "s",
   );
 
+  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
+    localtimeDateOffsetByDays(-useLookBackDays(projectId)),
+  );
+
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Start Time",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useLookBackDays(projectId)),
-      },
-    ],
+    [],
     "generations",
   );
 
@@ -161,6 +159,8 @@ export default function GenerationsTable({
     filter: filterState,
     orderBy: orderByState,
     searchQuery,
+    from: dateRange?.from ?? null,
+    to: dateRange?.to ?? null,
   });
 
   const totalCount = generations.data?.totalCount ?? 0;
@@ -198,6 +198,8 @@ export default function GenerationsTable({
         filter: filterState,
         searchQuery,
         orderBy: orderByState,
+        from: dateRange?.from ?? null,
+        to: dateRange?.to ?? null,
       });
 
       let url: string;
@@ -647,6 +649,8 @@ export default function GenerationsTable({
         setColumnVisibility={setColumnVisibilityState}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
