@@ -6,7 +6,7 @@ services:
       dockerfile: ./web/Dockerfile
       context: .
       args:
-        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:-null}
+        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
     depends_on:
       - db
       - redis
@@ -33,7 +33,7 @@ services:
       dockerfile: ./worker/Dockerfile
       context: .
       args:
-        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:-null}
+        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
     depends_on:
       - db
       - redis
