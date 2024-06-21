@@ -20,6 +20,7 @@ import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useDateRange } from "@/src/components/useDateRange";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -35,14 +36,7 @@ export default function UsersPage() {
   const projectId = router.query.projectId as string;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "timestamp",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useLookBackDays(projectId)),
-      },
-    ],
+    [],
     "users",
   );
 
@@ -53,10 +47,16 @@ export default function UsersPage() {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
+    localtimeDateOffsetByDays(-useLookBackDays(projectId)),
+  );
+
   const users = api.users.all.useQuery({
     filter: userFilterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    from: dateRange?.from ?? null,
+    to: dateRange?.to ?? null,
     projectId,
   });
 
@@ -234,6 +234,8 @@ export default function UsersPage() {
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         columns={columns}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
         columns={columns}
