@@ -1,5 +1,3 @@
-version: "3.5"
-
 services:
   langfuse-server:
     image: langfuse/langfuse:2
