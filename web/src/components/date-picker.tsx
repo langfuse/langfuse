@@ -11,26 +11,15 @@ import {
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { type DateRange } from "react-day-picker";
-import { addMinutes, format } from "date-fns";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { format } from "date-fns";
 import { useEffect, useState } from "react";
-import {
-  type DateTimeAggregationOption,
-  dateTimeAggregationSettings,
-  dateTimeAggregationOptions,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useMediaQuery } from "react-responsive";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
-import { isValidOption } from "@/src/utils/types";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { type TimeValue } from "react-aria";
 import { TimePicker } from "@/src/components/ui/time-picker";
+import DateRangeDropdown from "@/src/components/DateRangeDropdown";
 
 export const DEFAULT_DATE_RANGE_SELECTION = "Date range" as const;
 export type AvailableDateRangeSelections =
@@ -134,21 +123,6 @@ export function DatePickerWithRange({
     setInternalDateRange(dateRange);
   }, [dateRange]);
 
-  const onDropDownSelection = (value: string) => {
-    if (isValidOption(value)) {
-      const setting = dateTimeAggregationSettings[value];
-      const fromDate = addMinutes(new Date(), -1 * setting.minutes);
-
-      setDateRangeAndOption(value, {
-        from: fromDate,
-        to: new Date(),
-      });
-      setInternalDateRange({ from: fromDate, to: new Date() });
-    } else {
-      setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, undefined);
-    }
-  };
-
   const onCalendarSelection = (range?: DateRange) => {
     const newRange = range
       ? {
@@ -209,24 +183,10 @@ export function DatePickerWithRange({
           />
         </PopoverContent>
       </Popover>
-      <Select value={selectedOption} onValueChange={onDropDownSelection}>
-        <SelectTrigger className="w-[120px]  hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
-          <SelectValue placeholder="Select" />
-        </SelectTrigger>
-        <SelectContent position="popper" defaultValue={60}>
-          <SelectItem
-            key={DEFAULT_DATE_RANGE_SELECTION}
-            value={DEFAULT_DATE_RANGE_SELECTION}
-          >
-            {DEFAULT_DATE_RANGE_SELECTION}
-          </SelectItem>
-          {dateTimeAggregationOptions.toReversed().map((item) => (
-            <SelectItem key={item} value={item}>
-              {item}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <DateRangeDropdown
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
+      />
     </div>
   );
 }
