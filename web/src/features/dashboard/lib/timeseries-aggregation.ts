@@ -13,14 +13,16 @@ export const dateTimeAggregationOptions = [
 export type DateTimeAggregationOption =
   (typeof dateTimeAggregationOptions)[number];
 
-export const dateTimeAggregationSettings: Record<
+export type DateTimeAggregationSettings = Record<
   DateTimeAggregationOption,
   {
     date_trunc: "year" | "month" | "week" | "day" | "hour" | "minute";
     date_formatter: (date: Date) => string;
     minutes: number;
   }
-> = {
+>;
+
+export const dateTimeAggregationSettings: DateTimeAggregationSettings = {
   "1 year": {
     date_trunc: "month",
     date_formatter: (date) =>
