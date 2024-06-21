@@ -49,6 +49,12 @@ export async function getAllGenerations({
     observationsTableCols,
   );
 
+  const dateRangeCondition =
+    input.from && input.to
+      ? Prisma.sql`
+    AND start_time >= ${input.from} AND start_time <= ${input.to} `
+      : Prisma.empty;
+
   // to improve query performance, add timeseries filter to observation queries as well
   const startTimeFilter = input.filter.find(
     (f) => f.column === "start_time" && f.type === "datetime",
@@ -61,6 +67,7 @@ export async function getAllGenerations({
           startTimeFilter.value,
         )
       : Prisma.empty;
+  const combinedDateCondition = Prisma.sql`${dateRangeCondition} ${datetimeFilter}`;
 
   const query = Prisma.sql`
       WITH scores_avg AS (
@@ -127,7 +134,7 @@ export async function getAllGenerations({
       WHERE
         o.project_id = ${input.projectId}
         AND o.type = 'GENERATION'
-        ${datetimeFilter}
+        ${combinedDateCondition}
         ${searchCondition}
         ${filterCondition}
         ${orderByCondition}
@@ -162,5 +169,6 @@ export async function getAllGenerations({
     datetimeFilter,
     searchCondition,
     filterCondition,
+    dateRangeCondition,
   };
 }
