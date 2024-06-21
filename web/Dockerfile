@@ -33,6 +33,14 @@ RUN pnpm install --frozen-lockfile
 
 ENV DOCKER_BUILD 1
 
+# pass public variables in build step
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ARG NEXT_PUBLIC_DEMO_PROJECT_ID
+ARG NEXT_PUBLIC_SIGN_UP_DISABLED
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_HOST
+ARG NEXT_PUBLIC_CRISP_WEBSITE_ID
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
