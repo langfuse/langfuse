@@ -25,6 +25,7 @@ import { orderByToPrismaSql } from "@langfuse/shared";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { times } from "lodash";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -32,6 +33,8 @@ const TraceFilterOptions = z.object({
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
   returnIO: z.boolean().default(true),
+  from: z.date().nullable(),
+  to: z.date().nullable(),
   ...paginationZod,
 });
 
@@ -79,6 +82,13 @@ export const traceRouter = createTRPCRouter({
       )`
         : Prisma.empty;
 
+      const dateRangeCondition =
+        !!timeseriesFilter && input.from && input.to
+          ? Prisma.sql`
+        AND t."created_at" >= ${input.from} AND t."created_at" <= ${input.to}
+      `
+          : Prisma.empty;
+
       const tracesQuery = createTracesQuery(
         Prisma.sql`t.*,
           t."user_id" AS "userId",
@@ -102,6 +112,7 @@ export const traceRouter = createTRPCRouter({
         input.limit,
         searchCondition,
         filterCondition,
+        dateRangeCondition,
         orderByCondition,
       );
 
@@ -133,6 +144,7 @@ export const traceRouter = createTRPCRouter({
         0,
         1,
         searchCondition,
+        dateRangeCondition,
         filterCondition,
         Prisma.empty,
       );
@@ -501,6 +513,7 @@ function createTracesQuery(
   page: number,
   limit: number,
   searchCondition: Prisma.Sql,
+  dateRangeCondition: Prisma.Sql,
   filterCondition: Prisma.Sql,
   orderByCondition: Prisma.Sql,
 ) {
@@ -560,6 +573,7 @@ function createTracesQuery(
   WHERE 
     t."project_id" = ${projectId}
     ${searchCondition}
+    ${dateRangeCondition}
     ${filterCondition}
   ${orderByCondition}
   LIMIT ${limit}
