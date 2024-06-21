@@ -36,8 +36,13 @@ export type ObservationViewWithScores = ObservationView & {
 export const getAllQuery = protectedProjectProcedure
   .input(getAllGenerationsInput)
   .query(async ({ input, ctx }) => {
-    const { generations, datetimeFilter, filterCondition, searchCondition } =
-      await getAllGenerations({ input, selectIO: false });
+    const {
+      generations,
+      datetimeFilter,
+      filterCondition,
+      searchCondition,
+      dateRangeCondition,
+    } = await getAllGenerations({ input, selectIO: false });
 
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>
@@ -71,6 +76,7 @@ export const getAllQuery = protectedProjectProcedure
         ${datetimeFilter}
         ${searchCondition}
         ${filterCondition}
+        ${dateRangeCondition}
     `,
     );
     const count = totalGenerations[0]?.count;
