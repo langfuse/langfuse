@@ -5,6 +5,7 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
+import { useDateRange } from "@/src/components/useDateRange";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
@@ -83,16 +84,12 @@ export default function ScoresTable({
   });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
+  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
+    localtimeDateOffsetByDays(-useLookBackDays(projectId)),
+  );
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Timestamp",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useLookBackDays(projectId)),
-      },
-    ],
+    [],
     "scores",
   );
 
@@ -113,6 +110,8 @@ export default function ScoresTable({
     projectId,
     filter: filterState,
     orderBy: orderByState,
+    from: dateRange?.from ?? null,
+    to: dateRange?.to ?? null,
   });
   const totalCount = scores.data?.totalCount ?? 0;
 
@@ -347,6 +346,8 @@ export default function ScoresTable({
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
         columns={columns}
