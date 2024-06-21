@@ -7,4 +7,6 @@ export const GenerationTableOptions = z.object({
   filter: z.array(singleFilter),
   searchQuery: z.string().nullable(),
   orderBy: orderBy,
+  from: z.date().nullable(),
+  to: z.date().nullable(),
 });
