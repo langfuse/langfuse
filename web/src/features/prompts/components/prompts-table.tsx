@@ -22,6 +22,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useDateRange } from "@/src/components/useDateRange";
 
 type PromptTableRow = {
   name: string;
@@ -44,6 +45,8 @@ export function PromptTable() {
 
   const [filterState, setFilterState] = useQueryFilterState([], "prompts");
 
+  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange();
+
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
     order: "DESC",
@@ -60,6 +63,8 @@ export function PromptTable() {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       filter: filterState,
       orderBy: orderByState,
+      from: dateRange?.from ?? null,
+      to: dateRange?.to ?? null,
     },
     {
       enabled: Boolean(projectId),
@@ -208,6 +213,8 @@ export function PromptTable() {
               projectId: projectId as string,
               filter: filterState,
               orderBy: orderByState,
+              from: dateRange?.from || null,
+              to: dateRange?.to || null,
             }}
           />
         );
@@ -233,6 +240,8 @@ export function PromptTable() {
         )}
         filterState={filterState}
         setFilterState={setFilterState}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
           <Link href={`/project/${projectId}/prompts/new`}>
             <Button
