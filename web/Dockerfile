@@ -33,6 +33,9 @@ RUN pnpm install --frozen-lockfile
 
 ENV DOCKER_BUILD 1
 
+# Pass the NEXT_PUBLIC_LANGFUSE_CLOUD_REGION as build arg
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ENV NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
