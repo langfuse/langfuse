@@ -714,6 +714,81 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Score Configs",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get all score configs",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/score-configs?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page number, starts at 1."
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get By Id",
+          "request": {
+            "description": "Get a score config",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/score-configs/:configId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs",
+                ":configId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "configId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a score config"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Score",
       "item": [
         {

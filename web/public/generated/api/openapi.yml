@@ -928,6 +928,108 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreatePromptRequest'
+  /api/public/score-configs:
+    get:
+      description: Get all score configs
+      operationId: scoreConfigs_get
+      tags:
+        - ScoreConfigs
+      parameters:
+        - name: page
+          in: query
+          description: Page number, starts at 1.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreConfigs'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/score-configs/{configId}:
+    get:
+      description: Get a score config
+      operationId: scoreConfigs_get-by-id
+      tags:
+        - ScoreConfigs
+      parameters:
+        - name: configId
+          in: path
+          description: The unique langfuse identifier of a score config
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreConfig'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/scores:
     post:
       description: Create a score
@@ -1625,6 +1727,63 @@ components:
           format: double
           nullable: true
           description: USD total cost, defaults to input+output
+    ScoreConfig:
+      title: ScoreConfig
+      type: object
+      description: Configuration for a score
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        projectId:
+          type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        isArchived:
+          type: boolean
+        minValue:
+          type: number
+          format: double
+          nullable: true
+        maxValue:
+          type: number
+          format: double
+          nullable: true
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfigCategory'
+          nullable: true
+        description:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+        - projectId
+        - dataType
+        - isArchived
+    ConfigCategory:
+      title: ConfigCategory
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+        label:
+          type: string
+      required:
+        - value
+        - label
     Score:
       title: Score
       type: object
@@ -1867,6 +2026,13 @@ components:
         - ANNOTATION
         - API
         - EVAL
+    ScoreDataType:
+      title: ScoreDataType
+      type: string
+      enum:
+        - NUMERIC
+        - BOOLEAN
+        - CATEGORICAL
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest
       type: object
@@ -2837,6 +3003,19 @@ components:
         - prompt
       allOf:
         - $ref: '#/components/schemas/BasePrompt'
+    ScoreConfigs:
+      title: ScoreConfigs
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreConfig'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
