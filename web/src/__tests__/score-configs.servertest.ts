@@ -55,17 +55,16 @@ const configThree = [
 ];
 
 describe("/api/public/score-configs API Endpoint", () => {
-  let should_prune_db = true;
   beforeAll(
     async () => {
-      if (should_prune_db) await pruneDatabase();
+      await pruneDatabase();
 
       await prisma.scoreConfig.createMany({
         data: [...configOne, ...configTwo, ...configThree],
       });
     },
     afterAll(async () => {
-      if (should_prune_db) await pruneDatabase();
+      await pruneDatabase();
     }),
   );
 
