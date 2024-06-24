@@ -9,6 +9,7 @@ const createRedisClient = () => {
       port: env.REDIS_PORT,
       password: env.REDIS_AUTH,
       maxRetriesPerRequest: null, // Set to `null` to disable retrying
+      tls: env.REDIS_TLS === "true" ? {} : undefined,
     });
   } catch (e) {
     logger.error(e, "Failed to connect to redis");
