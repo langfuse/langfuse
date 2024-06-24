@@ -5,11 +5,11 @@ import logger from "./logger";
 const createRedisClient = () => {
   try {
     return env.REDIS_CONNECTION_STRING
-      ? new Redis(env.REDIS_CONNECTION_STRING)
+      ? new Redis(env.REDIS_CONNECTION_STRING, { maxRetriesPerRequest: null })
       : new Redis({
-          host: env.REDIS_HOST,
-          port: env.REDIS_PORT,
-          password: env.REDIS_AUTH,
+          host: String(env.REDIS_HOST),
+          port: Number(env.REDIS_PORT),
+          password: String(env.REDIS_AUTH),
           maxRetriesPerRequest: null, // Set to `null` to disable retrying
         });
   } catch (e) {
