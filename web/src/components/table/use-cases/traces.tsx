@@ -95,7 +95,7 @@ export default function TracesTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useLookBackDays()),
       },
     ],
     "traces",

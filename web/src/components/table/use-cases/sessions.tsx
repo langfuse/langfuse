@@ -57,7 +57,7 @@ export default function SessionsTable({
         column: "Created At",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useLookBackDays()),
       },
     ],
     "sessions",
