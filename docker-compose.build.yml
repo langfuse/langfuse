@@ -5,6 +5,8 @@ services:
     build:
       dockerfile: ./web/Dockerfile
       context: .
+      args:
+        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
     depends_on:
       - db
       - redis
@@ -30,6 +32,8 @@ services:
     build:
       dockerfile: ./worker/Dockerfile
       context: .
+      args:
+        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
     depends_on:
       - db
       - redis

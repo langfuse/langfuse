@@ -2,7 +2,7 @@
   push:
     branches:
     - main
-name: Deploy to worker
+name: Deploy to web
 jobs:
   porter-deploy:
     runs-on: ubuntu-latest
@@ -24,6 +24,6 @@ jobs:
         PORTER_PR_NUMBER: ${{ github.event.number }}
         PORTER_PROJECT: "12565"
         PORTER_REPO_NAME: ${{ github.event.repository.name }}
-        PORTER_STACK_NAME: worker
+        PORTER_STACK_NAME: web
         PORTER_TAG: ${{ steps.vars.outputs.sha_short }}
         PORTER_TOKEN: ${{ secrets.PORTER_STACK_12565_4037 }}
