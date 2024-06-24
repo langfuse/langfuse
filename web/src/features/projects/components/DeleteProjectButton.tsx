@@ -19,7 +19,6 @@ import { api } from "@/src/utils/api";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useQueryProject } from "@/src/features/projects/utils/useProject";
@@ -70,57 +69,54 @@ export function DeleteProjectButton() {
   };
 
   return (
-    <div>
-      <Header title="Danger Zone" level="h3" />
-      <Dialog>
-        <DialogTrigger asChild>
-          <Button variant="destructive" disabled={!hasAccess}>
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="destructive-secondary" disabled={!hasAccess}>
+          Delete Project
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-semibold  ">
             Delete Project
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold  ">
-              Delete Project
-            </DialogTitle>
-            <DialogDescription className=" ">
-              {`To confirm, type "${confirmMessage}" in the input box `}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-8"
+          </DialogTitle>
+          <DialogDescription className=" ">
+            {`To confirm, type "${confirmMessage}" in the input box `}
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-8"
+          >
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input
+                      placeholder={confirmMessage}
+                      {...field}
+                      data-testid="new-project-name-input"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button
+              type="submit"
+              variant="destructive"
+              loading={deleteProject.isLoading}
+              className="w-full"
             >
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input
-                        placeholder={confirmMessage}
-                        {...field}
-                        data-testid="new-project-name-input"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                variant="destructive"
-                loading={deleteProject.isLoading}
-                className="w-full"
-              >
-                Delete project
-              </Button>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-    </div>
+              Delete project
+            </Button>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }

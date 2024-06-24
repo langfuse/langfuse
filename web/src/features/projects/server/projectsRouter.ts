@@ -146,6 +146,60 @@ export const projectsRouter = createTRPCRouter({
       return true;
     }),
 
+  transfer: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        targetOrgId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // source org
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: ctx.session.orgId,
+        scope: "projects:transfer_organization",
+      });
+      // destination org
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.targetOrgId,
+        scope: "projects:transfer_organization",
+      });
+
+      const project = await ctx.prisma.project.findUnique({
+        where: {
+          id: input.projectId,
+        },
+      });
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "project",
+        resourceId: input.projectId,
+        action: "transfer",
+        before: { orgId: ctx.session.orgId },
+        after: { orgId: input.targetOrgId },
+      });
+      await ctx.prisma.$transaction([
+        ctx.prisma.projectMembership.deleteMany({
+          where: {
+            projectId: input.projectId,
+          },
+        }),
+        ctx.prisma.project.update({
+          where: {
+            id: input.projectId,
+            orgId: ctx.session.orgId,
+          },
+          data: {
+            orgId: input.targetOrgId,
+          },
+        }),
+      ]);
+    }),
+
   // transfer: protectedProjectProcedure
   //   .input(
   //     z.object({

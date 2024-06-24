@@ -19,6 +19,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
 import { ScoreConfigSettings } from "@/src/features/manual-scoring/components/ScoreConfigSettings";
+import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -45,7 +46,36 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-3">
-                  <DeleteProjectButton />
+                  <Header title="Danger Zone" level="h3" />
+                  <div className="rounded border">
+                    {[
+                      {
+                        title: "Transfer ownership",
+                        description:
+                          "Transfer this project to another organization where you have the ability to create projects.",
+                        button: <TransferProjectButton />,
+                      },
+                      {
+                        title: "Delete this project",
+                        description:
+                          "Once you delete a project, there is no going back. Please be certain.",
+                        button: <DeleteProjectButton />,
+                      },
+                    ].map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between gap-4 border-b p-4 last:border-b-0"
+                      >
+                        <div>
+                          <h4 className="font-semibold">{item.title}</h4>
+                          <p className="text-sm text-gray-600">
+                            {item.description}
+                          </p>
+                        </div>
+                        {item.button}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ),
