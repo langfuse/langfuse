@@ -45,10 +45,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-3">
-                  <DeleteProjectButton
-                    projectId={project.id}
-                    orgId={organization.id}
-                  />
+                  <DeleteProjectButton />
                 </div>
               </div>
             ),

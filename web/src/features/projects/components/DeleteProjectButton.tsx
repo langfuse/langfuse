@@ -15,7 +15,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
@@ -23,27 +22,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useQueryProject } from "@/src/features/projects/utils/useProject";
 
-export function DeleteProjectButton(props: {
-  projectId: string;
-  orgId: string;
-}) {
-  const session = useSession();
+export function DeleteProjectButton() {
   const capture = usePostHogClientCapture();
 
   //code for dynamic confirmation message
-  const userInfo = session.data?.user;
-  const currentOrganization = userInfo?.organizations.find(
-    (org) => org.id === props.orgId,
-  );
-  const currentProject = userInfo?.organizations
-    .flatMap((org) => org.projects)
-    .find((p) => p.id === props.projectId);
-  const confirmMessage = (
-    currentOrganization?.name +
-    "/" +
-    currentProject?.name
-  )
+  const { project, organization } = useQueryProject();
+  const confirmMessage = (organization?.name + "/" + project?.name)
     .replaceAll(" ", "-")
     .toLowerCase();
 
@@ -54,7 +40,7 @@ export function DeleteProjectButton(props: {
   });
 
   const hasAccess = useHasOrganizationAccess({
-    organizationId: props.orgId,
+    organizationId: organization?.id,
     scope: "projects:delete",
   });
 
@@ -69,10 +55,11 @@ export function DeleteProjectButton(props: {
 
   // delete project functionality
   const onSubmit = () => {
+    if (!project) return;
     capture("project_settings:project_delete");
     deleteProject
       .mutateAsync({
-        projectId: props.projectId,
+        projectId: project.id,
       })
       .then(() => {
         window.location.href = "/"; // browser reload to refresh jwt
