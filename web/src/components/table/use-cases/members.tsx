@@ -171,6 +171,10 @@ export default function MembersTable({
             id: "projectRole",
             header: "Project Role",
             enableHiding: true,
+            headerTooltip: {
+              description:
+                "The role for this user in this specific project. This role overrides the default project role.",
+            },
             cell: ({
               row,
             }: {
@@ -316,7 +320,7 @@ const OrgRoleDropdown = ({
         mut.mutate({ orgId, orgMembershipId, role: value as OrganizationRole })
       }
     >
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="w-[120px]">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -376,7 +380,7 @@ const ProjectRoleDropdown = ({
         }
       }}
     >
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="w-[120px]">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
