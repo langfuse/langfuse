@@ -1,5 +1,5 @@
 import { useSession } from "next-auth/react";
-import { Settings, Users } from "lucide-react";
+import { Building2, Settings, Users } from "lucide-react";
 import {
   Card,
   CardFooter,
@@ -13,6 +13,7 @@ import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
 import { createProjectRoute } from "@/src/components/setup";
+import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 
 export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
   const session = useSession();
@@ -22,24 +23,27 @@ export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
   return (
     <div className="md:container">
       {!orgId && (
-        <Header
-          title="Home"
-          actionButtons={
-            <>
-              <Input
-                className="w-56"
-                placeholder="Search projects"
-                onChange={(e) => setQueryParams({ search: e.target.value })}
-              />
-              <Button data-testid="create-project-btn" asChild>
-                <Link href="/setup">
-                  <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                  New Organization
-                </Link>
-              </Button>
-            </>
-          }
-        />
+        <>
+          <Header
+            title="Home"
+            actionButtons={
+              <>
+                <Input
+                  className="w-56"
+                  placeholder="Search projects"
+                  onChange={(e) => setQueryParams({ search: e.target.value })}
+                />
+                <Button data-testid="create-project-btn" asChild>
+                  <Link href="/setup">
+                    <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    New Organization
+                  </Link>
+                </Button>
+              </>
+            }
+          />
+          <IntroducingOrganizations />
+        </>
       )}
       {organizations
         .filter((org) => orgId === undefined || org.id === orgId)
@@ -80,6 +84,7 @@ export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
                 </>
               }
             />
+            {orgId && <IntroducingOrganizations />}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {org.projects
                 .filter(
@@ -114,3 +119,14 @@ export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
     </div>
   );
 };
+
+const IntroducingOrganizations = () => (
+  <Alert className="mb-10 mt-5">
+    <Building2 className="h-4 w-4" />
+    <AlertTitle>Introducing Organizations</AlertTitle>
+    <AlertDescription>
+      Organizations are a way to group projects and manage access to them. See
+      changelog to learn more about this change.
+    </AlertDescription>
+  </Alert>
+);
