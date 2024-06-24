@@ -34,6 +34,7 @@ import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 
 export type DashboardDateRange = {
   from: Date;
@@ -52,7 +53,10 @@ export default function Start() {
   const memoizedDate = useMemo(() => new Date(), []);
 
   const [urlParams, setUrlParams] = useQueryParams({
-    from: withDefault(NumberParam, addDays(memoizedDate, -7).getTime()),
+    from: withDefault(
+      NumberParam,
+      addDays(memoizedDate, -useLookBackDays()).getTime(),
+    ),
     to: withDefault(NumberParam, memoizedDate.getTime()),
     select: withDefault(StringParam, "Select a date range"),
   });
@@ -169,11 +173,11 @@ export default function Start() {
             id="date"
             variant={"outline"}
             className={
-              "hover:text-primary-accent group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground"
+              "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
             }
           >
             <BarChart2
-              className="group-hover:text-primary-accent hidden h-6 w-6 shrink-0 text-primary lg:block"
+              className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
               aria-hidden="true"
             />
             Request Chart

@@ -20,6 +20,7 @@ import { organizationsRouter } from "@/src/features/organizations/server/organiz
 import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
 import { publicRouter } from "@/src/server/api/routers/public";
 import { credentialsRouter } from "@/src/features/auth-credentials/server/credentialsRouter";
+import { batchExportRouter } from "@/src/server/api/routers/batchExport";
 
 /**
  * This is the primary router for your server.
@@ -27,6 +28,7 @@ import { credentialsRouter } from "@/src/features/auth-credentials/server/creden
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
+  batchExport: batchExportRouter,
   traces: traceRouter,
   sessions: sessionRouter,
   generations: generationsRouter,

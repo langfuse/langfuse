@@ -12,7 +12,7 @@ import { parseArgs } from "node:util";
 import { chunk } from "lodash";
 import { v4 } from "uuid";
 import { ModelUsageUnit } from "../src";
-import { getDisplaySecretKey, hashSecretKey } from "../src/server/auth";
+import { getDisplaySecretKey, hashSecretKey } from "../src/server";
 import { encrypt } from "../src/encryption";
 
 const LOAD_TRACE_VOLUME = 10_000;
@@ -445,11 +445,10 @@ async function uploadObjects(
   });
 
   for (let i = 0; i < promises.length; i++) {
-    process.stdout.clearLine(0);
-    process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Sessions ${(i / promises.length) * 100}% complete`
-    );
+    if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
+      console.log(
+        `Seeding of Sessions ${((i + 1) / promises.length) * 100}% complete`
+      );
     await promises[i];
   }
 
@@ -463,11 +462,10 @@ async function uploadObjects(
     );
   });
   for (let i = 0; i < promises.length; i++) {
-    process.stdout.clearLine(0);
-    process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Traces ${(i / promises.length) * 100}% complete`
-    );
+    if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
+      console.log(
+        `Seeding of Traces ${((i + 1) / promises.length) * 100}% complete`
+      );
     await promises[i];
   }
 
@@ -481,11 +479,10 @@ async function uploadObjects(
   });
 
   for (let i = 0; i < promises.length; i++) {
-    process.stdout.clearLine(0);
-    process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Observations ${(i / promises.length) * 100}% complete`
-    );
+    if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
+      console.log(
+        `Seeding of Observations ${((i + 1) / promises.length) * 100}% complete`
+      );
     await promises[i];
   }
 
@@ -499,11 +496,10 @@ async function uploadObjects(
   });
 
   for (let i = 0; i < promises.length; i++) {
-    process.stdout.clearLine(0);
-    process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Events ${(i / promises.length) * 100}% complete`
-    );
+    if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
+      console.log(
+        `Seeding of Events ${((i + 1) / promises.length) * 100}% complete`
+      );
     await promises[i];
   }
 
@@ -516,11 +512,10 @@ async function uploadObjects(
     );
   });
   for (let i = 0; i < promises.length; i++) {
-    process.stdout.clearLine(0);
-    process.stdout.cursorTo(0);
-    process.stdout.write(
-      `Seeding of Scores ${(i / promises.length) * 100}% complete`
-    );
+    if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
+      console.log(
+        `Seeding of Scores ${((i + 1) / promises.length) * 100}% complete`
+      );
     await promises[i];
   }
 }

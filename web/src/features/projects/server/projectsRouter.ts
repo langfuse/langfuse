@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { cloudConfigSchema } from "@/src/features/cloud-config/types/cloudConfigSchema";
 
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
@@ -43,10 +44,6 @@ export const projectsRouter = createTRPCRouter({
       });
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const cloudConfigSchema = z.object({
-        plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
-        monthlyObservationLimit: z.number().int().positive().optional(),
-      });
       const cloudConfig = cloudConfigSchema.safeParse(project.cloudConfig);
 
       return {

@@ -11,7 +11,7 @@ import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "../env";
-import { CustomSSOProvider } from "@langfuse/shared/src/server/auth";
+import { CustomSSOProvider } from "@langfuse/shared/src/server";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {

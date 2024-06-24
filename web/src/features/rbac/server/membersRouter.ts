@@ -1,5 +1,4 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { sendProjectInvitation } from "@/src/features/email/lib/project-invitation";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -11,6 +10,8 @@ import {
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { OrganizationRole, ProjectRole, paginationZod } from "@langfuse/shared";
+import { sendProjectInvitationEmail } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 export const membersRouter = createTRPCRouter({
   all: protectedOrganizationProcedure
@@ -214,11 +215,12 @@ export const membersRouter = createTRPCRouter({
             after: projectMembership,
           });
         }
-        await sendProjectInvitation({
+        await sendProjectInvitationEmail({
           inviterEmail: ctx.session.user.email!,
           inviterName: ctx.session.user.name!,
           to: input.email,
           orgName: sessionOrganization.name,
+          env: env,
         });
       } else {
         const invitation = await ctx.prisma.membershipInvitation.create({
@@ -248,11 +250,12 @@ export const membersRouter = createTRPCRouter({
 
         if (!project) throw new Error("Project not found");
 
-        await sendProjectInvitation({
+        await sendProjectInvitationEmail({
           inviterEmail: ctx.session.user.email!,
           inviterName: ctx.session.user.name!,
           to: input.email,
           orgName: sessionOrganization.name,
+          env: env,
         });
 
         return invitation;
