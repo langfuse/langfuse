@@ -88,7 +88,7 @@ export async function findModel(p: {
     }::timestamp with time zone at time zone 'UTC')
     ORDER BY
       project_id ASC,
-      start_date DESC
+      start_date DESC NULLS LAST
     LIMIT 1
   `;
 
@@ -147,6 +147,9 @@ export class ObservationProcessor implements EventProcessor {
       throw new ResourceNotFoundError(this.event.id, "Observation not found");
     }
 
+    console.log("Processing observation", this.event);
+    console.log("Existing observation", existingObservation);
+
     // find matching model definition based on event and existing observation in db
     const internalModel: Model | undefined | null =
       type === "GENERATION"
@@ -182,6 +185,7 @@ export class ObservationProcessor implements EventProcessor {
           ).id
         : this.event.body.traceId;
 
+    // Token counts
     const [newInputCount, newOutputCount] =
       "usage" in this.event.body
         ? this.calculateTokenCounts(
@@ -190,6 +194,28 @@ export class ObservationProcessor implements EventProcessor {
             existingObservation ?? undefined,
           )
         : [undefined, undefined];
+
+    const newTotalCount =
+      "usage" in this.event.body
+        ? this.event.body.usage?.total ??
+          (newInputCount ?? 0) + (newOutputCount ?? 0)
+        : undefined;
+
+    // Token costs
+    const userProvidedTokenCosts =
+      "usage" in this.event.body ? this.event.body?.usage ?? {} : {};
+
+    const tokenCounts = {
+      input: newInputCount,
+      output: newOutputCount,
+      total: newTotalCount,
+    };
+
+    const calculatedCosts = this.calculateTokenCosts(
+      internalModel,
+      userProvidedTokenCosts,
+      tokenCounts,
+    );
 
     // merge metadata from existingObservation.metadata and metadata
     const mergedMetadata = mergeJson(
@@ -250,11 +276,7 @@ export class ObservationProcessor implements EventProcessor {
         output: this.event.body.output ?? undefined,
         promptTokens: newInputCount,
         completionTokens: newOutputCount,
-        totalTokens:
-          "usage" in this.event.body
-            ? this.event.body.usage?.total ??
-              (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined,
+        totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
             ? this.event.body.usage?.unit ?? internalModel?.unit
@@ -280,6 +302,10 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in this.event.body
             ? this.event.body.usage?.totalCost
             : undefined,
+        calculatedInputCost: calculatedCosts?.inputCost,
+        calculatedOutputCost: calculatedCosts?.outputCost,
+        calculatedTotalCost: calculatedCosts?.totalCost,
+        internalModelId: internalModel?.id,
       },
       update: {
         name: this.event.body.name ?? undefined,
@@ -305,11 +331,7 @@ export class ObservationProcessor implements EventProcessor {
         output: this.event.body.output ?? undefined,
         promptTokens: newInputCount,
         completionTokens: newOutputCount,
-        totalTokens:
-          "usage" in this.event.body
-            ? this.event.body.usage?.total ??
-              (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined,
+        totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
             ? this.event.body.usage?.unit ?? internalModel?.unit
@@ -334,6 +356,10 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in this.event.body
             ? this.event.body.usage?.totalCost
             : undefined,
+        calculatedInputCost: calculatedCosts?.inputCost,
+        calculatedOutputCost: calculatedCosts?.outputCost,
+        calculatedTotalCost: calculatedCosts?.totalCost,
+        internalModelId: internalModel?.id,
       },
     };
   }
@@ -370,6 +396,42 @@ export class ObservationProcessor implements EventProcessor {
 
       return [newPromptTokens, newCompletionTokens];
     });
+  }
+
+  calculateTokenCosts(
+    model: Model | null | undefined,
+    userProvidedCosts: {
+      inputCost?: number | null;
+      outputCost?: number | null;
+      totalCost?: number | null;
+    },
+    tokenCounts: { input?: number; output?: number; total?: number },
+  ): { inputCost?: number; outputCost?: number; totalCost?: number } {
+    if (!model) return {};
+
+    const inputCost =
+      userProvidedCosts.inputCost ??
+      (tokenCounts.input && model.inputPrice
+        ? tokenCounts.input * Number(model.inputPrice)
+        : undefined);
+
+    const outputCost =
+      userProvidedCosts.outputCost ??
+      (tokenCounts.output && model.outputPrice
+        ? tokenCounts.output * Number(model.outputPrice)
+        : inputCost
+          ? 0
+          : undefined);
+
+    const totalCost =
+      userProvidedCosts.totalCost ??
+      (tokenCounts.total && model.totalPrice
+        ? tokenCounts.total * Number(model.totalPrice)
+        : inputCost ?? outputCost
+          ? (inputCost ?? 0) + (outputCost ?? 0)
+          : undefined);
+
+    return { inputCost, outputCost, totalCost };
   }
 
   async process(apiScope: ApiAccessScope): Promise<Observation> {
