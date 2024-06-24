@@ -5,11 +5,14 @@ import logger from "./logger";
 const createRedisClient = () => {
   try {
     return new Redis({
-      host: env.REDIS_HOST,
-      port: env.REDIS_PORT,
-      password: env.REDIS_AUTH,
+      ...(env.REDIS_CONNECTION_STRING
+        ? { url: env.REDIS_CONNECTION_STRING }
+        : {
+            host: env.REDIS_HOST,
+            port: env.REDIS_PORT,
+            password: env.REDIS_AUTH,
+          }),
       maxRetriesPerRequest: null, // Set to `null` to disable retrying
-      tls: env.REDIS_TLS === "true" ? {} : undefined,
     });
   } catch (e) {
     logger.error(e, "Failed to connect to redis");
