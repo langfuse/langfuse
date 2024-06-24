@@ -1,5 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
 import {
   createTRPCRouter,
@@ -19,7 +19,7 @@ export const batchExportRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       try {
         // Check permissions, esp. projectId
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "batchExport:create",
