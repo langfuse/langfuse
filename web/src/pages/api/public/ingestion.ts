@@ -165,21 +165,24 @@ export default async function handler(
   }
 }
 
+/**
+ * Sorts a batch of ingestion events. Orders by: updating events last, sorted by timestamp asc.
+ */
+
 const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
-  // keep the order of events as they are. Order events in a way that types containing updates come last
-  // Filter out OBSERVATION_UPDATE events
+  const updateEvents: (typeof eventTypes)[keyof typeof eventTypes][] = [
+    eventTypes.GENERATION_UPDATE,
+    eventTypes.SPAN_UPDATE,
+    eventTypes.OBSERVATION_UPDATE, // legacy event type
+  ];
   const updates = batch
-    .filter((event) => event.type === eventTypes.OBSERVATION_UPDATE)
+    .filter((event) => updateEvents.includes(event.type))
     .sort((a, b) => {
-      // Sort updates by timestamp ascending
       return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
     });
-
-  // Keep all other events in their original order
   const others = batch
-    .filter((event) => event.type !== eventTypes.OBSERVATION_UPDATE)
+    .filter((event) => !updateEvents.includes(event.type))
     .sort((a, b) => {
-      // Sort updates by timestamp ascending
       return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
     });
 
