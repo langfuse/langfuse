@@ -214,9 +214,9 @@ export class ObservationProcessor implements EventProcessor {
     };
 
     const tokenCounts = {
-      input: newInputCount,
-      output: newOutputCount,
-      total: newTotalCount,
+      input: newInputCount ?? existingObservation?.promptTokens,
+      output: newOutputCount ?? existingObservation?.completionTokens,
+      total: newTotalCount || existingObservation?.totalTokens,
     };
 
     const calculatedCosts = ObservationProcessor.calculateTokenCosts(

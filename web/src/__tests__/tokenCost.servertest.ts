@@ -897,4 +897,76 @@ describe("Token Cost Calculation", () => {
       generationUsage.usage.total * newModelData.totalPrice,
     );
   });
+
+  it("should use the tokens of the previous call without model if model comes with following call", async () => {
+    const generationUsage1 = {
+      model: undefined, // No model provided
+      usage: {
+        input: 1,
+        output: 2,
+        total: 3,
+        unit: ModelUsageUnit.Tokens,
+      },
+    };
+
+    const generationUsage2 = {
+      model: modelName,
+    };
+
+    const events = [
+      {
+        id: uuidv4(),
+        type: "generation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          ...generationUsage1,
+        },
+      },
+      {
+        id: uuidv4(),
+        type: "generation-update",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          ...generationUsage2,
+        },
+      },
+    ];
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: events,
+    });
+
+    expect(response.status).toBe(207);
+    const generation = await prisma.observation.findFirst({
+      where: {
+        id: generationId,
+      },
+    });
+
+    expect(generation).toBeDefined();
+    expect(generation?.type).toBe("GENERATION");
+
+    // Model name should be matched
+    expect(generation?.internalModel).toBe(tokenModelData.modelName);
+    expect(generation?.unit).toEqual(tokenModelData.unit);
+    expect(generation?.internalModelId).toBe(tokenModelData.id);
+
+    // No user provided cost
+    expect(generation?.inputCost).toBeNull();
+    expect(generation?.outputCost).toBeNull();
+    expect(generation?.totalCost).toBeNull();
+
+    // Calculated cost
+    expect(generation?.calculatedInputCost?.toNumber()).toBe(
+      generationUsage1.usage.input * tokenModelData.inputPrice,
+    );
+    expect(generation?.calculatedOutputCost?.toNumber()).toBe(
+      generationUsage1.usage.output * tokenModelData.outputPrice,
+    );
+    expect(generation?.calculatedTotalCost?.toNumber()).toBe(
+      generationUsage1.usage.total * tokenModelData.totalPrice,
+    );
+  });
 });
