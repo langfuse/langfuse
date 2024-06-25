@@ -144,7 +144,7 @@ export const ROUTES: Route[] = [
   },
   {
     name: "Support",
-    pathname: "/project/[projectId]/support",
+    pathname: "/support",
     icon: LifeBuoy,
     bottom: true,
   },
