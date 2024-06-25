@@ -342,6 +342,9 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedTotalCost?.toNumber()).toBe(
       generationUsage.usage.total * tokenModelData.totalPrice,
     );
+    expect(generation?.promptTokens).toBe(generationUsage.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage.usage.total);
   });
 
   it("should overwrite costs for a generation without previous user provided costs", async () => {
@@ -420,6 +423,9 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedTotalCost?.toNumber()).toBe(
       generationUsage2.usage.total * tokenModelData.totalPrice,
     );
+    expect(generation?.promptTokens).toBe(generationUsage2.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage2.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage2.usage.total);
   });
 
   it("should use the matched model of the previous generation call to calculate costs", async () => {
@@ -498,6 +504,9 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedTotalCost?.toNumber()).toBe(
       generationUsage2.usage.total * tokenModelData.totalPrice,
     );
+    expect(generation?.promptTokens).toBe(generationUsage2.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage2.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage2.usage.total);
   });
 
   it("should overwrite costs if new costs are user provided", async () => {
@@ -585,6 +594,9 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedTotalCost?.toNumber()).toBe(
       generationUsage2.usage.totalCost,
     );
+    expect(generation?.promptTokens).toBe(generationUsage2.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage2.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage2.usage.total);
   });
 
   it("should overwrite costs if new costs are user provided and zero", async () => {
@@ -672,6 +684,9 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedTotalCost?.toNumber()).toBe(
       generationUsage2.usage.totalCost,
     );
+    expect(generation?.promptTokens).toBe(generationUsage2.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage2.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage2.usage.total);
   });
 
   it("should not overwrite costs if previous cost were user provided", async () => {
@@ -759,6 +774,9 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedTotalCost?.toNumber()).toBe(
       generationUsage1.usage.totalCost,
     );
+    expect(generation?.promptTokens).toBe(generationUsage2.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage2.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage2.usage.total);
   });
 
   it("should not calculate anything if no costs are provided and no model is matched", async () => {
@@ -831,6 +849,10 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedInputCost).toBeNull();
     expect(generation?.calculatedOutputCost).toBeNull();
     expect(generation?.calculatedTotalCost).toBeNull();
+
+    expect(generation?.promptTokens).toBe(generationUsage2.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage2.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage2.usage.total);
   });
 
   it("should handle different model usage units correctly", async () => {
@@ -909,6 +931,9 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedTotalCost?.toNumber()).toBe(
       generationUsage2.usage.total * imageModelData.totalPrice,
     );
+    expect(generation?.promptTokens).toBe(generationUsage2.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage2.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage2.usage.total);
   });
 
   it("should take the latest user provided model for matching", async () => {
@@ -984,6 +1009,9 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedTotalCost?.toNumber()).toBe(
       generationUsage.usage.total * newModelData.totalPrice,
     );
+    expect(generation?.promptTokens).toBe(generationUsage.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage.usage.total);
   });
 
   it("should use the tokens of the previous call without model if model comes with following call", async () => {
@@ -1056,5 +1084,8 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedTotalCost?.toNumber()).toBe(
       generationUsage1.usage.total * tokenModelData.totalPrice,
     );
+    expect(generation?.promptTokens).toBe(generationUsage1.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage1.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage1.usage.total);
   });
 });

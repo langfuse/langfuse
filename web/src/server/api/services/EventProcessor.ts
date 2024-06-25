@@ -196,7 +196,9 @@ export class ObservationProcessor implements EventProcessor {
     const newTotalCount =
       "usage" in this.event.body
         ? this.event.body.usage?.total ??
-          (newInputCount ?? 0) + (newOutputCount ?? 0)
+          (newInputCount != null && newOutputCount != null)
+          ? (newInputCount ?? 0) + (newOutputCount ?? 0)
+          : undefined
         : undefined;
 
     const userProvidedTokenCosts = {
