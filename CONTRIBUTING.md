@@ -55,7 +55,7 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 > [!NOTE]
 > Infrastructure will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
-> `langfuse/langfuse/worker` is under active development and not recommended for production use in Langfuse 2.x
+> `langfuse/langfuse/worker` is under active development and not recommended for production use in Langfuse 2.x.
 
 ```mermaid
 flowchart TB

@@ -29,6 +29,7 @@ if (isSentryEnabled) {
       Sentry.expressIntegration(),
       nodeProfilingIntegration(),
       Sentry.redisIntegration(),
+      Sentry.prismaIntegration(),
     ],
 
     tracesSampleRate: 0.01, //  Capture 100% of the transactions

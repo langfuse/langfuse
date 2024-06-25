@@ -14,7 +14,7 @@ const EnvSchema = z.object({
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(3030),
-  REDIS_HOST: z.string(),
+  REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number({
       description:
@@ -22,9 +22,10 @@ const EnvSchema = z.object({
     })
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
-    .default(6379),
-  REDIS_AUTH: z.string(),
-  REDIS_CONNECTION_STRING: z.string().optional(),
+    .default(6379)
+    .nullable(),
+  REDIS_AUTH: z.string().nullish(),
+  REDIS_CONNECTION_STRING: z.string().nullish(),
   LANGFUSE_WORKER_PASSWORD: z.string(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
