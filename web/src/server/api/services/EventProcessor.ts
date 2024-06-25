@@ -196,7 +196,7 @@ export class ObservationProcessor implements EventProcessor {
     const newTotalCount =
       "usage" in this.event.body
         ? this.event.body.usage?.total ??
-          (newInputCount != null && newOutputCount != null
+          (newInputCount != null || newOutputCount != null
             ? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined)
         : undefined;
@@ -227,16 +227,6 @@ export class ObservationProcessor implements EventProcessor {
       userProvidedTokenCosts,
       tokenCounts,
     );
-
-    console.log({
-      eventBody: this.event.body,
-      newInputCount,
-      newOutputCount,
-      newTotalCount,
-      userProvidedTokenCosts,
-      tokenCounts,
-      calculatedCosts,
-    });
 
     // merge metadata from existingObservation.metadata and metadata
     const mergedMetadata = mergeJson(
