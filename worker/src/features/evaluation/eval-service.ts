@@ -220,7 +220,9 @@ export const evaluate = async ({
     parsedVariableMapping
   );
 
-  logger.info(`Extracted variables ${JSON.stringify(mappingResult)} `);
+  logger.info(
+    `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `
+  );
 
   // compile the prompt and send out the LLM request
   const prompt = compileHandlebarString(template.prompt, {
@@ -290,7 +292,9 @@ export const evaluate = async ({
 
   const parsedLLMOutput = openAIFunction.parse(completion);
 
-  logger.info(`Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`);
+  logger.info(
+    `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`
+  );
 
   // persist the score and update the job status
   const scoreId = randomUUID();
@@ -307,7 +311,9 @@ export const evaluate = async ({
     })
     .execute();
 
-  logger.info(`Persisted score ${scoreId} for trace ${job.job_input_trace_id}`);
+  logger.info(
+    `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.job_input_trace_id}`
+  );
 
   await kyselyPrisma.$kysely
     .updateTable("job_executions")
@@ -326,7 +332,6 @@ export function compileHandlebarString(
   handlebarString: string,
   context: Record<string, any>
 ): string {
-  logger.info("Compiling handlebar string", handlebarString, context);
   const template = Handlebars.compile(handlebarString, { noEscape: true });
   return template(context);
 }
