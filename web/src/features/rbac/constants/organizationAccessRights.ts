@@ -21,6 +21,15 @@ export const roleAccessRights: Record<OrganizationRole, Scope[]> = {
     "members:CUD",
     "members:view",
   ],
+  ADMIN: [
+    "projects:create",
+    "projects:delete",
+    "projects:transfer_organization",
+    "organizations:update",
+    "members:CUD",
+    "members:view",
+  ],
   MEMBER: ["members:view"],
+  VIEWER: ["members:view"],
   NONE: [],
 };

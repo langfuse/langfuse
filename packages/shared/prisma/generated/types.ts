@@ -6,7 +6,9 @@ export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
 export const OrganizationRole = {
     OWNER: "OWNER",
+    ADMIN: "ADMIN",
     MEMBER: "MEMBER",
+    VIEWER: "VIEWER",
     NONE: "NONE"
 } as const;
 export type OrganizationRole = (typeof OrganizationRole)[keyof typeof OrganizationRole];
@@ -236,7 +238,6 @@ export type MembershipInvitation = {
     email: string;
     org_id: string | null;
     orgRole: OrganizationRole;
-    default_project_role: ProjectRole | null;
     project_id: string | null;
     project_role: ProjectRole | null;
     sender_id: string | null;
@@ -334,7 +335,6 @@ export type OrganizationMembership = {
     org_id: string;
     user_id: string;
     role: OrganizationRole;
-    default_project_role: ProjectRole | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };

@@ -7,20 +7,19 @@ export async function createProjectMembershipsOnSignup(user: {
 }) {
   try {
     // Langfuse Cloud: Demo project access via demo org
-    const demoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID
-      ? (
-          await prisma.organization.findUnique({
-            where: {
-              id: env.NEXT_PUBLIC_DEMO_ORG_ID,
-            },
-          })
-        )?.id
+    const demoProject = env.NEXT_PUBLIC_DEMO_ORG_ID
+      ? (await prisma.project.findUnique({
+          where: {
+            orgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+            id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+          },
+        })) ?? undefined
       : undefined;
-    if (demoOrgId !== undefined) {
+    if (demoProject !== undefined) {
       await prisma.organizationMembership.create({
         data: {
           userId: user.id,
-          orgId: demoOrgId,
+          orgId: demoProject.orgId as string, // TODO: drop the as string when we have orgId in all projects
           role: "NONE",
         },
       });
@@ -68,7 +67,6 @@ async function processMembershipInvitations(email: string, userId: string) {
       userId: userId,
       orgId: invitation.orgId as string, // TODO: drop the as string when we have orgId in all invitations
       role: invitation.orgRole,
-      defaultProjectRole: invitation.defaultProjectRole,
       ...(invitation.projectId && invitation.projectRole
         ? {
             ProjectMemberships: {

@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@langfuse/shared/src/db";
+import { type ProjectRole, prisma } from "@langfuse/shared/src/db";
 import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -345,19 +345,19 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           ? parsedCloudConfig.data
                           : undefined,
                         projects: orgMembership.organization.projects
-                          .map((project) => ({
-                            id: project.id,
-                            name: project.name,
-                            role:
+                          .map((project) => {
+                            const projectRole: ProjectRole | "NONE" =
                               orgMembership.ProjectMemberships.find(
                                 (membership) =>
                                   membership.projectId === project.id,
-                              )?.role ??
-                              orgMembership.defaultProjectRole ??
-                              (orgMembership.role === "OWNER"
-                                ? "ADMIN"
-                                : "NONE"),
-                          }))
+                              )?.role ?? orgMembership.role;
+                            return {
+                              id: project.id,
+                              name: project.name,
+                              role: projectRole,
+                            };
+                          })
+                          // Hide all projects where the user has no role
                           .filter((project) => project.role !== "NONE"),
                       };
                     },

@@ -7,6 +7,5 @@
 */
 -- AlterTable
 ALTER TABLE "membership_invitations" DROP COLUMN "role",
-ADD COLUMN     "default_project_role" "ProjectRole",
 ADD COLUMN     "orgRole" "OrganizationRole" NOT NULL,
 ADD COLUMN     "project_role" "ProjectRole";

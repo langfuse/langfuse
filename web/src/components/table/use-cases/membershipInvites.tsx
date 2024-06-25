@@ -17,7 +17,6 @@ export type InvitesTableRow = {
   email: string;
   createdAt: Date;
   orgRole: OrganizationRole;
-  defaultProjectRole?: ProjectRole;
   projectRole?: ProjectRole;
   sender: {
     name: string | null;
@@ -68,15 +67,6 @@ export default function InvitesTable({
       accessorKey: "orgRole",
       id: "orgRole",
       header: "Organization Role",
-    },
-    {
-      accessorKey: "defaultProjectRole",
-      id: "defaultProjectRole",
-      header: "Default Project Role",
-      headerTooltip: {
-        description:
-          "The default role for this user in all projects within this organization. Organization owners are automatically project owners.",
-      },
     },
     {
       accessorKey: "createdAt",
@@ -163,7 +153,6 @@ export default function InvitesTable({
       email: invite.email,
       createdAt: invite.createdAt,
       orgRole: invite.orgRole,
-      defaultProjectRole: invite.defaultProjectRole ?? undefined,
       projectRole:
         invite.projectId === projectId
           ? invite.projectRole ?? undefined

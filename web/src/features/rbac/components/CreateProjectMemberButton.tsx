@@ -36,7 +36,6 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 const formSchema = z.object({
   email: z.string().trim().email(),
   orgRole: z.nativeEnum(OrganizationRole),
-  defaultProjectRole: z.nativeEnum(ProjectRole),
   projectRole: z.union([
     z.nativeEnum(ProjectRole),
     // Allow for the project role to be set to NONE
@@ -70,7 +69,6 @@ export function CreateProjectMemberButton(props: {
     defaultValues: {
       email: "",
       orgRole: OrganizationRole.MEMBER,
-      defaultProjectRole: ProjectRole.MEMBER,
       projectRole: "NONE",
     },
   });
@@ -82,7 +80,6 @@ export function CreateProjectMemberButton(props: {
         : "organization_settings:send_membership_invitation",
       {
         orgRole: values.orgRole,
-        defaultProjectRole: values.defaultProjectRole,
         projectRole: values.projectRole,
       },
     );
@@ -91,7 +88,6 @@ export function CreateProjectMemberButton(props: {
         orgId: props.orgId,
         email: values.email,
         orgRole: values.orgRole,
-        defaultProjectRole: values.defaultProjectRole,
         //optional
         projectId: props.projectId,
         projectRole:
@@ -169,41 +165,6 @@ export function CreateProjectMemberButton(props: {
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="defaultProjectRole"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Default Project Role</FormLabel>
-                    <Select
-                      defaultValue={field.value}
-                      onValueChange={(value) =>
-                        field.onChange(
-                          value as (typeof ProjectRole)[keyof typeof ProjectRole],
-                        )
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a default project role" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {Object.values(ProjectRole).map((role) => (
-                          <SelectItem value={role} key={role}>
-                            {role}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      The default role for this user in all projects within this
-                      organization.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

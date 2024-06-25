@@ -32,7 +32,6 @@ export type MembersTableRow = {
   email: string | null;
   createdAt: Date;
   orgRole: OrganizationRole;
-  defaultProjectRole?: ProjectRole;
   projectRole?: ProjectRole;
   meta: {
     userId: string;
@@ -137,33 +136,6 @@ export default function MembersTable({
         return value ? new Date(value).toLocaleString() : undefined;
       },
     },
-    {
-      accessorKey: "defaultProjectRole",
-      id: "defaultProjectRole",
-      header: "Default Project Role",
-      enableHiding: true,
-      headerTooltip: {
-        description:
-          "The default role for this user in all projects within this organization. Organization owners are automatically project owners.",
-      },
-      cell: ({ row }) => {
-        const defaultProjectRole = row.getValue(
-          "defaultProjectRole",
-        ) as MembersTableRow["defaultProjectRole"];
-        const { orgMembershipId, userId } = row.getValue(
-          "meta",
-        ) as MembersTableRow["meta"];
-        return (
-          <ProjectRoleDropdown
-            orgMembershipId={orgMembershipId}
-            userId={userId}
-            currentProjectRole={defaultProjectRole}
-            orgId={orgId}
-            hasCudAccess={hasCudAccess}
-          />
-        );
-      },
-    },
     ...(projectId
       ? [
           {
@@ -250,7 +222,6 @@ export default function MembersTable({
       },
       createdAt: orgMembership.createdAt,
       orgRole: orgMembership.role,
-      defaultProjectRole: orgMembership.defaultProjectRole ?? undefined,
       projectRole: orgMembership.projectRole,
     };
   };
@@ -346,38 +317,26 @@ const ProjectRoleDropdown = ({
   userId: string;
   currentProjectRole?: ProjectRole;
   orgId: string;
-  projectId?: string; // if concerns a specific project, undefined if it's the default project role
+  projectId: string;
   hasCudAccess: boolean;
 }) => {
   const utils = api.useUtils();
-  const mutDefault = api.members.updateDefaultProjectMembership.useMutation({
-    onSuccess: () => utils.members.invalidate(),
-  });
-  const mutProj = api.members.updateProjectRole.useMutation({
+  const mut = api.members.updateProjectRole.useMutation({
     onSuccess: () => utils.members.invalidate(),
   });
 
   return (
     <Select
-      disabled={!hasCudAccess || mutDefault.isLoading || mutProj.isLoading}
+      disabled={!hasCudAccess || mut.isLoading}
       value={currentProjectRole ?? "None"}
       onValueChange={(value) => {
-        if (projectId) {
-          mutProj.mutate({
-            orgId,
-            orgMembershipId,
-            projectId,
-            userId,
-            projectRole: value === "None" ? null : (value as ProjectRole),
-          });
-        } else {
-          mutDefault.mutate({
-            orgId,
-            orgMembershipId,
-            defaultProjectRole:
-              value === "None" ? null : (value as ProjectRole),
-          });
-        }
+        mut.mutate({
+          orgId,
+          orgMembershipId,
+          projectId,
+          userId,
+          projectRole: value === "None" ? null : (value as ProjectRole),
+        });
       }}
     >
       <SelectTrigger className="w-[120px]">

@@ -1,10 +1,6 @@
 import { type ProjectRole } from "@langfuse/shared";
 
 const scopes = [
-  "members:read",
-  "members:create",
-  "members:delete",
-
   "apiKeys:read",
   "apiKeys:create",
   "apiKeys:delete",
@@ -48,9 +44,6 @@ export type Scope = (typeof scopes)[number];
 
 export const roleAccessRights: Record<ProjectRole, Scope[]> = {
   OWNER: [
-    "members:read",
-    "members:create",
-    "members:delete",
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
@@ -79,9 +72,6 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
   ],
   ADMIN: [
     "project:update",
-    "members:read",
-    "members:create",
-    "members:delete",
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
@@ -108,7 +98,6 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "batchExport:create",
   ],
   MEMBER: [
-    "members:read",
     "apiKeys:read",
     "objects:publish",
     "objects:bookmark",

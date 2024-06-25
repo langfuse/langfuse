@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "OrganizationRole" AS ENUM ('OWNER', 'MEMBER');
+CREATE TYPE "OrganizationRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER', 'NONE');
 
 -- AlterTable
 ALTER TABLE "audit_logs" ADD COLUMN     "org_id" TEXT;
@@ -30,7 +30,6 @@ CREATE TABLE "organization_memberships" (
     "org_id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "role" "OrganizationRole" NOT NULL,
-    "default_project_role" "ProjectRole",
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

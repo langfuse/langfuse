@@ -131,7 +131,6 @@ export const membersRouter = createTRPCRouter({
         orgId: z.string(),
         email: z.string().email(),
         orgRole: z.nativeEnum(OrganizationRole),
-        defaultProjectRole: z.nativeEnum(ProjectRole),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
         projectRole: z.nativeEnum(ProjectRole).optional(),
@@ -229,7 +228,6 @@ export const membersRouter = createTRPCRouter({
             projectId: input.projectId,
             email: input.email.toLowerCase(),
             orgRole: input.orgRole,
-            defaultProjectRole: input.defaultProjectRole,
             projectRole: input.projectRole,
             senderId: ctx.session.user.id,
           },
@@ -413,47 +411,6 @@ export const membersRouter = createTRPCRouter({
         },
         data: {
           role: input.role,
-        },
-      });
-    }),
-  updateDefaultProjectMembership: protectedOrganizationProcedure
-    .input(
-      z.object({
-        orgId: z.string(),
-        orgMembershipId: z.string(),
-        defaultProjectRole: z.nativeEnum(ProjectRole).nullable(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "members:CUD",
-      });
-
-      const membership = await ctx.prisma.organizationMembership.findFirst({
-        where: {
-          orgId: input.orgId,
-          id: input.orgMembershipId,
-        },
-      });
-      if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "orgMembership",
-        resourceId: membership.id,
-        action: "update",
-        before: membership,
-      });
-
-      return await ctx.prisma.organizationMembership.update({
-        where: {
-          id: membership.id,
-          orgId: input.orgId,
-        },
-        data: {
-          defaultProjectRole: input.defaultProjectRole,
         },
       });
     }),
