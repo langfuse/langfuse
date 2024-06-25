@@ -150,6 +150,19 @@ describe("create eval jobs", () => {
       })
       .execute();
 
+    await kyselyPrisma.$kysely
+      .insertInto("llm_api_keys")
+      .values({
+        id: randomUUID(),
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        secret_key: encrypt(String(OPENAI_API_KEY)),
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        custom_models: [],
+        display_secret_key: "123456",
+      })
+      .execute();
+
     await prisma.jobConfiguration.create({
       data: {
         id: randomUUID(),
@@ -196,6 +209,19 @@ describe("create eval jobs", () => {
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         user_id: "a",
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("llm_api_keys")
+      .values({
+        id: randomUUID(),
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        secret_key: encrypt(String(OPENAI_API_KEY)),
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        custom_models: [],
+        display_secret_key: "123456",
       })
       .execute();
 
