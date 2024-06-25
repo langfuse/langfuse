@@ -264,6 +264,7 @@ export type Observation = {
     updated_at: Generated<Timestamp>;
     model: string | null;
     internal_model: string | null;
+    internal_model_id: string | null;
     modelParameters: unknown | null;
     input: unknown | null;
     output: unknown | null;
@@ -274,6 +275,9 @@ export type Observation = {
     input_cost: string | null;
     output_cost: string | null;
     total_cost: string | null;
+    calculated_input_cost: string | null;
+    calculated_output_cost: string | null;
+    calculated_total_cost: string | null;
     completion_start_time: Timestamp | null;
     prompt_id: string | null;
 };
