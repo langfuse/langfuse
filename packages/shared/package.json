@@ -56,7 +56,7 @@
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "kysely": "^0.27.3",
-    "langchain": "^0.1.36",
+    "langchain": "^0.2.6",
     "lodash": "^4.17.21",
     "next-auth": "^4.24.7",
     "nodemailer": "^6.9.13",
