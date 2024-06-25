@@ -1,11 +1,12 @@
 export * from "./constants";
+export * from "./queries";
 export * from "./queues";
-export * from "./interfaces/exportTypes";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
-export * from "./interfaces/tableDefinition";
+export * from "./tableDefinitions";
 export * from "./types";
 export * from "./filterToPrisma";
+export * from "./orderByToPrisma";
 export * from "./tracesTable";
 export * from "./server/auth";
 export * from "./observationsTable";
@@ -20,6 +21,7 @@ export * from "./server/llm/fetchLLMCompletion";
 
 // evals
 export * from "./features/evals/types";
+export * from "./features/batchExport/types";
 
 // annotation
 export * from "./features/annotation/types";

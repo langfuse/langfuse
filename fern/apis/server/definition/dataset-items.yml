@@ -31,7 +31,7 @@ types:
       sourceObservationId: optional<string>
       id:
         type: optional<string>
-        docs: Dataset items are upserted on their id
+        docs: Dataset items are upserted on their id. Id needs to be globally unique and cannot be reused across datasets.
       status:
         type: optional<commons.DatasetStatus>
         docs: Defaults to ACTIVE for newly created items

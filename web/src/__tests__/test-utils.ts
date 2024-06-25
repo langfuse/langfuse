@@ -4,6 +4,7 @@ import { hash } from "bcryptjs";
 
 export const pruneDatabase = async () => {
   await prisma.score.deleteMany();
+  await prisma.scoreConfig.deleteMany();
   await prisma.observation.deleteMany();
   await prisma.trace.deleteMany();
   await prisma.datasetItem.deleteMany();

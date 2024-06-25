@@ -1,13 +1,15 @@
+import * as z from "zod";
+
+import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { sendProjectInvitation } from "@/src/features/email/lib/project-invitation";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { ProjectRole } from "@langfuse/shared/src/db";
+import { sendProjectInvitationEmail } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import * as z from "zod";
 
 export const projectMembersRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -200,12 +202,13 @@ export const projectMembersRouter = createTRPCRouter({
 
         if (!project) throw new Error("Project not found");
 
-        await sendProjectInvitation(
-          input.email,
-          ctx.session.user.name!,
-          ctx.session.user.email!,
-          project.name,
-        );
+        await sendProjectInvitationEmail({
+          env,
+          to: input.email,
+          inviterName: ctx.session.user.name!,
+          inviterEmail: ctx.session.user.email!,
+          projectName: project.name,
+        });
 
         return invitation;
       }

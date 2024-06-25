@@ -10,6 +10,9 @@ import {
   type ingestionApiSchema,
   eventTypes,
   ingestionEvent,
+  type TraceUpsertEventType,
+  type EventBodyType,
+  EventName,
 } from "@langfuse/shared";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
@@ -162,17 +165,26 @@ export default async function handler(
   }
 }
 
-const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
-  // keep the order of events as they are. Order events in a way that types containing updates come last
-  // Filter out OBSERVATION_UPDATE events
-  const updates = batch.filter(
-    (event) => event.type === eventTypes.OBSERVATION_UPDATE,
-  );
+/**
+ * Sorts a batch of ingestion events. Orders by: updating events last, sorted by timestamp asc.
+ */
 
-  // Keep all other events in their original order
-  const others = batch.filter(
-    (event) => event.type !== eventTypes.OBSERVATION_UPDATE,
-  );
+const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
+  const updateEvents: (typeof eventTypes)[keyof typeof eventTypes][] = [
+    eventTypes.GENERATION_UPDATE,
+    eventTypes.SPAN_UPDATE,
+    eventTypes.OBSERVATION_UPDATE, // legacy event type
+  ];
+  const updates = batch
+    .filter((event) => updateEvents.includes(event.type))
+    .sort((a, b) => {
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    });
+  const others = batch
+    .filter((event) => !updateEvents.includes(event.type))
+    .sort((a, b) => {
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    });
 
   // Return the array with non-update events first, followed by update events
   return [...others, ...updates];
@@ -446,17 +458,22 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      const traceEvents = batchResults
+      const traceEvents: TraceUpsertEventType[] = batchResults
         .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
         .map((result) =>
           result.result &&
           typeof result.result === "object" &&
           "id" in result.result
             ? // ingestion API only gets traces for one projectId
-              { traceId: result.result.id, projectId: projectId }
+              { traceId: result.result.id as string, projectId }
             : null,
         )
         .filter(isNotNullOrUndefined);
+
+      const body: EventBodyType = {
+        name: EventName.TraceUpsert,
+        payload: traceEvents,
+      };
 
       if (traceEvents.length > 0) {
         await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
@@ -469,7 +486,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
                 "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
               ).toString("base64"),
           },
-          body: JSON.stringify(traceEvents),
+          body: JSON.stringify(body),
         });
       }
     }

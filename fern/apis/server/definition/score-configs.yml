@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get all score configs
+      method: GET
+      path: /score-configs
+      request:
+        name: GetScoreConfigsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: Page number, starts at 1.
+          limit:
+            type: optional<integer>
+            docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
+      response: ScoreConfigs
+    get-by-id:
+      docs: Get a score config
+      method: GET
+      path: /score-configs/{configId}
+      path-parameters:
+        configId:
+          type: string
+          docs: The unique langfuse identifier of a score config
+      response: commons.ScoreConfig
+types:
+  ScoreConfigs:
+    properties:
+      data: list<commons.ScoreConfig>
+      meta: pagination.MetaResponse
