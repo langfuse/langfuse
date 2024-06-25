@@ -18,6 +18,7 @@ import { QuickstartExamples } from "@/src/features/public-api/components/Quickst
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
+import { Check } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
@@ -79,6 +80,7 @@ export function SetupPage() {
               )}
             >
               1. Create Organization
+              {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -89,6 +91,7 @@ export function SetupPage() {
               )}
             >
               2. Invite Members
+              {stepInt > 2 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -99,6 +102,7 @@ export function SetupPage() {
               )}
             >
               3. Create Project
+              {stepInt > 3 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -109,6 +113,7 @@ export function SetupPage() {
               )}
             >
               4. Setup Tracing
+              {stepInt === 4 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
