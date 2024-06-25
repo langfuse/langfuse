@@ -171,7 +171,7 @@ const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
   const updates = batch
     .filter((event) => event.type === eventTypes.OBSERVATION_UPDATE)
     .sort((a, b) => {
-      // Sort updates by timestamp
+      // Sort updates by timestamp ascending
       return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
     });
 
@@ -179,7 +179,7 @@ const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
   const others = batch
     .filter((event) => event.type !== eventTypes.OBSERVATION_UPDATE)
     .sort((a, b) => {
-      // Sort updates by timestamp
+      // Sort updates by timestamp ascending
       return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
     });
 
