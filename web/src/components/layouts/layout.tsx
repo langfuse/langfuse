@@ -453,8 +453,7 @@ export default function Layout(props: PropsWithChildren) {
         <div className="lg:pl-56">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           project?.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
-            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") &&
+          Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
           !session.data?.user?.email?.endsWith("@langfuse.com") ? (
             <div className="flex w-full items-center border-b border-dark-yellow  bg-light-yellow px-4 py-2 lg:sticky lg:top-0 lg:z-40">
               <div className="flex flex-1 flex-wrap gap-1">

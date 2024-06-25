@@ -3,7 +3,7 @@ import { RocketLaunchIcon } from "@heroicons/react/24/outline";
 import { SiOpenai } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { Code, Bird, GraduationCap } from "lucide-react";
+import { Code, Bird, GraduationCap, LockIcon } from "lucide-react";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import RenameProject from "@/src/features/projects/components/RenameProject";
@@ -224,7 +224,7 @@ function Instructions() {
 }
 
 const Integrations = (props: { projectId: string }) => {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
+  const isAvailable = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined;
 
   return (
     <div>
@@ -237,13 +237,20 @@ const Integrations = (props: { projectId: string }) => {
           Langfuse Events/Metrics available in your Posthog Dashboards.
         </p>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" asChild>
-            <Link
-              href={`/project/${props.projectId}/settings/posthog-integration`}
-            >
-              Configure
-            </Link>
-          </Button>
+          {isAvailable ? (
+            <Button variant="secondary" asChild>
+              <Link
+                href={`/project/${props.projectId}/settings/posthog-integration`}
+              >
+                Configure
+              </Link>
+            </Button>
+          ) : (
+            <Button variant="secondary" disabled>
+              <LockIcon className="mr-2 h-4 w-4" />
+              Public-beta on Langfuse Cloud
+            </Button>
+          )}
           <Button asChild variant="ghost">
             <Link href="https://langfuse.com/docs/analytics/posthog">
               Integration Docs ↗

@@ -17,6 +17,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { LockIcon } from "lucide-react";
 
 export default function RenameProject(props: { projectId: string }) {
   const capture = usePostHogClientCapture();
@@ -46,6 +47,7 @@ export default function RenameProject(props: { projectId: string }) {
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
+    if (!hasAccess) return;
     capture("project_settings:rename_form_submit");
     renameProject
       .mutateAsync({
@@ -59,8 +61,6 @@ export default function RenameProject(props: { projectId: string }) {
         console.error(error);
       });
   }
-
-  if (!hasAccess) return null;
 
   return (
     <div>
@@ -91,26 +91,36 @@ export default function RenameProject(props: { projectId: string }) {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input
-                      placeholder={projectName}
-                      {...field}
-                      className="flex-1"
-                      data-testid="new-project-name-input"
-                    />
+                    <div className="relative">
+                      <Input
+                        placeholder={projectName}
+                        {...field}
+                        className="flex-1"
+                        data-testid="new-project-name-input"
+                        disabled={!hasAccess}
+                      />
+                      {!hasAccess && (
+                        <span title="No access">
+                          <LockIcon className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted" />
+                        </span>
+                      )}
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button
-              variant="secondary"
-              type="submit"
-              loading={renameProject.isLoading}
-              disabled={form.getValues().name === ""}
-              className="mt-4"
-            >
-              Save
-            </Button>
+            {hasAccess && (
+              <Button
+                variant="secondary"
+                type="submit"
+                loading={renameProject.isLoading}
+                disabled={form.getValues().name === "" || !hasAccess}
+                className="mt-4"
+              >
+                Save
+              </Button>
+            )}
           </form>
         </Form>
       </Card>

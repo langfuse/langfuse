@@ -23,6 +23,7 @@ import { type Row } from "@tanstack/react-table";
 import { Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 export type MembersTableRow = {
   user: {
@@ -47,17 +48,26 @@ export default function MembersTable({
   projectId?: string;
 }) {
   const session = useSession();
+  const hasViewAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "members:view",
+  });
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 10),
   });
 
-  const members = api.members.all.useQuery({
-    orgId,
-    projectId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-  });
+  const members = api.members.all.useQuery(
+    {
+      orgId,
+      projectId,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    {
+      enabled: hasViewAccess,
+    },
+  );
   const totalCount = members.data?.totalCount ?? 0;
 
   const utils = api.useUtils();
@@ -225,6 +235,17 @@ export default function MembersTable({
       projectRole: orgMembership.projectRole,
     };
   };
+
+  if (!hasViewAccess) {
+    return (
+      <Alert>
+        <AlertTitle>Access Denied</AlertTitle>
+        <AlertDescription>
+          You do not have permission to view members of this organization.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <>

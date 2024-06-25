@@ -18,6 +18,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
 import { Card } from "@/src/components/ui/card";
+import { LockIcon } from "lucide-react";
 
 export default function RenameOrganization() {
   const capture = usePostHogClientCapture();
@@ -46,7 +47,7 @@ export default function RenameOrganization() {
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
-    if (!organization) return;
+    if (!organization || !hasAccess) return;
     capture("organization_settings:rename_form_submit");
     renameOrganization
       .mutateAsync({
@@ -60,8 +61,6 @@ export default function RenameOrganization() {
         console.error(error);
       });
   }
-
-  if (!hasAccess) return null;
 
   return (
     <div>
@@ -92,26 +91,36 @@ export default function RenameOrganization() {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input
-                      placeholder={orgName}
-                      {...field}
-                      className="flex-1"
-                      data-testid="new-organization-name-input"
-                    />
+                    <div className="relative">
+                      <Input
+                        placeholder={orgName}
+                        {...field}
+                        className="flex-1"
+                        data-testid="new-organization-name-input"
+                        disabled={!hasAccess}
+                      />
+                      {!hasAccess && (
+                        <span title="No access">
+                          <LockIcon className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted" />
+                        </span>
+                      )}
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button
-              variant="secondary"
-              type="submit"
-              loading={renameOrganization.isLoading}
-              disabled={form.getValues().name === ""}
-              className="mt-4"
-            >
-              Save
-            </Button>
+            {hasAccess && (
+              <Button
+                variant="secondary"
+                type="submit"
+                loading={renameOrganization.isLoading}
+                disabled={form.getValues().name === "" || !hasAccess}
+                className="mt-4"
+              >
+                Save
+              </Button>
+            )}
           </form>
         </Form>
       </Card>

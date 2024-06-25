@@ -18,7 +18,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
@@ -26,6 +25,7 @@ import { ChevronDownIcon, PlusIcon, Settings, Slash } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
 import { createProjectRoute } from "@/src/components/setup";
+import { env } from "@/src/env.mjs";
 
 export default function Header({
   level = "h2",
@@ -130,34 +130,52 @@ const BreadcrumbComponent = ({
               <ChevronDownIcon className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+              <DropdownMenuItem className="font-semibold" asChild>
+                <Link href="/" className="cursor-pointer">
+                  Organizations
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <div className="max-h-36 overflow-y-auto">
-                {session.data?.user?.organizations.map((org) => (
-                  <DropdownMenuItem key={org.id} asChild>
-                    <Link
-                      href={`/organization/${org.id}`}
-                      className="flex cursor-pointer justify-between"
-                    >
-                      <span
-                        className="max-w-24 overflow-hidden overflow-ellipsis whitespace-nowrap"
-                        title={org.name}
-                      >
-                        {org.name}
-                      </span>
-                      <Button
-                        asChild
-                        variant="ghost"
-                        size="xs"
-                        className="-my-1 ml-4 mr-1 hover:bg-background"
-                      >
-                        <Link href={`/organization/${org.id}/settings`}>
-                          <Settings size={12} />
+                {session.data?.user?.organizations
+                  .sort((a, b) => {
+                    // sort demo org to the bottom
+                    const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
+                    const isDemoB = env.NEXT_PUBLIC_DEMO_ORG_ID === b.id;
+                    if (isDemoA) return 1;
+                    if (isDemoB) return -1;
+                    return 0;
+                  })
+                  .map((org) => (
+                    <Fragment key={org.id}>
+                      {env.NEXT_PUBLIC_DEMO_ORG_ID === org.id && (
+                        <DropdownMenuSeparator />
+                      )}
+                      <DropdownMenuItem asChild>
+                        <Link
+                          href={`/organization/${org.id}`}
+                          className="flex cursor-pointer justify-between"
+                        >
+                          <span
+                            className="max-w-24 overflow-hidden overflow-ellipsis whitespace-nowrap"
+                            title={org.name}
+                          >
+                            {org.name}
+                          </span>
+                          <Button
+                            asChild
+                            variant="ghost"
+                            size="xs"
+                            className="-my-1 ml-4 mr-1 hover:bg-background"
+                          >
+                            <Link href={`/organization/${org.id}/settings`}>
+                              <Settings size={12} />
+                            </Link>
+                          </Button>
                         </Link>
-                      </Button>
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
+                      </DropdownMenuItem>
+                    </Fragment>
+                  ))}
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
@@ -188,7 +206,14 @@ const BreadcrumbComponent = ({
                 <ChevronDownIcon className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuLabel>Projects</DropdownMenuLabel>
+                <DropdownMenuItem asChild className="font-semibold">
+                  <Link
+                    href={`/organization/${organization.id}`}
+                    className="cursor-pointer"
+                  >
+                    Projects
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <div className="max-h-36 overflow-y-auto">
                   {organization.projects.map((project) => (

@@ -24,6 +24,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
@@ -44,8 +45,21 @@ export function LlmApiKeyList(props: { projectId: string }) {
     },
   );
 
-  if (!hasAccess) return null;
   if (!isEeEnabled) return null;
+
+  if (!hasAccess) {
+    return (
+      <div>
+        <Header title="LLM API Keys" level="h3" />
+        <Alert>
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>
+            You do not have permission to view LLM API keys for this project.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div id="llm-api-keys">
@@ -75,29 +89,40 @@ export function LlmApiKeyList(props: { projectId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody className="text-muted-foreground">
-            {apiKeys.data?.data.map((apiKey) => (
-              <TableRow key={apiKey.id} className="hover:bg-primary-foreground">
-                <TableCell className="hidden md:table-cell">
-                  {apiKey.createdAt.toLocaleDateString()}
-                </TableCell>
-                <TableCell className="font-mono">{apiKey.provider}</TableCell>
-                <TableCell className="hidden font-mono">
-                  {apiKey.adapter}
-                </TableCell>
-                <TableCell className="max-w-md overflow-auto font-mono">
-                  {apiKey.baseURL ?? "default"}
-                </TableCell>
-                <TableCell className="font-mono">
-                  {apiKey.displaySecretKey}
-                </TableCell>
-                <TableCell>
-                  <DeleteApiKeyButton
-                    projectId={props.projectId}
-                    apiKeyId={apiKey.id}
-                  />
+            {apiKeys.data?.data.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center">
+                  None
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              apiKeys.data?.data.map((apiKey) => (
+                <TableRow
+                  key={apiKey.id}
+                  className="hover:bg-primary-foreground"
+                >
+                  <TableCell className="hidden md:table-cell">
+                    {apiKey.createdAt.toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="font-mono">{apiKey.provider}</TableCell>
+                  <TableCell className="hidden font-mono">
+                    {apiKey.adapter}
+                  </TableCell>
+                  <TableCell className="max-w-md overflow-auto font-mono">
+                    {apiKey.baseURL ?? "default"}
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    {apiKey.displaySecretKey}
+                  </TableCell>
+                  <TableCell>
+                    <DeleteApiKeyButton
+                      projectId={props.projectId}
+                      apiKeyId={apiKey.id}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>

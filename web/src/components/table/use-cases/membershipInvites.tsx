@@ -12,6 +12,7 @@ import type { RouterOutput } from "@/src/utils/types";
 import { type ProjectRole, type OrganizationRole } from "@langfuse/shared";
 import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 export type InvitesTableRow = {
   email: string;
@@ -34,16 +35,26 @@ export default function InvitesTable({
   orgId: string;
   projectId?: string;
 }) {
+  const hasViewAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "members:view",
+  });
+
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 10),
   });
 
-  const invites = api.members.allInvites.useQuery({
-    orgId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-  });
+  const invites = api.members.allInvites.useQuery(
+    {
+      orgId,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    {
+      enabled: hasViewAccess,
+    },
+  );
   const totalCount = invites.data?.totalCount ?? 0;
 
   const utils = api.useUtils();
@@ -160,6 +171,17 @@ export default function InvitesTable({
       sender: invite.sender,
     };
   };
+
+  if (!hasViewAccess) {
+    return (
+      <Alert>
+        <AlertTitle>Access Denied</AlertTitle>
+        <AlertDescription>
+          You do not have permission to view invites of this organization.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <>
