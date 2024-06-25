@@ -298,18 +298,18 @@ export const evaluate = async ({
 
   // persist the score and update the job status
   const scoreId = randomUUID();
-  await kyselyPrisma.$kysely
-    .insertInto("scores")
-    .values({
+
+  await prisma.score.create({
+    data: {
       id: scoreId,
-      trace_id: job.job_input_trace_id,
+      traceId: job.job_input_trace_id,
       name: config.score_name,
       value: parsedLLMOutput.score,
       comment: parsedLLMOutput.reasoning,
-      source: sql`'EVAL'::"ScoreSource"`,
-      project_id: event.projectId,
-    })
-    .execute();
+      source: "EVAL",
+      projectId: event.projectId,
+    },
+  });
 
   logger.info(
     `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.job_input_trace_id}`
