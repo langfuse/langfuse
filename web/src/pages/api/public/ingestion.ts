@@ -136,6 +136,8 @@ export default async function handler(
   } catch (error: unknown) {
     console.error("error handling ingestion event", error);
 
+    Sentry.captureException(error);
+
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({
         error: error.name,
