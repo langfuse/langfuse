@@ -1,5 +1,26 @@
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { env } from "./env";
 import * as Sentry from "@sentry/node";
+
+Sentry.init({
+  dsn: String(env.SENTRY_DSN),
+  debug: true,
+  integrations: [
+    Sentry.httpIntegration(),
+    Sentry.expressIntegration(),
+    nodeProfilingIntegration(),
+    Sentry.redisIntegration(),
+    Sentry.prismaIntegration(),
+  ],
+
+  // Add Tracing by setting tracesSampleRate
+  // We recommend adjusting this value in production
+  tracesSampleRate: 0.01,
+
+  // Set sampling rate for profiling
+  // This is relative to tracesSampleRate
+  profilesSampleRate: 0.01,
+});
 
 type CallbackAsyncFn<T> = (span?: Sentry.Span) => Promise<T>;
 
