@@ -1,6 +1,7 @@
 import { useSession } from "next-auth/react";
 import {
   Building2,
+  LifeBuoy,
   LockIcon,
   Settings,
   TriangleAlert,
@@ -26,7 +27,6 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import { env } from "@/src/env.mjs";
 import { Divider } from "@tremor/react";
 import { Badge } from "@/src/components/ui/badge";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
 
 export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
   const session = useSession();
@@ -58,6 +58,8 @@ export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
           <IntroducingOrganizations />
         </>
       )}
+      {organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
+        .length === 0 && <Onboarding />}
       {organizations
         .filter((org) => orgId === undefined || org.id === orgId)
         .sort((a, b) => {
@@ -224,3 +226,31 @@ const IntroducingOrganizations = () => (
     </AlertDescription>
   </Alert>
 );
+
+const Onboarding = () => {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle data-testid="create-new-project-title">
+          Get Started
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p>
+          Create an organization and first project to get started with Langfuse.
+        </p>
+      </CardContent>
+      <CardFooter className="flex gap-4">
+        <Button data-testid="create-project-btn" asChild>
+          <Link href="/setup">Start Setup</Link>
+        </Button>
+        <Button variant="secondary" asChild>
+          <Link href="/support">
+            <LifeBuoy className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            Support
+          </Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
