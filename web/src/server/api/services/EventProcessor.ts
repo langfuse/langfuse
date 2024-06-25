@@ -147,9 +147,6 @@ export class ObservationProcessor implements EventProcessor {
       throw new ResourceNotFoundError(this.event.id, "Observation not found");
     }
 
-    console.log("Processing observation", this.event);
-    console.log("Existing observation", existingObservation);
-
     // find matching model definition based on event and existing observation in db
     const internalModel: Model | undefined | null =
       type === "GENERATION"
