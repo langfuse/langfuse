@@ -1,4 +1,5 @@
 import { nanoid } from "ai";
+import Decimal from "decimal.js";
 import { v4 as uuidv4 } from "uuid";
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
@@ -53,9 +54,9 @@ describe("Token Cost Calculation", () => {
 
   it("should correctly calculate token costs with provided model prices", async () => {
     const model = {
-      inputPrice: 0.01,
-      outputPrice: 0.02,
-      totalPrice: 0.03,
+      inputPrice: new Decimal(0.01),
+      outputPrice: new Decimal(0.02),
+      totalPrice: new Decimal(0.03),
     };
 
     const tokenCounts = {
@@ -76,16 +77,16 @@ describe("Token Cost Calculation", () => {
       tokenCounts,
     );
 
-    expect(costs.inputCost).toBe(1.0); // 100 tokens * 0.01
-    expect(costs.outputCost).toBe(4.0); // 200 tokens * 0.02
-    expect(costs.totalCost).toBe(9.0); // 300 tokens * 0.03
+    expect(costs.inputCost?.toNumber()).toBe(1.0); // 100 tokens * 0.01
+    expect(costs.outputCost?.toNumber()).toBe(4.0); // 200 tokens * 0.02
+    expect(costs.totalCost?.toNumber()).toBe(9.0); // 300 tokens * 0.03
   });
 
   it("should correctly calculate token costs with user provided costs", async () => {
     const model = {
-      inputPrice: 0.01,
-      outputPrice: 0.02,
-      totalPrice: 0.03,
+      inputPrice: new Decimal(0.01),
+      outputPrice: new Decimal(0.02),
+      totalPrice: new Decimal(0.03),
     };
 
     const tokenCounts = {
@@ -95,9 +96,9 @@ describe("Token Cost Calculation", () => {
     };
 
     const userProvidedCosts = {
-      inputCost: 2.0,
-      outputCost: 3.0,
-      totalCost: 5.0,
+      inputCost: new Decimal(2.0),
+      outputCost: new Decimal(3.0),
+      totalCost: new Decimal(5.0),
     };
 
     const costs = ObservationProcessor.calculateTokenCosts(
@@ -106,16 +107,16 @@ describe("Token Cost Calculation", () => {
       tokenCounts,
     );
 
-    expect(costs.inputCost).toBe(2.0); // Overridden by user provided cost
-    expect(costs.outputCost).toBe(3.0); // Overridden by user provided cost
-    expect(costs.totalCost).toBe(5.0); // Overridden by user provided cost
+    expect(costs.inputCost?.toNumber()).toBe(2.0); // Overridden by user provided cost
+    expect(costs.outputCost?.toNumber()).toBe(3.0); // Overridden by user provided cost
+    expect(costs.totalCost?.toNumber()).toBe(5.0); // Overridden by user provided cost
   });
 
   it("should correctly calculate token costs when only some user provided costs are given", async () => {
     const model = {
-      inputPrice: 0.01,
-      outputPrice: 0.02,
-      totalPrice: 0.03,
+      inputPrice: new Decimal(0.01),
+      outputPrice: new Decimal(0.02),
+      totalPrice: new Decimal(0.03),
     };
 
     const tokenCounts = {
@@ -126,7 +127,7 @@ describe("Token Cost Calculation", () => {
 
     const userProvidedCosts = {
       inputCost: null,
-      outputCost: 3.0,
+      outputCost: new Decimal(3.0),
       totalCost: null,
     };
 
@@ -136,9 +137,9 @@ describe("Token Cost Calculation", () => {
       tokenCounts,
     );
 
-    expect(costs.inputCost).toBe(1.0); // Calculated based on model price
-    expect(costs.outputCost).toBe(3.0); // Overridden by user provided cost
-    expect(costs.totalCost).toBe(4.0); // Sum of input and output costs
+    expect(costs.inputCost?.toNumber()).toBe(1.0); // Calculated based on model price
+    expect(costs.outputCost?.toNumber()).toBe(3.0); // Overridden by user provided cost
+    expect(costs.totalCost?.toNumber()).toBe(4.0); // Sum of input and output costs
   });
 
   it("should return empty costs if no model is provided", async () => {
@@ -160,16 +161,16 @@ describe("Token Cost Calculation", () => {
       tokenCounts,
     );
 
-    expect(costs.inputCost).toBeUndefined();
-    expect(costs.outputCost).toBeUndefined();
-    expect(costs.totalCost).toBeUndefined();
+    expect(costs.inputCost?.toNumber()).toBeUndefined();
+    expect(costs.outputCost?.toNumber()).toBeUndefined();
+    expect(costs.totalCost?.toNumber()).toBeUndefined();
   });
 
   it("should handle zero token counts correctly", async () => {
     const model = {
-      inputPrice: 0.01,
-      outputPrice: 0.02,
-      totalPrice: 0.03,
+      inputPrice: new Decimal(0.01),
+      outputPrice: new Decimal(0.02),
+      totalPrice: new Decimal(0.03),
     };
 
     const tokenCounts = {
@@ -190,16 +191,16 @@ describe("Token Cost Calculation", () => {
       tokenCounts,
     );
 
-    expect(costs.inputCost).toBe(0); // 0 tokens * 0.01
-    expect(costs.outputCost).toBe(0); // 0 tokens * 0.02
-    expect(costs.totalCost).toBe(0); // 0 tokens * 0.03
+    expect(costs.inputCost?.toNumber()).toBe(0); // 0 tokens * 0.01
+    expect(costs.outputCost?.toNumber()).toBe(0); // 0 tokens * 0.02
+    expect(costs.totalCost?.toNumber()).toBe(0); // 0 tokens * 0.03
   });
 
   it("should handle missing token counts correctly", async () => {
     const model = {
-      inputPrice: 0.01,
-      outputPrice: 0.02,
-      totalPrice: 0.03,
+      inputPrice: new Decimal(0.01),
+      outputPrice: new Decimal(0.02),
+      totalPrice: new Decimal(0.03),
     };
 
     const tokenCounts = {
@@ -220,16 +221,16 @@ describe("Token Cost Calculation", () => {
       tokenCounts,
     );
 
-    expect(costs.inputCost).toBeUndefined();
-    expect(costs.outputCost).toBeUndefined();
-    expect(costs.totalCost).toBeUndefined();
+    expect(costs.inputCost?.toNumber()).toBeUndefined();
+    expect(costs.outputCost?.toNumber()).toBeUndefined();
+    expect(costs.totalCost?.toNumber()).toBeUndefined();
   });
 
   it("should handle fractional token counts correctly", async () => {
     const model = {
-      inputPrice: 0.01,
-      outputPrice: 0.02,
-      totalPrice: 0.03,
+      inputPrice: new Decimal(0.01),
+      outputPrice: new Decimal(0.02),
+      totalPrice: new Decimal(0.03),
     };
 
     const tokenCounts = {
@@ -250,16 +251,16 @@ describe("Token Cost Calculation", () => {
       tokenCounts,
     );
 
-    expect(costs.inputCost).toBeCloseTo(1.505); // 150.5 tokens * 0.01
-    expect(costs.outputCost).toBeCloseTo(5.005); // 250.25 tokens * 0.02
-    expect(costs.totalCost).toBeCloseTo(12.0225); // 400.75 tokens * 0.03
+    expect(costs.inputCost?.toNumber()).toBeCloseTo(1.505); // 150.5 tokens * 0.01
+    expect(costs.outputCost?.toNumber()).toBeCloseTo(5.005); // 250.25 tokens * 0.02
+    expect(costs.totalCost?.toNumber()).toBeCloseTo(12.0225); // 400.75 tokens * 0.03
   });
 
   it("should handle large token counts correctly", async () => {
     const model = {
-      inputPrice: 0.01,
-      outputPrice: 0.02,
-      totalPrice: 0.03,
+      inputPrice: new Decimal(0.01),
+      outputPrice: new Decimal(0.02),
+      totalPrice: new Decimal(0.03),
     };
 
     const tokenCounts = {
@@ -280,9 +281,9 @@ describe("Token Cost Calculation", () => {
       tokenCounts,
     );
 
-    expect(costs.inputCost).toBe(10000); // 1e6 tokens * 0.01
-    expect(costs.outputCost).toBe(40000); // 2e6 tokens * 0.02
-    expect(costs.totalCost).toBe(90000); // 3e6 tokens * 0.03
+    expect(costs.inputCost?.toNumber()).toBe(10000); // 1e6 tokens * 0.01
+    expect(costs.outputCost?.toNumber()).toBe(40000); // 2e6 tokens * 0.02
+    expect(costs.totalCost?.toNumber()).toBe(90000); // 3e6 tokens * 0.03
   });
 
   it("should correctly match model prices from the database", async () => {

@@ -29,6 +29,7 @@ import { jsonSchema } from "@langfuse/shared";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";
+import Decimal from "decimal.js";
 
 export interface EventProcessor {
   process(
@@ -201,16 +202,16 @@ export class ObservationProcessor implements EventProcessor {
     const userProvidedTokenCosts = {
       inputCost:
         "usage" in this.event.body && this.event.body.usage?.inputCost
-          ? this.event.body.usage?.inputCost
-          : existingObservation?.inputCost?.toNumber(),
+          ? new Decimal(this.event.body.usage?.inputCost)
+          : existingObservation?.inputCost,
       outputCost:
         "usage" in this.event.body && this.event.body.usage?.outputCost
-          ? this.event.body.usage?.outputCost
-          : existingObservation?.outputCost?.toNumber(),
+          ? new Decimal(this.event.body.usage?.outputCost)
+          : existingObservation?.outputCost,
       totalCost:
         "usage" in this.event.body && this.event.body.usage?.totalCost
-          ? this.event.body.usage?.totalCost
-          : existingObservation?.totalCost?.toNumber(),
+          ? new Decimal(this.event.body.usage?.totalCost)
+          : existingObservation?.totalCost,
     };
 
     const tokenCounts = {
@@ -409,37 +410,45 @@ export class ObservationProcessor implements EventProcessor {
   static calculateTokenCosts(
     model: Model | null | undefined,
     userProvidedCosts: {
-      inputCost?: number | null;
-      outputCost?: number | null;
-      totalCost?: number | null;
+      inputCost?: Decimal | null;
+      outputCost?: Decimal | null;
+      totalCost?: Decimal | null;
     },
     tokenCounts: { input?: number; output?: number; total?: number },
-  ): { inputCost?: number; outputCost?: number; totalCost?: number } {
+  ): {
+    inputCost?: Decimal;
+    outputCost?: Decimal;
+    totalCost?: Decimal;
+  } {
     if (!model) return {};
 
-    const inputCost =
+    const finalInputCost =
       userProvidedCosts.inputCost ??
       (tokenCounts.input !== undefined && model.inputPrice
-        ? tokenCounts.input * Number(model.inputPrice)
+        ? model.inputPrice.mul(tokenCounts.input)
         : undefined);
 
-    const outputCost =
+    const finalOutputCost =
       userProvidedCosts.outputCost ??
       (tokenCounts.output !== undefined && model.outputPrice
-        ? tokenCounts.output * Number(model.outputPrice)
-        : inputCost
-          ? 0
+        ? model.outputPrice.mul(tokenCounts.output)
+        : finalInputCost
+          ? new Decimal(0)
           : undefined);
 
-    const totalCost =
+    const finalTotalCost =
       userProvidedCosts.totalCost ??
       (tokenCounts.total !== undefined && model.totalPrice
-        ? tokenCounts.total * Number(model.totalPrice)
-        : inputCost ?? outputCost
-          ? (inputCost ?? 0) + (outputCost ?? 0)
+        ? model.totalPrice.mul(tokenCounts.total)
+        : finalInputCost ?? finalOutputCost
+          ? new Decimal(finalInputCost ?? 0).add(finalOutputCost ?? 0)
           : undefined);
 
-    return { inputCost, outputCost, totalCost };
+    return {
+      inputCost: finalInputCost,
+      outputCost: finalOutputCost,
+      totalCost: finalTotalCost,
+    };
   }
 
   async process(apiScope: ApiAccessScope): Promise<Observation> {
