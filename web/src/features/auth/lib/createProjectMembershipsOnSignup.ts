@@ -6,39 +6,45 @@ export async function createProjectMembershipsOnSignup(user: {
   email: string | null;
 }) {
   try {
-    // Langfuse Cloud: Demo project access via demo org
-    const demoProject = env.NEXT_PUBLIC_DEMO_ORG_ID
-      ? (await prisma.project.findUnique({
-          where: {
-            orgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
-            id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
-          },
-        })) ?? undefined
-      : undefined;
+    // Langfuse Cloud: provide view-only access to the demo project, none access to the demo org
+    const demoProject =
+      env.NEXT_PUBLIC_DEMO_ORG_ID && env.NEXT_PUBLIC_DEMO_PROJECT_ID
+        ? (await prisma.project.findUnique({
+            where: {
+              orgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+              id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+            },
+          })) ?? undefined
+        : undefined;
     if (demoProject !== undefined) {
       await prisma.organizationMembership.create({
         data: {
           userId: user.id,
           orgId: demoProject.orgId as string, // TODO: drop the as string when we have orgId in all projects
           role: "NONE",
+          ProjectMemberships: {
+            create: {
+              userId: user.id,
+              projectId: demoProject.id,
+              role: "VIEWER",
+            },
+          },
         },
       });
     }
 
     // set default project access
-    const defaultProjectID = env.LANGFUSE_DEFAULT_PROJECT_ID
-      ? (
-          await prisma.project.findUnique({
-            where: {
-              id: env.LANGFUSE_DEFAULT_PROJECT_ID,
-            },
-          })
-        )?.id
+    const defaultProject = env.LANGFUSE_DEFAULT_PROJECT_ID
+      ? (await prisma.project.findUnique({
+          where: {
+            id: env.LANGFUSE_DEFAULT_PROJECT_ID,
+          },
+        })) ?? undefined
       : undefined;
-    if (defaultProjectID !== undefined) {
-      await prisma.projectMembership.create({
+    if (defaultProject !== undefined) {
+      await prisma.organizationMembership.create({
         data: {
-          projectId: defaultProjectID,
+          orgId: defaultProject.orgId as string, // TODO: drop the as string when we have orgId in all projects
           userId: user.id,
           role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
         },
