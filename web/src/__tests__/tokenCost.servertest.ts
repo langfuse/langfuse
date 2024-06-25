@@ -587,6 +587,93 @@ describe("Token Cost Calculation", () => {
     );
   });
 
+  it("should overwrite costs if new costs are user provided and zero", async () => {
+    const generationUsage1 = {
+      model: modelName,
+      usage: {
+        input: 1,
+        output: 2,
+        total: 3,
+        unit: ModelUsageUnit.Tokens,
+      },
+    };
+
+    const generationUsage2 = {
+      model: modelName,
+      usage: {
+        input: 100,
+        output: 200,
+        total: 300,
+        inputCost: 0,
+        outputCost: 0,
+        totalCost: 0,
+        unit: ModelUsageUnit.Tokens,
+      },
+    };
+
+    const events = [
+      {
+        id: uuidv4(),
+        type: "generation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          ...generationUsage1,
+        },
+      },
+      {
+        id: uuidv4(),
+        type: "generation-update",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          ...generationUsage2,
+        },
+      },
+    ];
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: events,
+    });
+
+    expect(response.status).toBe(207);
+    const generation = await prisma.observation.findFirst({
+      where: {
+        id: generationId,
+      },
+    });
+
+    expect(generation).toBeDefined();
+    expect(generation?.type).toBe("GENERATION");
+
+    // Model name should be matched
+    expect(generation?.internalModel).toBe(tokenModelData.modelName);
+    expect(generation?.unit).toEqual(tokenModelData.unit);
+    expect(generation?.internalModelId).toBe(tokenModelData.id);
+
+    // User provided cost
+    expect(generation?.inputCost?.toNumber()).toBe(
+      generationUsage2.usage.inputCost,
+    );
+    expect(generation?.outputCost?.toNumber()).toBe(
+      generationUsage2.usage.outputCost,
+    );
+    expect(generation?.totalCost?.toNumber()).toBe(
+      generationUsage2.usage.totalCost,
+    );
+
+    // Calculated cost
+    expect(generation?.calculatedInputCost?.toNumber()).toBe(
+      generationUsage2.usage.inputCost,
+    );
+    expect(generation?.calculatedOutputCost?.toNumber()).toBe(
+      generationUsage2.usage.outputCost,
+    );
+    expect(generation?.calculatedTotalCost?.toNumber()).toBe(
+      generationUsage2.usage.totalCost,
+    );
+  });
+
   it("should not overwrite costs if previous cost were user provided", async () => {
     const generationUsage1 = {
       model: modelName,

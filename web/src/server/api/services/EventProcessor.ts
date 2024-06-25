@@ -201,15 +201,15 @@ export class ObservationProcessor implements EventProcessor {
 
     const userProvidedTokenCosts = {
       inputCost:
-        "usage" in this.event.body && this.event.body.usage?.inputCost
+        "usage" in this.event.body && this.event.body.usage?.inputCost != null // inputCost can be explicitly 0. Note only one equal sign to capture null AND undefined
           ? new Decimal(this.event.body.usage?.inputCost)
           : existingObservation?.inputCost,
       outputCost:
-        "usage" in this.event.body && this.event.body.usage?.outputCost
+        "usage" in this.event.body && this.event.body.usage?.outputCost != null // outputCost can be explicitly 0. Note only one equal sign to capture null AND undefined
           ? new Decimal(this.event.body.usage?.outputCost)
           : existingObservation?.outputCost,
       totalCost:
-        "usage" in this.event.body && this.event.body.usage?.totalCost
+        "usage" in this.event.body && this.event.body.usage?.totalCost != null // totalCost can be explicitly 0. Note only one equal sign to capture null AND undefined
           ? new Decimal(this.event.body.usage?.totalCost)
           : existingObservation?.totalCost,
     };
