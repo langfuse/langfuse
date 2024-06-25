@@ -208,7 +208,7 @@ export class ObservationProcessor implements EventProcessor {
       total: newTotalCount,
     };
 
-    const calculatedCosts = this.calculateTokenCosts(
+    const calculatedCosts = ObservationProcessor.calculateTokenCosts(
       internalModel,
       userProvidedTokenCosts,
       tokenCounts,
@@ -395,7 +395,7 @@ export class ObservationProcessor implements EventProcessor {
     });
   }
 
-  calculateTokenCosts(
+  static calculateTokenCosts(
     model: Model | null | undefined,
     userProvidedCosts: {
       inputCost?: number | null;
@@ -408,13 +408,13 @@ export class ObservationProcessor implements EventProcessor {
 
     const inputCost =
       userProvidedCosts.inputCost ??
-      (tokenCounts.input && model.inputPrice
+      (tokenCounts.input !== undefined && model.inputPrice
         ? tokenCounts.input * Number(model.inputPrice)
         : undefined);
 
     const outputCost =
       userProvidedCosts.outputCost ??
-      (tokenCounts.output && model.outputPrice
+      (tokenCounts.output !== undefined && model.outputPrice
         ? tokenCounts.output * Number(model.outputPrice)
         : inputCost
           ? 0
@@ -422,7 +422,7 @@ export class ObservationProcessor implements EventProcessor {
 
     const totalCost =
       userProvidedCosts.totalCost ??
-      (tokenCounts.total && model.totalPrice
+      (tokenCounts.total !== undefined && model.totalPrice
         ? tokenCounts.total * Number(model.totalPrice)
         : inputCost ?? outputCost
           ? (inputCost ?? 0) + (outputCost ?? 0)
