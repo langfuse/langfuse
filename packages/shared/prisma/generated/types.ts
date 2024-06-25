@@ -237,7 +237,7 @@ export type MembershipInvitation = {
     id: string;
     email: string;
     org_id: string | null;
-    orgRole: OrganizationRole;
+    org_role: OrganizationRole;
     project_id: string | null;
     project_role: ProjectRole | null;
     sender_id: string | null;
