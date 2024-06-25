@@ -69,11 +69,11 @@ export default function Header({
         <div className="flex items-center gap-3 md:gap-5">
           <div className="flex min-w-0 flex-row justify-center align-middle">
             {level === "h2" ? (
-              <h2 className="text-2xl font-bold leading-7 sm:truncate sm:text-3xl sm:tracking-tight">
+              <h2 className="text-3xl font-bold leading-7 sm:truncate sm:tracking-tight">
                 {props.title}
               </h2>
             ) : (
-              <h3 className="text-lg font-bold leading-7 sm:truncate sm:text-xl sm:tracking-tight">
+              <h3 className="text-xl font-bold leading-7 sm:truncate sm:tracking-tight">
                 {props.title}
               </h3>
             )}
