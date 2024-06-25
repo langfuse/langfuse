@@ -1,8 +1,14 @@
-import { getDisplaySecretKey, hashSecretKey } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 import { hash } from "bcryptjs";
 
+import { env } from "@/src/env.mjs";
+import { getDisplaySecretKey, hashSecretKey } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+
 export const pruneDatabase = async () => {
+  if (!env.DATABASE_URL.includes("localhost:5432")) {
+    throw new Error("You cannot prune database unless running on localhost.");
+  }
+
   await prisma.score.deleteMany();
   await prisma.scoreConfig.deleteMany();
   await prisma.observation.deleteMany();
