@@ -4,7 +4,6 @@ import * as Sentry from "@sentry/node";
 
 Sentry.init({
   dsn: String(env.SENTRY_DSN),
-  debug: true,
   integrations: [
     Sentry.httpIntegration(),
     Sentry.expressIntegration(),
