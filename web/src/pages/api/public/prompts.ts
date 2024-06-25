@@ -17,6 +17,7 @@ import {
   ForbiddenError,
 } from "@langfuse/shared";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
+import * as Sentry from "@sentry/node";
 
 export default async function handler(
   req: NextApiRequest,
@@ -82,6 +83,8 @@ export default async function handler(
     throw new MethodNotAllowedError();
   } catch (error: unknown) {
     console.error(error);
+
+    Sentry.captureException(error);
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({

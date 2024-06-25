@@ -3,6 +3,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { BaseError, MethodNotAllowedError } from "@langfuse/shared";
+import * as Sentry from "@sentry/node";
 
 const httpMethods = ["GET", "POST", "PUT", "DELETE"] as const;
 type HttpMethod = (typeof httpMethods)[number];
@@ -38,6 +39,8 @@ export function withMiddlewares(handlers: Handlers) {
       return await finalHandlers[method](req, res);
     } catch (error) {
       console.error(error);
+
+      Sentry.captureException(error);
 
       if (error instanceof BaseError) {
         return res.status(error.httpCode).json({
