@@ -198,9 +198,20 @@ export class ObservationProcessor implements EventProcessor {
           (newInputCount ?? 0) + (newOutputCount ?? 0)
         : undefined;
 
-    // Token costs
-    const userProvidedTokenCosts =
-      "usage" in this.event.body ? this.event.body?.usage ?? {} : {};
+    const userProvidedTokenCosts = {
+      inputCost:
+        "usage" in this.event.body && this.event.body.usage?.inputCost
+          ? this.event.body.usage?.inputCost
+          : existingObservation?.inputCost?.toNumber(),
+      outputCost:
+        "usage" in this.event.body && this.event.body.usage?.outputCost
+          ? this.event.body.usage?.outputCost
+          : existingObservation?.outputCost?.toNumber(),
+      totalCost:
+        "usage" in this.event.body && this.event.body.usage?.totalCost
+          ? this.event.body.usage?.totalCost
+          : existingObservation?.totalCost?.toNumber(),
+    };
 
     const tokenCounts = {
       input: newInputCount,
