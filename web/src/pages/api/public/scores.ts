@@ -41,7 +41,15 @@ const validateScoreBody = ({
     if (isBooleanDataType(parsedBody.dataType)) {
       if (parsedBody.value !== 0 && parsedBody.value !== 1) {
         return {
-          error: "Boolean data type should have value of 0 or 1",
+          error: "Boolean scores should have value of 0 or 1",
+        };
+      }
+    }
+    if (isCategoricalDataType(parsedBody.dataType)) {
+      if (!parsedBody.stringValue) {
+        return {
+          error:
+            "Categorical scores should define a string value when no config is passed",
         };
       }
     }
