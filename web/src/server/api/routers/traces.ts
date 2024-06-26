@@ -11,7 +11,7 @@ import {
   type ObservationView,
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
-import { paginationZod } from "@langfuse/shared";
+import { paginationZod, timeFilter } from "@langfuse/shared";
 import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {
@@ -172,11 +172,14 @@ export const traceRouter = createTRPCRouter({
       };
     }),
   filterOptions: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), filter: z.array(singleFilter) }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        timestampFilter: timeFilter.optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      const timestampFilter = input.filter.find(
-        (f) => f.column === "Timestamp",
-      );
+      const { timestampFilter } = input;
       const prismaTimestampFilter =
         timestampFilter?.type === "datetime"
           ? timestampFilter?.operator === ">="

@@ -2,16 +2,18 @@ import { z } from "zod";
 
 import {
   datetimeFilterToPrismaSql,
-  singleFilter,
+  timeFilter,
   type ObservationOptions,
 } from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { Prisma } from "@langfuse/shared/src/db";
 
 export const filterOptionsQuery = protectedProjectProcedure
-  .input(z.object({ projectId: z.string(), filter: z.array(singleFilter) }))
+  .input(
+    z.object({ projectId: z.string(), startTimeFilter: timeFilter.optional() }),
+  )
   .query(async ({ input, ctx }) => {
-    const startTimeFilter = input.filter.find((f) => f.column === "Start Time");
+    const { startTimeFilter } = input;
     const prismaStartTimeFilter =
       startTimeFilter?.type === "datetime"
         ? startTimeFilter?.operator === ">="
