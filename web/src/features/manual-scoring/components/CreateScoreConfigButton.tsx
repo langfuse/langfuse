@@ -23,6 +23,7 @@ import { Input } from "@/src/components/ui/input";
 import {
   type CreateConfig,
   ScoreDataType,
+  availableDataTypes,
   createConfigSchema,
 } from "@langfuse/shared";
 import {
@@ -42,12 +43,6 @@ import {
 } from "@/src/features/manual-scoring/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-
-const availableDataTypes = [
-  ScoreDataType.NUMERIC,
-  ScoreDataType.CATEGORICAL,
-  ScoreDataType.BOOLEAN,
-] as const;
 
 export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
