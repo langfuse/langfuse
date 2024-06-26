@@ -59,6 +59,13 @@ const validateConfigAgainstBody = ({
     }
   }
 
+  if (config.isArchived) {
+    return {
+      error:
+        "Config is archived and cannot be used to create new scores. Please restore the config first.",
+    };
+  }
+
   if (isNumericDataType(config.dataType)) {
     if (isPresent(config.maxValue) && parsedBody.value > config.maxValue) {
       return {
