@@ -38,6 +38,19 @@ const validateConfigAgainstBody = ({
     };
   }
 
+  if (config.isArchived) {
+    return {
+      error:
+        "Config is archived and cannot be used to create new scores. Please restore the config first.",
+    };
+  }
+
+  if (config.name !== parsedBody.name) {
+    return {
+      error: `Name mismatch based on config: expected ${config.name}, got ${parsedBody.name}`,
+    };
+  }
+
   if (parsedBody.stringValue) {
     if (isNumericDataType(config.dataType)) {
       return {
@@ -57,13 +70,6 @@ const validateConfigAgainstBody = ({
         error: `Value ${parsedBody.value} does not map to the provided string value.`,
       };
     }
-  }
-
-  if (config.isArchived) {
-    return {
-      error:
-        "Config is archived and cannot be used to create new scores. Please restore the config first.",
-    };
   }
 
   if (isNumericDataType(config.dataType)) {
