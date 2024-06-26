@@ -1,7 +1,7 @@
 /** @jest-environment node */
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { v4 as uuidv4, v4 } from "uuid";
+import { v4 as uuidv4 } from "uuid";
 import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
 import { type CastedConfig } from "@langfuse/shared";
 
@@ -142,7 +142,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should POST a numeric score config", async () => {
-    const configId = v4();
+    const configId = uuidv4();
 
     const postScoreConfig = await makeAPICall(
       "POST",
@@ -170,7 +170,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should POST a boolean score config", async () => {
-    const configId = v4();
+    const configId = uuidv4();
 
     const postScoreConfig = await makeAPICall(
       "POST",
@@ -200,7 +200,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should POST a categorical score config", async () => {
-    const configId = v4();
+    const configId = uuidv4();
 
     const postScoreConfig = await makeAPICall(
       "POST",
@@ -234,7 +234,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of numeric score config with invalid range", async () => {
-    const configId = v4();
+    const configId = uuidv4();
 
     const postScoreConfig = await makeAPICall(
       "POST",
@@ -256,7 +256,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of boolean score config with custom categories", async () => {
-    const configId = v4();
+    const configId = uuidv4();
 
     const postScoreConfig = await makeAPICall(
       "POST",
@@ -281,7 +281,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of categorical score config with NO custom categories", async () => {
-    const configId = v4();
+    const configId = uuidv4();
 
     const postScoreConfig = await makeAPICall(
       "POST",
@@ -301,7 +301,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of categorical score config with invalid custom categories format", async () => {
-    const configId = v4();
+    const configId = uuidv4();
 
     const postScoreConfig = await makeAPICall(
       "POST",
@@ -326,7 +326,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of categorical score config with duplicated category label", async () => {
-    const configId = v4();
+    const configId = uuidv4();
 
     const postScoreConfig = await makeAPICall(
       "POST",
@@ -350,7 +350,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of categorical score config with duplicated category value", async () => {
-    const configId = v4();
+    const configId = uuidv4();
 
     const postScoreConfig = await makeAPICall(
       "POST",
