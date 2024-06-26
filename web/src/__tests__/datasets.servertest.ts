@@ -49,7 +49,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
   afterEach(async () => await pruneDatabase());
 
-  it("should create and get a dataset, include special characters", async () => {
+  it("should create and get a dataset (v1 & v2), include special characters", async () => {
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset + name",
       description: "dataset-description",
@@ -64,17 +64,33 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     expect(dbDataset.length).toBeGreaterThan(0);
 
-    const getDataset = await makeAPICall(
+    // get dataset (v1) including items and runs
+    const getDatasetV1 = await makeAPICall(
       "GET",
       `/api/public/datasets/${encodeURIComponent("dataset + name")}`,
     );
+    expect(getDatasetV1.status).toBe(200);
+    expect(getDatasetV1.body).toMatchObject({
+      name: "dataset + name",
+      description: "dataset-description",
+      metadata: { foo: "bar" },
+      items: [],
+      runs: [],
+    });
 
-    expect(getDataset.status).toBe(200);
-    expect(getDataset.body).toMatchObject({
+    // get dataset (v2) excluding items and runs
+    const getDatasetV2 = await makeAPICall(
+      "GET",
+      `/api/public/v2/datasets/${encodeURIComponent("dataset + name")}`,
+    );
+    expect(getDatasetV2.status).toBe(200);
+    expect(getDatasetV2.body).toMatchObject({
       name: "dataset + name",
       description: "dataset-description",
       metadata: { foo: "bar" },
     });
+    expect(getDatasetV2.body).not.toHaveProperty("items");
+    expect(getDatasetV2.body).not.toHaveProperty("runs");
   });
 
   it("GET datasets", async () => {
@@ -133,28 +149,92 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
   });
 
-  it("should create and get a dataset item (via datasets and individually)", async () => {
+  it("should create and get a dataset items (via datasets (v1), individually, and as a list)", async () => {
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset-name",
     });
-    await makeAPICall("POST", "/api/public/dataset-items", {
-      datasetName: "dataset-name",
-      input: { key: "value" },
-      expectedOutput: { key: "value" },
-      metadata: { key: "value-dataset-item" },
-      sourceTraceId: traceId,
-      sourceObservationId: observationId,
-    });
-    const dbDatasetItem = await prisma.datasetItem.findFirst({
+    for (let i = 0; i < 5; i++) {
+      await makeAPICall("POST", "/api/public/dataset-items", {
+        datasetName: "dataset-name",
+        input: { key: "value" },
+        expectedOutput: { key: "value" },
+        metadata: { key: "value-dataset-item" },
+        sourceTraceId: i % 2 === 0 ? traceId : undefined,
+        sourceObservationId: i % 2 === 0 ? observationId : undefined,
+      });
+    }
+    const dbDatasetItems = await prisma.datasetItem.findMany({
       where: {
         dataset: {
           name: "dataset-name",
         },
       },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    expect(dbDatasetItems.length).toBe(5);
+    const dbDatasetItemsApiResponseFormat = dbDatasetItems.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      datasetName: "dataset-name",
+    }));
+
+    // add another dataset to test the list endpoint
+    await makeAPICall("POST", "/api/public/datasets", {
+      name: "dataset-name-other",
+    });
+    await makeAPICall("POST", "/api/public/dataset-items", {
+      datasetName: "dataset-name-other",
+      input: { key: "value" },
+      expectedOutput: { key: "value" },
+    });
+    const dbDatasetItemsOther = await prisma.datasetItem.findMany({
+      where: {
+        dataset: {
+          name: "dataset-name-other",
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    expect(dbDatasetItemsOther.length).toBe(1);
+    const dbDatasetItemsOtherApiResponseFormat = dbDatasetItemsOther.map(
+      (item) => ({
+        ...item,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+        datasetName: "dataset-name-other",
+      }),
+    );
+    const dbDatasetItemsAllApiResponseFormat = [
+      ...dbDatasetItemsApiResponseFormat,
+      ...dbDatasetItemsOtherApiResponseFormat,
+    ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)); // createdAt desc
+    // test against prisma changes
+    const datasetItemResponseKeys = [
+      "createdAt",
+      "updatedAt",
+      "datasetName",
+      "id",
+      "status",
+      "input",
+      "expectedOutput",
+      "metadata",
+      "sourceTraceId",
+      "sourceObservationId",
+      "datasetId",
+    ];
+    dbDatasetItemsAllApiResponseFormat.forEach((run) => {
+      expect(Object.keys(run)).toEqual(
+        expect.arrayContaining(datasetItemResponseKeys),
+      );
+      expect(Object.keys(run)).toHaveLength(datasetItemResponseKeys.length);
     });
 
-    expect(dbDatasetItem).not.toBeNull();
-
+    // Get dataset (v1) includes list of items
     const getDataset = await makeAPICall(
       "GET",
       `/api/public/datasets/dataset-name`,
@@ -162,31 +242,89 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(getDataset.status).toBe(200);
     expect(getDataset.body).toMatchObject({
       name: "dataset-name",
-      items: [
-        {
-          id: dbDatasetItem!.id,
-          input: { key: "value" },
-          expectedOutput: { key: "value" },
-          metadata: { key: "value-dataset-item" },
-          datasetName: "dataset-name", // not included in db table
-        },
-      ],
+      items: dbDatasetItemsApiResponseFormat,
     });
 
+    // Get List
+    const getDatasetItemsAll = await makeAPICall(
+      "GET",
+      `/api/public/dataset-items`,
+    );
+    expect(getDatasetItemsAll.status).toBe(200);
+    expect(getDatasetItemsAll.body).toMatchObject({
+      data: dbDatasetItemsAllApiResponseFormat,
+      meta: expect.objectContaining({
+        totalItems: 6,
+        page: 1,
+      }),
+    });
+    // Get List, check pagination
+    const getDatasetItemsAllPage2 = await makeAPICall(
+      "GET",
+      `/api/public/dataset-items?page=2&limit=1`,
+    );
+    expect(getDatasetItemsAllPage2.status).toBe(200);
+    expect(getDatasetItemsAllPage2.body).toMatchObject({
+      data: dbDatasetItemsAllApiResponseFormat.slice(1, 2),
+      meta: expect.objectContaining({
+        totalItems: 6,
+        page: 2,
+        totalPages: 6,
+        limit: 1,
+      }),
+    });
+    // Get filtered list by datasetName
+    const getDatasetItems = await makeAPICall(
+      "GET",
+      `/api/public/dataset-items?datasetName=dataset-name`,
+    );
+    expect(getDatasetItems.status).toBe(200);
+    expect(getDatasetItems.body).toMatchObject({
+      data: dbDatasetItemsApiResponseFormat,
+      meta: expect.objectContaining({
+        totalItems: 5,
+        page: 1,
+      }),
+    });
+    // Get filtered list by sourceTraceId
+    const getDatasetItemsTrace = await makeAPICall(
+      "GET",
+      `/api/public/dataset-items?sourceTraceId=${traceId}`,
+    );
+    expect(getDatasetItemsTrace.status).toBe(200);
+    expect(getDatasetItemsTrace.body).toMatchObject({
+      data: dbDatasetItemsApiResponseFormat.filter(
+        (item) => item.sourceTraceId === traceId,
+      ),
+      meta: expect.objectContaining({
+        totalItems: 3,
+        page: 1,
+      }),
+    });
+    // Get filtered list by sourceObservationId
+    const getDatasetItemsObservation = await makeAPICall(
+      "GET",
+      `/api/public/dataset-items?sourceObservationId=${observationId}`,
+    );
+    expect(getDatasetItemsObservation.status).toBe(200);
+    expect(getDatasetItemsObservation.body).toMatchObject({
+      data: dbDatasetItemsApiResponseFormat.filter(
+        (item) => item.sourceObservationId === observationId,
+      ),
+      meta: expect.objectContaining({
+        totalItems: 3,
+        page: 1,
+      }),
+    });
+
+    // Get single item
+    const singleItem = dbDatasetItemsApiResponseFormat[0];
     const getDatasetItem = await makeAPICall(
       "GET",
-      `/api/public/dataset-items/${dbDatasetItem!.id}`,
+      `/api/public/dataset-items/${singleItem.id}`,
     );
     expect(getDatasetItem.status).toBe(200);
-    expect(getDatasetItem.body).toMatchObject({
-      id: dbDatasetItem!.id,
-      input: { key: "value" },
-      expectedOutput: { key: "value" },
-      metadata: { key: "value-dataset-item" },
-      datasetName: "dataset-name", // not included in db table
-      sourceTraceId: traceId,
-      sourceObservationId: observationId,
-    });
+    expect(getDatasetItem.body).toMatchObject(singleItem);
   });
 
   it("should upsert a dataset item", async () => {
@@ -396,6 +534,139 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       datasetItemId: "dataset-item-id",
       observationId: observationId,
       traceId: traceId,
+    });
+  });
+
+  it("GET /api/public/datasets/{datasetName}/runs", async () => {
+    // create multiple runs
+    await makeAPICall("POST", "/api/public/datasets", {
+      name: "dataset-name",
+    });
+    await makeAPICall("POST", "/api/public/dataset-items", {
+      datasetName: "dataset-name",
+      id: "dataset-item-id",
+      input: { key: "value" },
+      expectedOutput: { key: "value" },
+    });
+    const traceId = v4();
+    const observationId = v4();
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            name: "trace-name",
+            userId: "user-1",
+            metadata: { key: "value" },
+            release: "1.0.0",
+            version: "2.0.0",
+          },
+        },
+        {
+          id: v4(),
+          type: "observation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: observationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            startTime: "2021-01-01T00:00:00.000Z",
+            endTime: "2021-01-01T00:00:00.000Z",
+            modelParameters: { key: "value" },
+            input: { key: "value" },
+            metadata: { key: "value" },
+            version: "2.0.0",
+          },
+        },
+      ],
+    });
+    expect(response.status).toBe(207);
+
+    await makeAPICall("POST", "/api/public/dataset-run-items", {
+      datasetItemId: "dataset-item-id",
+      traceId: traceId,
+      observationId: observationId,
+      runName: "run-1",
+    });
+    await makeAPICall("POST", "/api/public/dataset-run-items", {
+      datasetItemId: "dataset-item-id",
+      traceId: traceId,
+      observationId: observationId,
+      runName: "run-2",
+    });
+    await makeAPICall("POST", "/api/public/dataset-run-items", {
+      datasetItemId: "dataset-item-id",
+      traceId: traceId,
+      observationId: observationId,
+      runName: "run-3",
+    });
+
+    // check runs in db
+    const dbRuns = await prisma.datasetRuns.findMany({
+      where: {
+        dataset: { name: "dataset-name" },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    expect(dbRuns.length).toBe(3);
+    const dbRunsApiResponseFormat = dbRuns.map((run) => ({
+      ...run,
+      createdAt: run.createdAt.toISOString(),
+      updatedAt: run.updatedAt.toISOString(),
+      datasetName: "dataset-name",
+    }));
+    // test against prisma changes
+    const datasetRunResponseKeys = [
+      "createdAt",
+      "updatedAt",
+      "datasetName",
+      "id",
+      "name",
+      "description",
+      "metadata",
+      "datasetId",
+    ];
+    dbRunsApiResponseFormat.forEach((run) => {
+      expect(Object.keys(run)).toEqual(
+        expect.arrayContaining(datasetRunResponseKeys),
+      );
+      expect(Object.keys(run)).toHaveLength(datasetRunResponseKeys.length);
+    });
+
+    // test get runs
+    const getRuns = await makeAPICall(
+      "GET",
+      `/api/public/datasets/dataset-name/runs`,
+    );
+    expect(getRuns.status).toBe(200);
+    expect(getRuns.body).toMatchObject({
+      data: dbRunsApiResponseFormat,
+      meta: expect.objectContaining({
+        totalItems: 3,
+        page: 1,
+      }),
+    });
+
+    // test runs with pagination
+    const getRunsPage2 = await makeAPICall(
+      "GET",
+      `/api/public/datasets/dataset-name/runs?page=2&limit=1`,
+    );
+    expect(getRunsPage2.status).toBe(200);
+    expect(getRunsPage2.body).toMatchObject({
+      data: dbRunsApiResponseFormat.slice(1, 2),
+      meta: expect.objectContaining({
+        totalItems: 3,
+        page: 2,
+        totalPages: 3,
+        limit: 1,
+      }),
     });
   });
 
