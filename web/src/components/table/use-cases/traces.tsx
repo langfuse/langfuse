@@ -149,6 +149,7 @@ export default function TracesTable({
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
+      filter: filterState,
     },
     {
       trpc: {

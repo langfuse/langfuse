@@ -165,6 +165,7 @@ export default function GenerationsTable({
   const filterOptions = api.generations.filterOptions.useQuery(
     {
       projectId,
+      filter: filterState,
     },
     {
       trpc: {

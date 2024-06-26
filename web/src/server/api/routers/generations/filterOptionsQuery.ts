@@ -1,20 +1,35 @@
 import { z } from "zod";
 
-import { type ObservationOptions } from "@langfuse/shared";
+import {
+  datetimeFilterToPrismaSql,
+  singleFilter,
+  type ObservationOptions,
+} from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { Prisma } from "@langfuse/shared/src/db";
 
 export const filterOptionsQuery = protectedProjectProcedure
-  .input(z.object({ projectId: z.string() }))
+  .input(z.object({ projectId: z.string(), filter: z.array(singleFilter) }))
   .query(async ({ input, ctx }) => {
+    const startTimeFilter = input.filter.find((f) => f.column === "Start Time");
+    const prismaStartTimeFilter =
+      startTimeFilter?.operator.includes(">") &&
+      startTimeFilter.type === "datetime"
+        ? { gt: startTimeFilter.value }
+        : startTimeFilter?.type === "datetime"
+          ? { lt: startTimeFilter.value }
+          : {};
+
     const queryFilter = {
       projectId: input.projectId,
       type: "GENERATION",
     } as const;
 
+    // Score names
     const scores = await ctx.prisma.score.groupBy({
       where: {
         projectId: input.projectId,
+        timestamp: prismaStartTimeFilter,
       },
       take: 1000,
       orderBy: {
@@ -23,18 +38,21 @@ export const filterOptionsQuery = protectedProjectProcedure
       by: ["name"],
     });
 
+    // Model names
     const model = await ctx.prisma.observation.groupBy({
       by: ["model"],
-      where: queryFilter,
+      where: { ...queryFilter, startTime: prismaStartTimeFilter },
       _count: { _all: true },
       take: 1000,
       orderBy: {
         model: "desc",
       },
     });
+
+    // Observation names
     const name = await ctx.prisma.observation.groupBy({
       by: ["name"],
-      where: queryFilter,
+      where: { ...queryFilter, startTime: prismaStartTimeFilter },
       _count: { _all: true },
       take: 1000,
       orderBy: {
@@ -59,6 +77,17 @@ export const filterOptionsQuery = protectedProjectProcedure
         GROUP BY 1
         LIMIT 1000;
       `);
+
+    // Trace names
+    const rawStartTimeFilter =
+      startTimeFilter && startTimeFilter.type === "datetime"
+        ? datetimeFilterToPrismaSql(
+            "start_time",
+            startTimeFilter.operator,
+            startTimeFilter.value,
+          )
+        : Prisma.empty;
+
     const traceName = await ctx.prisma.$queryRaw<
       Array<{
         traceName: string | null;
@@ -73,6 +102,7 @@ export const filterOptionsQuery = protectedProjectProcedure
         WHERE o.type = 'GENERATION'
           AND o.project_id = ${input.projectId}
           AND t.project_id = ${input.projectId}
+          ${rawStartTimeFilter}
         GROUP BY 1
         LIMIT 1000;
       `);

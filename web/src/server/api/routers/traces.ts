@@ -172,11 +172,23 @@ export const traceRouter = createTRPCRouter({
       };
     }),
   filterOptions: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), filter: z.array(singleFilter) }))
     .query(async ({ input, ctx }) => {
+      const timestampFilter = input.filter.find(
+        (f) => f.column === "Timestamp",
+      );
+      const prismaTimestampFilter =
+        timestampFilter?.operator.includes(">") &&
+        timestampFilter.type === "datetime"
+          ? { gt: timestampFilter.value }
+          : timestampFilter?.type === "datetime"
+            ? { lt: timestampFilter.value }
+            : {};
+
       const scores = await ctx.prisma.score.groupBy({
         where: {
           projectId: input.projectId,
+          timestamp: prismaTimestampFilter,
         },
         take: 1000,
         orderBy: {
@@ -189,6 +201,7 @@ export const traceRouter = createTRPCRouter({
       const names = await ctx.prisma.trace.groupBy({
         where: {
           projectId: input.projectId,
+          timestamp: prismaTimestampFilter,
         },
         by: ["name"],
         // limiting to 1k trace names to avoid performance issues.
@@ -204,11 +217,21 @@ export const traceRouter = createTRPCRouter({
           id: true,
         },
       });
+
+      const rawTimestampFilter =
+        timestampFilter && timestampFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "timestamp",
+              timestampFilter.operator,
+              timestampFilter.value,
+            )
+          : Prisma.empty;
+
       const tags: { count: number; value: string }[] = await ctx.prisma
         .$queryRaw`
         SELECT COUNT(*)::integer AS "count", tags.tag as value
         FROM traces, UNNEST(traces.tags) AS tags(tag)
-        WHERE traces.project_id = ${input.projectId}
+        WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
         GROUP BY tags.tag
         LIMIT 1000
       `;
