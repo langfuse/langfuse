@@ -25,6 +25,30 @@ import {
   isPresent,
 } from "@/src/features/manual-scoring/lib/helpers";
 
+const validateScoreBody = ({
+  parsedBody,
+}: {
+  parsedBody: z.infer<typeof ScoreBody>;
+}): { error: string } | { error: null } => {
+  if (parsedBody.stringValue) {
+    if (!parsedBody.dataType || isNumericDataType(parsedBody.dataType))
+      return {
+        error:
+          "You may only pass a string value for categorical or boolean data types",
+      };
+  }
+  if (parsedBody.dataType) {
+    if (isBooleanDataType(parsedBody.dataType)) {
+      if (parsedBody.value !== 0 && parsedBody.value !== 1) {
+        return {
+          error: "Boolean data type should have value of 0 or 1",
+        };
+      }
+    }
+  }
+  return { error: null };
+};
+
 const validateConfigAgainstBody = ({
   parsedBody,
   config,
@@ -208,11 +232,18 @@ export default async function handler(
         const { error } = validateConfigAgainstBody({ parsedBody, config });
         if (error) {
           throw new Error(error, {
-            cause: "Invalid request data - score body not valid against config",
+            cause: "Invalid request data - score body not valid",
           });
         }
 
         inflatedBody = inflateScoreBody({ parsedBody, config });
+      } else {
+        const { error } = validateScoreBody({ parsedBody });
+        if (error) {
+          throw new Error(error, {
+            cause: "Invalid request data - score body not valid",
+          });
+        }
       }
 
       const event = {
@@ -245,8 +276,7 @@ export default async function handler(
       }
       if (
         error instanceof Error &&
-        error.cause ===
-          "Invalid request data - score body not valid against config"
+        error.cause === "Invalid request data - score body not valid"
       ) {
         return res.status(400).json({
           message: "Invalid request data",
