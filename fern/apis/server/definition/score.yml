@@ -74,7 +74,7 @@ types:
         docs: The numeric value of the score. Must be passed for all data types. Is used as source of truth when inferring the string value.
       stringValue:
         type: optional<string>
-        docs: Translates numeric value to string equivalent for boolean and categorical score types. When passing a configId this field is automatically populated. Otherwise, you may use this field to provide a custom string value.
+        docs: Translates numeric value to string equivalent for boolean and categorical score types. When passing a configId or boolean data type this field is automatically populated. Otherwise, you may use this field to provide a custom string value.
       observationId: optional<string>
       comment: optional<string>
       dataType:

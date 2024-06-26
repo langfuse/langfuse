@@ -3151,9 +3151,9 @@ components:
           nullable: true
           description: >-
             Translates numeric value to string equivalent for boolean and
-            categorical score types. When passing a configId this field is
-            automatically populated. Otherwise, you may use this field to
-            provide a custom string value.
+            categorical score types. When passing a configId or boolean data
+            type this field is automatically populated. Otherwise, you may use
+            this field to provide a custom string value.
         observationId:
           type: string
           nullable: true

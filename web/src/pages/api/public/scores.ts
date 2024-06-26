@@ -252,6 +252,12 @@ export default async function handler(
             cause: "Invalid request data - score body not valid",
           });
         }
+        if (parsedBody.dataType && isBooleanDataType(parsedBody.dataType)) {
+          inflatedBody = {
+            ...parsedBody,
+            stringValue: parsedBody.value === 1 ? "True" : "False",
+          };
+        }
       }
 
       const event = {
