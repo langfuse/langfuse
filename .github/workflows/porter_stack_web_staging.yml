@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - optionally-migrate-in-docker-container
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
