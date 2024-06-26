@@ -125,10 +125,10 @@ types:
         docs: Whether the score config is archived. Defaults to false.
       minValue:
         type: optional<double>
-        docs: "Sets minimum value for numerical scores. If not set, the minimum value is -∞."
+        docs: "Sets minimum value for numerical scores. If not set, the minimum value defaults to -∞."
       maxValue:
         type: optional<double>
-        docs: "Sets maximum value for numerical scores. If not set, the maximum value is +∞."
+        docs: "Sets maximum value for numerical scores. If not set, the maximum value defaults to +∞."
       categories: optional<list<ConfigCategory>>
       description: optional<string>
   ConfigCategory:

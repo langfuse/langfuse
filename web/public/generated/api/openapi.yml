@@ -1809,14 +1809,14 @@ components:
           nullable: true
           description: >-
             Sets minimum value for numerical scores. If not set, the minimum
-            value is -∞.
+            value defaults to -∞.
         maxValue:
           type: number
           format: double
           nullable: true
           description: >-
             Sets maximum value for numerical scores. If not set, the maximum
-            value is +∞.
+            value defaults to +∞.
         categories:
           type: array
           items:
@@ -3115,14 +3115,14 @@ components:
           nullable: true
           description: >-
             Configure a minimum value for numerical scores. If not set, the
-            minimum value is -∞.
+            minimum value defaults to -∞.
         maxValue:
           type: number
           format: double
           nullable: true
           description: >-
             Configure a maximum value for numerical scores. If not set, the
-            maximum value is +∞.
+            maximum value defaults to +∞.
         description:
           type: string
           nullable: true
@@ -3152,8 +3152,8 @@ components:
           description: >-
             Translates numeric value to string equivalent for boolean and
             categorical score types. When passing a configId this field is
-            automatically populated if not set. Otherwise, you may use this
-            field to provide a custom string value.
+            automatically populated. Otherwise, you may use this field to
+            provide a custom string value.
         observationId:
           type: string
           nullable: true
