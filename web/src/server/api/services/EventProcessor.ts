@@ -29,6 +29,7 @@ import { jsonSchema } from "@langfuse/shared";
 import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";
+import Decimal from "decimal.js";
 
 export interface EventProcessor {
   process(
@@ -88,7 +89,7 @@ export async function findModel(p: {
     }::timestamp with time zone at time zone 'UTC')
     ORDER BY
       project_id ASC,
-      start_date DESC
+      start_date DESC NULLS LAST
     LIMIT 1
   `;
 
@@ -182,6 +183,7 @@ export class ObservationProcessor implements EventProcessor {
           ).id
         : this.event.body.traceId;
 
+    // Token counts
     const [newInputCount, newOutputCount] =
       "usage" in this.event.body
         ? this.calculateTokenCounts(
@@ -190,6 +192,41 @@ export class ObservationProcessor implements EventProcessor {
             existingObservation ?? undefined,
           )
         : [undefined, undefined];
+
+    const newTotalCount =
+      "usage" in this.event.body
+        ? this.event.body.usage?.total ??
+          (newInputCount != null || newOutputCount != null
+            ? (newInputCount ?? 0) + (newOutputCount ?? 0)
+            : undefined)
+        : undefined;
+
+    const userProvidedTokenCosts = {
+      inputCost:
+        "usage" in this.event.body && this.event.body.usage?.inputCost != null // inputCost can be explicitly 0. Note only one equal sign to capture null AND undefined
+          ? new Decimal(this.event.body.usage?.inputCost)
+          : existingObservation?.inputCost,
+      outputCost:
+        "usage" in this.event.body && this.event.body.usage?.outputCost != null // outputCost can be explicitly 0. Note only one equal sign to capture null AND undefined
+          ? new Decimal(this.event.body.usage?.outputCost)
+          : existingObservation?.outputCost,
+      totalCost:
+        "usage" in this.event.body && this.event.body.usage?.totalCost != null // totalCost can be explicitly 0. Note only one equal sign to capture null AND undefined
+          ? new Decimal(this.event.body.usage?.totalCost)
+          : existingObservation?.totalCost,
+    };
+
+    const tokenCounts = {
+      input: newInputCount ?? existingObservation?.promptTokens,
+      output: newOutputCount ?? existingObservation?.completionTokens,
+      total: newTotalCount || existingObservation?.totalTokens,
+    };
+
+    const calculatedCosts = ObservationProcessor.calculateTokenCosts(
+      internalModel,
+      userProvidedTokenCosts,
+      tokenCounts,
+    );
 
     // merge metadata from existingObservation.metadata and metadata
     const mergedMetadata = mergeJson(
@@ -250,11 +287,7 @@ export class ObservationProcessor implements EventProcessor {
         output: this.event.body.output ?? undefined,
         promptTokens: newInputCount,
         completionTokens: newOutputCount,
-        totalTokens:
-          "usage" in this.event.body
-            ? this.event.body.usage?.total ??
-              (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined,
+        totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
             ? this.event.body.usage?.unit ?? internalModel?.unit
@@ -280,6 +313,10 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in this.event.body
             ? this.event.body.usage?.totalCost
             : undefined,
+        calculatedInputCost: calculatedCosts?.inputCost,
+        calculatedOutputCost: calculatedCosts?.outputCost,
+        calculatedTotalCost: calculatedCosts?.totalCost,
+        internalModelId: internalModel?.id,
       },
       update: {
         name: this.event.body.name ?? undefined,
@@ -305,11 +342,7 @@ export class ObservationProcessor implements EventProcessor {
         output: this.event.body.output ?? undefined,
         promptTokens: newInputCount,
         completionTokens: newOutputCount,
-        totalTokens:
-          "usage" in this.event.body
-            ? this.event.body.usage?.total ??
-              (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined,
+        totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
             ? this.event.body.usage?.unit ?? internalModel?.unit
@@ -334,6 +367,10 @@ export class ObservationProcessor implements EventProcessor {
           "usage" in this.event.body
             ? this.event.body.usage?.totalCost
             : undefined,
+        calculatedInputCost: calculatedCosts?.inputCost,
+        calculatedOutputCost: calculatedCosts?.outputCost,
+        calculatedTotalCost: calculatedCosts?.totalCost,
+        internalModelId: internalModel?.id,
       },
     };
   }
@@ -370,6 +407,50 @@ export class ObservationProcessor implements EventProcessor {
 
       return [newPromptTokens, newCompletionTokens];
     });
+  }
+
+  static calculateTokenCosts(
+    model: Model | null | undefined,
+    userProvidedCosts: {
+      inputCost?: Decimal | null;
+      outputCost?: Decimal | null;
+      totalCost?: Decimal | null;
+    },
+    tokenCounts: { input?: number; output?: number; total?: number },
+  ): {
+    inputCost?: Decimal;
+    outputCost?: Decimal;
+    totalCost?: Decimal;
+  } {
+    if (!model) return {};
+
+    const finalInputCost =
+      userProvidedCosts.inputCost ??
+      (tokenCounts.input !== undefined && model.inputPrice
+        ? model.inputPrice.mul(tokenCounts.input)
+        : undefined);
+
+    const finalOutputCost =
+      userProvidedCosts.outputCost ??
+      (tokenCounts.output !== undefined && model.outputPrice
+        ? model.outputPrice.mul(tokenCounts.output)
+        : finalInputCost
+          ? new Decimal(0)
+          : undefined);
+
+    const finalTotalCost =
+      userProvidedCosts.totalCost ??
+      (tokenCounts.total !== undefined && model.totalPrice
+        ? model.totalPrice.mul(tokenCounts.total)
+        : finalInputCost ?? finalOutputCost
+          ? new Decimal(finalInputCost ?? 0).add(finalOutputCost ?? 0)
+          : undefined);
+
+    return {
+      inputCost: finalInputCost,
+      outputCost: finalOutputCost,
+      totalCost: finalTotalCost,
+    };
   }
 
   async process(apiScope: ApiAccessScope): Promise<Observation> {

@@ -17,6 +17,7 @@ import {
 import { encrypt } from "@langfuse/shared/encryption";
 import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
+import { evalQueue } from "../queues/evalQueue";
 
 vi.mock("../redis/consumer", () => ({
   evalQueue: {
@@ -149,6 +150,19 @@ describe("create eval jobs", () => {
       })
       .execute();
 
+    await kyselyPrisma.$kysely
+      .insertInto("llm_api_keys")
+      .values({
+        id: randomUUID(),
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        secret_key: encrypt(String(OPENAI_API_KEY)),
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        custom_models: [],
+        display_secret_key: "123456",
+      })
+      .execute();
+
     await prisma.jobConfiguration.create({
       data: {
         id: randomUUID(),
@@ -195,6 +209,19 @@ describe("create eval jobs", () => {
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         user_id: "a",
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("llm_api_keys")
+      .values({
+        id: randomUUID(),
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        secret_key: encrypt(String(OPENAI_API_KEY)),
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        custom_models: [],
+        display_secret_key: "123456",
       })
       .execute();
 
@@ -266,6 +293,9 @@ describe("create eval jobs", () => {
     expect(jobs.length).toBe(1);
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
+    console.log(jobs[0]);
+    const j = await evalQueue?.getJob(jobs[0].id);
+    console.log(j);
     expect(jobs[0].status.toString()).toBe("CANCELLED");
     expect(jobs[0].start_time).not.toBeNull();
     expect(jobs[0].end_time).not.toBeNull();

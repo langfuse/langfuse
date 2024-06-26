@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.55.1",
+  "version": "2.56.1",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "dotenv -e ../.env -- vitest run --reporter=basic --disable-console-intercept",
+    "test": "dotenv -e ../.env -- vitest run --reporter=basic ",
     "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
@@ -36,7 +36,7 @@
     "kysely": "^0.27.3",
     "lodash": "^4.17.21",
     "pg": "^8.11.5",
-    "pino": "^8.20.0",
+    "pino": "^9.2.0",
     "pino-http": "^9.0.0",
     "pino-pretty": "^10.3.1",
     "tiktoken": "^1.0.15",
