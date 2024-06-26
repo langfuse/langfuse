@@ -25,7 +25,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
       ) {
         return 0.1;
       }
-      return 0.01;
+      return 0.1;
     },
 
     profilesSampleRate: 0.1,
