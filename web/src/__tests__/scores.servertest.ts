@@ -233,23 +233,23 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
 
     await makeAPICall("POST", "/api/public/score-configs", {
-      name: "config-name",
+      name: "accuracy",
       dataType: ScoreDataType.BOOLEAN,
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        name: "config-name",
+        name: "accuracy",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.name).toBe("config-name");
+    expect(dbScoreConfig[0]?.name).toBe("accuracy");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
-      name: "score-name",
+      name: "accuracy",
       value: 1,
       configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.BOOLEAN,
@@ -296,23 +296,23 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
 
     await makeAPICall("POST", "/api/public/score-configs", {
-      name: "config-name",
+      name: "accuracy",
       dataType: ScoreDataType.BOOLEAN,
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        name: "config-name",
+        name: "accuracy",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.name).toBe("config-name");
+    expect(dbScoreConfig[0]?.name).toBe("accuracy");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
-      name: "score-name",
+      name: "accuracy",
       value: 0,
       configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.BOOLEAN,
@@ -358,23 +358,23 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
 
     await makeAPICall("POST", "/api/public/score-configs", {
-      name: "config-name",
+      name: "accuracy",
       dataType: ScoreDataType.BOOLEAN,
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        name: "config-name",
+        name: "accuracy",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.name).toBe("config-name");
+    expect(dbScoreConfig[0]?.name).toBe("accuracy");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
-      name: "score-name",
+      name: "accuracy",
       value: 0.5,
       configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.BOOLEAN,
@@ -418,7 +418,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
 
     await makeAPICall("POST", "/api/public/score-configs", {
-      name: "config-name",
+      name: "accuracy",
       dataType: ScoreDataType.CATEGORICAL,
       categories: [
         { label: "One", value: 1 },
@@ -428,17 +428,17 @@ describe("/api/public/scores API Endpoint", () => {
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        name: "config-name",
+        name: "accuracy",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.name).toBe("config-name");
+    expect(dbScoreConfig[0]?.name).toBe("accuracy");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
-      name: "score-name",
+      name: "accuracy",
       value: 0.5,
       configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.CATEGORICAL,
@@ -482,24 +482,24 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
 
     await makeAPICall("POST", "/api/public/score-configs", {
-      name: "config-name",
+      name: "accuracy",
       dataType: ScoreDataType.NUMERIC,
       maxValue: 0,
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        name: "config-name",
+        name: "accuracy",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.name).toBe("config-name");
+    expect(dbScoreConfig[0]?.name).toBe("accuracy");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
-      name: "score-name",
+      name: "accuracy",
       value: 0.5,
       configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.NUMERIC,
