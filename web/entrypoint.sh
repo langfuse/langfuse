@@ -19,10 +19,12 @@ if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL=$DATABASE_URL
 fi
 
-prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
+if [ "$LANFUSE_WEB_MIGRATION_ENABLED" = "true" ]; then
+    prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
 
-# Apply migrations
-prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
+    # Apply migrations
+    prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
+fi
 status=$?
 
 # If migration fails (returns non-zero exit status), exit script with that status
