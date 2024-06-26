@@ -863,7 +863,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&source=&operator=&value=&scoreIds=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&source=&operator=&value=&scoreIds=&configId=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -917,6 +917,11 @@
                   "key": "scoreIds",
                   "value": "",
                   "description": "Comma-separated list of score IDs to limit the results to."
+                },
+                {
+                  "key": "configId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific configId."
                 }
               ],
               "variable": []

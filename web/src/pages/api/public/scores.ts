@@ -137,6 +137,7 @@ const ScoresGetSchema = z
   .object({
     ...paginationZod,
     userId: z.string().nullish(),
+    configId: z.string().nullish(),
     name: z.string().nullish(),
     fromTimestamp: stringDate,
     source: z.nativeEnum(ScoreSource).nullish(),
@@ -258,6 +259,9 @@ export default async function handler(
       const obj = ScoresGetSchema.parse(req.query); // uses query and not body
 
       const skipValue = (obj.page - 1) * obj.limit;
+      const configCondition = obj.configId
+        ? Prisma.sql`AND s."config_id" = ${obj.configId}`
+        : Prisma.empty;
       const userCondition = obj.userId
         ? Prisma.sql`AND t."user_id" = ${obj.userId}`
         : Prisma.empty;
@@ -286,14 +290,18 @@ export default async function handler(
             s.timestamp,
             s.name,
             s.value,
+            s.string_value as "stringValue",
             s.source,
             s.comment,
+            s.data_type as "dataType",
+            s.config_id as "configId",
             s.trace_id as "traceId",
             s.observation_id as "observationId",
             json_build_object('userId', t.user_id) as "trace"
           FROM "scores" AS s
           JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
           WHERE s.project_id = ${authCheck.scope.projectId}
+          ${configCondition}
           ${userCondition}
           ${nameCondition}
           ${sourceCondition}

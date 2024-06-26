@@ -684,6 +684,7 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("should Filter scores", () => {
+    let configId = "";
     const userId = "user-name";
     const scoreName = "score-name";
     const queryUserName = `userId=${userId}&name=${scoreName}`;
@@ -714,6 +715,20 @@ describe("/api/public/scores API Endpoint", () => {
       await makeAPICall("POST", "/api/public/generations", {
         id: generationId,
       });
+
+      await makeAPICall("POST", "/api/public/score-configs", {
+        name: scoreName,
+        dataType: ScoreDataType.NUMERIC,
+        maxValue: 100,
+      });
+
+      const config = await prisma.scoreConfig.findFirst({
+        where: {
+          name: scoreName,
+        },
+      });
+      configId = config?.id ?? "";
+
       await makeAPICall("POST", "/api/public/scores", {
         id: scoreId_1,
         observationId: generationId,
@@ -721,6 +736,7 @@ describe("/api/public/scores API Endpoint", () => {
         value: 10.5,
         traceId: traceId,
         comment: "comment",
+        configId,
       });
       await makeAPICall("POST", "/api/public/scores", {
         id: scoreId_2,
@@ -764,6 +780,34 @@ describe("/api/public/scores API Endpoint", () => {
         expect(val).toMatchObject({
           traceId: traceId,
           observationId: generationId,
+        });
+      }
+    });
+
+    it("get all scores for config", async () => {
+      const getAllScore = await makeAPICall<{
+        data: [
+          {
+            traceId: string;
+            observationId: string;
+            configId?: string;
+          },
+        ];
+        meta: object;
+      }>("GET", `/api/public/scores?configId=${configId}`);
+
+      expect(getAllScore.status).toBe(200);
+      expect(getAllScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
+      });
+      for (const val of getAllScore.body.data) {
+        expect(val).toMatchObject({
+          traceId: traceId,
+          observationId: generationId,
+          configId: configId,
         });
       }
     });

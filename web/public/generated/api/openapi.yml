@@ -1194,6 +1194,13 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: configId
+          in: query
+          description: Retrieve only scores with a specific configId.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
