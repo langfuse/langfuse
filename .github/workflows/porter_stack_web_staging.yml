@@ -18,6 +18,7 @@ jobs:
         timeout-minutes: 30
         run: exec porter apply
         env:
+          LANFUSE_WEB_MIGRATION_DISABLED: true
           PORTER_CLUSTER: "4037"
           PORTER_DEPLOYMENT_TARGET_ID: c22d8fa2-f97c-4e1f-9cae-83cc6bfbad35
           PORTER_HOST: https://dashboard.getporter.dev
