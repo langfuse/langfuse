@@ -2,7 +2,7 @@
   push:
     branches:
       - main
-name: Deploy to web
+name: Deploy to web (Staging)
 jobs:
   porter-deploy:
     runs-on: ubuntu-latest
