@@ -564,6 +564,9 @@ export class ScoreProcessor implements EventProcessor {
         name: body.name,
         comment: body.comment,
         source: "API",
+        dataType: body.dataType ?? undefined,
+        configId: body.configId ?? undefined,
+        stringValue: body.stringValue ?? undefined,
       },
       update: {
         traceId: body.traceId,
@@ -573,6 +576,9 @@ export class ScoreProcessor implements EventProcessor {
         name: body.name,
         comment: body.comment,
         source: "API",
+        dataType: body.dataType ?? undefined,
+        configId: body.configId ?? undefined,
+        stringValue: body.stringValue ?? undefined,
       },
     });
   }

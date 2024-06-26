@@ -186,8 +186,11 @@ types:
       traceId: string
       name: string
       value: double
+      stringValue: optional<string>
       observationId: optional<string>
       comment: optional<string>
+      dataType: optional<string>
+      configId: optional<string>
 
   BaseEvent:
     properties:

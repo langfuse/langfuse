@@ -4,7 +4,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { paginationZod } from "@langfuse/shared";
+import { paginationZod, type CastedConfig } from "@langfuse/shared";
 import {
   ScoreBody,
   eventTypes,
@@ -17,6 +17,109 @@ import {
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 import { isPrismaException } from "@/src/utils/exceptions";
+import {
+  isBooleanDataType,
+  isCastedConfig,
+  isCategoricalDataType,
+  isNumericDataType,
+  isPresent,
+} from "@/src/features/manual-scoring/lib/helpers";
+
+const validateConfigAgainstBody = ({
+  parsedBody,
+  config,
+}: {
+  parsedBody: z.infer<typeof ScoreBody>;
+  config: CastedConfig;
+}): { error: string } | { error: null } => {
+  if (parsedBody.dataType !== config.dataType) {
+    return {
+      error: `Data type mismatch based on config: expected ${config.dataType}, got ${parsedBody.dataType}`,
+    };
+  }
+
+  if (isNumericDataType(config.dataType)) {
+    if (isPresent(config.maxValue) && parsedBody.value > config.maxValue) {
+      return {
+        error: `Value exceeds maximum value of ${config.maxValue}`,
+      };
+    }
+    if (isPresent(config.minValue) && parsedBody.value < config.minValue) {
+      return {
+        error: `Value is below minimum value of ${config.minValue}`,
+      };
+    }
+  }
+
+  if (isBooleanDataType(config.dataType)) {
+    if (parsedBody.stringValue) {
+      return {
+        error:
+          "Only define string value if no config is referenced. It will be populated automatically",
+      };
+    }
+    if (!config.categories) {
+      return {
+        error:
+          "Config invalid. Boolean data type should have config categories",
+      };
+    }
+    if (parsedBody.value !== 0 && parsedBody.value !== 1) {
+      return {
+        error: "Boolean data type should have value of 0 or 1",
+      };
+    }
+  }
+
+  if (isCategoricalDataType(config.dataType)) {
+    if (parsedBody.stringValue) {
+      return {
+        error:
+          "Only define string value if no config is referenced. It will be populated automatically.",
+      };
+    }
+    if (!config.categories) {
+      return {
+        error:
+          "Config invalid. Categorical data type should have config categories",
+      };
+    }
+    if (
+      !config.categories.find((category) => category.value === parsedBody.value)
+    ) {
+      return {
+        error: `Value ${parsedBody.value} does not map to a valid category`,
+      };
+    }
+  }
+
+  return { error: null };
+};
+
+const mapValueToString = (config: CastedConfig, value: number): string =>
+  config.categories?.find((category) => category.value === value)?.label ?? "";
+
+const inflateScoreBody = ({
+  parsedBody,
+  config,
+}: {
+  parsedBody: z.infer<typeof ScoreBody>;
+  config: CastedConfig;
+}): z.infer<typeof ScoreBody> => {
+  if (!parsedBody.dataType) return parsedBody;
+
+  if (
+    isCategoricalDataType(parsedBody.dataType) ||
+    isBooleanDataType(parsedBody.dataType)
+  ) {
+    return {
+      ...parsedBody,
+      stringValue: mapValueToString(config, parsedBody.value),
+    };
+  }
+
+  return parsedBody;
+};
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
@@ -64,11 +167,35 @@ export default async function handler(
         JSON.stringify(req.body, null, 2),
       );
 
+      const parsedBody = ScoreBody.parse(req.body);
+      let inflatedBody = parsedBody;
+      if (req.body.configId) {
+        const config = await prisma.scoreConfig.findFirst({
+          where: {
+            projectId: authCheck.scope.projectId,
+            id: req.body.configId,
+          },
+        });
+
+        if (!config || !isCastedConfig(config))
+          throw new Error(
+            "The configId you provided does not match a valid config in this project",
+          );
+        const { error } = validateConfigAgainstBody({ parsedBody, config });
+        if (error) {
+          throw new Error(error, {
+            cause: "Invalid request data - score body not valid against config",
+          });
+        }
+
+        inflatedBody = inflateScoreBody({ parsedBody, config });
+      }
+
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
         timestamp: new Date().toISOString(),
-        body: ScoreBody.parse(req.body),
+        body: inflatedBody,
       };
 
       const result = await handleBatch(
@@ -92,6 +219,17 @@ export default async function handler(
           error: error.errors,
         });
       }
+      if (
+        error instanceof Error &&
+        error.cause ===
+          "Invalid request data - score body not valid against config"
+      ) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          error: error.message,
+        });
+      }
+
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       res.status(500).json({

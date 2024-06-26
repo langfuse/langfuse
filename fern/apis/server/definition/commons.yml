@@ -135,10 +135,13 @@ types:
       traceId: string
       name: string
       value: double
+      stringValue: optional<string>
       source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
+      dataType: optional<ScoreDataType>
+      configId: optional<string>
   DatasetCore:
     properties:
       id: string

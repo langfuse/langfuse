@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { ObservationLevel } from "@prisma/client";
+import { ObservationLevel, ScoreDataType } from "@prisma/client";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
@@ -149,9 +149,12 @@ export const ScoreBody = z.object({
   id: z.string().nullish(),
   name: NonEmptyString,
   value: z.number(),
+  stringValue: z.string().nullish(),
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
+  dataType: z.nativeEnum(ScoreDataType).nullish(),
+  configId: z.string().nullish(),
 });
 
 // LEGACY, only required for backwards compatibility

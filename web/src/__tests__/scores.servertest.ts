@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@langfuse/shared/src/db";
+import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 
@@ -136,13 +136,18 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbGeneration[0]?.id).toBe(generationId);
 
     const scoreId = uuidv4();
-    const createScore = await makeAPICall("POST", "/api/public/scores", {
+    const scoreData = {
       id: scoreId,
       name: "score-name",
       value: 100,
       traceId: dbGeneration[0]!.traceId!,
       observationId: dbGeneration[0]!.id,
-    });
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
 
     expect(createScore.status).toBe(200);
     const dbScore = await prisma.score.findUnique({
@@ -151,11 +156,381 @@ describe("/api/public/scores API Endpoint", () => {
       },
     });
 
-    expect(dbScore?.id).toBe(scoreId);
-    expect(dbScore?.traceId).toBe(dbGeneration[0]!.traceId);
-    expect(dbScore?.observationId).toBe(dbGeneration[0]!.id);
-    expect(dbScore?.name).toBe("score-name");
-    expect(dbScore?.value).toBe(100);
+    expect(dbScore).toMatchObject(scoreData);
+  });
+
+  it("should create boolean score WITHOUT a config", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-name",
+      userId: "user-1",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.id).toBe(traceId);
+
+    const scoreId = uuidv4();
+    const scoreData = {
+      id: scoreId,
+      name: "score-name",
+      value: 1,
+      dataType: ScoreDataType.BOOLEAN,
+      stringValue: "True",
+      traceId,
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
+
+    expect(createScore.status).toBe(200);
+    const dbScore = await prisma.score.findUnique({
+      where: {
+        id: scoreId,
+      },
+    });
+
+    expect(dbScore).toMatchObject(scoreData);
+  });
+
+  it("should create boolean score with a config", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-name",
+      userId: "user-1",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.id).toBe(traceId);
+
+    const configId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/score-configs", {
+      id: configId,
+      name: "config-name",
+      dataType: ScoreDataType.BOOLEAN,
+    });
+
+    const dbScoreConfig = await prisma.scoreConfig.findMany({
+      where: {
+        id: configId,
+      },
+    });
+
+    expect(dbScoreConfig.length).toBeGreaterThan(0);
+    expect(dbScoreConfig[0]?.id).toBe(configId);
+
+    const scoreId = uuidv4();
+    const scoreData = {
+      id: scoreId,
+      name: "score-name",
+      value: 1,
+      configId,
+      dataType: ScoreDataType.BOOLEAN,
+      traceId,
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
+
+    expect(createScore.status).toBe(200);
+    const dbScore = await prisma.score.findUnique({
+      where: {
+        id: scoreId,
+      },
+    });
+
+    expect(dbScore).toMatchObject({ ...scoreData, stringValue: "True" });
+  });
+
+  it("should NOT create boolean score if custom string value is passed", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-name",
+      userId: "user-1",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.id).toBe(traceId);
+
+    const configId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/score-configs", {
+      id: configId,
+      name: "config-name",
+      dataType: ScoreDataType.BOOLEAN,
+    });
+
+    const dbScoreConfig = await prisma.scoreConfig.findMany({
+      where: {
+        id: configId,
+      },
+    });
+
+    expect(dbScoreConfig.length).toBeGreaterThan(0);
+    expect(dbScoreConfig[0]?.id).toBe(configId);
+
+    const scoreId = uuidv4();
+    const scoreData = {
+      id: scoreId,
+      name: "score-name",
+      value: 0,
+      configId,
+      dataType: ScoreDataType.BOOLEAN,
+      traceId,
+      stringValue: "False in my context",
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
+
+    expect(createScore.status).toBe(400);
+    expect(createScore.body).toMatchObject({
+      message: "Invalid request data",
+      error:
+        "Only define string value if no config is referenced. It will be populated automatically",
+    });
+  });
+
+  it("should NOT create boolean score with value other than 1 | 0", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-name",
+      userId: "user-1",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.id).toBe(traceId);
+
+    const configId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/score-configs", {
+      id: configId,
+      name: "config-name",
+      dataType: ScoreDataType.BOOLEAN,
+    });
+
+    const dbScoreConfig = await prisma.scoreConfig.findMany({
+      where: {
+        id: configId,
+      },
+    });
+
+    expect(dbScoreConfig.length).toBeGreaterThan(0);
+    expect(dbScoreConfig[0]?.id).toBe(configId);
+
+    const scoreId = uuidv4();
+    const scoreData = {
+      id: scoreId,
+      name: "score-name",
+      value: 0.5,
+      configId,
+      dataType: ScoreDataType.BOOLEAN,
+      traceId,
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
+
+    expect(createScore.status).toBe(400);
+    expect(createScore.body).toMatchObject({
+      message: "Invalid request data",
+      error: "Boolean data type should have value of 0 or 1",
+    });
+  });
+
+  it("should NOT create categorical score with value not defined in config.categories", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-name",
+      userId: "user-1",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.id).toBe(traceId);
+
+    const configId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/score-configs", {
+      id: configId,
+      name: "config-name",
+      dataType: ScoreDataType.CATEGORICAL,
+      categories: [
+        { label: "One", value: 1 },
+        { label: "Zero", value: 0 },
+      ],
+    });
+
+    const dbScoreConfig = await prisma.scoreConfig.findMany({
+      where: {
+        id: configId,
+      },
+    });
+
+    expect(dbScoreConfig.length).toBeGreaterThan(0);
+    expect(dbScoreConfig[0]?.id).toBe(configId);
+
+    const scoreId = uuidv4();
+    const scoreData = {
+      id: scoreId,
+      name: "score-name",
+      value: 0.5,
+      configId,
+      dataType: ScoreDataType.CATEGORICAL,
+      traceId,
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
+
+    expect(createScore.status).toBe(400);
+    expect(createScore.body).toMatchObject({
+      message: "Invalid request data",
+      error: "Value 0.5 does not map to a valid category",
+    });
+  });
+
+  it("should NOT create numeric score outside of defined range", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-name",
+      userId: "user-1",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.id).toBe(traceId);
+
+    const configId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/score-configs", {
+      id: configId,
+      name: "config-name",
+      dataType: ScoreDataType.NUMERIC,
+      maxValue: 0,
+    });
+
+    const dbScoreConfig = await prisma.scoreConfig.findMany({
+      where: {
+        id: configId,
+      },
+    });
+
+    expect(dbScoreConfig.length).toBeGreaterThan(0);
+    expect(dbScoreConfig[0]?.id).toBe(configId);
+
+    const scoreId = uuidv4();
+    const scoreData = {
+      id: scoreId,
+      name: "score-name",
+      value: 0.5,
+      configId,
+      dataType: ScoreDataType.NUMERIC,
+      traceId,
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
+
+    expect(createScore.status).toBe(400);
+    expect(createScore.body).toMatchObject({
+      message: "Invalid request data",
+      error: "Value exceeds maximum value of 0",
+    });
   });
 
   it("should upsert a score", async () => {
