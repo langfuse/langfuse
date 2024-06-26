@@ -13,12 +13,17 @@ export const filterOptionsQuery = protectedProjectProcedure
   .query(async ({ input, ctx }) => {
     const startTimeFilter = input.filter.find((f) => f.column === "Start Time");
     const prismaStartTimeFilter =
-      startTimeFilter?.operator.includes(">") &&
-      startTimeFilter.type === "datetime"
-        ? { gt: startTimeFilter.value }
-        : startTimeFilter?.type === "datetime"
-          ? { lt: startTimeFilter.value }
-          : {};
+      startTimeFilter?.type === "datetime"
+        ? startTimeFilter?.operator === ">="
+          ? { gte: startTimeFilter.value }
+          : startTimeFilter?.operator === ">"
+            ? { gt: startTimeFilter.value }
+            : startTimeFilter?.operator === "<="
+              ? { lte: startTimeFilter.value }
+              : startTimeFilter?.operator === "<"
+                ? { lt: startTimeFilter.value }
+                : {}
+        : {};
 
     const queryFilter = {
       projectId: input.projectId,

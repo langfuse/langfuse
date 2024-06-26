@@ -178,12 +178,17 @@ export const traceRouter = createTRPCRouter({
         (f) => f.column === "Timestamp",
       );
       const prismaTimestampFilter =
-        timestampFilter?.operator.includes(">") &&
-        timestampFilter.type === "datetime"
-          ? { gt: timestampFilter.value }
-          : timestampFilter?.type === "datetime"
-            ? { lt: timestampFilter.value }
-            : {};
+        timestampFilter?.type === "datetime"
+          ? timestampFilter?.operator === ">="
+            ? { gte: timestampFilter.value }
+            : timestampFilter?.operator === ">"
+              ? { gt: timestampFilter.value }
+              : timestampFilter?.operator === "<="
+                ? { lte: timestampFilter.value }
+                : timestampFilter?.operator === "<"
+                  ? { lt: timestampFilter.value }
+                  : {}
+          : {};
 
       const scores = await ctx.prisma.score.groupBy({
         where: {
