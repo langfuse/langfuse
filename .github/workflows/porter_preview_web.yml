@@ -24,6 +24,7 @@ jobs:
     - name: Build and deploy preview environment
       timeout-minutes: 30
       run: exec porter apply -f ./porter.yaml --preview
+      
       env:
         PORTER_CLUSTER: 4037
         PORTER_HOST: https://dashboard.porter.run
