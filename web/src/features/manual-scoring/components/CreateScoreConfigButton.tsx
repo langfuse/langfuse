@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +20,11 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { ScoreDataType } from "@langfuse/shared";
+import {
+  type CreateConfig,
+  ScoreDataType,
+  createConfigSchema,
+} from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -35,6 +38,7 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
+  validateScoreConfig,
 } from "@/src/features/manual-scoring/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -44,20 +48,6 @@ const availableDataTypes = [
   ScoreDataType.CATEGORICAL,
   ScoreDataType.BOOLEAN,
 ] as const;
-
-const category = z.object({
-  label: z.string().min(1),
-  value: z.coerce.number(),
-});
-
-const formSchema = z.object({
-  name: z.string().min(1).max(35),
-  dataType: z.enum(availableDataTypes),
-  minValue: z.coerce.number().optional(),
-  maxValue: z.coerce.number().optional(),
-  categories: z.array(category).optional(),
-  description: z.string().optional(),
-});
 
 export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
@@ -76,8 +66,8 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
       setFormError(error.message ?? "An error occurred while creating config."),
   });
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<CreateConfig>({
+    resolver: zodResolver(createConfigSchema),
     defaultValues: {
       dataType: ScoreDataType.NUMERIC,
       minValue: undefined,
@@ -93,8 +83,8 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
 
   if (!hasAccess) return null;
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    const error = validateForm(values);
+  function onSubmit(values: CreateConfig) {
+    const error = validateScoreConfig(values);
     setFormError(error);
     if (error) return;
 
@@ -379,45 +369,4 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
       </Dialog>
     </>
   );
-}
-
-function validateForm(values: z.infer<typeof formSchema>): string | null {
-  if (isNumericDataType(values.dataType)) {
-    if (
-      !!values.maxValue &&
-      !!values.minValue &&
-      values.maxValue <= values.minValue
-    ) {
-      return "Maximum value must be greater than Minimum value.";
-    }
-  } else if (isCategoricalDataType(values.dataType)) {
-    if (!values.categories || values.categories.length === 0) {
-      return "At least one category is required for categorical data types.";
-    }
-  } else if (isBooleanDataType(values.dataType)) {
-    if (values.categories?.length !== 2)
-      return "Boolean data type must have exactly 2 categories.";
-    const isBooleanCategoryInvalid = values.categories?.some(
-      (category) => category.value !== 0 && category.value !== 1,
-    );
-    if (isBooleanCategoryInvalid)
-      return "Boolean data type must have categories with values 0 and 1.";
-  }
-
-  const uniqueNames = new Set<string>();
-  const uniqueValues = new Set<number>();
-
-  for (const category of values.categories || []) {
-    if (uniqueNames.has(category.label)) {
-      return "Category names must be unique.";
-    }
-    uniqueNames.add(category.label);
-
-    if (uniqueValues.has(category.value)) {
-      return "Category values must be unique.";
-    }
-    uniqueValues.add(category.value);
-  }
-
-  return null;
 }
