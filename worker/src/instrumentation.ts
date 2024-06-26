@@ -14,11 +14,11 @@ Sentry.init({
 
   // Add Tracing by setting tracesSampleRate
   // We recommend adjusting this value in production
-  tracesSampleRate: 0.01,
+  tracesSampleRate: 0.1,
 
   // Set sampling rate for profiling
   // This is relative to tracesSampleRate
-  profilesSampleRate: 0.01,
+  profilesSampleRate: 0.1,
 });
 
 type CallbackAsyncFn<T> = (span?: Sentry.Span) => Promise<T>;
