@@ -162,9 +162,12 @@ export default function GenerationsTable({
 
   const totalCount = generations.data?.totalCount ?? 0;
 
+  const startTimeFilter = filterState.find((f) => f.column === "Start Time");
   const filterOptions = api.generations.filterOptions.useQuery(
     {
       projectId,
+      startTimeFilter:
+        startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
     },
     {
       trpc: {
