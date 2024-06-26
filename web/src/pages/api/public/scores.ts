@@ -32,10 +32,31 @@ const validateConfigAgainstBody = ({
   parsedBody: z.infer<typeof ScoreBody>;
   config: CastedConfig;
 }): { error: string } | { error: null } => {
-  if (parsedBody.dataType !== config.dataType) {
+  if (parsedBody.dataType && parsedBody.dataType !== config.dataType) {
     return {
       error: `Data type mismatch based on config: expected ${config.dataType}, got ${parsedBody.dataType}`,
     };
+  }
+
+  if (parsedBody.stringValue) {
+    if (isNumericDataType(config.dataType)) {
+      return {
+        error:
+          "You may only pass string values for categorical or boolean data types.",
+      };
+    }
+    if (
+      !config.categories?.some(({ label }) => label === parsedBody.stringValue)
+    ) {
+      return {
+        error: `Value ${parsedBody.value} does not map to a valid category. Either pass a valid category value or remove the stringValue field and allow it to autopopulate.`,
+      };
+    }
+    if (mapValueToString(config, parsedBody.value) !== parsedBody.stringValue) {
+      return {
+        error: `Value ${parsedBody.value} does not map to the provided string value.`,
+      };
+    }
   }
 
   if (isNumericDataType(config.dataType)) {
@@ -52,12 +73,6 @@ const validateConfigAgainstBody = ({
   }
 
   if (isBooleanDataType(config.dataType)) {
-    if (parsedBody.stringValue) {
-      return {
-        error:
-          "Only define string value if no config is referenced. It will be populated automatically",
-      };
-    }
     if (!config.categories) {
       return {
         error:
@@ -72,12 +87,6 @@ const validateConfigAgainstBody = ({
   }
 
   if (isCategoricalDataType(config.dataType)) {
-    if (parsedBody.stringValue) {
-      return {
-        error:
-          "Only define string value if no config is referenced. It will be populated automatically.",
-      };
-    }
     if (!config.categories) {
       return {
         error:
@@ -96,8 +105,9 @@ const validateConfigAgainstBody = ({
   return { error: null };
 };
 
-const mapValueToString = (config: CastedConfig, value: number): string =>
-  config.categories?.find((category) => category.value === value)?.label ?? "";
+const mapValueToString = (config: CastedConfig, value: number): string | null =>
+  config.categories?.find((category) => category.value === value)?.label ??
+  null;
 
 const inflateScoreBody = ({
   parsedBody,

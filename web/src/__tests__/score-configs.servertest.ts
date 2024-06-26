@@ -1,17 +1,15 @@
 /** @jest-environment node */
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { v4 as uuidv4 } from "uuid";
-import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
+import {
+  type ScoreConfig,
+  ScoreDataType,
+  prisma,
+} from "@langfuse/shared/src/db";
 import { type CastedConfig } from "@langfuse/shared";
-
-const CONFIG_ID_ONE = uuidv4();
-const CONFIG_ID_TWO = uuidv4();
-const CONFIG_ID_THREE = uuidv4();
 
 const configOne = [
   {
-    id: CONFIG_ID_ONE,
     projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
     name: "Test Boolean Config",
     description: "Test Description",
@@ -26,7 +24,6 @@ const configOne = [
 ];
 const configTwo = [
   {
-    id: CONFIG_ID_TWO,
     projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
     name: "Test Numeric Config",
     description: "Test Description",
@@ -39,7 +36,6 @@ const configTwo = [
 
 const configThree = [
   {
-    id: CONFIG_ID_THREE,
     projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
     name: "Test Categorical Config",
     description: "Test Description",
@@ -69,7 +65,12 @@ describe("/api/public/score-configs API Endpoint", () => {
   );
 
   it("should GET a score config", async () => {
-    const configId = CONFIG_ID_ONE;
+    const { id: configId } = (await prisma.scoreConfig.findFirst({
+      where: {
+        projectId: configOne[0].projectId,
+        name: configOne[0].name,
+      },
+    })) as ScoreConfig;
 
     const getScoreConfig = await makeAPICall<{
       id: string;
@@ -142,13 +143,10 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should POST a numeric score config", async () => {
-    const configId = uuidv4();
-
     const postScoreConfig = await makeAPICall(
       "POST",
       "/api/public/score-configs",
       {
-        id: configId,
         name: "numeric-config-name",
         dataType: ScoreDataType.NUMERIC,
         maxValue: 0,
@@ -157,26 +155,22 @@ describe("/api/public/score-configs API Endpoint", () => {
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        id: configId,
+        name: "numeric-config-name",
       },
     });
 
     expect(postScoreConfig.status).toBe(201);
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.id).toBe(configId);
     expect(dbScoreConfig[0]?.name).toBe("numeric-config-name");
     expect(dbScoreConfig[0]?.dataType).toBe(ScoreDataType.NUMERIC);
     expect(dbScoreConfig[0]?.maxValue).toBe(0);
   });
 
   it("should POST a boolean score config", async () => {
-    const configId = uuidv4();
-
     const postScoreConfig = await makeAPICall(
       "POST",
       "/api/public/score-configs",
       {
-        id: configId,
         name: "boolean-config-name",
         dataType: ScoreDataType.BOOLEAN,
       },
@@ -184,13 +178,12 @@ describe("/api/public/score-configs API Endpoint", () => {
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        id: configId,
+        name: "boolean-config-name",
       },
     });
 
     expect(postScoreConfig.status).toBe(201);
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.id).toBe(configId);
     expect(dbScoreConfig[0]?.name).toBe("boolean-config-name");
     expect(dbScoreConfig[0]?.dataType).toBe(ScoreDataType.BOOLEAN);
     expect(dbScoreConfig[0]?.categories).toStrictEqual([
@@ -200,13 +193,10 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should POST a categorical score config", async () => {
-    const configId = uuidv4();
-
     const postScoreConfig = await makeAPICall(
       "POST",
       "/api/public/score-configs",
       {
-        id: configId,
         name: "categorical-config-name",
         dataType: ScoreDataType.CATEGORICAL,
         categories: [
@@ -218,13 +208,12 @@ describe("/api/public/score-configs API Endpoint", () => {
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        id: configId,
+        name: "categorical-config-name",
       },
     });
 
     expect(postScoreConfig.status).toBe(201);
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.id).toBe(configId);
     expect(dbScoreConfig[0]?.name).toBe("categorical-config-name");
     expect(dbScoreConfig[0]?.dataType).toBe(ScoreDataType.CATEGORICAL);
     expect(dbScoreConfig[0]?.categories).toStrictEqual([
@@ -234,13 +223,10 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of numeric score config with invalid range", async () => {
-    const configId = uuidv4();
-
     const postScoreConfig = await makeAPICall(
       "POST",
       "/api/public/score-configs",
       {
-        id: configId,
         name: "invalid-numeric-config-name",
         dataType: ScoreDataType.NUMERIC,
         maxValue: 0,
@@ -256,13 +242,10 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of boolean score config with custom categories", async () => {
-    const configId = uuidv4();
-
     const postScoreConfig = await makeAPICall(
       "POST",
       "/api/public/score-configs",
       {
-        id: configId,
         name: "invalid-boolean-config-name",
         dataType: ScoreDataType.BOOLEAN,
         categories: [
@@ -281,13 +264,10 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of categorical score config with NO custom categories", async () => {
-    const configId = uuidv4();
-
     const postScoreConfig = await makeAPICall(
       "POST",
       "/api/public/score-configs",
       {
-        id: configId,
         name: "invalid-categorical-config-name",
         dataType: ScoreDataType.CATEGORICAL,
       },
@@ -301,13 +281,10 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of categorical score config with invalid custom categories format", async () => {
-    const configId = uuidv4();
-
     const postScoreConfig = await makeAPICall(
       "POST",
       "/api/public/score-configs",
       {
-        id: configId,
         name: "invalid-categorical-config-name",
         dataType: ScoreDataType.CATEGORICAL,
         categories: [
@@ -326,13 +303,10 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of categorical score config with duplicated category label", async () => {
-    const configId = uuidv4();
-
     const postScoreConfig = await makeAPICall(
       "POST",
       "/api/public/score-configs",
       {
-        id: configId,
         name: "invalid-categorical-config-name",
         dataType: ScoreDataType.CATEGORICAL,
         categories: [
@@ -350,13 +324,10 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of categorical score config with duplicated category value", async () => {
-    const configId = uuidv4();
-
     const postScoreConfig = await makeAPICall(
       "POST",
       "/api/public/score-configs",
       {
-        id: configId,
         name: "invalid-categorical-config-name",
         dataType: ScoreDataType.CATEGORICAL,
         categories: [

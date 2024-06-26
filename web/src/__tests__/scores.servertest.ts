@@ -232,29 +232,26 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace.length).toBeGreaterThan(0);
     expect(dbTrace[0]?.id).toBe(traceId);
 
-    const configId = uuidv4();
-
     await makeAPICall("POST", "/api/public/score-configs", {
-      id: configId,
       name: "config-name",
       dataType: ScoreDataType.BOOLEAN,
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        id: configId,
+        name: "config-name",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.id).toBe(configId);
+    expect(dbScoreConfig[0]?.name).toBe("config-name");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
       name: "score-name",
       value: 1,
-      configId,
+      configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.BOOLEAN,
       traceId,
     };
@@ -274,7 +271,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbScore).toMatchObject({ ...scoreData, stringValue: "True" });
   });
 
-  it("should NOT create boolean score if custom string value is passed", async () => {
+  it("should NOT create boolean score if invalid custom string value is passed", async () => {
     await pruneDatabase();
 
     const traceId = uuidv4();
@@ -298,29 +295,26 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace.length).toBeGreaterThan(0);
     expect(dbTrace[0]?.id).toBe(traceId);
 
-    const configId = uuidv4();
-
     await makeAPICall("POST", "/api/public/score-configs", {
-      id: configId,
       name: "config-name",
       dataType: ScoreDataType.BOOLEAN,
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        id: configId,
+        name: "config-name",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.id).toBe(configId);
+    expect(dbScoreConfig[0]?.name).toBe("config-name");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
       name: "score-name",
       value: 0,
-      configId,
+      configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.BOOLEAN,
       traceId,
       stringValue: "False in my context",
@@ -335,7 +329,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(createScore.body).toMatchObject({
       message: "Invalid request data",
       error:
-        "Only define string value if no config is referenced. It will be populated automatically",
+        "Value 0 does not map to a valid category. Either pass a valid category value or remove the stringValue field and allow it to autopopulate.",
     });
   });
 
@@ -363,29 +357,26 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace.length).toBeGreaterThan(0);
     expect(dbTrace[0]?.id).toBe(traceId);
 
-    const configId = uuidv4();
-
     await makeAPICall("POST", "/api/public/score-configs", {
-      id: configId,
       name: "config-name",
       dataType: ScoreDataType.BOOLEAN,
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        id: configId,
+        name: "config-name",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.id).toBe(configId);
+    expect(dbScoreConfig[0]?.name).toBe("config-name");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
       name: "score-name",
       value: 0.5,
-      configId,
+      configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.BOOLEAN,
       traceId,
     };
@@ -426,10 +417,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace.length).toBeGreaterThan(0);
     expect(dbTrace[0]?.id).toBe(traceId);
 
-    const configId = uuidv4();
-
     await makeAPICall("POST", "/api/public/score-configs", {
-      id: configId,
       name: "config-name",
       dataType: ScoreDataType.CATEGORICAL,
       categories: [
@@ -440,19 +428,19 @@ describe("/api/public/scores API Endpoint", () => {
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        id: configId,
+        name: "config-name",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.id).toBe(configId);
+    expect(dbScoreConfig[0]?.name).toBe("config-name");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
       name: "score-name",
       value: 0.5,
-      configId,
+      configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.CATEGORICAL,
       traceId,
     };
@@ -493,10 +481,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace.length).toBeGreaterThan(0);
     expect(dbTrace[0]?.id).toBe(traceId);
 
-    const configId = uuidv4();
-
     await makeAPICall("POST", "/api/public/score-configs", {
-      id: configId,
       name: "config-name",
       dataType: ScoreDataType.NUMERIC,
       maxValue: 0,
@@ -504,19 +489,19 @@ describe("/api/public/scores API Endpoint", () => {
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
       where: {
-        id: configId,
+        name: "config-name",
       },
     });
 
     expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.id).toBe(configId);
+    expect(dbScoreConfig[0]?.name).toBe("config-name");
 
     const scoreId = uuidv4();
     const scoreData = {
       id: scoreId,
       name: "score-name",
       value: 0.5,
-      configId,
+      configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.NUMERIC,
       traceId,
     };

@@ -718,6 +718,39 @@
       "item": [
         {
           "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a score configuration (config). Score configs are used to define the structure of scores.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/score-configs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"example\",\n    \"dataType\": \"NUMERIC\",\n    \"categories\": \"UNKNOWN\",\n    \"minValue\": 0,\n    \"maxValue\": 0,\n    \"description\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get",
           "request": {
             "description": "Get all score configs",
@@ -814,7 +847,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"value\": 0,\n    \"observationId\": \"example\",\n    \"comment\": \"example\"\n}",
+              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"value\": 0,\n    \"stringValue\": \"example\",\n    \"observationId\": \"example\",\n    \"comment\": \"example\",\n    \"dataType\": \"NUMERIC\",\n    \"configId\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

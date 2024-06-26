@@ -23,7 +23,6 @@ import {
 import { v4 } from "uuid";
 
 const ScoreConfigsPostSchema = z.object({
-  id: z.string().optional(),
   name: z.string(),
   dataType: z.nativeEnum(ScoreDataType),
   categories: jsonSchema.optional(),
@@ -91,19 +90,6 @@ export default async function handler(
           );
         }
 
-        if (
-          !!(await prisma.scoreConfig.findFirst({
-            where: {
-              projectId: authCheck.scope.projectId,
-              id: input.id,
-            },
-          }))
-        ) {
-          throw new Error(
-            "Score config with this id already exists for this project",
-          );
-        }
-
         if (input.categories) {
           if (!isCategoricalDataType(input.dataType))
             throw new Error(
@@ -118,8 +104,7 @@ export default async function handler(
         }
 
         const inflatedConfigInput = inflateConfigBody(input);
-        const { id, ...rest } = inflatedConfigInput;
-        const error = validateScoreConfig(rest as CreateConfig);
+        const error = validateScoreConfig(inflatedConfigInput as CreateConfig);
 
         if (error) {
           throw new Error(error, { cause: "Invalid request data format" });
@@ -127,7 +112,7 @@ export default async function handler(
 
         const config = await createScoreConfig({
           ...inflatedConfigInput,
-          id: id ?? v4(),
+          id: v4(),
           projectId: authCheck.scope.projectId,
           prisma: prisma,
         });
@@ -247,6 +232,7 @@ async function createScoreConfig({
   projectId,
   prisma,
 }: z.infer<typeof ScoreConfigsPostSchema> & {
+  id: string;
   projectId: string;
   prisma: PrismaClient;
 }) {

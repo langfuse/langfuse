@@ -66,9 +66,21 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: double
+      value:
+        type: double
+        docs: The numeric value of the score. Must be passed for all data types. Is used as source of truth when inferring the string value.
+      stringValue:
+        type: optional<string>
+        docs: Translates numeric value to string equivalent for boolean and categorical score types. When passing a configId this field is automatically populated if not set. Otherwise, you may use this field to provide a custom string value.
       observationId: optional<string>
       comment: optional<string>
+      dataType:
+        type: optional<commons.ScoreDataType>
+        docs: The data type of the score. When passing a configId this field is inferred. Otherwise, this field must be passed or will default to numeric.
+      configId:
+        type: optional<string>
+        docs: The unique langfuse identifier of a score config. When passing this field, the dataType and stringValue fields are automatically populated.
+
   Scores:
     properties:
       data: list<commons.Score>
