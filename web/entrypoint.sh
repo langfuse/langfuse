@@ -19,6 +19,7 @@ if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL=$DATABASE_URL
 fi
 
+# Always execute the scripts, except when disabled.
 if [ "$LANFUSE_WEB_MIGRATION_DISABLED" != "true" ]; then
     prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
 
