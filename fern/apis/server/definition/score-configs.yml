@@ -52,5 +52,5 @@ types:
         docs: "Configure a minimum value for numerical scores. If not set, the minimum value is -∞."
       maxValue:
         type: optional<double>
-        docs: "Configure a maximum value for numerical scores. If not set, the minimum value is +∞."
+        docs: "Configure a maximum value for numerical scores. If not set, the maximum value is +∞."
       description: optional<string>

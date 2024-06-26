@@ -1795,14 +1795,21 @@ components:
           $ref: '#/components/schemas/ScoreDataType'
         isArchived:
           type: boolean
+          description: Whether the score config is archived. Defaults to false.
         minValue:
           type: number
           format: double
           nullable: true
+          description: >-
+            Sets minimum value for numerical scores. If not set, the minimum
+            value is -∞.
         maxValue:
           type: number
           format: double
           nullable: true
+          description: >-
+            Sets maximum value for numerical scores. If not set, the maximum
+            value is +∞.
         categories:
           type: array
           items:
@@ -3108,7 +3115,7 @@ components:
           nullable: true
           description: >-
             Configure a maximum value for numerical scores. If not set, the
-            minimum value is +∞.
+            maximum value is +∞.
         description:
           type: string
           nullable: true

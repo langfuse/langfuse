@@ -120,9 +120,15 @@ types:
       updatedAt: datetime
       projectId: string
       dataType: ScoreDataType
-      isArchived: boolean
-      minValue: optional<double>
-      maxValue: optional<double>
+      isArchived:
+        type: boolean
+        docs: Whether the score config is archived. Defaults to false.
+      minValue:
+        type: optional<double>
+        docs: "Sets minimum value for numerical scores. If not set, the minimum value is -∞."
+      maxValue:
+        type: optional<double>
+        docs: "Sets maximum value for numerical scores. If not set, the maximum value is +∞."
       categories: optional<list<ConfigCategory>>
       description: optional<string>
   ConfigCategory:
