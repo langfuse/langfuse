@@ -10,6 +10,9 @@ BEGIN
     END IF;
 END $$;
 
+-- STEP: create composite index
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "observations_id_type_idx" ON "observations"("id", "type");
+
 -- Step 2: Create the batch update function
 CREATE OR REPLACE FUNCTION update_calculated_costs(batch_size INT, max_rows_to_process INT DEFAULT NULL, sleep_between FLOAT DEFAULT 0.1) RETURNS VOID AS $$
 DECLARE
@@ -45,7 +48,7 @@ BEGIN
                 ORDER BY models.project_id, models.start_date DESC NULLS LAST
                 LIMIT 1
             ) m ON true
-            WHERE o.id > last_id
+            WHERE o.id > last_id AND o.type = 'GENERATION'
             ORDER BY o.id
             LIMIT batch_size
         ),
@@ -144,8 +147,8 @@ WITH cost_diff AS (
 	FROM
 		observations_view ov
 	LEFT JOIN observations o ON ov.id = o.id
-	WHERE
-		o.created_at > '2024-06-25T16:50:00'::TIMESTAMP WITH time zone at time zone 'UTC'
+-- 	WHERE
+-- 		o.created_at > '2024-06-25T16:50:00'::TIMESTAMP WITH time zone at time zone 'UTC'
 ORDER BY
 	total_diff ASC
 )
