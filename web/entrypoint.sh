@@ -35,5 +35,14 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
+# Log if the platform is ARM or AMD
+if uname -m | grep -q 'arm'; then
+    echo "INFO: Running on ARM architecture"
+elif uname -m | grep -q 'x86_64'; then
+    echo "INFO: Running on AMD architecture"
+else
+    echo "INFO: Running on unknown architecture"
+fi
+
 # Start server
 node web/server.js
