@@ -64,7 +64,7 @@ jobs:
 
   tests-web:
     runs-on: ubuntu-latest
-    name: tests-web (node ${{ matrix.node-version }} / postgres ${{ matrix.postgres-version }})
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
         node-version: [20]
@@ -119,7 +119,7 @@ jobs:
 
   tests-worker:
     runs-on: ubuntu-latest
-    name: tests-worker (node ${{ matrix.node-version }} / postgres ${{ matrix.postgres-version }})
+    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
         node-version: [20]
