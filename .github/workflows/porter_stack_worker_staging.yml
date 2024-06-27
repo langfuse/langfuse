@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - fix-porter-3
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
