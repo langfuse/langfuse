@@ -1,3 +1,5 @@
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 FROM --platform=$BUILDPLATFORM node:20-alpine3.20 AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
