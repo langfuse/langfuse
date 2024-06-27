@@ -194,7 +194,7 @@ export default function SignIn({ authProviders }: PageProps) {
           Already have an account?{" "}
           <Link
             href="/auth/sign-in"
-            className="hover:text-hover-primary-accent font-semibold leading-6 text-primary-accent"
+            className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
           >
             Sign in
           </Link>

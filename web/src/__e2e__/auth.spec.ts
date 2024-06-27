@@ -83,7 +83,8 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   await page.waitForTimeout(2000);
 
   // project id and prompt from seed.ts
-  const promptUrl = "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/prompts/summary-prompt";
+  const promptUrl =
+    "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/prompts/summary-prompt";
 
   await page.getByRole("button", { name: /Demo User/ }).click();
 
