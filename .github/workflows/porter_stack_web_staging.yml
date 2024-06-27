@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - porter-platform-arg
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
@@ -27,3 +27,4 @@ jobs:
           PORTER_STACK_NAME: web
           PORTER_TAG: ${{ steps.vars.outputs.sha_short }}
           PORTER_TOKEN: ${{ secrets.PORTER_STACK_12565_4037 }}
+          PORTER_BUILDKIT_ARGS: --platform=linux/amd64
