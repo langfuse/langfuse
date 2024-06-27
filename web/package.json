@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
+    "build": "set INLINE_RUNTIME_CHUNK=false && dotenv -e ../.env -- next build",
     "dev": "dotenv -e ../.env -- next dev",
     "lint": "dotenv -e ../.env -- next lint",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",

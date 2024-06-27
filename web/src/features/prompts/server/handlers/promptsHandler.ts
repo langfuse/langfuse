@@ -8,16 +8,15 @@ import {
 } from "@/src/features/prompts/server/utils/validation";
 import { withMiddlewares } from "@/src/server/utils/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
-
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 
 const getPromptsHandler = async (req: NextApiRequest, res: NextApiResponse) => {
   const authCheck = await authorizePromptRequestOrThrow(req);
-
-  const input = GetPromptsMetaSchema.parse(req.query);
+  const { projectId, ...query } = req.query;
+  const input = GetPromptsMetaSchema.parse(query);
   const promptsMetadata = await getPromptsMeta({
     ...input,
-    projectId: authCheck.scope.projectId,
+    projectId: projectId as string,
   });
 
   return res.status(200).json(promptsMetadata);
@@ -28,12 +27,12 @@ const postPromptsHandler = async (
   res: NextApiResponse,
 ) => {
   const authCheck = await authorizePromptRequestOrThrow(req);
-
-  const input = CreatePromptSchema.parse(req.body);
+  const { projectId, ...payload } = req.body;
+  const input = CreatePromptSchema.parse(payload);
   const createdPrompt = await createPrompt({
     ...input,
     config: input.config ?? {},
-    projectId: authCheck.scope.projectId,
+    projectId: projectId,
     createdBy: "API",
     prisma: prisma,
   });

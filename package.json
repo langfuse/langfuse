@@ -69,5 +69,9 @@
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
     }
+  },
+  "dependencies": {
+    "@types/pg": "^8.11.5",
+    "pg": "^8.11.5"
   }
 }
