@@ -179,6 +179,9 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      authorization: {
+        params: { scope: provider.authConfig.scope ?? "openid email profile" },
+      },
     });
   else {
     // Type check to ensure we handle all providers
