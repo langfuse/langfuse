@@ -259,6 +259,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
       - name: Extract metadata (tags, labels) for Docker
         id: meta-web
         uses: docker/metadata-action@v4
@@ -282,6 +290,9 @@ jobs:
           push: true
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
+          platforms: |
+            linux/amd64
+            linux/arm64
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta-worker
@@ -306,3 +317,6 @@ jobs:
           push: true
           tags: ${{ steps.meta-worker.outputs.tags }}
           labels: ${{ steps.meta-worker.outputs.labels }}
+          platforms: |
+            linux/amd64
+            linux/arm64
