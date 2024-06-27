@@ -154,6 +154,9 @@ if (
       issuer: env.AUTH_CUSTOM_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
+      authorization: {
+        params: { scope: env.AUTH_CUSTOM_SCOPE ?? "openid email profile" },
+      },
     }),
   );
 
