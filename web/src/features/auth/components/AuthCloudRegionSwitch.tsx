@@ -126,8 +126,8 @@ const DataRegionInfo = () => (
       <div className="flex flex-col gap-2">
         <p>Langfuse Cloud is available in two data regions:</p>
         <ul className="list-disc pl-5">
-          <li>US: Northern California (us-west-1)</li>
-          <li>EU: Frankfurt, Germany (eu-central-1)</li>
+          <li>US: Northern California (AWS us-west-1) & Virginia (AWS us-east-1)</li>
+          <li>EU: Germany/Frankfurt (AWS eu-central-1) & Ireland (AWS eu-west-1)</li>
         </ul>
         <p>
           Regions are strictly separated, and no data is shared across regions.
