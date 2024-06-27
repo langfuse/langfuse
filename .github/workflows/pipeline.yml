@@ -280,6 +280,9 @@ jobs:
           push: true
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
+          platforms: |
+            linux/amd64
+            linux/arm64
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta-worker
@@ -304,3 +307,6 @@ jobs:
           push: true
           tags: ${{ steps.meta-worker.outputs.tags }}
           labels: ${{ steps.meta-worker.outputs.labels }}
+          platforms: |
+            linux/amd64
+            linux/arm64
