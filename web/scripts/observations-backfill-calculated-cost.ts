@@ -55,6 +55,19 @@ const backfillCalculatedGenerationCost = async (
     let lastId = "";
     let totalRowsProcessed = 0;
 
+    // Get total rows to process
+    const [{ count: totalRowsToProcess }] = await prisma.$queryRaw<
+      { count: BigInt }[]
+    >(
+      Prisma.sql`
+        SELECT COUNT(*)
+        FROM observations
+        WHERE type = 'GENERATION'
+          AND tmp_has_calculated_cost = FALSE;
+      `,
+    );
+    log(`Total rows to process: ${totalRowsToProcess}`);
+
     log("Starting batch update loop...");
 
     // Step 3: Batch update in a loop
@@ -130,6 +143,9 @@ const backfillCalculatedGenerationCost = async (
       totalRowsProcessed += batchSize;
 
       log(`Total rows processed after increment: ${totalRowsProcessed} rows`);
+      log(
+        `Progress: ${getPercentage(Math.min(totalRowsProcessed, Number(totalRowsToProcess)), Number(totalRowsToProcess))}`,
+      );
 
       if (maxRowsToProcess && totalRowsProcessed >= maxRowsToProcess) {
         log(`Max rows to process reached: ${maxRowsToProcess}, breaking loop.`);
@@ -180,3 +196,6 @@ backfillCalculatedGenerationCost({
 function log(message: string, ...args: any[]) {
   console.log(new Date().toISOString(), " - ", message, ...args);
 }
+
+const getPercentage = (numerator: number, denominator: number) =>
+  ((numerator / denominator) * 100).toFixed(2) + "%";
