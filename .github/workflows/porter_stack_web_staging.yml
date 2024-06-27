@@ -27,3 +27,5 @@ jobs:
           PORTER_STACK_NAME: web
           PORTER_TAG: ${{ steps.vars.outputs.sha_short }}
           PORTER_TOKEN: ${{ secrets.PORTER_STACK_12565_4037 }}
+          PORTER_BUILDPLATFORM: linux/amd64
+          PORTER_TARGETPLATFORM: linux/amd64
