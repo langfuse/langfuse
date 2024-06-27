@@ -144,7 +144,7 @@ export default async function handler(
             s.observation_id as "observationId",
             json_build_object('userId', t.user_id) as "trace"
           FROM "scores" AS s
-          JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
+          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
           WHERE s.project_id = ${authCheck.scope.projectId}
           ${userCondition}
           ${nameCondition}
@@ -160,7 +160,7 @@ export default async function handler(
         Prisma.sql`
           SELECT COUNT(*) as count
           FROM "scores" AS s
-          JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
+          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
           WHERE s.project_id = ${authCheck.scope.projectId}
           ${userCondition}
           ${nameCondition}
