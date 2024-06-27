@@ -36,13 +36,25 @@ jobs:
 
   test-docker-build:
     runs-on: ubuntu-latest
+    name: Test Docker Build on ${{ matrix.platform }}
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
       - name: Build and run both images from compose
         run: |
-          docker compose -f docker-compose.build.yml up -d
+          DOCKER_DEFAULT_PLATFORM=${{ matrix.platform }} docker compose -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Check server health
