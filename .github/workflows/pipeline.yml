@@ -36,7 +36,7 @@ jobs:
 
   test-docker-build:
     runs-on: ubuntu-latest
-    name: Test Docker Build on ${{ matrix.platform }}
+    name: test-docker-build (${{ matrix.platform }})
     strategy:
       matrix:
         platform: [linux/amd64, linux/arm64]
