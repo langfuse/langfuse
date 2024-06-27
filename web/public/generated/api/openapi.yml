@@ -1874,7 +1874,6 @@ components:
           nullable: true
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
-          nullable: true
         configId:
           type: string
           nullable: true
@@ -1885,6 +1884,7 @@ components:
         - value
         - source
         - timestamp
+        - dataType
     DatasetCore:
       title: DatasetCore
       type: object

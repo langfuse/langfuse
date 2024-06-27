@@ -146,7 +146,7 @@ types:
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
-      dataType: optional<ScoreDataType>
+      dataType: ScoreDataType
       configId: optional<string>
   DatasetCore:
     properties:
