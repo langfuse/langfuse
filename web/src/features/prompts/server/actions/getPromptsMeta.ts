@@ -13,46 +13,42 @@ export const getPromptsMeta = async (
 ): Promise<PromptsMetaResponse> => {
   const { projectId, page, limit } = params;
 
-  const promptsMeta = (await prisma.$queryRaw`
-    SELECT
-        p.name AS name,
-        p.tags AS tags,
-        array_agg(DISTINCT p.version) AS versions,
-        COALESCE(array_agg(DISTINCT label) FILTER (WHERE label IS NOT NULL), '{}'::text[]) AS labels --- COALESCE is necessary to return an empty array if there are no labels and remove NULLs
-    FROM
-        prompts p
-    LEFT JOIN LATERAL unnest(p.labels) AS label ON true
-    WHERE 
-        p."project_id" = ${projectId} 
-        ${getPromptsFilterCondition(params)}
-    GROUP BY
-        p.name, p.tags --- tags are the same for all versions of a prompt
-    ORDER BY
-        p.name --- necessary for consistent pagination
-    LIMIT
-        ${limit}
-    OFFSET
-        ${limit * (page - 1)}
-  `) as PromptsMeta[];
+  const promptsData = await prisma.$queryRaw<
+    {
+      name: string;
+      latest_version: number;
+      latest_version_created_at: Date;
+      number_of_generations: number;
+    }[]
+  >`
+      SELECT 
+          p.name,
+          MAX(p.version) AS latest_version,
+          MAX(p.created_at) AS latest_version_created_at,
+          CAST(COUNT(*) AS int) AS number_of_generations
+      FROM 
+          prompts p
+      WHERE 
+          p.project_id = ${projectId}
+      GROUP BY 
+          p.name
+      ORDER BY 
+          MAX(p.created_at) DESC
+      LIMIT 
+          ${limit}
+      OFFSET 
+          ${limit * (page - 1)}
+  `;
 
-  const [{ count: totalItemsCount }] = (await prisma.$queryRaw`
-    SELECT COUNT(DISTINCT p.name) AS count
-    FROM prompts p
-    WHERE "project_id" = ${projectId} 
-    ${getPromptsFilterCondition(params)}
-  `) as { count: BigInt }[];
-
-  const totalItems = Number(totalItemsCount);
+  const totalItems = Number(promptsData.length);
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
-    data: promptsMeta,
-    meta: { page, limit, totalPages, totalItems },
-
+    data: promptsData as any,
     // necessary for backwards compatibility as we initially released the /v2/prompts endpoint with this structure which did not match the api spec
     // https://github.com/langfuse/langfuse/issues/2068
     pagination: { page, limit, totalPages, totalItems },
-  };
+  } as any;
 };
 
 type PromptsMeta = {

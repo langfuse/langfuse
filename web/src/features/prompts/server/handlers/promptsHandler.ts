@@ -8,7 +8,6 @@ import {
 } from "@/src/features/prompts/server/utils/validation";
 import { withMiddlewares } from "@/src/server/utils/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
-
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 
 const getPromptsHandler = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -28,7 +27,6 @@ const postPromptsHandler = async (
   res: NextApiResponse,
 ) => {
   const authCheck = await authorizePromptRequestOrThrow(req);
-
   const { projectId, ...payload } = req.body;
   const input = CreatePromptSchema.parse(payload);
   const createdPrompt = await createPrompt({
@@ -38,7 +36,7 @@ const postPromptsHandler = async (
     createdBy: "API",
     prisma: prisma,
   });
-  
+
   return res.status(201).json(createdPrompt);
 };
 
