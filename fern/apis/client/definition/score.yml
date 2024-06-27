@@ -18,14 +18,25 @@ types:
       traceId: string
       name: string
       value: double
+      stringValue: optional<string>
       observationId: optional<string>
       comment: optional<string>
+      dataType: optional<ScoreDataType>
+      configId: optional<string>
   Score:
     properties:
       id: string
       traceId: string
       name: string
       value: double
+      stringValue: optional<string>
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
+      dataType: ScoreDataType
+      configId: optional<string>
+  ScoreDataType:
+    enum:
+      - NUMERIC
+      - CATEGORICAL
+      - BOOLEAN

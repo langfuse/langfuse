@@ -64,9 +64,15 @@ components:
         value:
           type: number
           format: double
+        stringValue:
+          type: string
         observationId:
           type: string
         comment:
+          type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        configId:
           type: string
       required:
         - traceId
@@ -85,6 +91,8 @@ components:
         value:
           type: number
           format: double
+        stringValue:
+          type: string
         observationId:
           type: string
         timestamp:
@@ -92,12 +100,24 @@ components:
           format: date-time
         comment:
           type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        configId:
+          type: string
       required:
         - id
         - traceId
         - name
         - value
         - timestamp
+        - dataType
+    ScoreDataType:
+      title: ScoreDataType
+      type: string
+      enum:
+        - NUMERIC
+        - CATEGORICAL
+        - BOOLEAN
   securitySchemes:
     BearerAuth:
       type: http

@@ -3162,6 +3162,7 @@ components:
           nullable: true
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
           description: >-
             The data type of the score. When passing a configId this field is
             inferred. Otherwise, this field must be passed or will default to
@@ -3177,7 +3178,6 @@ components:
         - traceId
         - name
         - value
-        - dataType
     Scores:
       title: Scores
       type: object

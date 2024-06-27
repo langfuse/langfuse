@@ -78,7 +78,7 @@ types:
       observationId: optional<string>
       comment: optional<string>
       dataType:
-        type: commons.ScoreDataType
+        type: optional<commons.ScoreDataType>
         docs: The data type of the score. When passing a configId this field is inferred. Otherwise, this field must be passed or will default to numeric.
       configId:
         type: optional<string>
