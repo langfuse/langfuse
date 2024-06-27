@@ -29,3 +29,5 @@ jobs:
           PORTER_TOKEN: ${{ secrets.PORTER_STACK_12565_4037 }}
           PORTER_BUILDPLATFORM: linux/amd64
           PORTER_TARGETPLATFORM: linux/amd64
+          BUILDPLATFORM: linux/amd64
+          TARGETPLATFORM: linux/amd64
