@@ -77,7 +77,7 @@ BEGIN
 
         -- Increment the total number of rows processed
         total_rows_processed := total_rows_processed + batch_size;
-        RAISE NOTICE 'Total rows processed after increment: % rows', total_rows_processed;
+        RAISE NOTICE '% - Total rows processed after increment: % rows', clock_timestamp(), total_rows_processed;
 
         -- Exit the loop if the maximum number of rows to process has been reached or no more rows were updated
         EXIT WHEN max_rows_to_process IS NOT NULL AND total_rows_processed >= max_rows_to_process;
@@ -145,7 +145,7 @@ WITH cost_diff AS (
 		observations_view ov
 	LEFT JOIN observations o ON ov.id = o.id
 	WHERE
-		AND o.created_at > '2024-06-25T16:50:00'::TIMESTAMP WITH time zone at time zone 'UTC'
+		o.created_at > '2024-06-25T16:50:00'::TIMESTAMP WITH time zone at time zone 'UTC'
 ORDER BY
 	total_diff ASC
 )
