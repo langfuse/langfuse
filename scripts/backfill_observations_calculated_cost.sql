@@ -25,7 +25,7 @@ BEGIN
                 o.input_cost,
                 o.output_cost,
                 o.total_cost,
-                m.id AS "model_id",
+                m.id AS model_id,
                 m.input_price,
                 m.output_price,
                 m.total_price
@@ -70,10 +70,16 @@ BEGIN
         ORDER BY id DESC
         LIMIT 1;
 
+        -- Get the number of rows processed in this batch
+        GET DIAGNOSTICS rows_processed = ROW_COUNT;
+
+        -- Exit the loop if no more rows were updated
+        EXIT WHEN rows_processed = 0;
+
         -- Small sleep to reduce lock contention (optional)
         PERFORM pg_sleep(0.1);
     END LOOP;
 END $$ LANGUAGE plpgsql;
 
--- Step 4: Execute the function with the desired batch size
+-- Step 3: Execute the function with the desired batch size
 SELECT update_calculated_costs(10000);
