@@ -1,0 +1,51 @@
+name: Deploy to Dev
+
+on:
+  workflow_dispatch:
+
+env:
+  ECS_CLUSTER: therix-dev-ecs-cluster
+  ECS_SERVICE_NAME: therix-dev-langfuse-service
+  BUILD_NUMBER: ${{ github.run_number }}
+  AWS_REGION: ap-south-1
+
+jobs:
+  deploy:
+     permissions:
+       id-token: write
+       contents: read
+
+     runs-on: ubuntu-latest
+
+     steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::905418140364:role/github-action-deployment-role
+          role-session-name: samplerolesession
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Image Push to ECR
+        env:
+          ECR_REGISTRY: 905418140364.dkr.ecr.ap-south-1.amazonaws.com
+          ECR_REPOSITORY: therix-dev-langfuse
+        run: |
+          echo $ECR_REGISTRY
+          docker build -t $ECR_REPOSITORY:latest .
+          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+      - name: Update ECS service
+        env:
+          CLUSTER: ${{ env.ECS_CLUSTER }}
+          SERVICE_NAME: ${{ env.ECS_SERVICE_NAME }}
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER  --service $ECS_SERVICE_NAME --force-new-deployment
+ 
