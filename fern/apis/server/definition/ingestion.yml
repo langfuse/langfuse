@@ -189,7 +189,7 @@ types:
       stringValue: optional<string>
       observationId: optional<string>
       comment: optional<string>
-      dataType: optional<string>
+      dataType: optional<commons.ScoreDataType>
       configId: optional<string>
 
   BaseEvent:
