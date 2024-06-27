@@ -27,3 +27,4 @@ jobs:
           PORTER_STACK_NAME: worker
           PORTER_TAG: ${{ steps.vars.outputs.sha_short }}
           PORTER_TOKEN: ${{ secrets.PORTER_STACK_12565_4037 }}
+          DOCKER_DEFAULT_PLATFORM: linux/amd64
