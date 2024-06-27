@@ -84,6 +84,7 @@ export const CustomProviderSchema = base.extend({
       clientId: z.string(),
       clientSecret: z.string(),
       issuer: z.string(),
+      scope: z.string().nullish(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
     })
     .nullish(),
