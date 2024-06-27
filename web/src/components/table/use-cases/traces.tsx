@@ -146,9 +146,12 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
+  const timestampFilter = filterState.find((f) => f.column === "Timestamp");
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
+      timestampFilter:
+        timestampFilter?.type === "datetime" ? timestampFilter : undefined,
     },
     {
       trpc: {
