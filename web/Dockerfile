@@ -1,10 +1,10 @@
-FROM --platform=$BUILDPLATFORM node:20-alpine3.20 AS alpine
+FROM --platform=${BUILDPLATFORM:-linux/amd64} node:20-alpine3.20 AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
 
-FROM --platform=$BUILDPLATFORM alpine AS base
+FROM --platform=${BUILDPLATFORM:-linux/amd64} alpine AS base
 RUN npm install turbo@^1.13.3 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -12,7 +12,7 @@ RUN corepack enable
 RUN corepack prepare pnpm@8.15.5 --activate
 
 
-FROM --platform=$BUILDPLATFORM base AS pruner
+FROM --platform=${BUILDPLATFORM:-linux/amd64} base AS pruner
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY . .
 RUN turbo prune --scope=web --docker
 
 
-FROM --platform=$BUILDPLATFORM base AS builder
+FROM --platform=${BUILDPLATFORM:-linux/amd64} base AS builder
 
 WORKDIR /app
 
@@ -57,7 +57,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN turbo run build --filter=web
 
 # Production image, copy all the files and run next
-FROM --platform=$TARGETPLATFORM base AS runner
+FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
 
 RUN apk add --no-cache dumb-init
 
