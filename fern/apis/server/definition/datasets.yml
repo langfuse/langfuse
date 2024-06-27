@@ -19,17 +19,17 @@ service:
     get:
       method: GET
       docs: Get a dataset and its items
-      path: /datasets/{datasetName}
+      path: /v2/datasets/{datasetName}
       path-parameters:
         datasetName: string
       response: commons.Dataset
     create:
       method: POST
       docs: Create a dataset
-      path: /datasets
+      path: /v2/datasets
       request: CreateDatasetRequest
       response: commons.Dataset
-    getRuns:
+    getRun:
       method: GET
       docs: Get a dataset run and its items
       path: /datasets/{datasetName}/runs/{runName}
@@ -37,6 +37,18 @@ service:
         datasetName: string
         runName: string
       response: commons.DatasetRun
+    getRuns:
+      method: GET
+      docs: Get a dataset runs
+      path: /datasets/{datasetName}/runs
+      path-parameters:
+        datasetName: string
+      request:
+        name: GetDatasetRunsRequest
+        query-parameters:
+          page: optional<integer>
+          limit: optional<integer>
+      response: PaginatedDatasetRuns
 
 types:
   PaginatedDatasets:
@@ -48,3 +60,7 @@ types:
       name: string
       description: optional<string>
       metadata: optional<unknown>
+  PaginatedDatasetRuns:
+    properties:
+      data: list<commons.DatasetRun>
+      meta: pagination.MetaResponse

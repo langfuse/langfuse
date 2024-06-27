@@ -49,11 +49,19 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
   afterEach(async () => await pruneDatabase());
 
-  it("should create and get a dataset (v1 & v2), include special characters", async () => {
-    await makeAPICall("POST", "/api/public/datasets", {
+  it("should create and get a dataset (v1), include special characters", async () => {
+    const createRes = await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset + name",
       description: "dataset-description",
       metadata: { foo: "bar" },
+    });
+    expect(createRes.status).toBe(200);
+    expect(createRes.body).toMatchObject({
+      name: "dataset + name",
+      description: "dataset-description",
+      metadata: { foo: "bar" },
+      items: [],
+      runs: [],
     });
 
     const dbDataset = await prisma.dataset.findMany({
@@ -61,22 +69,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         name: "dataset + name",
       },
     });
-
     expect(dbDataset.length).toBeGreaterThan(0);
-
-    // get dataset (v1) including items and runs
-    const getDatasetV1 = await makeAPICall(
-      "GET",
-      `/api/public/datasets/${encodeURIComponent("dataset + name")}`,
-    );
-    expect(getDatasetV1.status).toBe(200);
-    expect(getDatasetV1.body).toMatchObject({
-      name: "dataset + name",
-      description: "dataset-description",
-      metadata: { foo: "bar" },
-      items: [],
-      runs: [],
-    });
 
     // get dataset (v2) excluding items and runs
     const getDatasetV2 = await makeAPICall(
@@ -93,9 +86,46 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(getDatasetV2.body).not.toHaveProperty("runs");
   });
 
-  it("GET datasets", async () => {
+  it("should create and get a dataset (v2), include special characters", async () => {
+    const createRes = await makeAPICall("POST", "/api/public/v2/datasets", {
+      name: "dataset + name + v2",
+      description: "dataset-description",
+      metadata: { foo: "bar" },
+    });
+    expect(createRes.status).toBe(200);
+    expect(createRes.body).toMatchObject({
+      name: "dataset + name + v2",
+      description: "dataset-description",
+      metadata: { foo: "bar" },
+    });
+
+    const dbDataset = await prisma.dataset.findMany({
+      where: {
+        name: "dataset + name + v2",
+      },
+    });
+    expect(dbDataset.length).toBeGreaterThan(0);
+
+    // get dataset (v2) excluding items and runs
+    const getDatasetV2 = await makeAPICall(
+      "GET",
+      `/api/public/v2/datasets/${encodeURIComponent("dataset + name + v2")}`,
+    );
+    expect(getDatasetV2.status).toBe(200);
+    expect(getDatasetV2.body).toMatchObject({
+      name: "dataset + name + v2",
+      description: "dataset-description",
+      metadata: { foo: "bar" },
+    });
+    expect(getDatasetV2.body).not.toHaveProperty("items");
+    expect(getDatasetV2.body).not.toHaveProperty("runs");
+  });
+
+  it("GET datasets (v1 & v2)", async () => {
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset-name-1",
+      description: "dataset-description-1",
+      metadata: { key: "value" },
     });
 
     await makeAPICall("POST", "/api/public/datasets", {
@@ -126,13 +156,15 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       metadata: { key: "value" },
     });
 
-    const getDatasets = await makeAPICall("GET", `/api/public/datasets`);
+    const getDatasetsV1 = await makeAPICall("GET", `/api/public/datasets`);
 
-    expect(getDatasets.status).toBe(200);
-    expect(getDatasets.body).toMatchObject({
+    expect(getDatasetsV1.status).toBe(200);
+    expect(getDatasetsV1.body).toMatchObject({
       data: expect.arrayContaining([
         expect.objectContaining({
           name: "dataset-name-1",
+          description: "dataset-description-1",
+          metadata: { key: "value" },
           items: [],
           runs: [],
         }),
@@ -147,6 +179,34 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         page: 1,
       }),
     });
+
+    const getDatasetsV2 = await makeAPICall("GET", `/api/public/v2/datasets`);
+
+    expect(getDatasetsV2.status).toBe(200);
+    expect(getDatasetsV2.body).toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          name: "dataset-name-1",
+          description: "dataset-description-1",
+          metadata: { key: "value" },
+        }),
+        expect.objectContaining({
+          name: "dataset-name-2",
+          description: null,
+          metadata: null,
+        }),
+      ]),
+      meta: expect.objectContaining({
+        totalItems: 2,
+        page: 1,
+      }),
+    });
+    expect((getDatasetsV2.body as any).data[1] as Object).not.toHaveProperty(
+      "items",
+    );
+    expect((getDatasetsV2.body as any).data[1] as Object).not.toHaveProperty(
+      "runs",
+    );
   });
 
   it("should create and get a dataset items (via datasets (v1), individually, and as a list)", async () => {

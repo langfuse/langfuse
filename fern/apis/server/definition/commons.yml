@@ -157,12 +157,9 @@ types:
       runs:
         type: list<string>
         docs: list of dataset run names
-  Dataset: # GET datasets/[name]
+  Dataset: # GET v2/datasets/[name]
     docs: Dataset including all items
     extends: DatasetCore
-    properties:
-      items: list<DatasetItem>
-      runs: list<string>
   DatasetItem:
     properties:
       id: string
