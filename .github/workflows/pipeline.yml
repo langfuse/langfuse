@@ -34,6 +34,16 @@ jobs:
       - name: lint web
         run: pnpm run lint
 
+  test-docker-no-compose-just-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build and run web image
+        run: |
+          docker build -t langfuse-web -f web/Dockerfile .
+
   test-docker-build:
     runs-on: ubuntu-latest
     steps:
