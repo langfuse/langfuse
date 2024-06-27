@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - target-and-build-platform
+      - main
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
