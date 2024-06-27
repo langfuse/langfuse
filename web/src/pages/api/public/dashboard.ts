@@ -26,6 +26,7 @@ export default async function handler(
       const client = new Client({connectionString : process.env.DATABASE_URL});
       await client.connect();
       const result = await client.query(query);
+      await client.end();
       return res.status(200).json(result.rows);
     } catch (error) {
       if (isPrismaException(error)) {
