@@ -31,3 +31,5 @@ jobs:
           PORTER_TARGETPLATFORM: linux/amd64
           BUILDPLATFORM: linux/amd64
           TARGETPLATFORM: linux/amd64
+          DOCKER_DEFAULT_PLATFORM: linux/amd64
+          PORTER_DOCKER_DEFAULT_PLATFORM: linux/amd64
