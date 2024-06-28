@@ -247,8 +247,8 @@ export function TraceTimelineView({
   const { latency, name, id } = trace;
   const [backgroundColor, setBackgroundColor] = useState("");
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
-    `${trace.id}-expanded`,
-    [`trace-${trace.id}`],
+    `${id}-expanded`,
+    [`trace-${id}`],
   );
 
   const [cardWidth, setCardWidth] = useState(0);
