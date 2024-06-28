@@ -11,15 +11,30 @@ type BackfillCalculatedGenerationCostParams = {
 const backfillCalculatedGenerationCost = async (
   params: BackfillCalculatedGenerationCostParams,
 ) => {
+  let previousTimeout;
   try {
     const { batchSize, maxRowsToProcess, sleepBetweenMs } = params;
     log("Starting backfillCalculatedGenerationCost with params", params);
 
-    // Set the statement timeout to six hours
-    log("Setting statement_timeout to six hours...");
-    await prisma.$executeRaw(Prisma.sql`SET statement_timeout = '6h';`);
+    // Set the statement timeout
+    const newTimeout = "19min";
+
+    const [{ statement_timeout: previousTimeoutRead }] = await prisma.$queryRaw<
+      { statement_timeout: string }[]
+    >(Prisma.sql`SHOW statement_timeout;`);
+    log(`Current statement_timeout read from DB: ${previousTimeoutRead}`);
+
+    if (!previousTimeoutRead || previousTimeoutRead === newTimeout) {
+      // If the statement_timeout is already set to 19 minutes, assume it was set by this script and reset it to 2 minutes
+      previousTimeout = "2min";
+    } else {
+      previousTimeout = previousTimeoutRead;
+    }
+
+    log(`Setting statement_timeout to ${newTimeout} minutes...`);
+    await prisma.$executeRawUnsafe(`SET statement_timeout = '${newTimeout}';`);
     log(
-      `Updated statement_timeout to six hours. Current statement_timeout: ${JSON.stringify(
+      `Updated statement_timeout. Current statement_timeout: ${JSON.stringify(
         await prisma.$queryRaw(Prisma.sql`SHOW statement_timeout;`),
       )}`,
     );
@@ -102,7 +117,7 @@ const backfillCalculatedGenerationCost = async (
                 LIMIT 1
             ) m ON true
             WHERE o.id > ${lastId} AND o.type = 'GENERATION' AND o.tmp_has_calculated_cost = FALSE
-            ORDER BY o.id
+            ORDER BY o.id ASC
             LIMIT ${batchSize}
         ),
         updated_batch AS (
@@ -173,7 +188,9 @@ const backfillCalculatedGenerationCost = async (
     console.error("Error executing script", err);
   } finally {
     // Reset the statement timeout to two minutes
-    await prisma.$executeRaw`SET statement_timeout = '2min';`;
+    await prisma.$executeRawUnsafe(
+      `SET statement_timeout = '${previousTimeout}';`,
+    );
     log(
       `Reset statement_timeout to two minutes. Current statement_timeout: ${JSON.stringify(
         await prisma.$queryRaw(Prisma.sql`SHOW statement_timeout;`),
