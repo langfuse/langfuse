@@ -1,3 +1,4 @@
+import { MarkdownSchema } from "@/src/components/trace/IOPreview";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { cn } from "@/src/utils/tailwind";
 import { useMemo } from "react";
@@ -13,16 +14,16 @@ export function MarkdownView(props: {
       {props.title ? (
         <div
           className={cn(
-            // props.title === "assistant" || props.title === "Output"
-            //   ? "dark:border-accent-dark-green"
-            //   : "",
+            props.title === "assistant" || props.title === "Output"
+              ? "dark:border-accent-dark-green"
+              : "",
             "border-b px-3 py-1 text-xs font-medium",
           )}
         >
           {props.title}
         </div>
       ) : undefined}
-      <div className={cn("p-3 text-xs")}>
+      <div className={cn("markdown-container p-3 text-xs")}>
         <Markdown>{props.markdown}</Markdown>
       </div>
     </div>
@@ -34,14 +35,15 @@ export function MarkdownOrJsonView(props: {
   title?: string;
   className?: string;
 }) {
-  const isMarkdown = useMemo(
-    () => checkForMarkdown(props.text ?? ""),
+
+  const validatedMarkdown = useMemo(
+    () => MarkdownSchema.safeParse(props.text),
     [props.text],
   );
 
-  return isMarkdown ? (
+  return validatedMarkdown.success ? (
     <MarkdownView
-      markdown={props.text as string} // is always string -> otherwise not isMarkdown
+      markdown={validatedMarkdown.data} // is always string -> otherwise not isMarkdown
       title={props.title}
       className={props.className}
     />
@@ -54,18 +56,23 @@ export function MarkdownOrJsonView(props: {
   );
 }
 
-// TODO: Add unit tests for this function
-export function containsMarkdown(text: unknown): boolean {
-  // in case this is an object or something else
-  if (typeof text !== "string") {
-    return false;
-  }
+export function containsMarkdown(text: string): boolean {
 
-  const markdownRegex =
-    /(\*\*|__)(.*?)\1|`{3}[\s\S]*?`{3}|`[\s\S]*?`|\s*^[-*+]\s|^\s*#{1,6}\s|!\[.*?\]\(.*?\)|\[.*?\]\(.*?\)/gm;
-  return markdownRegex.test(text);
+  const markdownRegex = new RegExp([
+    '(\\*\\*?|__?)(.*?)\\1',  // Matches bold (** or __) and italic (* or _) with proper escaping
+    '`{3}[\\s\\S]*?`{3}',     // Matches fenced code blocks with triple backticks
+    '`[\\s\\S]*?`',           // Matches inline code with single backticks
+    '(^|\\s)[-+*]\\s',        // Matches unordered lists that start with -, +, or *
+    '^\\s*#{1,6}\\s',         // Matches headers that start with # to ######
+    '^>\\s+',                 // Matches blockquotes starting with >
+    '^\\d+\\.\\s',            // Matches ordered lists starting with 1. or 2. etc
+    '!\\[.*?\\]\\(.*?\\)',    // Matches images ![Alt text](URL)
+    '\\[.*?\\]\\(.*?\\)'      // Matches links [Link text](URL)
+].join('|'), 'gm');  // Use global and multiline flags
+
+return markdownRegex.test(text);
 }
 
-export function checkForMarkdown(...texts: unknown[]): boolean {
+export function checkForMarkdown(...texts: string[]): boolean {
   return texts.some((text) => containsMarkdown(text));
 }

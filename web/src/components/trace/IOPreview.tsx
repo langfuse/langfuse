@@ -63,12 +63,11 @@ export const IOPreview: React.FC<{
     Array.isArray(output) ? output : [output],
   );
 
+  const inMarkdown = MarkdownSchema.safeParse(input);
+  const outMarkdown = MarkdownSchema.safeParse(output);
+
   // Pretty view available
-  let isPrettyViewAvailable = inChatMlArray.success;
-  if (!isPrettyViewAvailable) {
-    // if not ChatML, check if input/output is markdown -> also show pretty
-    isPrettyViewAvailable = checkForMarkdown(input, output);
-  }
+  let isPrettyViewAvailable = inChatMlArray.success || inMarkdown.success || outMarkdown.success;
 
   // default I/O
   return (
@@ -101,9 +100,7 @@ export const IOPreview: React.FC<{
                   : [
                       ChatMlMessageSchema.parse({
                         role: "assistant",
-                        content: outputClean
-                          ? JSON.stringify(outputClean)
-                          : null,
+                        content: outputClean,
                       }),
                     ]),
               ]}
@@ -172,6 +169,7 @@ const ChatMlMessageSchema = z
     json: Object.keys(other).length === 0 ? undefined : other,
   }));
 export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
+export const MarkdownSchema = z.string().refine(checkForMarkdown);
 
 export const OpenAiMessageView: React.FC<{
   title?: string;
