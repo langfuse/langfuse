@@ -117,10 +117,7 @@ const backfillCalculatedGenerationCost = async (
             RETURNING o.id
         )
         -- Get the last id of the updated batch
-        SELECT id
-        FROM updated_batch
-        ORDER BY id DESC
-        LIMIT 1;
+        SELECT id FROM batch LIMIT 1 OFFSET ${batchSize - 1};
       `);
 
       log(`Batch update completed in ${Date.now() - startDate} ms`);
@@ -177,7 +174,7 @@ const backfillCalculatedGenerationCost = async (
 backfillCalculatedGenerationCost({
   batchSize: 10_000,
   maxRowsToProcess: null,
-  sleepBetweenMs: 10,
+  sleepBetweenMs: 0,
 });
 
 function log(message: string, ...args: any[]) {
