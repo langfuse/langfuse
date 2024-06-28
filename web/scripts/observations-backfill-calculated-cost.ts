@@ -59,29 +59,8 @@ const backfillCalculatedGenerationCost = async (
       );
     }
 
-    // Step 2: Create composite index
-    log("Creating composite index...");
-    await prisma.$executeRaw`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS "observations_id_type_has_calculated_cost_idx" 
-      ON "observations"("id", "type", "tmp_has_calculated_cost");
-    `;
-    log("✅ Created composite index");
-
     let lastId = "";
     let totalRowsProcessed = 0;
-
-    // Get total rows to process
-    const [{ count: totalRowsToProcess }] = await prisma.$queryRaw<
-      { count: BigInt }[]
-    >(
-      Prisma.sql`
-        SELECT COUNT(*)
-        FROM observations
-        WHERE type = 'GENERATION'
-          AND tmp_has_calculated_cost = FALSE;
-      `,
-    );
-    log(`Total rows to process: ${totalRowsToProcess}`);
 
     log("Starting batch update loop...");
 
@@ -116,7 +95,7 @@ const backfillCalculatedGenerationCost = async (
                 ORDER BY models.project_id, models.start_date DESC NULLS LAST
                 LIMIT 1
             ) m ON true
-            WHERE o.id > ${lastId} AND o.type = 'GENERATION' AND o.tmp_has_calculated_cost = FALSE
+            WHERE o.id > ${lastId}
             ORDER BY o.id ASC
             LIMIT ${batchSize}
         ),
@@ -158,10 +137,6 @@ const backfillCalculatedGenerationCost = async (
       totalRowsProcessed += batchSize;
 
       log(`Total rows processed after increment: ${totalRowsProcessed} rows`);
-      log(
-        `Progress: ${getPercentage(Math.min(totalRowsProcessed, Number(totalRowsToProcess)), Number(totalRowsToProcess))}`,
-      );
-
       if (maxRowsToProcess && totalRowsProcessed >= maxRowsToProcess) {
         log(`Max rows to process reached: ${maxRowsToProcess}, breaking loop.`);
 
@@ -172,11 +147,6 @@ const backfillCalculatedGenerationCost = async (
     }
 
     log("✅ Finished batch update loop.");
-
-    // Clean up
-    log("Dropping composite index...");
-    await prisma.$executeRaw`DROP INDEX IF EXISTS "observations_id_type_has_calculated_cost_idx";`;
-    log("✅ Dropped composite index");
 
     // Drop the temporary column
     log("Dropping temporary column...");
@@ -213,6 +183,3 @@ backfillCalculatedGenerationCost({
 function log(message: string, ...args: any[]) {
   console.log(new Date().toISOString(), " - ", message, ...args);
 }
-
-const getPercentage = (numerator: number, denominator: number) =>
-  ((numerator / denominator) * 100).toFixed(2) + "%";
