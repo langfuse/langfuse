@@ -99,8 +99,7 @@ const backfillCalculatedGenerationCost = async (
                 LIMIT 1
             ) m ON true
             WHERE
-              o.type = 'GENERATION'
-              AND start_time <= ${currentDateCutoff}::TIMESTAMP WITH TIME ZONE AT TIME ZONE 'UTC'
+                start_time <= ${currentDateCutoff}::TIMESTAMP WITH TIME ZONE AT TIME ZONE 'UTC'
               	AND (internal_model IS NOT NULL
                       OR input_cost IS NOT NULL
                       OR output_cost IS NOT NULL
