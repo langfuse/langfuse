@@ -24,7 +24,7 @@ export function JsonEditor({
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? tokyoNight : githubLight;
-
+  
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!defaultValue && defaultValue !== "",
