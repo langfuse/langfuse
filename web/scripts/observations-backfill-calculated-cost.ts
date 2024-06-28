@@ -59,18 +59,21 @@ const backfillCalculatedGenerationCost = async (
       );
     }
 
-    let lastId = "";
+    let currentDateCutoff = new Date().toISOString();
     let totalRowsProcessed = 0;
 
     log("Starting batch update loop...");
 
     // Step 3: Batch update in a loop
     while (true) {
-      log(`Starting batch update with lastId: ${lastId}`);
+      log(`Starting batch update for generations before: ${currentDateCutoff}`);
       const startDate = Date.now();
-      const batchUpdate = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      const batchUpdate = await prisma.$queryRaw<
+        { start_time: Date }[]
+      >(Prisma.sql`
         WITH batch AS (
             SELECT o.id,
+                o.start_time,
                 o.prompt_tokens,
                 o.completion_tokens,
                 o.total_tokens,
@@ -95,8 +98,15 @@ const backfillCalculatedGenerationCost = async (
                 ORDER BY models.project_id, models.start_date DESC NULLS LAST
                 LIMIT 1
             ) m ON true
-            WHERE o.id > ${lastId}
-            ORDER BY o.id ASC
+            WHERE
+              o.type = 'GENERATION'
+              AND start_time <= ${currentDateCutoff}::TIMESTAMP WITH TIME ZONE AT TIME ZONE 'UTC'
+              	AND (internal_model IS NOT NULL
+                      OR input_cost IS NOT NULL
+                      OR output_cost IS NOT NULL
+                      OR total_cost IS NOT NULL) 
+            ORDER BY
+              start_time DESC
             LIMIT ${batchSize}
         ),
         updated_batch AS (
@@ -117,25 +127,29 @@ const backfillCalculatedGenerationCost = async (
             RETURNING o.id
         )
         -- Get the last id of the updated batch
-        SELECT id FROM batch LIMIT 1 OFFSET ${batchSize - 1};
+        SELECT start_time FROM batch LIMIT 1 OFFSET ${batchSize - 1};
       `);
 
       log(`Batch update completed in ${Date.now() - startDate} ms`);
 
-      if (!batchUpdate[0]?.id) {
+      if (!batchUpdate[0]?.start_time) {
         log(
-          `No more rows to process, breaking loop after ${totalRowsProcessed} rows processed.`,
+          `No more rows to process, breaking loop after ${totalRowsProcessed.toLocaleString()} rows processed.`,
         );
 
         break;
       }
 
-      lastId = batchUpdate[0]?.id;
+      currentDateCutoff = batchUpdate[0]?.start_time.toISOString();
       totalRowsProcessed += batchSize;
 
-      log(`Total rows processed after increment: ${totalRowsProcessed} rows`);
+      log(
+        `Total rows processed after increment: ${totalRowsProcessed.toLocaleString()} rows`,
+      );
       if (maxRowsToProcess && totalRowsProcessed >= maxRowsToProcess) {
-        log(`Max rows to process reached: ${maxRowsToProcess}, breaking loop.`);
+        log(
+          `Max rows to process reached: ${maxRowsToProcess.toLocaleString()}, breaking loop.`,
+        );
 
         break;
       }
@@ -172,7 +186,7 @@ const backfillCalculatedGenerationCost = async (
 
 // Execute the script
 backfillCalculatedGenerationCost({
-  batchSize: 10_000,
+  batchSize: 5_000,
   maxRowsToProcess: null,
   sleepBetweenMs: 0,
 });
