@@ -10,24 +10,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
     // Set tracesSampleRate to 1.0 to capture 100%
     // of transactions for performance monitoring.
     // We recommend adjusting this value in production
-    tracesSampler: (samplingContext) => {
-      if (
-        samplingContext.request &&
-        samplingContext.request.url &&
-        samplingContext.request.url.includes("api/trpc")
-      ) {
-        return 0.1;
-      }
-      if (
-        samplingContext.request &&
-        samplingContext.request.url &&
-        samplingContext.request.url.includes("api/auth")
-      ) {
-        return 0.1;
-      }
-      return 0.1;
-    },
-
+    tracesSampleRate: 0.5,
     profilesSampleRate: 0.1,
     integrations: [
       // Add profiling integration to list of integrations
