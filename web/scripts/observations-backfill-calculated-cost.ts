@@ -192,7 +192,7 @@ const backfillCalculatedGenerationCost = async (
       `SET statement_timeout = '${previousTimeout}';`,
     );
     log(
-      `Reset statement_timeout to two minutes. Current statement_timeout: ${JSON.stringify(
+      `Reset statement_timeout to ${previousTimeout}. Current statement_timeout: ${JSON.stringify(
         await prisma.$queryRaw(Prisma.sql`SHOW statement_timeout;`),
       )}`,
     );
