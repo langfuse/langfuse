@@ -422,17 +422,15 @@ export class ObservationProcessor implements EventProcessor {
     outputCost?: Decimal;
     totalCost?: Decimal;
   } {
-    if (!model) return {};
-
     const finalInputCost =
       userProvidedCosts.inputCost ??
-      (tokenCounts.input !== undefined && model.inputPrice
+      (tokenCounts.input !== undefined && model?.inputPrice
         ? model.inputPrice.mul(tokenCounts.input)
         : undefined);
 
     const finalOutputCost =
       userProvidedCosts.outputCost ??
-      (tokenCounts.output !== undefined && model.outputPrice
+      (tokenCounts.output !== undefined && model?.outputPrice
         ? model.outputPrice.mul(tokenCounts.output)
         : finalInputCost
           ? new Decimal(0)
@@ -440,7 +438,7 @@ export class ObservationProcessor implements EventProcessor {
 
     const finalTotalCost =
       userProvidedCosts.totalCost ??
-      (tokenCounts.total !== undefined && model.totalPrice
+      (tokenCounts.total !== undefined && model?.totalPrice
         ? model.totalPrice.mul(tokenCounts.total)
         : finalInputCost ?? finalOutputCost
           ? new Decimal(finalInputCost ?? 0).add(finalOutputCost ?? 0)

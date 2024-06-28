@@ -136,7 +136,9 @@ export default async function handler(
   } catch (error: unknown) {
     console.error("error handling ingestion event", error);
 
-    Sentry.captureException(error);
+    if (!(error instanceof UnauthorizedError)) {
+      Sentry.captureException(error);
+    }
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({
@@ -285,7 +287,7 @@ const handleSingleEvent = async (
     restEvent = rest;
   }
   console.log(
-    `handling single event ${event.id} ${JSON.stringify({ body: restEvent })}`,
+    `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
   );
 
   const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
