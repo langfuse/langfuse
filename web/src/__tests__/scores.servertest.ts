@@ -271,6 +271,58 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbScore).toMatchObject({ ...scoreData, stringValue: "True" });
   });
 
+  it("should create numeric score if no data type is passed", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-name",
+      userId: "user-1",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: {
+        key: "value",
+      },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.id).toBe(traceId);
+
+    const scoreId = uuidv4();
+    const scoreData = {
+      id: scoreId,
+      name: "accuracy",
+      value: 1,
+      traceId,
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
+
+    expect(createScore.status).toBe(200);
+    const dbScore = await prisma.score.findUnique({
+      where: {
+        id: scoreId,
+      },
+    });
+
+    expect(dbScore).toMatchObject({
+      ...scoreData,
+      dataType: ScoreDataType.NUMERIC,
+    });
+  });
+
   it("should NOT create boolean score if invalid custom string value is passed", async () => {
     await pruneDatabase();
 
