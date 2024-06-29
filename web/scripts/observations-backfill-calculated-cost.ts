@@ -1,20 +1,23 @@
 import "dotenv/config";
 
+import { z } from "zod";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 
-type BackfillCalculatedGenerationCostParams = {
-  batchSize: number;
-  maxRowsToProcess?: number | null;
-  maxDate?: string;
-};
+const BackfillCalculatedGenerationArgsSchema = z
+  .object({
+    batchSize: z.coerce.number().optional().default(5_000),
+    maxRowsToProcess: z.coerce.number().optional().default(Infinity), // Default to process all rows
+    maxDate: z.coerce.date().optional().default(new Date()), // Default to today
+  })
+  .strict();
 
-const backfillCalculatedGenerationCost = async (
-  params: BackfillCalculatedGenerationCostParams,
-) => {
+const backfillCalculatedGenerationCost = async () => {
   let previousTimeout;
   try {
-    const { batchSize, maxRowsToProcess, maxDate } = params;
-    log("Starting backfillCalculatedGenerationCost with params", params);
+    const args = parseArgs(process.argv.slice(2));
+    const { batchSize, maxRowsToProcess, maxDate } = args;
+
+    log("Starting backfillCalculatedGenerationCost with params", args);
 
     // Set the statement timeout
     const newTimeout = "19min";
@@ -23,9 +26,7 @@ const backfillCalculatedGenerationCost = async (
     // Drop column if it exists and add temporary column
     await addTemporaryColumnIfNotExists();
 
-    const initialDateCutoff = new Date(maxDate || Date.now()).toISOString();
-
-    let currentDateCutoff = initialDateCutoff;
+    let currentDateCutoff = maxDate.toISOString();
     let totalRowsProcessed = 0;
 
     log("Starting batch update loop...");
@@ -147,6 +148,31 @@ const backfillCalculatedGenerationCost = async (
   }
 };
 
+function parseArgs(args: string[]) {
+  try {
+    const namedArgs: Record<string, string | boolean> = {};
+    for (let i = 0; i < args.length; i++) {
+      if (args[i].startsWith("--")) {
+        const key = args[i].slice(2);
+        const value =
+          args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : true;
+        namedArgs[key] = value;
+        if (value !== true) i++; // Skip the next argument if it was used as a value
+      }
+    }
+
+    return BackfillCalculatedGenerationArgsSchema.parse(namedArgs);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.error("Validation error:", error.errors);
+    } else {
+      console.error("An unexpected error occurred:", error);
+    }
+
+    process.exit(1);
+  }
+}
+
 async function addTemporaryColumnIfNotExists() {
   const columnExists = await prisma.$queryRaw<{ column_exists: boolean }[]>(
     Prisma.sql`
@@ -207,7 +233,4 @@ function log(message: string, ...args: any[]) {
 }
 
 // Execute the script
-backfillCalculatedGenerationCost({
-  batchSize: 5_000,
-  maxRowsToProcess: null,
-});
+backfillCalculatedGenerationCost();
