@@ -138,9 +138,7 @@ describe("Token Cost Calculation", () => {
     };
 
     const userProvidedCosts = {
-      inputCost: null,
       outputCost: new Decimal(3.0),
-      totalCost: null,
     };
 
     const costs = ObservationProcessor.calculateTokenCosts(
@@ -149,9 +147,9 @@ describe("Token Cost Calculation", () => {
       tokenCounts,
     );
 
-    expect(costs.inputCost?.toNumber()).toBe(1.0); // Calculated based on model price
+    expect(costs.inputCost).toBe(undefined); // No user provided cost
     expect(costs.outputCost?.toNumber()).toBe(3.0); // Overridden by user provided cost
-    expect(costs.totalCost?.toNumber()).toBe(4.0); // Sum of input and output costs
+    expect(costs.totalCost).toBe(undefined); // No user provided cost
   });
 
   it("should return empty costs if no model is provided", async () => {
@@ -840,6 +838,83 @@ describe("Token Cost Calculation", () => {
     expect(generation?.promptTokens).toBe(generationUsage2.usage.input);
     expect(generation?.completionTokens).toBe(generationUsage2.usage.output);
     expect(generation?.totalTokens).toBe(generationUsage2.usage.total);
+  });
+
+  it("should overwrite costs if new costs are user provided and only partial", async () => {
+    const generationUsage1 = {
+      model: modelName,
+      usage: {
+        input: 1,
+        output: 2,
+        total: 3,
+        unit: ModelUsageUnit.Tokens,
+      },
+    };
+
+    const generationUsage2 = {
+      model: modelName,
+      usage: {
+        outputCost: 1,
+        unit: ModelUsageUnit.Tokens,
+      },
+    };
+
+    const events = [
+      {
+        id: uuidv4(),
+        type: "generation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          ...generationUsage1,
+        },
+      },
+      {
+        id: uuidv4(),
+        type: "generation-update",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          ...generationUsage2,
+        },
+      },
+    ];
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: events,
+    });
+
+    expect(response.status).toBe(207);
+    const generation = await prisma.observation.findFirst({
+      where: {
+        id: generationId,
+      },
+    });
+
+    expect(generation).toBeDefined();
+    expect(generation?.type).toBe("GENERATION");
+
+    // Model name should be matched
+    expect(generation?.internalModel).toBe(tokenModelData.modelName);
+    expect(generation?.unit).toEqual(tokenModelData.unit);
+    expect(generation?.internalModelId).toBe(tokenModelData.id);
+
+    // User provided cost
+    expect(generation?.inputCost?.toNumber()).toBe(undefined);
+    expect(generation?.outputCost?.toNumber()).toBe(
+      generationUsage2.usage.outputCost,
+    );
+    expect(generation?.totalCost?.toNumber()).toBe(undefined);
+
+    // Calculated cost
+    expect(generation?.calculatedInputCost?.toNumber()).toBe(undefined);
+    expect(generation?.calculatedOutputCost?.toNumber()).toBe(
+      generationUsage2.usage.outputCost,
+    );
+    expect(generation?.calculatedTotalCost?.toNumber()).toBe(undefined);
+    expect(generation?.promptTokens).toBe(generationUsage1.usage.input);
+    expect(generation?.completionTokens).toBe(generationUsage1.usage.output);
+    expect(generation?.totalTokens).toBe(generationUsage1.usage.total);
   });
 
   it("should not overwrite costs if previous cost were user provided", async () => {
