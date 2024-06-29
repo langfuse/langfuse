@@ -4,8 +4,8 @@ import { prisma, Prisma } from "@langfuse/shared/src/db";
 
 type BackfillCalculatedGenerationCostParams = {
   batchSize: number;
-  maxRowsToProcess: number | null;
-  sleepBetweenMs: number;
+  maxRowsToProcess?: number | null;
+  maxDate?: string;
 };
 
 const backfillCalculatedGenerationCost = async (
@@ -13,53 +13,19 @@ const backfillCalculatedGenerationCost = async (
 ) => {
   let previousTimeout;
   try {
-    const { batchSize, maxRowsToProcess, sleepBetweenMs } = params;
+    const { batchSize, maxRowsToProcess, maxDate } = params;
     log("Starting backfillCalculatedGenerationCost with params", params);
 
     // Set the statement timeout
     const newTimeout = "19min";
-
-    const [{ statement_timeout: previousTimeoutRead }] = await prisma.$queryRaw<
-      { statement_timeout: string }[]
-    >(Prisma.sql`SHOW statement_timeout;`);
-    log(`Current statement_timeout read from DB: ${previousTimeoutRead}`);
-
-    if (!previousTimeoutRead || previousTimeoutRead === newTimeout) {
-      // If the statement_timeout is already set to 19 minutes, assume it was set by this script and reset it to 2 minutes
-      previousTimeout = "2min";
-    } else {
-      previousTimeout = previousTimeoutRead;
-    }
-
-    log(`Setting statement_timeout to ${newTimeout} minutes...`);
-    await prisma.$executeRawUnsafe(`SET statement_timeout = '${newTimeout}';`);
-    log(
-      `Updated statement_timeout. Current statement_timeout: ${JSON.stringify(
-        await prisma.$queryRaw(Prisma.sql`SHOW statement_timeout;`),
-      )}`,
-    );
+    previousTimeout = await updateStatementTimeout(newTimeout, previousTimeout);
 
     // Drop column if it exists and add temporary column
-    const columnExists = await prisma.$queryRaw<{ column_exists: boolean }[]>(
-      Prisma.sql`
-            SELECT EXISTS (
-                SELECT 1
-                FROM information_schema.columns
-                WHERE table_name = 'observations'
-                AND column_name = 'tmp_has_calculated_cost'
-            ) AS column_exists;
-        `,
-    );
-    if (!columnExists[0]?.column_exists) {
-      await prisma.$executeRaw`ALTER TABLE observations ADD COLUMN tmp_has_calculated_cost BOOLEAN DEFAULT FALSE;`;
-      log("✅ Added temporary column tmp_has_calculated_cost");
-    } else {
-      log(
-        "⚠️ Temporary column tmp_has_calculated_cost already exists. Continuing...",
-      );
-    }
+    await addTemporaryColumnIfNotExists();
 
-    let currentDateCutoff = new Date().toISOString();
+    const initialDateCutoff = new Date(maxDate || Date.now()).toISOString();
+
+    let currentDateCutoff = initialDateCutoff;
     let totalRowsProcessed = 0;
 
     log("Starting batch update loop...");
@@ -152,8 +118,6 @@ const backfillCalculatedGenerationCost = async (
 
         break;
       }
-
-      await new Promise((resolve) => setTimeout(resolve, sleepBetweenMs));
     }
 
     log("✅ Finished batch update loop.");
@@ -183,13 +147,67 @@ const backfillCalculatedGenerationCost = async (
   }
 };
 
-// Execute the script
-backfillCalculatedGenerationCost({
-  batchSize: 5_000,
-  maxRowsToProcess: null,
-  sleepBetweenMs: 0,
-});
+async function addTemporaryColumnIfNotExists() {
+  const columnExists = await prisma.$queryRaw<{ column_exists: boolean }[]>(
+    Prisma.sql`
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'observations'
+                AND column_name = 'tmp_has_calculated_cost'
+            ) AS column_exists;
+        `,
+  );
+  if (!columnExists[0]?.column_exists) {
+    await prisma.$executeRaw`ALTER TABLE observations ADD COLUMN tmp_has_calculated_cost BOOLEAN DEFAULT FALSE;`;
+    log("✅ Added temporary column tmp_has_calculated_cost");
+  } else {
+    log(
+      "⚠️ Temporary column tmp_has_calculated_cost already exists. Continuing...",
+    );
+  }
+}
+
+type StatementTimeout = {
+  statement_timeout: string;
+};
+
+async function updateStatementTimeout(
+  newTimeout: string,
+  previousTimeout: any,
+) {
+  const [{ statement_timeout: previousTimeoutRead }] = await prisma.$queryRaw<
+    StatementTimeout[]
+  >(Prisma.sql`SHOW statement_timeout;`);
+
+  log(`Current statement_timeout read from DB: ${previousTimeoutRead}`);
+
+  if (!previousTimeoutRead || previousTimeoutRead === newTimeout) {
+    // If the statement_timeout is already set to 19 minutes, assume it was set by this script and reset it to 2 minutes
+    previousTimeout = "2min";
+  } else {
+    previousTimeout = previousTimeoutRead;
+  }
+
+  log(`Setting statement_timeout to ${newTimeout} minutes...`);
+
+  await prisma.$executeRawUnsafe(`SET statement_timeout = '${newTimeout}';`);
+
+  log(
+    `Updated statement_timeout. Current statement_timeout: ${JSON.stringify(
+      await prisma.$queryRaw(Prisma.sql`SHOW statement_timeout;`),
+    )}`,
+  );
+
+  return previousTimeout;
+}
 
 function log(message: string, ...args: any[]) {
   console.log(new Date().toISOString(), " - ", message, ...args);
 }
+
+// Execute the script
+backfillCalculatedGenerationCost({
+  batchSize: 5_000,
+  maxRowsToProcess: null,
+});
