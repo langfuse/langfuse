@@ -30,8 +30,12 @@ service:
           datasetName: optional<string>
           sourceTraceId: optional<string>
           sourceObservationId: optional<string>
-          page: optional<integer>
-          limit: optional<integer>
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
       response: PaginatedDatasetItems
 
 types:

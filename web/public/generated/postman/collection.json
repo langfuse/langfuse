@@ -141,12 +141,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 }
               ],
               "variable": []
@@ -225,12 +225,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 }
               ],
               "variable": []
@@ -369,12 +369,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 }
               ],
               "variable": [
@@ -756,12 +756,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 }
               ],
               "variable": []

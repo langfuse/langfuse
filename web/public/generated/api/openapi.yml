@@ -97,12 +97,14 @@ paths:
             nullable: true
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
@@ -240,12 +242,14 @@ paths:
       parameters:
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
@@ -437,12 +441,14 @@ paths:
             type: string
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
@@ -966,12 +972,14 @@ paths:
             nullable: true
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
