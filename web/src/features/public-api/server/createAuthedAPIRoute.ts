@@ -1,5 +1,5 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type ZodObject, type z } from "zod";
+import { type ZodType, ZodObject, type z } from "zod";
 import * as Sentry from "@sentry/node";
 import {
   verifyAuthHeaderAndReturnScope,
@@ -8,9 +8,9 @@ import {
 import { ApiError } from "@langfuse/shared";
 
 type RouteConfig<
-  TQuery extends ZodObject<any>,
-  TBody extends ZodObject<any>,
-  TResponse extends ZodObject<any>,
+  TQuery extends ZodType<any>,
+  TBody extends ZodType<any>,
+  TResponse extends ZodType<any>,
 > = {
   name: string;
   querySchema?: TQuery;
@@ -27,9 +27,9 @@ type RouteConfig<
 };
 
 export const createAuthedAPIRoute = <
-  TQuery extends ZodObject<any>,
-  TBody extends ZodObject<any>,
-  TResponse extends ZodObject<any>,
+  TQuery extends ZodType<any>,
+  TBody extends ZodType<any>,
+  TResponse extends ZodType<any>,
 >(
   routeConfig: RouteConfig<TQuery, TBody, TResponse>,
 ): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
@@ -65,9 +65,13 @@ export const createAuthedAPIRoute = <
 
     if (routeConfig.responseSchema) {
       try {
-        routeConfig.responseSchema
-          .strict() // fail on extra fields
-          .parse(response);
+        // If the response schema is an object, we need to call strict() to ensure that the response object doesn't have any extra keys
+        const responseSchema = routeConfig.responseSchema;
+        if (responseSchema instanceof ZodObject) {
+          responseSchema.strict().parse(response);
+        } else {
+          responseSchema.parse(response);
+        }
       } catch (error: unknown) {
         console.error("Response validation failed:", error);
         Sentry.captureException(error);

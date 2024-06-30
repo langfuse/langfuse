@@ -124,3 +124,20 @@ export const GetDatasetItemV1Query = z.object({
   datasetItemId: z.string(),
 });
 export const GetDatasetItemV1Response = DatasetItem;
+
+// POST /dataset-run-items
+export const PostDatasetRunItemsV1Body = z
+  .object({
+    runName: z.string(),
+    runDescription: z.string().nullish(),
+    metadata: jsonSchema.nullish(),
+    datasetItemId: z.string(),
+    observationId: z.string().nullish(),
+    traceId: z.string().nullish(),
+  })
+  .strict()
+  .refine((data) => data.observationId || data.traceId, {
+    message: "observationId or traceId must be provided",
+    path: ["observationId", "traceId"], // Specify the path of the error
+  });
+export const PostDatasetRunItemsV1Response = DatasetRunItem;
