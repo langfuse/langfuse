@@ -11,7 +11,7 @@ const Dataset = z.object({
   projectId: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  metadata: z.any().nullable(),
+  metadata: z.any(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -118,3 +118,9 @@ export const GetDatasetItemsV1Response = z.object({
   data: z.array(DatasetItem),
   meta: paginationMetaResponseZod,
 });
+
+// GET /dataset-items/{datasetItemId}
+export const GetDatasetItemV1Query = z.object({
+  datasetItemId: z.string(),
+});
+export const GetDatasetItemV1Response = DatasetItem;

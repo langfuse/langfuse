@@ -7,6 +7,7 @@ Implementation
 - Wrap with `withMiddleware`
 - Type-safe and authed API Route with `createAuthedAPIRoute`
 - Add zod types to `/features/public-api/types` folder
+- Throw errors defined in `shared/src/errors` which translate to HTTP status codes
 
 Testing
 
