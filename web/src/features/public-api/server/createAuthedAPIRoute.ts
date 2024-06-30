@@ -48,6 +48,17 @@ export const createAuthedAPIRoute = <
       return;
     }
 
+    console.log(
+      "Request to route ",
+      routeConfig.name,
+      "projectId ",
+      auth.scope.projectId,
+      "with query ",
+      req.query,
+      "and body ",
+      req.body,
+    );
+
     const query = routeConfig.querySchema
       ? routeConfig.querySchema.parse(req.query)
       : {};
