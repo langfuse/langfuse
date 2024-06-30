@@ -27,6 +27,17 @@ const DatasetRun = z.object({
   updatedAt: z.date(),
 });
 
+const DatasetRunItem = z.object({
+  datasetRunName: z.string(),
+  id: z.string(),
+  datasetRunId: z.string(),
+  datasetItemId: z.string(),
+  traceId: z.string(),
+  observationId: z.string().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
 // POST /v2/datasets
 export const PostDatasetsV2Body = z.object({
   name: z.string(),
@@ -64,4 +75,7 @@ export const GetDatasetRunsV1Response = z.object({
 export const GetDatasetRunV1Query = z.object({
   name: queryStringZod, // dataset name from URL, name as it is v1
   runName: queryStringZod,
+});
+export const GetDatasetRunV1Response = DatasetRun.extend({
+  datasetRunItems: z.array(DatasetRunItem),
 });
