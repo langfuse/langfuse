@@ -38,6 +38,20 @@ const DatasetRunItem = z.object({
   updatedAt: z.date(),
 });
 
+const DatasetItem = z.object({
+  datasetName: z.string(),
+  id: z.string(),
+  status: z.enum(["ACTIVE", "ARCHIVED"]),
+  input: z.any(), // Assuming Prisma.JsonValue is any type
+  expectedOutput: z.any(), // Assuming Prisma.JsonValue is any type
+  metadata: z.any(), // Assuming Prisma.JsonValue is any type
+  sourceTraceId: z.string().nullable(),
+  sourceObservationId: z.string().nullable(),
+  datasetId: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
 // POST /v2/datasets
 export const PostDatasetsV2Body = z.object({
   name: z.string(),
@@ -78,4 +92,29 @@ export const GetDatasetRunV1Query = z.object({
 });
 export const GetDatasetRunV1Response = DatasetRun.extend({
   datasetRunItems: z.array(DatasetRunItem),
+});
+
+// POST /dataset-items
+export const PostDatasetItemsV1Body = z.object({
+  datasetName: z.string(),
+  input: jsonSchema.nullish(),
+  expectedOutput: jsonSchema.nullish(),
+  metadata: jsonSchema.nullish(),
+  id: z.string().nullish(),
+  sourceTraceId: z.string().nullish(),
+  sourceObservationId: z.string().nullish(),
+  status: z.enum(["ACTIVE", "ARCHIVED"]).nullish(),
+});
+export const PostDatasetItemsV1Response = DatasetItem;
+
+// GET /dataset-items
+export const GetDatasetItemsV1Query = z.object({
+  datasetName: z.string().nullish(),
+  sourceTraceId: z.string().nullish(),
+  sourceObservationId: z.string().nullish(),
+  ...paginationZod,
+});
+export const GetDatasetItemsV1Response = z.object({
+  data: z.array(DatasetItem),
+  meta: paginationMetaResponseZod,
 });

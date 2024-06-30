@@ -1,15 +1,16 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type ZodSchema, type z } from "zod";
+import { type ZodObject, type z } from "zod";
 import * as Sentry from "@sentry/node";
 import {
   verifyAuthHeaderAndReturnScope,
   type AuthHeaderValidVerificationResult,
 } from "@/src/features/public-api/server/apiAuth";
+import { ApiError } from "@langfuse/shared";
 
 type RouteConfig<
-  TQuery extends ZodSchema<any>,
-  TBody extends ZodSchema<any>,
-  TResponse extends ZodSchema<any>,
+  TQuery extends ZodObject<any>,
+  TBody extends ZodObject<any>,
+  TResponse extends ZodObject<any>,
 > = {
   name: string;
   querySchema?: TQuery;
@@ -26,9 +27,9 @@ type RouteConfig<
 };
 
 export const createAuthedAPIRoute = <
-  TQuery extends ZodSchema<any>,
-  TBody extends ZodSchema<any>,
-  TResponse extends ZodSchema<any>,
+  TQuery extends ZodObject<any>,
+  TBody extends ZodObject<any>,
+  TResponse extends ZodObject<any>,
 >(
   routeConfig: RouteConfig<TQuery, TBody, TResponse>,
 ): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
@@ -64,11 +65,14 @@ export const createAuthedAPIRoute = <
 
     if (routeConfig.responseSchema) {
       try {
-        routeConfig.responseSchema.parse(response);
+        routeConfig.responseSchema
+          .strict() // fail on extra fields
+          .parse(response);
       } catch (error: unknown) {
         console.error("Response validation failed:", error);
         Sentry.captureException(error);
-        if (process.env.NODE_ENV !== "production") throw error; // rethrow in when not in production
+        if (process.env.NODE_ENV !== "production")
+          throw new ApiError("DEV: output validation failed"); // rethrow in when not in production
       }
     }
 
