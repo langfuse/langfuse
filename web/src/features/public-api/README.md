@@ -1,0 +1,23 @@
+# Public API
+
+## How to add new api routes
+
+Implementation
+
+- Wrap with `withMiddleware`
+- Type-safe and authed API Route with `createAuthedAPIRoute`
+- Add zod types to `/features/public-api/types` folder
+
+Testing
+
+- Add tests for all standard cases
+
+API Reference
+
+- Add to `fern` including `docs` attributes
+- Build with `fern generate --api server` and `fern generate --api client`, then commit the changes to the API reference
+
+SDKs
+
+- Copy/paste fern-generated types or api reference to Python and JS SDKs respectively
+- Implement wrapping functions if needed
