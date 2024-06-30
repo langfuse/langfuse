@@ -4,11 +4,7 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
-
-const DatasetRunsGetSchema = z.object({
-  name: z.string().transform((val) => decodeURIComponent(val)),
-  runName: z.string().transform((val) => decodeURIComponent(val)),
-});
+import { GetDatasetRunV1Query } from "@/src/features/public-api/types/datasets";
 
 export default async function handler(
   req: NextApiRequest,
@@ -41,7 +37,7 @@ export default async function handler(
         ", query:",
         JSON.stringify(req.query, null, 2),
       );
-      const { name, runName } = DatasetRunsGetSchema.parse(req.query);
+      const { name, runName } = GetDatasetRunV1Query.parse(req.query);
 
       const datasetRuns = await prisma.datasetRuns.findMany({
         where: {

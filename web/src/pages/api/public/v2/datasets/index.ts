@@ -4,7 +4,7 @@ import {
   GetDatasetsV2Response,
   PostDatasetsV2Body,
   PostDatasetsV2Response,
-} from "@/src/features/public-api/types/datasets-v2";
+} from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 

@@ -2,9 +2,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   GetDatasetV2Query,
   GetDatasetV2Response,
-} from "@/src/features/public-api/types/datasets-v2";
+} from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -22,7 +23,7 @@ export default withMiddlewares({
       });
 
       if (!dataset) {
-        throw new Error("Dataset not found");
+        throw new LangfuseNotFoundError("Dataset not found");
       }
       return dataset;
     },
