@@ -14,6 +14,7 @@ import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
 import { repeatQueueExecutor } from "./queues/repeatQueue";
 import helmet from "helmet";
+import opentelemetry, { Span } from "@opentelemetry/api";
 
 const app = express();
 
@@ -21,8 +22,15 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.get<{}, MessageResponse>("/", (req, res) => {
-  res.json({
-    message: "Langfuse Worker API 🚀",
+  const tracer = opentelemetry.trace.getTracer(
+    "instrumentation-scope-name",
+    "instrumentation-scope-version"
+  );
+  return tracer.startActiveSpan("rollTheDice", (span: Span) => {
+    console.log("Rolling the dice");
+    res.json({
+      message: "Langfuse Worker API 🚀",
+    });
   });
 });
 
