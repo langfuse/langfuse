@@ -5,14 +5,11 @@ import {
   PostDatasetsV2Body,
   PostDatasetsV2Response,
 } from "@/src/features/public-api/types/datasets-v2";
-import {
-  ApiHandler,
-  createAPIRoute,
-} from "@/src/features/public-api/apiBuilder";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 
-export default ApiHandler([
-  createAPIRoute({
-    method: "POST",
+export default withMiddlewares({
+  POST: createAuthedAPIRoute({
     name: "Create Dataset",
     bodySchema: PostDatasetsV2Body,
     responseSchema: PostDatasetsV2Response,
@@ -41,8 +38,7 @@ export default ApiHandler([
       return dataset;
     },
   }),
-  createAPIRoute({
-    method: "GET",
+  GET: createAuthedAPIRoute({
     name: "Get Datasets",
     querySchema: GetDatasetsV2Query,
     responseSchema: GetDatasetsV2Response,
@@ -84,4 +80,4 @@ export default ApiHandler([
       };
     },
   }),
-]);
+});

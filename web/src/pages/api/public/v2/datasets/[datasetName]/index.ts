@@ -3,14 +3,11 @@ import {
   GetDatasetV2Query,
   GetDatasetV2Response,
 } from "@/src/features/public-api/types/datasets-v2";
-import {
-  ApiHandler,
-  createAPIRoute,
-} from "@/src/features/public-api/apiBuilder";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 
-export default ApiHandler([
-  createAPIRoute({
-    method: "GET",
+export default withMiddlewares({
+  GET: createAuthedAPIRoute({
     name: "get-dataset",
     querySchema: GetDatasetV2Query,
     responseSchema: GetDatasetV2Response,
@@ -30,4 +27,4 @@ export default ApiHandler([
       return dataset;
     },
   }),
-]);
+});
