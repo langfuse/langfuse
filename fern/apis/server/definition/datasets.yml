@@ -9,7 +9,7 @@ service:
     list:
       method: GET
       docs: Get all datasets
-      path: /datasets
+      path: /v2/datasets
       request:
         name: GetDatasetsRequest
         query-parameters:
@@ -36,7 +36,7 @@ service:
       path-parameters:
         datasetName: string
         runName: string
-      response: commons.DatasetRun
+      response: commons.DatasetRunWithItems
     getRuns:
       method: GET
       docs: Get a dataset runs
@@ -53,7 +53,7 @@ service:
 types:
   PaginatedDatasets:
     properties:
-      data: list<commons.DatasetWithReferences>
+      data: list<commons.Dataset>
       meta: pagination.MetaResponse
   CreateDatasetRequest:
     properties:

@@ -106,6 +106,57 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get dataset items",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/dataset-items?datasetName=&sourceTraceId=&sourceObservationId=&page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items"
+              ],
+              "query": [
+                {
+                  "key": "datasetName",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "sourceTraceId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "sourceObservationId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": null
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
@@ -160,13 +211,14 @@
           "request": {
             "description": "Get all datasets",
             "url": {
-              "raw": "{{baseUrl}}/api/public/datasets?page=&limit=",
+              "raw": "{{baseUrl}}/api/public/v2/datasets?page=&limit=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "datasets"
               ],
               "query": [
@@ -229,13 +281,14 @@
           "request": {
             "description": "Create a dataset",
             "url": {
-              "raw": "{{baseUrl}}/api/public/datasets",
+              "raw": "{{baseUrl}}/api/public/v2/datasets",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "datasets"
               ],
               "query": [],
