@@ -22,9 +22,11 @@ import {
   SentryPropagator,
   SentrySampler,
   setupEventContextTrace,
+  suppressTracing,
 } from "@sentry/opentelemetry";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
-import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
+import type { NodeClient } from "@sentry/node";
 
 import {
   awsEc2Detector,
@@ -49,70 +51,44 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 export function initializeOtel(serviceName: string, version?: string) {
   try {
     diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
-    const sentryClient = Sentry.getClient();
-    setupEventContextTrace(sentryClient);
+    const sentryClient = Sentry.getClient<NodeClient>();
 
-    // const sdk = new opentelemetry.NodeSDK({
-    //   // Optional - if omitted, the tracing SDK will be initialized from environment variables
+    const exporter = new OTLPTraceExporter();
+    const sdk = new opentelemetry.NodeSDK({
+      // Optional - if omitted, the tracing SDK will be initialized from environment variables
 
-    //   resource: Resource.default().merge(
-    //     new Resource({
-    //       [SEMRESATTRS_SERVICE_NAME]: serviceName,
-    //       [SEMRESATTRS_SERVICE_VERSION]: version,
-    //     })
-    //   ),
-    //   traceExporter: new OTLPTraceExporter(),
+      resource: Resource.default().merge(
+        new Resource({
+          [SEMRESATTRS_SERVICE_NAME]: serviceName,
+          [SEMRESATTRS_SERVICE_VERSION]: version,
+        })
+      ),
+      traceExporter: exporter,
+      metricReader: new PeriodicExportingMetricReader({
+        exporter: new OTLPMetricExporter(),
+      }),
 
-    //   // Optional - you can use the metapackage or load each instrumentation individually
-    //   instrumentations: [
-    //     new PrismaInstrumentation(),
-    //     getNodeAutoInstrumentations(),
-    //     new IORedisInstrumentation(),
-    //     new HttpInstrumentation(),
-    //     new ExpressInstrumentation(),
-    //   ],
-    //   // See the Configuration section below for additional  configuration options
-    //   // metricReader: new PeriodicExportingMetricReader({
-    //   //   exporter: new ConsoleMetricExporter(),
-    //   // }),
-    //   spanProcessor: new SentrySpanProcessor(),
-    //   textMapPropagator: new SentryPropagator(),
-    //   contextManager: new Sentry.SentryContextManager(),
-    //   sampler: sentryClient ? new SentrySampler(sentryClient) : undefined,
+      // Optional - you can use the metapackage or load each instrumentation individually
+      instrumentations: [
+        new PrismaInstrumentation(),
+        getNodeAutoInstrumentations(),
+        new IORedisInstrumentation(),
+        new ExpressInstrumentation(),
+      ],
 
-    //   resourceDetectors: [
-    //     containerDetector,
-    //     envDetector,
-    //     hostDetector,
-    //     osDetector,
-    //     processDetector,
-    //     awsEksDetector,
-    //     awsEc2Detector,
-    //   ],
-    // });
-
-    // propagation.setGlobalPropagator(new SentryPropagator());
-
-    // Sentry.validateOpenTelemetrySetup();
-
-    const provider = new NodeTracerProvider({
-      // We need our sampler to ensure the correct subset of traces is sent to Sentry
-      sampler: sentryClient ? new SentrySampler(sentryClient) : undefined,
+      resourceDetectors: [
+        containerDetector,
+        envDetector,
+        hostDetector,
+        osDetector,
+        processDetector,
+        awsEksDetector,
+        awsEc2Detector,
+      ],
     });
-
-    // We need a custom span processor
-    provider.addSpanProcessor(new SentrySpanProcessor());
-
-    // We need a custom propagator and context manager
-    provider.register({
-      propagator: new SentryPropagator(),
-      contextManager: new Sentry.SentryContextManager(),
-    });
-
-    // Validate that the setup is correct
-    Sentry.validateOpenTelemetrySetup();
 
     logger.info("OpenTelemetry setup complete");
+    return sdk;
   } catch (e) {
     logger.error("Error setting up OpenTelemetry", e);
     throw e;

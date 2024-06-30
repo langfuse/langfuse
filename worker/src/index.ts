@@ -1,21 +1,6 @@
 import { env } from "./env";
 import logger from "./logger";
-import * as Sentry from "@sentry/node";
 
-Sentry.init({
-  dsn: String(env.SENTRY_DSN),
-
-  skipOpenTelemetrySetup: true,
-
-  // Add Tracing by setting tracesSampleRate
-  // We recommend adjusting this value in production
-  tracesSampleRate: 1,
-
-  // Set sampling rate for profiling
-  // This is relative to tracesSampleRate
-  profilesSampleRate: 1,
-  debug: true,
-});
 import { initializeOtel } from "./instrumentation";
 
 const sdk = initializeOtel("langfuse-worker");

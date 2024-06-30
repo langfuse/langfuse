@@ -28,9 +28,11 @@ app.get<{}, MessageResponse>("/", (req, res) => {
   );
   return tracer.startActiveSpan("rollTheDice", (span: Span) => {
     console.log("Rolling the dice");
+
     res.json({
       message: "Langfuse Worker API 🚀",
     });
+    span.end();
   });
 });
 
