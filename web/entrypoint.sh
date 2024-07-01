@@ -20,7 +20,7 @@ if [ -z "$DIRECT_URL" ]; then
 fi
 
 # Always execute the scripts, except when disabled.
-if [ "$LANFUSE_WEB_MIGRATION_DISABLED" != "true" ]; then
+if [ "$LANGFUSE_AUTO_POSTGRES_MIGRATION_DISABLED" != "true" ]; then
     prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
 
     # Apply migrations
