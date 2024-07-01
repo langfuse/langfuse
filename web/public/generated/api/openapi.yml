@@ -71,6 +71,77 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetItemRequest'
+    get:
+      description: Get dataset items
+      operationId: datasetItems_list
+      tags:
+        - DatasetItems
+      parameters:
+        - name: datasetName
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sourceTraceId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sourceObservationId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDatasetItems'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/dataset-items/{id}:
     get:
       description: Get a dataset item
@@ -162,7 +233,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
-  /api/public/datasets:
+  /api/public/v2/datasets:
     get:
       description: Get all datasets
       operationId: datasets_list
@@ -171,12 +242,14 @@ paths:
       parameters:
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
@@ -259,7 +332,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRequest'
-  /api/public/datasets/{datasetName}:
+  /api/public/v2/datasets/{datasetName}:
     get:
       description: Get a dataset and its items
       operationId: datasets_get
@@ -307,7 +380,7 @@ paths:
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
       description: Get a dataset run and its items
-      operationId: datasets_getRuns
+      operationId: datasets_getRun
       tags:
         - Datasets
       parameters:
@@ -327,7 +400,66 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DatasetRun'
+                $ref: '#/components/schemas/DatasetRunWithItems'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/datasets/{datasetName}/runs:
+    get:
+      description: Get a dataset runs
+      operationId: datasets_getRuns
+      tags:
+        - Datasets
+      parameters:
+        - name: datasetName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDatasetRuns'
         '400':
           description: ''
           content:
@@ -840,12 +972,14 @@ paths:
             nullable: true
         - name: page
           in: query
+          description: page number, starts at 1
           required: false
           schema:
             type: integer
             nullable: true
         - name: limit
           in: query
+          description: limit of items per page
           required: false
           schema:
             type: integer
@@ -1815,8 +1949,8 @@ components:
         - value
         - source
         - timestamp
-    DatasetCore:
-      title: DatasetCore
+    Dataset:
+      title: Dataset
       type: object
       properties:
         id:
@@ -1842,43 +1976,6 @@ components:
         - projectId
         - createdAt
         - updatedAt
-    DatasetWithReferences:
-      title: DatasetWithReferences
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            type: string
-          description: list of dataset item ids
-        runs:
-          type: array
-          items:
-            type: string
-          description: list of dataset run names
-      required:
-        - items
-        - runs
-      allOf:
-        - $ref: '#/components/schemas/DatasetCore'
-    Dataset:
-      title: Dataset
-      type: object
-      description: Dataset including all items
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/DatasetItem'
-        runs:
-          type: array
-          items:
-            type: string
-      required:
-        - items
-        - runs
-      allOf:
-        - $ref: '#/components/schemas/DatasetCore'
     DatasetItem:
       title: DatasetItem
       type: object
@@ -1970,10 +2067,6 @@ components:
         updatedAt:
           type: string
           format: date-time
-        datasetRunItems:
-          type: array
-          items:
-            $ref: '#/components/schemas/DatasetRunItem'
       required:
         - id
         - name
@@ -1981,7 +2074,18 @@ components:
         - datasetName
         - createdAt
         - updatedAt
+    DatasetRunWithItems:
+      title: DatasetRunWithItems
+      type: object
+      properties:
+        datasetRunItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetRunItem'
+      required:
         - datasetRunItems
+      allOf:
+        - $ref: '#/components/schemas/DatasetRun'
     ModelUsageUnit:
       title: ModelUsageUnit
       type: string
@@ -2063,6 +2167,19 @@ components:
           description: Defaults to ACTIVE for newly created items
       required:
         - datasetName
+    PaginatedDatasetItems:
+      title: PaginatedDatasetItems
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetItem'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
     CreateDatasetRunItemRequest:
       title: CreateDatasetRunItemRequest
       type: object
@@ -2097,7 +2214,7 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/DatasetWithReferences'
+            $ref: '#/components/schemas/Dataset'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
       required:
@@ -2116,6 +2233,19 @@ components:
           nullable: true
       required:
         - name
+    PaginatedDatasetRuns:
+      title: PaginatedDatasetRuns
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetRun'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
     HealthResponse:
       title: HealthResponse
       type: object
