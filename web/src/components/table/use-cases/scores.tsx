@@ -310,11 +310,12 @@ export default function ScoresTable({
       source: score.source,
       name: score.name,
       dataType: score.dataType,
-      value: isNumericDataType(score.dataType)
-        ? score.value % 1 === 0
-          ? String(score.value)
-          : score.value.toFixed(4)
-        : score.stringValue ?? "",
+      value:
+        isNumericDataType(score.dataType) && score.value
+          ? score.value % 1 === 0
+            ? String(score.value)
+            : score.value.toFixed(4)
+          : score.stringValue ?? "",
       author: {
         image: score.authorUserImage ?? undefined,
         name: score.authorUserName ?? undefined,
