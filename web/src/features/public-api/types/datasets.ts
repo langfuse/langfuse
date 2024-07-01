@@ -52,31 +52,6 @@ const DatasetItem = z.object({
   updatedAt: z.coerce.date(),
 });
 
-// POST /datasets
-export const PostDatasetsV1Body = z.object({
-  name: z.string(),
-  description: z.string().nullish(),
-  metadata: jsonSchema.nullish(),
-});
-export const PostDatasetsV1Response = Dataset.extend({
-  items: z.array(DatasetItem),
-  runs: z.array(DatasetRun),
-});
-
-// GET /datasets
-export const GetDatasetsV1Query = z.object({
-  ...paginationZod,
-});
-export const GetDatasetsV1Response = z.object({
-  data: z.array(
-    Dataset.extend({
-      items: z.array(z.string()), // dataset item ids
-      runs: z.array(z.string()), // dataset run names
-    }),
-  ),
-  meta: paginationMetaResponseZod,
-});
-
 // POST /v2/datasets
 export const PostDatasetsV2Body = z.object({
   name: z.string(),
@@ -166,3 +141,41 @@ export const PostDatasetRunItemsV1Body = z
     path: ["observationId", "traceId"], // Specify the path of the error
   });
 export const PostDatasetRunItemsV1Response = DatasetRunItem;
+
+/**
+ * Deprecated endpoints
+ */
+
+// POST /datasets
+export const PostDatasetsV1Body = z.object({
+  name: z.string(),
+  description: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
+});
+export const PostDatasetsV1Response = Dataset.extend({
+  items: z.array(DatasetItem),
+  runs: z.array(DatasetRun),
+});
+
+// GET /datasets
+export const GetDatasetsV1Query = z.object({
+  ...paginationZod,
+});
+export const GetDatasetsV1Response = z.object({
+  data: z.array(
+    Dataset.extend({
+      items: z.array(z.string()), // dataset item ids
+      runs: z.array(z.string()), // dataset run names
+    }),
+  ),
+  meta: paginationMetaResponseZod,
+});
+
+// GET /datasets/{name}
+export const GetDatasetV1Query = z.object({
+  name: queryStringZod,
+});
+export const GetDatasetV1Response = Dataset.extend({
+  items: z.array(DatasetItem),
+  runs: z.array(z.string()), // dataset run names
+});

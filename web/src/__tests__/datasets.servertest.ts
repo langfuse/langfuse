@@ -12,10 +12,13 @@ import {
   GetDatasetItemsV1Response,
   GetDatasetRunV1Response,
   GetDatasetRunsV1Response,
+  GetDatasetV1Response,
   GetDatasetV2Response,
+  GetDatasetsV1Response,
   GetDatasetsV2Response,
   PostDatasetItemsV1Response,
   PostDatasetRunItemsV1Response,
+  PostDatasetsV1Response,
   PostDatasetsV2Response,
 } from "@/src/features/public-api/types/datasets";
 
@@ -65,11 +68,16 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   afterEach(async () => await pruneDatabase());
 
   it("should create and get a dataset (v1), include special characters", async () => {
-    const createRes = await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset + name",
-      description: "dataset-description",
-      metadata: { foo: "bar" },
-    });
+    const createRes = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: "dataset + name",
+        description: "dataset-description",
+        metadata: { foo: "bar" },
+      },
+    );
     expect(createRes.status).toBe(200);
     expect(createRes.body).toMatchObject({
       name: "dataset + name",
@@ -144,11 +152,16 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
   it("GET datasets (v1 & v2)", async () => {
     // v1 post
-    await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name-1",
-      description: "dataset-description-1",
-      metadata: { key: "value" },
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: "dataset-name-1",
+        description: "dataset-description-1",
+        metadata: { key: "value" },
+      },
+    );
     // v2 post
     await makeZodVerifiedAPICall(
       PostDatasetsV2Response,
@@ -191,7 +204,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     );
 
-    const getDatasetsV1 = await makeAPICall("GET", `/api/public/datasets`);
+    const getDatasetsV1 = await makeZodVerifiedAPICall(
+      GetDatasetsV1Response,
+      "GET",
+      `/api/public/datasets`,
+    );
 
     expect(getDatasetsV1.status).toBe(200);
     expect(getDatasetsV1.body).toMatchObject({
@@ -243,9 +260,14 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
 
   it("should create and get a dataset items (via datasets (v1), individually, and as a list)", async () => {
-    await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name",
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: "dataset-name",
+      },
+    );
     for (let i = 0; i < 5; i++) {
       await makeZodVerifiedAPICall(
         PostDatasetItemsV1Response,
@@ -280,9 +302,14 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     }));
 
     // add another dataset to test the list endpoint
-    await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name-other",
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: "dataset-name-other",
+      },
+    );
     await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
       "POST",
@@ -318,7 +345,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)); // createdAt desc
 
     // Get dataset (v1) includes list of items
-    const getDataset = await makeAPICall(
+    const getDataset = await makeZodVerifiedAPICall(
+      GetDatasetV1Response,
       "GET",
       `/api/public/datasets/dataset-name`,
     );
@@ -417,9 +445,14 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
 
   it("should upsert a dataset item", async () => {
-    await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name",
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: "dataset-name",
+      },
+    );
 
     const item1 = await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
@@ -467,7 +500,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
 
   it("should create and get a dataset run, include special characters", async () => {
-    const dataset = await makeAPICall<{ id: string }>(
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
       "POST",
       "/api/public/datasets",
       {
@@ -648,9 +682,14 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
   it("GET /api/public/datasets/{datasetName}/runs", async () => {
     // create multiple runs
-    await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name",
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: "dataset-name",
+      },
+    );
     await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
       "POST",
