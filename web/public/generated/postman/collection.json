@@ -847,7 +847,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"value\": 0,\n    \"stringValue\": \"example\",\n    \"observationId\": \"example\",\n    \"comment\": \"example\",\n    \"dataType\": \"NUMERIC\",\n    \"configId\": \"example\"\n}",
+              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"value\": \"example\",\n    \"observationId\": \"example\",\n    \"comment\": \"example\",\n    \"dataType\": \"NUMERIC\",\n    \"configId\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

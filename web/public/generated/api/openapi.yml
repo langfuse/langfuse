@@ -1885,6 +1885,15 @@ components:
         - source
         - timestamp
         - dataType
+    IngestionScoreValue:
+      title: IngestionScoreValue
+      oneOf:
+        - type: string
+        - type: number
+          format: double
+      description: >-
+        The value of the score. Must be passed as string for categorical scores,
+        and numeric for boolean and numeric scores.
     DatasetCore:
       title: DatasetCore
       type: object
@@ -2582,8 +2591,38 @@ components:
         name:
           type: string
         value:
+          $ref: '#/components/schemas/IngestionScoreValue'
+        observationId:
+          type: string
+          nullable: true
+        comment:
+          type: string
+          nullable: true
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
+        configId:
+          type: string
+          nullable: true
+      required:
+        - traceId
+        - name
+        - value
+    InflatedScoreBody:
+      title: InflatedScoreBody
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
           type: number
           format: double
+          nullable: true
         stringValue:
           type: string
           nullable: true
@@ -2602,7 +2641,6 @@ components:
       required:
         - traceId
         - name
-        - value
     BaseEvent:
       title: BaseEvent
       type: object
@@ -2658,7 +2696,7 @@ components:
       type: object
       properties:
         body:
-          $ref: '#/components/schemas/ScoreBody'
+          $ref: '#/components/schemas/InflatedScoreBody'
       required:
         - body
       allOf:
@@ -3141,19 +3179,7 @@ components:
         name:
           type: string
         value:
-          type: number
-          format: double
-          description: >-
-            The numeric value of the score. Must be passed for all data types.
-            Is used as source of truth when inferring the string value.
-        stringValue:
-          type: string
-          nullable: true
-          description: >-
-            Translates numeric value to string equivalent for boolean and
-            categorical score types. When passing a configId or boolean data
-            type this field is automatically populated. Otherwise, you may use
-            this field to provide a custom string value.
+          $ref: '#/components/schemas/IngestionScoreValue'
         observationId:
           type: string
           nullable: true

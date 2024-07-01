@@ -62,10 +62,7 @@ components:
         name:
           type: string
         value:
-          type: number
-          format: double
-        stringValue:
-          type: string
+          $ref: '#/components/schemas/IngestionScoreValue'
         observationId:
           type: string
         comment:
@@ -118,6 +115,15 @@ components:
         - NUMERIC
         - CATEGORICAL
         - BOOLEAN
+    IngestionScoreValue:
+      title: IngestionScoreValue
+      oneOf:
+        - type: string
+        - type: number
+          format: double
+      description: >-
+        The value of the score. Must be passed as string for categorical scores,
+        and numeric for boolean and numeric scores.
   securitySchemes:
     BearerAuth:
       type: http

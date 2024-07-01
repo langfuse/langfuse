@@ -17,8 +17,7 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: double
-      stringValue: optional<string>
+      value: IngestionScoreValue
       observationId: optional<string>
       comment: optional<string>
       dataType: optional<ScoreDataType>
@@ -40,3 +39,9 @@ types:
       - NUMERIC
       - CATEGORICAL
       - BOOLEAN
+  IngestionScoreValue:
+    discriminated: false
+    union:
+      - string
+      - double
+    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores.

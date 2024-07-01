@@ -410,7 +410,7 @@ model Score {
     projectId     String         @map("project_id")
     project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
     name          String
-    value         Float
+    value         Float?         // either value or stringValue is always set
     source        ScoreSource
     authorUserId  String?        @map("author_user_id")
     comment       String?

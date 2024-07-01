@@ -1,4 +1,4 @@
-import lodash from "lodash";
+import lodash, { union } from "lodash";
 import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
@@ -145,16 +145,23 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
   return false;
 });
 
-export const ScoreBody = z.object({
+const BaseScore = z.object({
   id: z.string().nullish(),
   name: NonEmptyString,
-  value: z.number(),
-  stringValue: z.string().nullish(),
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
   dataType: z.nativeEnum(ScoreDataType).nullish(),
   configId: z.string().nullish(),
+});
+
+export const ScoreBody = BaseScore.extend({
+  value: z.union([z.string(), z.number()]),
+});
+
+export const InflatedScoreBody = ScoreBody.extend({
+  value: z.number().nullish(),
+  stringValue: z.string().nullish(),
 });
 
 // LEGACY, only required for backwards compatibility
@@ -312,7 +319,7 @@ export const generationUpdateEvent = base.extend({
 });
 export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE_CREATE),
-  body: ScoreBody,
+  body: InflatedScoreBody,
 });
 export const sdkLogEvent = base.extend({
   type: z.literal(eventTypes.SDK_LOG),

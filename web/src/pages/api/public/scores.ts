@@ -1,10 +1,18 @@
-import { ScoreSource, prisma } from "@langfuse/shared/src/db";
+import {
+  type ScoreDataType,
+  ScoreSource,
+  prisma,
+} from "@langfuse/shared/src/db";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { paginationZod, type CastedConfig } from "@langfuse/shared";
+import {
+  type InflatedScoreBody,
+  paginationZod,
+  type CastedConfig,
+} from "@langfuse/shared";
 import {
   ScoreBody,
   eventTypes,
@@ -25,34 +33,46 @@ import {
   isPresent,
 } from "@/src/features/manual-scoring/lib/helpers";
 
+const validateScoreValueAgainstDataType = ({
+  value,
+  dataType,
+}: {
+  value: number | string;
+  dataType: ScoreDataType;
+}): { error: string } | { error: null } => {
+  if (typeof value === "string") {
+    if (isNumericDataType(dataType) || isBooleanDataType(dataType))
+      return {
+        error: `You may only pass a string value for categorical scores, received: ${value}`,
+      };
+  }
+  if (typeof value === "number") {
+    if (isBooleanDataType(dataType)) {
+      if (value !== 0 && value !== 1) {
+        return {
+          error: `Boolean scores should have value of 0 or 1, received: ${value}`,
+        };
+      }
+    }
+    if (isCategoricalDataType(dataType)) {
+      return {
+        error: `Categorical scores should define a string value not a number, received: ${value}`,
+      };
+    }
+  }
+  return { error: null };
+};
+
 const validateScoreBody = ({
   parsedBody,
 }: {
   parsedBody: z.infer<typeof ScoreBody>;
 }): { error: string } | { error: null } => {
-  if (parsedBody.stringValue) {
-    if (!parsedBody.dataType || isNumericDataType(parsedBody.dataType))
-      return {
-        error:
-          "You may only pass a string value for categorical or boolean data types",
-      };
-  }
   if (parsedBody.dataType) {
-    if (isBooleanDataType(parsedBody.dataType)) {
-      if (parsedBody.value !== 0 && parsedBody.value !== 1) {
-        return {
-          error: "Boolean scores should have value of 0 or 1",
-        };
-      }
-    }
-    if (isCategoricalDataType(parsedBody.dataType)) {
-      if (!parsedBody.stringValue) {
-        return {
-          error:
-            "Categorical scores should define a string value when no config is passed",
-        };
-      }
-    }
+    return validateScoreValueAgainstDataType({
+      value: parsedBody.value,
+      dataType: parsedBody.dataType,
+    });
   }
   return { error: null };
 };
@@ -83,66 +103,42 @@ const validateConfigAgainstBody = ({
     };
   }
 
-  if (parsedBody.stringValue) {
-    if (isNumericDataType(config.dataType)) {
-      return {
-        error:
-          "You may only pass string values for categorical or boolean data types.",
-      };
-    }
-    if (
-      !config.categories?.some(({ label }) => label === parsedBody.stringValue)
-    ) {
-      return {
-        error: `Value ${parsedBody.value} does not map to a valid category. Either pass a valid category value or remove the stringValue field and allow it to autopopulate.`,
-      };
-    }
-    if (mapValueToString(config, parsedBody.value) !== parsedBody.stringValue) {
-      return {
-        error: `Value ${parsedBody.value} does not map to the provided string value.`,
-      };
-    }
-  }
+  const relevantDataType = parsedBody.dataType ?? config.dataType;
+  const { error } = validateScoreValueAgainstDataType({
+    value: parsedBody.value,
+    dataType: relevantDataType,
+  });
+  if (error) return { error };
 
-  if (isNumericDataType(config.dataType)) {
-    if (isPresent(config.maxValue) && parsedBody.value > config.maxValue) {
+  if (isNumericDataType(relevantDataType)) {
+    if (
+      isPresent(config.maxValue) &&
+      (parsedBody.value as number) > config.maxValue // score validated against data type
+    ) {
       return {
         error: `Value exceeds maximum value of ${config.maxValue}`,
       };
     }
-    if (isPresent(config.minValue) && parsedBody.value < config.minValue) {
+    if (
+      isPresent(config.minValue) &&
+      (parsedBody.value as number) < config.minValue // score validated against data type
+    ) {
       return {
         error: `Value is below minimum value of ${config.minValue}`,
       };
     }
   }
 
-  if (isBooleanDataType(config.dataType)) {
-    if (!config.categories) {
-      return {
-        error:
-          "Config invalid. Boolean data type should have config categories",
-      };
-    }
-    if (parsedBody.value !== 0 && parsedBody.value !== 1) {
-      return {
-        error: "Boolean data type should have value of 0 or 1",
-      };
-    }
-  }
-
-  if (isCategoricalDataType(config.dataType)) {
+  if (isCategoricalDataType(relevantDataType)) {
     if (!config.categories) {
       return {
         error:
           "Config invalid. Categorical data type should have config categories",
       };
     }
-    if (
-      !config.categories.find((category) => category.value === parsedBody.value)
-    ) {
+    if (!config.categories.some(({ label }) => label === parsedBody.value)) {
       return {
-        error: `Value ${parsedBody.value} does not map to a valid category`,
+        error: `Value ${parsedBody.value} does not map to a valid category. Pass a valid category value.`,
       };
     }
   }
@@ -150,30 +146,80 @@ const validateConfigAgainstBody = ({
   return { error: null };
 };
 
-const mapValueToString = (config: CastedConfig, value: number): string | null =>
-  config.categories?.find((category) => category.value === value)?.label ??
+const mapStringValueToNumericValue = (
+  config: CastedConfig,
+  label: string,
+): number | null =>
+  config.categories?.find((category) => category.label === label)?.value ??
   null;
 
-const inflateScoreBody = ({
+// Inflate the score body with the correct value and string value, called after validation
+const inflateScoreBodyWithConfig = ({
   parsedBody,
   config,
 }: {
   parsedBody: z.infer<typeof ScoreBody>;
   config: CastedConfig;
-}): z.infer<typeof ScoreBody> => {
-  if (!parsedBody.dataType) return parsedBody;
+}): z.infer<typeof InflatedScoreBody> => {
+  if (typeof parsedBody.value === "number") {
+    if (isBooleanDataType(config.dataType)) {
+      return {
+        ...parsedBody,
+        value: parsedBody.value,
+        stringValue: parsedBody.value === 1 ? "True" : "False",
+        dataType: parsedBody.dataType ?? config.dataType,
+      };
+    }
 
-  if (
-    isCategoricalDataType(parsedBody.dataType) ||
-    isBooleanDataType(parsedBody.dataType)
-  ) {
     return {
       ...parsedBody,
-      stringValue: mapValueToString(config, parsedBody.value),
+      value: parsedBody.value,
+      stringValue: undefined,
+      dataType: parsedBody.dataType ?? config.dataType,
     };
   }
+  return {
+    ...parsedBody,
+    value: mapStringValueToNumericValue(config, parsedBody.value),
+    stringValue: parsedBody.value,
+    dataType: parsedBody.dataType ?? config.dataType,
+  };
+};
 
-  return parsedBody;
+// Inflate the score body with the correct value and string value, called after validation
+const inflateScoreBody = ({
+  parsedBody,
+}: {
+  parsedBody: z.infer<typeof ScoreBody>;
+}): z.infer<typeof InflatedScoreBody> => {
+  if (typeof parsedBody.value === "number") {
+    if (parsedBody.dataType && isBooleanDataType(parsedBody.dataType)) {
+      return {
+        ...parsedBody,
+        value: parsedBody.value,
+        stringValue: parsedBody.value === 1 ? "True" : "False",
+      };
+    }
+
+    return {
+      ...parsedBody,
+      value: parsedBody.value,
+      stringValue: undefined,
+      dataType:
+        parsedBody.dataType ?? typeof parsedBody.value === "number"
+          ? "NUMERIC"
+          : "CATEGORICAL",
+    };
+  }
+  return {
+    ...parsedBody,
+    value: undefined,
+    stringValue: parsedBody.value,
+    dataType:
+      parsedBody.dataType ?? typeof parsedBody.value === "number"
+        ? "NUMERIC"
+        : "CATEGORICAL",
+  };
 };
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
@@ -224,7 +270,7 @@ export default async function handler(
       );
 
       const parsedBody = ScoreBody.parse(req.body);
-      let inflatedBody = parsedBody;
+      let inflatedBody: z.infer<typeof InflatedScoreBody>;
       if (req.body.configId) {
         const config = await prisma.scoreConfig.findFirst({
           where: {
@@ -244,7 +290,7 @@ export default async function handler(
           });
         }
 
-        inflatedBody = inflateScoreBody({ parsedBody, config });
+        inflatedBody = inflateScoreBodyWithConfig({ parsedBody, config });
       } else {
         const { error } = validateScoreBody({ parsedBody });
         if (error) {
@@ -252,12 +298,7 @@ export default async function handler(
             cause: "Invalid request data - score body not valid",
           });
         }
-        if (parsedBody.dataType && isBooleanDataType(parsedBody.dataType)) {
-          inflatedBody = {
-            ...parsedBody,
-            stringValue: parsedBody.value === 1 ? "True" : "False",
-          };
-        }
+        inflatedBody = inflateScoreBody({ parsedBody });
       }
 
       const event = {
@@ -266,6 +307,8 @@ export default async function handler(
         timestamp: new Date().toISOString(),
         body: inflatedBody,
       };
+
+      console.log({ inflatedBody });
 
       const result = await handleBatch(
         ingestionBatchEvent.parse([event]),

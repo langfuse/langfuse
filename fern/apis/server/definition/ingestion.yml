@@ -185,7 +185,18 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: double
+      value: commons.IngestionScoreValue
+      observationId: optional<string>
+      comment: optional<string>
+      dataType: optional<commons.ScoreDataType>
+      configId: optional<string>
+  
+  InflatedScoreBody:
+    properties:
+      id: optional<string>
+      traceId: string
+      name: string
+      value: optional<double>
       stringValue: optional<string>
       observationId: optional<string>
       comment: optional<string>
@@ -222,7 +233,7 @@ types:
   ScoreEvent:
     extends: BaseEvent
     properties:
-      body: ScoreBody
+      body: InflatedScoreBody
 
   SDKLogEvent:
     extends: BaseEvent
