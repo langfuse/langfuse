@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { jsonSchema } from "@langfuse/shared";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
+import { env } from "@/src/env.mjs";
 
 if (process.env.NEXT_PUBLIC_SENTRY_DSN)
   Sentry.init({
@@ -10,7 +11,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
     // Set tracesSampleRate to 1.0 to capture 100%
     // of transactions for performance monitoring.
     // We recommend adjusting this value in production
-    tracesSampleRate: 0.5,
+    tracesSampleRate: env.LANGFUSE_TRACING_SAMPLE_RATE,
     profilesSampleRate: 0.1,
     integrations: [
       // Add profiling integration to list of integrations
