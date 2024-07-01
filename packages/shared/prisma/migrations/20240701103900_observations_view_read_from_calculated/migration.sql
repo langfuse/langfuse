@@ -1,6 +1,7 @@
 DROP VIEW IF EXISTS "observations_view"; -- Drop view as column was added in 20240528214726_add_cursor_new_columns_observations and update view must have same columns
 CREATE VIEW "observations_view" AS -- Specify the columns that should be returned in the view, as calculated columns are added but exist in the observations table already
 SELECT
+    o.id,
     o.name,
     o.start_time,
     o.end_time,
