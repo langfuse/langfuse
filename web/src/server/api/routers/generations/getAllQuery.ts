@@ -17,7 +17,7 @@ const getAllGenerationsInput = GenerationTableOptions.extend({
 
 export type ScoreSimplified = {
   name: string;
-  value: number;
+  value?: number | null;
   dataType: ScoreDataType;
   stringValue?: string | null;
   comment?: string | null;
