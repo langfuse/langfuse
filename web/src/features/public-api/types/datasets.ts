@@ -6,6 +6,10 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 
+/**
+ * Objects
+ */
+
 const Dataset = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -51,6 +55,10 @@ const DatasetItem = z.object({
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
+
+/**
+ * Endpoints
+ */
 
 // POST /v2/datasets
 export const PostDatasetsV2Body = z.object({
@@ -143,7 +151,7 @@ export const PostDatasetRunItemsV1Body = z
 export const PostDatasetRunItemsV1Response = DatasetRunItem;
 
 /**
- * Deprecated endpoints replaced with v2
+ * Deprecated endpoints replaced with v2, available for backward compatibility
  */
 
 // POST /datasets
