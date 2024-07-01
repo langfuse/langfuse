@@ -105,7 +105,6 @@ components:
         - id
         - traceId
         - name
-        - value
         - timestamp
         - dataType
     ScoreDataType:

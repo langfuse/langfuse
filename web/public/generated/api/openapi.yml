@@ -1858,6 +1858,7 @@ components:
         value:
           type: number
           format: double
+          nullable: true
         stringValue:
           type: string
           nullable: true
@@ -1881,7 +1882,6 @@ components:
         - id
         - traceId
         - name
-        - value
         - source
         - timestamp
         - dataType

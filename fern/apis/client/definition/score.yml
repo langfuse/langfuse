@@ -27,7 +27,7 @@ types:
       id: string
       traceId: string
       name: string
-      value: double
+      value: optional<double>
       stringValue: optional<string>
       observationId: optional<string>
       timestamp: datetime
