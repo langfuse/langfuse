@@ -357,7 +357,7 @@ export type Score = {
     timestamp: Generated<Timestamp>;
     project_id: string;
     name: string;
-    value: number;
+    value: number | null;
     source: ScoreSource;
     author_user_id: string | null;
     comment: string | null;
