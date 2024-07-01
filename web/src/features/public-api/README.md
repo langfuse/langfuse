@@ -12,6 +12,7 @@ Implementation
 Testing
 
 - Add tests for all standard cases
+- use `makeZodVerifiedAPICall` to test the API response against the zod response schema
 
 API Reference
 
