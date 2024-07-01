@@ -143,7 +143,7 @@ export const PostDatasetRunItemsV1Body = z
 export const PostDatasetRunItemsV1Response = DatasetRunItem;
 
 /**
- * Deprecated endpoints
+ * Deprecated endpoints replaced with v2
  */
 
 // POST /datasets
