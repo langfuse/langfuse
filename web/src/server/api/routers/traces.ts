@@ -107,7 +107,7 @@ export const traceRouter = createTRPCRouter({
         async () =>
           await ctx.prisma.$queryRaw<
             Array<
-              Omit<Trace, "input" | "output" | "metdata"> & {
+              Omit<Trace, "input" | "output" | "metadata"> & {
                 promptTokens: number;
                 completionTokens: number;
                 totalTokens: number;
