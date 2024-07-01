@@ -65,7 +65,7 @@ export function CustomSSOProvider<P extends CustomSSOUser>(
     name: "CustomSSOProvider",
     type: "oauth",
     wellKnown: `${options.issuer}/.well-known/openid-configuration`,
-    authorization: { params: { scope: "openid email profile" } },
+    authorization: { params: { scope: "openid email profile" } }, // overridden by options.authorization to be able to set custom scopes, deep merged with this default
     checks: ["pkce", "state"],
     idToken: true,
     profile(profile) {

@@ -184,8 +184,8 @@ function TraceTreeItem({
         selected: "!bg-background !important hover:!bg-muted",
         label: "!min-w-fit",
       }}
-      key={observation.id}
-      itemId={observation.id}
+      key={`observation-${observation.id}`}
+      itemId={`observation-${observation.id}`}
       label={
         <TreeItemInner
           latency={latency}
@@ -217,7 +217,7 @@ function TraceTreeItem({
       {Array.isArray(observation.children)
         ? observation.children.map((child) => (
             <TraceTreeItem
-              key={child.id}
+              key={`observation-${child.id}`}
               observation={child}
               level={level + 1}
               traceStartTime={traceStartTime}
@@ -247,8 +247,8 @@ export function TraceTimelineView({
   const { latency, name, id } = trace;
   const [backgroundColor, setBackgroundColor] = useState("");
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
-    `${trace.id}-expanded`,
-    [trace.id],
+    `${id}-expanded`,
+    [`trace-${id}`],
   );
 
   const [cardWidth, setCardWidth] = useState(0);
@@ -333,8 +333,8 @@ export function TraceTimelineView({
             itemChildrenIndentation={TREE_INDENTATION}
           >
             <TreeItem
-              key={id}
-              itemId={id}
+              key={`trace-${id}`}
+              itemId={`trace-${id}`}
               classes={{
                 content: `${backgroundColor} !min-w-fit !hover:bg-muted`,
                 selected: "!bg-background !important hover:!bg-muted",
@@ -365,7 +365,7 @@ export function TraceTimelineView({
               {Boolean(nestedObservations.length)
                 ? nestedObservations.map((observation) => (
                     <TraceTreeItem
-                      key={observation.id}
+                      key={`observation-${observation.id}`}
                       observation={observation}
                       level={1}
                       traceStartTime={nestedObservations[0].startTime}
