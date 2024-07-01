@@ -375,7 +375,53 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbScore).toMatchObject({ ...scoreData, stringValue: "True" });
   });
 
-  it("should NOT create numeric score if categorical data type is passed", async () => {
+  it("should NOT create categorical score if numeric data type is passed", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-name",
+      userId: "user-1",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.id).toBe(traceId);
+
+    const scoreId = uuidv4();
+    const scoreData = {
+      id: scoreId,
+      name: "accuracy",
+      value: 1,
+      dataType: ScoreDataType.CATEGORICAL,
+      traceId,
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
+
+    expect(createScore.status).toBe(400);
+    expect(createScore.body).toMatchObject({
+      message: "Invalid request data",
+      error:
+        "Categorical scores should define a string value not a number, received: 1",
+    });
+  });
+
+  it("should NOT create numeric score if categorical data type is passed incl numeric config", async () => {
     await pruneDatabase();
 
     const traceId = uuidv4();
