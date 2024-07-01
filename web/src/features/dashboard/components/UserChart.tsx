@@ -15,6 +15,8 @@ import {
   totalCostDashboardFormatted,
 } from "@/src/features/dashboard/lib/dashboard-utils";
 
+import { env } from "@/src/env.mjs";
+
 type BarChartDataPoint = {
   name: string;
   value: number;
@@ -34,7 +36,9 @@ export const UserChart = ({
   const user = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "traces_observationsview",
+      from: env.NEXT_PUBLIC_HAS_BACKFILLED_OBSERVATION_COST
+        ? "traces_observations"
+        : "traces_observationsview",
       select: [
         { column: "calculatedTotalCost", agg: "SUM" },
         { column: "user" },
