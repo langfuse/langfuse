@@ -259,6 +259,8 @@ describe("/api/public/scores API Endpoint", () => {
 
     expect(dbScore).toMatchObject({
       ...scoreData,
+      value: null,
+      stringValue: "Good",
       dataType: ScoreDataType.CATEGORICAL,
     });
   });
