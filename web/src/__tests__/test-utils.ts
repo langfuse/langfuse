@@ -3,6 +3,7 @@ import { hash } from "bcryptjs";
 import { env } from "@/src/env.mjs";
 import { getDisplaySecretKey, hashSecretKey } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { type z, ZodObject } from "zod";
 
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {
@@ -71,6 +72,22 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   const response = await fetch(finalUrl, options);
   const responseBody = (await response.json()) as T;
   return { body: responseBody, status: response.status };
+}
+
+export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
+  zodSchema: T,
+  method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
+  url: string,
+  body?: unknown,
+  auth?: string,
+): Promise<{ body: z.infer<T>; status: number }> {
+  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+  if (zodSchema instanceof ZodObject) {
+    zodSchema.strict().parse(resBody);
+  } else {
+    zodSchema.parse(resBody);
+  }
+  return { body: resBody, status };
 }
 
 export const setupUserAndProject = async () => {
