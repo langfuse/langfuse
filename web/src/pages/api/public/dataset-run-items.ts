@@ -5,7 +5,7 @@ import {
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError, ValidationError } from "@langfuse/shared";
+import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -58,7 +58,7 @@ export default withMiddlewares({
       }
 
       if (!finalTraceId) {
-        throw new ValidationError("No traceId set");
+        throw new InvalidRequestError("No traceId set");
       }
 
       const run = await prisma.datasetRuns.upsert({

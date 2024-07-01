@@ -698,7 +698,7 @@ describe("/api/public/prompts API Endpoint", () => {
 
     expect(postResponse2.status).toBe(400);
     expect(postResponse2.body).toEqual({
-      error: "ValidationError",
+      error: "InvalidRequestError",
       message:
         "Previous versions have different prompt type. Create a new prompt with a different name.",
     });
