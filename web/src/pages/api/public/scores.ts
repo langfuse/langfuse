@@ -1,10 +1,10 @@
 import { ScoreSource, prisma } from "@langfuse/shared/src/db";
-import { Prisma, type Score } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { paginationZod } from "@langfuse/shared";
+import { GetAllScores, paginationZod, type GetScores } from "@langfuse/shared";
 import {
   ScoreBody,
   eventTypes,
@@ -130,14 +130,14 @@ export default async function handler(
         ? Prisma.sql`AND s."id" = ANY(${obj.scoreIds})`
         : Prisma.empty;
 
-      const scores = await prisma.$queryRaw<
-        Array<Score & { trace: { userId: string } }>
-      >(Prisma.sql`
+      const scores = await prisma.$queryRaw<Array<GetScores>>(Prisma.sql`
           SELECT
             s.id,
             s.timestamp,
             s.name,
             s.value,
+            s.string_value as "stringValue",
+            s.data_type as "dataType",
             s.source,
             s.comment,
             s.trace_id as "traceId",
@@ -171,11 +171,13 @@ export default async function handler(
         `,
       );
 
+      const validatedScores = scores.map((score) => GetAllScores.parse(score));
+
       const totalItems =
         totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
 
       return res.status(200).json({
-        data: scores,
+        data: validatedScores,
         meta: {
           page: obj.page,
           limit: obj.limit,

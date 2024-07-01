@@ -6,8 +6,13 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
-import { paginationZod } from "@langfuse/shared";
-import { ScoreDataType, singleFilter } from "@langfuse/shared";
+import {
+  CreateAnnotationScoreData,
+  ScoreUnion,
+  UpdateAnnotationScoreData,
+  paginationZod,
+} from "@langfuse/shared";
+import { singleFilter } from "@langfuse/shared";
 import {
   tableColumnsToSqlFilterAndPrefix,
   orderByToPrismaSql,
@@ -131,19 +136,7 @@ export const scoresRouter = createTRPCRouter({
       return res;
     }),
   createAnnotationScore: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        traceId: z.string(),
-        observationId: z.string().optional(),
-        name: z.string(),
-        value: z.number(),
-        stringValue: z.string().optional(),
-        comment: z.string().optional().nullable(),
-        configId: z.string().optional(),
-        dataType: z.nativeEnum(ScoreDataType),
-      }),
-    )
+    .input(CreateAnnotationScoreData)
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -173,7 +166,7 @@ export const scoresRouter = createTRPCRouter({
         });
 
         if (existingScore) {
-          return ctx.prisma.score.update({
+          const updatedScore = await ctx.prisma.score.update({
             where: {
               id: existingScore.id,
               projectId: input.projectId,
@@ -185,6 +178,7 @@ export const scoresRouter = createTRPCRouter({
               authorUserId: ctx.session.user.id,
             },
           });
+          return ScoreUnion.parse(updatedScore);
         }
 
         const score = await ctx.prisma.score.create({
@@ -202,6 +196,7 @@ export const scoresRouter = createTRPCRouter({
             source: "ANNOTATION",
           },
         });
+
         await auditLog({
           projectId: input.projectId,
           userId: ctx.session.user.id,
@@ -213,24 +208,14 @@ export const scoresRouter = createTRPCRouter({
           action: "create",
           after: score,
         });
-        return score;
+        return ScoreUnion.parse(score);
       } catch (error) {
         console.log(error);
         throw error;
       }
     }),
   updateAnnotationScore: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        id: z.string(),
-        value: z.number(),
-        stringValue: z.string().optional(),
-        comment: z.string().optional().nullable(),
-        configId: z.string().optional(),
-        dataType: z.nativeEnum(ScoreDataType),
-      }),
-    )
+    .input(UpdateAnnotationScoreData)
     .mutation(async ({ input, ctx }) => {
       throwIfNoAccess({
         session: ctx.session,
@@ -261,7 +246,7 @@ export const scoresRouter = createTRPCRouter({
           after: score,
         });
 
-        return ctx.prisma.score.update({
+        const updatedScore = await ctx.prisma.score.update({
           where: {
             id: score.id,
             projectId: input.projectId,
@@ -273,6 +258,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
           },
         });
+        return ScoreUnion.parse(updatedScore);
       } catch (error) {
         console.log(error);
         throw error;
