@@ -1,7 +1,7 @@
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import {
   LangfuseNotFoundError,
-  ValidationError,
+  InvalidRequestError,
   type Prompt,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -19,7 +19,7 @@ export const getPromptByName = async (
   const { promptName, projectId, version, label } = params;
 
   if (version && label)
-    throw new ValidationError("Cannot specify both version and label");
+    throw new InvalidRequestError("Cannot specify both version and label");
 
   if (version) return getPromptByVersion({ projectId, promptName, version });
 
