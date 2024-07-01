@@ -14,7 +14,7 @@ Sentry.init({
 
   // Add Tracing by setting tracesSampleRate
   // We recommend adjusting this value in production
-  tracesSampleRate: 0.1,
+  tracesSampleRate: 0.5,
 
   // Set sampling rate for profiling
   // This is relative to tracesSampleRate
