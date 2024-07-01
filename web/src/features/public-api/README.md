@@ -6,7 +6,7 @@ Implementation
 
 - Wrap with `withMiddleware`
 - Type-safe and authed API Route with `createAuthedAPIRoute`
-- Add zod types to `/features/public-api/types` folder
+- Add zod types to `/features/public-api/types` folder. Use [`coerce`](https://zod.dev/?id=coercion-for-primitives) to handle primitives, such as dates, for use in your application and tests.
 - Throw errors defined in `shared/src/errors` which translate to HTTP status codes
 
 Testing
@@ -23,3 +23,10 @@ SDKs
 
 - Copy/paste fern-generated types or api reference to Python and JS SDKs respectively
 - Implement wrapping functions if needed
+
+How to refactor existing apis to this pattern
+
+1. Move request types to `features/public-api/types`
+2. Create response types in `features/public-api/types`
+3. Validate response type with `validateZodSchema` in the API route to get type warnings in case of mismatch
+4. Refactor api route by passing current api route to LLM together with example of e.g. public/v2/datasets.ts
