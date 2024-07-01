@@ -17,7 +17,8 @@
     "test": "dotenv -e ../.env -- jest --runInBand",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
+    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
+    "generationCost:backfill": "dotenv -e ../.env -- tsx scripts/observations-backfill-calculated-cost.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
@@ -59,10 +60,10 @@
     "@remixicon/react": "^4.2.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@sentry/nextjs": "^8.9.2",
-    "@sentry/node": "^8.9.2",
-    "@sentry/profiling-node": "^8.9.2",
-    "@sentry/types": "^8.9.2",
+    "@sentry/nextjs": "^8.13.0",
+    "@sentry/node": "^8.13.0",
+    "@sentry/profiling-node": "^8.13.0",
+    "@sentry/types": "^8.13.0",
     "@t3-oss/env-nextjs": "^0.10.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^4.36.1",

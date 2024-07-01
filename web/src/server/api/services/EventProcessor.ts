@@ -418,31 +418,37 @@ export class ObservationProcessor implements EventProcessor {
     },
     tokenCounts: { input?: number; output?: number; total?: number },
   ): {
-    inputCost?: Decimal;
-    outputCost?: Decimal;
-    totalCost?: Decimal;
+    inputCost?: Decimal | null;
+    outputCost?: Decimal | null;
+    totalCost?: Decimal | null;
   } {
+    // If user has provided any cost point, do not calculate anything else
+    if (
+      userProvidedCosts.inputCost ||
+      userProvidedCosts.outputCost ||
+      userProvidedCosts.totalCost
+    ) {
+      return userProvidedCosts;
+    }
+
     const finalInputCost =
-      userProvidedCosts.inputCost ??
-      (tokenCounts.input !== undefined && model?.inputPrice
+      tokenCounts.input !== undefined && model?.inputPrice
         ? model.inputPrice.mul(tokenCounts.input)
-        : undefined);
+        : undefined;
 
     const finalOutputCost =
-      userProvidedCosts.outputCost ??
-      (tokenCounts.output !== undefined && model?.outputPrice
+      tokenCounts.output !== undefined && model?.outputPrice
         ? model.outputPrice.mul(tokenCounts.output)
         : finalInputCost
           ? new Decimal(0)
-          : undefined);
+          : undefined;
 
     const finalTotalCost =
-      userProvidedCosts.totalCost ??
-      (tokenCounts.total !== undefined && model?.totalPrice
+      tokenCounts.total !== undefined && model?.totalPrice
         ? model.totalPrice.mul(tokenCounts.total)
         : finalInputCost ?? finalOutputCost
           ? new Decimal(finalInputCost ?? 0).add(finalOutputCost ?? 0)
-          : undefined);
+          : undefined;
 
     return {
       inputCost: finalInputCost,
