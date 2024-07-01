@@ -36,7 +36,7 @@ export const UserChart = ({
   const user = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: env.NEXT_PUBLIC_HAS_BACKFILLED_OBSERVATION_COST
+      from: env.NEXT_PUBLIC_LANGFUSE_3_HAS_BACKFILLED_OBSERVATION_COST
         ? "traces_observations"
         : "traces_observationsview",
       select: [
