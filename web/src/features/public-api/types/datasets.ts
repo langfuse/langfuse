@@ -12,8 +12,8 @@ const Dataset = z.object({
   name: z.string(),
   description: z.string().nullable(),
   metadata: z.any(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
 });
 
 const DatasetRun = z.object({
@@ -23,8 +23,8 @@ const DatasetRun = z.object({
   description: z.string().nullable(),
   metadata: z.any(), // Assuming Prisma.JsonValue is any type
   datasetId: z.string(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
 });
 
 const DatasetRunItem = z.object({
@@ -34,8 +34,8 @@ const DatasetRunItem = z.object({
   datasetItemId: z.string(),
   traceId: z.string(),
   observationId: z.string().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
 });
 
 const DatasetItem = z.object({
@@ -48,8 +48,8 @@ const DatasetItem = z.object({
   sourceTraceId: z.string().nullable(),
   sourceObservationId: z.string().nullable(),
   datasetId: z.string(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
 });
 
 // POST /v2/datasets

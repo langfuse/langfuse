@@ -1,8 +1,23 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+  pruneDatabase,
+} from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
+import {
+  GetDatasetItemV1Response,
+  GetDatasetItemsV1Response,
+  GetDatasetRunV1Response,
+  GetDatasetRunsV1Response,
+  GetDatasetV2Response,
+  GetDatasetsV2Response,
+  PostDatasetItemsV1Response,
+  PostDatasetRunItemsV1Response,
+  PostDatasetsV2Response,
+} from "@/src/features/public-api/types/datasets";
 
 describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () => {
   const traceId = v4();
@@ -71,27 +86,32 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbDataset.length).toBeGreaterThan(0);
 
-    // get dataset (v2) excluding items and runs
-    const getDatasetV2 = await makeAPICall(
+    // get dataset (v1) excluding items and runs
+    const getDatasetV1 = await makeAPICall(
       "GET",
-      `/api/public/v2/datasets/${encodeURIComponent("dataset + name")}`,
+      `/api/public/datasets/${encodeURIComponent("dataset + name")}`,
     );
-    expect(getDatasetV2.status).toBe(200);
-    expect(getDatasetV2.body).toMatchObject({
+    expect(getDatasetV1.status).toBe(200);
+    expect(getDatasetV1.body).toMatchObject({
       name: "dataset + name",
       description: "dataset-description",
       metadata: { foo: "bar" },
+      items: [],
+      runs: [],
     });
-    expect(getDatasetV2.body).not.toHaveProperty("items");
-    expect(getDatasetV2.body).not.toHaveProperty("runs");
   });
 
   it("should create and get a dataset (v2), include special characters", async () => {
-    const createRes = await makeAPICall("POST", "/api/public/v2/datasets", {
-      name: "dataset + name + v2",
-      description: "dataset-description",
-      metadata: { foo: "bar" },
-    });
+    const createRes = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: "dataset + name + v2",
+        description: "dataset-description",
+        metadata: { foo: "bar" },
+      },
+    );
     expect(createRes.status).toBe(200);
     expect(createRes.body).toMatchObject({
       name: "dataset + name + v2",
@@ -107,7 +127,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbDataset.length).toBeGreaterThan(0);
 
     // get dataset (v2) excluding items and runs
-    const getDatasetV2 = await makeAPICall(
+    const getDatasetV2 = await makeZodVerifiedAPICall(
+      GetDatasetV2Response,
       "GET",
       `/api/public/v2/datasets/${encodeURIComponent("dataset + name + v2")}`,
     );
@@ -122,39 +143,53 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
 
   it("GET datasets (v1 & v2)", async () => {
+    // v1 post
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset-name-1",
       description: "dataset-description-1",
       metadata: { key: "value" },
     });
-
-    await makeAPICall("POST", "/api/public/datasets", {
-      name: "dataset-name-2",
-    });
+    // v2 post
+    await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: "dataset-name-2",
+      },
+    );
 
     const datasetItemId = v4();
 
-    const createItemRes = await makeAPICall<{
-      datasetName: string; // field that can break if the API changes as it is not a db column
-    }>("POST", "/api/public/dataset-items", {
-      datasetName: "dataset-name-2",
-      input: { key: "value" },
-      expectedOutput: { key: "value" },
-      metadata: { key: "value-dataset-item" },
-      id: datasetItemId,
-    });
+    const createItemRes = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-name-2",
+        input: { key: "value" },
+        expectedOutput: { key: "value" },
+        metadata: { key: "value-dataset-item" },
+        id: datasetItemId,
+      },
+    );
 
     expect(createItemRes.status).toBe(200);
     expect(createItemRes.body).toMatchObject({
       datasetName: "dataset-name-2", // not included in db table
     });
 
-    await makeAPICall("POST", "/api/public/dataset-run-items", {
-      datasetItemId: datasetItemId,
-      observationId: observationId,
-      runName: "test-run",
-      metadata: { key: "value" },
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: datasetItemId,
+        observationId: observationId,
+        runName: "test-run",
+        metadata: { key: "value" },
+      },
+    );
 
     const getDatasetsV1 = await makeAPICall("GET", `/api/public/datasets`);
 
@@ -180,7 +215,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       }),
     });
 
-    const getDatasetsV2 = await makeAPICall("GET", `/api/public/v2/datasets`);
+    const getDatasetsV2 = await makeZodVerifiedAPICall(
+      GetDatasetsV2Response,
+      "GET",
+      `/api/public/v2/datasets`,
+    );
 
     expect(getDatasetsV2.status).toBe(200);
     expect(getDatasetsV2.body).toMatchObject({
@@ -201,12 +240,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         page: 1,
       }),
     });
-    expect((getDatasetsV2.body as any).data[1] as Object).not.toHaveProperty(
-      "items",
-    );
-    expect((getDatasetsV2.body as any).data[1] as Object).not.toHaveProperty(
-      "runs",
-    );
   });
 
   it("should create and get a dataset items (via datasets (v1), individually, and as a list)", async () => {
@@ -214,14 +247,19 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       name: "dataset-name",
     });
     for (let i = 0; i < 5; i++) {
-      await makeAPICall("POST", "/api/public/dataset-items", {
-        datasetName: "dataset-name",
-        input: { key: "value" },
-        expectedOutput: { key: "value" },
-        metadata: { key: "value-dataset-item" },
-        sourceTraceId: i % 2 === 0 ? traceId : undefined,
-        sourceObservationId: i % 2 === 0 ? observationId : undefined,
-      });
+      await makeZodVerifiedAPICall(
+        PostDatasetItemsV1Response,
+        "POST",
+        "/api/public/dataset-items",
+        {
+          datasetName: "dataset-name",
+          input: { key: "value" },
+          expectedOutput: { key: "value" },
+          metadata: { key: "value-dataset-item" },
+          sourceTraceId: i % 2 === 0 ? traceId : undefined,
+          sourceObservationId: i % 2 === 0 ? observationId : undefined,
+        },
+      );
     }
     const dbDatasetItems = await prisma.datasetItem.findMany({
       where: {
@@ -245,11 +283,16 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset-name-other",
     });
-    await makeAPICall("POST", "/api/public/dataset-items", {
-      datasetName: "dataset-name-other",
-      input: { key: "value" },
-      expectedOutput: { key: "value" },
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-name-other",
+        input: { key: "value" },
+        expectedOutput: { key: "value" },
+      },
+    );
     const dbDatasetItemsOther = await prisma.datasetItem.findMany({
       where: {
         dataset: {
@@ -273,26 +316,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       ...dbDatasetItemsApiResponseFormat,
       ...dbDatasetItemsOtherApiResponseFormat,
     ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)); // createdAt desc
-    // test against prisma changes
-    const datasetItemResponseKeys = [
-      "createdAt",
-      "updatedAt",
-      "datasetName",
-      "id",
-      "status",
-      "input",
-      "expectedOutput",
-      "metadata",
-      "sourceTraceId",
-      "sourceObservationId",
-      "datasetId",
-    ];
-    dbDatasetItemsAllApiResponseFormat.forEach((run) => {
-      expect(Object.keys(run)).toEqual(
-        expect.arrayContaining(datasetItemResponseKeys),
-      );
-      expect(Object.keys(run)).toHaveLength(datasetItemResponseKeys.length);
-    });
 
     // Get dataset (v1) includes list of items
     const getDataset = await makeAPICall(
@@ -306,7 +329,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
 
     // Get List
-    const getDatasetItemsAll = await makeAPICall(
+    const getDatasetItemsAll = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items`,
     );
@@ -319,7 +343,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       }),
     });
     // Get List, check pagination
-    const getDatasetItemsAllPage2 = await makeAPICall(
+    const getDatasetItemsAllPage2 = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items?page=2&limit=1`,
     );
@@ -334,7 +359,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       }),
     });
     // Get filtered list by datasetName
-    const getDatasetItems = await makeAPICall(
+    const getDatasetItems = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items?datasetName=dataset-name`,
     );
@@ -347,7 +373,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       }),
     });
     // Get filtered list by sourceTraceId
-    const getDatasetItemsTrace = await makeAPICall(
+    const getDatasetItemsTrace = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items?sourceTraceId=${traceId}`,
     );
@@ -362,7 +389,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       }),
     });
     // Get filtered list by sourceObservationId
-    const getDatasetItemsObservation = await makeAPICall(
+    const getDatasetItemsObservation = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items?sourceObservationId=${observationId}`,
     );
@@ -379,7 +407,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     // Get single item
     const singleItem = dbDatasetItemsApiResponseFormat[0];
-    const getDatasetItem = await makeAPICall(
+    const getDatasetItem = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
       "GET",
       `/api/public/dataset-items/${singleItem.id}`,
     );
@@ -392,24 +421,34 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       name: "dataset-name",
     });
 
-    const item1 = await makeAPICall("POST", "/api/public/dataset-items", {
-      id: "dataset-item-id",
-      datasetName: "dataset-name",
-      input: { key: "value" },
-      metadata: { key: "value-dataset-item" },
-    });
+    const item1 = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        id: "dataset-item-id",
+        datasetName: "dataset-name",
+        input: { key: "value" },
+        metadata: { key: "value-dataset-item" },
+      },
+    );
     expect(item1.status).toBe(200);
     expect(item1.body).toMatchObject({
       id: "dataset-item-id",
     });
 
-    const item2 = await makeAPICall("POST", "/api/public/dataset-items", {
-      id: "dataset-item-id",
-      datasetName: "dataset-name",
-      input: { key: "value2" },
-      metadata: ["hello-world"],
-      status: "ARCHIVED",
-    });
+    const item2 = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        id: "dataset-item-id",
+        datasetName: "dataset-name",
+        input: { key: "value2" },
+        metadata: ["hello-world"],
+        status: "ARCHIVED",
+      },
+    );
     expect(item2.status).toBe(200);
     expect(item2.body).toMatchObject({
       id: "dataset-item-id",
@@ -439,12 +478,17 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dataset.body).toMatchObject({
       name: "dataset name",
     });
-    await makeAPICall("POST", "/api/public/dataset-items", {
-      datasetName: "dataset name",
-      id: "dataset-item-id",
-      input: { key: "value" },
-      expectedOutput: { key: "value" },
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset name",
+        id: "dataset-item-id",
+        input: { key: "value" },
+        expectedOutput: { key: "value" },
+      },
+    );
     const traceId = v4();
     const observationId = v4();
     const response = await makeAPICall("POST", "/api/public/ingestion", {
@@ -483,7 +527,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(response.status).toBe(207);
 
-    const runItemObservation = await makeAPICall(
+    const runItemObservation = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
       "POST",
       "/api/public/dataset-run-items",
       {
@@ -513,9 +558,9 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       traceId: traceId,
     });
 
-    const getRunAPI = await makeAPICall(
+    const getRunAPI = await makeZodVerifiedAPICall(
+      GetDatasetRunV1Response,
       "GET",
-
       `/api/public/datasets/${encodeURIComponent("dataset name")}/runs/${encodeURIComponent("run + only + observation")}`,
     );
     expect(getRunAPI.status).toBe(200);
@@ -535,14 +580,17 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       ]),
     });
 
-    const runItemTrace = await makeAPICall<{
-      datasetRunName: string; // field that can break if the API changes as it is not a db column
-    }>("POST", "/api/public/dataset-run-items", {
-      datasetItemId: "dataset-item-id",
-      traceId: traceId,
-      runName: "run-only-trace",
-      metadata: { key: "value" },
-    });
+    const runItemTrace = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: "dataset-item-id",
+        traceId: traceId,
+        runName: "run-only-trace",
+        metadata: { key: "value" },
+      },
+    );
 
     expect(runItemTrace.status).toBe(200);
     expect(runItemTrace.body).toMatchObject({
@@ -567,7 +615,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       observationId: null,
     });
 
-    const runItemBoth = await makeAPICall(
+    const runItemBoth = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
       "POST",
       "/api/public/dataset-run-items",
       {
@@ -602,12 +651,17 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     await makeAPICall("POST", "/api/public/datasets", {
       name: "dataset-name",
     });
-    await makeAPICall("POST", "/api/public/dataset-items", {
-      datasetName: "dataset-name",
-      id: "dataset-item-id",
-      input: { key: "value" },
-      expectedOutput: { key: "value" },
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-name",
+        id: "dataset-item-id",
+        input: { key: "value" },
+        expectedOutput: { key: "value" },
+      },
+    );
     const traceId = v4();
     const observationId = v4();
     const response = await makeAPICall("POST", "/api/public/ingestion", {
@@ -646,24 +700,39 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(response.status).toBe(207);
 
-    await makeAPICall("POST", "/api/public/dataset-run-items", {
-      datasetItemId: "dataset-item-id",
-      traceId: traceId,
-      observationId: observationId,
-      runName: "run-1",
-    });
-    await makeAPICall("POST", "/api/public/dataset-run-items", {
-      datasetItemId: "dataset-item-id",
-      traceId: traceId,
-      observationId: observationId,
-      runName: "run-2",
-    });
-    await makeAPICall("POST", "/api/public/dataset-run-items", {
-      datasetItemId: "dataset-item-id",
-      traceId: traceId,
-      observationId: observationId,
-      runName: "run-3",
-    });
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: "dataset-item-id",
+        traceId: traceId,
+        observationId: observationId,
+        runName: "run-1",
+      },
+    );
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: "dataset-item-id",
+        traceId: traceId,
+        observationId: observationId,
+        runName: "run-2",
+      },
+    );
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: "dataset-item-id",
+        traceId: traceId,
+        observationId: observationId,
+        runName: "run-3",
+      },
+    );
 
     // check runs in db
     const dbRuns = await prisma.datasetRuns.findMany({
@@ -681,26 +750,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       updatedAt: run.updatedAt.toISOString(),
       datasetName: "dataset-name",
     }));
-    // test against prisma changes
-    const datasetRunResponseKeys = [
-      "createdAt",
-      "updatedAt",
-      "datasetName",
-      "id",
-      "name",
-      "description",
-      "metadata",
-      "datasetId",
-    ];
-    dbRunsApiResponseFormat.forEach((run) => {
-      expect(Object.keys(run)).toEqual(
-        expect.arrayContaining(datasetRunResponseKeys),
-      );
-      expect(Object.keys(run)).toHaveLength(datasetRunResponseKeys.length);
-    });
 
     // test get runs
-    const getRuns = await makeAPICall(
+    const getRuns = await makeZodVerifiedAPICall(
+      GetDatasetRunsV1Response,
       "GET",
       `/api/public/datasets/dataset-name/runs`,
     );
@@ -714,7 +767,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
 
     // test runs with pagination
-    const getRunsPage2 = await makeAPICall(
+    const getRunsPage2 = await makeZodVerifiedAPICall(
+      GetDatasetRunsV1Response,
       "GET",
       `/api/public/datasets/dataset-name/runs?page=2&limit=1`,
     );

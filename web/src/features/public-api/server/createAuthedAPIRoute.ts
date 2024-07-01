@@ -86,8 +86,6 @@ export const createAuthedAPIRoute = <
       } catch (error: unknown) {
         console.error("Response validation failed:", error);
         Sentry.captureException(error);
-        if (process.env.NODE_ENV !== "production")
-          throw new ApiError("DEV: output validation failed"); // rethrow in when not in production
       }
     }
 
