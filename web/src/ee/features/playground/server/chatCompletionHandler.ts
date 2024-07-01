@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   BaseError,
-  ValidationError,
+  InvalidRequestError,
   fetchLLMCompletion,
 } from "@langfuse/shared";
 
@@ -29,7 +29,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
     });
 
     if (!LLMApiKey)
-      throw new ValidationError(
+      throw new InvalidRequestError(
         `No ${modelParams.provider} API key found in project. Please add one in the project settings.`,
       );
 
