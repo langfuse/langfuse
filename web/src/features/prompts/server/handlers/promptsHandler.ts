@@ -6,7 +6,7 @@ import {
   CreatePromptSchema,
   GetPromptsMetaSchema,
 } from "@/src/features/prompts/server/utils/validation";
-import { withMiddlewares } from "@/src/server/utils/withMiddlewares";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
 
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
