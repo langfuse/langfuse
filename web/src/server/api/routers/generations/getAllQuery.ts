@@ -37,7 +37,7 @@ export const getAllQuery = protectedProjectProcedure
   .input(getAllGenerationsInput)
   .query(async ({ input, ctx }) => {
     const { generations, datetimeFilter, filterCondition, searchCondition } =
-      await getAllGenerations({ input, selectIO: false });
+      await getAllGenerations({ input, selectIOAndMetadata: false });
 
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>

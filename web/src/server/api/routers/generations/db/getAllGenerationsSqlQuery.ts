@@ -18,16 +18,17 @@ export type FullObservations = Array<
   AdditionalObservationFields & ObservationView
 >;
 
-export type IOOmittedObservations = Array<
-  Omit<ObservationView, "input" | "output"> & AdditionalObservationFields
+export type IOAndMetadataOmittedObservations = Array<
+  Omit<ObservationView, "input" | "output" | "metadata"> &
+    AdditionalObservationFields
 >;
 
 export async function getAllGenerations({
   input,
-  selectIO,
+  selectIOAndMetadata,
 }: {
   input: GetAllGenerationsInput;
-  selectIO: boolean;
+  selectIOAndMetadata: boolean;
 }) {
   const searchCondition = input.searchQuery
     ? Prisma.sql`AND (
@@ -96,8 +97,7 @@ export async function getAllGenerations({
         o."modelParameters",
         o.start_time as "startTime",
         o.end_time as "endTime",
-        ${selectIO ? Prisma.sql`o.input, o.output,` : Prisma.empty} 
-        o.metadata,
+        ${selectIOAndMetadata ? Prisma.sql`o.input, o.output, o.metadata,` : Prisma.empty} 
         o.trace_id as "traceId",
         t.name as "traceName",
         o.completion_start_time as "completionStartTime",
@@ -134,9 +134,10 @@ export async function getAllGenerations({
       LIMIT ${input.limit} OFFSET ${input.page * input.limit}
     `;
 
-  const generations: FullObservations | IOOmittedObservations = selectIO
-    ? await prisma.$queryRaw(query)
-    : await prisma.$queryRaw(query);
+  const generations: FullObservations | IOAndMetadataOmittedObservations =
+    selectIOAndMetadata
+      ? ((await prisma.$queryRaw(query)) as FullObservations)
+      : ((await prisma.$queryRaw(query)) as IOAndMetadataOmittedObservations);
 
   const scores = await prisma.score.findMany({
     where: {
