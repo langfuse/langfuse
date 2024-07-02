@@ -168,6 +168,7 @@ export const datasetRouter = createTRPCRouter({
               WHERE 
                 t.project_id = ${input.projectId}
                 AND s.data_type != 'CATEGORICAL'
+                AND s.value IS NOT NULL
                 AND ri.dataset_run_id = runs.id
               GROUP BY s.name
             ) s
