@@ -46,16 +46,16 @@ export type TracesTableRow = {
   timestamp: string;
   name: string;
   userId: string;
-  metadata?: string;
   level: ObservationLevel;
   observationCount: number;
   latency?: number;
   release?: string;
   version?: string;
   sessionId?: string;
-  // i/o not set explicitly, but fetched from the server from the cell
+  // i/o and metadata not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
+  metadata?: unknown;
   scores: Score[];
   tags: string[];
   usage: {
@@ -128,7 +128,6 @@ export default function TracesTable({
     filter: filterState,
     searchQuery,
     orderBy: orderByState,
-    returnIO: false,
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
 
@@ -180,7 +179,6 @@ export default function TracesTable({
       name: trace.name ?? "",
       level: trace.level,
       observationCount: trace.observationCount,
-      metadata: JSON.stringify(trace.metadata),
       release: trace.release ?? undefined,
       version: trace.version ?? undefined,
       userId: trace.userId ?? "",
@@ -477,9 +475,9 @@ export default function TracesTable({
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
         return (
-          <TracesIOCell
+          <TracesDynamicCell
             traceId={traceId}
-            io="input"
+            col="input"
             singleLine={rowHeight === "s"}
           />
         );
@@ -494,9 +492,9 @@ export default function TracesTable({
       cell: ({ row }) => {
         const traceId: string = row.getValue("id");
         return (
-          <TracesIOCell
+          <TracesDynamicCell
             traceId={traceId}
-            io="output"
+            col="output"
             singleLine={rowHeight === "s"}
           />
         );
@@ -508,10 +506,17 @@ export default function TracesTable({
       accessorKey: "metadata",
       header: "Metadata",
       cell: ({ row }) => {
-        const values: string = row.getValue("metadata");
-        return <IOTableCell data={values} singleLine={rowHeight === "s"} />;
+        const traceId: string = row.getValue("id");
+        return (
+          <TracesDynamicCell
+            traceId={traceId}
+            col="metadata"
+            singleLine={rowHeight === "s"}
+          />
+        );
       },
       enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "level",
@@ -668,13 +673,13 @@ export default function TracesTable({
   );
 }
 
-const TracesIOCell = ({
+const TracesDynamicCell = ({
   traceId,
-  io,
+  col,
   singleLine = false,
 }: {
   traceId: string;
-  io: "input" | "output";
+  col: "input" | "output" | "metadata";
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
@@ -692,8 +697,14 @@ const TracesIOCell = ({
   return (
     <IOTableCell
       isLoading={trace.isLoading}
-      data={io === "output" ? trace.data?.output : trace.data?.input}
-      className={cn(io === "output" && "bg-accent-light-green")}
+      data={
+        col === "output"
+          ? trace.data?.output
+          : col === "input"
+            ? trace.data?.input
+            : trace.data?.metadata
+      }
+      className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
   );
