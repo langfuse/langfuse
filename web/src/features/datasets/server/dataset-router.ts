@@ -12,7 +12,11 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { paginationZod } from "@langfuse/shared";
+import {
+  ScoreUnion,
+  type ValidatedScore,
+  paginationZod,
+} from "@langfuse/shared";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -168,6 +172,7 @@ export const datasetRouter = createTRPCRouter({
               WHERE 
                 t.project_id = ${input.projectId}
                 AND s.data_type != 'CATEGORICAL'
+                AND s.value IS NOT NULL
                 AND ri.dataset_run_id = runs.id
               GROUP BY s.name
             ) s
@@ -620,6 +625,22 @@ export const datasetRouter = createTRPCRouter({
         `,
       );
 
+      const validatedTraceScores = traceScores.reduce((acc, ts) => {
+        const result = ScoreUnion.safeParse(ts);
+        if (result.success) {
+          acc.push(result.data);
+        }
+        return acc;
+      }, [] as ValidatedScore[]);
+
+      const validatedObservationScores = observationScores.reduce((acc, os) => {
+        const result = ScoreUnion.safeParse(os);
+        if (result.success) {
+          acc.push(result.data);
+        }
+        return acc;
+      }, [] as ValidatedScore[]);
+
       const items = runItems.map((ri) => {
         return {
           id: ri.id,
@@ -628,8 +649,8 @@ export const datasetRouter = createTRPCRouter({
           observation: observations.find((o) => o.id === ri.observationId),
           trace: traces.find((t) => t.id === ri.traceId),
           scores: [
-            ...traceScores.filter((s) => s.traceId === ri.traceId),
-            ...observationScores.filter(
+            ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
+            ...validatedObservationScores.filter(
               (s) =>
                 s.observationId === ri.observationId &&
                 s.traceId === ri.traceId,

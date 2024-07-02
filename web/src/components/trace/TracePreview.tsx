@@ -1,5 +1,9 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { type Trace, type Score, type ScoreSource } from "@langfuse/shared";
+import {
+  type Trace,
+  type ValidatedScore,
+  type ScoreSource,
+} from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -27,7 +31,7 @@ export const TracePreview = ({
 }: {
   trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
-  scores: Score[];
+  scores: ValidatedScore[];
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -41,7 +45,7 @@ export const TracePreview = ({
     }
     acc.get(score.source)?.push(score);
     return acc;
-  }, new Map<ScoreSource, Score[]>());
+  }, new Map<ScoreSource, ValidatedScore[]>());
 
   return (
     <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">

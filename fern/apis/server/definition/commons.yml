@@ -154,7 +154,7 @@ types:
       - string
       - double
     docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores.
-  DatasetCore:
+  Dataset:
     properties:
       id: string
       name: string
@@ -163,21 +163,6 @@ types:
       projectId: string
       createdAt: datetime
       updatedAt: datetime
-  DatasetWithReferences: # GET datasets
-    extends: DatasetCore
-    properties:
-      items:
-        type: list<string>
-        docs: list of dataset item ids
-      runs:
-        type: list<string>
-        docs: list of dataset run names
-  Dataset: # GET datasets/[name]
-    docs: Dataset including all items
-    extends: DatasetCore
-    properties:
-      items: list<DatasetItem>
-      runs: list<string>
   DatasetItem:
     properties:
       id: string
@@ -211,6 +196,9 @@ types:
       datasetName: string
       createdAt: datetime
       updatedAt: datetime
+  DatasetRunWithItems:
+    extends: DatasetRun
+    properties:
       datasetRunItems: list<DatasetRunItem>
 
   # Utilities

@@ -1,4 +1,4 @@
-import { type Trace, type Score } from "@langfuse/shared";
+import { type Trace, type ValidatedScore } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -38,7 +38,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
   trace: Trace;
-  scores: Score[];
+  scores: ValidatedScore[];
   projectId: string;
 }) {
   const capture = usePostHogClientCapture();

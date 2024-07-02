@@ -533,7 +533,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       expect(postResponse2.status).toBe(400);
       // @ts-expect-error
-      expect(postResponse2.body.error).toBe("ValidationError");
+      expect(postResponse2.body.error).toBe("InvalidRequestError");
 
       // Check if the prompt is still the chat prompt
       const getResponse1 = await makeAPICall(

@@ -1,4 +1,8 @@
-import { type Score, ScoreSource, type ScoreConfig } from "@langfuse/shared";
+import {
+  type ValidatedScore,
+  ScoreSource,
+  type ScoreConfig,
+} from "@langfuse/shared";
 
 export const getDefaultScoreData = ({
   scores,
@@ -7,7 +11,7 @@ export const getDefaultScoreData = ({
   traceId,
   observationId,
 }: {
-  scores: Score[];
+  scores: ValidatedScore[];
   emptySelectedConfigIds: string[];
   configs: ScoreConfig[];
   traceId: string;

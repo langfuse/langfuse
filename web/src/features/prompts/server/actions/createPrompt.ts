@@ -2,7 +2,7 @@ import {
   type CreatePromptTRPCType,
   PromptType,
 } from "@/src/features/prompts/server/utils/validation";
-import { ValidationError } from "@langfuse/shared";
+import { InvalidRequestError } from "@langfuse/shared";
 import { jsonSchema } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
@@ -31,7 +31,7 @@ export const createPrompt = async ({
   });
 
   if (latestPrompt && latestPrompt.type !== type) {
-    throw new ValidationError(
+    throw new InvalidRequestError(
       "Previous versions have different prompt type. Create a new prompt with a different name.",
     );
   }

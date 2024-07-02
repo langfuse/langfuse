@@ -54,6 +54,7 @@ export const env = createEnv({
       .enum(["ADMIN", "MEMBER", "VIEWER"])
       .optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
+    LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -88,8 +89,14 @@ export const env = createEnv({
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
     // EMAIL
-    EMAIL_FROM_ADDRESS: z.string().optional().transform((v) => v === "" ? undefined : v),
-    SMTP_CONNECTION_URL: z.string().optional().transform((v) => v === "" ? undefined : v),
+    EMAIL_FROM_ADDRESS: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    SMTP_CONNECTION_URL: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
     // S3
     S3_ENDPOINT: z.string().optional(),
     S3_ACCESS_KEY_ID: z.string().optional(),
@@ -156,6 +163,7 @@ export const env = createEnv({
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
+    LANGFUSE_TRACING_SAMPLE_RATE: process.env.LANGFUSE_TRACING_SAMPLE_RATE,
     // Default project and role
     LANGFUSE_DEFAULT_PROJECT_ID: process.env.LANGFUSE_DEFAULT_PROJECT_ID,
     LANGFUSE_DEFAULT_PROJECT_ROLE: process.env.LANGFUSE_DEFAULT_PROJECT_ROLE,

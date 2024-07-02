@@ -586,6 +586,20 @@ function createObjects(
             },
           ]
         : []),
+      ...(Math.random() < 0.8
+        ? [
+            {
+              traceId: trace.id,
+              name: "Completeness",
+              timestamp: traceTs,
+              source: ScoreSource.API,
+              projectId,
+              dataType: ScoreDataType.CATEGORICAL,
+              stringValue:
+                Math.floor(Math.random() * 2) === 1 ? "Fully" : "Partially",
+            },
+          ]
+        : []),
     ];
 
     scores.push(...traceScores);

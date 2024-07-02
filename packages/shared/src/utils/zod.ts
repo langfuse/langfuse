@@ -58,7 +58,32 @@ export const optionalPaginationZod = {
     .optional(),
 };
 
+export const queryStringZod = z
+  .string()
+  .transform((val) => decodeURIComponent(val));
+
+export const paginationMetaResponseZod = z.object({
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+});
+
 export const noHtmlRegex = /<[^>]*>/;
 export const noHtmlCheck = (value: string) => !noHtmlRegex.test(value);
 
 export const NonEmptyString = z.string().min(1);
+
+/**
+ * Validates an object against a Zod schema and helps with IDE type warnings.
+ *
+ * @param schema - The Zod schema to validate against.
+ * @param object - The object to be validated.
+ * @returns The parsed object if validation is successful.
+ */
+export const validateZodSchema = <T extends z.ZodTypeAny>(
+  schema: T,
+  object: z.infer<T>
+): z.infer<T> => {
+  return schema.parse(object);
+};

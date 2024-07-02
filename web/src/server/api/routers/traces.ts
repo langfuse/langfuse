@@ -11,7 +11,12 @@ import {
   type ObservationView,
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
-import { paginationZod, timeFilter } from "@langfuse/shared";
+import {
+  type ValidatedScore,
+  ScoreUnion,
+  paginationZod,
+  timeFilter,
+} from "@langfuse/shared";
 import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {
@@ -150,11 +155,20 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
+      const validatedScores = scores.reduce((acc, score) => {
+        const result = ScoreUnion.safeParse(score);
+        if (result.success) {
+          acc.push(result.data);
+        }
+        return acc;
+      }, [] as ValidatedScore[]);
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
         traces: traces.map((trace) => {
-          const filteredScores = scores.filter((s) => s.traceId === trace.id);
+          const filteredScores = validatedScores.filter(
+            (s) => s.traceId === trace.id,
+          );
 
           const { input, output, ...rest } = trace;
           if (returnIO) {
@@ -312,6 +326,13 @@ export const traceRouter = createTRPCRouter({
           projectId: trace.projectId,
         },
       });
+      const validatedScores = scores.reduce((acc, score) => {
+        const result = ScoreUnion.safeParse(score);
+        if (result.success) {
+          acc.push(result.data);
+        }
+        return acc;
+      }, [] as ValidatedScore[]);
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -333,7 +354,7 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
-        scores,
+        scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations as ObservationReturnType[],
       };

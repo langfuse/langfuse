@@ -61,6 +61,7 @@ export const getAllQuery = protectedProjectProcedure
                 scores."project_id" = ${input.projectId}
                 AND scores."trace_id" = t.id
                 AND scores."observation_id" = o.id
+                AND scores.value IS NOT NULL
             GROUP BY
                 name
         ) tmp
