@@ -3,7 +3,7 @@ import logger from "./logger";
 
 import { initializeOtel } from "./instrumentation";
 
-const sdk = initializeOtel("langfuse-worker");
+const sdk = initializeOtel("worker");
 sdk.start();
 
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";

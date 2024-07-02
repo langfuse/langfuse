@@ -18,15 +18,15 @@ import { containerDetector } from "@opentelemetry/resource-detector-container";
 
 const sdk = new NodeSDK({
   resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: "next-app",
+    [SemanticResourceAttributes.SERVICE_NAME]: "web",
   }),
   spanProcessors: [
     new SimpleSpanProcessor(
       new OTLPTraceExporter({
         url: process.env.OTLP_ENDPOINT || "https://otlp.nr-data.net",
-        headers: {
-          "api-key": process.env.NEW_RELIC_API_KEY,
-        },
+        // headers: {
+        //   "api-key": process.env.NEW_RELIC_API_KEY,
+        // },
       }),
     ),
   ],
