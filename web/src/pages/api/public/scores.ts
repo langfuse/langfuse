@@ -171,7 +171,13 @@ export default async function handler(
         `,
       );
 
-      const validatedScores = scores.map((score) => GetAllScores.parse(score));
+      const validatedScores = scores.reduce((acc, score) => {
+        const result = GetAllScores.safeParse(score);
+        if (result.success) {
+          acc.push(result.data);
+        }
+        return acc;
+      }, [] as GetScores[]);
 
       const totalItems =
         totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;

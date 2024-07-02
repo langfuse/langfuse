@@ -155,7 +155,13 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
-      const validatedScores = scores.map((s) => ScoreUnion.parse(s));
+      const validatedScores = scores.reduce((acc, score) => {
+        const result = ScoreUnion.safeParse(score);
+        if (result.success) {
+          acc.push(result.data);
+        }
+        return acc;
+      }, [] as ValidatedScore[]);
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
@@ -320,9 +326,13 @@ export const traceRouter = createTRPCRouter({
           projectId: trace.projectId,
         },
       });
-      const validatedScores: ValidatedScore[] = scores.map((s) =>
-        ScoreUnion.parse(s),
-      );
+      const validatedScores = scores.reduce((acc, score) => {
+        const result = ScoreUnion.safeParse(score);
+        if (result.success) {
+          acc.push(result.data);
+        }
+        return acc;
+      }, [] as ValidatedScore[]);
 
       const obsStartTimes = observations
         .map((o) => o.startTime)

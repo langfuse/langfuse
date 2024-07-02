@@ -154,65 +154,60 @@ export const scoresRouter = createTRPCRouter({
         throw new Error("No trace with this id in this project.");
       }
 
-      try {
-        const existingScore = await ctx.prisma.score.findFirst({
+      const existingScore = await ctx.prisma.score.findFirst({
+        where: {
+          projectId: input.projectId,
+          traceId: input.traceId,
+          observationId: input.observationId,
+          source: "ANNOTATION",
+          configId: input.configId,
+        },
+      });
+
+      if (existingScore) {
+        const updatedScore = await ctx.prisma.score.update({
           where: {
+            id: existingScore.id,
             projectId: input.projectId,
-            traceId: input.traceId,
-            observationId: input.observationId,
-            source: "ANNOTATION",
-            configId: input.configId,
           },
-        });
-
-        if (existingScore) {
-          const updatedScore = await ctx.prisma.score.update({
-            where: {
-              id: existingScore.id,
-              projectId: input.projectId,
-            },
-            data: {
-              value: input.value,
-              stringValue: input.stringValue,
-              comment: input.comment,
-              authorUserId: ctx.session.user.id,
-            },
-          });
-          return ScoreUnion.parse(updatedScore);
-        }
-
-        const score = await ctx.prisma.score.create({
           data: {
-            projectId: input.projectId,
-            traceId: input.traceId,
-            observationId: input.observationId,
             value: input.value,
             stringValue: input.stringValue,
-            dataType: input.dataType,
-            configId: input.configId,
-            name: input.name,
             comment: input.comment,
             authorUserId: ctx.session.user.id,
-            source: "ANNOTATION",
           },
         });
-
-        await auditLog({
-          projectId: input.projectId,
-          userId: ctx.session.user.id,
-          userProjectRole: ctx.session.user.projects.find(
-            (p) => p.id === input.projectId,
-          )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
-          resourceType: "score",
-          resourceId: score.id,
-          action: "create",
-          after: score,
-        });
-        return ScoreUnion.parse(score);
-      } catch (error) {
-        console.log(error);
-        throw error;
+        return ScoreUnion.parse(updatedScore);
       }
+
+      const score = await ctx.prisma.score.create({
+        data: {
+          projectId: input.projectId,
+          traceId: input.traceId,
+          observationId: input.observationId,
+          value: input.value,
+          stringValue: input.stringValue,
+          dataType: input.dataType,
+          configId: input.configId,
+          name: input.name,
+          comment: input.comment,
+          authorUserId: ctx.session.user.id,
+          source: "ANNOTATION",
+        },
+      });
+
+      await auditLog({
+        projectId: input.projectId,
+        userId: ctx.session.user.id,
+        userProjectRole: ctx.session.user.projects.find(
+          (p) => p.id === input.projectId,
+        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
+        resourceType: "score",
+        resourceId: score.id,
+        action: "create",
+        after: score,
+      });
+      return ScoreUnion.parse(score);
     }),
   updateAnnotationScore: protectedProjectProcedure
     .input(UpdateAnnotationScoreData)
@@ -233,36 +228,31 @@ export const scoresRouter = createTRPCRouter({
         throw new Error("No annotation score with this id in this project.");
       }
 
-      try {
-        await auditLog({
-          projectId: input.projectId,
-          userId: ctx.session.user.id,
-          userProjectRole: ctx.session.user.projects.find(
-            (p) => p.id === input.projectId,
-          )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
-          resourceType: "score",
-          resourceId: score.id,
-          action: "update",
-          after: score,
-        });
+      await auditLog({
+        projectId: input.projectId,
+        userId: ctx.session.user.id,
+        userProjectRole: ctx.session.user.projects.find(
+          (p) => p.id === input.projectId,
+        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
+        resourceType: "score",
+        resourceId: score.id,
+        action: "update",
+        after: score,
+      });
 
-        const updatedScore = await ctx.prisma.score.update({
-          where: {
-            id: score.id,
-            projectId: input.projectId,
-          },
-          data: {
-            value: input.value,
-            stringValue: input.stringValue,
-            comment: input.comment,
-            authorUserId: ctx.session.user.id,
-          },
-        });
-        return ScoreUnion.parse(updatedScore);
-      } catch (error) {
-        console.log(error);
-        throw error;
-      }
+      const updatedScore = await ctx.prisma.score.update({
+        where: {
+          id: score.id,
+          projectId: input.projectId,
+        },
+        data: {
+          value: input.value,
+          stringValue: input.stringValue,
+          comment: input.comment,
+          authorUserId: ctx.session.user.id,
+        },
+      });
+      return ScoreUnion.parse(updatedScore);
     }),
   deleteAnnotationScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
@@ -296,7 +286,7 @@ export const scoresRouter = createTRPCRouter({
         before: score,
       });
 
-      return ctx.prisma.score.delete({
+      return await ctx.prisma.score.delete({
         where: {
           id: score.id,
           projectId: input.projectId,

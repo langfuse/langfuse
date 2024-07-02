@@ -9,6 +9,7 @@ import {
   type SessionOptions,
   getSessionTableSQL,
   ScoreUnion,
+  type ValidatedScore,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { paginationZod } from "@langfuse/shared";
@@ -137,7 +138,13 @@ export const sessionRouter = createTRPCRouter({
           },
         });
 
-        const validatedScores = scores.map((ts) => ScoreUnion.parse(ts));
+        const validatedScores = scores.reduce((acc, score) => {
+          const result = ScoreUnion.safeParse(score);
+          if (result.success) {
+            acc.push(result.data);
+          }
+          return acc;
+        }, [] as ValidatedScore[]);
 
         const totalCostQuery = Prisma.sql`
         SELECT

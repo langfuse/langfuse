@@ -12,7 +12,11 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { ScoreUnion, paginationZod } from "@langfuse/shared";
+import {
+  ScoreUnion,
+  type ValidatedScore,
+  paginationZod,
+} from "@langfuse/shared";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -621,12 +625,21 @@ export const datasetRouter = createTRPCRouter({
         `,
       );
 
-      const validatedTraceScores = traceScores.map((ts) =>
-        ScoreUnion.parse(ts),
-      );
-      const validatedObservationScores = observationScores.map((os) =>
-        ScoreUnion.parse(os),
-      );
+      const validatedTraceScores = traceScores.reduce((acc, ts) => {
+        const result = ScoreUnion.safeParse(ts);
+        if (result.success) {
+          acc.push(result.data);
+        }
+        return acc;
+      }, [] as ValidatedScore[]);
+
+      const validatedObservationScores = observationScores.reduce((acc, os) => {
+        const result = ScoreUnion.safeParse(os);
+        if (result.success) {
+          acc.push(result.data);
+        }
+        return acc;
+      }, [] as ValidatedScore[]);
 
       const items = runItems.map((ri) => {
         return {
