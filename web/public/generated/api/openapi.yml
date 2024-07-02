@@ -334,7 +334,7 @@ paths:
               $ref: '#/components/schemas/CreateDatasetRequest'
   /api/public/v2/datasets/{datasetName}:
     get:
-      description: Get a dataset and its items
+      description: Get a dataset
       operationId: datasets_get
       tags:
         - Datasets
@@ -429,7 +429,7 @@ paths:
       security: *ref_0
   /api/public/datasets/{datasetName}/runs:
     get:
-      description: Get a dataset runs
+      description: Get dataset runs
       operationId: datasets_getRuns
       tags:
         - Datasets
