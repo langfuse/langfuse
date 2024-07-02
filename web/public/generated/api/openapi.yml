@@ -2764,13 +2764,13 @@ components:
           nullable: true
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
-          nullable: true
         configId:
           type: string
           nullable: true
       required:
         - traceId
         - name
+        - dataType
     BaseEvent:
       title: BaseEvent
       type: object

@@ -56,7 +56,9 @@ export default withMiddlewares({
       });
 
       if (!score) {
-        throw new LangfuseNotFoundError("Score not found");
+        throw new LangfuseNotFoundError(
+          "Score not found within authorized project",
+        );
       }
 
       await prisma.score.delete({
