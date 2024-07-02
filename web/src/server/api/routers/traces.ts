@@ -36,7 +36,6 @@ const TraceFilterOptions = z.object({
   searchQuery: z.string().nullable(),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
-  returnIO: z.boolean().default(true),
   ...paginationZod,
 });
 
@@ -51,7 +50,6 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const returnIO = input.returnIO;
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter ?? [],
         tracesTableCols,
@@ -87,7 +85,6 @@ export const traceRouter = createTRPCRouter({
       const tracesQuery = createTracesQuery(
         Prisma.sql`t.*,
           t."user_id" AS "userId",
-          t."metadata" AS "metadata",
           t.session_id AS "sessionId",
           t."bookmarked" AS "bookmarked",
           COALESCE(tm."promptTokens", 0)::int AS "promptTokens",
@@ -115,7 +112,7 @@ export const traceRouter = createTRPCRouter({
         async () =>
           await ctx.prisma.$queryRaw<
             Array<
-              Trace & {
+              Omit<Trace, "input" | "output" | "metadata"> & {
                 promptTokens: number;
                 completionTokens: number;
                 totalTokens: number;
@@ -165,23 +162,10 @@ export const traceRouter = createTRPCRouter({
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
-        traces: traces.map((trace) => {
-          const filteredScores = validatedScores.filter(
-            (s) => s.traceId === trace.id,
-          );
-
-          const { input, output, ...rest } = trace;
-          if (returnIO) {
-            return { ...rest, input, output, scores: filteredScores };
-          } else {
-            return {
-              ...rest,
-              input: undefined,
-              output: undefined,
-              scores: filteredScores,
-            };
-          }
-        }),
+        traces: traces.map((trace) => ({
+          ...trace,
+          scores: validatedScores.filter((s) => s.traceId === trace.id),
+        })),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
     }),
