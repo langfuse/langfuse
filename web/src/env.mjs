@@ -132,10 +132,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     NEXT_PUBLIC_CRISP_WEBSITE_ID: z.string().optional(),
-    NEXT_PUBLIC_LANGFUSE_3_HAS_BACKFILLED_OBSERVATION_COST: z
-      .enum(["true", "false"])
-      .optional()
-      .default("false"),
   },
 
   /**
@@ -234,8 +230,6 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
-    NEXT_PUBLIC_LANGFUSE_3_HAS_BACKFILLED_OBSERVATION_COST:
-      process.env.HAS_BACKFILLED_OBSERVATION_COST,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
