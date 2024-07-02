@@ -1,4 +1,4 @@
-import lodash, { union } from "lodash";
+import lodash from "lodash";
 import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
@@ -145,24 +145,43 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
   return false;
 });
 
-const BaseScore = z.object({
+const BaseScoreBody = z.object({
   id: z.string().nullish(),
   name: NonEmptyString,
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
-  dataType: z.nativeEnum(ScoreDataType).nullish(),
   configId: z.string().nullish(),
 });
 
-export const ScoreBody = BaseScore.extend({
-  value: z.union([z.string(), z.number()]),
-});
-
-export const InflatedScoreBody = ScoreBody.extend({
-  value: z.number().nullish(),
-  stringValue: z.string().nullish(),
-});
+export const InflatedPostScoreBody = z.discriminatedUnion("dataType", [
+  BaseScoreBody.merge(
+    z.object({
+      value: z.number(),
+      dataType: z.literal(ScoreDataType.NUMERIC),
+    })
+  ),
+  BaseScoreBody.merge(
+    z.object({
+      value: z.number().nullable(),
+      stringValue: z.string(),
+      dataType: z.literal(ScoreDataType.CATEGORICAL),
+    })
+  ),
+  BaseScoreBody.merge(
+    z.object({
+      value: z.number().refine((val) => val === 0 || val === 1, {
+        message: "Value must be either 0 or 1",
+      }),
+      stringValue: z
+        .string()
+        .refine((val) => val === "False" || val === "True", {
+          message: "String value must be either True or False",
+        }),
+      dataType: z.literal(ScoreDataType.BOOLEAN),
+    })
+  ),
+]);
 
 // LEGACY, only required for backwards compatibility
 export const LegacySpanPostSchema = z.object({
@@ -319,7 +338,7 @@ export const generationUpdateEvent = base.extend({
 });
 export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE_CREATE),
-  body: InflatedScoreBody,
+  body: InflatedPostScoreBody,
 });
 export const sdkLogEvent = base.extend({
   type: z.literal(eventTypes.SDK_LOG),

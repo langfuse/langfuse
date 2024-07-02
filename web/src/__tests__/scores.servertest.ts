@@ -1,8 +1,18 @@
 /** @jest-environment node */
 
 import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+  pruneDatabase,
+} from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
+import {
+  DeleteScoreResponse,
+  GetScoreResponse,
+  GetScoresError,
+  GetScoresResponse,
+} from "@/src/features/public-api/types/scores";
 
 describe("/api/public/scores API Endpoint", () => {
   let should_prune_db = true;
@@ -416,8 +426,15 @@ describe("/api/public/scores API Endpoint", () => {
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
       message: "Invalid request data",
-      error:
-        "Categorical scores should define a string value not a number, received: 1",
+      error: [
+        {
+          code: "invalid_type",
+          expected: "string",
+          message: "Expected string, received number",
+          path: ["value"],
+          received: "number",
+        },
+      ],
     });
   });
 
@@ -476,8 +493,8 @@ describe("/api/public/scores API Endpoint", () => {
 
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
-      message: "Invalid request data",
-      error:
+      error: "InvalidRequestError",
+      message:
         "Data type mismatch based on config: expected NUMERIC, got CATEGORICAL",
     });
   });
@@ -538,8 +555,15 @@ describe("/api/public/scores API Endpoint", () => {
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
       message: "Invalid request data",
-      error:
-        "You may only pass a string value for categorical scores, received: True",
+      error: [
+        {
+          code: "invalid_type",
+          expected: "number",
+          message: "Expected number, received string",
+          path: ["value"],
+          received: "string",
+        },
+      ],
     });
   });
 
@@ -599,7 +623,13 @@ describe("/api/public/scores API Endpoint", () => {
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
       message: "Invalid request data",
-      error: "Boolean scores should have value of 0 or 1, received: 0.5",
+      error: [
+        {
+          code: "custom",
+          message: "Value must be either 0 or 1",
+          path: ["value"],
+        },
+      ],
     });
   });
 
@@ -663,8 +693,15 @@ describe("/api/public/scores API Endpoint", () => {
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
       message: "Invalid request data",
-      error:
-        "Categorical scores should define a string value not a number, received: 1",
+      error: [
+        {
+          code: "invalid_type",
+          expected: "string",
+          message: "Expected string, received number",
+          path: ["value"],
+          received: "number",
+        },
+      ],
     });
   });
 
@@ -725,7 +762,13 @@ describe("/api/public/scores API Endpoint", () => {
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
       message: "Invalid request data",
-      error: "Value exceeds maximum value of 0",
+      error: [
+        {
+          code: "custom",
+          message: "Value exceeds maximum value of 0 defined in config",
+          path: [],
+        },
+      ],
     });
   });
 
@@ -836,7 +879,8 @@ describe("/api/public/scores API Endpoint", () => {
     });
     expect(dbScore?.id).toBe(scoreId);
 
-    const deleteScore = await makeAPICall(
+    const deleteScore = await makeZodVerifiedAPICall(
+      DeleteScoreResponse,
       "DELETE",
       `/api/public/scores/${scoreId}`,
     );
@@ -872,15 +916,11 @@ describe("/api/public/scores API Endpoint", () => {
       comment: "comment",
     });
 
-    const getScore = await makeAPICall<{
-      id: string;
-      name: string;
-      value: number;
-      comment: string;
-      traceId: string;
-      observationId: string;
-      source: string;
-    }>("GET", `/api/public/scores/${scoreId}`);
+    const getScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
 
     expect(getScore.status).toBe(200);
     expect(getScore.body).toMatchObject({
@@ -891,6 +931,7 @@ describe("/api/public/scores API Endpoint", () => {
       source: "API",
       traceId,
       observationId: generationId,
+      dataType: ScoreDataType.NUMERIC,
     });
   });
 
@@ -904,16 +945,6 @@ describe("/api/public/scores API Endpoint", () => {
     const scoreId_1 = uuidv4();
     const scoreId_2 = uuidv4();
     const scoreId_3 = uuidv4();
-    interface GetScoresAPIResponse {
-      data: [
-        {
-          id: string;
-          name: string;
-          value: number;
-        },
-      ];
-      meta: object;
-    }
 
     beforeAll(async () => {
       should_prune_db = false;
@@ -971,15 +1002,11 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     it("get all scores", async () => {
-      const getAllScore = await makeAPICall<{
-        data: [
-          {
-            traceId: string;
-            observationId: string;
-          },
-        ];
-        meta: object;
-      }>("GET", `/api/public/scores?${queryUserName}`);
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}`,
+      );
       expect(getAllScore.status).toBe(200);
       expect(getAllScore.body.meta).toMatchObject({
         page: 1,
@@ -996,16 +1023,11 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     it("get all scores for config", async () => {
-      const getAllScore = await makeAPICall<{
-        data: [
-          {
-            traceId: string;
-            observationId: string;
-            configId?: string;
-          },
-        ];
-        meta: object;
-      }>("GET", `/api/public/scores?configId=${configId}`);
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?configId=${configId}`,
+      );
 
       expect(getAllScore.status).toBe(200);
       expect(getAllScore.body.meta).toMatchObject({
@@ -1024,7 +1046,8 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     it("test only operator", async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=<`,
       );
@@ -1038,7 +1061,8 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     it("test only value", async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&value=0.8`,
       );
@@ -1052,7 +1076,8 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     it("test operator <", async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=<&value=50`,
       );
@@ -1072,7 +1097,8 @@ describe("/api/public/scores API Endpoint", () => {
       ]);
     });
     it("test operator >", async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=>&value=100`,
       );
@@ -1092,7 +1118,8 @@ describe("/api/public/scores API Endpoint", () => {
       ]);
     });
     it("test operator <=", async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
       );
@@ -1117,7 +1144,8 @@ describe("/api/public/scores API Endpoint", () => {
       ]);
     });
     it("test operator >=", async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
       );
@@ -1142,7 +1170,8 @@ describe("/api/public/scores API Endpoint", () => {
       ]);
     });
     it("test operator !=", async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
       );
@@ -1167,7 +1196,8 @@ describe("/api/public/scores API Endpoint", () => {
       ]);
     });
     it("test operator =", async () => {
-      const getScore = await makeAPICall<GetScoresAPIResponse>(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator==&value=50.5`,
       );
@@ -1187,7 +1217,8 @@ describe("/api/public/scores API Endpoint", () => {
       ]);
     });
     it("test invalid operator", async () => {
-      const getScore = await makeAPICall(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresError,
         "GET",
         `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
       );
@@ -1197,7 +1228,8 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
     it("test invalid value", async () => {
-      const getScore = await makeAPICall(
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresError,
         "GET",
         `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
       );
@@ -1208,16 +1240,11 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     it("should filter scores by score IDs", async () => {
-      const getScore = await makeAPICall<{
-        data: [
-          {
-            id: string;
-            name: string;
-            value: number;
-          },
-        ];
-        meta: object;
-      }>("GET", `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`);
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`,
+      );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
         page: 1,

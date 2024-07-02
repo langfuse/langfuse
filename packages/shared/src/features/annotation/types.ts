@@ -72,27 +72,6 @@ export const ScoreUnion = z.discriminatedUnion("dataType", [
   ScoreBase.merge(BooleanData),
 ]);
 
-const GetAllScoresBase = z.object({
-  id: z.string(),
-  timestamp: z.date(),
-  name: z.string(),
-  source: ScoreSource,
-  comment: z.string().nullish(),
-  traceId: z.string(),
-  observationId: z.string().nullish(),
-  trace: z.object({
-    userId: z.string(),
-  }),
-});
-
-export const GetAllScores = z.discriminatedUnion("dataType", [
-  GetAllScoresBase.merge(NumericData),
-  GetAllScoresBase.merge(CategoricalData),
-  GetAllScoresBase.merge(BooleanData),
-]);
-
-export type GetScores = z.infer<typeof GetAllScores>;
-
 export type ValidatedScore = z.infer<typeof ScoreUnion>;
 
 const CreateAnnotationScoreBase = z.object({
