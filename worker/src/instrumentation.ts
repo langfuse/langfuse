@@ -1,4 +1,5 @@
 import { env } from "./env";
+
 import * as Sentry from "@sentry/node";
 
 import { SentrySpanProcessor } from "@sentry/opentelemetry-node";
