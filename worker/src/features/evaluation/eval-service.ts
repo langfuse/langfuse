@@ -19,7 +19,7 @@ import {
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
   TraceUpsertEventSchema,
-  ValidationError,
+  InvalidRequestError,
   variableMappingList,
   ZodModelConfig,
 } from "@langfuse/shared";
@@ -241,7 +241,7 @@ export const evaluate = async ({
     .parse(template.output_schema);
 
   if (!parsedOutputSchema) {
-    throw new ValidationError("Output schema not found");
+    throw new InvalidRequestError("Output schema not found");
   }
 
   const openAIFunction = z.object({

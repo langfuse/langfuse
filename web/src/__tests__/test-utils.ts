@@ -75,17 +75,17 @@ export async function makeAPICall<T = IngestionAPIResponse>(
 }
 
 export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
-  zodSchema: T,
+  responseZodSchema: T,
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
   body?: unknown,
   auth?: string,
 ): Promise<{ body: z.infer<T>; status: number }> {
   const { body: resBody, status } = await makeAPICall(method, url, body, auth);
-  if (zodSchema instanceof ZodObject) {
-    zodSchema.strict().parse(resBody);
+  if (responseZodSchema instanceof ZodObject) {
+    responseZodSchema.strict().parse(resBody);
   } else {
-    zodSchema.parse(resBody);
+    responseZodSchema.parse(resBody);
   }
   return { body: resBody, status };
 }

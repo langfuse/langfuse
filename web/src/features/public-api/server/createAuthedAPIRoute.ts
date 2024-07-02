@@ -5,7 +5,6 @@ import {
   verifyAuthHeaderAndReturnScope,
   type AuthHeaderValidVerificationResult,
 } from "@/src/features/public-api/server/apiAuth";
-import { ApiError } from "@langfuse/shared";
 
 type RouteConfig<
   TQuery extends ZodType<any>,
