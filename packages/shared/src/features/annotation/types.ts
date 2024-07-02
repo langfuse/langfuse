@@ -1,10 +1,16 @@
 import z from "zod";
-import { ScoreConfig } from "../../db";
+import { ScoreConfig, type ScoreDataType } from "../../db";
 
 const configCategory = z.object({
   label: z.string().min(1),
   value: z.number(),
 });
+
+const NUMERIC: ScoreDataType = "NUMERIC";
+const CATEGORICAL: ScoreDataType = "CATEGORICAL";
+const BOOLEAN: ScoreDataType = "BOOLEAN";
+
+export const availableDataTypes = [NUMERIC, CATEGORICAL, BOOLEAN] as const;
 
 export const categoriesList = z.array(configCategory);
 
@@ -13,6 +19,17 @@ export type ConfigCategory = z.infer<typeof configCategory>;
 export type CastedConfig = Omit<ScoreConfig, "categories"> & {
   categories: ConfigCategory[] | null;
 };
+
+export const createConfigSchema = z.object({
+  name: z.string().min(1).max(35),
+  dataType: z.enum(availableDataTypes),
+  minValue: z.coerce.number().optional(),
+  maxValue: z.coerce.number().optional(),
+  categories: z.array(configCategory).optional(),
+  description: z.string().optional(),
+});
+
+export type CreateConfig = z.infer<typeof createConfigSchema>;
 
 const ScoreSource = z.enum(["ANNOTATION", "API", "EVAL"]);
 
@@ -54,27 +71,6 @@ export const ScoreUnion = z.discriminatedUnion("dataType", [
   ScoreBase.merge(CategoricalData),
   ScoreBase.merge(BooleanData),
 ]);
-
-const GetAllScoresBase = z.object({
-  id: z.string(),
-  timestamp: z.date(),
-  name: z.string(),
-  source: ScoreSource,
-  comment: z.string().nullish(),
-  traceId: z.string(),
-  observationId: z.string().nullish(),
-  trace: z.object({
-    userId: z.string(),
-  }),
-});
-
-export const GetAllScores = z.discriminatedUnion("dataType", [
-  GetAllScoresBase.merge(NumericData),
-  GetAllScoresBase.merge(CategoricalData),
-  GetAllScoresBase.merge(BooleanData),
-]);
-
-export type GetScores = z.infer<typeof GetAllScores>;
 
 export type ValidatedScore = z.infer<typeof ScoreUnion>;
 

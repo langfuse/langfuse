@@ -1063,6 +1063,53 @@ paths:
             schema:
               $ref: '#/components/schemas/CreatePromptRequest'
   /api/public/score-configs:
+    post:
+      description: >-
+        Create a score configuration (config). Score configs are used to define
+        the structure of scores.
+      operationId: scoreConfigs_create
+      tags:
+        - ScoreConfigs
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreConfig'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScoreConfigRequest'
     get:
       description: Get all score configs
       operationId: scoreConfigs_get
@@ -1277,6 +1324,13 @@ paths:
         - name: scoreIds
           in: query
           description: Comma-separated list of score IDs to limit the results to.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: configId
+          in: query
+          description: Retrieve only scores with a specific configId.
           required: false
           schema:
             type: string
@@ -1882,14 +1936,21 @@ components:
           $ref: '#/components/schemas/ScoreDataType'
         isArchived:
           type: boolean
+          description: Whether the score config is archived. Defaults to false.
         minValue:
           type: number
           format: double
           nullable: true
+          description: >-
+            Sets minimum value for numerical scores. If not set, the minimum
+            value defaults to -∞.
         maxValue:
           type: number
           format: double
           nullable: true
+          description: >-
+            Sets maximum value for numerical scores. If not set, the maximum
+            value defaults to +∞.
         categories:
           type: array
           items:
@@ -1931,6 +1992,10 @@ components:
         value:
           type: number
           format: double
+          nullable: true
+        stringValue:
+          type: string
+          nullable: true
         source:
           $ref: '#/components/schemas/ScoreSource'
         observationId:
@@ -1942,13 +2007,27 @@ components:
         comment:
           type: string
           nullable: true
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        configId:
+          type: string
+          nullable: true
       required:
         - id
         - traceId
         - name
-        - value
         - source
         - timestamp
+        - dataType
+    IngestionScoreValue:
+      title: IngestionScoreValue
+      oneOf:
+        - type: string
+        - type: number
+          format: double
+      description: >-
+        The value of the score. Must be passed as string for categorical scores,
+        and numeric for boolean and numeric scores.
     Dataset:
       title: Dataset
       type: object
@@ -2642,18 +2721,56 @@ components:
         name:
           type: string
         value:
-          type: number
-          format: double
+          $ref: '#/components/schemas/IngestionScoreValue'
         observationId:
           type: string
           nullable: true
         comment:
           type: string
           nullable: true
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
+        configId:
+          type: string
+          nullable: true
       required:
         - traceId
         - name
         - value
+    InflatedScoreBody:
+      title: InflatedScoreBody
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+          nullable: true
+        stringValue:
+          type: string
+          nullable: true
+        observationId:
+          type: string
+          nullable: true
+        comment:
+          type: string
+          nullable: true
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        configId:
+          type: string
+          nullable: true
+      required:
+        - traceId
+        - name
+        - dataType
     BaseEvent:
       title: BaseEvent
       type: object
@@ -2709,7 +2826,7 @@ components:
       type: object
       properties:
         body:
-          $ref: '#/components/schemas/ScoreBody'
+          $ref: '#/components/schemas/InflatedScoreBody'
       required:
         - body
       allOf:
@@ -3146,6 +3263,40 @@ components:
       required:
         - data
         - meta
+    CreateScoreConfigRequest:
+      title: CreateScoreConfigRequest
+      type: object
+      properties:
+        name:
+          type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        categories:
+          nullable: true
+          description: >-
+            Configure custom categories for categorical scores. Pass a list of
+            objects with `label` and `value` properties. Categories are
+            autogenerated for boolean configs and cannot be passed.
+        minValue:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Configure a minimum value for numerical scores. If not set, the
+            minimum value defaults to -∞.
+        maxValue:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Configure a maximum value for numerical scores. If not set, the
+            maximum value defaults to +∞.
+        description:
+          type: string
+          nullable: true
+      required:
+        - name
+        - dataType
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -3158,14 +3309,27 @@ components:
         name:
           type: string
         value:
-          type: number
-          format: double
+          $ref: '#/components/schemas/IngestionScoreValue'
         observationId:
           type: string
           nullable: true
         comment:
           type: string
           nullable: true
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
+          description: >-
+            The data type of the score. When passing a configId this field is
+            inferred. Otherwise, this field must be passed or will default to
+            numeric.
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            The unique langfuse identifier of a score config. When passing this
+            field, the dataType and stringValue fields are automatically
+            populated.
       required:
         - traceId
         - name

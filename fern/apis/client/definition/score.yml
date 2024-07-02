@@ -17,15 +17,31 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: double
+      value: IngestionScoreValue
       observationId: optional<string>
       comment: optional<string>
+      dataType: optional<ScoreDataType>
+      configId: optional<string>
   Score:
     properties:
       id: string
       traceId: string
       name: string
-      value: double
+      value: optional<double>
+      stringValue: optional<string>
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
+      dataType: ScoreDataType
+      configId: optional<string>
+  ScoreDataType:
+    enum:
+      - NUMERIC
+      - CATEGORICAL
+      - BOOLEAN
+  IngestionScoreValue:
+    discriminated: false
+    union:
+      - string
+      - double
+    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores.

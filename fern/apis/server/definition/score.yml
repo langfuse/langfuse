@@ -42,6 +42,9 @@ service:
           scoreIds:
             type: optional<string>
             docs: Comma-separated list of score IDs to limit the results to.
+          configId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific configId.
       response: Scores
     get-by-id:
       docs: Get a score
@@ -66,9 +69,16 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: double
+      value: commons.IngestionScoreValue
       observationId: optional<string>
       comment: optional<string>
+      dataType:
+        type: optional<commons.ScoreDataType>
+        docs: The data type of the score. When passing a configId this field is inferred. Otherwise, this field must be passed or will default to numeric.
+      configId:
+        type: optional<string>
+        docs: The unique langfuse identifier of a score config. When passing this field, the dataType and stringValue fields are automatically populated.
+
   Scores:
     properties:
       data: list<commons.Score>

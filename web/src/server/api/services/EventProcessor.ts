@@ -645,19 +645,29 @@ export class ScoreProcessor implements EventProcessor {
         traceId: body.traceId,
         observationId: body.observationId ?? undefined,
         timestamp: new Date(),
-        value: body.value,
+        value: body.value ?? undefined,
         name: body.name,
         comment: body.comment,
         source: "API",
+        dataType: body.dataType ?? undefined,
+        configId: body.configId ?? undefined,
+        ...(body.dataType !== "NUMERIC" && {
+          stringValue: body.stringValue ?? undefined,
+        }),
       },
       update: {
         traceId: body.traceId,
         observationId: body.observationId ?? undefined,
         timestamp: new Date(),
-        value: body.value,
+        value: body.value ?? undefined,
         name: body.name,
         comment: body.comment,
         source: "API",
+        dataType: body.dataType ?? undefined,
+        configId: body.configId ?? undefined,
+        ...(body.dataType !== "NUMERIC" && {
+          stringValue: body.stringValue ?? undefined,
+        }),
       },
     });
   }

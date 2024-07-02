@@ -1,133 +1,207 @@
-import { ScoreSource, prisma } from "@langfuse/shared/src/db";
+import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared/src/db";
-import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
-import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { GetAllScores, paginationZod, type GetScores } from "@langfuse/shared";
+import { ZodError, type z } from "zod";
 import {
-  ScoreBody,
-  eventTypes,
-  ingestionBatchEvent,
-  stringDate,
+  type CastedConfig,
+  LangfuseNotFoundError,
+  InvalidRequestError,
+  type InflatedPostScoreBody,
 } from "@langfuse/shared";
+import { eventTypes, ingestionBatchEvent } from "@langfuse/shared";
 import { v4 } from "uuid";
 import {
   handleBatch,
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
-import { isPrismaException } from "@/src/utils/exceptions";
+import {
+  isBooleanDataType,
+  isCastedConfig,
+  isPresent,
+} from "@/src/features/manual-scoring/lib/helpers";
+import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  type GetScores,
+  GetScoresQuery,
+  GetScoresResponse,
+  PostScoresBody,
+  PostScoresResponse,
+  ScoreBodyWithoutConfig,
+  ScorePropsAgainstConfig,
+  GetAllScores,
+} from "@/src/features/public-api/types/scores";
 
-const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
+const inferDataType = (value: string | number): ScoreDataType =>
+  typeof value === "number" ? ScoreDataType.NUMERIC : ScoreDataType.CATEGORICAL;
 
-const ScoresGetSchema = z
-  .object({
-    ...paginationZod,
-    userId: z.string().nullish(),
-    name: z.string().nullish(),
-    fromTimestamp: stringDate,
-    source: z.nativeEnum(ScoreSource).nullish(),
-    value: z.coerce.number().nullish(),
-    operator: z.enum(operators).nullish(),
-    scoreIds: z
-      .string()
-      .transform((str) => str.split(",").map((id) => id.trim())) // Split the comma-separated string
-      .refine((arr) => arr.every((id) => typeof id === "string"), {
-        message: "Each score ID must be a string",
-      })
-      .nullish(),
-  })
-  .strict(); // Use strict to give 400s on typo'd query params
+const validateConfigAgainstBody = (
+  body: z.infer<typeof PostScoresBody>,
+  config: CastedConfig,
+): void => {
+  const { maxValue, minValue, categories, dataType: configDataType } = config;
+  if (body.dataType && body.dataType !== configDataType) {
+    throw new InvalidRequestError(
+      `Data type mismatch based on config: expected ${configDataType}, got ${body.dataType}`,
+    );
+  }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  await runMiddleware(req, res, cors);
+  if (config.isArchived) {
+    throw new InvalidRequestError(
+      "Config is archived and cannot be used to create new scores. Please restore the config first.",
+    );
+  }
 
-  // CHECK AUTH
-  const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization,
-  );
-  if (!authCheck.validKey)
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  // END CHECK AUTH
+  if (config.name !== body.name) {
+    throw new InvalidRequestError(
+      `Name mismatch based on config: expected ${config.name}, got ${body.name}`,
+    );
+  }
 
-  if (req.method === "POST") {
-    try {
-      console.log(
-        "trying to create score, project ",
-        authCheck.scope.projectId,
-        ", body:",
-        JSON.stringify(req.body, null, 2),
-      );
+  const relevantDataType = body.dataType ?? configDataType;
 
+  const dataTypeValidation = ScoreBodyWithoutConfig.safeParse({
+    ...body,
+    dataType: relevantDataType,
+  });
+  if (!dataTypeValidation.success) {
+    throw new ZodError(dataTypeValidation.error.errors);
+  }
+
+  const rangeValidation = ScorePropsAgainstConfig.safeParse({
+    value: body.value,
+    dataType: relevantDataType,
+    ...(isPresent(maxValue) && { maxValue }),
+    ...(isPresent(minValue) && { minValue }),
+    ...(categories && { categories }),
+  });
+  if (!rangeValidation.success) {
+    throw new ZodError(rangeValidation.error.errors);
+  }
+};
+
+const mapStringValueToNumericValue = (
+  config: CastedConfig,
+  label: string,
+): number | null =>
+  config.categories?.find((category) => category.label === label)?.value ??
+  null;
+
+const inflateScoreBody = (
+  body: z.infer<typeof PostScoresBody>,
+  config?: CastedConfig,
+): z.infer<typeof InflatedPostScoreBody> => {
+  const relevantDataType = config?.dataType ?? body.dataType;
+  if (typeof body.value === "number") {
+    if (relevantDataType && isBooleanDataType(relevantDataType)) {
+      return {
+        ...body,
+        value: body.value,
+        stringValue: body.value === 1 ? "True" : "False",
+        dataType: ScoreDataType.BOOLEAN,
+      };
+    }
+
+    return {
+      ...body,
+      value: body.value,
+      dataType: ScoreDataType.NUMERIC,
+    };
+  }
+  return {
+    ...body,
+    value: config ? mapStringValueToNumericValue(config, body.value) : null,
+    stringValue: body.value,
+    dataType: ScoreDataType.CATEGORICAL,
+  };
+};
+
+export default withMiddlewares({
+  POST: createAuthedAPIRoute({
+    name: "Create Score",
+    bodySchema: PostScoresBody,
+    responseSchema: PostScoresResponse,
+    fn: async ({ body, auth, req, res }) => {
+      let inflatedBody: z.infer<typeof InflatedPostScoreBody>;
+      if (body.configId) {
+        const config = await prisma.scoreConfig.findFirst({
+          where: {
+            projectId: auth.scope.projectId,
+            id: body.configId,
+          },
+        });
+
+        if (!config || !isCastedConfig(config))
+          throw new LangfuseNotFoundError(
+            "The configId you provided does not match a valid config in this project",
+          );
+
+        validateConfigAgainstBody(body, config);
+        inflatedBody = inflateScoreBody(body, config);
+      } else {
+        const validation = ScoreBodyWithoutConfig.safeParse({
+          ...body,
+          dataType: body.dataType ?? inferDataType(body.value),
+        });
+        if (!validation.success) {
+          throw new ZodError(validation.error.errors);
+        }
+        inflatedBody = inflateScoreBody(body);
+      }
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
         timestamp: new Date().toISOString(),
-        body: ScoreBody.parse(req.body),
+        body: inflatedBody,
       };
-
       const result = await handleBatch(
         ingestionBatchEvent.parse([event]),
         {},
         req,
-        authCheck,
+        auth,
       );
-
       handleBatchResultLegacy(result.errors, result.results, res);
-    } catch (error: unknown) {
-      console.error(error);
-      if (isPrismaException(error)) {
-        return res.status(500).json({
-          error: "Internal Server Error",
-        });
-      }
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          message: "Invalid request data",
-          error: error.errors,
-        });
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({
-        message: "Invalid request data",
-        error: errorMessage,
-      });
-    }
-  } else if (req.method === "GET") {
-    try {
-      if (authCheck.scope.accessLevel !== "all") {
-        return res.status(401).json({
-          message: "Access denied - need to use basic auth with secret key",
-        });
-      }
+    },
+  }),
+  GET: createAuthedAPIRoute({
+    name: "Get Scores",
+    querySchema: GetScoresQuery,
+    responseSchema: GetScoresResponse,
+    fn: async ({ query, auth }) => {
+      const {
+        page,
+        limit,
+        configId,
+        userId,
+        name,
+        fromTimestamp,
+        source,
+        operator,
+        value,
+        scoreIds,
+      } = query;
 
-      const obj = ScoresGetSchema.parse(req.query); // uses query and not body
-
-      const skipValue = (obj.page - 1) * obj.limit;
-      const userCondition = obj.userId
-        ? Prisma.sql`AND t."user_id" = ${obj.userId}`
+      const skipValue = (page - 1) * limit;
+      const configCondition = configId
+        ? Prisma.sql`AND s."config_id" = ${configId}`
         : Prisma.empty;
-      const nameCondition = obj.name
-        ? Prisma.sql`AND s."name" = ${obj.name}`
+      const userCondition = userId
+        ? Prisma.sql`AND t."user_id" = ${userId}`
         : Prisma.empty;
-      const fromTimestampCondition = obj.fromTimestamp
-        ? Prisma.sql`AND s."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+      const nameCondition = name
+        ? Prisma.sql`AND s."name" = ${name}`
         : Prisma.empty;
-      const sourceCondition = obj.source
-        ? Prisma.sql`AND s."source" = ${obj.source}`
+      const fromTimestampCondition = fromTimestamp
+        ? Prisma.sql`AND s."timestamp" >= ${fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
+      const sourceCondition = source
+        ? Prisma.sql`AND s."source" = ${source}`
         : Prisma.empty;
       const valueCondition =
-        obj.operator && obj.value !== null && obj.value !== undefined
-          ? Prisma.sql`AND s."value" ${Prisma.raw(`${obj.operator}`)} ${obj.value}`
+        operator && value !== null && value !== undefined
+          ? Prisma.sql`AND s."value" ${Prisma.raw(`${operator}`)} ${value}`
           : Prisma.empty;
-      const scoreIdCondition = obj.scoreIds
-        ? Prisma.sql`AND s."id" = ANY(${obj.scoreIds})`
+      const scoreIdCondition = scoreIds
+        ? Prisma.sql`AND s."id" = ANY(${scoreIds})`
         : Prisma.empty;
 
       const scores = await prisma.$queryRaw<Array<GetScores>>(Prisma.sql`
@@ -140,12 +214,15 @@ export default async function handler(
             s.data_type as "dataType",
             s.source,
             s.comment,
+            s.data_type as "dataType",
+            s.config_id as "configId",
             s.trace_id as "traceId",
             s.observation_id as "observationId",
             json_build_object('userId', t.user_id) as "trace"
           FROM "scores" AS s
-          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
-          WHERE s.project_id = ${authCheck.scope.projectId}
+          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${auth.scope.projectId}
+          WHERE s.project_id = ${auth.scope.projectId}
+          ${configCondition}
           ${userCondition}
           ${nameCondition}
           ${sourceCondition}
@@ -153,15 +230,15 @@ export default async function handler(
           ${valueCondition}
           ${scoreIdCondition}
           ORDER BY s."timestamp" DESC
-          LIMIT ${obj.limit} OFFSET ${skipValue}
+          LIMIT ${limit} OFFSET ${skipValue}
           `);
 
       const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>(
         Prisma.sql`
           SELECT COUNT(*) as count
           FROM "scores" AS s
-          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
-          WHERE s.project_id = ${authCheck.scope.projectId}
+          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${auth.scope.projectId}
+          WHERE s.project_id = ${auth.scope.projectId}
           ${userCondition}
           ${nameCondition}
           ${sourceCondition}
@@ -182,36 +259,15 @@ export default async function handler(
       const totalItems =
         totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
 
-      return res.status(200).json({
+      return {
         data: validatedScores,
         meta: {
-          page: obj.page,
-          limit: obj.limit,
+          page: page,
+          limit: limit,
           totalItems,
-          totalPages: Math.ceil(totalItems / obj.limit),
+          totalPages: Math.ceil(totalItems / limit),
         },
-      });
-    } catch (error: unknown) {
-      console.error(error);
-      if (isPrismaException(error)) {
-        return res.status(500).json({
-          error: "Internal Server Error",
-        });
-      }
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          message: "Invalid request data",
-          error: error.errors,
-        });
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({
-        message: "Invalid request data",
-        error: errorMessage,
-      });
-    }
-  } else {
-    return res.status(405).json({ message: "Method not allowed" });
-  }
-}
+      };
+    },
+  }),
+});

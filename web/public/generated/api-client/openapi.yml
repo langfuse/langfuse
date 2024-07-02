@@ -62,11 +62,14 @@ components:
         name:
           type: string
         value:
-          type: number
-          format: double
+          $ref: '#/components/schemas/IngestionScoreValue'
         observationId:
           type: string
         comment:
+          type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        configId:
           type: string
       required:
         - traceId
@@ -85,6 +88,8 @@ components:
         value:
           type: number
           format: double
+        stringValue:
+          type: string
         observationId:
           type: string
         timestamp:
@@ -92,12 +97,32 @@ components:
           format: date-time
         comment:
           type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        configId:
+          type: string
       required:
         - id
         - traceId
         - name
-        - value
         - timestamp
+        - dataType
+    ScoreDataType:
+      title: ScoreDataType
+      type: string
+      enum:
+        - NUMERIC
+        - CATEGORICAL
+        - BOOLEAN
+    IngestionScoreValue:
+      title: IngestionScoreValue
+      oneOf:
+        - type: string
+        - type: number
+          format: double
+      description: >-
+        The value of the score. Must be passed as string for categorical scores,
+        and numeric for boolean and numeric scores.
   securitySchemes:
     BearerAuth:
       type: http
