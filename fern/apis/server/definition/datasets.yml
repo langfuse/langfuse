@@ -22,7 +22,7 @@ service:
       response: PaginatedDatasets
     get:
       method: GET
-      docs: Get a dataset and its items
+      docs: Get a dataset
       path: /v2/datasets/{datasetName}
       path-parameters:
         datasetName: string
@@ -43,7 +43,7 @@ service:
       response: commons.DatasetRunWithItems
     getRuns:
       method: GET
-      docs: Get a dataset runs
+      docs: Get dataset runs
       path: /datasets/{datasetName}/runs
       path-parameters:
         datasetName: string
