@@ -8,6 +8,7 @@ import {
   singleFilter,
   type SessionOptions,
   getSessionTableSQL,
+  ScoreUnion,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { paginationZod } from "@langfuse/shared";
@@ -136,6 +137,8 @@ export const sessionRouter = createTRPCRouter({
           },
         });
 
+        const validatedScores = scores.map((ts) => ScoreUnion.parse(ts));
+
         const totalCostQuery = Prisma.sql`
         SELECT
           SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
@@ -155,7 +158,7 @@ export const sessionRouter = createTRPCRouter({
           ...session,
           traces: session.traces.map((t) => ({
             ...t,
-            scores: scores.filter((s) => s.traceId === t.id),
+            scores: validatedScores.filter((s) => s.traceId === t.id),
           })),
           totalCost: costData?.totalCost ?? 0,
           users: [

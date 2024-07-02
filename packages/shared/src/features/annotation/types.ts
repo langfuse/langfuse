@@ -49,7 +49,7 @@ const BooleanData = z.object({
   dataType: z.literal("BOOLEAN"),
 });
 
-export const ScoreUnion = z.union([
+export const ScoreUnion = z.discriminatedUnion("dataType", [
   ScoreBase.merge(NumericData),
   ScoreBase.merge(CategoricalData),
   ScoreBase.merge(BooleanData),
@@ -68,7 +68,7 @@ const GetAllScoresBase = z.object({
   }),
 });
 
-export const GetAllScores = z.union([
+export const GetAllScores = z.discriminatedUnion("dataType", [
   GetAllScoresBase.merge(NumericData),
   GetAllScoresBase.merge(CategoricalData),
   GetAllScoresBase.merge(BooleanData),
@@ -91,13 +91,13 @@ const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({
   id: z.string(),
 });
 
-export const CreateAnnotationScoreData = z.union([
+export const CreateAnnotationScoreData = z.discriminatedUnion("dataType", [
   CreateAnnotationScoreBase.merge(NumericData),
   CreateAnnotationScoreBase.merge(CategoricalData),
   CreateAnnotationScoreBase.merge(BooleanData),
 ]);
 
-export const UpdateAnnotationScoreData = z.union([
+export const UpdateAnnotationScoreData = z.discriminatedUnion("dataType", [
   UpdateAnnotationScoreBase.merge(NumericData),
   UpdateAnnotationScoreBase.merge(CategoricalData),
   UpdateAnnotationScoreBase.merge(BooleanData),
