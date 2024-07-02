@@ -58,14 +58,14 @@ export type GenerationsTableRow = {
   timeToFirstToken?: number;
   name?: string;
   model?: string;
-  // i/o not set explicitly, but fetched from the server from the cell
+  // i/o and metadata not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
+  metadata?: unknown;
   inputCost?: Decimal;
   outputCost?: Decimal;
   totalCost?: Decimal;
   traceName?: string;
-  metadata?: Prisma.JsonValue;
   scores?: ScoreSimplified[];
   usage: {
     promptTokens: number;
@@ -519,10 +519,10 @@ export default function GenerationsTable({
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
         return (
-          <GenerationsIOCell
+          <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
-            io="input"
+            col="input"
             singleLine={rowHeight === "s"}
           />
         );
@@ -538,10 +538,10 @@ export default function GenerationsTable({
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
         return (
-          <GenerationsIOCell
+          <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
-            io="output"
+            col="output"
             singleLine={rowHeight === "s"}
           />
         );
@@ -553,12 +553,16 @@ export default function GenerationsTable({
       accessorKey: "metadata",
       header: "Metadata",
       cell: ({ row }) => {
-        const values = row.getValue(
-          "metadata",
-        ) as GenerationsTableRow["metadata"];
-        return !!values ? (
-          <IOTableCell data={values} singleLine={rowHeight === "s"} />
-        ) : null;
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <GenerationsDynamicCell
+            observationId={observationId}
+            traceId={traceId}
+            col="metadata"
+            singleLine={rowHeight === "s"}
+          />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -617,7 +621,6 @@ export default function GenerationsTable({
           model: generation.model ?? "",
           scores: generation.scores,
           level: generation.level,
-          metadata: generation.metadata,
           statusMessage: generation.statusMessage ?? undefined,
           usage: {
             promptTokens: generation.promptTokens,
@@ -712,15 +715,15 @@ export default function GenerationsTable({
   );
 }
 
-const GenerationsIOCell = ({
+const GenerationsDynamicCell = ({
   traceId,
   observationId,
-  io,
+  col,
   singleLine = false,
 }: {
   traceId: string;
   observationId: string;
-  io: "input" | "output";
+  col: "input" | "output" | "metadata";
   singleLine: boolean;
 }) => {
   const observation = api.observations.byId.useQuery(
@@ -742,9 +745,13 @@ const GenerationsIOCell = ({
     <IOTableCell
       isLoading={observation.isLoading}
       data={
-        io === "output" ? observation.data?.output : observation.data?.input
+        col === "output"
+          ? observation.data?.output
+          : col === "input"
+            ? observation.data?.input
+            : observation.data?.metadata
       }
-      className={cn(io === "output" && "bg-accent-light-green")}
+      className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
   );
