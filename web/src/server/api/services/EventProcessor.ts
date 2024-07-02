@@ -651,7 +651,9 @@ export class ScoreProcessor implements EventProcessor {
         source: "API",
         dataType: body.dataType ?? undefined,
         configId: body.configId ?? undefined,
-        stringValue: body.stringValue ?? undefined,
+        ...(body.dataType !== "NUMERIC" && {
+          stringValue: body.stringValue ?? undefined,
+        }),
       },
       update: {
         traceId: body.traceId,
@@ -663,7 +665,9 @@ export class ScoreProcessor implements EventProcessor {
         source: "API",
         dataType: body.dataType ?? undefined,
         configId: body.configId ?? undefined,
-        stringValue: body.stringValue ?? undefined,
+        ...(body.dataType !== "NUMERIC" && {
+          stringValue: body.stringValue ?? undefined,
+        }),
       },
     });
   }
