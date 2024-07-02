@@ -6,7 +6,7 @@ import { BaseError, MethodNotAllowedError } from "@langfuse/shared";
 import * as Sentry from "@sentry/node";
 
 const httpMethods = ["GET", "POST", "PUT", "DELETE"] as const;
-type HttpMethod = (typeof httpMethods)[number];
+export type HttpMethod = (typeof httpMethods)[number];
 type Handlers = {
   [Method in HttpMethod]?: (
     req: NextApiRequest,
