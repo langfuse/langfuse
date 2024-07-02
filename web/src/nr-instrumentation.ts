@@ -20,14 +20,16 @@ const sdk = new NodeSDK({
   resource: new Resource({
     [SemanticResourceAttributes.SERVICE_NAME]: "next-app",
   }),
-  spanProcessor: new SimpleSpanProcessor(
-    new OTLPTraceExporter({
-      url: process.env.OTLP_ENDPOINT || "https://otlp.nr-data.net",
-      headers: {
-        "api-key": process.env.NEW_RELIC_API_KEY,
-      },
-    }),
-  ),
+  spanProcessors: [
+    new SimpleSpanProcessor(
+      new OTLPTraceExporter({
+        url: process.env.OTLP_ENDPOINT || "https://otlp.nr-data.net",
+        headers: {
+          "api-key": process.env.NEW_RELIC_API_KEY,
+        },
+      }),
+    ),
+  ],
   resourceDetectors: [
     containerDetector,
     envDetector,
