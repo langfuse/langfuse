@@ -43,6 +43,7 @@ import {
   DiagConsoleLogger,
   DiagLogLevel,
   propagation,
+  trace,
 } from "@opentelemetry/api";
 
 import * as opentelemetry from "@opentelemetry/sdk-node";
@@ -52,26 +53,17 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 export function initializeOtel(serviceName: string, version?: string) {
   try {
     diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+
     const tracer = require("dd-trace").init();
     const { TracerProvider } = tracer;
 
     const provider = new TracerProvider();
     provider.register();
 
-    const exporter = new OTLPTraceExporter();
+    opentelemetry.api.trace.setGlobalTracerProvider(provider);
+
     const sdk = new opentelemetry.NodeSDK({
       // Optional - if omitted, the tracing SDK will be initialized from environment variables
-
-      resource: Resource.default().merge(
-        new Resource({
-          [SEMRESATTRS_SERVICE_NAME]: serviceName,
-          [SEMRESATTRS_SERVICE_VERSION]: version,
-        })
-      ),
-      traceExporter: exporter,
-      metricReader: new PeriodicExportingMetricReader({
-        exporter: new OTLPMetricExporter(),
-      }),
 
       // Optional - you can use the metapackage or load each instrumentation individually
       instrumentations: [
