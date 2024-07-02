@@ -6,14 +6,16 @@ import { isPrismaException } from "@/src/utils/exceptions";
 import * as Sentry from "@sentry/node";
 
 export type AuthHeaderVerificationResult =
-  | {
-      validKey: true;
-      scope: ApiAccessScope;
-    }
+  | AuthHeaderValidVerificationResult
   | {
       validKey: false;
       error: string;
     };
+
+export type AuthHeaderValidVerificationResult = {
+  validKey: true;
+  scope: ApiAccessScope;
+};
 
 export async function verifyAuthHeaderAndReturnScope(
   authHeader: string | undefined,

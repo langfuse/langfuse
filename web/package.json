@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.57.0",
+  "version": "2.58.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -17,7 +17,8 @@
     "test": "dotenv -e ../.env -- jest --runInBand",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
+    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
+    "generationCost:backfill": "dotenv -e ../.env -- tsx scripts/observations-backfill-calculated-cost.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",

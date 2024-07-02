@@ -39,6 +39,7 @@ const EnvSchema = z.object({
     .default(24),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
+  LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
 });
 
 export const env = EnvSchema.parse(process.env);

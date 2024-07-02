@@ -1,18 +1,18 @@
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  GetDatasetsV2Query,
+  GetDatasetsV2Response,
+  PostDatasetsV2Body,
+  PostDatasetsV2Response,
+} from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import {
-  GetDatasetsV1Query,
-  GetDatasetsV1Response,
-  PostDatasetsV1Body,
-  PostDatasetsV1Response,
-} from "@/src/features/public-api/types/datasets";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
-    name: "Create or Update Dataset",
-    bodySchema: PostDatasetsV1Body,
-    responseSchema: PostDatasetsV1Response,
+    name: "Create Dataset",
+    bodySchema: PostDatasetsV2Body,
+    responseSchema: PostDatasetsV2Response,
     fn: async ({ body, auth }) => {
       const { name, description, metadata } = body;
 
@@ -35,20 +35,14 @@ export default withMiddlewares({
         },
       });
 
-      return {
-        ...dataset,
-        items: [],
-        runs: [],
-      };
+      return dataset;
     },
   }),
   GET: createAuthedAPIRoute({
     name: "Get Datasets",
-    querySchema: GetDatasetsV1Query,
-    responseSchema: GetDatasetsV1Response,
+    querySchema: GetDatasetsV2Query,
+    responseSchema: GetDatasetsV2Response,
     fn: async ({ query, auth }) => {
-      const { limit, page } = query;
-
       const datasets = await prisma.dataset.findMany({
         select: {
           name: true,
@@ -58,22 +52,6 @@ export default withMiddlewares({
           createdAt: true,
           updatedAt: true,
           id: true,
-          datasetItems: {
-            select: {
-              id: true,
-            },
-            orderBy: {
-              createdAt: "desc",
-            },
-          },
-          datasetRuns: {
-            select: {
-              name: true,
-            },
-            orderBy: {
-              createdAt: "desc",
-            },
-          },
         },
         where: {
           projectId: auth.scope.projectId,
@@ -81,8 +59,8 @@ export default withMiddlewares({
         orderBy: {
           createdAt: "desc",
         },
-        take: limit,
-        skip: (page - 1) * limit,
+        take: query.limit,
+        skip: (query.page - 1) * query.limit,
       });
 
       const totalItems = await prisma.dataset.count({
@@ -92,16 +70,12 @@ export default withMiddlewares({
       });
 
       return {
-        data: datasets.map(({ datasetItems, datasetRuns, ...rest }) => ({
-          ...rest,
-          items: datasetItems.map(({ id }) => id),
-          runs: datasetRuns.map(({ name }) => name),
-        })),
+        data: datasets,
         meta: {
-          page,
-          limit,
+          page: query.page,
+          limit: query.limit,
           totalItems,
-          totalPages: Math.ceil(totalItems / limit),
+          totalPages: Math.ceil(totalItems / query.limit),
         },
       };
     },

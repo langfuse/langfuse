@@ -63,7 +63,7 @@ export const sendProjectInvitationEmail = async ({
         invitedByUsername: inviterName,
         invitedByUserEmail: inviterEmail,
         projectName: projectName,
-        recieverEmail: to,
+        receiverEmail: to,
         inviteLink: authUrl,
         emailFromAddress: env.EMAIL_FROM_ADDRESS,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
