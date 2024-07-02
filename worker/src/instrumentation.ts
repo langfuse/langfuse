@@ -51,7 +51,11 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 export function initializeOtel(serviceName: string, version?: string) {
   try {
     diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
-    const sentryClient = Sentry.getClient<NodeClient>();
+    const tracer = require("dd-trace").init();
+    const { TracerProvider } = tracer;
+
+    const provider = new TracerProvider();
+    provider.register();
 
     const exporter = new OTLPTraceExporter();
     const sdk = new opentelemetry.NodeSDK({

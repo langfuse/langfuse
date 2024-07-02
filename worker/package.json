@@ -49,6 +49,7 @@
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
+    "dd-trace": "^5.17.0",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
