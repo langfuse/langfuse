@@ -590,12 +590,13 @@ function createObjects(
         ? [
             {
               traceId: trace.id,
-              name: "depth",
+              name: "Completeness",
               timestamp: traceTs,
               source: ScoreSource.API,
               projectId,
               dataType: ScoreDataType.CATEGORICAL,
-              stringValue: "Shallow",
+              stringValue:
+                Math.floor(Math.random() * 2) === 1 ? "Fully" : "Partially",
             },
           ]
         : []),
