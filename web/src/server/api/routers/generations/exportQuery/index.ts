@@ -52,7 +52,7 @@ export const generationsExportQuery = protectedProjectProcedure
             page: offset / pageSize,
             limit: pageSize,
           },
-          selectIO: true, // selecting input/output data
+          selectIOAndMetadata: true, // selecting input/output and metadata
         });
         return generations as unknown as FullObservations;
       },
