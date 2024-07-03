@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ModelUsageUnit, Prisma } from "@langfuse/shared";
+import { ModelUsageUnit } from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
