@@ -180,9 +180,6 @@ export function AnnotateDrawer({
   });
 
   const mutDeleteScore = api.scores.deleteAnnotationScore.useMutation({
-    onError: (error) => {
-      trpcErrorToast(error);
-    },
     onSettled: async (data, error) => {
       if (!data || error) return;
 
@@ -242,16 +239,10 @@ export function AnnotateDrawer({
   };
 
   const mutCreateScores = api.scores.createAnnotationScore.useMutation({
-    onError: (error) => {
-      trpcErrorToast(error);
-    },
     onSettled: onSettledUpsert,
   });
 
   const mutUpdateScores = api.scores.updateAnnotationScore.useMutation({
-    onError: (error) => {
-      trpcErrorToast(error);
-    },
     onSettled: onSettledUpsert,
   });
 
@@ -303,67 +294,63 @@ export function AnnotateDrawer({
     configCategories: ConfigCategory[],
   ): ((value: string) => void) | undefined {
     return async (stringValue) => {
-      try {
-        const selectedCategory = configCategories.find(
-          ({ label }) => label === stringValue,
-        );
-        if (selectedCategory) {
-          const newValue = Number(selectedCategory.value);
+      const selectedCategory = configCategories.find(
+        ({ label }) => label === stringValue,
+      );
+      if (selectedCategory) {
+        const newValue = Number(selectedCategory.value);
 
-          update(index, {
-            ...score,
-            value: newValue,
-          });
+        update(index, {
+          ...score,
+          value: newValue,
+        });
 
-          if (!!stringValue) {
-            if (!!score.scoreId) {
-              const validatedScore = UpdateAnnotationScoreData.parse({
-                id: score.scoreId,
-                projectId,
-                traceId,
-                name: score.name,
-                dataType: score.dataType,
-                configId: score.configId,
-                comment: score.comment,
-                observationId,
-                value: newValue,
-                stringValue,
-              });
+        if (!!stringValue) {
+          if (!!score.scoreId) {
+            const validatedScore = UpdateAnnotationScoreData.parse({
+              id: score.scoreId,
+              projectId,
+              traceId,
+              name: score.name,
+              dataType: score.dataType,
+              configId: score.configId,
+              comment: score.comment,
+              observationId,
+              value: newValue,
+              stringValue,
+            });
 
-              await mutUpdateScores.mutateAsync({
-                ...validatedScore,
-              });
-              capture("score:update", {
-                type: type,
-                source: source,
-                dataType: score.dataType,
-              });
-            } else {
-              const validatedScore = CreateAnnotationScoreData.parse({
-                projectId,
-                traceId,
-                name: score.name,
-                dataType: score.dataType,
-                configId: score.configId,
-                comment: score.comment,
-                observationId,
-                value: newValue,
-                stringValue,
-              });
+            await mutUpdateScores.mutateAsync({
+              ...validatedScore,
+            });
+            capture("score:update", {
+              type: type,
+              source: source,
+              dataType: score.dataType,
+            });
+          } else {
+            const validatedScore = CreateAnnotationScoreData.parse({
+              projectId,
+              traceId,
+              name: score.name,
+              dataType: score.dataType,
+              configId: score.configId,
+              comment: score.comment,
+              observationId,
+              value: newValue,
+              stringValue,
+            });
 
-              await mutCreateScores.mutateAsync({
-                ...validatedScore,
-              });
-              capture("score:create", {
-                type: type,
-                source: source,
-                dataType: score.dataType,
-              });
-            }
+            await mutCreateScores.mutateAsync({
+              ...validatedScore,
+            });
+            capture("score:create", {
+              type: type,
+              source: source,
+              dataType: score.dataType,
+            });
           }
         }
-      } catch (error) {
-        trpcErrorToast(error);
       }
     };
   }
@@ -381,33 +368,29 @@ export function AnnotateDrawer({
     comment?: string | null;
   }): React.MouseEventHandler<HTMLButtonElement> | undefined {
     return async () => {
-      try {
-        const { value, scoreId } = score;
-        if (!!field.value && !!scoreId && isPresent(value)) {
-          const validatedScore = UpdateAnnotationScoreData.parse({
-            id: scoreId,
-            projectId,
-            traceId,
-            name: score.name,
-            dataType: score.dataType,
-            configId: score.configId,
-            stringValue: score.stringValue,
-            observationId,
-            value,
-            comment,
-          });
+      const { value, scoreId } = score;
+      if (!!field.value && !!scoreId && isPresent(value)) {
+        const validatedScore = UpdateAnnotationScoreData.parse({
+          id: scoreId,
+          projectId,
+          traceId,
+          name: score.name,
+          dataType: score.dataType,
+          configId: score.configId,
+          stringValue: score.stringValue,
+          observationId,
+          value,
+          comment,
+        });
 
-          await mutUpdateScores.mutateAsync({
-            ...validatedScore,
-          });
+        await mutUpdateScores.mutateAsync({
+          ...validatedScore,
+        });
 
-          capture(comment ? "score:update_comment" : "score:delete_comment", {
-            type: type,
-            source: source,
-          });
-        }
-      } catch (error) {
-        trpcErrorToast(error);
+        capture(comment ? "score:update_comment" : "score:delete_comment", {
+          type: type,
+          source: source,
+        });
       }
     };
   }
@@ -427,73 +410,69 @@ export function AnnotateDrawer({
     score: AnnotationScoreSchemaType;
   }): React.FocusEventHandler<HTMLInputElement> | undefined {
     return async () => {
-      try {
-        const { maxValue, minValue, dataType } = config;
+      const { maxValue, minValue, dataType } = config;
 
-        if (isNumericDataType(dataType)) {
-          const formError = getFormError({
-            value: field.value,
-            maxValue,
-            minValue,
+      if (isNumericDataType(dataType)) {
+        const formError = getFormError({
+          value: field.value,
+          maxValue,
+          minValue,
+        });
+        if (!!formError) {
+          form.setError(`scoreData.${index}.value`, formError);
+          return;
+        }
+      }
+
+      form.clearErrors(`scoreData.${index}.value`);
+
+      if (isPresent(field.value)) {
+        if (!!score.scoreId) {
+          const validatedScore = UpdateAnnotationScoreData.parse({
+            id: score.scoreId,
+            projectId,
+            traceId,
+            name: score.name,
+            dataType: score.dataType,
+            configId: score.configId,
+            stringValue: score.stringValue,
+            comment: score.comment,
+            observationId,
+            value: Number(field.value),
           });
-          if (!!formError) {
-            form.setError(`scoreData.${index}.value`, formError);
-            return;
-          }
+
+          await mutUpdateScores.mutateAsync({
+            ...validatedScore,
+          });
+
+          capture("score:update", {
+            type: type,
+            source: source,
+            dataType: score.dataType,
+          });
+        } else {
+          const validatedScore = CreateAnnotationScoreData.parse({
+            projectId,
+            traceId,
+            name: score.name,
+            dataType: score.dataType,
+            configId: score.configId,
+            stringValue: score.stringValue,
+            comment: score.comment,
+            observationId,
+            value: Number(field.value),
+          });
+
+          await mutCreateScores.mutateAsync({
+            ...validatedScore,
+          });
+
+          capture("score:create", {
+            type: type,
+            source: source,
+            dataType: score.dataType,
+          });
         }
-
-        form.clearErrors(`scoreData.${index}.value`);
-
-        if (isPresent(field.value)) {
-          if (!!score.scoreId) {
-            const validatedScore = UpdateAnnotationScoreData.parse({
-              id: score.scoreId,
-              projectId,
-              traceId,
-              name: score.name,
-              dataType: score.dataType,
-              configId: score.configId,
-              stringValue: score.stringValue,
-              comment: score.comment,
-              observationId,
-              value: Number(field.value),
-            });
-
-            await mutUpdateScores.mutateAsync({
-              ...validatedScore,
-            });
-
-            capture("score:update", {
-              type: type,
-              source: source,
-              dataType: score.dataType,
-            });
-          } else {
-            const validatedScore = CreateAnnotationScoreData.parse({
-              projectId,
-              traceId,
-              name: score.name,
-              dataType: score.dataType,
-              configId: score.configId,
-              stringValue: score.stringValue,
-              comment: score.comment,
-              observationId,
-              value: Number(field.value),
-            });
-
-            await mutCreateScores.mutateAsync({
-              ...validatedScore,
-            });
-
-            capture("score:create", {
-              type: type,
-              source: source,
-              dataType: score.dataType,
-            });
-          }
-        }
-      } catch (error) {
-        trpcErrorToast(error);
       }
     };
   }
