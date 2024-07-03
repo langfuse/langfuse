@@ -4,7 +4,6 @@ import { Prisma } from "@prisma/client";
 
 import type { ColumnDefinition } from "./tableDefinitions/types";
 import type { OrderByState } from "./interfaces/orderBy";
-import { logger } from "./server";
 
 /**
  * Convert orderBy to SQL ORDER BY clause
@@ -27,7 +26,7 @@ export function orderByToPrismaSql(
   );
 
   if (!col) {
-    logger.info("Invalid filter column", orderBy.column);
+    console.log("Invalid filter column", orderBy.column);
     throw new Error("Invalid filter column: " + orderBy.column);
   }
 
@@ -35,7 +34,7 @@ export function orderByToPrismaSql(
   const orderByOrder = z.enum(["ASC", "DESC"]);
   const order = orderByOrder.safeParse(orderBy.order);
   if (!order.success) {
-    logger.info("Invalid order", orderBy.order);
+    console.log("Invalid order", orderBy.order);
     throw new Error("Invalid order: " + orderBy.order);
   }
 
