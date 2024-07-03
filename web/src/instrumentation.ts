@@ -1,7 +1,7 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    await import("./sentry.server.config");
-    // await import("./nr-instrumentation");
+    // await import("./sentry.server.config");
+    await import("./nr-instrumentation");
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {
