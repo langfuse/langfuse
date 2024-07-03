@@ -134,7 +134,7 @@ export default async function handler(
       res,
     );
   } catch (error: unknown) {
-    console.error("error handling ingestion event", error);
+    console.error("error_handling_ingestion_event", error);
 
     if (!(error instanceof UnauthorizedError)) {
       Sentry.captureException(error);
