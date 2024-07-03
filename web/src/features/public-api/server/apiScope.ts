@@ -1,5 +1,6 @@
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 
 type Resource = {
   type: "project" | "trace" | "observation" | "score";
@@ -28,7 +29,7 @@ async function isResourceInProject(resource: Resource, projectId: string) {
     case "project":
       const projectCheck = resource.id === projectId;
       if (!projectCheck)
-        console.log("project check", projectCheck, resource.id, projectId);
+        logger.debug("project check", projectCheck, resource.id, projectId);
       return projectCheck;
 
     case "trace":
@@ -37,7 +38,7 @@ async function isResourceInProject(resource: Resource, projectId: string) {
           where: { id: resource.id, projectId },
         })) === 1;
       if (!traceCheck)
-        console.log("trace check", traceCheck, resource.id, projectId);
+        logger.debug("trace check", traceCheck, resource.id, projectId);
       return traceCheck;
 
     case "observation":
@@ -46,7 +47,7 @@ async function isResourceInProject(resource: Resource, projectId: string) {
           where: { id: resource.id, projectId },
         })) === 1;
       if (!observationCheck)
-        console.log(
+        logger.debug(
           "observation check",
           observationCheck,
           resource.id,
@@ -63,7 +64,7 @@ async function isResourceInProject(resource: Resource, projectId: string) {
           },
         })) === 1;
       if (!scoreCheck)
-        console.log("score check", scoreCheck, resource.id, projectId);
+        logger.debug("score check", scoreCheck, resource.id, projectId);
       return scoreCheck;
     default:
       return false;

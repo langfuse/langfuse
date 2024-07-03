@@ -17,6 +17,7 @@ import {
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { logger } from "@langfuse/shared/src/server";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
@@ -57,7 +58,7 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      console.log(
+      logger.info(
         "trying to create score, project ",
         authCheck.scope.projectId,
         ", body:",

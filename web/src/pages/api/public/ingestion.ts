@@ -38,6 +38,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 export const config = {
   api: {
@@ -82,7 +83,7 @@ export default async function handler(
     );
 
     if (!parsedSchema.success) {
-      console.log("Invalid request data", parsedSchema.error);
+      logger.info("Invalid request data", parsedSchema.error);
       return res.status(400).json({
         message: "Invalid request data",
         errors: parsedSchema.error.issues.map((issue) => issue.message),
@@ -153,7 +154,7 @@ export default async function handler(
       });
     }
     if (error instanceof z.ZodError) {
-      console.log(`Zod exception`, error.errors);
+      logger.error(`Zod exception`, error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
@@ -200,7 +201,7 @@ export const handleBatch = async (
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
-  console.log(`handling ingestion ${events.length} events`);
+  logger.info(`handling ingestion ${events.length} events`);
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
@@ -244,10 +245,10 @@ async function retry<T>(request: () => Promise<T>): Promise<T> {
     numOfAttempts: 3,
     retry: (e: Error, attemptNumber: number) => {
       if (e instanceof UnauthorizedError || e instanceof ForbiddenError) {
-        console.log("not retrying auth error");
+        logger.info("not retrying auth error");
         return false;
       }
-      console.log(`retrying processing events ${attemptNumber}`);
+      logger.error(`retrying processing events ${attemptNumber}`);
       return true;
     },
   });
@@ -289,7 +290,7 @@ const handleSingleEvent = async (
     const { output, ...rest } = restEvent;
     restEvent = rest;
   }
-  console.log(
+  logger.info(
     `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
   );
 
@@ -388,7 +389,7 @@ export const handleBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
-    console.log("Error processing events", returnedErrors);
+    logger.error("Error processing events", returnedErrors);
   }
 
   results.forEach((result) => {
@@ -410,7 +411,7 @@ export const handleBatchResultLegacy = (
 
   const badRequestErrors = getBadRequestError(unknownErrors);
   if (badRequestErrors.length > 0) {
-    console.log("Bad request errors", badRequestErrors);
+    logger.error("Bad request errors", badRequestErrors);
     return res.status(400).json({
       message: "Invalid request data",
       errors: badRequestErrors.map((error) => error.message),
@@ -426,7 +427,7 @@ export const handleBatchResultLegacy = (
   }
 
   if (errors.length > 0) {
-    console.log("Error processing events", unknownErrors);
+    logger.error("Error processing events", unknownErrors);
     return res.status(500).json({
       errors: ["Internal Server Error"],
     });

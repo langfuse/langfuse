@@ -4,6 +4,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { logger } from "@langfuse/shared/src/server";
 
 const GetSessionSchema = z.object({
   sessionId: z.string(),
@@ -30,7 +31,7 @@ export default async function handler(
         message: authCheck.error,
       });
     // END CHECK AUTH
-    console.log("Trying to get session:", req.body, req.query);
+    logger.info("Trying to get session:", req.body, req.query);
 
     const { sessionId } = GetSessionSchema.parse(req.query);
 

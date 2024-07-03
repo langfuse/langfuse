@@ -5,6 +5,7 @@ import {
   verifyAuthHeaderAndReturnScope,
   type AuthHeaderValidVerificationResult,
 } from "@/src/features/public-api/server/apiAuth";
+import { logger } from "@langfuse/shared/src/server";
 
 type RouteConfig<
   TQuery extends ZodType<any>,
@@ -47,7 +48,7 @@ export const createAuthedAPIRoute = <
       return;
     }
 
-    console.log(
+    logger.debug(
       "Request to route ",
       routeConfig.name,
       "projectId ",

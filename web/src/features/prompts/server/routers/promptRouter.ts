@@ -19,6 +19,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
+import { logger } from "@langfuse/shared/src/server";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -188,7 +189,7 @@ export const promptRouter = createTRPCRouter({
 
         return prompt;
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),

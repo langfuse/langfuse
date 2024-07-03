@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { jsonSchema } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { env } from "@/src/env.mjs";
 
@@ -39,7 +40,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
           transaction.request.data = JSON.stringify(jsonBody.data);
           transaction.request.data = JSON.stringify(jsonBody);
         } else {
-          console.log("Signup: Non Json Request body");
+          logger.info("Signup: Non Json Request body");
         }
 
         return transaction;

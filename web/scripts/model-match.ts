@@ -7,6 +7,7 @@ import "dotenv/config";
 
 import { findModel } from "@/src/server/api/services/EventProcessor";
 import { prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 import lodash from "lodash";
 import { tokenCount } from "@/src/features/ingest/lib/usage";
 import { type Prisma } from "@langfuse/shared/src/db";
@@ -21,7 +22,7 @@ main().catch((err) => {
 });
 
 export async function modelMatch() {
-  console.log("Starting model match");
+  logger.info("Starting model match");
   const start = Date.now();
 
   const BATCH_SIZE = 10_000;
@@ -68,7 +69,7 @@ export async function modelMatch() {
       skip: index * BATCH_SIZE,
     });
 
-    console.log(`Found ${observations.length} observations to migrate`);
+    logger.info(`Found ${observations.length} observations to migrate`);
 
     type Config = {
       startTime: Date;
@@ -109,7 +110,7 @@ export async function modelMatch() {
     )) {
       const { startTime, model, unit, projectId } = JSON.parse(key) as Config;
 
-      console.log("Execute key: ", startTime, model, unit, projectId);
+      logger.info("Execute key: ", startTime, model, unit, projectId);
 
       if (!projectId) {
         throw new Error("No project id");
@@ -119,7 +120,7 @@ export async function modelMatch() {
         event: { projectId, model, unit, startTime: startTime },
       });
 
-      console.log(
+      logger.info(
         "Found model: ",
         foundModel?.id,
         " for key: ",
@@ -138,7 +139,7 @@ export async function modelMatch() {
         );
 
         for (const observation of observationsWithAllTokensZero) {
-          console.log("Tokenizing observation: ", observation.id);
+          logger.info("Tokenizing observation: ", observation.id);
           const newInputCount = tokenCount({
             model: foundModel,
             text: observation.input,
@@ -213,32 +214,32 @@ export async function modelMatch() {
     const promiseChunk = lodash.chunk(dbPromises, 10);
 
     for (const promises of promiseChunk) {
-      console.log("Waiting for promises to complete", promises.length);
+      logger.info("Waiting for promises to complete", promises.length);
       await Promise.all(promises);
     }
 
-    console.log(
+    logger.info(
       "Updated observations count: ",
       updatedObservations,
       " in total: ",
       totalObservations,
     );
 
-    console.log(updatedObservations, observations.length);
+    logger.info(updatedObservations, observations.length);
 
     if (updatedObservations === 0) {
       index++;
     }
 
     if (observations.length === 0) {
-      console.log("No more observations to migrate");
+      logger.info("No more observations to migrate");
       continueLoop = false;
     }
   }
 
   let updatedCount;
   do {
-    console.log(`Updating LANGFUSETMPNOMODEL ${updatedCount}`);
+    logger.info(`Updating LANGFUSETMPNOMODEL ${updatedCount}`);
     const result = await prisma.$queryRaw<[{ id: string }]>`
     WITH to_update AS (
       SELECT id 
@@ -256,5 +257,5 @@ export async function modelMatch() {
 
   const end = Date.now();
 
-  console.log(`Model match took ${end - start} ms`);
+  logger.info(`Model match took ${end - start} ms`);
 }

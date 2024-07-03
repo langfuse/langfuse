@@ -15,6 +15,7 @@ import {
 } from "@/src/pages/api/public/ingestion";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { logger } from "@langfuse/shared/src/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -34,7 +35,7 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      console.log(
+      logger.info(
         "Trying to generate span, project ",
         authCheck.scope.projectId,
         ", body:",

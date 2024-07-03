@@ -13,6 +13,7 @@ import {
 } from "@/src/pages/api/public/ingestion";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { logger } from "@langfuse/shared/src/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -34,7 +35,7 @@ export default async function handler(
     });
   // END CHECK AUTH
 
-  console.log(
+  logger.info(
     "trying to create observation for event, project ",
     authCheck.scope.projectId,
     ", body:",

@@ -12,6 +12,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { stringDate } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 const ObservationsGetSchema = z.object({
   ...paginationZod,
@@ -44,7 +45,7 @@ export default async function handler(
         message: authCheck.error,
       });
     // END CHECK AUTH
-    console.log(
+    logger.info(
       "trying to get observations, project ",
       authCheck.scope.projectId,
       ", body:",

@@ -30,6 +30,7 @@ import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";
 import Decimal from "decimal.js";
+import { logger } from "@langfuse/shared/src/server";
 
 export interface EventProcessor {
   process(
@@ -508,7 +509,7 @@ export class TraceProcessor implements EventProcessor {
 
     const internalId = body.id ?? v4();
 
-    console.log(
+    logger.info(
       "Trying to create trace, project ",
       apiScope.projectId,
       ", id:",

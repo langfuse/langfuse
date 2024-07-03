@@ -3,6 +3,7 @@ import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/cre
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { getSsoAuthProviderIdForDomain } from "@langfuse/ee/sso";
 import type { NextApiRequest, NextApiResponse } from "next";
+import { logger } from "@langfuse/shared/src/server";
 
 /*
  * Sign-up endpoint (email/password users), creates user in database.
@@ -32,7 +33,7 @@ export async function signupApiHandler(
   // parse and type check the request body with zod
   const validBody = signupSchema.safeParse(req.body);
   if (!validBody.success) {
-    console.log("Signup: Invalid body", validBody.error);
+    logger.error("Signup: Invalid body", validBody.error);
     res.status(422).json({ message: validBody.error });
     return;
   }
@@ -69,7 +70,7 @@ export async function signupApiHandler(
     );
   } catch (error) {
     if (error instanceof Error) {
-      console.log(
+      logger.error(
         "Signup: Error creating user",
         error.message,
         body.email.toLowerCase(),

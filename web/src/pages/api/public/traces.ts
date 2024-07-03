@@ -14,6 +14,7 @@ import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { tracesTableCols, orderBy, orderByToPrismaSql } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { logger } from "@langfuse/shared/src/server";
 
 const GetTracesSchema = z.object({
   ...paginationZod,
@@ -51,7 +52,7 @@ export default async function handler(
 
   try {
     if (req.method === "POST") {
-      console.log(
+      logger.info(
         "Trying to create trace, project ",
         authCheck.scope.projectId,
         ", body:",

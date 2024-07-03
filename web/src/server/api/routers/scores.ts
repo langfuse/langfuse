@@ -18,6 +18,7 @@ import {
 } from "@/src/server/api/definitions/scoresTable";
 import { orderBy } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { logger } from "@langfuse/shared/src/server";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -215,7 +216,7 @@ export const scoresRouter = createTRPCRouter({
         });
         return score;
       } catch (error) {
-        console.log(error);
+        logger.error(error);
         throw error;
       }
     }),
@@ -274,7 +275,7 @@ export const scoresRouter = createTRPCRouter({
           },
         });
       } catch (error) {
-        console.log(error);
+        logger.error(error);
         throw error;
       }
     }),

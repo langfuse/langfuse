@@ -5,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
+import { logger } from "@langfuse/shared/src/server";
 
 const GetTraceSchema = z.object({
   traceId: z.string(),
@@ -31,7 +32,7 @@ export default async function handler(
         message: authCheck.error,
       });
     // END CHECK AUTH
-    console.log("Trying to get trace:", req.body, req.query);
+    logger.info("Trying to get trace:", req.body, req.query);
 
     const { traceId } = GetTraceSchema.parse(req.query);
 

@@ -1,3 +1,4 @@
+import { logger } from "@langfuse/shared/src/server";
 import { isChatModel, isTiktokenModel } from "./types";
 import { countTokens } from "@anthropic-ai/tokenizer";
 import { Model } from "@prisma/client";
@@ -150,7 +151,7 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
 
     encoding = cachedTokenizerByModel[model];
   } catch (KeyError) {
-    console.log("Warning: model not found. Using cl100k_base encoding.");
+    logger.error("Warning: model not found. Using cl100k_base encoding.");
 
     encoding = get_encoding("cl100k_base");
   }

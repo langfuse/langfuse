@@ -9,6 +9,7 @@ import {
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { TRPCError } from "@trpc/server";
+import { logger } from "@langfuse/shared/src/server";
 
 export const posthogIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -80,7 +81,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.log("posthog integration update", e);
+        logger.error("posthog integration update", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
         });
@@ -108,7 +109,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.log("posthog integration delete", e);
+        logger.error("posthog integration delete", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
         });

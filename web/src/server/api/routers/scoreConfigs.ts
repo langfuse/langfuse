@@ -8,6 +8,7 @@ import { optionalPaginationZod } from "@langfuse/shared";
 import { ScoreDataType } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { categoriesList } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 const ScoreConfigAllInput = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -51,7 +52,7 @@ export const scoreConfigsRouter = createTRPCRouter({
           totalCount: configsCount,
         };
       } catch (error) {
-        console.log(error);
+        logger.error(error);
       }
     }),
   create: protectedProjectProcedure
@@ -95,7 +96,7 @@ export const scoreConfigsRouter = createTRPCRouter({
 
         return config;
       } catch (error) {
-        console.log(error);
+        logger.error(error);
       }
     }),
   update: protectedProjectProcedure
@@ -126,7 +127,7 @@ export const scoreConfigsRouter = createTRPCRouter({
 
         return config;
       } catch (error) {
-        console.log(error);
+        logger.error(error);
       }
     }),
 });

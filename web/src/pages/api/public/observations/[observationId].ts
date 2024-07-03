@@ -5,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { isPrismaException } from "@/src/utils/exceptions";
+import { logger } from "@langfuse/shared/src/server";
 
 const GetObservationSchema = z.object({
   observationId: z.string(),
@@ -31,7 +32,7 @@ export default async function handler(
         message: authCheck.error,
       });
     // END CHECK AUTH
-    console.log("Trying to get observation:", req.body, req.query);
+    logger.info("Trying to get observation:", req.body, req.query);
 
     const { observationId } = GetObservationSchema.parse(req.query);
 

@@ -15,6 +15,7 @@ import {
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
+import { logger } from "@langfuse/shared/src/server";
 
 export function getDisplaySecretKey(secretKey: string) {
   return "..." + secretKey.slice(-4);
@@ -56,7 +57,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -183,7 +184,7 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         return { success: true };
       } catch (err) {
-        console.log(err);
+        logger.error(err);
 
         return {
           success: false,

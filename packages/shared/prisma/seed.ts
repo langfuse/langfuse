@@ -12,7 +12,7 @@ import { parseArgs } from "node:util";
 import { chunk } from "lodash";
 import { v4 } from "uuid";
 import { ModelUsageUnit } from "../src";
-import { getDisplaySecretKey, hashSecretKey } from "../src/server";
+import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { encrypt } from "../src/encryption";
 
 const LOAD_TRACE_VOLUME = 10_000;
@@ -167,8 +167,7 @@ async function main() {
       promptIds,
       configIdsAndNames
     );
-
-    console.log(
+    logger.info(
       `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
     );
 
@@ -378,7 +377,7 @@ async function uploadObjects(
 
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-      console.log(
+      logger.info(
         `Seeding of Sessions ${((i + 1) / promises.length) * 100}% complete`
       );
     await promises[i];
@@ -395,7 +394,7 @@ async function uploadObjects(
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-      console.log(
+      logger.info(
         `Seeding of Traces ${((i + 1) / promises.length) * 100}% complete`
       );
     await promises[i];
@@ -412,7 +411,7 @@ async function uploadObjects(
 
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-      console.log(
+      logger.info(
         `Seeding of Observations ${((i + 1) / promises.length) * 100}% complete`
       );
     await promises[i];
@@ -429,7 +428,7 @@ async function uploadObjects(
 
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-      console.log(
+      logger.info(
         `Seeding of Events ${((i + 1) / promises.length) * 100}% complete`
       );
     await promises[i];
@@ -445,7 +444,7 @@ async function uploadObjects(
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
-      console.log(
+      logger.info(
         `Seeding of Scores ${((i + 1) / promises.length) * 100}% complete`
       );
     await promises[i];

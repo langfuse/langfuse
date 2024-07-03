@@ -11,6 +11,7 @@ import {
   EventName,
   CreateBatchExportSchema,
 } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 export const batchExportRouter = createTRPCRouter({
@@ -26,7 +27,7 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         const { projectId, query, format, name } = input;
-        console.log(
+        logger.info(
           "[TRPC] Creating export job",
           JSON.stringify(input, null, 2),
         );

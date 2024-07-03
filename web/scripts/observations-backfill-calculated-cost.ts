@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { z } from "zod";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 
 const BackfillCalculatedGenerationArgsSchema = z
   .object({
@@ -242,7 +243,7 @@ async function updateStatementTimeout(
 }
 
 function log(message: string, ...args: any[]) {
-  console.log(new Date().toISOString(), " - ", message, ...args);
+  logger.info(new Date().toISOString(), " - ", message, ...args);
 }
 
 // Execute the script
