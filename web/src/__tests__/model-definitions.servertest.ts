@@ -131,6 +131,28 @@ describe("/models API Endpoints", () => {
     expect(customModel.status).toBe(400);
   });
 
+  it("Post model without prices or tokenizer", async () => {
+    await makeZodVerifiedAPICall(
+      PostModelsV1Response,
+      "POST",
+      "/api/public/models",
+      {
+        modelName: "gpt-3.5-turbo",
+        matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
+        unit: "TOKENS",
+      },
+    );
+  });
+
+  it("Post model with missing fields", async () => {
+    const { status } = await makeAPICall("POST", "/api/public/models", {
+      modelName: "gpt-3.5-turbo",
+      matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
+      // missing unit
+    });
+    expect(status).toBe(400);
+  });
+
   it("Post model with invalid price (input and total cost)", async () => {
     const customModel = await makeAPICall("POST", "/api/public/models", {
       modelName: "gpt-3.5-turbo",
