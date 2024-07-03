@@ -31,7 +31,6 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     instrumentationHook: true,
-    serverComponentsExternalPackages: ["pino", "pino-pretty", "pino-http"],
   },
 
   /**
