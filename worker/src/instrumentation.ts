@@ -83,7 +83,7 @@ export function initializeOtel(serviceName: string, version?: string) {
     // });
 
     logger.info("OpenTelemetry setup complete");
-    return sdk;
+    // return sdk;
   } catch (e) {
     logger.error("Error setting up OpenTelemetry", e);
     throw e;
