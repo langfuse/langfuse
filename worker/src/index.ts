@@ -1,4 +1,3 @@
-import "dd-trace/init";
 import { env } from "./env";
 import logger from "./logger";
 

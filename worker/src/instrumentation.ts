@@ -2,53 +2,7 @@ import { env } from "./env";
 
 import * as Sentry from "@sentry/node";
 
-import { SentrySpanProcessor } from "@sentry/opentelemetry-node";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import {
-  Resource,
-  envDetector,
-  hostDetector,
-  osDetector,
-  processDetector,
-} from "@opentelemetry/resources";
-import {
-  SEMRESATTRS_SERVICE_NAME,
-  SEMRESATTRS_SERVICE_VERSION,
-} from "@opentelemetry/semantic-conventions";
-import { PrismaInstrumentation } from "@prisma/instrumentation";
-import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
-import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
-import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import {
-  SentryPropagator,
-  SentrySampler,
-  setupEventContextTrace,
-  suppressTracing,
-} from "@sentry/opentelemetry";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
-import type { NodeClient } from "@sentry/node";
-
-import {
-  awsEc2Detector,
-  awsEksDetector,
-} from "@opentelemetry/resource-detector-aws";
-import {
-  ConsoleMetricExporter,
-  PeriodicExportingMetricReader,
-} from "@opentelemetry/sdk-metrics";
-import { containerDetector } from "@opentelemetry/resource-detector-container";
-import {
-  diag,
-  DiagConsoleLogger,
-  DiagLogLevel,
-  propagation,
-  trace,
-} from "@opentelemetry/api";
-
-import * as opentelemetry from "@opentelemetry/sdk-node";
 import logger from "./logger";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 export function initializeOtel(serviceName: string, version?: string) {
   try {
