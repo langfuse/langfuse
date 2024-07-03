@@ -1,4 +1,5 @@
 import { registerOTel } from "@vercel/otel";
+import { PrismaInstrumentation } from "@prisma/instrumentation";
 
 const { TracerProvider } = (await import("dd-trace")).default.init({
   logInjection: true,
@@ -8,8 +9,12 @@ const { TracerProvider } = (await import("dd-trace")).default.init({
 
 const provider = new TracerProvider();
 
-registerOTel();
+registerOTel({
+  instrumentations: [new PrismaInstrumentation()],
+});
+
 provider.register();
+
 // const sdk = new NodeSDK({
 //   resource: new Resource({
 //     [SemanticResourceAttributes.SERVICE_NAME]: "web",
