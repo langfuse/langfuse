@@ -2,7 +2,7 @@ import {
   type ModelUsageUnit,
   paginationMetaResponseZod,
   paginationZod,
-  type PrismaModel,
+  type Model as PrismaModel,
   jsonSchema,
 } from "@langfuse/shared";
 import { z } from "zod";

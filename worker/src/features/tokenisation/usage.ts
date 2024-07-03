@@ -1,6 +1,6 @@
 import { isChatModel, isTiktokenModel } from "./types";
 import { countTokens } from "@anthropic-ai/tokenizer";
-import { PrismaModel } from "@prisma/client";
+import { Model } from "@prisma/client";
 
 import {
   type TiktokenModel,
@@ -28,7 +28,7 @@ const OpenAiChatTokenConfig = z.object({
 });
 
 export function tokenCount(p: {
-  model: PrismaModel;
+  model: Model;
   text: unknown;
 }): number | undefined {
   if (
@@ -58,7 +58,7 @@ type ChatMessage = {
   content: string;
 };
 
-function openAiTokenCount(p: { model: PrismaModel; text: unknown }) {
+function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
     console.error(
