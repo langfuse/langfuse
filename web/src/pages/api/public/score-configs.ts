@@ -5,15 +5,15 @@ import { v4 } from "uuid";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  PostScoreConfigsResponse,
+  PostScoreConfigResponse,
   ScoreConfig,
-  ScoreConfigsGetResponse,
-  ScoreConfigsGetSchema,
-  ScoreConfigsPostSchema,
+  GetScoreConfigsResponse,
+  GetScoreConfigsQuery,
+  PostScoreConfigBody,
 } from "@/src/features/public-api/types/score-configs";
 import * as Sentry from "@sentry/node";
 
-const inflateConfigBody = (body: z.infer<typeof ScoreConfigsPostSchema>) => {
+const inflateConfigBody = (body: z.infer<typeof PostScoreConfigBody>) => {
   if (isBooleanDataType(body.dataType)) {
     return {
       ...body,
@@ -29,8 +29,8 @@ const inflateConfigBody = (body: z.infer<typeof ScoreConfigsPostSchema>) => {
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
     name: "Create Score Config",
-    bodySchema: ScoreConfigsPostSchema,
-    responseSchema: PostScoreConfigsResponse,
+    bodySchema: PostScoreConfigBody,
+    responseSchema: PostScoreConfigResponse,
     fn: async ({ body, auth }) => {
       const existingConfig = await prisma.scoreConfig.findFirst({
         where: {
@@ -62,8 +62,8 @@ export default withMiddlewares({
   }),
   GET: createAuthedAPIRoute({
     name: "Get Score Configs",
-    querySchema: ScoreConfigsGetSchema,
-    responseSchema: ScoreConfigsGetResponse,
+    querySchema: GetScoreConfigsQuery,
+    responseSchema: GetScoreConfigsResponse,
     fn: async ({ query, auth }) => {
       const { page, limit } = query;
       const rawConfigs = await prisma.scoreConfig.findMany({

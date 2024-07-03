@@ -12,8 +12,8 @@ import {
 } from "@langfuse/shared/src/db";
 import {
   GetScoreConfigResponse,
-  PostScoreConfigsResponse,
-  ScoreConfigsGetResponse,
+  PostScoreConfigResponse,
+  GetScoreConfigsResponse,
 } from "@/src/features/public-api/types/score-configs";
 
 const configOne = [
@@ -97,7 +97,7 @@ describe("/api/public/score-configs API Endpoint", () => {
 
   it("should GET all score configs", async () => {
     const fetchedConfigs = await makeZodVerifiedAPICall(
-      ScoreConfigsGetResponse,
+      GetScoreConfigsResponse,
       "GET",
       `/api/public/score-configs?limit=50&page=1`,
     );
@@ -157,7 +157,7 @@ describe("/api/public/score-configs API Endpoint", () => {
 
   it("should POST a numeric score config", async () => {
     const postScoreConfig = await makeZodVerifiedAPICall(
-      PostScoreConfigsResponse,
+      PostScoreConfigResponse,
       "POST",
       "/api/public/score-configs",
       {
@@ -182,7 +182,7 @@ describe("/api/public/score-configs API Endpoint", () => {
 
   it("should POST a boolean score config", async () => {
     const postScoreConfig = await makeZodVerifiedAPICall(
-      PostScoreConfigsResponse,
+      PostScoreConfigResponse,
       "POST",
       "/api/public/score-configs",
       {
@@ -209,7 +209,7 @@ describe("/api/public/score-configs API Endpoint", () => {
 
   it("should POST a categorical score config", async () => {
     const postScoreConfig = await makeZodVerifiedAPICall(
-      PostScoreConfigsResponse,
+      PostScoreConfigResponse,
       "POST",
       "/api/public/score-configs",
       {

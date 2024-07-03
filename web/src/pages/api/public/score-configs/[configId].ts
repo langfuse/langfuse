@@ -3,7 +3,7 @@ import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  GetScoreConfigBody,
+  GetScoreConfigQuery,
   GetScoreConfigResponse,
 } from "@/src/features/public-api/types/score-configs";
 import * as Sentry from "@sentry/node";
@@ -11,7 +11,7 @@ import * as Sentry from "@sentry/node";
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
     name: "Get a Score Config",
-    querySchema: GetScoreConfigBody,
+    querySchema: GetScoreConfigQuery,
     responseSchema: GetScoreConfigResponse,
     fn: async ({ query, auth }) => {
       const config = await prisma.scoreConfig.findUnique({

@@ -125,14 +125,14 @@ export const ScoreConfig = z
  */
 
 // GET /score-configs/{configId}
-export const GetScoreConfigBody = z.object({
+export const GetScoreConfigQuery = z.object({
   configId: z.string(),
 });
 
 export const GetScoreConfigResponse = ScoreConfig;
 
 // POST /score-configs
-export const ScoreConfigsPostSchema = z
+export const PostScoreConfigBody = z
   .union([
     ScoreConfigPostBase.merge(CategoricalScoreConfig),
     ScoreConfigPostBase.merge(NumericScoreConfig),
@@ -158,14 +158,14 @@ export const ScoreConfigsPostSchema = z
     }
   });
 
-export const PostScoreConfigsResponse = ScoreConfig;
+export const PostScoreConfigResponse = ScoreConfig;
 
 // GET /score-configs
-export const ScoreConfigsGetSchema = z.object({
+export const GetScoreConfigsQuery = z.object({
   ...paginationZod,
 });
 
-export const ScoreConfigsGetResponse = z.object({
+export const GetScoreConfigsResponse = z.object({
   data: z.array(ScoreConfig),
   meta: paginationMetaResponseZod,
 });
