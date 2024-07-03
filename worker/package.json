@@ -43,8 +43,6 @@
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "@prisma/instrumentation": "^5.16.1",
     "@sentry/node": "^8.13.0",
-    "@sentry/opentelemetry": "^8.13.0",
-    "@sentry/opentelemetry-node": "^7.114.0",
     "@sentry/profiling-node": "^8.13.0",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
