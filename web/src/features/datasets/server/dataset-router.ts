@@ -4,6 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import * as Sentry from "@sentry/node";
 import {
   type DatasetRuns,
   Prisma,
@@ -13,9 +14,9 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import {
-  ScoreUnion,
   type ValidatedScore,
   paginationZod,
+  ValidatedScoreSchema,
 } from "@langfuse/shared";
 
 export const datasetRouter = createTRPCRouter({
@@ -626,17 +627,21 @@ export const datasetRouter = createTRPCRouter({
       );
 
       const validatedTraceScores = traceScores.reduce((acc, ts) => {
-        const result = ScoreUnion.safeParse(ts);
+        const result = ValidatedScoreSchema.safeParse(ts);
         if (result.success) {
           acc.push(result.data);
+        } else {
+          Sentry.captureException(result.error);
         }
         return acc;
       }, [] as ValidatedScore[]);
 
       const validatedObservationScores = observationScores.reduce((acc, os) => {
-        const result = ScoreUnion.safeParse(os);
+        const result = ValidatedScoreSchema.safeParse(os);
         if (result.success) {
           acc.push(result.data);
+        } else {
+          Sentry.captureException(result.error);
         }
         return acc;
       }, [] as ValidatedScore[]);

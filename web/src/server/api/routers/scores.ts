@@ -8,7 +8,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
 import {
   CreateAnnotationScoreData,
-  ScoreUnion,
+  ValidatedScoreSchema,
   UpdateAnnotationScoreData,
   paginationZod,
 } from "@langfuse/shared";
@@ -177,7 +177,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
           },
         });
-        return ScoreUnion.parse(updatedScore);
+        return ValidatedScoreSchema.parse(updatedScore);
       }
 
       const score = await ctx.prisma.score.create({
@@ -207,7 +207,7 @@ export const scoresRouter = createTRPCRouter({
         action: "create",
         after: score,
       });
-      return ScoreUnion.parse(score);
+      return ValidatedScoreSchema.parse(score);
     }),
   updateAnnotationScore: protectedProjectProcedure
     .input(UpdateAnnotationScoreData)
@@ -252,7 +252,7 @@ export const scoresRouter = createTRPCRouter({
           authorUserId: ctx.session.user.id,
         },
       });
-      return ScoreUnion.parse(updatedScore);
+      return ValidatedScoreSchema.parse(updatedScore);
     }),
   deleteAnnotationScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))

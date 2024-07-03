@@ -8,7 +8,7 @@ import {
   singleFilter,
   type SessionOptions,
   getSessionTableSQL,
-  ScoreUnion,
+  ValidatedScoreSchema,
   type ValidatedScore,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
@@ -139,7 +139,7 @@ export const sessionRouter = createTRPCRouter({
         });
 
         const validatedScores = scores.reduce((acc, score) => {
-          const result = ScoreUnion.safeParse(score);
+          const result = ValidatedScoreSchema.safeParse(score);
           if (result.success) {
             acc.push(result.data);
           }

@@ -63,13 +63,13 @@ const ScoreBase = z.object({
   updatedAt: z.coerce.date(),
 });
 
-const Score = z.discriminatedUnion("dataType", [
+export const ValidatedScoreSchema = z.discriminatedUnion("dataType", [
   ScoreBase.merge(NumericData),
   ScoreBase.merge(CategoricalData),
   ScoreBase.merge(BooleanData),
 ]);
 
-export type ValidatedScore = z.infer<typeof Score>;
+export type ValidatedScore = z.infer<typeof ValidatedScoreSchema>;
 
 const CreateAnnotationScoreBase = z.object({
   name: z.string(),

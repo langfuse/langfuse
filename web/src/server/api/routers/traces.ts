@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared/src/db";
 import {
   type ValidatedScore,
-  ScoreUnion,
+  ValidatedScoreSchema,
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
@@ -153,7 +153,7 @@ export const traceRouter = createTRPCRouter({
         },
       });
       const validatedScores = scores.reduce((acc, score) => {
-        const result = ScoreUnion.safeParse(score);
+        const result = ValidatedScoreSchema.safeParse(score);
         if (result.success) {
           acc.push(result.data);
         }
@@ -311,7 +311,7 @@ export const traceRouter = createTRPCRouter({
         },
       });
       const validatedScores = scores.reduce((acc, score) => {
-        const result = ScoreUnion.safeParse(score);
+        const result = ValidatedScoreSchema.safeParse(score);
         if (result.success) {
           acc.push(result.data);
         }
