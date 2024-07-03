@@ -25,7 +25,6 @@ import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
-  type Prisma,
   type ObservationLevel,
   type FilterState,
   type ObservationOptions,
