@@ -9,6 +9,7 @@ import {
 import { paginationZod } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
@@ -119,11 +120,12 @@ export const modelRouter = createTRPCRouter({
 
       // Check if regex is valid POSIX regex
       // Use DB to check, because JS regex is not POSIX compliant
-      try {
-        await ctx.prisma.$queryRaw(
-          Prisma.sql`SELECT 'test_string' ~ ${input.matchPattern}`,
-        );
-      } catch (error) {
+
+      const isValidRegex = await isValidPostgresRegex(
+        input.matchPattern,
+        ctx.prisma,
+      );
+      if (!isValidRegex) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Invalid regex, needs to be Postgres syntax",
