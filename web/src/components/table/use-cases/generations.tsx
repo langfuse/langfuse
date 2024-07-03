@@ -32,7 +32,7 @@ import {
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   exportOptions,
   type BatchExportFileFormat,
@@ -454,7 +454,7 @@ export default function GenerationsTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.promptTokens}</span>;
+        return <span>{numberFormatter(value.promptTokens, 0)}</span>;
       },
     },
     {
@@ -470,7 +470,7 @@ export default function GenerationsTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.completionTokens}</span>;
+        return <span>{numberFormatter(value.completionTokens, 0)}</span>;
       },
     },
     {
@@ -486,7 +486,7 @@ export default function GenerationsTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.totalTokens}</span>;
+        return <span>{numberFormatter(value.totalTokens, 0)}</span>;
       },
     },
     {
