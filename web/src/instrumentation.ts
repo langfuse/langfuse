@@ -7,6 +7,7 @@ export async function register() {
       logInjection: true,
       runtimeMetrics: true,
     });
+    tracer.use("next");
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {
