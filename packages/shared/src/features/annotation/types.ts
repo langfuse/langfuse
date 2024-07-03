@@ -1,7 +1,7 @@
 import z from "zod";
 import { type ScoreDataType, type ScoreSource } from "../../db";
 
-const configCategory = z.object({
+export const Category = z.object({
   label: z.string().min(1),
   value: z.number(),
 });
@@ -17,14 +17,12 @@ const ANNOTATION: ScoreSource = "ANNOTATION";
 export const availableDataTypes = [NUMERIC, CATEGORICAL, BOOLEAN] as const;
 const availableSources = [API, EVAL, ANNOTATION] as const;
 
-export type ConfigCategory = z.infer<typeof configCategory>;
-
 export const createConfigSchema = z.object({
   name: z.string().min(1).max(35),
   dataType: z.enum(availableDataTypes),
   minValue: z.coerce.number().optional(),
   maxValue: z.coerce.number().optional(),
-  categories: z.array(configCategory).optional(),
+  categories: z.array(Category).optional(),
   description: z.string().optional(),
 });
 

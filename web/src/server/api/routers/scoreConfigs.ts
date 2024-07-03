@@ -7,7 +7,7 @@ import { optionalPaginationZod } from "@langfuse/shared";
 
 import { ScoreDataType } from "@langfuse/shared/src/db";
 import { z } from "zod";
-import { categoriesList } from "@langfuse/shared";
+import { Category } from "@langfuse/shared";
 
 const ScoreConfigAllInput = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -62,7 +62,7 @@ export const scoreConfigsRouter = createTRPCRouter({
         dataType: z.nativeEnum(ScoreDataType),
         minValue: z.number().optional(),
         maxValue: z.number().optional(),
-        categories: categoriesList.optional(),
+        categories: z.array(Category).optional(),
         description: z.string().optional(),
       }),
     )
