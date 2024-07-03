@@ -1,14 +1,14 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import * as Sentry from "@sentry/node";
 import {
   DeleteScoreQuery,
   DeleteScoreResponse,
   GetScoreQuery,
   GetScoreResponse,
 } from "@/src/features/public-api/types/scores";
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { ZodError } from "zod";
+import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -29,13 +29,14 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Score not found");
       }
 
-      const validatedScore = GetScoreResponse.safeParse(score);
+      const parsedScore = GetScoreResponse.safeParse(score);
 
-      if (!validatedScore.success) {
-        throw new ZodError(validatedScore.error.errors); // figure out if the right one
+      if (!parsedScore.success) {
+        Sentry.captureException(parsedScore.error);
+        throw new ApiError("Requested config is corrupted");
       }
 
-      return validatedScore.data;
+      return parsedScore.data;
     },
   }),
   DELETE: createAuthedAPIRoute({

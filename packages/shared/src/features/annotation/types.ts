@@ -1,5 +1,5 @@
 import z from "zod";
-import { type ScoreDataType } from "../../db";
+import { type ScoreDataType, type ScoreSource } from "../../db";
 
 const configCategory = z.object({
   label: z.string().min(1),
@@ -10,7 +10,12 @@ const NUMERIC: ScoreDataType = "NUMERIC";
 const CATEGORICAL: ScoreDataType = "CATEGORICAL";
 const BOOLEAN: ScoreDataType = "BOOLEAN";
 
+const API: ScoreSource = "API";
+const EVAL: ScoreSource = "EVAL";
+const ANNOTATION: ScoreSource = "ANNOTATION";
+
 const availableDataTypes = [NUMERIC, CATEGORICAL, BOOLEAN] as const;
+const availableSources = [API, EVAL, ANNOTATION] as const;
 
 export type ConfigCategory = z.infer<typeof configCategory>;
 
@@ -42,6 +47,29 @@ const BooleanData = z.object({
   stringValue: z.string(),
   dataType: z.literal("BOOLEAN"),
 });
+
+const ScoreBase = z.object({
+  id: z.string(),
+  timestamp: z.coerce.date(),
+  projectId: z.string(),
+  name: z.string(),
+  source: z.enum(availableSources),
+  authorUserId: z.string().nullish(),
+  comment: z.string().nullish(),
+  traceId: z.string(),
+  observationId: z.string().nullish(),
+  configId: z.string().nullish(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+const Score = z.discriminatedUnion("dataType", [
+  ScoreBase.merge(NumericData),
+  ScoreBase.merge(CategoricalData),
+  ScoreBase.merge(BooleanData),
+]);
+
+export type ValidatedScore = z.infer<typeof Score>;
 
 const CreateAnnotationScoreBase = z.object({
   name: z.string(),

@@ -123,6 +123,7 @@ export const ScoreConfig = z
     }
   });
 
+// I need this type on the frontend as well, how to best handle
 const ValidatedScoreConfig = z.union([
   ScoreConfigBase.merge(NumericScoreConfig),
   ScoreConfigBase.merge(

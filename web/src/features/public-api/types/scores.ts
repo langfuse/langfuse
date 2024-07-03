@@ -38,9 +38,9 @@ const BooleanData = z.object({
   dataType: z.literal(ScoreDataType.BOOLEAN),
 });
 
-const ScoreBase = z.object({
+const GetScoreBase = z.object({
   id: z.string(),
-  timestamp: z.union([stringDate, z.date()]),
+  timestamp: z.coerce.date(),
   projectId: z.string(),
   name: z.string(),
   source: z.nativeEnum(ScoreSource),
@@ -49,15 +49,9 @@ const ScoreBase = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   configId: z.string().nullish(),
-  createdAt: z.union([stringDate, z.date()]),
-  updatedAt: z.union([stringDate, z.date()]),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
 });
-
-const Score = z.discriminatedUnion("dataType", [
-  ScoreBase.merge(NumericData),
-  ScoreBase.merge(CategoricalData),
-  ScoreBase.merge(BooleanData),
-]);
 
 const BaseScoreBody = z.object({
   id: z.string().nullish(),
@@ -67,9 +61,9 @@ const BaseScoreBody = z.object({
   comment: z.string().nullish(),
 });
 
-const GetAllScoresBase = z.object({
+const GetScoresDataBase = z.object({
   id: z.string(),
-  timestamp: z.union([stringDate, z.date()]),
+  timestamp: z.coerce.date(),
   name: z.string(),
   source: z.nativeEnum(ScoreSource),
   comment: z.string().nullish(),
@@ -81,13 +75,13 @@ const GetAllScoresBase = z.object({
   configId: z.string().nullish(),
 });
 
-export const GetAllScores = z.discriminatedUnion("dataType", [
-  GetAllScoresBase.merge(NumericData),
-  GetAllScoresBase.merge(CategoricalData),
-  GetAllScoresBase.merge(BooleanData),
+export const GetScoresData = z.discriminatedUnion("dataType", [
+  GetScoresDataBase.merge(NumericData),
+  GetScoresDataBase.merge(CategoricalData),
+  GetScoresDataBase.merge(BooleanData),
 ]);
 
-export type GetScores = z.infer<typeof GetAllScores>;
+export type ValidatedGetScoresData = z.infer<typeof GetScoresData>;
 
 /**
  * Validation objects
@@ -224,7 +218,7 @@ export const GetScoresQuery = z.object({
 });
 
 export const GetScoresResponse = z.object({
-  data: z.array(GetAllScores),
+  data: z.array(GetScoresData),
   meta: paginationMetaResponseZod,
 });
 
@@ -233,7 +227,11 @@ export const GetScoreQuery = z.object({
   scoreId: z.string(),
 });
 
-export const GetScoreResponse = Score;
+export const GetScoreResponse = z.discriminatedUnion("dataType", [
+  GetScoreBase.merge(NumericData),
+  GetScoreBase.merge(CategoricalData),
+  GetScoreBase.merge(BooleanData),
+]);
 
 // DELETE /scores/{scoreId}
 export const DeleteScoreQuery = z.object({

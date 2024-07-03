@@ -1,6 +1,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared/src/db";
 import { eventTypes, ingestionBatchEvent } from "@langfuse/shared";
+import * as Sentry from "@sentry/node";
 import { v4 } from "uuid";
 import {
   handleBatch,
@@ -9,12 +10,12 @@ import {
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  type GetScores,
+  GetScoresData,
   GetScoresQuery,
   GetScoresResponse,
   PostScoresBody,
   PostScoresResponse,
-  GetAllScores,
+  type ValidatedGetScoresData,
 } from "@/src/features/public-api/types/scores";
 
 export default withMiddlewares({
@@ -80,7 +81,9 @@ export default withMiddlewares({
         ? Prisma.sql`AND s."id" = ANY(${scoreIds})`
         : Prisma.empty;
 
-      const scores = await prisma.$queryRaw<Array<GetScores>>(Prisma.sql`
+      const scores = await prisma.$queryRaw<
+        Array<ValidatedGetScoresData>
+      >(Prisma.sql`
           SELECT
             s.id,
             s.timestamp,
@@ -125,12 +128,14 @@ export default withMiddlewares({
       );
 
       const validatedScores = scores.reduce((acc, score) => {
-        const result = GetAllScores.safeParse(score);
+        const result = GetScoresData.safeParse(score);
         if (result.success) {
           acc.push(result.data);
+        } else {
+          Sentry.captureException(result.error);
         }
         return acc;
-      }, [] as GetScores[]);
+      }, [] as ValidatedGetScoresData[]);
 
       const totalItems =
         totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
