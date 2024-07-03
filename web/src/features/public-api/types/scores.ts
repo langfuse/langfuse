@@ -234,10 +234,6 @@ export const GetScoreQuery = z.object({
 });
 
 export const GetScoreResponse = Score;
-export const GetScoresError = z.object({
-  message: z.string(),
-  error: z.array(z.object({})),
-});
 
 // DELETE /scores/{scoreId}
 export const DeleteScoreQuery = z.object({

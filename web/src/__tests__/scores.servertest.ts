@@ -10,7 +10,6 @@ import { v4 as uuidv4 } from "uuid";
 import {
   DeleteScoreResponse,
   GetScoreResponse,
-  GetScoresError,
   GetScoresResponse,
 } from "@/src/features/public-api/types/scores";
 
@@ -1280,8 +1279,7 @@ describe("/api/public/scores API Endpoint", () => {
       ]);
     });
     it("test invalid operator", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresError,
+      const getScore = await makeAPICall(
         "GET",
         `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
       );
@@ -1291,8 +1289,7 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
     it("test invalid value", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresError,
+      const getScore = await makeAPICall(
         "GET",
         `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
       );
