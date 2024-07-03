@@ -1,12 +1,20 @@
 /** @jest-environment node */
 
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+  pruneDatabase,
+} from "@/src/__tests__/test-utils";
 import {
   type ScoreConfig,
   ScoreDataType,
   prisma,
 } from "@langfuse/shared/src/db";
-import { type CastedConfig } from "@langfuse/shared";
+import {
+  GetScoreConfigResponse,
+  PostScoreConfigsResponse,
+  ScoreConfigsGetResponse,
+} from "@/src/features/public-api/types/score-configs";
 
 const configOne = [
   {
@@ -15,8 +23,8 @@ const configOne = [
     description: "Test Description",
     dataType: ScoreDataType.BOOLEAN,
     categories: [
-      { label: "False", value: 0 },
       { label: "True", value: 1 },
+      { label: "False", value: 0 },
     ],
     createdAt: new Date("2024-05-10T00:00:00.000Z"),
     updatedAt: new Date("2024-05-10T00:00:00.000Z"),
@@ -72,9 +80,11 @@ describe("/api/public/score-configs API Endpoint", () => {
       },
     })) as ScoreConfig;
 
-    const getScoreConfig = await makeAPICall<{
-      id: string;
-    }>("GET", `/api/public/score-configs/${configId}`);
+    const getScoreConfig = await makeZodVerifiedAPICall(
+      GetScoreConfigResponse,
+      "GET",
+      `/api/public/score-configs/${configId}`,
+    );
 
     expect(getScoreConfig.status).toBe(200);
     expect(getScoreConfig.body).toMatchObject({
@@ -86,10 +96,11 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should GET all score configs", async () => {
-    const fetchedConfigs = await makeAPICall<{
-      data: CastedConfig[];
-      meta: object;
-    }>("GET", `/api/public/score-configs?limit=50&page=1`);
+    const fetchedConfigs = await makeZodVerifiedAPICall(
+      ScoreConfigsGetResponse,
+      "GET",
+      `/api/public/score-configs?limit=50&page=1`,
+    );
 
     expect(fetchedConfigs.status).toBe(200);
     expect(fetchedConfigs.body.meta).toMatchObject({
@@ -111,9 +122,10 @@ describe("/api/public/score-configs API Endpoint", () => {
   it("test invalid config id input", async () => {
     const configId = "invalid-config-id";
 
-    const getScoreConfig = await makeAPICall<{
-      message: string;
-    }>("GET", `/api/public/score-configs/${configId}`);
+    const getScoreConfig = await makeAPICall(
+      "GET",
+      `/api/public/score-configs/${configId}`,
+    );
 
     expect(getScoreConfig.status).toBe(404);
     expect(getScoreConfig.body).toMatchObject({
@@ -132,18 +144,20 @@ describe("/api/public/score-configs API Endpoint", () => {
       },
     });
 
-    const getScoreConfig = await makeAPICall<{
-      message: string;
-    }>("GET", `/api/public/score-configs/${configId}`);
+    const getScoreConfig = await makeAPICall(
+      "GET",
+      `/api/public/score-configs/${configId}`,
+    );
 
     expect(getScoreConfig.status).toBe(500);
     expect(getScoreConfig.body).toMatchObject({
-      message: "Internal Server Error",
+      message: "Requested config is corrupted",
     });
   });
 
   it("should POST a numeric score config", async () => {
-    const postScoreConfig = await makeAPICall(
+    const postScoreConfig = await makeZodVerifiedAPICall(
+      PostScoreConfigsResponse,
       "POST",
       "/api/public/score-configs",
       {
@@ -159,7 +173,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       },
     });
 
-    expect(postScoreConfig.status).toBe(201);
+    expect(postScoreConfig.status).toBe(200);
     expect(dbScoreConfig.length).toBeGreaterThan(0);
     expect(dbScoreConfig[0]?.name).toBe("numeric-config-name");
     expect(dbScoreConfig[0]?.dataType).toBe(ScoreDataType.NUMERIC);
@@ -167,7 +181,8 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should POST a boolean score config", async () => {
-    const postScoreConfig = await makeAPICall(
+    const postScoreConfig = await makeZodVerifiedAPICall(
+      PostScoreConfigsResponse,
       "POST",
       "/api/public/score-configs",
       {
@@ -182,7 +197,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       },
     });
 
-    expect(postScoreConfig.status).toBe(201);
+    expect(postScoreConfig.status).toBe(200);
     expect(dbScoreConfig.length).toBeGreaterThan(0);
     expect(dbScoreConfig[0]?.name).toBe("boolean-config-name");
     expect(dbScoreConfig[0]?.dataType).toBe(ScoreDataType.BOOLEAN);
@@ -193,7 +208,8 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should POST a categorical score config", async () => {
-    const postScoreConfig = await makeAPICall(
+    const postScoreConfig = await makeZodVerifiedAPICall(
+      PostScoreConfigsResponse,
       "POST",
       "/api/public/score-configs",
       {
@@ -212,7 +228,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       },
     });
 
-    expect(postScoreConfig.status).toBe(201);
+    expect(postScoreConfig.status).toBe(200);
     expect(dbScoreConfig.length).toBeGreaterThan(0);
     expect(dbScoreConfig[0]?.name).toBe("categorical-config-name");
     expect(dbScoreConfig[0]?.dataType).toBe(ScoreDataType.CATEGORICAL);
@@ -237,7 +253,13 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(400);
     expect(postScoreConfig.body).toMatchObject({
       message: "Invalid request data",
-      error: "Maximum value must be greater than Minimum value.",
+      error: [
+        {
+          code: "custom",
+          message: "Maximum value must be greater than Minimum value",
+          path: [],
+        },
+      ],
     });
   });
 
@@ -258,8 +280,6 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(400);
     expect(postScoreConfig.body).toMatchObject({
       message: "Invalid request data",
-      error:
-        "Custom categories are only allowed for categorical data types and will be autogenerated for boolean data types.",
     });
   });
 
@@ -276,7 +296,6 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(400);
     expect(postScoreConfig.body).toMatchObject({
       message: "Invalid request data",
-      error: "At least one category is required for categorical data types.",
     });
   });
 
@@ -297,8 +316,14 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(400);
     expect(postScoreConfig.body).toMatchObject({
       message: "Invalid request data",
-      error:
-        "Invalid categories format, must be an array of objects with label and value keys.",
+      error: [
+        {
+          code: "custom",
+          message:
+            "Category must be an array of objects with label value pairs, where labels and values are unique.",
+          path: ["categories"],
+        },
+      ],
     });
   });
 
@@ -319,7 +344,14 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(400);
     expect(postScoreConfig.body).toMatchObject({
       message: "Invalid request data",
-      error: "Category names must be unique.",
+      error: [
+        {
+          code: "custom",
+          message:
+            "Category must be an array of objects with label value pairs, where labels and values are unique.",
+          path: ["categories"],
+        },
+      ],
     });
   });
 
@@ -340,7 +372,14 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(400);
     expect(postScoreConfig.body).toMatchObject({
       message: "Invalid request data",
-      error: "Category values must be unique.",
+      error: [
+        {
+          code: "custom",
+          message:
+            "Category must be an array of objects with label value pairs, where labels and values are unique.",
+          path: ["categories"],
+        },
+      ],
     });
   });
 });
