@@ -1,10 +1,4 @@
-import {
-  type ScoreConfig,
-  ScoreDataType,
-  type CastedConfig,
-  type CreateConfig,
-  type ConfigCategory,
-} from "@langfuse/shared";
+import { ScoreDataType, type CreateConfig } from "@langfuse/shared";
 
 export const isNumericDataType = (dataType: ScoreDataType) =>
   dataType === ScoreDataType.NUMERIC;
@@ -19,23 +13,6 @@ export const isPresent = <T>(value: T): value is NonNullable<T> =>
   value !== null && value !== undefined && value !== "";
 
 export const isScoreUnsaved = (scoreId?: string): boolean => !scoreId;
-
-export const isCastedConfigCategory = (
-  categories: ScoreConfig["categories"],
-): categories is ConfigCategory =>
-  categories === null ||
-  (Array.isArray(categories) &&
-    categories.every(
-      (category) =>
-        category !== null &&
-        typeof category === "object" &&
-        "label" in category &&
-        "value" in category,
-    ));
-
-export const isCastedConfig = (config: ScoreConfig): config is CastedConfig => {
-  return isCastedConfigCategory(config.categories);
-};
 
 export const validateScoreConfig = (values: CreateConfig): string | null => {
   const { dataType, maxValue, minValue, categories } = values;

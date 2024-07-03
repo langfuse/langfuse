@@ -348,7 +348,7 @@ describe("/api/public/score-configs API Endpoint", () => {
         {
           code: "custom",
           message:
-            "Category must be an array of objects with label value pairs, where labels and values are unique.",
+            "Duplicate category label: first, category labels must be unique",
           path: ["categories"],
         },
       ],
@@ -376,7 +376,7 @@ describe("/api/public/score-configs API Endpoint", () => {
         {
           code: "custom",
           message:
-            "Category must be an array of objects with label value pairs, where labels and values are unique.",
+            "Duplicate category value: 1, category values must be unique",
           path: ["categories"],
         },
       ],

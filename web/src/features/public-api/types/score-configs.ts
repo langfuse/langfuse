@@ -31,37 +31,40 @@ const CategoricalScoreConfig = z.object({
   maxValue: z.undefined().nullish(),
   minValue: z.undefined().nullish(),
   dataType: z.literal("CATEGORICAL"),
-  categories: jsonSchema.refine(
-    (categories) => {
-      if (!Array.isArray(categories)) {
-        return false;
+  categories: jsonSchema.superRefine((categories, ctx) => {
+    const parseResult = Categories.safeParse(categories);
+    if (!parseResult.success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Category must be an array of objects with label value pairs, where labels and values are unique.",
+      });
+      return;
+    }
+
+    const uniqueNames = new Set<string>();
+    const uniqueValues = new Set<number>();
+
+    for (const category of categories as ConfigCategory[]) {
+      if (uniqueNames.has(category.label)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate category label: ${category.label}, category labels must be unique`,
+        });
+        return;
       }
+      uniqueNames.add(category.label);
 
-      if (!Categories.safeParse(categories).success) {
-        return false;
+      if (uniqueValues.has(category.value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate category value: ${category.value}, category values must be unique`,
+        });
+        return;
       }
-
-      const uniqueNames = new Set<string>();
-      const uniqueValues = new Set<number>();
-
-      for (const category of categories as ConfigCategory[]) {
-        if (uniqueNames.has(category.label)) {
-          return false;
-        }
-        uniqueNames.add(category.label);
-
-        if (uniqueValues.has(category.value)) {
-          return false;
-        }
-        uniqueValues.add(category.value);
-      }
-      return true;
-    },
-    {
-      message:
-        "Category must be an array of objects with label value pairs, where labels and values are unique.",
-    },
-  ),
+      uniqueValues.add(category.value);
+    }
+  }),
 });
 
 const BooleanScoreConfig = z.object({
@@ -119,6 +122,21 @@ export const ScoreConfig = z
       }
     }
   });
+
+const ValidatedScoreConfig = z.union([
+  ScoreConfigBase.merge(NumericScoreConfig),
+  ScoreConfigBase.merge(
+    z.object({
+      maxValue: z.undefined().nullish(),
+      minValue: z.undefined().nullish(),
+      dataType: z.literal("CATEGORICAL"),
+      categories: Categories,
+    }),
+  ),
+  ScoreConfigBase.merge(BooleanScoreConfig),
+]);
+
+export type ValidatedScoreConfig = z.infer<typeof ValidatedScoreConfig>;
 
 /**
  * Endpoints

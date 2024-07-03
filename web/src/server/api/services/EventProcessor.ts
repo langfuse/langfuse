@@ -14,7 +14,6 @@ import {
   type traceEvent,
   LangfuseNotFoundError,
   InvalidRequestError,
-  type CastedConfig,
 } from "@langfuse/shared";
 import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
@@ -33,11 +32,14 @@ import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";
 import Decimal from "decimal.js";
-import { isCastedConfig } from "@/src/features/manual-scoring/lib/helpers";
 import {
   ScoreBodyWithoutConfig,
   ScorePropsAgainstConfig,
 } from "@/src/features/public-api/types/scores";
+import {
+  ScoreConfig,
+  type ValidatedScoreConfig,
+} from "@/src/features/public-api/types/score-configs";
 
 export interface EventProcessor {
   process(
@@ -621,7 +623,7 @@ export class ScoreProcessor implements EventProcessor {
   }
 
   static mapStringValueToNumericValue(
-    config: CastedConfig,
+    config: ValidatedScoreConfig,
     label: string,
   ): number | null {
     return (
@@ -634,7 +636,7 @@ export class ScoreProcessor implements EventProcessor {
     body: any,
     id: string,
     projectId: string,
-    config?: CastedConfig,
+    config?: ValidatedScoreConfig,
   ): Score {
     const relevantDataType = config?.dataType ?? body.dataType;
     const scoreProps = { ...body, id, projectId, source: "API" };
@@ -665,7 +667,7 @@ export class ScoreProcessor implements EventProcessor {
     };
   }
 
-  validateConfigAgainstBody(body: any, config: CastedConfig): void {
+  validateConfigAgainstBody(body: any, config: ValidatedScoreConfig): void {
     const { maxValue, minValue, categories, dataType: configDataType } = config;
     if (body.dataType && body.dataType !== configDataType) {
       throw new InvalidRequestError(
@@ -727,14 +729,18 @@ export class ScoreProcessor implements EventProcessor {
         },
       });
 
-      if (!config || !isCastedConfig(config))
-        // FIX do better than casted config, use zod instead
+      if (!config || !ScoreConfig.safeParse(config).success)
         throw new LangfuseNotFoundError(
           "The configId you provided does not match a valid config in this project",
         );
 
-      this.validateConfigAgainstBody(body, config);
-      return ScoreProcessor.inflateScoreBody(body, id, projectId, config);
+      this.validateConfigAgainstBody(body, config as ValidatedScoreConfig);
+      return ScoreProcessor.inflateScoreBody(
+        body,
+        id,
+        projectId,
+        config as ValidatedScoreConfig,
+      );
     } else {
       const validation = ScoreBodyWithoutConfig.safeParse({
         ...body,
