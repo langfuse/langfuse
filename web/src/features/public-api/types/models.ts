@@ -22,7 +22,7 @@ const ModelDefinition = z.object({
   unit: z.enum(["TOKENS", "CHARACTERS", "MILLISECONDS", "SECONDS", "IMAGES"]),
   tokenizerId: z.string().nullable(),
   tokenizerConfig: z.any(), // Assuming Prisma.JsonValue is any type
-  type: z.enum(["built-in", "custom"]),
+  isLangfuseManaged: z.boolean(),
   createdAt: z.coerce.date(),
 });
 
@@ -46,7 +46,7 @@ export function prismaToApiModelDefinition({
     inputPrice: inputPrice?.toNumber() ?? null,
     outputPrice: outputPrice?.toNumber() ?? null,
     totalPrice: totalPrice?.toNumber() ?? null,
-    type: projectId ? ("custom" as const) : ("built-in" as const),
+    isLangfuseManaged: !Boolean(projectId),
   };
 }
 
@@ -73,7 +73,7 @@ export const PostModelsV1Body = z
     outputPrice: z.number().nonnegative().nullish(),
     totalPrice: z.number().nonnegative().nullish(),
     unit: z.enum(["TOKENS", "CHARACTERS", "MILLISECONDS", "SECONDS", "IMAGES"]),
-    tokenizerId: z.string().nullish(),
+    tokenizerId: z.enum(["openai", "claude"]).nullish(),
     tokenizerConfig: jsonSchema.nullish(), // Assuming Prisma.JsonValue is any type
   })
   .refine(
