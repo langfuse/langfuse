@@ -15,7 +15,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect } from "react";
@@ -276,7 +276,9 @@ export default function SessionsTable({
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("inputTokens");
 
-        return value ? <span>{Number(value)}</span> : undefined;
+        return value ? (
+          <span>{numberFormatter(Number(value), 0)}</span>
+        ) : undefined;
       },
     },
     {
@@ -289,7 +291,9 @@ export default function SessionsTable({
       cell: ({ row }) => {
         const value = row.getValue("outputTokens");
 
-        return value ? <span>{Number(value)}</span> : undefined;
+        return value ? (
+          <span>{numberFormatter(Number(value), 0)}</span>
+        ) : undefined;
       },
     },
     {
@@ -301,7 +305,9 @@ export default function SessionsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("totalTokens");
-        return value ? <span>{Number(value)}</span> : undefined;
+        return value ? (
+          <span>{numberFormatter(Number(value), 0)}</span>
+        ) : undefined;
       },
     },
     {
