@@ -1,13 +1,20 @@
+import { Prisma } from "@langfuse/shared";
+import { PrismaInstrumentation } from "@prisma/instrumentation";
+import { registerOTel } from "@vercel/otel";
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const tracerLib = await import("dd-trace");
-    const tracer = tracerLib.default;
-
-    tracer.init({
+    const { TracerProvider } = (await import("dd-trace")).default.init({
       logInjection: true,
-      runtimeMetrics: true,
+      startupLogs: true,
     });
-    tracer.use("next");
+
+    const provider = new TracerProvider();
+
+    registerOTel({
+      instrumentations: [new PrismaInstrumentation()],
+    });
+    provider.register();
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {
