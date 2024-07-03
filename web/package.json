@@ -97,6 +97,7 @@
     "decimal.js": "^10.4.3",
     "dompurify": "^3.1.5",
     "exponential-backoff": "^3.1.1",
+    "graphql": "^16.9.0",
     "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",
     "langchain": "^0.2.6",

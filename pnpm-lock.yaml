@@ -489,6 +489,9 @@ importers:
       exponential-backoff:
         specifier: ^3.1.1
         version: 3.1.1
+      graphql:
+        specifier: ^16.9.0
+        version: 16.9.0
       js-tiktoken:
         specifier: ^1.0.12
         version: 1.0.12
@@ -13000,7 +13003,6 @@ packages:
   /graphql@16.9.0:
     resolution: {integrity: sha512-GGTKBX4SD7Wdb8mqeDLni2oaRGYQWjWHGKPQ24ZMnUtKfcsVoiv4uX8+LJr1K6U5VW2Lu1BwJnj7uiori0YtRw==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
-    dev: true
 
   /handlebars@4.7.8:
     resolution: {integrity: sha512-vafaFqs8MZkRrSX7sFVUdo3ap/eNiLnb4IakshzvP56X5Nr1iGKAIqdX6tMlm6HcNRIkr6AxO5jFEoJzzpT8aQ==}
