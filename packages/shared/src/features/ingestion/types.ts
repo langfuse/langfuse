@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { ObservationLevel, ScoreDataType } from "@prisma/client";
+import { ObservationLevel } from "@prisma/client";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
@@ -154,18 +154,17 @@ const BaseScoreBody = z.object({
   configId: z.string().nullish(),
 });
 
-export const InflatedPostScoreBody = z.discriminatedUnion("dataType", [
+export const ScoreBody = z.discriminatedUnion("dataType", [
   BaseScoreBody.merge(
     z.object({
       value: z.number(),
-      dataType: z.literal(ScoreDataType.NUMERIC),
+      dataType: z.literal("NUMERIC"),
     })
   ),
   BaseScoreBody.merge(
     z.object({
-      value: z.number().nullable(),
-      stringValue: z.string(),
-      dataType: z.literal(ScoreDataType.CATEGORICAL),
+      value: z.string(),
+      dataType: z.literal("CATEGORICAL"),
     })
   ),
   BaseScoreBody.merge(
@@ -173,12 +172,13 @@ export const InflatedPostScoreBody = z.discriminatedUnion("dataType", [
       value: z.number().refine((val) => val === 0 || val === 1, {
         message: "Value must be either 0 or 1",
       }),
-      stringValue: z
-        .string()
-        .refine((val) => val === "False" || val === "True", {
-          message: "String value must be either True or False",
-        }),
-      dataType: z.literal(ScoreDataType.BOOLEAN),
+      dataType: z.literal("BOOLEAN"),
+    })
+  ),
+  BaseScoreBody.merge(
+    z.object({
+      value: z.union([z.string(), z.number()]),
+      dataType: z.undefined(),
     })
   ),
 ]);
@@ -338,7 +338,7 @@ export const generationUpdateEvent = base.extend({
 });
 export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE_CREATE),
-  body: InflatedPostScoreBody,
+  body: ScoreBody,
 });
 export const sdkLogEvent = base.extend({
   type: z.literal(eventTypes.SDK_LOG),

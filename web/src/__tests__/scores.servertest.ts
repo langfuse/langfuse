@@ -480,7 +480,7 @@ describe("/api/public/scores API Endpoint", () => {
     const scoreData = {
       id: scoreId,
       name: "accuracy",
-      value: 1,
+      value: "Good",
       configId: dbScoreConfig[0].id,
       dataType: ScoreDataType.CATEGORICAL,
       traceId,
@@ -493,9 +493,76 @@ describe("/api/public/scores API Endpoint", () => {
 
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
-      error: "InvalidRequestError",
-      message:
+      message: "Invalid request data",
+      errors: [
         "Data type mismatch based on config: expected NUMERIC, got CATEGORICAL",
+      ],
+    });
+  });
+
+  it("should NOT create numeric score if config and passed data type mismatch", async () => {
+    await pruneDatabase();
+
+    const traceId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/traces", {
+      id: traceId,
+      name: "trace-name",
+      userId: "user-1",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const dbTrace = await prisma.trace.findMany({
+      where: {
+        id: traceId,
+      },
+    });
+
+    expect(dbTrace.length).toBeGreaterThan(0);
+    expect(dbTrace[0]?.id).toBe(traceId);
+
+    await makeAPICall("POST", "/api/public/score-configs", {
+      name: "accuracy",
+      dataType: ScoreDataType.CATEGORICAL,
+      categories: [
+        { label: "One", value: 1 },
+        { label: "Zero", value: 0 },
+      ],
+    });
+
+    const dbScoreConfig = await prisma.scoreConfig.findMany({
+      where: {
+        name: "accuracy",
+      },
+    });
+
+    expect(dbScoreConfig.length).toBeGreaterThan(0);
+    expect(dbScoreConfig[0]?.name).toBe("accuracy");
+
+    const scoreId = uuidv4();
+    const scoreData = {
+      id: scoreId,
+      name: "accuracy",
+      value: 1,
+      configId: dbScoreConfig[0].id,
+      dataType: ScoreDataType.NUMERIC,
+      traceId,
+    };
+    const createScore = await makeAPICall(
+      "POST",
+      "/api/public/scores",
+      scoreData,
+    );
+
+    expect(createScore.status).toBe(400);
+    expect(createScore.body).toMatchObject({
+      message: "Invalid request data",
+      errors: [
+        "Data type mismatch based on config: expected CATEGORICAL, got NUMERIC",
+      ],
     });
   });
 
@@ -762,12 +829,8 @@ describe("/api/public/scores API Endpoint", () => {
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
       message: "Invalid request data",
-      error: [
-        {
-          code: "custom",
-          message: "Value exceeds maximum value of 0 defined in config",
-          path: [],
-        },
+      errors: [
+        "Ingested score body not valid against provided config:  - Value exceeds maximum value of 0 defined in config",
       ],
     });
   });

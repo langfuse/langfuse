@@ -168,11 +168,39 @@ export const ScorePropsAgainstConfig = z.union([
  */
 
 // POST /scores
-export const PostScoresBody = BaseScoreBody.extend({
-  value: z.union([z.string(), z.number()]),
-  dataType: z.nativeEnum(ScoreDataType).nullish(),
-  configId: z.string().nullish(),
-});
+// mirrors ScoreBody in `packages/shared/src/features/ingestion/types.ts`
+export const PostScoresBody = z.discriminatedUnion("dataType", [
+  BaseScoreBody.merge(
+    z.object({
+      value: z.number(),
+      dataType: z.literal("NUMERIC"),
+      configId: z.string().nullish(),
+    }),
+  ),
+  BaseScoreBody.merge(
+    z.object({
+      value: z.string(),
+      dataType: z.literal("CATEGORICAL"),
+      configId: z.string().nullish(),
+    }),
+  ),
+  BaseScoreBody.merge(
+    z.object({
+      value: z.number().refine((val) => val === 0 || val === 1, {
+        message: "Value must be either 0 or 1",
+      }),
+      dataType: z.literal("BOOLEAN"),
+      configId: z.string().nullish(),
+    }),
+  ),
+  BaseScoreBody.merge(
+    z.object({
+      value: z.union([z.string(), z.number()]),
+      dataType: z.undefined(),
+      configId: z.string().nullish(),
+    }),
+  ),
+]);
 
 export const PostScoresResponse = z.void();
 

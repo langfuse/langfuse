@@ -1,23 +1,11 @@
-import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared/src/db";
-import { ZodError, type z } from "zod";
-import {
-  type CastedConfig,
-  LangfuseNotFoundError,
-  InvalidRequestError,
-  type InflatedPostScoreBody,
-} from "@langfuse/shared";
 import { eventTypes, ingestionBatchEvent } from "@langfuse/shared";
 import { v4 } from "uuid";
 import {
   handleBatch,
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
-import {
-  isBooleanDataType,
-  isCastedConfig,
-  isPresent,
-} from "@/src/features/manual-scoring/lib/helpers";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
@@ -26,94 +14,8 @@ import {
   GetScoresResponse,
   PostScoresBody,
   PostScoresResponse,
-  ScoreBodyWithoutConfig,
-  ScorePropsAgainstConfig,
   GetAllScores,
 } from "@/src/features/public-api/types/scores";
-
-const inferDataType = (value: string | number): ScoreDataType =>
-  typeof value === "number" ? ScoreDataType.NUMERIC : ScoreDataType.CATEGORICAL;
-
-const validateConfigAgainstBody = (
-  body: z.infer<typeof PostScoresBody>,
-  config: CastedConfig,
-): void => {
-  const { maxValue, minValue, categories, dataType: configDataType } = config;
-  if (body.dataType && body.dataType !== configDataType) {
-    throw new InvalidRequestError(
-      `Data type mismatch based on config: expected ${configDataType}, got ${body.dataType}`,
-    );
-  }
-
-  if (config.isArchived) {
-    throw new InvalidRequestError(
-      "Config is archived and cannot be used to create new scores. Please restore the config first.",
-    );
-  }
-
-  if (config.name !== body.name) {
-    throw new InvalidRequestError(
-      `Name mismatch based on config: expected ${config.name}, got ${body.name}`,
-    );
-  }
-
-  const relevantDataType = body.dataType ?? configDataType;
-
-  const dataTypeValidation = ScoreBodyWithoutConfig.safeParse({
-    ...body,
-    dataType: relevantDataType,
-  });
-  if (!dataTypeValidation.success) {
-    throw new ZodError(dataTypeValidation.error.errors);
-  }
-
-  const rangeValidation = ScorePropsAgainstConfig.safeParse({
-    value: body.value,
-    dataType: relevantDataType,
-    ...(isPresent(maxValue) && { maxValue }),
-    ...(isPresent(minValue) && { minValue }),
-    ...(categories && { categories }),
-  });
-  if (!rangeValidation.success) {
-    throw new ZodError(rangeValidation.error.errors);
-  }
-};
-
-const mapStringValueToNumericValue = (
-  config: CastedConfig,
-  label: string,
-): number | null =>
-  config.categories?.find((category) => category.label === label)?.value ??
-  null;
-
-const inflateScoreBody = (
-  body: z.infer<typeof PostScoresBody>,
-  config?: CastedConfig,
-): z.infer<typeof InflatedPostScoreBody> => {
-  const relevantDataType = config?.dataType ?? body.dataType;
-  if (typeof body.value === "number") {
-    if (relevantDataType && isBooleanDataType(relevantDataType)) {
-      return {
-        ...body,
-        value: body.value,
-        stringValue: body.value === 1 ? "True" : "False",
-        dataType: ScoreDataType.BOOLEAN,
-      };
-    }
-
-    return {
-      ...body,
-      value: body.value,
-      dataType: ScoreDataType.NUMERIC,
-    };
-  }
-  return {
-    ...body,
-    value: config ? mapStringValueToNumericValue(config, body.value) : null,
-    stringValue: body.value,
-    dataType: ScoreDataType.CATEGORICAL,
-  };
-};
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -121,37 +23,11 @@ export default withMiddlewares({
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
     fn: async ({ body, auth, req, res }) => {
-      let inflatedBody: z.infer<typeof InflatedPostScoreBody>;
-      if (body.configId) {
-        const config = await prisma.scoreConfig.findFirst({
-          where: {
-            projectId: auth.scope.projectId,
-            id: body.configId,
-          },
-        });
-
-        if (!config || !isCastedConfig(config))
-          throw new LangfuseNotFoundError(
-            "The configId you provided does not match a valid config in this project",
-          );
-
-        validateConfigAgainstBody(body, config);
-        inflatedBody = inflateScoreBody(body, config);
-      } else {
-        const validation = ScoreBodyWithoutConfig.safeParse({
-          ...body,
-          dataType: body.dataType ?? inferDataType(body.value),
-        });
-        if (!validation.success) {
-          throw new ZodError(validation.error.errors);
-        }
-        inflatedBody = inflateScoreBody(body);
-      }
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
         timestamp: new Date().toISOString(),
-        body: inflatedBody,
+        body,
       };
       const result = await handleBatch(
         ingestionBatchEvent.parse([event]),
