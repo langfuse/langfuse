@@ -1,5 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
-import logger from "../logger";
+import { logger } from "@langfuse/shared/src/server";
+("../../../packages/shared/src/server/logger");
 
 export const pruneDatabase = async () => {
   logger.info("Pruning database");

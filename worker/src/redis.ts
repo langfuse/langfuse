@@ -1,6 +1,7 @@
 import Redis from "ioredis";
 import { env } from "./env";
-import logger from "./logger";
+import { logger } from "@langfuse/shared/src/server";
+("../../packages/shared/src/server/logger");
 
 const createRedisClient = () => {
   try {

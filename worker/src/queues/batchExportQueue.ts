@@ -10,7 +10,8 @@ import { kyselyPrisma } from "@langfuse/shared/src/db";
 import * as Sentry from "@sentry/node";
 
 import { instrumentAsync } from "../instrumentation";
-import logger from "../logger";
+import { logger } from "@langfuse/shared/src/server";
+("../../../packages/shared/src/server/logger");
 import { redis } from "../redis";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 

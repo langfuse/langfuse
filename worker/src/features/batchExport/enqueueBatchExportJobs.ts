@@ -2,7 +2,8 @@ import { BatchExportStatus, QueueJobs } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import * as Sentry from "@sentry/node";
 
-import logger from "../../logger";
+import { logger } from "@langfuse/shared/src/server";
+("../../../../packages/shared/src/server/logger");
 import { batchExportQueue } from "../../queues/batchExportQueue";
 
 /**

@@ -3,7 +3,8 @@ import { evalQueue } from "../api";
 import { QueueJobs, TraceUpsertEventSchema } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import logger from "../logger";
+import { logger } from "@langfuse/shared/src/server";
+("../../../packages/shared/src/server/logger");
 import { evalJobCreator } from "../queues/evalQueue";
 
 describe.sequential("handle redis events", () => {

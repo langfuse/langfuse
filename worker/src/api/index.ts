@@ -15,7 +15,8 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "../env";
-import logger from "../logger";
+import { logger } from "@langfuse/shared/src/server";
+("../../../packages/shared/src/server/logger");
 import { batchExportQueue } from "../queues/batchExportQueue";
 import { redis } from "../redis";
 import emojis from "./emojis";

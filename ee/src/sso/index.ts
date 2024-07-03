@@ -11,7 +11,7 @@ import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "../env";
-import { CustomSSOProvider } from "@langfuse/shared/src/server";
+import { CustomSSOProvider, logger } from "@langfuse/shared/src/server";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -269,7 +269,7 @@ export async function createNewSsoConfigHandler(
       message: "SSO configuration created successfully",
     });
   } catch (e) {
-    console.log(e);
+    logger.error("Failed to create new SSO configuration", e);
     res.status(500).json({ error: "Internal Server Error" });
   }
 }

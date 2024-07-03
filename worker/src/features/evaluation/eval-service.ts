@@ -26,7 +26,8 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 
-import logger from "../../logger";
+import { logger } from "@langfuse/shared/src/server";
+("../../../../packages/shared/src/server/logger");
 import { evalQueue } from "../../queues/evalQueue";
 
 // this function is used to determine which eval jobs to create for a given trace

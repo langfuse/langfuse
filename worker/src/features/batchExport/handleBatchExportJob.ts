@@ -18,7 +18,8 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
-import logger from "../../logger";
+import { logger } from "@langfuse/shared/src/server";
+("../../../../packages/shared/src/server/logger");
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType

@@ -11,6 +11,6 @@
     "types": ["node"],
     "downlevelIteration": true
   },
-  "include": ["."],
+  "include": [".", "../packages/shared/src/server/logger.ts"],
   "exclude": ["node_modules", "dist"]
 }

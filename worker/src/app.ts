@@ -8,7 +8,8 @@ import MessageResponse from "./interfaces/MessageResponse";
 
 require("dotenv").config();
 
-import logger from "./logger";
+import { logger } from "@langfuse/shared/src/server";
+("../../packages/shared/src/server/logger");
 
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
