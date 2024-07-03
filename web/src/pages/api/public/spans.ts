@@ -87,7 +87,7 @@ export default async function handler(
     }
   } else if (req.method === "PATCH") {
     try {
-      console.log(
+      logger.info(
         "Trying to update span, project ",
         authCheck.scope.projectId,
         ", body:",

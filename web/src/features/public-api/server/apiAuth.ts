@@ -46,7 +46,7 @@ export async function verifyAuthHeaderAndReturnScope(
         const isValid = await verifySecretKey(secretKey, dbKey.hashedSecretKey);
 
         if (!isValid) {
-          console.log("Old key is invalid", publicKey);
+          logger.error("Old key is invalid", publicKey);
           throw new Error("Invalid credentials");
         }
 
@@ -62,7 +62,7 @@ export async function verifyAuthHeaderAndReturnScope(
       }
 
       if (!projectId) {
-        console.log("No project id found for key", publicKey);
+        logger.error("No project id found for key", publicKey);
         throw new Error("Invalid credentials");
       }
 
@@ -132,7 +132,7 @@ async function findDbKeyOrThrow(publicKey: string) {
     where: { publicKey },
   });
   if (!dbKey) {
-    console.log("No api key found for public key:", publicKey);
+    logger.error("No api key found for public key:", publicKey);
     throw new Error("Invalid public key");
   }
   return dbKey;

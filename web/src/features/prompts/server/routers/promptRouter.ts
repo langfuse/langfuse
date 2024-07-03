@@ -285,7 +285,7 @@ export const promptRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -361,7 +361,7 @@ export const promptRouter = createTRPCRouter({
 
         await ctx.prisma.$transaction(transaction);
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -442,7 +442,7 @@ export const promptRouter = createTRPCRouter({
         });
         await ctx.prisma.$transaction(toBeExecuted);
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
