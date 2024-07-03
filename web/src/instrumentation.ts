@@ -1,4 +1,3 @@
-import { Prisma } from "@langfuse/shared";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { registerOTel } from "@vercel/otel";
 
