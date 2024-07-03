@@ -4,7 +4,6 @@ export async function register() {
     const tracer = tracerLib.default;
 
     tracer.init({
-      appsec: true,
       logInjection: true,
       runtimeMetrics: true,
     });
