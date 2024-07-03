@@ -699,6 +699,193 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/models:
+    post:
+      description: Create a model
+      operationId: models_create
+      tags:
+        - Models
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateModelRequest'
+    get:
+      description: Get all models
+      operationId: models_list
+      tags:
+        - Models
+      parameters:
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedModels'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/models/{id}:
+    get:
+      description: Get a model
+      operationId: models_get
+      tags:
+        - Models
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    delete:
+      description: >-
+        Create a model. Cannot delete models managed by Langfuse. You can create
+        your own definition with the same modelName to override the definition
+        though.
+      operationId: models_delete
+      tags:
+        - Models
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/observations/{observationId}:
     get:
       description: Get a observation
@@ -2086,6 +2273,71 @@ components:
         - datasetRunItems
       allOf:
         - $ref: '#/components/schemas/DatasetRun'
+    Model:
+      title: Model
+      type: object
+      description: >-
+        Model definition used for transforming usage into USD cost and/or
+        tokenization.
+      properties:
+        id:
+          type: string
+        modelName:
+          type: string
+          description: >-
+            Name of the model definition. If multiple with the same name exist,
+            they are applied in the following order: (1) custom over built-in,
+            (2) newest according to startTime where
+            model.startTime<observation.startTime
+        matchPattern:
+          type: string
+          description: >-
+            Regex pattern which matches this model definition to
+            generation.model. Useful in case of fine-tuned models. If you want
+            to exact match, use `(?i)^modelname$`
+        startDate:
+          type: string
+          nullable: true
+          description: Apply only to generations which are newer than this ISO date.
+        unit:
+          $ref: '#/components/schemas/ModelUsageUnit'
+          description: Unit used by this model.
+        inputPrice:
+          type: number
+          format: double
+          nullable: true
+          description: Price (USD) per input unit
+        outputPrice:
+          type: number
+          format: double
+          nullable: true
+          description: Price (USD) per output unit
+        totalPrice:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Price (USD) per total unit. Cannot be set if input or output price
+            is set.
+        tokenizerId:
+          type: string
+          nullable: true
+          description: >-
+            Optional. Tokenizer to be applied to observations which match to
+            this model. See docs for more details.
+        tokenizerConfig:
+          nullable: true
+          description: >-
+            Optional. Configuration for the selected tokenizer. Needs to be
+            JSON. See docs for more details.
+        isLangfuseManaged:
+          type: boolean
+      required:
+        - id
+        - modelName
+        - matchPattern
+        - unit
+        - isLangfuseManaged
     ModelUsageUnit:
       title: ModelUsageUnit
       type: string
@@ -2888,6 +3140,75 @@ components:
         - countTraces
         - countObservations
         - totalCost
+    PaginatedModels:
+      title: PaginatedModels
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Model'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    CreateModelRequest:
+      title: CreateModelRequest
+      type: object
+      properties:
+        modelName:
+          type: string
+          description: >-
+            Name of the model definition. If multiple with the same name exist,
+            they are applied in the following order: (1) custom over built-in,
+            (2) newest according to startTime where
+            model.startTime<observation.startTime
+        matchPattern:
+          type: string
+          description: >-
+            Regex pattern which matches this model definition to
+            generation.model. Useful in case of fine-tuned models. If you want
+            to exact match, use `(?i)^modelname$`
+        startDate:
+          type: string
+          nullable: true
+          description: Apply only to generations which are newer than this ISO date.
+        unit:
+          $ref: '#/components/schemas/ModelUsageUnit'
+          description: Unit used by this model.
+        inputPrice:
+          type: number
+          format: double
+          nullable: true
+          description: Price (USD) per input unit
+        outputPrice:
+          type: number
+          format: double
+          nullable: true
+          description: Price (USD) per output unit
+        totalPrice:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Price (USD) per total units. Cannot be set if input or output price
+            is set.
+        tokenizerId:
+          type: string
+          nullable: true
+          description: >-
+            Optional. Tokenizer to be applied to observations which match to
+            this model. See docs for more details.
+        tokenizerConfig:
+          nullable: true
+          description: >-
+            Optional. Configuration for the selected tokenizer. Needs to be
+            JSON. See docs for more details.
+      required:
+        - modelName
+        - matchPattern
+        - unit
     Observations:
       title: Observations
       type: object
