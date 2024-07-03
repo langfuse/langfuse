@@ -17,6 +17,7 @@ import {
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
+import * as Sentry from "@sentry/node";
 import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {
@@ -156,6 +157,8 @@ export const traceRouter = createTRPCRouter({
         const result = ValidatedScoreSchema.safeParse(score);
         if (result.success) {
           acc.push(result.data);
+        } else {
+          Sentry.captureException(result.error);
         }
         return acc;
       }, [] as ValidatedScore[]);
@@ -314,6 +317,8 @@ export const traceRouter = createTRPCRouter({
         const result = ValidatedScoreSchema.safeParse(score);
         if (result.success) {
           acc.push(result.data);
+        } else {
+          Sentry.captureException(result.error);
         }
         return acc;
       }, [] as ValidatedScore[]);

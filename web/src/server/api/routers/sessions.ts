@@ -11,6 +11,7 @@ import {
   ValidatedScoreSchema,
   type ValidatedScore,
 } from "@langfuse/shared";
+import * as Sentry from "@sentry/node";
 import { Prisma } from "@langfuse/shared/src/db";
 import { paginationZod } from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
@@ -142,6 +143,8 @@ export const sessionRouter = createTRPCRouter({
           const result = ValidatedScoreSchema.safeParse(score);
           if (result.success) {
             acc.push(result.data);
+          } else {
+            Sentry.captureException(result.error);
           }
           return acc;
         }, [] as ValidatedScore[]);
