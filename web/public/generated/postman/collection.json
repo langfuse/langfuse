@@ -538,6 +538,146 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Models",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a model",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"modelName\": \"example\",\n    \"matchPattern\": \"example\",\n    \"startDate\": \"1994-11-05\",\n    \"unit\": \"CHARACTERS\",\n    \"inputPrice\": 0,\n    \"outputPrice\": 0,\n    \"totalPrice\": 0,\n    \"tokenizerId\": \"example\",\n    \"tokenizerConfig\": \"UNKNOWN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get all models",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/models?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get a model",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/models/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Create a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/models/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Observations",
       "item": [
         {
