@@ -54,6 +54,10 @@ describe("/models API Endpoints", () => {
     );
     expect(models.status).toBe(200);
     expect(models.body.data.length).toBe(2);
+    expect(models.body.data[0]).toMatchObject({
+      isLangfuseManaged: true,
+      modelName: "gpt-3.5-turbo",
+    });
   });
 
   it("GET /models pagination", async () => {
@@ -87,7 +91,7 @@ describe("/models API Endpoints", () => {
         tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
       },
     );
-    expect(customModel.body.type).toBe("custom");
+    expect(customModel.body.isLangfuseManaged).toBe(false);
 
     const models = await makeZodVerifiedAPICall(
       GetModelsV1Response,
@@ -110,7 +114,7 @@ describe("/models API Endpoints", () => {
       outputPrice: 0.004,
       unit: "TOKENS",
       tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
-      type: "custom",
+      isLangfuseManaged: false,
     });
   });
 
