@@ -1,20 +1,3 @@
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
-import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
-import {
-  Resource,
-  envDetector,
-  hostDetector,
-  osDetector,
-  processDetector,
-} from "@opentelemetry/resources";
-import {
-  awsEc2Detector,
-  awsEksDetector,
-} from "@opentelemetry/resource-detector-aws";
-import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { registerOTel } from "@vercel/otel";
 
 const { TracerProvider } = (await import("dd-trace")).default.init({
