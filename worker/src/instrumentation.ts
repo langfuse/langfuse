@@ -52,37 +52,35 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 export function initializeOtel(serviceName: string, version?: string) {
   try {
-    diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
-
     const tracer = require("dd-trace").init();
     const { TracerProvider } = tracer;
 
     const provider = new TracerProvider();
     provider.register();
 
-    opentelemetry.api.trace.setGlobalTracerProvider(provider);
+    // opentelemetry.api.trace.setGlobalTracerProvider(provider);
 
-    const sdk = new opentelemetry.NodeSDK({
-      // Optional - if omitted, the tracing SDK will be initialized from environment variables
+    // const sdk = new opentelemetry.NodeSDK({
+    //   // Optional - if omitted, the tracing SDK will be initialized from environment variables
 
-      // Optional - you can use the metapackage or load each instrumentation individually
-      instrumentations: [
-        new PrismaInstrumentation(),
-        getNodeAutoInstrumentations(),
-        new IORedisInstrumentation(),
-        new ExpressInstrumentation(),
-      ],
+    //   // Optional - you can use the metapackage or load each instrumentation individually
+    //   instrumentations: [
+    //     new PrismaInstrumentation(),
+    //     getNodeAutoInstrumentations(),
+    //     new IORedisInstrumentation(),
+    //     new ExpressInstrumentation(),
+    //   ],
 
-      resourceDetectors: [
-        containerDetector,
-        envDetector,
-        hostDetector,
-        osDetector,
-        processDetector,
-        awsEksDetector,
-        awsEc2Detector,
-      ],
-    });
+    //   resourceDetectors: [
+    //     containerDetector,
+    //     envDetector,
+    //     hostDetector,
+    //     osDetector,
+    //     processDetector,
+    //     awsEksDetector,
+    //     awsEc2Detector,
+    //   ],
+    // });
 
     logger.info("OpenTelemetry setup complete");
     return sdk;
