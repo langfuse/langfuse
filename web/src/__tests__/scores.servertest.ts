@@ -1095,7 +1095,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(getAllScore.body.meta).toMatchObject({
         page: 1,
         limit: 50,
-        totalItems: 3,
+        totalItems: 1,
         totalPages: 1,
       });
       for (const val of getAllScore.body.data) {
@@ -1103,6 +1103,29 @@ describe("/api/public/scores API Endpoint", () => {
           traceId: traceId,
           observationId: generationId,
           configId: configId,
+        });
+      }
+    });
+
+    it("get all scores for numeric data type", async () => {
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?dataType=${ScoreDataType.NUMERIC}`,
+      );
+
+      expect(getAllScore.status).toBe(200);
+      expect(getAllScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
+      });
+      for (const val of getAllScore.body.data) {
+        expect(val).toMatchObject({
+          traceId: traceId,
+          observationId: generationId,
+          dataType: ScoreDataType.NUMERIC,
         });
       }
     });

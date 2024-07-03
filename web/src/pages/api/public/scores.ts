@@ -55,11 +55,15 @@ export default withMiddlewares({
         operator,
         value,
         scoreIds,
+        dataType,
       } = query;
 
       const skipValue = (page - 1) * limit;
       const configCondition = configId
         ? Prisma.sql`AND s."config_id" = ${configId}`
+        : Prisma.empty;
+      const dataTypeCondition = dataType
+        ? Prisma.sql`AND s."data_type" = ${dataType}::"ScoreDataType"`
         : Prisma.empty;
       const userCondition = userId
         ? Prisma.sql`AND t."user_id" = ${userId}`
@@ -90,7 +94,6 @@ export default withMiddlewares({
             s.name,
             s.value,
             s.string_value as "stringValue",
-            s.data_type as "dataType",
             s.source,
             s.comment,
             s.data_type as "dataType",
@@ -102,6 +105,7 @@ export default withMiddlewares({
           LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${auth.scope.projectId}
           WHERE s.project_id = ${auth.scope.projectId}
           ${configCondition}
+          ${dataTypeCondition}
           ${userCondition}
           ${nameCondition}
           ${sourceCondition}
@@ -118,6 +122,8 @@ export default withMiddlewares({
           FROM "scores" AS s
           LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${auth.scope.projectId}
           WHERE s.project_id = ${auth.scope.projectId}
+          ${configCondition}
+          ${dataTypeCondition}
           ${userCondition}
           ${nameCondition}
           ${sourceCondition}

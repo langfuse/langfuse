@@ -23,19 +23,19 @@ const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 const NumericData = z.object({
   value: z.number(),
   stringValue: z.undefined().nullish(),
-  dataType: z.literal(ScoreDataType.NUMERIC),
+  dataType: z.literal("NUMERIC"),
 });
 
 const CategoricalData = z.object({
   value: z.number().optional().nullish(),
   stringValue: z.string(),
-  dataType: z.literal(ScoreDataType.CATEGORICAL),
+  dataType: z.literal("CATEGORICAL"),
 });
 
 const BooleanData = z.object({
   value: z.number(),
   stringValue: z.string(),
-  dataType: z.literal(ScoreDataType.BOOLEAN),
+  dataType: z.literal("BOOLEAN"),
 });
 
 const GetScoreBase = z.object({
@@ -90,13 +90,13 @@ export const ScoreBodyWithoutConfig = z.discriminatedUnion("dataType", [
   BaseScoreBody.merge(
     z.object({
       value: z.number(),
-      dataType: z.literal(ScoreDataType.NUMERIC),
+      dataType: z.literal("NUMERIC"),
     }),
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.string(),
-      dataType: z.literal(ScoreDataType.CATEGORICAL),
+      dataType: z.literal("CATEGORICAL"),
     }),
   ),
   BaseScoreBody.merge(
@@ -104,7 +104,7 @@ export const ScoreBodyWithoutConfig = z.discriminatedUnion("dataType", [
       value: z.number().refine((val) => val === 0 || val === 1, {
         message: "Value must be either 0 or 1",
       }),
-      dataType: z.literal(ScoreDataType.BOOLEAN),
+      dataType: z.literal("BOOLEAN"),
     }),
   ),
 ]);
@@ -114,7 +114,7 @@ const ScorePropsAgainstConfigNumeric = z
     value: z.number(),
     maxValue: z.number().optional(),
     minValue: z.number().optional(),
-    dataType: z.literal(ScoreDataType.NUMERIC),
+    dataType: z.literal("NUMERIC"),
   })
   .superRefine((data, ctx) => {
     if (isPresent(data.maxValue) && data.value >= data.maxValue) {
@@ -135,7 +135,7 @@ const ScorePropsAgainstConfigCategorical = z
   .object({
     value: z.string(),
     categories: z.array(ConfigCategory),
-    dataType: z.literal(ScoreDataType.CATEGORICAL),
+    dataType: z.literal("CATEGORICAL"),
   })
   .superRefine((data, ctx) => {
     if (!data.categories.some(({ label }) => label === data.value)) {
@@ -153,7 +153,7 @@ export const ScorePropsAgainstConfig = z.union([
     value: z.number().refine((val) => val === 0 || val === 1, {
       message: "Value must be either 0 or 1",
     }),
-    dataType: z.literal(ScoreDataType.BOOLEAN),
+    dataType: z.literal("BOOLEAN"),
   }),
 ]);
 
@@ -202,6 +202,7 @@ export const PostScoresResponse = z.void();
 export const GetScoresQuery = z.object({
   ...paginationZod,
   userId: z.string().nullish(),
+  dataType: z.nativeEnum(ScoreDataType).nullish(),
   configId: z.string().nullish(),
   name: z.string().nullish(),
   fromTimestamp: stringDate,
