@@ -29,6 +29,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { JsonEditor } from "@/src/components/json-editor";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Link from "next/link";
+import { utcDate } from "@/src/utils/dates";
 
 const formSchema = z.object({
   modelName: z.string().min(1),
@@ -124,6 +125,7 @@ export const NewModelForm = (props: {
           typeof JSON.parse(values.tokenizerConfig) === "object"
             ? (JSON.parse(values.tokenizerConfig) as Record<string, number>)
             : undefined,
+        startDate: values.startDate ? utcDate(values.startDate) : undefined,
       })
       .then(() => {
         props.onFormSuccess?.();
