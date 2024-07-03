@@ -225,8 +225,6 @@ export async function modelMatch() {
       totalObservations,
     );
 
-    logger.info(updatedObservations, observations.length);
-
     if (updatedObservations === 0) {
       index++;
     }
