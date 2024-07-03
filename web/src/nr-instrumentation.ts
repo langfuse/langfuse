@@ -6,6 +6,11 @@ import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions"
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 
+import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+
+// Enable debug mode for OpenTelemetry
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+
 const sdk = new NodeSDK({
   resource: new Resource({
     [SemanticResourceAttributes.SERVICE_NAME]: "web",
@@ -13,7 +18,10 @@ const sdk = new NodeSDK({
   spanProcessors: [
     new SimpleSpanProcessor(
       new OTLPTraceExporter({
-        url: process.env.OTLP_ENDPOINT || "https://otlp.nr-data.net",
+        url: process.env.OTLP_ENDPOINT || "https://otlp.eu01.nr-data.net",
+        headers: {
+          "api-key": process.env.NEW_RELIC_API_KEY,
+        },
       }),
     ),
   ],
