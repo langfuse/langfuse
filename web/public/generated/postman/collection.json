@@ -246,7 +246,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get a dataset and its items",
+            "description": "Get a dataset",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/datasets/:datasetName",
               "host": [
@@ -352,7 +352,7 @@
           "_type": "endpoint",
           "name": "Get Runs",
           "request": {
-            "description": "Get a dataset runs",
+            "description": "Get dataset runs",
             "url": {
               "raw": "{{baseUrl}}/api/public/datasets/:datasetName/runs?page=&limit=",
               "host": [

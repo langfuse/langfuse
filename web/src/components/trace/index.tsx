@@ -293,7 +293,7 @@ export function TracePage({ traceId }: { traceId: string }) {
           </Badge>
         ) : undefined}
       </div>
-      <div className="mt-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
+      <div className="mt-4 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
         <div className="flex flex-row items-center gap-3 p-2.5">
           Tags
           <TagTraceDetailsPopover
@@ -311,19 +311,19 @@ export function TracePage({ traceId }: { traceId: string }) {
           setSelectedTab(tab);
           capture("trace_detail:display_mode_switch", { view: tab });
         }}
-        className="flex w-full justify-end border-b bg-background"
+        className="mt-2 flex w-full justify-end border-b bg-transparent"
       >
-        <TabsList className="bg-background py-0">
+        <TabsList className="bg-transparent py-0">
           <TabsTrigger
             value="details"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             <Network className="mr-1 h-4 w-4"></Network>
             Tree
           </TabsTrigger>
           <TabsTrigger
             value="timeline"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
@@ -332,7 +332,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         </TabsList>
       </Tabs>
       {selectedTab === "details" && (
-        <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
+        <div className="mt-5 flex-1 overflow-hidden">
           <Trace
             key={trace.data.id}
             trace={trace.data}
