@@ -14,7 +14,7 @@ const API: ScoreSource = "API";
 const EVAL: ScoreSource = "EVAL";
 const ANNOTATION: ScoreSource = "ANNOTATION";
 
-const availableDataTypes = [NUMERIC, CATEGORICAL, BOOLEAN] as const;
+export const availableDataTypes = [NUMERIC, CATEGORICAL, BOOLEAN] as const;
 const availableSources = [API, EVAL, ANNOTATION] as const;
 
 export type ConfigCategory = z.infer<typeof configCategory>;
