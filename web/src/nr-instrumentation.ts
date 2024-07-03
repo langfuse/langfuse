@@ -15,11 +15,16 @@ import {
   awsEksDetector,
 } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
+import { registerOTel } from "@vercel/otel";
 
-const tracer = require("dd-trace").init();
-const { TracerProvider } = tracer;
+const { TracerProvider } = (await import("dd-trace")).default.init({
+  logInjection: true,
+  startupLogs: true,
+});
 
 const provider = new TracerProvider();
+
+registerOTel();
 provider.register();
 // const sdk = new NodeSDK({
 //   resource: new Resource({
