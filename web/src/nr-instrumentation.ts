@@ -3,6 +3,7 @@ import { registerOTel } from "@vercel/otel";
 const { TracerProvider } = (await import("dd-trace")).default.init({
   logInjection: true,
   startupLogs: true,
+  runtimeMetrics: true,
 });
 
 const provider = new TracerProvider();
