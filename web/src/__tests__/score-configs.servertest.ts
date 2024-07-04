@@ -151,7 +151,7 @@ describe("/api/public/score-configs API Endpoint", () => {
 
     expect(getScoreConfig.status).toBe(500);
     expect(getScoreConfig.body).toMatchObject({
-      message: "Requested config is corrupted",
+      message: "Requested score config is corrupted",
     });
   });
 

@@ -1,5 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
+import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
@@ -30,7 +30,7 @@ export default withMiddlewares({
       const parsedConfig = GetScoreConfigResponse.safeParse(config);
       if (!parsedConfig.success) {
         Sentry.captureException(parsedConfig.error);
-        throw new ApiError("Requested config is corrupted");
+        throw new InternalServerError("Requested score config is corrupted");
       }
 
       return parsedConfig.data;

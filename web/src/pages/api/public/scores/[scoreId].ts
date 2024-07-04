@@ -8,7 +8,7 @@ import {
   GetScoreQuery,
   GetScoreResponse,
 } from "@/src/features/public-api/types/scores";
-import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
+import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -33,7 +33,7 @@ export default withMiddlewares({
 
       if (!parsedScore.success) {
         Sentry.captureException(parsedScore.error);
-        throw new ApiError("Requested config is corrupted");
+        throw new InternalServerError("Requested score is corrupted");
       }
 
       return parsedScore.data;
