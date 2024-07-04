@@ -40,6 +40,7 @@
     "@opentelemetry/auto-instrumentations-node": "^0.47.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.52.1",
     "@opentelemetry/resource-detector-aws": "^1.5.1",
+    "@opentelemetry/resource-detector-container": "^0.3.11",
     "@opentelemetry/resources": "^1.25.1",
     "@opentelemetry/sdk-node": "^0.52.1",
     "@opentelemetry/sdk-trace-node": "^1.25.1",
