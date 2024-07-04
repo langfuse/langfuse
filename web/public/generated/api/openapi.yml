@@ -2841,6 +2841,22 @@ components:
     ScoreBody:
       title: ScoreBody
       type: object
+      description: |-
+        Example valid inputs:
+
+        - For categorical scores:
+          - dataType: "CATEGORICAL" # optional
+          - configId: "1234-5678-90ab-cdef"
+          - value: "partially correct"
+        - For numeric scores:
+          - dataType: "NUMERIC" # optional
+          - configId: "9203-4567-89ab-cdef"
+          - value: 42
+        - For boolean scores:
+          - dataType: "BOOLEAN" # required unless configId is set
+          - configId: "1234-5678-90ab-cdef"
+          - value: 1 # true
+          - value: 0 # false
       properties:
         id:
           type: string

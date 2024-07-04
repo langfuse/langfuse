@@ -196,6 +196,21 @@ types:
       configId:
         type: optional<string>
         docs: Reference a score config on a score. When set, the score name must equal the config name and scores must comply with the config's range and data type. For categorical scores, the value must map to a config category. Numeric scores might be constrained by the score config's max and min values
+    docs: |
+      Example valid inputs:
+      - For categorical scores:
+        - dataType: "CATEGORICAL" # optional
+        - configId: "1234-5678-90ab-cdef"
+        - value: "partially correct"
+      - For numeric scores:
+        - dataType: "NUMERIC" # optional
+        - configId: "9203-4567-89ab-cdef"
+        - value: 42
+      - For boolean scores:
+        - dataType: "BOOLEAN" # required unless configId is set
+        - configId: "1234-5678-90ab-cdef"
+        - value: 1  # true 
+        - value: 0  # false
 
   BaseEvent:
     properties:
