@@ -520,6 +520,9 @@ importers:
       next-themes:
         specifier: ^0.3.0
         version: 0.3.0(react-dom@18.2.0)(react@18.2.0)
+      pino:
+        specifier: ^9.2.0
+        version: 9.2.0
       posthog-js:
         specifier: ^1.122.0
         version: 1.142.1
