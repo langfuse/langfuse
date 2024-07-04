@@ -3,8 +3,8 @@ import logger from "./logger";
 
 import { initializeOtel } from "./instrumentation";
 
-const sdk = initializeOtel("worker");
-sdk.start();
+// const sdk = initializeOtel("worker");
+// sdk.start();
 
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
@@ -33,13 +33,13 @@ function onShutdown() {
     ?.close()
     .then(() => logger.info("Batch Export Executor has been closed."));
 
-  sdk
-    .shutdown()
-    .then(
-      () => logger.info("SDK shut down successfully"),
-      (err) => logger.error("Error shutting down SDK", err)
-    )
-    .finally(() => process.exit(0));
+  // sdk
+  //   .shutdown()
+  //   .then(
+  //     () => logger.info("SDK shut down successfully"),
+  //     (err) => logger.error("Error shutting down SDK", err)
+  //   )
+  //   .finally(() => process.exit(0));
 }
 
 // Capture shutdown signals

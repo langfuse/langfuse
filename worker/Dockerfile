@@ -61,4 +61,4 @@ COPY --from=builder --chown=expressjs:expressjs /app .
 EXPOSE 3030
 ENV PORT=3030
 
-CMD ["node", "worker/dist/index.js"]
+CMD ["node", "-r newrelic", "worker/dist/index.js"]
