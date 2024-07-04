@@ -39,7 +39,11 @@ import {
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { z } from "zod";
-import { Category } from "@/src/features/public-api/types/score-configs";
+
+const Category = z.object({
+  label: z.string().min(1),
+  value: z.number(),
+});
 
 const createConfigSchema = z.object({
   name: z.string().min(1).max(35),
