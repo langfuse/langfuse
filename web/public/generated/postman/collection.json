@@ -1091,12 +1091,12 @@
                 {
                   "key": "userId",
                   "value": "",
-                  "description": null
+                  "description": "Retrieve only scores with this userId associated to the trace."
                 },
                 {
                   "key": "name",
                   "value": "",
-                  "description": null
+                  "description": "Retreive only scores with this name."
                 },
                 {
                   "key": "fromTimestamp",
