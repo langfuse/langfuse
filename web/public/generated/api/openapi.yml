@@ -1421,12 +1421,14 @@ paths:
             nullable: true
         - name: userId
           in: query
+          description: Retrieve only scores with this userId associated to the trace.
           required: false
           schema:
             type: string
             nullable: true
         - name: name
           in: query
+          description: Retreive only scores with this name.
           required: false
           schema:
             type: string
