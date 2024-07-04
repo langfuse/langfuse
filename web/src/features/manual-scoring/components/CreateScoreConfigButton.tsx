@@ -20,7 +20,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { ScoreDataType, availableDataTypes, Category } from "@langfuse/shared";
+import { ScoreDataType, availableDataTypes } from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -39,6 +39,7 @@ import {
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { z } from "zod";
+import { Category } from "@/src/features/public-api/types/score-configs";
 
 const createConfigSchema = z.object({
   name: z.string().min(1).max(35),
