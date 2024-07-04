@@ -1,13 +1,6 @@
 import z from "zod";
 import { type ScoreDataType } from "../../db";
 
-export const Category = z.object({
-  label: z.string().min(1),
-  value: z.number(),
-});
-
-export type ConfigCategory = z.infer<typeof Category>;
-
 const NUMERIC: ScoreDataType = "NUMERIC";
 const CATEGORICAL: ScoreDataType = "CATEGORICAL";
 const BOOLEAN: ScoreDataType = "BOOLEAN";

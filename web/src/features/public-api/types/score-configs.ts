@@ -1,22 +1,22 @@
+import { isPresent } from "@/src/utils/typeChecks";
 import {
   jsonSchema,
   paginationMetaResponseZod,
   paginationZod,
+  type ScoreConfig as ScoreConfigDbType,
 } from "@langfuse/shared";
 import { z } from "zod";
-
-const isPresent = <T>(value: T): value is NonNullable<T> =>
-  value !== null && value !== undefined;
+import * as Sentry from "@sentry/node";
 
 /**
  * Objects
  */
-const Category = z.object({
+export const Category = z.object({
   label: z.string().min(1),
   value: z.number(),
 });
 
-type ConfigCategory = z.infer<typeof Category>;
+export type ConfigCategory = z.infer<typeof Category>;
 
 const Categories = z.array(Category);
 
@@ -123,8 +123,7 @@ export const ScoreConfig = z
     }
   });
 
-// I need this type on the frontend as well, how to best handle
-const ValidatedScoreConfig = z.union([
+const ValidatedScoreConfigSchema = z.union([
   ScoreConfigBase.merge(NumericScoreConfig),
   ScoreConfigBase.merge(
     z.object({
@@ -137,7 +136,24 @@ const ValidatedScoreConfig = z.union([
   ScoreConfigBase.merge(BooleanScoreConfig),
 ]);
 
-export type ValidatedScoreConfig = z.infer<typeof ValidatedScoreConfig>;
+export type ValidatedScoreConfig = z.infer<typeof ValidatedScoreConfigSchema>;
+
+export const filterAndValidateDbScoreConfigList = (
+  scoreConfigs: ScoreConfigDbType[],
+): ValidatedScoreConfig[] =>
+  scoreConfigs.reduce((acc, ts) => {
+    const result = ValidatedScoreConfigSchema.safeParse(ts);
+    if (result.success) {
+      acc.push(result.data);
+    } else {
+      Sentry.captureException(result.error);
+    }
+    return acc;
+  }, [] as ValidatedScoreConfig[]);
+
+export const validateDbScoreConfig = (
+  score: ScoreConfigDbType,
+): ValidatedScoreConfig => ValidatedScoreConfigSchema.parse(score);
 
 /**
  * Endpoints

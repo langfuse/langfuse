@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 import { isPresent } from "@/src/utils/typeChecks";
+import { Category as ConfigCategory } from "./score-configs";
 
 /**
  * Objects
@@ -14,11 +15,6 @@ import { isPresent } from "@/src/utils/typeChecks";
 
 const ScoreSource = ["API", "EVAL", "ANNOTATION"] as const;
 const ScoreDataType = ["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const;
-
-const ConfigCategory = z.object({
-  label: z.string().min(1),
-  value: z.number(),
-});
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 

@@ -6,11 +6,7 @@ import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
-import {
-  type ScoreDataType,
-  type Prisma,
-  type ConfigCategory,
-} from "@langfuse/shared";
+import { type ScoreDataType, type Prisma } from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import {
@@ -28,6 +24,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { type ConfigCategory } from "@/src/features/public-api/types/score-configs";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -38,7 +35,7 @@ type ScoreConfigTableRow = {
   range: {
     maxValue?: number | null;
     minValue?: number | null;
-    categories?: Prisma.JsonValue | null;
+    categories?: ConfigCategory[] | null;
   };
   description?: string | null;
   isArchived: boolean;
@@ -46,7 +43,7 @@ type ScoreConfigTableRow = {
 
 function getConfigRange(
   originalRow: ScoreConfigTableRow,
-): Prisma.JsonValue | undefined {
+): undefined | Prisma.JsonValue {
   const { range, dataType } = originalRow;
 
   if (isNumericDataType(dataType)) {
@@ -57,7 +54,7 @@ function getConfigRange(
   }
 
   if (isCategoricalDataType(dataType) || isBooleanDataType(dataType)) {
-    const configCategories = (range.categories as ConfigCategory[]) ?? [];
+    const configCategories = range.categories ?? [];
 
     return configCategories.reduce(
       (acc, category) => {

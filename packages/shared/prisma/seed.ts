@@ -5,7 +5,6 @@ import {
   ObservationType,
   ScoreSource,
   ScoreDataType,
-  ConfigCategory,
 } from "../src/index";
 import { hash } from "bcryptjs";
 import { parseArgs } from "node:util";
@@ -17,6 +16,11 @@ import { getDisplaySecretKey, hashSecretKey } from "../src/server";
 import { encrypt } from "../src/encryption";
 
 const LOAD_TRACE_VOLUME = 10_000;
+
+type ConfigCategory = {
+  label: string;
+  value: number;
+};
 
 const options = {
   environment: { type: "string" },
