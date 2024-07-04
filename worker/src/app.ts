@@ -1,3 +1,4 @@
+import "dd-trace/init";
 import "./instrumentation"; // this is required to make instrumentation work
 import express from "express";
 import cors from "cors";

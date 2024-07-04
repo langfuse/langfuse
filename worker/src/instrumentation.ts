@@ -6,11 +6,11 @@ import logger from "./logger";
 
 export function initializeOtel(serviceName: string, version?: string) {
   try {
-    const tracer = require("dd-trace").init();
-    const { TracerProvider } = tracer;
+    // const tracer = require("dd-trace").init();
+    // const { TracerProvider } = tracer;
 
-    const provider = new TracerProvider();
-    provider.register();
+    // const provider = new TracerProvider();
+    // provider.register();
 
     // opentelemetry.api.trace.setGlobalTracerProvider(provider);
 
