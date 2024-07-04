@@ -70,10 +70,10 @@ types:
       name: string
       value:
         type: optional<double>
-        docs: Only defined if a config is set. Represents the numeric category mapping of the stringValue
+        docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
       stringValue:
         type: string
-        docs: The string representation of the score value. If no config is set, can be any string. Otherwise, must map to a config category
+        docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
       source: ScoreSource
       observationId: optional<string>
       timestamp: datetime

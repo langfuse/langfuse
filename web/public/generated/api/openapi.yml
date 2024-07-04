@@ -1936,26 +1936,27 @@ components:
           $ref: '#/components/schemas/ScoreDataType'
         isArchived:
           type: boolean
-          description: Whether the score config is archived. Defaults to false.
+          description: Whether the score config is archived. Defaults to false
         minValue:
           type: number
           format: double
           nullable: true
           description: >-
             Sets minimum value for numerical scores. If not set, the minimum
-            value defaults to -∞.
+            value defaults to -∞
         maxValue:
           type: number
           format: double
           nullable: true
           description: >-
             Sets maximum value for numerical scores. If not set, the maximum
-            value defaults to +∞.
+            value defaults to +∞
         categories:
           type: array
           items:
             $ref: '#/components/schemas/ConfigCategory'
           nullable: true
+          description: Configures custom categories for categorical scores
         description:
           type: string
           nullable: true
@@ -2085,13 +2086,13 @@ components:
           format: double
           nullable: true
           description: >-
-            Only defined if a config is set. Represents the numeric category
+            Only defined if a config is linked. Represents the numeric category
             mapping of the stringValue
         stringValue:
           type: string
           description: >-
-            The string representation of the score value. If no config is set,
-            can be any string. Otherwise, must map to a config category
+            The string representation of the score value. If no config is
+            linked, can be any string. Otherwise, must map to a config category
         source:
           $ref: '#/components/schemas/ScoreSource'
         observationId:

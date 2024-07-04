@@ -187,13 +187,13 @@ components:
           type: number
           format: double
           description: >-
-            Only defined if a config is set. Represents the numeric category
+            Only defined if a config is linked. Represents the numeric category
             mapping of the stringValue
         stringValue:
           type: string
           description: >-
-            The string representation of the score value. If no config is set,
-            can be any string. Otherwise, must map to a config category
+            The string representation of the score value. If no config is
+            linked, can be any string. Otherwise, must map to a config category
         source:
           $ref: '#/components/schemas/ScoreSource'
         observationId:

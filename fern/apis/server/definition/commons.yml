@@ -122,14 +122,16 @@ types:
       dataType: ScoreDataType
       isArchived:
         type: boolean
-        docs: Whether the score config is archived. Defaults to false.
+        docs: Whether the score config is archived. Defaults to false
       minValue:
         type: optional<double>
-        docs: Sets minimum value for numerical scores. If not set, the minimum value defaults to -∞.
+        docs: Sets minimum value for numerical scores. If not set, the minimum value defaults to -∞
       maxValue:
         type: optional<double>
-        docs: Sets maximum value for numerical scores. If not set, the maximum value defaults to +∞.
-      categories: optional<list<ConfigCategory>>
+        docs: Sets maximum value for numerical scores. If not set, the maximum value defaults to +∞
+      categories: 
+        type: optional<list<ConfigCategory>>
+        docs: Configures custom categories for categorical scores
       description: optional<string>
   ConfigCategory:
     properties:
@@ -177,10 +179,10 @@ types:
       name: string
       value:
         type: optional<double>
-        docs: Only defined if a config is set. Represents the numeric category mapping of the stringValue
+        docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
       stringValue:
         type: string
-        docs: The string representation of the score value. If no config is set, can be any string. Otherwise, must map to a config category
+        docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
       source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
