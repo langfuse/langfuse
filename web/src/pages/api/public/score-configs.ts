@@ -33,20 +33,6 @@ export default withMiddlewares({
     bodySchema: PostScoreConfigBody,
     responseSchema: PostScoreConfigResponse,
     fn: async ({ body, auth }) => {
-      const existingConfig = await prisma.scoreConfig.findFirst({
-        where: {
-          projectId: auth.scope.projectId,
-          name: body.name,
-          dataType: body.dataType,
-        },
-      });
-
-      if (existingConfig) {
-        throw new InvalidRequestError(
-          "Score config with this name and data type already exists for this project",
-        );
-      }
-
       const inflatedConfigInput = inflateConfigBody(body);
 
       const config = await prisma.scoreConfig.create({
@@ -58,7 +44,15 @@ export default withMiddlewares({
         },
       });
 
-      return config as z.infer<typeof ScoreConfig>;
+      const parsedConfig = ScoreConfig.safeParse(config);
+
+      if (!parsedConfig.success) {
+        throw new InvalidRequestError(
+          "Failed to create score config, input data shape invalid",
+        );
+      }
+
+      return parsedConfig.data;
     },
   }),
   GET: createAuthedAPIRoute({
