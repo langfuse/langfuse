@@ -1,5 +1,5 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { type ValidatedScore } from "@langfuse/shared";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
 
 export const ScoresPreview = ({
   itemScoresBySource,
