@@ -12,6 +12,7 @@ import {
   GetScoreResponse,
   GetScoresResponse,
 } from "@/src/features/public-api/types/scores";
+import { z } from "zod";
 
 const traceId = "de98afa2-89dc-47e9-9924-33f1490fdaf4";
 
@@ -54,20 +55,22 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     expect(createScore.status).toBe(200);
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
 
-    expect(dbScore?.id).toBe(scoreId);
-    expect(dbScore?.traceId).toBe(traceId);
-    expect(dbScore?.name).toBe("score-name");
-    expect(dbScore?.value).toBe(100.5);
-    expect(dbScore?.observationId).toBeNull();
-    expect(dbScore?.comment).toBe("comment");
-    expect(dbScore?.source).toBe("API");
-    expect(dbScore?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+    expect(fetchedScore.body?.id).toBe(scoreId);
+    expect(fetchedScore.body?.traceId).toBe(traceId);
+    expect(fetchedScore.body?.name).toBe("score-name");
+    expect(fetchedScore.body?.value).toBe(100.5);
+    expect(fetchedScore.body?.observationId).toBeNull();
+    expect(fetchedScore.body?.comment).toBe("comment");
+    expect(fetchedScore.body?.source).toBe("API");
+    expect(fetchedScore.body?.projectId).toBe(
+      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    );
   });
 
   it("should create score for a trace with int", async () => {
@@ -89,17 +92,17 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     expect(createScore.status).toBe(200);
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
 
-    expect(dbScore?.id).toBe(scoreId);
-    expect(dbScore?.traceId).toBe(traceId);
-    expect(dbScore?.name).toBe("score-name");
-    expect(dbScore?.value).toBe(100);
-    expect(dbScore?.observationId).toBeNull();
+    expect(fetchedScore.body?.id).toBe(scoreId);
+    expect(fetchedScore.body?.traceId).toBe(traceId);
+    expect(fetchedScore.body?.name).toBe("score-name");
+    expect(fetchedScore.body?.value).toBe(100);
+    expect(fetchedScore.body?.observationId).toBeNull();
   });
 
   it("should create score for a generation", async () => {
@@ -143,13 +146,13 @@ describe("/api/public/scores API Endpoint", () => {
     );
 
     expect(createScore.status).toBe(200);
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
 
-    expect(dbScore).toMatchObject(scoreData);
+    expect(fetchedScore.body).toMatchObject(scoreData);
   });
 
   it("should create numeric score if value is integer and no data type is passed", async () => {
@@ -176,13 +179,13 @@ describe("/api/public/scores API Endpoint", () => {
     );
 
     expect(createScore.status).toBe(200);
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
 
-    expect(dbScore).toMatchObject({
+    expect(fetchedScore.body).toMatchObject({
       ...scoreData,
       dataType: "NUMERIC",
     });
@@ -212,13 +215,13 @@ describe("/api/public/scores API Endpoint", () => {
     );
 
     expect(createScore.status).toBe(200);
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
 
-    expect(dbScore).toMatchObject({
+    expect(fetchedScore.body).toMatchObject({
       ...scoreData,
       value: null,
       stringValue: "Good",
@@ -251,13 +254,17 @@ describe("/api/public/scores API Endpoint", () => {
     );
 
     expect(createScore.status).toBe(200);
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
 
-    expect(dbScore).toMatchObject({ ...scoreData, stringValue: "True" });
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
+
+    expect(fetchedScore.body).toMatchObject({
+      ...scoreData,
+      stringValue: "True",
+    });
   });
 
   it("should infer boolean data type from boolean score config", async () => {
@@ -299,13 +306,13 @@ describe("/api/public/scores API Endpoint", () => {
     );
 
     expect(createScore.status).toBe(200);
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
 
-    expect(dbScore).toMatchObject({
+    expect(fetchedScore.body).toMatchObject({
       ...scoreData,
       stringValue: "True",
       dataType: "BOOLEAN",
@@ -717,18 +724,18 @@ describe("/api/public/scores API Endpoint", () => {
     });
     expect(upsertScore.status).toBe(200);
 
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
 
-    expect(dbScore?.id).toBe(scoreId);
-    expect(dbScore?.traceId).toBe(traceId);
-    expect(dbScore?.name).toBe("score-name-updated");
-    expect(dbScore?.value).toBe(200);
-    expect(dbScore?.comment).toBe("comment-updated");
-    expect(dbScore?.observationId).toBe(dbGeneration[0]!.id);
+    expect(fetchedScore.body?.id).toBe(scoreId);
+    expect(fetchedScore.body?.traceId).toBe(traceId);
+    expect(fetchedScore.body?.name).toBe("score-name-updated");
+    expect(fetchedScore.body?.value).toBe(200);
+    expect(fetchedScore.body?.comment).toBe("comment-updated");
+    expect(fetchedScore.body?.observationId).toBe(dbGeneration[0]!.id);
   });
 
   it("should delete a score", async () => {
@@ -750,12 +757,12 @@ describe("/api/public/scores API Endpoint", () => {
     });
 
     expect(createScore.status).toBe(200);
-    const dbScore = await prisma.score.findUnique({
-      where: {
-        id: scoreId,
-      },
-    });
-    expect(dbScore?.id).toBe(scoreId);
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
+    expect(fetchedScore.body.id).toBe(scoreId);
 
     const deleteScore = await makeZodVerifiedAPICall(
       DeleteScoreResponse,
@@ -1118,7 +1125,11 @@ describe("/api/public/scores API Endpoint", () => {
       ]);
     });
     it("test invalid operator", async () => {
-      const getScore = await makeAPICall(
+      const getScore = await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
         "GET",
         `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
       );
@@ -1128,7 +1139,11 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
     it("test invalid value", async () => {
-      const getScore = await makeAPICall(
+      const getScore = await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
         "GET",
         `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
       );
