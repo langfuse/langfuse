@@ -85,9 +85,7 @@ export default withMiddlewares({
         ? Prisma.sql`AND s."id" = ANY(${scoreIds})`
         : Prisma.empty;
 
-      const scores = await prisma.$queryRaw<
-        Array<ValidatedGetScoresData>
-      >(Prisma.sql`
+      const scores = await prisma.$queryRaw<Array<unknown>>(Prisma.sql`
           SELECT
             s.id,
             s.timestamp,
@@ -133,15 +131,18 @@ export default withMiddlewares({
         `,
       );
 
-      const validatedScores = scores.reduce((acc, score) => {
-        const result = GetScoresData.safeParse(score);
-        if (result.success) {
-          acc.push(result.data);
-        } else {
-          Sentry.captureException(result.error);
-        }
-        return acc;
-      }, [] as ValidatedGetScoresData[]);
+      const validatedScores = scores.reduce(
+        (acc: ValidatedGetScoresData[], score) => {
+          const result = GetScoresData.safeParse(score);
+          if (result.success) {
+            acc.push(result.data);
+          } else {
+            Sentry.captureException(result.error);
+          }
+          return acc;
+        },
+        [] as ValidatedGetScoresData[],
+      );
 
       const totalItems =
         totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
