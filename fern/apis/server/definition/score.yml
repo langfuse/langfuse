@@ -69,7 +69,7 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: commons.IngestionScoreValue
+      value: commons.CreateScoreValue
       observationId: optional<string>
       comment: optional<string>
       dataType:

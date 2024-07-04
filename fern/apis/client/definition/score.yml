@@ -17,31 +17,100 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: IngestionScoreValue
+      value:
+        type: CreateScoreValue
+        docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean scores must equal either 1 or 0 (true or false)
       observationId: optional<string>
       comment: optional<string>
-      dataType: optional<ScoreDataType>
-      configId: optional<string>
-  Score:
+      dataType:
+        type: optional<ScoreDataType>
+        docs: When set, must match the score value's type. If not set, will be inferred from the score value or config
+      configId:
+        type: optional<string>
+        docs: When set, the score name must equal the config name and scores must comply with the config's range and data type. For categorical scores, the value must map to a config category. Numeric scores might be constrained by the score config's max and min values
+  NumericScore:
     properties:
       id: string
       traceId: string
       name: string
-      value: optional<double>
-      stringValue: optional<string>
+      value:
+        type: double
+        docs: The numeric value of the score
+      source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
-      dataType: ScoreDataType
-      configId: optional<string>
+      dataType: ScoreDataTypeNumeric
+      configId:
+        type: optional<string>
+        docs: When set, config and score name must be equal and value must comply to optionally defined numerical range
+  BooleanScore:
+    properties:
+      id: string
+      traceId: string
+      name: string
+      value:
+        type: double
+        docs: The numeric value of the score. Equals 1 for "True" and 0 for "False"
+      stringValue:
+        type: string
+        docs: The string representation of the score value. Is inferred from the numeric value and equals "True" or "False"
+      source: ScoreSource
+      observationId: optional<string>
+      timestamp: datetime
+      comment: optional<string>
+      dataType: ScoreDataTypeBoolean
+      configId:
+        type: optional<string>
+        docs: When set, config and score name must be equal
+  CategoricalScore:
+    properties:
+      id: string
+      traceId: string
+      name: string
+      value:
+        type: optional<double>
+        docs: Only defined if a config is set. Represents the numeric category mapping of the stringValue
+      stringValue:
+        type: string
+        docs: The string representation of the score value. If no config is set, can be any string. Otherwise, must map to a config category
+      source: ScoreSource
+      observationId: optional<string>
+      timestamp: datetime
+      comment: optional<string>
+      dataType: ScoreDataTypeCategorical
+      configId:
+        type: optional<string>
+        docs: When set, config and score name must be equal and stringValue must map to a config category
+  Score:
+    discriminated: false
+    union:
+      - NumericScore
+      - BooleanScore
+      - CategoricalScore
+  ScoreSource:
+    enum:
+      - ANNOTATION
+      - API
+      - EVAL
   ScoreDataType:
     enum:
       - NUMERIC
       - CATEGORICAL
       - BOOLEAN
-  IngestionScoreValue:
+  ScoreDataTypeNumeric:
+    enum:
+      - NUMERIC
+  ScoreDataTypeBoolean:
+    enum:
+      - BOOLEAN
+  ScoreDataTypeCategorical:
+    enum:
+      - CATEGORICAL
+
+  CreateScoreValue:
     discriminated: false
     union:
       - string
       - double
-    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores.
+    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores

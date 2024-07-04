@@ -818,7 +818,7 @@
           "_type": "endpoint",
           "name": "Create",
           "request": {
-            "description": "Create a score configuration (config). Score configs are used to define the structure of scores.",
+            "description": "Create a score configuration (config). Score configs are used to define the structure of scores",
             "url": {
               "raw": "{{baseUrl}}/api/public/score-configs",
               "host": [
@@ -837,7 +837,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\",\n    \"dataType\": \"NUMERIC\",\n    \"categories\": \"UNKNOWN\",\n    \"minValue\": 0,\n    \"maxValue\": 0,\n    \"description\": \"example\"\n}",
+              "raw": "{\n    \"name\": \"example\",\n    \"dataType\": \"NUMERIC\",\n    \"categories\": [\n        {\n            \"value\": 0,\n            \"label\": \"example\"\n        }\n    ],\n    \"minValue\": 0,\n    \"maxValue\": 0,\n    \"description\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -871,7 +871,7 @@
                 {
                   "key": "limit",
                   "value": "",
-                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit"
                 }
               ],
               "variable": []

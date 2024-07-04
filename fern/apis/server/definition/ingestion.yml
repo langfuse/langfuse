@@ -185,23 +185,17 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: commons.IngestionScoreValue
+      value:
+        type: commons.CreateScoreValue
+        docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean scores must equal either 1 or 0 (true or false)
       observationId: optional<string>
       comment: optional<string>
-      dataType: optional<commons.ScoreDataType>
-      configId: optional<string>
-  
-  InflatedScoreBody:
-    properties:
-      id: optional<string>
-      traceId: string
-      name: string
-      value: optional<double>
-      stringValue: optional<string>
-      observationId: optional<string>
-      comment: optional<string>
-      dataType: commons.ScoreDataType
-      configId: optional<string>
+      dataType:
+        type: optional<commons.ScoreDataType>
+        docs: When set, must match the score value's type. If not set, will be inferred from the score value or config
+      configId:
+        type: optional<string>
+        docs: When set, the score name must equal the config name and scores must comply with the config's range and data type. For categorical scores, the value must map to a config category. Numeric scores might be constrained by the score config's max and min values
 
   BaseEvent:
     properties:
@@ -233,7 +227,7 @@ types:
   ScoreEvent:
     extends: BaseEvent
     properties:
-      body: InflatedScoreBody
+      body: ScoreBody
 
   SDKLogEvent:
     extends: BaseEvent

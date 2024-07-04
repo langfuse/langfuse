@@ -62,21 +62,33 @@ components:
         name:
           type: string
         value:
-          $ref: '#/components/schemas/IngestionScoreValue'
+          $ref: '#/components/schemas/CreateScoreValue'
+          description: >-
+            The value of the score. Must be passed as string for categorical
+            scores, and numeric for boolean and numeric scores. Boolean scores
+            must equal either 1 or 0 (true or false)
         observationId:
           type: string
         comment:
           type: string
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
+          description: >-
+            When set, must match the score value's type. If not set, will be
+            inferred from the score value or config
         configId:
           type: string
+          description: >-
+            When set, the score name must equal the config name and scores must
+            comply with the config's range and data type. For categorical
+            scores, the value must map to a config category. Numeric scores
+            might be constrained by the score config's max and min values
       required:
         - traceId
         - name
         - value
-    Score:
-      title: Score
+    NumericScore:
+      title: NumericScore
       type: object
       properties:
         id:
@@ -88,8 +100,9 @@ components:
         value:
           type: number
           format: double
-        stringValue:
-          type: string
+          description: The numeric value of the score
+        source:
+          $ref: '#/components/schemas/ScoreSource'
         observationId:
           type: string
         timestamp:
@@ -98,15 +111,122 @@ components:
         comment:
           type: string
         dataType:
-          $ref: '#/components/schemas/ScoreDataType'
+          $ref: '#/components/schemas/ScoreDataTypeNumeric'
         configId:
           type: string
+          description: >-
+            When set, config and score name must be equal and value must comply
+            to optionally defined numerical range
       required:
         - id
         - traceId
         - name
+        - value
+        - source
         - timestamp
         - dataType
+    BooleanScore:
+      title: BooleanScore
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+          description: >-
+            The numeric value of the score. Equals 1 for "True" and 0 for
+            "False"
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. Is inferred from the
+            numeric value and equals "True" or "False"
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        observationId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        comment:
+          type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataTypeBoolean'
+        configId:
+          type: string
+          description: When set, config and score name must be equal
+      required:
+        - id
+        - traceId
+        - name
+        - value
+        - stringValue
+        - source
+        - timestamp
+        - dataType
+    CategoricalScore:
+      title: CategoricalScore
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+          description: >-
+            Only defined if a config is set. Represents the numeric category
+            mapping of the stringValue
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. If no config is set,
+            can be any string. Otherwise, must map to a config category
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        observationId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        comment:
+          type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataTypeCategorical'
+        configId:
+          type: string
+          description: >-
+            When set, config and score name must be equal and stringValue must
+            map to a config category
+      required:
+        - id
+        - traceId
+        - name
+        - stringValue
+        - source
+        - timestamp
+        - dataType
+    Score:
+      title: Score
+      oneOf:
+        - $ref: '#/components/schemas/NumericScore'
+        - $ref: '#/components/schemas/BooleanScore'
+        - $ref: '#/components/schemas/CategoricalScore'
+    ScoreSource:
+      title: ScoreSource
+      type: string
+      enum:
+        - ANNOTATION
+        - API
+        - EVAL
     ScoreDataType:
       title: ScoreDataType
       type: string
@@ -114,15 +234,30 @@ components:
         - NUMERIC
         - CATEGORICAL
         - BOOLEAN
-    IngestionScoreValue:
-      title: IngestionScoreValue
+    ScoreDataTypeNumeric:
+      title: ScoreDataTypeNumeric
+      type: string
+      enum:
+        - NUMERIC
+    ScoreDataTypeBoolean:
+      title: ScoreDataTypeBoolean
+      type: string
+      enum:
+        - BOOLEAN
+    ScoreDataTypeCategorical:
+      title: ScoreDataTypeCategorical
+      type: string
+      enum:
+        - CATEGORICAL
+    CreateScoreValue:
+      title: CreateScoreValue
       oneOf:
         - type: string
         - type: number
           format: double
       description: >-
         The value of the score. Must be passed as string for categorical scores,
-        and numeric for boolean and numeric scores.
+        and numeric for boolean and numeric scores
   securitySchemes:
     BearerAuth:
       type: http
