@@ -16,6 +16,7 @@ const { TracerProvider } = (await import("dd-trace")).default.init({
   logInjection: true,
   startupLogs: true,
   runtimeMetrics: true,
+  profiling: true,
 });
 
 const provider = new TracerProvider();
