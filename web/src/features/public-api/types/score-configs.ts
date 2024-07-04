@@ -89,7 +89,7 @@ const BooleanScoreConfig = z.object({
 
 const ScoreConfigBase = z.object({
   id: z.string(),
-  name: z.string(),
+  name: z.string().min(1).max(35),
   isArchived: z.boolean(),
   description: z.string().optional().nullish(),
   createdAt: z.coerce.date(),
