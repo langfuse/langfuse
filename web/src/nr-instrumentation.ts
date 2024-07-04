@@ -22,15 +22,15 @@ const provider = new TracerProvider();
 
 registerOTel({
   instrumentations: [new PrismaInstrumentation()],
-  resourceDetectors: [
-    containerDetector,
-    envDetector,
-    hostDetector,
-    osDetector,
-    processDetector,
-    awsEksDetector,
-    awsEc2Detector,
-  ],
+  // resourceDetectors: [
+  //   containerDetector,
+  //   envDetector,
+  //   hostDetector,
+  //   osDetector,
+  //   processDetector,
+  //   awsEksDetector,
+  //   awsEc2Detector,
+  // ],
 });
 
 provider.register();

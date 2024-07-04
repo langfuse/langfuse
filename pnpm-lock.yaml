@@ -291,6 +291,15 @@ importers:
       '@next-auth/prisma-adapter':
         specifier: ^1.0.7
         version: 1.0.7(@prisma/client@5.16.1)(next-auth@4.24.7)
+      '@opentelemetry/resource-detector-aws':
+        specifier: ^1.5.1
+        version: 1.5.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resource-detector-container':
+        specifier: ^0.3.11
+        version: 0.3.11(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.9.0)
       '@prisma/instrumentation':
         specifier: ^5.16.1
         version: 5.16.1
