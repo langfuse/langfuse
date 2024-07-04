@@ -2010,8 +2010,9 @@ components:
           type: string
           nullable: true
           description: >-
-            When set, config and score name must be equal and value must comply
-            to optionally defined numerical range
+            Reference a score config on a score. When set, config and score name
+            must be equal and value must comply to optionally defined numerical
+            range
       required:
         - id
         - traceId
@@ -2057,7 +2058,9 @@ components:
         configId:
           type: string
           nullable: true
-          description: When set, config and score name must be equal
+          description: >-
+            Reference a score config on a score. When set, config and score name
+            must be equal
       required:
         - id
         - traceId
@@ -2106,8 +2109,8 @@ components:
           type: string
           nullable: true
           description: >-
-            When set, config and score name must be equal and stringValue must
-            map to a config category
+            Reference a score config on a score. When set, config and score name
+            must be equal and stringValue must map to a config category
       required:
         - id
         - traceId
@@ -2842,8 +2845,8 @@ components:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
             The value of the score. Must be passed as string for categorical
-            scores, and numeric for boolean and numeric scores. Boolean scores
-            must equal either 1 or 0 (true or false)
+            scores, and numeric for boolean and numeric scores. Boolean score
+            values must equal either 1 or 0 (true or false)
         observationId:
           type: string
           nullable: true
@@ -2860,10 +2863,11 @@ components:
           type: string
           nullable: true
           description: >-
-            When set, the score name must equal the config name and scores must
-            comply with the config's range and data type. For categorical
-            scores, the value must map to a config category. Numeric scores
-            might be constrained by the score config's max and min values
+            Reference a score config on a score. When set, the score name must
+            equal the config name and scores must comply with the config's range
+            and data type. For categorical scores, the value must map to a
+            config category. Numeric scores might be constrained by the score
+            config's max and min values
       required:
         - traceId
         - name
@@ -3416,8 +3420,8 @@ components:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
             The value of the score. Must be passed as string for categorical
-            scores, and numeric for boolean and numeric scores. Boolean scores
-            must equal either 1 or 0 (true or false)
+            scores, and numeric for boolean and numeric scores. Boolean score
+            values must equal either 1 or 0 (true or false)
         observationId:
           type: string
           nullable: true
@@ -3435,9 +3439,9 @@ components:
           type: string
           nullable: true
           description: >-
-            The unique langfuse identifier of a score config. When passing this
-            field, the dataType and stringValue fields are automatically
-            populated.
+            Reference a score config on a score. The unique langfuse identifier
+            of a score config. When passing this field, the dataType and
+            stringValue fields are automatically populated.
       required:
         - traceId
         - name

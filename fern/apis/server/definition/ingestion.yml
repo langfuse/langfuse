@@ -195,7 +195,7 @@ types:
         docs: When set, must match the score value's type. If not set, will be inferred from the score value or config
       configId:
         type: optional<string>
-        docs: When set, the score name must equal the config name and scores must comply with the config's range and data type. For categorical scores, the value must map to a config category. Numeric scores might be constrained by the score config's max and min values
+        docs: Reference a score config on a score. When set, the score name must equal the config name and scores must comply with the config's range and data type. For categorical scores, the value must map to a config category. Numeric scores might be constrained by the score config's max and min values
 
   BaseEvent:
     properties:
