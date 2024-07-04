@@ -3,7 +3,6 @@ import {
   paginationZod,
   paginationMetaResponseZod,
   NonEmptyString,
-  stringDate,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -206,7 +205,7 @@ export const GetScoresQuery = z.object({
   dataType: z.enum(ScoreDataType).nullish(),
   configId: z.string().nullish(),
   name: z.string().nullish(),
-  fromTimestamp: stringDate,
+  fromTimestamp: z.coerce.date().nullish(),
   source: z.enum(ScoreSource).nullish(),
   value: z.coerce.number().nullish(),
   operator: z.enum(operators).nullish(),
