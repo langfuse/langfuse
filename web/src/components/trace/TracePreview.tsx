@@ -1,9 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  type Trace,
-  type ValidatedScore,
-  type ScoreSource,
-} from "@langfuse/shared";
+import { type Trace, type ScoreSource } from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -23,6 +19,7 @@ import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
 
 export const TracePreview = ({
   trace,

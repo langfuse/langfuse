@@ -1,6 +1,7 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
-import { type Trace, type ValidatedScore, type $Enums } from "@langfuse/shared";
+import { type Trace, type $Enums } from "@langfuse/shared";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";

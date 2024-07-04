@@ -34,11 +34,11 @@ import {
   type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevel,
-  type ValidatedScore,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
 
 export type TracesTableRow = {
   bookmarked: boolean;

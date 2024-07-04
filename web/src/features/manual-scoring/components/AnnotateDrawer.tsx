@@ -31,13 +31,15 @@ import {
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
 import {
-  type ConfigCategory,
   ScoreDataType,
-  type ScoreConfig,
-  type ValidatedScore,
   CreateAnnotationScoreData,
   UpdateAnnotationScoreData,
 } from "@langfuse/shared";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
+import {
+  type ValidatedScoreConfig,
+  type ConfigCategory,
+} from "@/src/features/public-api/types/score-configs";
 import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -58,7 +60,6 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { ScoreConfigDetails } from "@/src/features/manual-scoring/components/ScoreConfigDetails";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
   isNumericDataType,
   isPresent,
@@ -401,7 +402,7 @@ export function AnnotateDrawer({
     index,
     score,
   }: {
-    config: ScoreConfig;
+    config: ValidatedScoreConfig;
     field: ControllerRenderProps<
       AnnotateFormSchemaType,
       `scoreData.${number}.value`
