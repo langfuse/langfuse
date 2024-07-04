@@ -618,6 +618,9 @@ importers:
       '@types/lodash':
         specifier: ^4.17.5
         version: 4.17.6
+      '@types/newrelic':
+        specifier: ^9.14.4
+        version: 9.14.4
       '@types/node':
         specifier: 20.10.5
         version: 20.10.5
@@ -8290,6 +8293,10 @@ packages:
     dependencies:
       '@types/node': 20.14.9
     dev: false
+
+  /@types/newrelic@9.14.4:
+    resolution: {integrity: sha512-/Wtr8evFvbOo0P3BNL8gKJiVUDDuAJ9wjwAb7UdmN+amxP5nrR7L8dvyJ5jZmLUmKSiFzMBX7xbMydnRgRoSyQ==}
+    dev: true
 
   /@types/node-fetch@2.6.11:
     resolution: {integrity: sha512-24xFj9R5+rfQJLRyM56qh+wnVSYhyXC2tkoBndtY0U+vubqNsYXGjufB2nn8Q6gt0LrARwL6UBtMCSVCwl4B1g==}

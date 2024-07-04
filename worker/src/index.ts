@@ -2,8 +2,6 @@ import "newrelic";
 import { env } from "./env";
 import logger from "./logger";
 
-import { initializeOtel } from "./instrumentation";
-
 // const sdk = initializeOtel("worker");
 // sdk.start();
 

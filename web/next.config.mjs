@@ -5,7 +5,6 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
-const nrExternals = require("@newrelic/next/load-externals");
 
 /**
  * CSP headers
@@ -103,8 +102,6 @@ const nextConfig = {
 
   // webassembly support for @dqbd/tiktoken
   webpack(config) {
-    nrExternals(config);
-
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,
