@@ -23,7 +23,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type Decimal from "decimal.js";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
@@ -337,7 +337,7 @@ export default function TracesTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.promptTokens}</span>;
+        return <span>{numberFormatter(value.promptTokens, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -353,7 +353,7 @@ export default function TracesTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.completionTokens}</span>;
+        return <span>{numberFormatter(value.completionTokens, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -369,7 +369,7 @@ export default function TracesTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.totalTokens}</span>;
+        return <span>{numberFormatter(value.totalTokens, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,

@@ -77,15 +77,28 @@ const backfillCalculatedGenerationCost = async () => {
         ),
         updated_batch AS (
             UPDATE observations o
-            SET calculated_input_cost = COALESCE(batch.input_cost, batch.prompt_tokens::numeric * batch.input_price),
-                calculated_output_cost = COALESCE(batch.output_cost, batch.completion_tokens::numeric * batch.output_price),
-                calculated_total_cost = COALESCE(
-                    batch.total_cost,
+            SET calculated_input_cost = 
                     CASE
-                        WHEN batch.total_price IS NOT NULL AND batch.total_tokens IS NOT NULL THEN batch.total_price * batch.total_tokens::numeric
-                        ELSE batch.prompt_tokens::numeric * batch.input_price + batch.completion_tokens::numeric * batch.output_price
-                    END
-                ),
+                        WHEN batch.input_cost IS NULL AND batch.output_cost IS NULL AND batch.total_cost IS NULL 
+                        THEN batch.prompt_tokens::numeric * batch.input_price
+                        ELSE batch.input_cost
+                    END,
+                calculated_output_cost = 
+                    CASE
+                        WHEN batch.input_cost IS NULL AND batch.output_cost IS NULL AND batch.total_cost IS NULL 
+                        THEN batch.completion_tokens::numeric * batch.output_price
+                        ELSE batch.output_cost
+                    END,
+                calculated_total_cost = 
+                    CASE
+                        WHEN batch.input_cost IS NULL AND batch.output_cost IS NULL AND batch.total_cost IS NULL 
+                        THEN
+                            CASE
+                                WHEN batch.total_price IS NOT NULL AND batch.total_tokens IS NOT NULL THEN batch.total_price * batch.total_tokens::numeric
+                                ELSE batch.prompt_tokens::numeric * batch.input_price + batch.completion_tokens::numeric * batch.output_price
+                            END
+                        ELSE batch.total_cost
+                    END,
                 internal_model_id = batch.model_id,
                 tmp_has_calculated_cost = TRUE
             FROM batch
