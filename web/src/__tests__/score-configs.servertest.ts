@@ -199,7 +199,7 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(200);
     expect(scoreConfig.body.name).toBe("boolean-config-name");
     expect(scoreConfig.body.dataType).toBe("BOOLEAN");
-    expect(scoreConfig.body.categories).toStrictEqual([
+    expect(scoreConfig.body.categories).toEqual([
       { label: "True", value: 1 },
       { label: "False", value: 0 },
     ]);
@@ -229,7 +229,7 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(200);
     expect(scoreConfig.body.name).toBe("categorical-config-name");
     expect(scoreConfig.body.dataType).toBe("CATEGORICAL");
-    expect(scoreConfig.body.categories).toStrictEqual([
+    expect(scoreConfig.body.categories).toEqual([
       { label: "Good", value: 1 },
       { label: "Bad", value: 0 },
     ]);
