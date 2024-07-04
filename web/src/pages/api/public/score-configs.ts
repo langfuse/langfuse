@@ -78,8 +78,6 @@ export default withMiddlewares({
         skip: (page - 1) * limit,
       });
 
-      console.log("rawConfigs", rawConfigs);
-
       const configs = rawConfigs.reduce(
         (acc, config) => {
           if (ScoreConfig.safeParse(config).success) {
