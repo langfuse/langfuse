@@ -12,6 +12,7 @@ import {
   PostScoreConfigBody,
 } from "@/src/features/public-api/types/score-configs";
 import * as Sentry from "@sentry/node";
+import { InvalidRequestError } from "@langfuse/shared";
 
 const inflateConfigBody = (body: z.infer<typeof PostScoreConfigBody>) => {
   if (isBooleanDataType(body.dataType)) {
@@ -41,7 +42,7 @@ export default withMiddlewares({
       });
 
       if (existingConfig) {
-        throw new Error(
+        throw new InvalidRequestError(
           "Score config with this name and data type already exists for this project",
         );
       }
