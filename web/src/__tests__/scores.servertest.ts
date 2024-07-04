@@ -13,19 +13,12 @@ import {
   GetScoresResponse,
 } from "@/src/features/public-api/types/scores";
 
+const traceId = "de98afa2-89dc-47e9-9924-33f1490fdaf4";
+
 describe("/api/public/scores API Endpoint", () => {
   let should_prune_db = true;
   beforeEach(async () => {
     if (should_prune_db) await pruneDatabase();
-  });
-  afterEach(async () => {
-    if (should_prune_db) await pruneDatabase();
-  });
-
-  it("should create score for a trace", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
 
     await makeAPICall("POST", "/api/public/traces", {
       id: traceId,
@@ -36,7 +29,12 @@ describe("/api/public/scores API Endpoint", () => {
       release: "1.0.0",
       version: "2.0.0",
     });
+  });
+  afterEach(async () => {
+    if (should_prune_db) await pruneDatabase();
+  });
 
+  it("should create score for a trace", async () => {
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -73,20 +71,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should create score for a trace with int", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -169,22 +153,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should create numeric score if value is integer and no data type is passed", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: {
-        key: "value",
-      },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -221,22 +189,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should create categorical score if value is string and no data type is passed", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: {
-        key: "value",
-      },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -275,20 +227,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should create boolean score if boolean data type is passed", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -323,20 +261,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should infer boolean data type from boolean score config", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -385,20 +309,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should NOT create categorical score if numeric data type is passed", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -438,20 +348,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should NOT create numeric score if categorical data type is passed incl numeric config", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -500,20 +396,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should NOT create numeric score if config and passed data type mismatch", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -566,20 +448,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should NOT create boolean score if string value is passed", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -634,20 +502,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should NOT create boolean score with value other than 1 | 0", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -700,20 +554,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should NOT create categorical score with value not defined in config.categories", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -772,20 +612,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should NOT create numeric score outside of defined range", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
@@ -835,20 +661,6 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   it("should upsert a score", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
     const dbTrace = await prisma.trace.findMany({
       where: {
         id: traceId,
