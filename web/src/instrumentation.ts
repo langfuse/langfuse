@@ -6,6 +6,7 @@ export async function register() {
     const { TracerProvider } = (await import("dd-trace")).default.init({
       logInjection: true,
       startupLogs: true,
+      profiling: true,
     });
 
     const provider = new TracerProvider();
