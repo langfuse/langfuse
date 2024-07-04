@@ -167,17 +167,16 @@ describe("/api/public/score-configs API Endpoint", () => {
       },
     );
 
-    const dbScoreConfig = await prisma.scoreConfig.findMany({
-      where: {
-        name: "numeric-config-name",
-      },
-    });
+    const scoreConfig = await makeZodVerifiedAPICall(
+      GetScoreConfigResponse,
+      "GET",
+      `/api/public/score-configs/${postScoreConfig.body.id}`,
+    );
 
     expect(postScoreConfig.status).toBe(200);
-    expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.name).toBe("numeric-config-name");
-    expect(dbScoreConfig[0]?.dataType).toBe("NUMERIC");
-    expect(dbScoreConfig[0]?.maxValue).toBe(0);
+    expect(scoreConfig.body.name).toBe("numeric-config-name");
+    expect(scoreConfig.body.dataType).toBe("NUMERIC");
+    expect(scoreConfig.body.maxValue).toBe(0);
   });
 
   it("should POST a boolean score config", async () => {
@@ -191,17 +190,16 @@ describe("/api/public/score-configs API Endpoint", () => {
       },
     );
 
-    const dbScoreConfig = await prisma.scoreConfig.findMany({
-      where: {
-        name: "boolean-config-name",
-      },
-    });
+    const scoreConfig = await makeZodVerifiedAPICall(
+      GetScoreConfigResponse,
+      "GET",
+      `/api/public/score-configs/${postScoreConfig.body.id}`,
+    );
 
     expect(postScoreConfig.status).toBe(200);
-    expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.name).toBe("boolean-config-name");
-    expect(dbScoreConfig[0]?.dataType).toBe("BOOLEAN");
-    expect(dbScoreConfig[0]?.categories).toStrictEqual([
+    expect(scoreConfig.body.name).toBe("boolean-config-name");
+    expect(scoreConfig.body.dataType).toBe("BOOLEAN");
+    expect(scoreConfig.body.categories).toStrictEqual([
       { label: "True", value: 1 },
       { label: "False", value: 0 },
     ]);
@@ -222,17 +220,16 @@ describe("/api/public/score-configs API Endpoint", () => {
       },
     );
 
-    const dbScoreConfig = await prisma.scoreConfig.findMany({
-      where: {
-        name: "categorical-config-name",
-      },
-    });
+    const scoreConfig = await makeZodVerifiedAPICall(
+      GetScoreConfigResponse,
+      "GET",
+      `/api/public/score-configs/${postScoreConfig.body.id}`,
+    );
 
     expect(postScoreConfig.status).toBe(200);
-    expect(dbScoreConfig.length).toBeGreaterThan(0);
-    expect(dbScoreConfig[0]?.name).toBe("categorical-config-name");
-    expect(dbScoreConfig[0]?.dataType).toBe("CATEGORICAL");
-    expect(dbScoreConfig[0]?.categories).toStrictEqual([
+    expect(scoreConfig.body.name).toBe("categorical-config-name");
+    expect(scoreConfig.body.dataType).toBe("CATEGORICAL");
+    expect(scoreConfig.body.categories).toStrictEqual([
       { label: "Good", value: 1 },
       { label: "Bad", value: 0 },
     ]);
