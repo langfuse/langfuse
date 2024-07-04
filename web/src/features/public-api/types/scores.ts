@@ -1,10 +1,12 @@
-import { isPresent } from "@/src/features/manual-scoring/lib/helpers";
+import * as Sentry from "@sentry/node";
 import {
   paginationZod,
   paginationMetaResponseZod,
   NonEmptyString,
+  type Score,
 } from "@langfuse/shared";
 import { z } from "zod";
+import { isPresent } from "@/src/utils/typeChecks";
 
 /**
  * Objects
@@ -38,7 +40,7 @@ const BooleanData = z.object({
   dataType: z.literal("BOOLEAN"),
 });
 
-const GetScoreBase = z.object({
+const ScoreBase = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),
   projectId: z.string(),
@@ -81,7 +83,15 @@ export const GetScoresData = z.discriminatedUnion("dataType", [
   GetScoresDataBase.merge(BooleanData),
 ]);
 
+const ValidatedScoreSchema = z.discriminatedUnion("dataType", [
+  ScoreBase.merge(NumericData),
+  ScoreBase.merge(CategoricalData),
+  ScoreBase.merge(BooleanData),
+]);
+
 export type ValidatedGetScoresData = z.infer<typeof GetScoresData>;
+
+export type ValidatedScore = z.infer<typeof ValidatedScoreSchema>;
 
 /**
  * Validation objects
@@ -158,6 +168,26 @@ export const ScorePropsAgainstConfig = z.union([
 ]);
 
 /**
+ * Transformations
+ */
+
+export const filterAndValidateDbScoreList = (
+  scores: Score[],
+): ValidatedScore[] =>
+  scores.reduce((acc, ts) => {
+    const result = ValidatedScoreSchema.safeParse(ts);
+    if (result.success) {
+      acc.push(result.data);
+    } else {
+      Sentry.captureException(result.error);
+    }
+    return acc;
+  }, [] as ValidatedScore[]);
+
+export const validateDbScore = (score: Score): ValidatedScore =>
+  ValidatedScoreSchema.parse(score);
+
+/**
  * Endpoints
  */
 
@@ -228,11 +258,7 @@ export const GetScoreQuery = z.object({
   scoreId: z.string(),
 });
 
-export const GetScoreResponse = z.discriminatedUnion("dataType", [
-  GetScoreBase.merge(NumericData),
-  GetScoreBase.merge(CategoricalData),
-  GetScoreBase.merge(BooleanData),
-]);
+export const GetScoreResponse = ValidatedScoreSchema;
 
 // DELETE /scores/{scoreId}
 export const DeleteScoreQuery = z.object({

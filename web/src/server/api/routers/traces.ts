@@ -11,12 +11,7 @@ import {
   type ObservationView,
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
-import {
-  type ValidatedScore,
-  ValidatedScoreSchema,
-  paginationZod,
-  timeFilter,
-} from "@langfuse/shared";
+import { paginationZod, timeFilter } from "@langfuse/shared";
 import * as Sentry from "@sentry/node";
 import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
@@ -31,6 +26,7 @@ import { orderByToPrismaSql } from "@langfuse/shared";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -153,15 +149,7 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
-      const validatedScores = scores.reduce((acc, score) => {
-        const result = ValidatedScoreSchema.safeParse(score);
-        if (result.success) {
-          acc.push(result.data);
-        } else {
-          Sentry.captureException(result.error);
-        }
-        return acc;
-      }, [] as ValidatedScore[]);
+      const validatedScores = filterAndValidateDbScoreList(scores);
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
@@ -313,15 +301,7 @@ export const traceRouter = createTRPCRouter({
           projectId: trace.projectId,
         },
       });
-      const validatedScores = scores.reduce((acc, score) => {
-        const result = ValidatedScoreSchema.safeParse(score);
-        if (result.success) {
-          acc.push(result.data);
-        } else {
-          Sentry.captureException(result.error);
-        }
-        return acc;
-      }, [] as ValidatedScore[]);
+      const validatedScores = filterAndValidateDbScoreList(scores);
 
       const obsStartTimes = observations
         .map((o) => o.startTime)

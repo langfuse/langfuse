@@ -8,8 +8,6 @@ import {
   singleFilter,
   type SessionOptions,
   getSessionTableSQL,
-  ValidatedScoreSchema,
-  type ValidatedScore,
 } from "@langfuse/shared";
 import * as Sentry from "@sentry/node";
 import { Prisma } from "@langfuse/shared/src/db";
@@ -19,6 +17,7 @@ import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type Decimal from "decimal.js";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -139,15 +138,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
 
-        const validatedScores = scores.reduce((acc, score) => {
-          const result = ValidatedScoreSchema.safeParse(score);
-          if (result.success) {
-            acc.push(result.data);
-          } else {
-            Sentry.captureException(result.error);
-          }
-          return acc;
-        }, [] as ValidatedScore[]);
+        const validatedScores = filterAndValidateDbScoreList(scores);
 
         const totalCostQuery = Prisma.sql`
         SELECT

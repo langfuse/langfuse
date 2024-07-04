@@ -4,7 +4,6 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import * as Sentry from "@sentry/node";
 import {
   type DatasetRuns,
   Prisma,
@@ -13,11 +12,8 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import {
-  type ValidatedScore,
-  paginationZod,
-  ValidatedScoreSchema,
-} from "@langfuse/shared";
+import { paginationZod } from "@langfuse/shared";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -626,25 +622,9 @@ export const datasetRouter = createTRPCRouter({
         `,
       );
 
-      const validatedTraceScores = traceScores.reduce((acc, ts) => {
-        const result = ValidatedScoreSchema.safeParse(ts);
-        if (result.success) {
-          acc.push(result.data);
-        } else {
-          Sentry.captureException(result.error);
-        }
-        return acc;
-      }, [] as ValidatedScore[]);
-
-      const validatedObservationScores = observationScores.reduce((acc, os) => {
-        const result = ValidatedScoreSchema.safeParse(os);
-        if (result.success) {
-          acc.push(result.data);
-        } else {
-          Sentry.captureException(result.error);
-        }
-        return acc;
-      }, [] as ValidatedScore[]);
+      const validatedTraceScores = filterAndValidateDbScoreList(traceScores);
+      const validatedObservationScores =
+        filterAndValidateDbScoreList(observationScores);
 
       const items = runItems.map((ri) => {
         return {

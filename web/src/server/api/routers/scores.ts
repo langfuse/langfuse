@@ -8,7 +8,6 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
 import {
   CreateAnnotationScoreData,
-  ValidatedScoreSchema,
   UpdateAnnotationScoreData,
   paginationZod,
 } from "@langfuse/shared";
@@ -23,6 +22,7 @@ import {
 } from "@/src/server/api/definitions/scoresTable";
 import { orderBy } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { validateDbScore } from "@/src/features/public-api/types/scores";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -177,7 +177,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
           },
         });
-        return ValidatedScoreSchema.parse(updatedScore);
+        return validateDbScore(updatedScore);
       }
 
       const score = await ctx.prisma.score.create({
@@ -207,7 +207,7 @@ export const scoresRouter = createTRPCRouter({
         action: "create",
         after: score,
       });
-      return ValidatedScoreSchema.parse(score);
+      return validateDbScore(score);
     }),
   updateAnnotationScore: protectedProjectProcedure
     .input(UpdateAnnotationScoreData)
@@ -252,7 +252,7 @@ export const scoresRouter = createTRPCRouter({
           authorUserId: ctx.session.user.id,
         },
       });
-      return ValidatedScoreSchema.parse(updatedScore);
+      return validateDbScore(updatedScore);
     }),
   deleteAnnotationScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
