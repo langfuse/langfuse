@@ -305,7 +305,11 @@ describe("/api/public/scores API Endpoint", () => {
       },
     });
 
-    expect(dbScore).toMatchObject({ ...scoreData, stringValue: "True" });
+    expect(dbScore).toMatchObject({
+      ...scoreData,
+      stringValue: "True",
+      dataType: "BOOLEAN",
+    });
   });
 
   it("should NOT create categorical score if numeric data type is passed", async () => {
