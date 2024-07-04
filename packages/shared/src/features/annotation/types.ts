@@ -19,17 +19,6 @@ const ANNOTATION: ScoreSource = "ANNOTATION";
 export const availableDataTypes = [NUMERIC, CATEGORICAL, BOOLEAN] as const;
 const availableSources = [API, EVAL, ANNOTATION] as const;
 
-export const createConfigSchema = z.object({
-  name: z.string().min(1).max(35),
-  dataType: z.enum(availableDataTypes),
-  minValue: z.coerce.number().optional(),
-  maxValue: z.coerce.number().optional(),
-  categories: z.array(Category).optional(),
-  description: z.string().optional(),
-});
-
-export type CreateConfig = z.infer<typeof createConfigSchema>;
-
 const NumericData = z.object({
   value: z.number(),
   stringValue: z.undefined().nullish(),

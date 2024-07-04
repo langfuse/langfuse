@@ -1335,6 +1335,13 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: dataType
+          in: query
+          description: Retrieve only scores with a specific dataType.
+          required: false
+          schema:
+            $ref: '#/components/schemas/ScoreDataType'
+            nullable: true
       responses:
         '200':
           description: ''
