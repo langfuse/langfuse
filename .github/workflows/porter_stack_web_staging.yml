@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - otel-nr
+      - otel-nr-native
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
