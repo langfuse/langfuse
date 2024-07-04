@@ -3,15 +3,16 @@ import {
   paginationZod,
   paginationMetaResponseZod,
   NonEmptyString,
-  ScoreDataType,
   stringDate,
-  ScoreSource,
 } from "@langfuse/shared";
 import { z } from "zod";
 
 /**
  * Objects
  */
+
+const ScoreSource = ["API", "EVAL", "ANNOTATION"] as const;
+const ScoreDataType = ["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const;
 
 const ConfigCategory = z.object({
   label: z.string().min(1),
@@ -43,7 +44,7 @@ const GetScoreBase = z.object({
   timestamp: z.coerce.date(),
   projectId: z.string(),
   name: z.string(),
-  source: z.nativeEnum(ScoreSource),
+  source: z.enum(ScoreSource),
   authorUserId: z.string().nullish(),
   comment: z.string().nullish(),
   traceId: z.string(),
@@ -65,7 +66,7 @@ const GetScoresDataBase = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),
   name: z.string(),
-  source: z.nativeEnum(ScoreSource),
+  source: z.enum(ScoreSource),
   comment: z.string().nullish(),
   traceId: z.string(),
   observationId: z.string().nullish(),
@@ -202,11 +203,11 @@ export const PostScoresResponse = z.void();
 export const GetScoresQuery = z.object({
   ...paginationZod,
   userId: z.string().nullish(),
-  dataType: z.nativeEnum(ScoreDataType).nullish(),
+  dataType: z.enum(ScoreDataType).nullish(),
   configId: z.string().nullish(),
   name: z.string().nullish(),
   fromTimestamp: stringDate,
-  source: z.nativeEnum(ScoreSource).nullish(),
+  source: z.enum(ScoreSource).nullish(),
   value: z.coerce.number().nullish(),
   operator: z.enum(operators).nullish(),
   scoreIds: z
