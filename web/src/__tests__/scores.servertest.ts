@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -216,7 +216,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     expect(dbScore).toMatchObject({
       ...scoreData,
-      dataType: ScoreDataType.NUMERIC,
+      dataType: "NUMERIC",
     });
   });
 
@@ -270,7 +270,7 @@ describe("/api/public/scores API Endpoint", () => {
       ...scoreData,
       value: null,
       stringValue: "Good",
-      dataType: ScoreDataType.CATEGORICAL,
+      dataType: "CATEGORICAL",
     });
   });
 
@@ -303,7 +303,7 @@ describe("/api/public/scores API Endpoint", () => {
       id: scoreId,
       name: "score-name",
       value: 1,
-      dataType: ScoreDataType.BOOLEAN,
+      dataType: "BOOLEAN",
       traceId,
     };
     const createScore = await makeAPICall(
@@ -348,7 +348,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     await makeAPICall("POST", "/api/public/score-configs", {
       name: "accuracy",
-      dataType: ScoreDataType.BOOLEAN,
+      dataType: "BOOLEAN",
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
@@ -413,7 +413,7 @@ describe("/api/public/scores API Endpoint", () => {
       id: scoreId,
       name: "accuracy",
       value: 1,
-      dataType: ScoreDataType.CATEGORICAL,
+      dataType: "CATEGORICAL",
       traceId,
     };
     const createScore = await makeAPICall(
@@ -463,7 +463,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     await makeAPICall("POST", "/api/public/score-configs", {
       name: "accuracy",
-      dataType: ScoreDataType.NUMERIC,
+      dataType: "NUMERIC",
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
@@ -481,7 +481,7 @@ describe("/api/public/scores API Endpoint", () => {
       name: "accuracy",
       value: "Good",
       configId: dbScoreConfig[0].id,
-      dataType: ScoreDataType.CATEGORICAL,
+      dataType: "CATEGORICAL",
       traceId,
     };
     const createScore = await makeAPICall(
@@ -525,7 +525,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     await makeAPICall("POST", "/api/public/score-configs", {
       name: "accuracy",
-      dataType: ScoreDataType.CATEGORICAL,
+      dataType: "CATEGORICAL",
       categories: [
         { label: "One", value: 1 },
         { label: "Zero", value: 0 },
@@ -547,7 +547,7 @@ describe("/api/public/scores API Endpoint", () => {
       name: "accuracy",
       value: 1,
       configId: dbScoreConfig[0].id,
-      dataType: ScoreDataType.NUMERIC,
+      dataType: "NUMERIC",
       traceId,
     };
     const createScore = await makeAPICall(
@@ -591,7 +591,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     await makeAPICall("POST", "/api/public/score-configs", {
       name: "accuracy",
-      dataType: ScoreDataType.BOOLEAN,
+      dataType: "BOOLEAN",
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
@@ -609,7 +609,7 @@ describe("/api/public/scores API Endpoint", () => {
       name: "accuracy",
       value: "True",
       configId: dbScoreConfig[0].id,
-      dataType: ScoreDataType.BOOLEAN,
+      dataType: "BOOLEAN",
       traceId,
     };
     const createScore = await makeAPICall(
@@ -659,7 +659,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     await makeAPICall("POST", "/api/public/score-configs", {
       name: "accuracy",
-      dataType: ScoreDataType.BOOLEAN,
+      dataType: "BOOLEAN",
     });
 
     const dbScoreConfig = await prisma.scoreConfig.findMany({
@@ -677,7 +677,7 @@ describe("/api/public/scores API Endpoint", () => {
       name: "accuracy",
       value: 0.5,
       configId: dbScoreConfig[0].id,
-      dataType: ScoreDataType.BOOLEAN,
+      dataType: "BOOLEAN",
       traceId,
     };
     const createScore = await makeAPICall(
@@ -725,7 +725,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     await makeAPICall("POST", "/api/public/score-configs", {
       name: "accuracy",
-      dataType: ScoreDataType.CATEGORICAL,
+      dataType: "CATEGORICAL",
       categories: [
         { label: "One", value: 1 },
         { label: "Zero", value: 0 },
@@ -747,7 +747,7 @@ describe("/api/public/scores API Endpoint", () => {
       name: "accuracy",
       value: 1,
       configId: dbScoreConfig[0].id,
-      dataType: ScoreDataType.CATEGORICAL,
+      dataType: "CATEGORICAL",
       traceId,
     };
     const createScore = await makeAPICall(
@@ -797,7 +797,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     await makeAPICall("POST", "/api/public/score-configs", {
       name: "accuracy",
-      dataType: ScoreDataType.NUMERIC,
+      dataType: "NUMERIC",
       maxValue: 0,
     });
 
@@ -816,7 +816,7 @@ describe("/api/public/scores API Endpoint", () => {
       name: "accuracy",
       value: 0.5,
       configId: dbScoreConfig[0].id,
-      dataType: ScoreDataType.NUMERIC,
+      dataType: "NUMERIC",
       traceId,
     };
     const createScore = await makeAPICall(
@@ -993,7 +993,7 @@ describe("/api/public/scores API Endpoint", () => {
       source: "API",
       traceId,
       observationId: generationId,
-      dataType: ScoreDataType.NUMERIC,
+      dataType: "NUMERIC",
     });
   });
 
@@ -1022,7 +1022,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       await makeAPICall("POST", "/api/public/score-configs", {
         name: scoreName,
-        dataType: ScoreDataType.NUMERIC,
+        dataType: "NUMERIC",
         maxValue: 100,
       });
 
@@ -1111,7 +1111,7 @@ describe("/api/public/scores API Endpoint", () => {
       const getAllScore = await makeZodVerifiedAPICall(
         GetScoresResponse,
         "GET",
-        `/api/public/scores?dataType=${ScoreDataType.NUMERIC}`,
+        `/api/public/scores?dataType=${"NUMERIC"}`,
       );
 
       expect(getAllScore.status).toBe(200);
@@ -1125,7 +1125,7 @@ describe("/api/public/scores API Endpoint", () => {
         expect(val).toMatchObject({
           traceId: traceId,
           observationId: generationId,
-          dataType: ScoreDataType.NUMERIC,
+          dataType: "NUMERIC",
         });
       }
     });

@@ -7,8 +7,8 @@ import {
 } from "@/src/__tests__/test-utils";
 import {
   type ScoreConfig,
-  ScoreDataType,
   prisma,
+  type ScoreDataType,
 } from "@langfuse/shared/src/db";
 import {
   GetScoreConfigResponse,
@@ -21,7 +21,7 @@ const configOne = [
     projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
     name: "Test Boolean Config",
     description: "Test Description",
-    dataType: ScoreDataType.BOOLEAN,
+    dataType: "BOOLEAN" as ScoreDataType,
     categories: [
       { label: "True", value: 1 },
       { label: "False", value: 0 },
@@ -35,7 +35,7 @@ const configTwo = [
     projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
     name: "Test Numeric Config",
     description: "Test Description",
-    dataType: ScoreDataType.NUMERIC,
+    dataType: "NUMERIC" as ScoreDataType,
     minValue: 0,
     createdAt: new Date("2024-05-11T00:00:00.000Z"),
     updatedAt: new Date("2024-05-11T00:00:00.000Z"),
@@ -47,7 +47,7 @@ const configThree = [
     projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
     name: "Test Categorical Config",
     description: "Test Description",
-    dataType: ScoreDataType.CATEGORICAL,
+    dataType: "CATEGORICAL" as ScoreDataType,
     categories: [
       { label: "A", value: 0 },
       { label: "B", value: 1 },
@@ -162,7 +162,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       "/api/public/score-configs",
       {
         name: "numeric-config-name",
-        dataType: ScoreDataType.NUMERIC,
+        dataType: "NUMERIC",
         maxValue: 0,
       },
     );
@@ -176,7 +176,7 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(200);
     expect(dbScoreConfig.length).toBeGreaterThan(0);
     expect(dbScoreConfig[0]?.name).toBe("numeric-config-name");
-    expect(dbScoreConfig[0]?.dataType).toBe(ScoreDataType.NUMERIC);
+    expect(dbScoreConfig[0]?.dataType).toBe("NUMERIC");
     expect(dbScoreConfig[0]?.maxValue).toBe(0);
   });
 
@@ -187,7 +187,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       "/api/public/score-configs",
       {
         name: "boolean-config-name",
-        dataType: ScoreDataType.BOOLEAN,
+        dataType: "BOOLEAN",
       },
     );
 
@@ -200,7 +200,7 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(200);
     expect(dbScoreConfig.length).toBeGreaterThan(0);
     expect(dbScoreConfig[0]?.name).toBe("boolean-config-name");
-    expect(dbScoreConfig[0]?.dataType).toBe(ScoreDataType.BOOLEAN);
+    expect(dbScoreConfig[0]?.dataType).toBe("BOOLEAN");
     expect(dbScoreConfig[0]?.categories).toStrictEqual([
       { label: "True", value: 1 },
       { label: "False", value: 0 },
@@ -214,7 +214,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       "/api/public/score-configs",
       {
         name: "categorical-config-name",
-        dataType: ScoreDataType.CATEGORICAL,
+        dataType: "CATEGORICAL",
         categories: [
           { label: "Good", value: 1 },
           { label: "Bad", value: 0 },
@@ -231,7 +231,7 @@ describe("/api/public/score-configs API Endpoint", () => {
     expect(postScoreConfig.status).toBe(200);
     expect(dbScoreConfig.length).toBeGreaterThan(0);
     expect(dbScoreConfig[0]?.name).toBe("categorical-config-name");
-    expect(dbScoreConfig[0]?.dataType).toBe(ScoreDataType.CATEGORICAL);
+    expect(dbScoreConfig[0]?.dataType).toBe("CATEGORICAL");
     expect(dbScoreConfig[0]?.categories).toStrictEqual([
       { label: "Good", value: 1 },
       { label: "Bad", value: 0 },
@@ -244,7 +244,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       "/api/public/score-configs",
       {
         name: "invalid-numeric-config-name",
-        dataType: ScoreDataType.NUMERIC,
+        dataType: "NUMERIC",
         maxValue: 0,
         minValue: 1,
       },
@@ -269,7 +269,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       "/api/public/score-configs",
       {
         name: "invalid-boolean-config-name",
-        dataType: ScoreDataType.BOOLEAN,
+        dataType: "BOOLEAN",
         categories: [
           { label: "Good", value: 1 },
           { label: "Bad", value: 0 },
@@ -289,7 +289,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       "/api/public/score-configs",
       {
         name: "invalid-categorical-config-name",
-        dataType: ScoreDataType.CATEGORICAL,
+        dataType: "CATEGORICAL",
       },
     );
 
@@ -305,7 +305,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       "/api/public/score-configs",
       {
         name: "invalid-categorical-config-name",
-        dataType: ScoreDataType.CATEGORICAL,
+        dataType: "CATEGORICAL",
         categories: [
           { key: "first", value: 1 },
           { key: "second", value: 0 },
@@ -333,7 +333,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       "/api/public/score-configs",
       {
         name: "invalid-categorical-config-name",
-        dataType: ScoreDataType.CATEGORICAL,
+        dataType: "CATEGORICAL",
         categories: [
           { label: "first", value: 1 },
           { label: "first", value: 0 },
@@ -361,7 +361,7 @@ describe("/api/public/score-configs API Endpoint", () => {
       "/api/public/score-configs",
       {
         name: "invalid-categorical-config-name",
-        dataType: ScoreDataType.CATEGORICAL,
+        dataType: "CATEGORICAL",
         categories: [
           { label: "first", value: 1 },
           { label: "second", value: 1 },
