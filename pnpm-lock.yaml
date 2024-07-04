@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      newrelic:
+        specifier: ^11.22.0
+        version: 11.22.0
     devDependencies:
       '@release-it/bumper':
         specifier: ^6.0.1

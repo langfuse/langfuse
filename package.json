@@ -79,5 +79,8 @@
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
     }
+  },
+  "dependencies": {
+    "newrelic": "^11.22.0"
   }
 }
