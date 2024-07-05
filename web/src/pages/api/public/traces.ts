@@ -4,7 +4,11 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma, type Trace } from "@langfuse/shared/src/db";
-import { paginationZod } from "@langfuse/shared";
+import {
+  paginationMetaResponseZod,
+  paginationZod,
+  validateZodSchema,
+} from "@langfuse/shared";
 import {
   handleBatch,
   handleBatchResultLegacy,
@@ -15,7 +19,7 @@ import { telemetry } from "@/src/features/telemetry";
 import { tracesTableCols, orderBy, orderByToPrismaSql } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 
-const GetTracesSchema = z.object({
+const GetTracesV1Query = z.object({
   ...paginationZod,
   userId: z.string().nullish(),
   name: z.string().nullish(),
@@ -31,6 +35,41 @@ const GetTracesSchema = z.object({
       return { column, order: order?.toUpperCase() };
     })
     .pipe(orderBy.nullish()),
+});
+
+const PostTracesV1Body = TraceBody;
+
+const Trace = z.object({
+  id: z.string(),
+  externalId: z.string().nullable(),
+  timestamp: z.coerce.date(),
+  name: z.string().nullable(),
+  userId: z.string().nullable(),
+  metadata: z.any(), // Prisma JSON
+  release: z.string().nullable(),
+  version: z.string().nullable(),
+  projectId: z.string(),
+  public: z.boolean(),
+  bookmarked: z.boolean(),
+  tags: z.array(z.string()),
+  input: z.any(), // Prisma JSON
+  output: z.any(), // Prisma JSON
+  sessionId: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+const GetTracesV1Response = z.object({
+  data: z.array(
+    Trace.extend({
+      observations: z.array(z.string()),
+      scores: z.array(z.string()),
+      totalCost: z.number(),
+      latency: z.number(),
+      htmlPath: z.string(),
+    }),
+  ),
+  meta: paginationMetaResponseZod,
 });
 
 export default async function handler(
@@ -64,7 +103,7 @@ export default async function handler(
         });
       }
 
-      const body = TraceBody.parse(req.body);
+      const body = PostTracesV1Body.parse(req.body);
 
       await telemetry();
 
@@ -84,7 +123,7 @@ export default async function handler(
         });
       }
 
-      const obj = GetTracesSchema.parse(req.query); // uses query and not body
+      const obj = GetTracesV1Query.parse(req.query); // uses query and not body
 
       const skipValue = (obj.page - 1) * obj.limit;
       const userCondition = obj.userId
@@ -130,6 +169,9 @@ export default async function handler(
             t.user_id as "userId",
             t.release,
             t.version,
+            t.bookmarked,
+            t.created_at as "createdAt",
+            t.updated_at as "updatedAt",
             t.public,
             t.tags,
             COALESCE(o."totalCost", 0)::DOUBLE PRECISION AS "totalCost",
@@ -180,7 +222,9 @@ export default async function handler(
         },
       });
 
-      return res.status(200).json({
+      console.log(traces[0]);
+
+      const response = validateZodSchema(GetTracesV1Response, {
         data: traces,
         meta: {
           page: obj.page,
@@ -189,6 +233,8 @@ export default async function handler(
           totalPages: Math.ceil(totalItems / obj.limit),
         },
       });
+
+      return res.status(200).json(response);
     } else {
       console.error(req.method, req.body);
       return res.status(405).json({ message: "Method not allowed" });
