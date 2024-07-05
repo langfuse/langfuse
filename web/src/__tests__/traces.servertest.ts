@@ -1,15 +1,13 @@
 /** @jest-environment node */
 
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+  pruneDatabase,
+} from "@/src/__tests__/test-utils";
+import { GetTracesV1Response } from "@/src/features/public-api/types/traces";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
-
-interface GetTracesAPIResponse {
-  data: Array<{
-    id: string;
-    [key: string]: unknown;
-  }>;
-}
 
 describe("/api/public/traces API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -116,7 +114,8 @@ describe("/api/public/traces API Endpoint", () => {
     });
 
     // multiple tags
-    const traces = await makeAPICall<GetTracesAPIResponse>(
+    const traces = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
       "GET",
       "/api/public/traces?tags=tag-2&tags=tag-3",
     );
@@ -125,7 +124,8 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traceIds).toEqual(["trace-3", "trace-1"]);
 
     // single tag
-    const traces2 = await makeAPICall<GetTracesAPIResponse>(
+    const traces2 = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
       "GET",
       "/api/public/traces?tags=tag-1",
     );
@@ -134,7 +134,8 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traceIds2).toEqual(["trace-2", "trace-1"]);
 
     // wrong tag
-    const traces3 = await makeAPICall<GetTracesAPIResponse>(
+    const traces3 = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
       "GET",
       "/api/public/traces?tags=tag-10",
     );
@@ -143,7 +144,8 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traceIds3).toEqual([]);
 
     // no tag
-    const traces4 = await makeAPICall<GetTracesAPIResponse>(
+    const traces4 = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
       "GET",
       "/api/public/traces?tags=",
     );
@@ -210,7 +212,8 @@ describe("/api/public/traces API Endpoint", () => {
 
     // GET traces
     // Retrieve the trace with totalCost and latency
-    const traces = await makeAPICall<GetTracesAPIResponse>(
+    const traces = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
       "GET",
       `/api/public/traces`,
     );
@@ -267,7 +270,8 @@ describe("/api/public/traces API Endpoint", () => {
     });
 
     // Filter by session ID
-    const tracesBySessionId = await makeAPICall<GetTracesAPIResponse>(
+    const tracesBySessionId = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
       "GET",
       `/api/public/traces?sessionId=${sessionId}`,
     );
@@ -277,7 +281,8 @@ describe("/api/public/traces API Endpoint", () => {
     expect(tracesBySessionId.body.data[0].id).toBe("trace-1");
 
     // Filter by another session ID
-    const tracesByAnotherSessionId = await makeAPICall<GetTracesAPIResponse>(
+    const tracesByAnotherSessionId = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
       "GET",
       `/api/public/traces?sessionId=${anotherSessionId}`,
     );
@@ -287,11 +292,11 @@ describe("/api/public/traces API Endpoint", () => {
     expect(tracesByAnotherSessionId.body.data[0].id).toBe("trace-2");
 
     // Filter by non-existent session ID
-    const tracesByNonExistentSessionId =
-      await makeAPICall<GetTracesAPIResponse>(
-        "GET",
-        `/api/public/traces?sessionId=non-existent-session-id`,
-      );
+    const tracesByNonExistentSessionId = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
+      "GET",
+      `/api/public/traces?sessionId=non-existent-session-id`,
+    );
 
     expect(tracesByNonExistentSessionId.status).toBe(200);
     expect(tracesByNonExistentSessionId.body.data).toHaveLength(0);
