@@ -1,5 +1,4 @@
 import pino from "pino";
-import { env } from "./env";
 
 export const getLogger = () => {
   return pino({

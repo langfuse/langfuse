@@ -38,7 +38,6 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import logger from "../../../utils/logger";
 
 export const config = {
   api: {
@@ -201,7 +200,7 @@ export const handleBatch = async (
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
-  logger.info(`handling ingestion ${events.length} events`);
+  console.log(`handling ingestion ${events.length} events`);
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
