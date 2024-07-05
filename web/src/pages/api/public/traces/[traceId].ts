@@ -10,6 +10,7 @@ import {
   GetTraceV1Response,
 } from "@/src/features/public-api/types/traces";
 import { validateZodSchema } from "@langfuse/shared";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 export default async function handler(
   req: NextApiRequest,
@@ -44,7 +45,7 @@ export default async function handler(
     }
     // END CHECK ACCESS SCOPE
 
-    const trace = await prisma.trace.findFirst({
+    const trace = await prisma.traceView.findFirst({
       where: {
         id: traceId,
         projectId: authCheck.scope.projectId,
@@ -73,14 +74,19 @@ export default async function handler(
 
     const outObservations = observations.map(mapUsageOutput);
 
+    const { duration, ...restOfTrace } = trace;
+
+    const validatedScores = filterAndValidateDbScoreList(scores);
+
     const response = validateZodSchema(GetTraceV1Response, {
-      ...trace,
-      scores,
+      ...restOfTrace,
+      scores: validatedScores,
       htmlPath: `/project/${authCheck.scope.projectId}/traces/${traceId}`,
       totalCost: outObservations.reduce(
         (acc, obs) => acc + (obs.calculatedTotalCost ?? 0),
         0,
       ),
+      latency: duration ?? 0,
       observations: outObservations,
     });
 

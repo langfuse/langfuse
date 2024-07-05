@@ -79,7 +79,7 @@ export const GetScoresData = z.discriminatedUnion("dataType", [
   GetScoresDataBase.merge(BooleanData),
 ]);
 
-const ValidatedScoreSchema = z.discriminatedUnion("dataType", [
+export const ValidatedScoreSchema = z.discriminatedUnion("dataType", [
   ScoreBase.merge(NumericData),
   ScoreBase.merge(CategoricalData),
   ScoreBase.merge(BooleanData),

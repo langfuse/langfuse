@@ -1,3 +1,4 @@
+import { ValidatedScoreSchema } from "@/src/features/public-api/types/scores";
 import {
   jsonSchema,
   paginationZod,
@@ -77,4 +78,7 @@ export const PostTracesV1Response = z.void();
 export const GetTraceV1Query = z.object({
   traceId: z.string(),
 });
-export const GetTraceV1Response = ExtendedTrace;
+export const GetTraceV1Response = ExtendedTrace.extend({
+  scores: z.array(z.any()), // TODO: Define Score type
+  observations: z.array(z.any()), // TODO: Define Observation type
+});
