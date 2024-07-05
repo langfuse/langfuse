@@ -22,7 +22,7 @@ import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { SEMRESATTRS_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { Resource } from "@opentelemetry/resources";
 
-export function initializeOtel(serviceName: string, version?: string) {
+export function initializeOtel() {
   try {
     const sdk = new NodeSDK({
       // Optional - if omitted, the tracing SDK will be initialized from environment variables
