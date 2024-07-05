@@ -16,11 +16,6 @@ exports.config = {
    */
   license_key: process.env.NEW_RELIC_API_KEY,
   logging: {
-    /**
-     * Level at which to log. 'trace' is most useful to New Relic when diagnosing
-     * issues with the agent, 'info' and higher will impose the least overhead on
-     * production applications.
-     */
-    level: "info",
+    enabled: false,
   },
 };
