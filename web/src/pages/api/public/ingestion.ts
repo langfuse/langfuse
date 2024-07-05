@@ -494,6 +494,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
               ).toString("base64"),
           },
           body: JSON.stringify(body),
+          signal: AbortSignal.timeout(2 * 1000),
         });
       }
     }
