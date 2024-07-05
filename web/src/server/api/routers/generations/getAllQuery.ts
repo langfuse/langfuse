@@ -17,7 +17,7 @@ const getAllGenerationsInput = GenerationTableOptions.extend({
 
 export type ScoreSimplified = {
   name: string;
-  value: number;
+  value?: number | null;
   dataType: ScoreDataType;
   stringValue?: string | null;
   comment?: string | null;
@@ -61,6 +61,7 @@ export const getAllQuery = protectedProjectProcedure
                 scores."project_id" = ${input.projectId}
                 AND scores."trace_id" = t.id
                 AND scores."observation_id" = o.id
+                AND scores.value IS NOT NULL
             GROUP BY
                 name
         ) tmp

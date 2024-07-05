@@ -12,6 +12,7 @@ import {
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
 import { paginationZod, timeFilter } from "@langfuse/shared";
+import * as Sentry from "@sentry/node";
 import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {
@@ -25,6 +26,7 @@ import { orderByToPrismaSql } from "@langfuse/shared";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -147,12 +149,13 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
+      const validatedScores = filterAndValidateDbScoreList(scores);
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
         traces: traces.map((trace) => ({
           ...trace,
-          scores: scores.filter((s) => s.traceId === trace.id),
+          scores: validatedScores.filter((s) => s.traceId === trace.id),
         })),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
@@ -298,6 +301,7 @@ export const traceRouter = createTRPCRouter({
           projectId: trace.projectId,
         },
       });
+      const validatedScores = filterAndValidateDbScoreList(scores);
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -319,7 +323,7 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
-        scores,
+        scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations as ObservationReturnType[],
       };

@@ -1,151 +1,109 @@
-import { ScoreSource, prisma } from "@langfuse/shared/src/db";
-import { Prisma, type Score } from "@langfuse/shared/src/db";
-import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
-import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { paginationZod } from "@langfuse/shared";
-import {
-  ScoreBody,
-  eventTypes,
-  ingestionBatchEvent,
-  stringDate,
-} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/src/db";
+import { eventTypes, ingestionBatchEvent } from "@langfuse/shared";
+import * as Sentry from "@sentry/node";
 import { v4 } from "uuid";
 import {
   handleBatch,
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
-import { isPrismaException } from "@/src/utils/exceptions";
+import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  GetScoresData,
+  GetScoresQuery,
+  GetScoresResponse,
+  PostScoresBody,
+  PostScoresResponse,
+  type ValidatedGetScoresData,
+} from "@/src/features/public-api/types/scores";
 
-const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
-
-const ScoresGetSchema = z
-  .object({
-    ...paginationZod,
-    userId: z.string().nullish(),
-    name: z.string().nullish(),
-    fromTimestamp: stringDate,
-    source: z.nativeEnum(ScoreSource).nullish(),
-    value: z.coerce.number().nullish(),
-    operator: z.enum(operators).nullish(),
-    scoreIds: z
-      .string()
-      .transform((str) => str.split(",").map((id) => id.trim())) // Split the comma-separated string
-      .refine((arr) => arr.every((id) => typeof id === "string"), {
-        message: "Each score ID must be a string",
-      })
-      .nullish(),
-  })
-  .strict(); // Use strict to give 400s on typo'd query params
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  await runMiddleware(req, res, cors);
-
-  // CHECK AUTH
-  const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization,
-  );
-  if (!authCheck.validKey)
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  // END CHECK AUTH
-
-  if (req.method === "POST") {
-    try {
-      console.log(
-        "trying to create score, project ",
-        authCheck.scope.projectId,
-        ", body:",
-        JSON.stringify(req.body, null, 2),
-      );
-
+export default withMiddlewares({
+  POST: createAuthedAPIRoute({
+    name: "Create Score",
+    bodySchema: PostScoresBody,
+    responseSchema: PostScoresResponse,
+    fn: async ({ body, auth, req, res }) => {
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
         timestamp: new Date().toISOString(),
-        body: ScoreBody.parse(req.body),
+        body,
       };
-
       const result = await handleBatch(
         ingestionBatchEvent.parse([event]),
         {},
         req,
-        authCheck,
+        auth,
       );
-
       handleBatchResultLegacy(result.errors, result.results, res);
-    } catch (error: unknown) {
-      console.error(error);
-      if (isPrismaException(error)) {
-        return res.status(500).json({
-          error: "Internal Server Error",
-        });
-      }
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          message: "Invalid request data",
-          error: error.errors,
-        });
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({
-        message: "Invalid request data",
-        error: errorMessage,
-      });
-    }
-  } else if (req.method === "GET") {
-    try {
-      if (authCheck.scope.accessLevel !== "all") {
-        return res.status(401).json({
-          message: "Access denied - need to use basic auth with secret key",
-        });
-      }
+    },
+  }),
+  GET: createAuthedAPIRoute({
+    name: "Get Scores",
+    querySchema: GetScoresQuery,
+    responseSchema: GetScoresResponse,
+    fn: async ({ query, auth }) => {
+      const {
+        page,
+        limit,
+        configId,
+        userId,
+        name,
+        fromTimestamp,
+        source,
+        operator,
+        value,
+        scoreIds,
+        dataType,
+      } = query;
 
-      const obj = ScoresGetSchema.parse(req.query); // uses query and not body
-
-      const skipValue = (obj.page - 1) * obj.limit;
-      const userCondition = obj.userId
-        ? Prisma.sql`AND t."user_id" = ${obj.userId}`
+      const skipValue = (page - 1) * limit;
+      const configCondition = configId
+        ? Prisma.sql`AND s."config_id" = ${configId}`
         : Prisma.empty;
-      const nameCondition = obj.name
-        ? Prisma.sql`AND s."name" = ${obj.name}`
+      const dataTypeCondition = dataType
+        ? Prisma.sql`AND s."data_type" = ${dataType}::"ScoreDataType"`
         : Prisma.empty;
-      const fromTimestampCondition = obj.fromTimestamp
-        ? Prisma.sql`AND s."timestamp" >= ${obj.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+      const userCondition = userId
+        ? Prisma.sql`AND t."user_id" = ${userId}`
         : Prisma.empty;
-      const sourceCondition = obj.source
-        ? Prisma.sql`AND s."source" = ${obj.source}`
+      const nameCondition = name
+        ? Prisma.sql`AND s."name" = ${name}`
+        : Prisma.empty;
+      const fromTimestampCondition = fromTimestamp
+        ? Prisma.sql`AND s."timestamp" >= ${fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
+      const sourceCondition = source
+        ? Prisma.sql`AND s."source" = ${source}`
         : Prisma.empty;
       const valueCondition =
-        obj.operator && obj.value !== null && obj.value !== undefined
-          ? Prisma.sql`AND s."value" ${Prisma.raw(`${obj.operator}`)} ${obj.value}`
+        operator && value !== null && value !== undefined
+          ? Prisma.sql`AND s."value" ${Prisma.raw(`${operator}`)} ${value}`
           : Prisma.empty;
-      const scoreIdCondition = obj.scoreIds
-        ? Prisma.sql`AND s."id" = ANY(${obj.scoreIds})`
+      const scoreIdCondition = scoreIds
+        ? Prisma.sql`AND s."id" = ANY(${scoreIds})`
         : Prisma.empty;
 
-      const scores = await prisma.$queryRaw<
-        Array<Score & { trace: { userId: string } }>
-      >(Prisma.sql`
+      const scores = await prisma.$queryRaw<Array<unknown>>(Prisma.sql`
           SELECT
             s.id,
             s.timestamp,
             s.name,
             s.value,
+            s.string_value as "stringValue",
             s.source,
             s.comment,
+            s.data_type as "dataType",
+            s.config_id as "configId",
             s.trace_id as "traceId",
             s.observation_id as "observationId",
             json_build_object('userId', t.user_id) as "trace"
           FROM "scores" AS s
-          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
-          WHERE s.project_id = ${authCheck.scope.projectId}
+          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${auth.scope.projectId}
+          WHERE s.project_id = ${auth.scope.projectId}
+          ${configCondition}
+          ${dataTypeCondition}
           ${userCondition}
           ${nameCondition}
           ${sourceCondition}
@@ -153,15 +111,17 @@ export default async function handler(
           ${valueCondition}
           ${scoreIdCondition}
           ORDER BY s."timestamp" DESC
-          LIMIT ${obj.limit} OFFSET ${skipValue}
+          LIMIT ${limit} OFFSET ${skipValue}
           `);
 
       const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>(
         Prisma.sql`
           SELECT COUNT(*) as count
           FROM "scores" AS s
-          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${authCheck.scope.projectId}
-          WHERE s.project_id = ${authCheck.scope.projectId}
+          LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${auth.scope.projectId}
+          WHERE s.project_id = ${auth.scope.projectId}
+          ${configCondition}
+          ${dataTypeCondition}
           ${userCondition}
           ${nameCondition}
           ${sourceCondition}
@@ -171,39 +131,31 @@ export default async function handler(
         `,
       );
 
+      const validatedScores = scores.reduce(
+        (acc: ValidatedGetScoresData[], score) => {
+          const result = GetScoresData.safeParse(score);
+          if (result.success) {
+            acc.push(result.data);
+          } else {
+            Sentry.captureException(result.error);
+          }
+          return acc;
+        },
+        [] as ValidatedGetScoresData[],
+      );
+
       const totalItems =
         totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
 
-      return res.status(200).json({
-        data: scores,
+      return {
+        data: validatedScores,
         meta: {
-          page: obj.page,
-          limit: obj.limit,
+          page: page,
+          limit: limit,
           totalItems,
-          totalPages: Math.ceil(totalItems / obj.limit),
+          totalPages: Math.ceil(totalItems / limit),
         },
-      });
-    } catch (error: unknown) {
-      console.error(error);
-      if (isPrismaException(error)) {
-        return res.status(500).json({
-          error: "Internal Server Error",
-        });
-      }
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          message: "Invalid request data",
-          error: error.errors,
-        });
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({
-        message: "Invalid request data",
-        error: errorMessage,
-      });
-    }
-  } else {
-    return res.status(405).json({ message: "Method not allowed" });
-  }
-}
+      };
+    },
+  }),
+});

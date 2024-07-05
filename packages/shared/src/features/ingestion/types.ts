@@ -145,14 +145,74 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
   return false;
 });
 
-export const ScoreBody = z.object({
+const BaseScoreBody = z.object({
   id: z.string().nullish(),
   name: NonEmptyString,
-  value: z.number(),
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
 });
+
+/**
+ * ScoreBody exactly mirrors `PostScoresBody` in the public API. Please refer there for source of truth.
+ */
+export const ScoreBody = z
+  .discriminatedUnion("dataType", [
+    BaseScoreBody.merge(
+      z.object({
+        value: z.number(),
+        dataType: z.literal("NUMERIC"),
+        configId: z.string().nullish(),
+      })
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.string(),
+        dataType: z.literal("CATEGORICAL"),
+        configId: z.string().nullish(),
+      })
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.number().refine((val) => val === 0 || val === 1, {
+          message: "Value must be either 0 or 1",
+        }),
+        dataType: z.literal("BOOLEAN"),
+        configId: z.string().nullish(),
+      })
+    ),
+    BaseScoreBody.merge(
+      z.object({
+        value: z.union([z.string(), z.number()]),
+        dataType: z.undefined(),
+        configId: z.string().nullish(),
+      })
+    ),
+  ])
+  .superRefine((data, ctx) => {
+    if (data.dataType) {
+      if (typeof data.value === "number") {
+        if (data.dataType === "CATEGORICAL") {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Value must be a string for data type ${data.dataType}`,
+          });
+        }
+      } else if (typeof data.value === "string") {
+        if (data.dataType === "NUMERIC") {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Value must be a number for data type ${data.dataType}`,
+          });
+        } else if (data.dataType === "BOOLEAN") {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Value must number equal to either 0 or 1 for data type ${data.dataType}`,
+          });
+        }
+      }
+    }
+  });
 
 // LEGACY, only required for backwards compatibility
 export const LegacySpanPostSchema = z.object({
