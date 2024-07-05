@@ -16,6 +16,7 @@ import {
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { isPresent } from "@/src/utils/typeChecks";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
 import type { FilterState, ScoreDataType } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -310,11 +311,12 @@ export default function ScoresTable({
       source: score.source,
       name: score.name,
       dataType: score.dataType,
-      value: isNumericDataType(score.dataType)
-        ? score.value % 1 === 0
-          ? String(score.value)
-          : score.value.toFixed(4)
-        : score.stringValue ?? "",
+      value:
+        isNumericDataType(score.dataType) && isPresent(score.value)
+          ? score.value % 1 === 0
+            ? String(score.value)
+            : score.value.toFixed(4)
+          : score.stringValue ?? "",
       author: {
         image: score.authorUserImage ?? undefined,
         name: score.authorUserName ?? undefined,

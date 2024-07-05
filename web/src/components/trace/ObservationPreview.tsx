@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { type ScoreSource, type Score } from "@langfuse/shared";
+import { type ScoreSource } from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -22,11 +22,12 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
   projectId: string;
-  scores: Score[];
+  scores: ValidatedScore[];
   currentObservationId: string;
   traceId: string;
 }) => {
@@ -59,7 +60,7 @@ export const ObservationPreview = (props: {
     }
     acc.get(score.source)?.push(score);
     return acc;
-  }, new Map<ScoreSource, Score[]>());
+  }, new Map<ScoreSource, ValidatedScore[]>());
 
   return (
     <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">

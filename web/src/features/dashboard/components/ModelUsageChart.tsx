@@ -20,6 +20,8 @@ import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 
+import { env } from "@/src/env.mjs";
+
 export const ModelUsageChart = ({
   className,
   projectId,
@@ -34,7 +36,9 @@ export const ModelUsageChart = ({
   const tokens = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "traces_observationsview",
+      from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
+        ? "traces_observations"
+        : "traces_observationsview",
       select: [
         { column: "totalTokens", agg: "SUM" },
         { column: "calculatedTotalCost", agg: "SUM" },
