@@ -4,73 +4,21 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { Prisma, type Trace } from "@langfuse/shared/src/db";
-import {
-  paginationMetaResponseZod,
-  paginationZod,
-  validateZodSchema,
-} from "@langfuse/shared";
+import { validateZodSchema } from "@langfuse/shared";
 import {
   handleBatch,
   handleBatchResultLegacy,
 } from "@/src/pages/api/public/ingestion";
-import { TraceBody, eventTypes, stringDate } from "@langfuse/shared";
+import { eventTypes } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
-import { tracesTableCols, orderBy, orderByToPrismaSql } from "@langfuse/shared";
+import { tracesTableCols, orderByToPrismaSql } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
-
-const GetTracesV1Query = z.object({
-  ...paginationZod,
-  userId: z.string().nullish(),
-  name: z.string().nullish(),
-  tags: z.union([z.array(z.string()), z.string()]).nullish(),
-  sessionId: z.string().nullish(),
-  fromTimestamp: stringDate,
-  orderBy: z
-    .string() // orderBy=timestamp.asc
-    .nullish()
-    .transform((v) => {
-      if (!v) return null;
-      const [column, order] = v.split(".");
-      return { column, order: order?.toUpperCase() };
-    })
-    .pipe(orderBy.nullish()),
-});
-
-const PostTracesV1Body = TraceBody;
-
-const Trace = z.object({
-  id: z.string(),
-  externalId: z.string().nullable(),
-  timestamp: z.coerce.date(),
-  name: z.string().nullable(),
-  userId: z.string().nullable(),
-  metadata: z.any(), // Prisma JSON
-  release: z.string().nullable(),
-  version: z.string().nullable(),
-  projectId: z.string(),
-  public: z.boolean(),
-  bookmarked: z.boolean(),
-  tags: z.array(z.string()),
-  input: z.any(), // Prisma JSON
-  output: z.any(), // Prisma JSON
-  sessionId: z.string().nullable(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
-});
-
-const GetTracesV1Response = z.object({
-  data: z.array(
-    Trace.extend({
-      observations: z.array(z.string()),
-      scores: z.array(z.string()),
-      totalCost: z.number(),
-      latency: z.number(),
-      htmlPath: z.string(),
-    }),
-  ),
-  meta: paginationMetaResponseZod,
-});
+import {
+  PostTracesV1Body,
+  GetTracesV1Query,
+  GetTracesV1Response,
+} from "@/src/features/public-api/types/traces";
 
 export default async function handler(
   req: NextApiRequest,
