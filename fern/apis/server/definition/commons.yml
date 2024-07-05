@@ -129,7 +129,7 @@ types:
       maxValue:
         type: optional<double>
         docs: Sets maximum value for numerical scores. If not set, the maximum value defaults to +∞
-      categories: 
+      categories:
         type: optional<list<ConfigCategory>>
         docs: Configures custom categories for categorical scores
       description: optional<string>
@@ -149,7 +149,6 @@ types:
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
-      dataType: ScoreDataTypeNumeric
       configId:
         type: optional<string>
         docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
@@ -168,7 +167,6 @@ types:
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
-      dataType: ScoreDataTypeBoolean
       configId:
         type: optional<string>
         docs: Reference a score config on a score. When set, config and score name must be equal
@@ -187,16 +185,22 @@ types:
       observationId: optional<string>
       timestamp: datetime
       comment: optional<string>
-      dataType: ScoreDataTypeCategorical
       configId:
         type: optional<string>
         docs: Reference a score config on a score. When set, config and score name must be equal and stringValue must map to a config category
   Score:
-    discriminated: false
+    discriminant: "dataType"
     union:
-      - NumericScore
-      - BooleanScore
-      - CategoricalScore
+      NUMERIC:
+        type: NumericScore
+        docs: "Score with NUMERIC data type"
+      CATEGORICAL:
+        type: CategoricalScore
+        docs: "Score with CATEGORICAL data type"
+      BOOLEAN:
+        type: BooleanScore
+        docs: "Score with BOOLEAN data type"
+
   CreateScoreValue:
     discriminated: false
     union:
@@ -318,15 +322,6 @@ types:
     enum:
       - NUMERIC
       - BOOLEAN
-      - CATEGORICAL
-  ScoreDataTypeNumeric:
-    enum:
-      - NUMERIC
-  ScoreDataTypeBoolean:
-    enum:
-      - BOOLEAN
-  ScoreDataTypeCategorical:
-    enum:
       - CATEGORICAL
 
 errors:

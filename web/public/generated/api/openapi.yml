@@ -2199,8 +2199,6 @@ components:
         comment:
           type: string
           nullable: true
-        dataType:
-          $ref: '#/components/schemas/ScoreDataTypeNumeric'
         configId:
           type: string
           nullable: true
@@ -2215,7 +2213,6 @@ components:
         - value
         - source
         - timestamp
-        - dataType
     BooleanScore:
       title: BooleanScore
       type: object
@@ -2248,8 +2245,6 @@ components:
         comment:
           type: string
           nullable: true
-        dataType:
-          $ref: '#/components/schemas/ScoreDataTypeBoolean'
         configId:
           type: string
           nullable: true
@@ -2264,7 +2259,6 @@ components:
         - stringValue
         - source
         - timestamp
-        - dataType
     CategoricalScore:
       title: CategoricalScore
       type: object
@@ -2298,8 +2292,6 @@ components:
         comment:
           type: string
           nullable: true
-        dataType:
-          $ref: '#/components/schemas/ScoreDataTypeCategorical'
         configId:
           type: string
           nullable: true
@@ -2313,13 +2305,42 @@ components:
         - stringValue
         - source
         - timestamp
-        - dataType
     Score:
       title: Score
       oneOf:
-        - $ref: '#/components/schemas/NumericScore'
-        - $ref: '#/components/schemas/BooleanScore'
-        - $ref: '#/components/schemas/CategoricalScore'
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/NumericScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/CategoricalScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/BooleanScore'
+          required:
+            - dataType
     CreateScoreValue:
       title: CreateScoreValue
       oneOf:
@@ -2581,21 +2602,6 @@ components:
       enum:
         - NUMERIC
         - BOOLEAN
-        - CATEGORICAL
-    ScoreDataTypeNumeric:
-      title: ScoreDataTypeNumeric
-      type: string
-      enum:
-        - NUMERIC
-    ScoreDataTypeBoolean:
-      title: ScoreDataTypeBoolean
-      type: string
-      enum:
-        - BOOLEAN
-    ScoreDataTypeCategorical:
-      title: ScoreDataTypeCategorical
-      type: string
-      enum:
         - CATEGORICAL
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest
@@ -3093,30 +3099,16 @@ components:
     ScoreBody:
       title: ScoreBody
       type: object
-      description: |-
-        Example valid inputs:
-
-        - For categorical scores:
-          - dataType: "CATEGORICAL" # optional
-          - configId: "1234-5678-90ab-cdef"
-          - value: "partially correct"
-        - For numeric scores:
-          - dataType: "NUMERIC" # optional
-          - configId: "9203-4567-89ab-cdef"
-          - value: 42
-        - For boolean scores:
-          - dataType: "BOOLEAN" # required unless configId is set
-          - configId: "1234-5678-90ab-cdef"
-          - value: 1 # true
-          - value: 0 # false
       properties:
         id:
           type: string
           nullable: true
         traceId:
           type: string
+          example: cdef-1234-5678-90ab
         name:
           type: string
+          example: novelty
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
@@ -3759,8 +3751,10 @@ components:
           nullable: true
         traceId:
           type: string
+          example: cdef-1234-5678-90ab
         name:
           type: string
+          example: novelty
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-

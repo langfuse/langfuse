@@ -59,8 +59,10 @@ components:
           type: string
         traceId:
           type: string
+          example: cdef-1234-5678-90ab
         name:
           type: string
+          example: novelty
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
@@ -111,8 +113,6 @@ components:
           format: date-time
         comment:
           type: string
-        dataType:
-          $ref: '#/components/schemas/ScoreDataTypeNumeric'
         configId:
           type: string
           description: >-
@@ -126,7 +126,6 @@ components:
         - value
         - source
         - timestamp
-        - dataType
     BooleanScore:
       title: BooleanScore
       type: object
@@ -157,8 +156,6 @@ components:
           format: date-time
         comment:
           type: string
-        dataType:
-          $ref: '#/components/schemas/ScoreDataTypeBoolean'
         configId:
           type: string
           description: >-
@@ -172,7 +169,6 @@ components:
         - stringValue
         - source
         - timestamp
-        - dataType
     CategoricalScore:
       title: CategoricalScore
       type: object
@@ -203,8 +199,6 @@ components:
           format: date-time
         comment:
           type: string
-        dataType:
-          $ref: '#/components/schemas/ScoreDataTypeCategorical'
         configId:
           type: string
           description: >-
@@ -217,13 +211,42 @@ components:
         - stringValue
         - source
         - timestamp
-        - dataType
     Score:
       title: Score
       oneOf:
-        - $ref: '#/components/schemas/NumericScore'
-        - $ref: '#/components/schemas/BooleanScore'
-        - $ref: '#/components/schemas/CategoricalScore'
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/NumericScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/CategoricalScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/BooleanScore'
+          required:
+            - dataType
     ScoreSource:
       title: ScoreSource
       type: string
@@ -238,21 +261,6 @@ components:
         - NUMERIC
         - CATEGORICAL
         - BOOLEAN
-    ScoreDataTypeNumeric:
-      title: ScoreDataTypeNumeric
-      type: string
-      enum:
-        - NUMERIC
-    ScoreDataTypeBoolean:
-      title: ScoreDataTypeBoolean
-      type: string
-      enum:
-        - BOOLEAN
-    ScoreDataTypeCategorical:
-      title: ScoreDataTypeCategorical
-      type: string
-      enum:
-        - CATEGORICAL
     CreateScoreValue:
       title: CreateScoreValue
       oneOf:

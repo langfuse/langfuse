@@ -83,6 +83,43 @@ types:
       configId:
         type: optional<string>
         docs: Reference a score config on a score. The unique langfuse identifier of a score config. When passing this field, the dataType and stringValue fields are automatically populated.
+    examples:
+      - value:
+          name: "novelty"
+          value: 0.9
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "consistency"
+          value: 1.2
+          dataType: "NUMERIC"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "accuracy"
+          value: 0.9
+          dataType: "NUMERIC"
+          configId: "9203-4567-89ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "toxicity"
+          value: "not toxic"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "correctness"
+          value: "partially correct"
+          dataType: "CATEGORICAL"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "hallucination"
+          value: 0
+          dataType: "BOOLEAN"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "helpfulness"
+          value: 1
+          dataType: "BOOLEAN"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
 
   Scores:
     properties:
