@@ -188,7 +188,9 @@ export const validateDbScore = (score: Score): ValidatedScore =>
  */
 
 // POST /scores
-// mirrors ScoreBody in `packages/shared/src/features/ingestion/types.ts`
+/**
+ * PostScoresBody is copied for the ingestion API as `ScoreBody`. Please copy any changes here in `packages/shared/src/features/ingestion/types.ts`
+ */
 export const PostScoresBody = z.discriminatedUnion("dataType", [
   BaseScoreBody.merge(
     z.object({

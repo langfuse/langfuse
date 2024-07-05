@@ -151,20 +151,24 @@ const BaseScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
-  configId: z.string().nullish(),
 });
 
+/**
+ * ScoreBody exactly mirrors `PostScoresBody` in the public API. Please refer there for source of truth.
+ */
 export const ScoreBody = z.discriminatedUnion("dataType", [
   BaseScoreBody.merge(
     z.object({
       value: z.number(),
       dataType: z.literal("NUMERIC"),
+      configId: z.string().nullish(),
     })
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.string(),
       dataType: z.literal("CATEGORICAL"),
+      configId: z.string().nullish(),
     })
   ),
   BaseScoreBody.merge(
@@ -173,12 +177,14 @@ export const ScoreBody = z.discriminatedUnion("dataType", [
         message: "Value must be either 0 or 1",
       }),
       dataType: z.literal("BOOLEAN"),
+      configId: z.string().nullish(),
     })
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.union([z.string(), z.number()]),
       dataType: z.undefined(),
+      configId: z.string().nullish(),
     })
   ),
 ]);
