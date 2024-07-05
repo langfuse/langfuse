@@ -117,9 +117,18 @@ export default function ScoresTable({
   });
   const totalCount = scores.data?.totalCount ?? 0;
 
-  const filterOptions = api.scores.filterOptions.useQuery({
-    projectId,
-  });
+  const filterOptions = api.scores.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
     {
