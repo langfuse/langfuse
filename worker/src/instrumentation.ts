@@ -1,37 +1,12 @@
-import { nodeProfilingIntegration } from "@sentry/profiling-node";
-import { env } from "./env";
-import * as Sentry from "@sentry/node";
+import newrelic from "newrelic";
 
-Sentry.init({
-  dsn: String(env.SENTRY_DSN),
-  integrations: [
-    Sentry.httpIntegration(),
-    Sentry.expressIntegration(),
-    nodeProfilingIntegration(),
-    Sentry.redisIntegration(),
-    Sentry.prismaIntegration(),
-  ],
-
-  // Add Tracing by setting tracesSampleRate
-  // We recommend adjusting this value in production
-  tracesSampleRate: 0.5,
-
-  // Set sampling rate for profiling
-  // This is relative to tracesSampleRate
-  profilesSampleRate: 0.1,
-});
-
-type CallbackAsyncFn<T> = (span?: Sentry.Span) => Promise<T>;
+type CallbackAsyncFn<T> = () => Promise<T>;
 
 export async function instrumentAsync<T>(
   ctx: { name: string },
   callback: CallbackAsyncFn<T>
 ): Promise<T> {
-  if (env.SENTRY_DSN) {
-    return Sentry.startSpan(ctx, async (span) => {
-      return callback(span);
-    });
-  } else {
+  return newrelic.startSegment(ctx.name, true, async function () {
     return callback();
-  }
+  });
 }
