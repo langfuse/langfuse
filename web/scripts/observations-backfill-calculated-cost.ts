@@ -136,10 +136,10 @@ const backfillCalculatedGenerationCost = async () => {
 
     log("✅ Finished batch update loop.");
 
-    // // Drop the temporary column
-    // log("Dropping temporary column...");
-    // await prisma.$executeRaw`ALTER TABLE observations DROP COLUMN IF EXISTS tmp_has_calculated_cost;`;
-    // log("✅ Dropped temporary column");
+    // Drop the temporary column
+    log("Dropping temporary column...");
+    await prisma.$executeRaw`ALTER TABLE observations DROP COLUMN IF EXISTS tmp_has_calculated_cost;`;
+    log("✅ Dropped temporary column");
 
     log("✅ Finished backfillCalculatedGenerationCost");
   } catch (err) {
