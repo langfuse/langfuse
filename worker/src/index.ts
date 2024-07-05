@@ -1,10 +1,11 @@
 import "newrelic";
+import app from "./app";
 import { env } from "./env";
 import logger from "./logger";
 
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
-import app from "./app";
+
 
 const server = app.listen(env.PORT, () => {
   logger.info(`Listening: http://localhost:${env.PORT}`);
