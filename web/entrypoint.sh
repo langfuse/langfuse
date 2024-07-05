@@ -36,4 +36,4 @@ if [ $status -ne 0 ]; then
 fi
 
 # Start server
-NODE_OPTIONS='-r @newrelic/next' node web/server.js
+node web/server.js
