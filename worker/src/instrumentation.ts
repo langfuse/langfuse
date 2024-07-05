@@ -43,8 +43,8 @@ export function initializeOtel() {
       instrumentations: [
         new PrismaInstrumentation(),
         getNodeAutoInstrumentations(),
-        new IORedisInstrumentation(),
         new ExpressInstrumentation(),
+        new IORedisInstrumentation(),
       ],
 
       resourceDetectors: [
