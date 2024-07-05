@@ -24,7 +24,9 @@ const sdk = new NodeSDK({
   spanProcessors: [
     new SimpleSpanProcessor(
       new OTLPTraceExporter({
-        url: process.env.OTLP_ENDPOINT || "https://otlp.eu01.nr-data.net",
+        url:
+          process.env.OTLP_ENDPOINT ||
+          "https://otlp.eu01.nr-data.net/v1/traces",
         headers: {
           "api-key": process.env.NEW_RELIC_API_KEY,
         },
