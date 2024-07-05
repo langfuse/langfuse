@@ -53,7 +53,7 @@ export const TokenUsageBadge = (
   if (props.inline)
     return (
       <span>
-        {`${numberFormatter(usage.promptTokens, 0)} → ${numberFormatter(usage.promptTokens, 0)} (∑ ${numberFormatter(usage.totalTokens, 0)})`}
+        {`${numberFormatter(usage.promptTokens, 0)} → ${numberFormatter(usage.completionTokens, 0)} (∑ ${numberFormatter(usage.totalTokens, 0)})`}
       </span>
     );
 

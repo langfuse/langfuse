@@ -5,6 +5,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node:20-alpine3.20 AS alpine
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
+
 RUN npm install turbo@^1.13.3 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -57,8 +58,10 @@ RUN addgroup --system --gid 1001 expressjs
 RUN adduser --system --uid 1001 expressjs
 USER expressjs
 COPY --from=builder --chown=expressjs:expressjs /app .
+COPY --chown=expressjs:expressjs ./worker/newrelic.js ./newrelic.js
 
 EXPOSE 3030
 ENV PORT=3030
 
-CMD ["node", "worker/dist/index.js"]
+CMD ["node", "--experimental-loader=newrelic/esm-loader.mjs", "worker/dist/index.js"]
+

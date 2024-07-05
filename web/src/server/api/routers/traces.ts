@@ -12,7 +12,6 @@ import {
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
 import { paginationZod, timeFilter } from "@langfuse/shared";
-import * as Sentry from "@sentry/node";
 import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {
@@ -109,7 +108,7 @@ export const traceRouter = createTRPCRouter({
         async () =>
           await ctx.prisma.$queryRaw<
             Array<
-              Omit<Trace, "input" | "output" | "metadata"> & {
+              Trace & {
                 promptTokens: number;
                 completionTokens: number;
                 totalTokens: number;
@@ -153,10 +152,13 @@ export const traceRouter = createTRPCRouter({
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
-        traces: traces.map((trace) => ({
-          ...trace,
-          scores: validatedScores.filter((s) => s.traceId === trace.id),
-        })),
+        traces: traces.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ input, output, metadata, ...trace }) => ({
+            ...trace,
+            scores: validatedScores.filter((s) => s.traceId === trace.id),
+          }),
+        ),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
     }),
