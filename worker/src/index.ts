@@ -2,9 +2,6 @@ import "newrelic";
 import { env } from "./env";
 import logger from "./logger";
 
-// const sdk = initializeOtel("worker");
-// sdk.start();
-
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
 import app from "./app";
