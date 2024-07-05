@@ -810,6 +810,9 @@ importers:
       pg:
         specifier: ^8.11.5
         version: 8.12.0
+      pino:
+        specifier: ^9.2.0
+        version: 9.2.0
       pino-http:
         specifier: ^9.0.0
         version: 9.0.0
