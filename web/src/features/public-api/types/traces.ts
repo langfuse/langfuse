@@ -71,3 +71,4 @@ export const GetTracesV1Response = z.object({
 
 // POST /api/public/traces
 export const PostTracesV1Body = TraceBody;
+export const PostTracesV1Response = z.void();
