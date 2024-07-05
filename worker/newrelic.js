@@ -18,4 +18,9 @@ exports.config = {
   logging: {
     enabled: false,
   },
+  application_logging: {
+    forwarding: {
+      enabled: false,
+    },
+  },
 };
