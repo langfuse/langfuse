@@ -59,6 +59,7 @@ RUN addgroup --system --gid 1001 expressjs
 RUN adduser --system --uid 1001 expressjs
 USER expressjs
 COPY --from=builder --chown=expressjs:expressjs /app .
+COPY --chown=expressjs:expressjs ./worker/newrelic.js ./worker/newrelic.js
 
 EXPOSE 3030
 ENV PORT=3030
