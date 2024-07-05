@@ -159,7 +159,7 @@ This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICE
 
 ### GET API to export your data
 
-[**GET routes**](https://langfuse.com/docs/integrations/api) to use data in downstream applications (e.g. embedded analytics).
+[**GET routes**](https://langfuse.com/docs/integrations/api) to use data in downstream applications (e.g. embedded analytics). You can also access them conveniently via the SDKs ([docs](https://langfuse.com/docs/query-traces)).
 
 ### Security & Privacy
 
