@@ -2,11 +2,17 @@ import { Card } from "@/src/components/ui/card";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { type Score, type Trace } from "@langfuse/shared";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 
-import { MinusIcon, PlusIcon, PanelRightOpen } from "lucide-react";
+import {
+  MinusIcon,
+  PlusIcon,
+  PanelRightOpen,
+  PlusSquareIcon,
+  MinusSquare,
+} from "lucide-react";
 import { nestObservations } from "@/src/components/trace/lib/helpers";
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
@@ -35,6 +41,24 @@ const TREE_INDENTATION = 12; // default in MUI X TreeView
 const PREDEFINED_STEP_SIZES = [
   0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10,
 ];
+
+const getNestedObservationKeys = (
+  observations: NestedObservation[],
+): string[] => {
+  const keys: string[] = [];
+
+  const collectKeys = (obs: NestedObservation[]) => {
+    obs.forEach((observation) => {
+      keys.push(`observation-${observation.id}`);
+      if (observation.children) {
+        collectKeys(observation.children);
+      }
+    });
+  };
+
+  collectKeys(observations);
+  return keys;
+};
 
 const calculateStepSize = (latency: number, scaleWidth: number) => {
   const calculatedStepSize = latency / (scaleWidth / STEP_SIZE);
@@ -270,9 +294,17 @@ export function TraceTimelineView({
     };
   }, [parentRef]);
 
+  const nestedObservations = useMemo(
+    () => nestObservations(observations),
+    [observations],
+  );
+  const nestedObservationKeys = useMemo(
+    () => getNestedObservationKeys(nestedObservations),
+    [nestedObservations],
+  );
+
   if (!latency) return null;
 
-  const nestedObservations = nestObservations(observations);
   const stepSize = calculateStepSize(latency, SCALE_WIDTH);
   const totalScaleSpan = stepSize * (SCALE_WIDTH / STEP_SIZE);
 
@@ -283,14 +315,39 @@ export function TraceTimelineView({
         style={{ width: cardWidth }}
       >
         <div className="grid w-full grid-cols-[1fr,auto] items-center p-2">
-          <h3
-            className="p-2 text-2xl font-semibold tracking-tight"
+          <div
+            className="flex flex-row items-center gap-2"
             style={{
               minWidth: `${MIN_LABEL_WIDTH}px`,
             }}
           >
-            Trace Timeline
-          </h3>
+            <h3 className="text-2xl font-semibold tracking-tight">
+              Trace Timeline
+            </h3>
+            <div className="flex h-full items-center">
+              <Button
+                onClick={() =>
+                  setExpandedItems([
+                    `trace-${trace.id}`,
+                    ...nestedObservationKeys,
+                  ])
+                }
+                size="xs"
+                variant="ghost"
+                title="Expand all"
+              >
+                <PlusSquareIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={() => setExpandedItems([])}
+                size="xs"
+                variant="ghost"
+                title="Collapse all"
+              >
+                <MinusSquare className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
           <div
             className="relative mr-2 h-4"
             style={{ width: `${SCALE_WIDTH}px` }}

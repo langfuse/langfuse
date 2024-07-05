@@ -1,5 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import { numberFormatter } from "@/src/utils/numbers";
 import { type Observation } from "@langfuse/shared";
 
 export const TraceAggUsageBadge = (props: {
@@ -52,13 +53,13 @@ export const TokenUsageBadge = (
   if (props.inline)
     return (
       <span>
-        {usage.promptTokens} → {usage.completionTokens} (∑ {usage.totalTokens})
+        {`${numberFormatter(usage.promptTokens, 0)} → ${numberFormatter(usage.promptTokens, 0)} (∑ ${numberFormatter(usage.totalTokens, 0)})`}
       </span>
     );
 
   return (
     <Badge variant="outline">
-      {usage.promptTokens} → {usage.completionTokens} (∑ {usage.totalTokens})
+      {`${numberFormatter(usage.promptTokens, 0)} → ${numberFormatter(usage.completionTokens, 0)} (∑ ${numberFormatter(usage.totalTokens, 0)})`}
     </Badge>
   );
 };
