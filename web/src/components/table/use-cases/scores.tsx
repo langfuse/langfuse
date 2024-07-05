@@ -7,10 +7,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import {
-  isNumericDataType,
-  isPresent,
-} from "@/src/features/manual-scoring/lib/helpers";
+import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 import {
@@ -19,6 +16,7 @@ import {
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { isPresent } from "@/src/utils/typeChecks";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
 import type { FilterState, ScoreDataType } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";

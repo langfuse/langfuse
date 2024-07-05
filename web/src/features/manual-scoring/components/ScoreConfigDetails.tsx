@@ -1,8 +1,6 @@
-import {
-  isNumericDataType,
-  isPresent,
-} from "@/src/features/manual-scoring/lib/helpers";
+import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { type ValidatedScoreConfig } from "@/src/features/public-api/types/score-configs";
+import { isPresent } from "@/src/utils/typeChecks";
 import React from "react";
 
 export function ScoreConfigDetails({

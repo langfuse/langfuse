@@ -62,7 +62,6 @@ import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { ScoreConfigDetails } from "@/src/features/manual-scoring/components/ScoreConfigDetails";
 import {
   isNumericDataType,
-  isPresent,
   isScoreUnsaved,
 } from "@/src/features/manual-scoring/lib/helpers";
 import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaultScoreData";
@@ -74,6 +73,7 @@ import { useRouter } from "next/router";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
+import { isPresent } from "@/src/utils/typeChecks";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
