@@ -325,6 +325,9 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.25.1
         version: 1.25.1
+      '@opentelemetry/winston-transport':
+        specifier: ^0.5.0
+        version: 0.5.0
       '@prisma/instrumentation':
         specifier: ^5.16.1
         version: 5.16.1
@@ -5358,6 +5361,14 @@ packages:
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.9.0)
+    dev: false
+
+  /@opentelemetry/winston-transport@0.5.0:
+    resolution: {integrity: sha512-uPtnRgP4+CAQjns7TXdhJf46WGRj8kESmBWvm+4aVpvqHGfU7c+f0yzMx8o04+LyXXkoOqYeq54X0grEFtVtdw==}
+    engines: {node: '>=14'}
+    dependencies:
+      '@opentelemetry/api-logs': 0.52.1
+      winston-transport: 4.7.0
     dev: false
 
   /@panva/hkdf@1.1.1:
