@@ -30,7 +30,7 @@ service:
             docs: Retrieve only scores with this userId associated to the trace.
           name:
             type: optional<string>
-            docs: Retreive only scores with this name.
+            docs: Retrieve only scores with this name.
           fromTimestamp:
             type: optional<datetime>
             docs: Retrieve only scores newer than this datetime (ISO 8601).

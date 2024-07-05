@@ -1475,7 +1475,7 @@ paths:
             nullable: true
         - name: name
           in: query
-          description: Retreive only scores with this name.
+          description: Retrieve only scores with this name.
           required: false
           schema:
             type: string

@@ -1129,7 +1129,7 @@
                 {
                   "key": "name",
                   "value": "",
-                  "description": "Retreive only scores with this name."
+                  "description": "Retrieve only scores with this name."
                 },
                 {
                   "key": "fromTimestamp",
