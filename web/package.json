@@ -31,7 +31,7 @@
     "@langchain/anthropic": "^0.1.21",
     "@langchain/core": "^0.1.61",
     "@langchain/openai": "^0.0.33",
-    "@langfuse/ee": "workspace:^",
+    "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@marsidev/react-turnstile": "^0.5.4",
     "@mui/x-tree-view": "^7.6.2",

@@ -281,7 +281,7 @@ importers:
         specifier: ^0.0.33
         version: 0.0.33
       '@langfuse/ee':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ee
       '@langfuse/shared':
         specifier: workspace:*
