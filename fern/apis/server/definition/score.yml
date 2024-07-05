@@ -25,8 +25,12 @@ service:
           limit:
             type: optional<integer>
             docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
-          userId: optional<string>
-          name: optional<string>
+          userId:
+            type: optional<string>
+            docs: Retrieve only scores with this userId associated to the trace.
+          name:
+            type: optional<string>
+            docs: Retreive only scores with this name.
           fromTimestamp:
             type: optional<datetime>
             docs: Retrieve only scores newer than this datetime (ISO 8601).
