@@ -236,28 +236,23 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should fail POST of numeric score config with invalid range", async () => {
-    const postScoreConfig = await makeAPICall(
-      "POST",
-      "/api/public/score-configs",
-      {
-        name: "invalid-numeric-config-name",
-        dataType: "NUMERIC",
-        maxValue: 0,
-        minValue: 1,
-      },
-    );
-
-    expect(postScoreConfig.status).toBe(400);
-    expect(postScoreConfig.body).toMatchObject({
-      message: "Invalid request data",
-      error: [
+    try {
+      await makeZodVerifiedAPICall(
+        PostScoreConfigResponse,
+        "POST",
+        "/api/public/score-configs",
         {
-          code: "custom",
-          message: "Maximum value must be greater than Minimum value",
-          path: [],
+          name: "invalid-numeric-config-name",
+          dataType: "NUMERIC",
+          maxValue: 0,
+          minValue: 1,
         },
-      ],
-    });
+      );
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"custom\",\"message\":\"Maximum value must be greater than Minimum value\",\"path\":[]}]}`,
+      );
+    }
   });
 
   it("should fail POST of boolean score config with custom categories", async () => {

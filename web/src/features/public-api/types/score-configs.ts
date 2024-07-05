@@ -8,6 +8,34 @@ import {
 import { z } from "zod";
 import * as Sentry from "@sentry/node";
 
+const validateCategories = (
+  categories: ConfigCategory[],
+  ctx: z.RefinementCtx,
+) => {
+  const uniqueNames = new Set<string>();
+  const uniqueValues = new Set<number>();
+
+  for (const category of categories) {
+    if (uniqueNames.has(category.label)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Duplicate category label: ${category.label}, category labels must be unique`,
+      });
+      return;
+    }
+    uniqueNames.add(category.label);
+
+    if (uniqueValues.has(category.value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Duplicate category value: ${category.value}, category values must be unique`,
+      });
+      return;
+    }
+    uniqueValues.add(category.value);
+  }
+};
+
 /**
  * Objects
  */
@@ -42,28 +70,7 @@ const CategoricalScoreConfig = z.object({
       return;
     }
 
-    const uniqueNames = new Set<string>();
-    const uniqueValues = new Set<number>();
-
-    for (const category of categories as ConfigCategory[]) {
-      if (uniqueNames.has(category.label)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Duplicate category label: ${category.label}, category labels must be unique`,
-        });
-        return;
-      }
-      uniqueNames.add(category.label);
-
-      if (uniqueValues.has(category.value)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Duplicate category value: ${category.value}, category values must be unique`,
-        });
-        return;
-      }
-      uniqueValues.add(category.value);
-    }
+    validateCategories(categories as ConfigCategory[], ctx);
   }),
 });
 
@@ -102,10 +109,17 @@ const ScoreConfigPostBase = z.object({
   description: z.string().optional(),
 });
 
-export const ScoreConfig = z
+const ValidatedScoreConfigSchema = z
   .union([
     ScoreConfigBase.merge(NumericScoreConfig),
-    ScoreConfigBase.merge(CategoricalScoreConfig),
+    ScoreConfigBase.merge(
+      z.object({
+        maxValue: z.undefined().nullish(),
+        minValue: z.undefined().nullish(),
+        dataType: z.literal("CATEGORICAL"),
+        categories: Categories.superRefine(validateCategories),
+      }),
+    ),
     ScoreConfigBase.merge(BooleanScoreConfig),
   ])
   .superRefine((data, ctx) => {
@@ -123,19 +137,6 @@ export const ScoreConfig = z
     }
   });
 
-const ValidatedScoreConfigSchema = z.union([
-  ScoreConfigBase.merge(NumericScoreConfig),
-  ScoreConfigBase.merge(
-    z.object({
-      maxValue: z.undefined().nullish(),
-      minValue: z.undefined().nullish(),
-      dataType: z.literal("CATEGORICAL"),
-      categories: Categories,
-    }),
-  ),
-  ScoreConfigBase.merge(BooleanScoreConfig),
-]);
-
 export type ValidatedScoreConfig = z.infer<typeof ValidatedScoreConfigSchema>;
 
 export const filterAndValidateDbScoreConfigList = (
@@ -152,8 +153,11 @@ export const filterAndValidateDbScoreConfigList = (
   }, [] as ValidatedScoreConfig[]);
 
 export const validateDbScoreConfig = (
-  score: ScoreConfigDbType,
-): ValidatedScoreConfig => ValidatedScoreConfigSchema.parse(score);
+  scoreConfig: ScoreConfigDbType,
+): ValidatedScoreConfig => ValidatedScoreConfigSchema.parse(scoreConfig);
+
+export const validateDbScoreConfigSafe = (scoreConfig: ScoreConfigDbType) =>
+  ValidatedScoreConfigSchema.safeParse(scoreConfig);
 
 /**
  * Endpoints
@@ -164,7 +168,7 @@ export const GetScoreConfigQuery = z.object({
   configId: z.string(),
 });
 
-export const GetScoreConfigResponse = ScoreConfig;
+export const GetScoreConfigResponse = ValidatedScoreConfigSchema;
 
 // POST /score-configs
 export const PostScoreConfigBody = z
@@ -193,7 +197,7 @@ export const PostScoreConfigBody = z
     }
   });
 
-export const PostScoreConfigResponse = ScoreConfig;
+export const PostScoreConfigResponse = ValidatedScoreConfigSchema;
 
 // GET /score-configs
 export const GetScoreConfigsQuery = z.object({
@@ -201,6 +205,6 @@ export const GetScoreConfigsQuery = z.object({
 });
 
 export const GetScoreConfigsResponse = z.object({
-  data: z.array(ScoreConfig),
+  data: z.array(ValidatedScoreConfigSchema),
   meta: paginationMetaResponseZod,
 });

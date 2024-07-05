@@ -37,7 +37,7 @@ import {
   ScorePropsAgainstConfig,
 } from "@/src/features/public-api/types/scores";
 import {
-  ScoreConfig,
+  validateDbScoreConfigSafe,
   type ValidatedScoreConfig,
 } from "@/src/features/public-api/types/score-configs";
 
@@ -729,7 +729,7 @@ export class ScoreProcessor implements EventProcessor {
         },
       });
 
-      if (!config || !ScoreConfig.safeParse(config).success)
+      if (!config || !validateDbScoreConfigSafe(config).success)
         throw new LangfuseNotFoundError(
           "The configId you provided does not match a valid config in this project",
         );

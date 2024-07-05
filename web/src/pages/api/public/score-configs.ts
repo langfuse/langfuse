@@ -6,13 +6,12 @@ import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAut
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   PostScoreConfigResponse,
-  ScoreConfig,
   GetScoreConfigsResponse,
   GetScoreConfigsQuery,
   PostScoreConfigBody,
+  validateDbScoreConfig,
+  filterAndValidateDbScoreConfigList,
 } from "@/src/features/public-api/types/score-configs";
-import * as Sentry from "@sentry/node";
-import { InvalidRequestError } from "@langfuse/shared";
 
 const inflateConfigBody = (body: z.infer<typeof PostScoreConfigBody>) => {
   if (isBooleanDataType(body.dataType)) {
@@ -44,15 +43,7 @@ export default withMiddlewares({
         },
       });
 
-      const parsedConfig = ScoreConfig.safeParse(config);
-
-      if (!parsedConfig.success) {
-        throw new InvalidRequestError(
-          "Failed to create score config, input data shape invalid",
-        );
-      }
-
-      return parsedConfig.data;
+      return validateDbScoreConfig(config);
     },
   }),
   GET: createAuthedAPIRoute({
@@ -72,19 +63,7 @@ export default withMiddlewares({
         skip: (page - 1) * limit,
       });
 
-      const configs = rawConfigs.reduce(
-        (acc, config) => {
-          if (ScoreConfig.safeParse(config).success) {
-            acc.push(config as z.infer<typeof ScoreConfig>);
-          } else {
-            Sentry.captureException(
-              new Error(`Invalid score config with id: ${config.id}`),
-            );
-          }
-          return acc;
-        },
-        [] as z.infer<typeof ScoreConfig>[],
-      );
+      const configs = filterAndValidateDbScoreConfigList(rawConfigs);
 
       const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>(
         Prisma.sql`
