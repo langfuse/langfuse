@@ -2,6 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
+import { captureException } from "@sentry/nextjs";
 import { useEffect } from "react";
 import Link from "next/link";
 
@@ -60,9 +61,10 @@ export const ErrorPageWithSentry = ({
     if (window !== undefined) {
       console.log("window is defined");
     }
-    // window..noticeError(
-    //   new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
-    // );
+    if (window !== undefined)
+      captureException(
+        new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
+      );
   }, [title, message]); // Empty dependency array means this effect runs once on mount
 
   return <ErrorPage title={title} message={message} />;
