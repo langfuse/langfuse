@@ -774,9 +774,6 @@ importers:
       cors:
         specifier: ^2.8.5
         version: 2.8.5
-      dd-trace:
-        specifier: ^5.17.0
-        version: 5.17.0
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
@@ -813,9 +810,6 @@ importers:
       pg:
         specifier: ^8.11.5
         version: 8.12.0
-      pino:
-        specifier: ^9.2.0
-        version: 9.2.0
       pino-http:
         specifier: ^9.0.0
         version: 9.0.0
