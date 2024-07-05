@@ -35,7 +35,7 @@ service:
       response: commons.Model
     delete:
       method: DELETE
-      docs: Create a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
+      docs: Delete a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
       path: /models/{id}
       path-parameters:
         id: string
