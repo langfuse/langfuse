@@ -1,4 +1,4 @@
--- Drop and create to be able to change columns, othwerwise new t.* cols cannot be added
+-- Drop and create to be able to change columns, otherwise new t.* cols cannot be added
 
 DROP VIEW IF EXISTS traces_view;
 CREATE VIEW traces_view AS
