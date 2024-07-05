@@ -8,6 +8,8 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 
+import { env } from "@/src/env.mjs";
+
 export const MetricTable = ({
   className,
   projectId,
@@ -20,7 +22,9 @@ export const MetricTable = ({
   const metrics = api.dashboard.chart.useQuery(
     {
       projectId,
-      from: "traces_observationsview",
+      from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
+        ? "traces_observations"
+        : "traces_observationsview",
       select: [
         { column: "calculatedTotalCost", agg: "SUM" },
         { column: "totalTokens", agg: "SUM" },
