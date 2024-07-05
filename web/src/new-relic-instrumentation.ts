@@ -3,7 +3,7 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { Resource } from "@opentelemetry/resources";
 import { SEMRESATTRS_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
-import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import {
   awsEksDetector,
@@ -27,7 +27,7 @@ const sdk = new NodeSDK({
     [SEMRESATTRS_SERVICE_NAME]: "web",
   }),
   spanProcessors: [
-    new SimpleSpanProcessor(
+    new BatchSpanProcessor(
       new OTLPTraceExporter({
         url:
           process.env.OTLP_ENDPOINT ||
