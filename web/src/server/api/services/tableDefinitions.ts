@@ -126,6 +126,7 @@ const tracesObservationsColumns: ColumnDefinition[] = [
   observationsProjectId,
   duration,
   totalTokens,
+  calculatedTotalCost,
   model,
   traceTimestamp,
   traceUser,
