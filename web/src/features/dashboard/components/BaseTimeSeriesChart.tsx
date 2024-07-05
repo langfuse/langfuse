@@ -42,7 +42,13 @@ export function BaseTimeSeriesChart(props: {
   }
 
   const convertDate = (date: number, agg: DateTimeAggregationOption) => {
-    if (agg === "24 hours" || agg === "1 hour" || agg === "30 minutes") {
+    const showMinutes: DateTimeAggregationOption[] = [
+      "5 minutes",
+      "30 minutes",
+      "1 hour",
+      "3 hours",
+    ];
+    if (showMinutes.includes(agg)) {
       return new Date(date).toLocaleTimeString("en-US", {
         year: "2-digit",
         month: "numeric",
