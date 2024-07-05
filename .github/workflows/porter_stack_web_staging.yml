@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - newrelic-fresh
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
