@@ -645,7 +645,7 @@
           "_type": "endpoint",
           "name": "Delete",
           "request": {
-            "description": "Create a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.",
+            "description": "Delete a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.",
             "url": {
               "raw": "{{baseUrl}}/api/public/models/:id",
               "host": [
