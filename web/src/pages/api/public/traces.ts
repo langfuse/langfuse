@@ -153,7 +153,15 @@ export default async function handler(
       );
 
       const traces = await prisma.$queryRaw<
-        Array<Trace & { observations: string[]; scores: string[] }>
+        Array<
+          Trace & {
+            observations: string[];
+            scores: string[];
+            totalCost: number;
+            latency: number;
+            htmlPath: string;
+          }
+        >
       >(Prisma.sql`
           SELECT
             t.id,
