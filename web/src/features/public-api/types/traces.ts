@@ -33,6 +33,14 @@ const Trace = z.object({
   updatedAt: z.coerce.date(),
 });
 
+const ExtendedTrace = Trace.extend({
+  observations: z.array(z.string()),
+  scores: z.array(z.string()),
+  totalCost: z.number(),
+  latency: z.number(),
+  htmlPath: z.string(),
+});
+
 /**
  * Endpoints
  */
@@ -57,18 +65,16 @@ export const GetTracesV1Query = z.object({
 });
 
 export const GetTracesV1Response = z.object({
-  data: z.array(
-    Trace.extend({
-      observations: z.array(z.string()),
-      scores: z.array(z.string()),
-      totalCost: z.number(),
-      latency: z.number(),
-      htmlPath: z.string(),
-    }),
-  ),
+  data: z.array(ExtendedTrace),
   meta: paginationMetaResponseZod,
 });
 
 // POST /api/public/traces
 export const PostTracesV1Body = TraceBody;
 export const PostTracesV1Response = z.void();
+
+// GET /api/public/traces/{traceId}
+export const GetTraceV1Query = z.object({
+  traceId: z.string(),
+});
+export const GetTraceV1Response = ExtendedTrace;
