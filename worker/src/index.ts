@@ -1,3 +1,4 @@
+import "newrelic";
 import app from "./app";
 import { env } from "./env";
 import logger from "./logger";

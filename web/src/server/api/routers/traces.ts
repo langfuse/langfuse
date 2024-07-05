@@ -12,7 +12,6 @@ import {
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
 import { paginationZod, timeFilter } from "@langfuse/shared";
-import * as Sentry from "@sentry/node";
 import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {
