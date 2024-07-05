@@ -30,7 +30,7 @@ service:
             docs: Retrieve only scores with this userId associated to the trace.
           name:
             type: optional<string>
-            docs: Retreive only scores with this name.
+            docs: Retrieve only scores with this name.
           fromTimestamp:
             type: optional<datetime>
             docs: Retrieve only scores newer than this datetime (ISO 8601).
@@ -46,6 +46,12 @@ service:
           scoreIds:
             type: optional<string>
             docs: Comma-separated list of score IDs to limit the results to.
+          configId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific configId.
+          dataType:
+            type: optional<commons.ScoreDataType>
+            docs: Retrieve only scores with a specific dataType.
       response: Scores
     get-by-id:
       docs: Get a score
@@ -70,9 +76,55 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: double
+      value:
+        type: commons.CreateScoreValue
+        docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
       observationId: optional<string>
       comment: optional<string>
+      dataType:
+        type: optional<commons.ScoreDataType>
+        docs: The data type of the score. When passing a configId this field is inferred. Otherwise, this field must be passed or will default to numeric.
+      configId:
+        type: optional<string>
+        docs: Reference a score config on a score. The unique langfuse identifier of a score config. When passing this field, the dataType and stringValue fields are automatically populated.
+    examples:
+      - value:
+          name: "novelty"
+          value: 0.9
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "consistency"
+          value: 1.2
+          dataType: "NUMERIC"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "accuracy"
+          value: 0.9
+          dataType: "NUMERIC"
+          configId: "9203-4567-89ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "toxicity"
+          value: "not toxic"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "correctness"
+          value: "partially correct"
+          dataType: "CATEGORICAL"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "hallucination"
+          value: 0
+          dataType: "BOOLEAN"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "helpfulness"
+          value: 1
+          dataType: "BOOLEAN"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+
   Scores:
     properties:
       data: list<commons.Score>

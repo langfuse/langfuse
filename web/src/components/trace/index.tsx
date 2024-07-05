@@ -1,4 +1,4 @@
-import { type Trace, type Score } from "@langfuse/shared";
+import { type Trace } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -34,11 +34,12 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
   trace: Trace;
-  scores: Score[];
+  scores: ValidatedScore[];
   projectId: string;
 }) {
   const capture = usePostHogClientCapture();

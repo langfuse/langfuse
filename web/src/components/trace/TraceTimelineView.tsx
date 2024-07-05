@@ -1,6 +1,7 @@
 import { Card } from "@/src/components/ui/card";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { type Score, type Trace } from "@langfuse/shared";
+import { type Trace } from "@langfuse/shared";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
@@ -187,7 +188,7 @@ function TraceTreeItem({
   traceStartTime: Date;
   totalScaleSpan: number;
   projectId: string;
-  scores: Score[];
+  scores: ValidatedScore[];
   observations: Array<ObservationReturnType>;
   cardWidth: number;
 }) {
@@ -266,7 +267,7 @@ export function TraceTimelineView({
   trace: Trace & { latency?: number };
   observations: Array<ObservationReturnType>;
   projectId: string;
-  scores: Score[];
+  scores: ValidatedScore[];
 }) {
   const { latency, name, id } = trace;
   const [backgroundColor, setBackgroundColor] = useState("");

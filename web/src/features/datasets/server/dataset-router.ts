@@ -13,6 +13,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import { paginationZod } from "@langfuse/shared";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -168,6 +169,7 @@ export const datasetRouter = createTRPCRouter({
               WHERE 
                 t.project_id = ${input.projectId}
                 AND s.data_type != 'CATEGORICAL'
+                AND s.value IS NOT NULL
                 AND ri.dataset_run_id = runs.id
               GROUP BY s.name
             ) s
@@ -620,6 +622,10 @@ export const datasetRouter = createTRPCRouter({
         `,
       );
 
+      const validatedTraceScores = filterAndValidateDbScoreList(traceScores);
+      const validatedObservationScores =
+        filterAndValidateDbScoreList(observationScores);
+
       const items = runItems.map((ri) => {
         return {
           id: ri.id,
@@ -628,8 +634,8 @@ export const datasetRouter = createTRPCRouter({
           observation: observations.find((o) => o.id === ri.observationId),
           trace: traces.find((t) => t.id === ri.traceId),
           scores: [
-            ...traceScores.filter((s) => s.traceId === ri.traceId),
-            ...observationScores.filter(
+            ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
+            ...validatedObservationScores.filter(
               (s) =>
                 s.observationId === ri.observationId &&
                 s.traceId === ri.traceId,

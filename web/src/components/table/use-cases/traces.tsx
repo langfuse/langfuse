@@ -34,11 +34,11 @@ import {
   type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevel,
-  type Score,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -56,7 +56,7 @@ export type TracesTableRow = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
-  scores: Score[];
+  scores: ValidatedScore[];
   tags: string[];
   usage: {
     promptTokens: number;
@@ -463,7 +463,7 @@ export default function TracesTable({
       header: "Scores",
       enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
       cell: ({ row }) => {
-        const values: Score[] = row.getValue("scores");
+        const values: ValidatedScore[] = row.getValue("scores");
         return <GroupedScoreBadges scores={values} variant="headings" />;
       },
       enableHiding: true,
