@@ -845,7 +845,7 @@ paths:
       security: *ref_0
     delete:
       description: >-
-        Create a model. Cannot delete models managed by Langfuse. You can create
+        Delete a model. Cannot delete models managed by Langfuse. You can create
         your own definition with the same modelName to override the definition
         though.
       operationId: models_delete
