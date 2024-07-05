@@ -1250,6 +1250,53 @@ paths:
             schema:
               $ref: '#/components/schemas/CreatePromptRequest'
   /api/public/score-configs:
+    post:
+      description: >-
+        Create a score configuration (config). Score configs are used to define
+        the structure of scores
+      operationId: scoreConfigs_create
+      tags:
+        - ScoreConfigs
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreConfig'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScoreConfigRequest'
     get:
       description: Get all score configs
       operationId: scoreConfigs_get
@@ -1267,7 +1314,7 @@ paths:
           in: query
           description: >-
             Limit of items per page. If you encounter api issues due to too
-            large page sizes, try to reduce the limit.
+            large page sizes, try to reduce the limit
           required: false
           schema:
             type: integer
@@ -1428,7 +1475,7 @@ paths:
             nullable: true
         - name: name
           in: query
-          description: Retreive only scores with this name.
+          description: Retrieve only scores with this name.
           required: false
           schema:
             type: string
@@ -1469,6 +1516,20 @@ paths:
           required: false
           schema:
             type: string
+            nullable: true
+        - name: configId
+          in: query
+          description: Retrieve only scores with a specific configId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: dataType
+          in: query
+          description: Retrieve only scores with a specific dataType.
+          required: false
+          schema:
+            $ref: '#/components/schemas/ScoreDataType'
             nullable: true
       responses:
         '200':
@@ -2071,19 +2132,27 @@ components:
           $ref: '#/components/schemas/ScoreDataType'
         isArchived:
           type: boolean
+          description: Whether the score config is archived. Defaults to false
         minValue:
           type: number
           format: double
           nullable: true
+          description: >-
+            Sets minimum value for numerical scores. If not set, the minimum
+            value defaults to -∞
         maxValue:
           type: number
           format: double
           nullable: true
+          description: >-
+            Sets maximum value for numerical scores. If not set, the maximum
+            value defaults to +∞
         categories:
           type: array
           items:
             $ref: '#/components/schemas/ConfigCategory'
           nullable: true
+          description: Configures custom categories for categorical scores
         description:
           type: string
           nullable: true
@@ -2107,8 +2176,8 @@ components:
       required:
         - value
         - label
-    Score:
-      title: Score
+    NumericScore:
+      title: NumericScore
       type: object
       properties:
         id:
@@ -2120,6 +2189,7 @@ components:
         value:
           type: number
           format: double
+          description: The numeric value of the score
         source:
           $ref: '#/components/schemas/ScoreSource'
         observationId:
@@ -2131,6 +2201,13 @@ components:
         comment:
           type: string
           nullable: true
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. When set, config and score name
+            must be equal and value must comply to optionally defined numerical
+            range
       required:
         - id
         - traceId
@@ -2138,6 +2215,143 @@ components:
         - value
         - source
         - timestamp
+    BooleanScore:
+      title: BooleanScore
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+          description: >-
+            The numeric value of the score. Equals 1 for "True" and 0 for
+            "False"
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. Is inferred from the
+            numeric value and equals "True" or "False"
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        observationId:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+        comment:
+          type: string
+          nullable: true
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. When set, config and score name
+            must be equal
+      required:
+        - id
+        - traceId
+        - name
+        - value
+        - stringValue
+        - source
+        - timestamp
+    CategoricalScore:
+      title: CategoricalScore
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Only defined if a config is linked. Represents the numeric category
+            mapping of the stringValue
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. If no config is
+            linked, can be any string. Otherwise, must map to a config category
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        observationId:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+        comment:
+          type: string
+          nullable: true
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. When set, config and score name
+            must be equal and stringValue must map to a config category
+      required:
+        - id
+        - traceId
+        - name
+        - stringValue
+        - source
+        - timestamp
+    Score:
+      title: Score
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/NumericScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/CategoricalScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/BooleanScore'
+          required:
+            - dataType
+    CreateScoreValue:
+      title: CreateScoreValue
+      oneOf:
+        - type: string
+        - type: number
+          format: double
+      description: >-
+        The value of the score. Must be passed as string for categorical scores,
+        and numeric for boolean and numeric scores
     Dataset:
       title: Dataset
       type: object
@@ -2893,17 +3107,37 @@ components:
           nullable: true
         traceId:
           type: string
+          example: cdef-1234-5678-90ab
         name:
           type: string
+          example: novelty
         value:
-          type: number
-          format: double
+          $ref: '#/components/schemas/CreateScoreValue'
+          description: >-
+            The value of the score. Must be passed as string for categorical
+            scores, and numeric for boolean and numeric scores. Boolean score
+            values must equal either 1 or 0 (true or false)
         observationId:
           type: string
           nullable: true
         comment:
           type: string
           nullable: true
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
+          description: >-
+            When set, must match the score value's type. If not set, will be
+            inferred from the score value or config
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. When set, the score name must
+            equal the config name and scores must comply with the config's range
+            and data type. For categorical scores, the value must map to a
+            config category. Numeric scores might be constrained by the score
+            config's max and min values
       required:
         - traceId
         - name
@@ -3469,6 +3703,47 @@ components:
       required:
         - data
         - meta
+    CreateScoreConfigRequest:
+      title: CreateScoreConfigRequest
+      type: object
+      properties:
+        name:
+          type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfigCategory'
+          nullable: true
+          description: >-
+            Configure custom categories for categorical scores. Pass a list of
+            objects with `label` and `value` properties. Categories are
+            autogenerated for boolean configs and cannot be passed
+        minValue:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Configure a minimum value for numerical scores. If not set, the
+            minimum value defaults to -∞
+        maxValue:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Configure a maximum value for numerical scores. If not set, the
+            maximum value defaults to +∞
+        description:
+          type: string
+          nullable: true
+          description: >-
+            Description is shown across the Langfuse UI and can be used to e.g.
+            explain the config categories in detail, why a numeric range was
+            set, or provide additional context on config name or usage
+      required:
+        - name
+        - dataType
     CreateScoreRequest:
       title: CreateScoreRequest
       type: object
@@ -3478,17 +3753,36 @@ components:
           nullable: true
         traceId:
           type: string
+          example: cdef-1234-5678-90ab
         name:
           type: string
+          example: novelty
         value:
-          type: number
-          format: double
+          $ref: '#/components/schemas/CreateScoreValue'
+          description: >-
+            The value of the score. Must be passed as string for categorical
+            scores, and numeric for boolean and numeric scores. Boolean score
+            values must equal either 1 or 0 (true or false)
         observationId:
           type: string
           nullable: true
         comment:
           type: string
           nullable: true
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
+          description: >-
+            The data type of the score. When passing a configId this field is
+            inferred. Otherwise, this field must be passed or will default to
+            numeric.
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. The unique langfuse identifier
+            of a score config. When passing this field, the dataType and
+            stringValue fields are automatically populated.
       required:
         - traceId
         - name
