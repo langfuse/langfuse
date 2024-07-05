@@ -17,6 +17,11 @@ import {
 import { envDetector } from "@opentelemetry/resources";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 
+import { DiagConsoleLogger, DiagLogLevel, diag } from "@opentelemetry/api";
+
+// Enable OpenTelemetry logging for debugging purposes
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+
 const sdk = new NodeSDK({
   resource: new Resource({
     [SEMRESATTRS_SERVICE_NAME]: "web",
