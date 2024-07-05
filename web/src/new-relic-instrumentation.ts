@@ -20,8 +20,9 @@ import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 
 // Set the global logger to log at debug level
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
-
+if (process.env.OTEL_DEBUG_ENABLED === "true") {
+  diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+}
 
 const sdk = new NodeSDK({
   resource: new Resource({
