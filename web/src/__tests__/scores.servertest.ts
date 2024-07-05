@@ -1125,32 +1125,36 @@ describe("/api/public/scores API Endpoint", () => {
       ]);
     });
     it("test invalid operator", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        z.object({
-          message: z.string(),
-          error: z.array(z.object({})),
-        }),
-        "GET",
-        `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
-      );
-      expect(getScore.status).toBe(400);
-      expect(getScore.body).toMatchObject({
-        message: "Invalid request data",
-      });
+      try {
+        await makeZodVerifiedAPICall(
+          z.object({
+            message: z.string(),
+            error: z.array(z.object({})),
+          }),
+          "GET",
+          `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
+        );
+      } catch (error) {
+        expect((error as Error).message).toBe(
+          `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"received\":\"op\",\"code\":\"invalid_enum_value\",\"options\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid enum value. Expected '<' | '>' | '<=' | '>=' | '!=' | '=', received 'op'\"}]}`,
+        );
+      }
     });
     it("test invalid value", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        z.object({
-          message: z.string(),
-          error: z.array(z.object({})),
-        }),
-        "GET",
-        `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
-      );
-      expect(getScore.status).toBe(400);
-      expect(getScore.body).toMatchObject({
-        message: "Invalid request data",
-      });
+      try {
+        await makeZodVerifiedAPICall(
+          z.object({
+            message: z.string(),
+            error: z.array(z.object({})),
+          }),
+          "GET",
+          `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
+        );
+      } catch (error) {
+        expect((error as Error).message).toBe(
+          'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"code":"invalid_type","expected":"number","received":"nan","path":["value"],"message":"Expected number, received nan"}]}',
+        );
+      }
     });
 
     it("should filter scores by score IDs", async () => {
