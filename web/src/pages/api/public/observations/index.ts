@@ -2,7 +2,11 @@ import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { prisma } from "@langfuse/shared/src/db";
-import { paginationZod } from "@langfuse/shared";
+import {
+  ObservationLevel,
+  paginationZod,
+  validateZodSchema,
+} from "@langfuse/shared";
 import {
   Prisma,
   type PrismaClient,
@@ -13,14 +17,57 @@ import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { stringDate } from "@langfuse/shared";
 
+const ObservationType = z.enum(["GENERATION", "SPAN", "EVENT"]);
+
 const ObservationsGetSchema = z.object({
   ...paginationZod,
-  type: z.enum(["GENERATION", "SPAN", "EVENT"]).nullish(),
+  type: ObservationType.nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
   traceId: z.string().nullish(),
   parentObservationId: z.string().nullish(),
   fromStartTime: stringDate,
+});
+
+const Observation = z.object({
+  inputPrice: z.number().optional(),
+  outputPrice: z.number().optional(),
+  totalPrice: z.number().optional(),
+  calculatedInputCost: z.number().optional(),
+  calculatedOutputCost: z.number().optional(),
+  calculatedTotalCost: z.number().optional(),
+  usage: z.object({
+    unit: z.string().nullable(),
+    input: z.number(),
+    output: z.number(),
+    total: z.number(),
+  }),
+  id: z.string(),
+  traceId: z.string().nullable(),
+  projectId: z.string(),
+  type: ObservationType,
+  startTime: z.date(),
+  endTime: z.date().nullable(),
+  name: z.string().nullable(),
+  metadata: z.any(),
+  parentObservationId: z.string().nullable(),
+  level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
+  statusMessage: z.string().nullable(),
+  version: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  model: z.string().nullable(),
+  modelParameters: z.any(),
+  input: z.any(),
+  output: z.any(),
+  promptTokens: z.number(),
+  completionTokens: z.number(),
+  totalTokens: z.number(),
+  unit: z.string().nullable(),
+  completionStartTime: z.date().nullable(),
+  promptId: z.string().nullable(),
+  modelId: z.string().nullable(),
+  latency: z.number().nullable(),
+  timeToFirstToken: z.number().nullable(),
 });
 
 export default async function handler(
@@ -65,8 +112,13 @@ export default async function handler(
       searchParams,
     );
 
+    const response = validateZodSchema(
+      Observation,
+      observations.map(mapUsageOutput),
+    );
+
     return res.status(200).json({
-      data: observations.map(mapUsageOutput),
+      data: response,
       meta: {
         page: searchParams.page,
         limit: searchParams.limit,
@@ -100,7 +152,7 @@ const getObservation = async (
   prisma: PrismaClient,
   authenticatedProjectId: string,
   query: z.infer<typeof ObservationsGetSchema>,
-) => {
+): Promise<[ObservationView[], number]> => {
   const userIdCondition = query.userId
     ? Prisma.sql`AND traces."user_id" = ${query.userId}`
     : Prisma.empty;
