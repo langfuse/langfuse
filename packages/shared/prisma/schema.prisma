@@ -272,6 +272,8 @@ view TraceView {
     input      Json?
     output     Json?
     sessionId  String?  @map("session_id")
+    createdAt  DateTime @map("created_at")
+    updatedAt  DateTime @map("updated_at")
 
     // calculated fields
     duration Float? @map("duration") // can be null if no observations in trace
@@ -352,7 +354,7 @@ view ObservationView {
     traceId             String?          @map("trace_id")
     projectId           String           @map("project_id")
     type                ObservationType
-    startTime           DateTime         @default(now()) @map("start_time")
+    startTime           DateTime         @map("start_time")
     endTime             DateTime?        @map("end_time")
     name                String?
     metadata            Json?
@@ -360,7 +362,8 @@ view ObservationView {
     level               ObservationLevel @default(DEFAULT)
     statusMessage       String?          @map("status_message")
     version             String?
-    createdAt           DateTime         @default(now()) @map("created_at")
+    createdAt           DateTime         @map("created_at")
+    updateAt            DateTime         @map("updated_at")
 
     // GENERATION ONLY
     model               String?
