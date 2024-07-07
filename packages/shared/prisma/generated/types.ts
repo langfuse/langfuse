@@ -286,7 +286,7 @@ export type ObservationView = {
     trace_id: string | null;
     project_id: string;
     type: ObservationType;
-    start_time: Generated<Timestamp>;
+    start_time: Timestamp;
     end_time: Timestamp | null;
     name: string | null;
     metadata: unknown | null;
@@ -294,7 +294,8 @@ export type ObservationView = {
     level: Generated<ObservationLevel>;
     status_message: string | null;
     version: string | null;
-    created_at: Generated<Timestamp>;
+    created_at: Timestamp;
+    updated_at: Timestamp;
     model: string | null;
     modelParameters: unknown | null;
     input: unknown | null;
@@ -438,6 +439,8 @@ export type TraceView = {
     input: unknown | null;
     output: unknown | null;
     session_id: string | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
     duration: number | null;
 };
 export type User = {
