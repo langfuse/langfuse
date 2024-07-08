@@ -3,7 +3,6 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  ObservationLevel,
   paginationMetaResponseZod,
   paginationZod,
   validateZodSchema,
