@@ -4,6 +4,7 @@ import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaCon
 import { prisma } from "@langfuse/shared/src/db";
 import {
   ObservationLevel,
+  paginationMetaResponseZod,
   paginationZod,
   validateZodSchema,
 } from "@langfuse/shared";
@@ -19,7 +20,7 @@ import { stringDate } from "@langfuse/shared";
 
 const ObservationType = z.enum(["GENERATION", "SPAN", "EVENT"]);
 
-const ObservationsGetSchema = z.object({
+const GetObservationsV1Query = z.object({
   ...paginationZod,
   type: ObservationType.nullish(),
   name: z.string().nullish(),
@@ -30,44 +31,60 @@ const ObservationsGetSchema = z.object({
 });
 
 const Observation = z.object({
-  inputPrice: z.number().optional(),
-  outputPrice: z.number().optional(),
-  totalPrice: z.number().optional(),
-  calculatedInputCost: z.number().optional(),
-  calculatedOutputCost: z.number().optional(),
-  calculatedTotalCost: z.number().optional(),
+  id: z.string(),
+  projectId: z.string(),
+  traceId: z.string().nullable(),
+  parentObservationId: z.string().nullable(),
+  name: z.string().nullable(),
+  type: ObservationType,
+  startTime: z.coerce.date(),
+  endTime: z.coerce.date().nullable(),
+  version: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+  input: z.any(),
+  output: z.any(),
+  metadata: z.any(),
+  level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
+  statusMessage: z.string().nullable(),
+
+  // metrics
+  latency: z.number().nullable(),
+
+  // GENERATION only
+  model: z.string().nullable(),
+  modelParameters: z.any(),
+  completionStartTime: z.coerce.date().nullable(),
+  promptId: z.string().nullable(),
+  modelId: z.string().nullable(),
+
+  // usage
   usage: z.object({
     unit: z.string().nullable(),
     input: z.number(),
     output: z.number(),
     total: z.number(),
   }),
-  id: z.string(),
-  traceId: z.string().nullable(),
-  projectId: z.string(),
-  type: ObservationType,
-  startTime: z.date(),
-  endTime: z.date().nullable(),
-  name: z.string().nullable(),
-  metadata: z.any(),
-  parentObservationId: z.string().nullable(),
-  level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
-  statusMessage: z.string().nullable(),
-  version: z.string().nullable(),
-  createdAt: z.coerce.date(),
-  model: z.string().nullable(),
-  modelParameters: z.any(),
-  input: z.any(),
-  output: z.any(),
-  promptTokens: z.number(),
-  completionTokens: z.number(),
-  totalTokens: z.number(),
   unit: z.string().nullable(),
-  completionStartTime: z.date().nullable(),
-  promptId: z.string().nullable(),
-  modelId: z.string().nullable(),
-  latency: z.number().nullable(),
+  promptTokens: z.number(), // backwards compatibility
+  completionTokens: z.number(), // backwards compatibility
+  totalTokens: z.number(), // backwards compatibility
+
+  // costs
+  inputPrice: z.number().nullable(),
+  outputPrice: z.number().nullable(),
+  totalPrice: z.number().nullable(),
+  calculatedInputCost: z.number().nullable(),
+  calculatedOutputCost: z.number().nullable(),
+  calculatedTotalCost: z.number().nullable(),
+
+  // generation metrics
   timeToFirstToken: z.number().nullable(),
+});
+
+const GetObservationsV1Response = z.object({
+  data: z.array(Observation),
+  meta: paginationMetaResponseZod,
 });
 
 export default async function handler(
@@ -104,7 +121,7 @@ export default async function handler(
       });
     }
 
-    const searchParams = ObservationsGetSchema.parse(req.query);
+    const searchParams = GetObservationsV1Query.parse(req.query);
 
     const [observations, totalObservations] = await getObservation(
       prisma,
@@ -112,13 +129,8 @@ export default async function handler(
       searchParams,
     );
 
-    const response = validateZodSchema(
-      Observation,
-      observations.map(mapUsageOutput),
-    );
-
-    return res.status(200).json({
-      data: response,
+    const response = validateZodSchema(GetObservationsV1Response, {
+      data: observations.map(mapUsageOutput),
       meta: {
         page: searchParams.page,
         limit: searchParams.limit,
@@ -126,6 +138,8 @@ export default async function handler(
         totalPages: Math.ceil(totalObservations / searchParams.limit),
       },
     });
+
+    return res.status(200).json(response);
   } catch (error: unknown) {
     console.error(error);
     if (isPrismaException(error)) {
@@ -151,7 +165,7 @@ export default async function handler(
 const getObservation = async (
   prisma: PrismaClient,
   authenticatedProjectId: string,
-  query: z.infer<typeof ObservationsGetSchema>,
+  query: z.infer<typeof GetObservationsV1Query>,
 ): Promise<[ObservationView[], number]> => {
   const userIdCondition = query.userId
     ? Prisma.sql`AND traces."user_id" = ${query.userId}`
