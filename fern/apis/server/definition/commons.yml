@@ -148,6 +148,9 @@ types:
       source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
+      createdAt: datetime
+      updatedAt: datetime
+      authorUserId: optional<string>
       comment: optional<string>
       configId:
         type: optional<string>
@@ -166,6 +169,9 @@ types:
       source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
+      createdAt: datetime
+      updatedAt: datetime
+      authorUserId: optional<string>
       comment: optional<string>
       configId:
         type: optional<string>
@@ -184,6 +190,9 @@ types:
       source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
+      createdAt: datetime
+      updatedAt: datetime
+      authorUserId: optional<string>
       comment: optional<string>
       configId:
         type: optional<string>

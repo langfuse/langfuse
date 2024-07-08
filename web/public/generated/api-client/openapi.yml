@@ -11,12 +11,8 @@ paths:
         - Score
       parameters: []
       responses:
-        '200':
+        '204':
           description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Score'
         '400':
           description: ''
           content:
@@ -111,6 +107,14 @@ components:
         timestamp:
           type: string
           format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
         comment:
           type: string
         configId:
@@ -126,6 +130,8 @@ components:
         - value
         - source
         - timestamp
+        - createdAt
+        - updatedAt
     BooleanScore:
       title: BooleanScore
       type: object
@@ -154,6 +160,14 @@ components:
         timestamp:
           type: string
           format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
         comment:
           type: string
         configId:
@@ -169,6 +183,8 @@ components:
         - stringValue
         - source
         - timestamp
+        - createdAt
+        - updatedAt
     CategoricalScore:
       title: CategoricalScore
       type: object
@@ -197,6 +213,14 @@ components:
         timestamp:
           type: string
           format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
         comment:
           type: string
         configId:
@@ -211,6 +235,8 @@ components:
         - stringValue
         - source
         - timestamp
+        - createdAt
+        - updatedAt
     Score:
       title: Score
       oneOf:

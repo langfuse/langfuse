@@ -2198,6 +2198,15 @@ components:
         timestamp:
           type: string
           format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
+          nullable: true
         comment:
           type: string
           nullable: true
@@ -2215,6 +2224,8 @@ components:
         - value
         - source
         - timestamp
+        - createdAt
+        - updatedAt
     BooleanScore:
       title: BooleanScore
       type: object
@@ -2244,6 +2255,15 @@ components:
         timestamp:
           type: string
           format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
+          nullable: true
         comment:
           type: string
           nullable: true
@@ -2261,6 +2281,8 @@ components:
         - stringValue
         - source
         - timestamp
+        - createdAt
+        - updatedAt
     CategoricalScore:
       title: CategoricalScore
       type: object
@@ -2291,6 +2313,15 @@ components:
         timestamp:
           type: string
           format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
+          nullable: true
         comment:
           type: string
           nullable: true
@@ -2307,6 +2338,8 @@ components:
         - stringValue
         - source
         - timestamp
+        - createdAt
+        - updatedAt
     Score:
       title: Score
       oneOf:
