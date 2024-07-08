@@ -17,6 +17,11 @@ import { encrypt } from "../src/encryption";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
+type ConfigCategory = {
+  label: string;
+  value: number;
+};
+
 const options = {
   environment: { type: "string" },
 } as const;
@@ -459,7 +464,15 @@ function createObjects(
   project1: Project,
   project2: Project,
   promptIds: Map<string, string[]>,
-  configIdsAndNames: Map<string, { name: string; id: string }[]>
+  configParams: Map<
+    string,
+    {
+      name: string;
+      id: string;
+      dataType: ScoreDataType;
+      categories: ConfigCategory[] | null;
+    }[]
+  >
 ) {
   const traces: Prisma.TraceCreateManyInput[] = [];
   const observations: Prisma.ObservationCreateManyInput[] = [];
@@ -518,13 +531,34 @@ function createObjects(
 
     traces.push(trace);
 
-    const configArray = configIdsAndNames.get(projectId) ?? [];
+    const configArray = configParams.get(projectId) ?? [];
     const randomIndex = Math.floor(Math.random() * 3);
     const config =
       configArray.length >= randomIndex - 1 && configArray[randomIndex];
-    const { name: annotationScoreName, id: configId } = config || {
+    const {
+      name: annotationScoreName,
+      id: configId,
+      dataType,
+      categories,
+    } = config || {
       name: "manual-score",
       id: undefined,
+      dataType: ScoreDataType.NUMERIC,
+      categories: null,
+    };
+
+    const value = Math.floor(Math.random() * 2);
+    const scoreNumericAndStringValue = {
+      ...(dataType === ScoreDataType.NUMERIC && { value }),
+      ...(dataType === ScoreDataType.CATEGORICAL && {
+        value,
+        stringValue: categories?.find((category) => category.value === value)
+          ?.label,
+      }),
+      ...(dataType === ScoreDataType.BOOLEAN && {
+        value,
+        stringValue: value === 1 ? "True" : "False",
+      }),
     };
 
     const traceScores = [
@@ -533,12 +567,12 @@ function createObjects(
             {
               traceId: trace.id,
               name: annotationScoreName,
-              value: Math.floor(Math.random() * 3) - 1,
               timestamp: traceTs,
               source: ScoreSource.ANNOTATION,
               projectId,
               authorUserId: `user-${i}`,
-              dataType: ScoreDataType.NUMERIC,
+              dataType,
+              ...scoreNumericAndStringValue,
               ...(configId ? { configId } : {}),
             },
           ]
@@ -553,6 +587,20 @@ function createObjects(
               source: ScoreSource.API,
               projectId,
               dataType: ScoreDataType.NUMERIC,
+            },
+          ]
+        : []),
+      ...(Math.random() < 0.8
+        ? [
+            {
+              traceId: trace.id,
+              name: "Completeness",
+              timestamp: traceTs,
+              source: ScoreSource.API,
+              projectId,
+              dataType: ScoreDataType.CATEGORICAL,
+              stringValue:
+                Math.floor(Math.random() * 2) === 1 ? "Fully" : "Partially",
             },
           ]
         : []),
@@ -976,8 +1024,15 @@ async function generatePrompts(project: Project) {
 }
 
 async function generateConfigsForProject(projects: Project[]) {
-  const projectIdsToConfigs: Map<string, { name: string; id: string }[]> =
-    new Map();
+  const projectIdsToConfigs: Map<
+    string,
+    {
+      name: string;
+      id: string;
+      dataType: ScoreDataType;
+      categories: ConfigCategory[] | null;
+    }[]
+  > = new Map();
 
   await Promise.all(
     projects.map(async (project) => {
@@ -989,7 +1044,12 @@ async function generateConfigsForProject(projects: Project[]) {
 }
 
 async function generateConfigs(project: Project) {
-  const configNameAndId: { name: string; id: string }[] = [];
+  const configNameAndId: {
+    name: string;
+    id: string;
+    dataType: ScoreDataType;
+    categories: ConfigCategory[] | null;
+  }[] = [];
 
   const configs = [
     {
@@ -1046,7 +1106,12 @@ async function generateConfigs(project: Project) {
         id: config.id,
       },
     });
-    configNameAndId.push({ name: config.name, id: config.id });
+    configNameAndId.push({
+      name: config.name,
+      id: config.id,
+      dataType: config.dataType,
+      categories: config.categories ?? null,
+    });
   }
 
   return configNameAndId;

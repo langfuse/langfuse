@@ -23,7 +23,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type Decimal from "decimal.js";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
@@ -34,11 +34,11 @@ import {
   type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevel,
-  type Score,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { type ValidatedScore } from "@/src/features/public-api/types/scores";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -56,7 +56,7 @@ export type TracesTableRow = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
-  scores: Score[];
+  scores: ValidatedScore[];
   tags: string[];
   usage: {
     promptTokens: number;
@@ -337,7 +337,7 @@ export default function TracesTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.promptTokens}</span>;
+        return <span>{numberFormatter(value.promptTokens, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -353,7 +353,7 @@ export default function TracesTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.completionTokens}</span>;
+        return <span>{numberFormatter(value.completionTokens, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -369,7 +369,7 @@ export default function TracesTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.totalTokens}</span>;
+        return <span>{numberFormatter(value.totalTokens, 0)}</span>;
       },
       enableHiding: true,
       defaultHidden: true,
@@ -463,7 +463,7 @@ export default function TracesTable({
       header: "Scores",
       enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
       cell: ({ row }) => {
-        const values: Score[] = row.getValue("scores");
+        const values: ValidatedScore[] = row.getValue("scores");
         return <GroupedScoreBadges scores={values} variant="headings" />;
       },
       enableHiding: true,

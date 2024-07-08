@@ -25,6 +25,7 @@ import { orderByToPrismaSql } from "@langfuse/shared";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -107,7 +108,7 @@ export const traceRouter = createTRPCRouter({
         async () =>
           await ctx.prisma.$queryRaw<
             Array<
-              Omit<Trace, "input" | "output" | "metadata"> & {
+              Trace & {
                 promptTokens: number;
                 completionTokens: number;
                 totalTokens: number;
@@ -147,13 +148,17 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
+      const validatedScores = filterAndValidateDbScoreList(scores);
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
-        traces: traces.map((trace) => ({
-          ...trace,
-          scores: scores.filter((s) => s.traceId === trace.id),
-        })),
+        traces: traces.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ input, output, metadata, ...trace }) => ({
+            ...trace,
+            scores: validatedScores.filter((s) => s.traceId === trace.id),
+          }),
+        ),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
     }),
@@ -298,6 +303,7 @@ export const traceRouter = createTRPCRouter({
           projectId: trace.projectId,
         },
       });
+      const validatedScores = filterAndValidateDbScoreList(scores);
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -319,7 +325,7 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
-        scores,
+        scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations as ObservationReturnType[],
       };

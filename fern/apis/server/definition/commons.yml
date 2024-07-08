@@ -120,25 +120,81 @@ types:
       updatedAt: datetime
       projectId: string
       dataType: ScoreDataType
-      isArchived: boolean
-      minValue: optional<double>
-      maxValue: optional<double>
-      categories: optional<list<ConfigCategory>>
+      isArchived:
+        type: boolean
+        docs: Whether the score config is archived. Defaults to false
+      minValue:
+        type: optional<double>
+        docs: Sets minimum value for numerical scores. If not set, the minimum value defaults to -∞
+      maxValue:
+        type: optional<double>
+        docs: Sets maximum value for numerical scores. If not set, the maximum value defaults to +∞
+      categories:
+        type: optional<list<ConfigCategory>>
+        docs: Configures custom categories for categorical scores
       description: optional<string>
   ConfigCategory:
     properties:
       value: double
       label: string
-  Score:
+  BaseScore:
     properties:
       id: string
       traceId: string
       name: string
-      value: double
       source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
+      createdAt: datetime
+      updatedAt: datetime
+      authorUserId: optional<string>
       comment: optional<string>
+      configId:
+        type: optional<string>
+        docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
+  NumericScore:
+    extends: BaseScore
+    properties:
+      value:
+        type: double
+        docs: The numeric value of the score
+  BooleanScore:
+    extends: BaseScore
+    properties:
+      value:
+        type: double
+        docs: The numeric value of the score. Equals 1 for "True" and 0 for "False"
+      stringValue:
+        type: string
+        docs: The string representation of the score value. Is inferred from the numeric value and equals "True" or "False"
+  CategoricalScore:
+    extends: BaseScore
+    properties:
+      value:
+        type: optional<double>
+        docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
+      stringValue:
+        type: string
+        docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  Score:
+    discriminant: "dataType"
+    union:
+      NUMERIC:
+        type: NumericScore
+        docs: "Score with NUMERIC data type"
+      CATEGORICAL:
+        type: CategoricalScore
+        docs: "Score with CATEGORICAL data type"
+      BOOLEAN:
+        type: BooleanScore
+        docs: "Score with BOOLEAN data type"
+
+  CreateScoreValue:
+    discriminated: false
+    union:
+      - string
+      - double
+    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
   Dataset:
     properties:
       id: string
@@ -185,6 +241,39 @@ types:
     extends: DatasetRun
     properties:
       datasetRunItems: list<DatasetRunItem>
+  Model:
+    docs: Model definition used for transforming usage into USD cost and/or tokenization.
+    properties:
+      id: string
+      modelName:
+        docs: "Name of the model definition. If multiple with the same name exist, they are applied in the following order: (1) custom over built-in, (2) newest according to startTime where model.startTime<observation.startTime"
+        type: string
+      matchPattern:
+        docs: "Regex pattern which matches this model definition to generation.model. Useful in case of fine-tuned models. If you want to exact match, use `(?i)^modelname$`"
+        type: string
+      startDate:
+        docs: Apply only to generations which are newer than this ISO date.
+        type: optional<date>
+      unit:
+        docs: Unit used by this model.
+        type: ModelUsageUnit
+      inputPrice:
+        docs: Price (USD) per input unit
+        type: optional<double>
+      outputPrice:
+        docs: Price (USD) per output unit
+        type: optional<double>
+      totalPrice:
+        docs: Price (USD) per total unit. Cannot be set if input or output price is set.
+        type: optional<double>
+      tokenizerId:
+        docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
+        type: optional<string>
+      tokenizerConfig:
+        docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
+        type: optional<unknown>
+      isLangfuseManaged:
+        type: boolean
 
   # Utilities
   ModelUsageUnit:

@@ -134,7 +134,7 @@ export default async function handler(
       res,
     );
   } catch (error: unknown) {
-    console.error("error handling ingestion event", error);
+    console.error("error_handling_ingestion_event", error);
 
     if (!(error instanceof UnauthorizedError)) {
       Sentry.captureException(error);
@@ -401,7 +401,7 @@ export const handleBatchResult = (
   return res.status(207).send({ errors: returnedErrors, successes });
 };
 
-export const handleBatchResultLegacy = (
+export const handleSingleIngestionObject = (
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
   res: NextApiResponse,
@@ -494,6 +494,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
               ).toString("base64"),
           },
           body: JSON.stringify(body),
+          signal: AbortSignal.timeout(2 * 1000),
         });
       }
     }

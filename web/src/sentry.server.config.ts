@@ -12,6 +12,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
     // of transactions for performance monitoring.
     // We recommend adjusting this value in production
     tracesSampleRate: env.LANGFUSE_TRACING_SAMPLE_RATE,
+
     profilesSampleRate: 0.1,
     integrations: [
       // Add profiling integration to list of integrations
