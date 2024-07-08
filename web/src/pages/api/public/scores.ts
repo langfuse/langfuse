@@ -137,6 +137,7 @@ export default withMiddlewares({
           if (result.success) {
             acc.push(result.data);
           } else {
+            console.error("Score parsing error: ", result.error);
             Sentry.captureException(result.error);
           }
           return acc;

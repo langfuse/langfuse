@@ -68,7 +68,7 @@ const GetScoresDataBase = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   trace: z.object({
-    userId: z.string(),
+    userId: z.string().nullish(),
   }),
   configId: z.string().nullish(),
 });
