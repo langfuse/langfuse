@@ -98,6 +98,7 @@ export const transformDbToApiObservation = (
  * Endpoints
  */
 
+// GET /observations
 export const GetObservationsV1Query = z.object({
   ...paginationZod,
   type: ObservationType.nullish(),
@@ -107,8 +108,13 @@ export const GetObservationsV1Query = z.object({
   parentObservationId: z.string().nullish(),
   fromStartTime: stringDate,
 });
-
 export const GetObservationsV1Response = z.object({
   data: z.array(Observation),
   meta: paginationMetaResponseZod,
 });
+
+// GET /observations/{observationId}
+export const GetObservationV1Query = z.object({
+  observationId: z.string(),
+});
+export const GetObservationV1Response = Observation;
