@@ -13,6 +13,7 @@ import {
   GetScoresResponse,
 } from "@/src/features/public-api/types/scores";
 import { z } from "zod";
+import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 
 const traceId = "de98afa2-89dc-47e9-9924-33f1490fdaf4";
 
@@ -21,15 +22,20 @@ describe("/api/public/scores API Endpoint", () => {
   beforeEach(async () => {
     if (should_prune_db) await pruneDatabase();
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: traceId,
+        name: "trace-name",
+        userId: "user-1",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "2.0.0",
+      },
+    );
   });
   afterEach(async () => {
     if (should_prune_db) await pruneDatabase();
@@ -399,10 +405,8 @@ describe("/api/public/scores API Endpoint", () => {
 
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
-      message: "Invalid request data",
-      errors: [
+      message:
         "Data type mismatch based on config: expected NUMERIC, got CATEGORICAL",
-      ],
     });
   });
 
@@ -451,10 +455,8 @@ describe("/api/public/scores API Endpoint", () => {
 
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
-      message: "Invalid request data",
-      errors: [
+      message:
         "Data type mismatch based on config: expected CATEGORICAL, got NUMERIC",
-      ],
     });
   });
 
@@ -664,10 +666,8 @@ describe("/api/public/scores API Endpoint", () => {
 
     expect(createScore.status).toBe(400);
     expect(createScore.body).toMatchObject({
-      message: "Invalid request data",
-      errors: [
+      message:
         "Ingested score body not valid against provided config:  - Value exceeds maximum value of 0 defined in config",
-      ],
     });
   });
 
@@ -743,9 +743,14 @@ describe("/api/public/scores API Endpoint", () => {
 
     const traceId = uuidv4();
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: traceId,
+      },
+    );
 
     const scoreId = uuidv4();
     const createScore = await makeAPICall("POST", "/api/public/scores", {
@@ -783,9 +788,14 @@ describe("/api/public/scores API Endpoint", () => {
 
     const traceId = uuidv4();
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: traceId,
+      },
+    );
     const generationId = uuidv4();
     await makeAPICall("POST", "/api/public/generations", {
       id: generationId,
@@ -835,10 +845,15 @@ describe("/api/public/scores API Endpoint", () => {
       should_prune_db = false;
       await pruneDatabase();
 
-      await makeAPICall("POST", "/api/public/traces", {
-        id: traceId,
-        userId: userId,
-      });
+      await makeZodVerifiedAPICall(
+        PostTracesV1Response,
+        "POST",
+        "/api/public/traces",
+        {
+          id: traceId,
+          userId: userId,
+        },
+      );
       await makeAPICall("POST", "/api/public/generations", {
         id: generationId,
       });

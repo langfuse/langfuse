@@ -72,7 +72,10 @@ export default withMiddlewares({
             o."calculated_output_cost" as "calculatedOutputCost",
             o."calculated_total_cost" as "calculatedTotalCost",
             o."latency",
-            o."prompt_id" as "promptId"
+            o."prompt_id" as "promptId",
+            o."created_at" as "createdAt",
+            o."updated_at" as "updatedAt",
+            o."time_to_first_token" as "timeToFirstToken"
           FROM observations_view o LEFT JOIN traces ON o."trace_id" = traces."id" AND traces."project_id" = o."project_id"
           WHERE o."project_id" = ${auth.scope.projectId}
           ${nameCondition}
@@ -99,6 +102,8 @@ export default withMiddlewares({
         throw new InternalServerError("Unexpected totalItems result");
       }
       const totalItems = Number(countRes[0].count);
+
+      console.log(observations);
 
       return {
         data: observations.map(transformDbToApiObservation),

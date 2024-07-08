@@ -1,8 +1,13 @@
 /** @jest-environment node */
 
 import { prisma } from "@langfuse/shared/src/db";
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+  pruneDatabase,
+} from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
+import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 
 describe("/api/public/spans API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -13,15 +18,20 @@ describe("/api/public/spans API Endpoint", () => {
 
     const traceId = uuidv4();
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: traceId,
+        name: "trace-name",
+        userId: "user-1",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "2.0.0",
+      },
+    );
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -94,15 +104,20 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbSpan?.metadata).toEqual({ meta: "value" });
     expect(dbSpan?.version).toBe("2.0.0");
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: traceId,
+        name: "trace-name",
+        userId: "user-1",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "2.0.0",
+      },
+    );
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -118,13 +133,18 @@ describe("/api/public/spans API Endpoint", () => {
     const traceId = uuidv4();
     const spanId = uuidv4();
 
-    const response = await makeAPICall("POST", "/api/public/traces", {
-      externalId: uuidv4(),
-      id: traceId,
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-    });
+    const response = await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        externalId: uuidv4(),
+        id: traceId,
+        name: "trace-name",
+        userId: "user-1",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      },
+    );
     expect(response.status).toBe(200);
     const createSpan = await makeAPICall("POST", "/api/public/spans", {
       id: spanId,

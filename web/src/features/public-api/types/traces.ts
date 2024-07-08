@@ -1,9 +1,6 @@
-import { ValidatedScoreSchema } from "@/src/features/public-api/types/scores";
 import {
-  jsonSchema,
   paginationZod,
   paginationMetaResponseZod,
-  queryStringZod,
   stringDate,
   orderBy,
   TraceBody,
@@ -72,7 +69,7 @@ export const GetTracesV1Response = z.object({
 
 // POST /api/public/traces
 export const PostTracesV1Body = TraceBody;
-export const PostTracesV1Response = z.void();
+export const PostTracesV1Response = Trace;
 
 // GET /api/public/traces/{traceId}
 export const GetTraceV1Query = z.object({

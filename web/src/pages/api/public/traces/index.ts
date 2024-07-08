@@ -10,7 +10,7 @@ import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAut
 import { Prisma } from "@langfuse/shared/src/db";
 import {
   handleBatch,
-  handleBatchResultLegacy,
+  parseSingleTypedIngestionApiResponse,
 } from "@/src/pages/api/public/ingestion";
 import { type Trace, eventTypes } from "@langfuse/shared";
 import { v4 } from "uuid";
@@ -22,7 +22,7 @@ export default withMiddlewares({
     name: "Create Trace",
     bodySchema: PostTracesV1Body,
     responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
-    fn: async ({ body, auth, req, res }) => {
+    fn: async ({ body, auth, req }) => {
       await telemetry();
 
       const event = {
@@ -33,7 +33,12 @@ export default withMiddlewares({
       };
 
       const result = await handleBatch([event], {}, req, auth);
-      handleBatchResultLegacy(result.errors, result.results, res);
+      const response = parseSingleTypedIngestionApiResponse(
+        result.errors,
+        result.results,
+        PostTracesV1Response,
+      );
+      return response;
     },
   }),
 

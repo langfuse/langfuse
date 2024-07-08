@@ -5,7 +5,7 @@ import * as Sentry from "@sentry/node";
 import { v4 } from "uuid";
 import {
   handleBatch,
-  handleBatchResultLegacy,
+  parseSingleTypedIngestionApiResponse,
 } from "@/src/pages/api/public/ingestion";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -23,7 +23,7 @@ export default withMiddlewares({
     name: "Create Score",
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
-    fn: async ({ body, auth, req, res }) => {
+    fn: async ({ body, auth, req }) => {
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
@@ -36,7 +36,12 @@ export default withMiddlewares({
         req,
         auth,
       );
-      handleBatchResultLegacy(result.errors, result.results, res);
+      const response = parseSingleTypedIngestionApiResponse(
+        result.errors,
+        result.results,
+        PostScoresResponse,
+      );
+      return response;
     },
   }),
   GET: createAuthedAPIRoute({

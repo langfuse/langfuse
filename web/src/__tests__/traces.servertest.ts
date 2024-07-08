@@ -5,7 +5,11 @@ import {
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
-import { GetTracesV1Response } from "@/src/features/public-api/types/traces";
+import {
+  GetTraceV1Response,
+  GetTracesV1Response,
+  PostTracesV1Response,
+} from "@/src/features/public-api/types/traces";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 
@@ -13,44 +17,53 @@ describe("/api/public/traces API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
   afterEach(async () => await pruneDatabase());
 
-  it("should create", async () => {
+  it("should create and get a trace via /traces", async () => {
     await pruneDatabase();
 
-    await makeAPICall("POST", "/api/public/traces", {
-      name: "trace-name",
-      userId: "user-1",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
-    const dbTrace = await prisma.trace.findMany({
-      where: {
+    const traceCreate = await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
         name: "trace-name",
+        userId: "user-1",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "2.0.0",
       },
-    });
+    );
 
-    expect(dbTrace.length).toBeGreaterThan(0);
-    expect(dbTrace[0]?.name).toBe("trace-name");
-    expect(dbTrace[0]?.release).toBe("1.0.0");
-    expect(dbTrace[0]?.externalId).toBeNull();
-    expect(dbTrace[0]?.version).toBe("2.0.0");
-    expect(dbTrace[0]?.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+    const trace = await makeZodVerifiedAPICall(
+      GetTraceV1Response,
+      "GET",
+      "/api/public/traces/" + traceCreate.body.id,
+    );
+
+    expect(trace.body.name).toBe("trace-name");
+    expect(trace.body.release).toBe("1.0.0");
+    expect(trace.body.externalId).toBeNull();
+    expect(trace.body.version).toBe("2.0.0");
+    expect(trace.body.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
   it("should upsert second trace", async () => {
     await pruneDatabase();
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: "trace-id",
-      name: "trace-name",
-      userId: "user-1",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-      public: true,
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: "trace-id",
+        name: "trace-name",
+        userId: "user-1",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "2.0.0",
+        public: true,
+      },
+    );
 
     const dbTrace1 = await prisma.trace.findFirst({
       where: {
@@ -68,14 +81,19 @@ describe("/api/public/traces API Endpoint", () => {
       userId: "user-1",
     });
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: "trace-id",
-      metadata: { key: "value" },
-      timestamp: "2021-01-01T00:00:00.000Z",
-      release: "1.0.0",
-      version: "5.0.0",
-      public: false,
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: "trace-id",
+        metadata: { key: "value" },
+        timestamp: "2021-01-01T00:00:00.000Z",
+        release: "1.0.0",
+        version: "5.0.0",
+        public: false,
+      },
+    );
 
     const dbTrace2 = await prisma.trace.findFirst({
       where: {
@@ -98,20 +116,35 @@ describe("/api/public/traces API Endpoint", () => {
   it("should use tags correctly on POST and GET", async () => {
     await pruneDatabase();
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: "trace-1",
-      tags: ["tag-1", "tag-2", "tag-3"],
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: "trace-1",
+        tags: ["tag-1", "tag-2", "tag-3"],
+      },
+    );
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: "trace-2",
-      tags: ["tag-1"],
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: "trace-2",
+        tags: ["tag-1"],
+      },
+    );
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: "trace-3",
-      tags: ["tag-2", "tag-3"],
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: "trace-3",
+        tags: ["tag-2", "tag-3"],
+      },
+    );
 
     // multiple tags
     const traces = await makeZodVerifiedAPICall(
@@ -159,15 +192,20 @@ describe("/api/public/traces API Endpoint", () => {
 
     // Create a trace with some observations that have costs and latencies
     const traceId = uuidv4();
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId,
-      name: "trace-with-costs",
-      userId: "user-costs",
-      projectId: "project-costs",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: traceId,
+        name: "trace-with-costs",
+        userId: "user-costs",
+        projectId: "project-costs",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "2.0.0",
+      },
+    );
     console.log(traceId);
 
     // Simulate observations with costs and latencies
@@ -229,11 +267,11 @@ describe("/api/public/traces API Endpoint", () => {
 
     // GET trace
     // Retrieve the trace with total
-    const trace = await makeAPICall<{
-      id: string;
-      totalCost: number;
-      htmlPath: string;
-    }>("GET", `/api/public/traces/${traceId}`);
+    const trace = await makeZodVerifiedAPICall(
+      GetTraceV1Response,
+      "GET",
+      `/api/public/traces/${traceId}`,
+    );
     console.log(trace.body);
     expect(trace.body.totalCost).toBeCloseTo(15.75);
     expect(trace.body.id).toBe(traceId);
@@ -247,27 +285,37 @@ describe("/api/public/traces API Endpoint", () => {
     const anotherSessionId = "another-session-id";
 
     // Create traces with different session IDs
-    await makeAPICall("POST", "/api/public/traces", {
-      id: "trace-1",
-      name: "test-trace-1",
-      sessionId,
-      userId: "user-1",
-      projectId: "project-1",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "1.0.0",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: "trace-1",
+        name: "test-trace-1",
+        sessionId,
+        userId: "user-1",
+        projectId: "project-1",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "1.0.0",
+      },
+    );
 
-    await makeAPICall("POST", "/api/public/traces", {
-      id: "trace-2",
-      name: "test-trace-2",
-      sessionId: anotherSessionId,
-      userId: "user-2",
-      projectId: "project-1",
-      metadata: { key: "value" },
-      release: "1.0.0",
-      version: "1.0.0",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: "trace-2",
+        name: "test-trace-2",
+        sessionId: anotherSessionId,
+        userId: "user-2",
+        projectId: "project-1",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "1.0.0",
+      },
+    );
 
     // Filter by session ID
     const tracesBySessionId = await makeZodVerifiedAPICall(

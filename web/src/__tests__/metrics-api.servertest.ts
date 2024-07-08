@@ -1,4 +1,9 @@
-import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+  pruneDatabase,
+} from "@/src/__tests__/test-utils";
+import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 import { v4 as uuidv4 } from "uuid";
 
 describe("/api/public/metrics/daily API Endpoint", () => {
@@ -11,20 +16,30 @@ describe("/api/public/metrics/daily API Endpoint", () => {
     // Create traces with observations on different days
     const traceId1 = uuidv4();
     const traceId2 = uuidv4();
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId1,
-      timestamp: "2021-01-01T00:00:00.000Z",
-      name: "trace-day-1",
-      userId: "user-daily-metrics",
-      projectId: "project-daily-metrics",
-    });
-    await makeAPICall("POST", "/api/public/traces", {
-      id: traceId2,
-      timestamp: "2021-01-02T00:00:00.000Z",
-      name: "trace-day-2",
-      userId: "user-daily-metrics",
-      projectId: "project-daily-metrics",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: traceId1,
+        timestamp: "2021-01-01T00:00:00.000Z",
+        name: "trace-day-1",
+        userId: "user-daily-metrics",
+        projectId: "project-daily-metrics",
+      },
+    );
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: traceId2,
+        timestamp: "2021-01-02T00:00:00.000Z",
+        name: "trace-day-2",
+        userId: "user-daily-metrics",
+        projectId: "project-daily-metrics",
+      },
+    );
 
     // Simulate observations with usage metrics on different days
     await makeAPICall("POST", "/api/public/generations", {
