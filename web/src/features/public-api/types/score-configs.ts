@@ -162,7 +162,7 @@ export const filterAndValidateDbScoreConfigList = (
 
 /**
  * Use this function when pulling a single score config from the database before using in the application to ensure type safety.
- * The score is expected to pass the validation. If a score fails validation, it an error will be thrown.
+ * The score is expected to pass the validation. If a score fails validation, an error will be thrown.
  * @param scoreConfig
  * @returns validated score config
  * @throws error if score fails validation

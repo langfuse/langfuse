@@ -169,7 +169,7 @@ export const filterAndValidateDbScoreList = (
 
 /**
  * Use this function when pulling a single score from the database before using in the application to ensure type safety.
- * The score is expected to pass the validation. If a score fails validation, it an error will be thrown.
+ * The score is expected to pass the validation. If a score fails validation, an error will be thrown.
  * @param score
  * @returns validated score
  * @throws error if score fails validation
