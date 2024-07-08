@@ -4,7 +4,7 @@ import { eventTypes, ingestionBatchEvent } from "@langfuse/shared";
 import { v4 } from "uuid";
 import {
   handleBatch,
-  handleBatchResultLegacy,
+  handleSingleIngestionObject,
 } from "@/src/pages/api/public/ingestion";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -34,7 +34,7 @@ export default withMiddlewares({
         req,
         auth,
       );
-      handleBatchResultLegacy(result.errors, result.results, res);
+      handleSingleIngestionObject(result.errors, result.results, res);
     },
   }),
   GET: createAuthedAPIRoute({

@@ -7,7 +7,7 @@ import { Prisma, type Trace } from "@langfuse/shared/src/db";
 import { paginationZod } from "@langfuse/shared";
 import {
   handleBatch,
-  handleBatchResultLegacy,
+  handleSingleIngestionObject,
 } from "@/src/pages/api/public/ingestion";
 import { TraceBody, eventTypes, stringDate } from "@langfuse/shared";
 import { v4 } from "uuid";
@@ -50,6 +50,7 @@ export default async function handler(
   // END CHECK AUTH
 
   try {
+    // POST endpoint defined for backwards compatibility only. Traces should be created via the ingestion endpoint
     if (req.method === "POST") {
       console.log(
         "Trying to create trace, project ",
@@ -76,7 +77,7 @@ export default async function handler(
       };
 
       const result = await handleBatch([event], {}, req, authCheck);
-      handleBatchResultLegacy(result.errors, result.results, res);
+      handleSingleIngestionObject(result.errors, result.results, res);
     } else if (req.method === "GET") {
       if (authCheck.scope.accessLevel !== "all") {
         return res.status(401).json({

@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared";
 import {
   handleBatch,
-  handleBatchResultLegacy,
+  handleSingleIngestionObject,
 } from "@/src/pages/api/public/ingestion";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
@@ -63,7 +63,7 @@ export default async function handler(
         req,
         authCheck,
       );
-      handleBatchResultLegacy(result.errors, result.results, res);
+      handleSingleIngestionObject(result.errors, result.results, res);
     } catch (error: unknown) {
       if (isPrismaException(error)) {
         return res.status(500).json({
@@ -117,7 +117,7 @@ export default async function handler(
         authCheck,
       );
 
-      handleBatchResultLegacy(result.errors, result.results, res);
+      handleSingleIngestionObject(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
 
