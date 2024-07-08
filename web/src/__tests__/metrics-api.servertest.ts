@@ -64,6 +64,12 @@ describe("/api/public/metrics/daily API Endpoint", () => {
       startTime: "2021-01-02T00:00:00.000Z",
       endTime: "2021-01-02T00:04:00.000Z",
     });
+    await makeAPICall("POST", "/api/public/generations", {
+      traceId: traceId2,
+      usage: { output: 300 },
+      startTime: "2021-01-02T00:00:00.000Z",
+      endTime: "2021-01-02T00:04:00.000Z",
+    });
 
     // Retrieve the daily metrics
     const dailyMetricsResponse = await makeZodVerifiedAPICall(
@@ -98,6 +104,15 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         countObservations: 1,
         countTraces: 1,
         totalCost: 1024.22,
+      },
+      {
+        model: null,
+        countObservations: 1,
+        countTraces: 1,
+        inputUsage: 0,
+        outputUsage: 300,
+        totalCost: 0,
+        totalUsage: 300,
       },
     ]);
 
