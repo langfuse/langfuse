@@ -137,57 +137,45 @@ types:
     properties:
       value: double
       label: string
-  NumericScore:
+  BaseScore:
     properties:
       id: string
       traceId: string
       name: string
-      value:
-        type: double
-        docs: The numeric value of the score
       source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
+      createdAt: datetime
+      updatedAt: datetime
+      authorUserId: optional<string>
       comment: optional<string>
       configId:
         type: optional<string>
         docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
-  BooleanScore:
+  NumericScore:
+    extends: BaseScore
     properties:
-      id: string
-      traceId: string
-      name: string
+      value:
+        type: double
+        docs: The numeric value of the score
+  BooleanScore:
+    extends: BaseScore
+    properties:
       value:
         type: double
         docs: The numeric value of the score. Equals 1 for "True" and 0 for "False"
       stringValue:
         type: string
         docs: The string representation of the score value. Is inferred from the numeric value and equals "True" or "False"
-      source: ScoreSource
-      observationId: optional<string>
-      timestamp: datetime
-      comment: optional<string>
-      configId:
-        type: optional<string>
-        docs: Reference a score config on a score. When set, config and score name must be equal
   CategoricalScore:
+    extends: BaseScore
     properties:
-      id: string
-      traceId: string
-      name: string
       value:
         type: optional<double>
         docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
-      source: ScoreSource
-      observationId: optional<string>
-      timestamp: datetime
-      comment: optional<string>
-      configId:
-        type: optional<string>
-        docs: Reference a score config on a score. When set, config and score name must be equal and stringValue must map to a config category
   Score:
     discriminant: "dataType"
     union:
