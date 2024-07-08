@@ -270,7 +270,7 @@ const LegacyGetScoreResponseDataV1 = z.intersection(
   ValidatedScoreSchema,
   z.object({
     trace: z.object({
-      userId: z.string(),
+      userId: z.string().nullish(),
     }),
   }),
 );
