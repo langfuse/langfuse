@@ -10,6 +10,7 @@ import {
 import { ModelUsageUnit } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
+import { PostGenerationsV1Response } from "@/src/features/public-api/types/generations";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -120,7 +121,8 @@ describe("/api/public/generations API Endpoint", () => {
       expect(dbTrace[0]?.id).toBe(traceId);
 
       const generationId = uuidv4();
-      const createGeneration = await makeAPICall(
+      const createGeneration = await makeZodVerifiedAPICall(
+        PostGenerationsV1Response,
         "POST",
         "/api/public/generations",
         {

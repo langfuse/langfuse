@@ -12,7 +12,7 @@ import { z } from "zod";
 
 const ObservationType = z.enum(["GENERATION", "SPAN", "EVENT"]);
 
-const Observation = z.object({
+export const APIBaseObservation = z.object({
   id: z.string(),
   projectId: z.string(),
   traceId: z.string().nullable(),
@@ -29,9 +29,6 @@ const Observation = z.object({
   metadata: z.any(),
   level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
   statusMessage: z.string().nullable(),
-
-  // metrics
-  latency: z.number().nullable(),
 
   // GENERATION only
   model: z.string().nullable(),
@@ -53,13 +50,22 @@ const Observation = z.object({
   totalTokens: z.number(), // backwards compatibility
 
   // costs
+  internalModel: z.string().nullable(),
+  internalModelId: z.string().nullable(),
   inputPrice: z.number().nullable(),
   outputPrice: z.number().nullable(),
   totalPrice: z.number().nullable(),
+  inputCost: z.number().nullable(),
+  outputCost: z.number().nullable(),
+  totalCost: z.number().nullable(),
   calculatedInputCost: z.number().nullable(),
   calculatedOutputCost: z.number().nullable(),
   calculatedTotalCost: z.number().nullable(),
+});
 
+export const APIObservationWithMetrics = APIBaseObservation.extend({
+  // metrics
+  latency: z.number().nullable(),
   // generation metrics
   timeToFirstToken: z.number().nullable(),
 });
@@ -75,7 +81,7 @@ const Observation = z.object({
  */
 export const transformDbToApiObservation = (
   observation: ObservationView,
-): z.infer<typeof Observation> => {
+): z.infer<typeof APIObservationWithMetrics> => {
   const { promptTokens, completionTokens, totalTokens, unit } = observation;
   return {
     ...observation,
@@ -109,7 +115,7 @@ export const GetObservationsV1Query = z.object({
   fromStartTime: stringDateTime,
 });
 export const GetObservationsV1Response = z.object({
-  data: z.array(Observation),
+  data: z.array(APIObservationWithMetrics),
   meta: paginationMetaResponseZod,
 });
 
@@ -117,4 +123,4 @@ export const GetObservationsV1Response = z.object({
 export const GetObservationV1Query = z.object({
   observationId: z.string(),
 });
-export const GetObservationV1Response = Observation;
+export const GetObservationV1Response = APIObservationWithMetrics;
