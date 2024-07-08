@@ -162,6 +162,7 @@ export const filterAndValidateDbScoreList = (
     if (result.success) {
       acc.push(result.data);
     } else {
+      console.error("Score parsing error: ", result.error);
       Sentry.captureException(result.error);
     }
     return acc;
@@ -288,6 +289,7 @@ export const legacyFilterAndValidateV1GetScoreList = (
       if (result.success) {
         acc.push(result.data);
       } else {
+        console.error("Score parsing error: ", result.error);
         Sentry.captureException(result.error);
       }
       return acc;
