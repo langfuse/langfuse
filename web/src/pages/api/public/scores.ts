@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared/src/db";
 import { eventTypes, ingestionBatchEvent } from "@langfuse/shared";
-import * as Sentry from "@sentry/node";
 import { v4 } from "uuid";
 import {
   handleBatch,
@@ -10,12 +9,11 @@ import {
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  GetScoresData,
   GetScoresQuery,
   GetScoresResponse,
   PostScoresBody,
   PostScoresResponse,
-  type ValidatedGetScoresData,
+  legacyFilterAndValidateV1GetScoreList,
 } from "@/src/features/public-api/types/scores";
 
 export default withMiddlewares({
@@ -92,6 +90,10 @@ export default withMiddlewares({
             s.name,
             s.value,
             s.string_value as "stringValue",
+            s.author_user_id as "authorUserId",
+            s.project_id as "projectId",
+            s.created_at as "createdAt",  
+            s.updated_at as "updatedAt",  
             s.source,
             s.comment,
             s.data_type as "dataType",
@@ -131,18 +133,7 @@ export default withMiddlewares({
         `,
       );
 
-      const validatedScores = scores.reduce(
-        (acc: ValidatedGetScoresData[], score) => {
-          const result = GetScoresData.safeParse(score);
-          if (result.success) {
-            acc.push(result.data);
-          } else {
-            Sentry.captureException(result.error);
-          }
-          return acc;
-        },
-        [] as ValidatedGetScoresData[],
-      );
+      const validatedScores = legacyFilterAndValidateV1GetScoreList(scores);
 
       const totalItems =
         totalItemsRes[0] !== undefined ? Number(totalItemsRes[0].count) : 0;
