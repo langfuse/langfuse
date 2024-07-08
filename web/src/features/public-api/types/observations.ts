@@ -35,7 +35,6 @@ export const APIBaseObservation = z.object({
   modelParameters: z.any(),
   completionStartTime: z.coerce.date().nullable(),
   promptId: z.string().nullable(),
-  modelId: z.string().nullable(),
 
   // usage
   usage: z.object({
@@ -44,20 +43,18 @@ export const APIBaseObservation = z.object({
     output: z.number(),
     total: z.number(),
   }),
-  unit: z.string().nullable(),
+  unit: z.string().nullable(), // backwards compatibility
   promptTokens: z.number(), // backwards compatibility
   completionTokens: z.number(), // backwards compatibility
   totalTokens: z.number(), // backwards compatibility
 
-  // costs
-  internalModel: z.string().nullable(),
-  internalModelId: z.string().nullable(),
+  // matched model
+  modelId: z.string().nullable(),
   inputPrice: z.number().nullable(),
   outputPrice: z.number().nullable(),
   totalPrice: z.number().nullable(),
-  inputCost: z.number().nullable(),
-  outputCost: z.number().nullable(),
-  totalCost: z.number().nullable(),
+
+  // costs
   calculatedInputCost: z.number().nullable(),
   calculatedOutputCost: z.number().nullable(),
   calculatedTotalCost: z.number().nullable(),
@@ -82,9 +79,15 @@ export const APIObservationWithMetrics = APIBaseObservation.extend({
 export const transformDbToApiObservation = (
   observation: ObservationView,
 ): z.infer<typeof APIObservationWithMetrics> => {
-  const { promptTokens, completionTokens, totalTokens, unit } = observation;
+  const { promptTokens, completionTokens, totalTokens, unit, ...rest } =
+    observation;
+
   return {
-    ...observation,
+    ...rest,
+    unit,
+    promptTokens,
+    completionTokens,
+    totalTokens,
     inputPrice: observation.inputPrice?.toNumber() ?? null,
     outputPrice: observation.outputPrice?.toNumber() ?? null,
     totalPrice: observation.totalPrice?.toNumber() ?? null,
