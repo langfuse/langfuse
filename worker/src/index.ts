@@ -1,11 +1,6 @@
-import app from "./app";
+import "./instrumentation";
 import { env } from "./env";
 import logger from "./logger";
-
-import { initializeOtel } from "./instrumentation";
-
-// const sdk = initializeOtel("worker");
-// sdk.start();
 
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
