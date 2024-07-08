@@ -14,8 +14,6 @@ describe("/api/public/spans API Endpoint", () => {
   afterEach(async () => await pruneDatabase());
 
   it("should create span after trace", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
 
     await makeZodVerifiedAPICall(
@@ -72,8 +70,6 @@ describe("/api/public/spans API Endpoint", () => {
   });
 
   it("should create span before trace", async () => {
-    await pruneDatabase();
-
     const traceId = uuidv4();
     const spanId = uuidv4();
 

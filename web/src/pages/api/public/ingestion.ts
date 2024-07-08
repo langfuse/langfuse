@@ -13,7 +13,6 @@ import {
   type TraceUpsertEventType,
   type EventBodyType,
   EventName,
-  validateZodSchema,
   LangfuseNotFoundError,
   InternalServerError,
 } from "@langfuse/shared";
