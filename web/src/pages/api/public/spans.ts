@@ -32,6 +32,7 @@ export default async function handler(
     });
   // END CHECK AUTH
 
+  // POST endpoint defined for backwards compatibility only. Spans should be created via the ingestion endpoint
   if (req.method === "POST") {
     try {
       console.log(
