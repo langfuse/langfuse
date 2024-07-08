@@ -409,7 +409,7 @@ export const handleBatchResult = (
  *
  * Use `parseSingleTypedIngestionApiResponse` for a typed version of this function that throws `BaseError`.
  */
-export const handleBatchResultLegacy = (
+export const handleSingleIngestionObject = (
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
   res: NextApiResponse,

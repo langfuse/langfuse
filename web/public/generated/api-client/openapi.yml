@@ -11,12 +11,8 @@ paths:
         - Score
       parameters: []
       responses:
-        '200':
+        '204':
           description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Score'
         '400':
           description: ''
           content:
@@ -90,8 +86,8 @@ components:
         - traceId
         - name
         - value
-    NumericScore:
-      title: NumericScore
+    BaseScore:
+      title: BaseScore
       type: object
       properties:
         id:
@@ -100,10 +96,6 @@ components:
           type: string
         name:
           type: string
-        value:
-          type: number
-          format: double
-          description: The numeric value of the score
         source:
           $ref: '#/components/schemas/ScoreSource'
         observationId:
@@ -111,6 +103,14 @@ components:
         timestamp:
           type: string
           format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
         comment:
           type: string
         configId:
@@ -123,19 +123,26 @@ components:
         - id
         - traceId
         - name
-        - value
         - source
         - timestamp
+        - createdAt
+        - updatedAt
+    NumericScore:
+      title: NumericScore
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: The numeric value of the score
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScore'
     BooleanScore:
       title: BooleanScore
       type: object
       properties:
-        id:
-          type: string
-        traceId:
-          type: string
-        name:
-          type: string
         value:
           type: number
           format: double
@@ -147,38 +154,15 @@ components:
           description: >-
             The string representation of the score value. Is inferred from the
             numeric value and equals "True" or "False"
-        source:
-          $ref: '#/components/schemas/ScoreSource'
-        observationId:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-        comment:
-          type: string
-        configId:
-          type: string
-          description: >-
-            Reference a score config on a score. When set, config and score name
-            must be equal
       required:
-        - id
-        - traceId
-        - name
         - value
         - stringValue
-        - source
-        - timestamp
+      allOf:
+        - $ref: '#/components/schemas/BaseScore'
     CategoricalScore:
       title: CategoricalScore
       type: object
       properties:
-        id:
-          type: string
-        traceId:
-          type: string
-        name:
-          type: string
         value:
           type: number
           format: double
@@ -190,27 +174,10 @@ components:
           description: >-
             The string representation of the score value. If no config is
             linked, can be any string. Otherwise, must map to a config category
-        source:
-          $ref: '#/components/schemas/ScoreSource'
-        observationId:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-        comment:
-          type: string
-        configId:
-          type: string
-          description: >-
-            Reference a score config on a score. When set, config and score name
-            must be equal and stringValue must map to a config category
       required:
-        - id
-        - traceId
-        - name
         - stringValue
-        - source
-        - timestamp
+      allOf:
+        - $ref: '#/components/schemas/BaseScore'
     Score:
       title: Score
       oneOf:

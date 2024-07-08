@@ -8,6 +8,12 @@ import {
 import { z } from "zod";
 import * as Sentry from "@sentry/node";
 
+/**
+ * Types to use across codebase
+ */
+export type ConfigCategory = z.infer<typeof Category>;
+export type ValidatedScoreConfig = z.infer<typeof ValidatedScoreConfigSchema>;
+
 const validateCategories = (
   categories: ConfigCategory[],
   ctx: z.RefinementCtx,
@@ -43,8 +49,6 @@ export const Category = z.object({
   label: z.string().min(1),
   value: z.number(),
 });
-
-export type ConfigCategory = z.infer<typeof Category>;
 
 const Categories = z.array(Category);
 
@@ -137,8 +141,12 @@ const ValidatedScoreConfigSchema = z
     }
   });
 
-export type ValidatedScoreConfig = z.infer<typeof ValidatedScoreConfigSchema>;
-
+/**
+ * Use this function when pulling a list of score configs from the database before using in the application to ensure type safety.
+ * All score configs are expected to pass the validation. If a score fails validation, it will be logged to Sentry.
+ * @param scoreConfigs
+ * @returns list of validated score configs
+ */
 export const filterAndValidateDbScoreConfigList = (
   scoreConfigs: ScoreConfigDbType[],
 ): ValidatedScoreConfig[] =>
@@ -152,10 +160,26 @@ export const filterAndValidateDbScoreConfigList = (
     return acc;
   }, [] as ValidatedScoreConfig[]);
 
+/**
+ * Use this function when pulling a single score config from the database before using in the application to ensure type safety.
+ * The score is expected to pass the validation. If a score fails validation, an error will be thrown.
+ * @param scoreConfig
+ * @returns validated score config
+ * @throws error if score fails validation
+ */
 export const validateDbScoreConfig = (
   scoreConfig: ScoreConfigDbType,
 ): ValidatedScoreConfig => ValidatedScoreConfigSchema.parse(scoreConfig);
 
+/**
+ * Use this function when pulling a single score config from the database before using in the application to ensure type safety.
+ * This function will NOT throw an error by default. The score is expected to pass the validation.
+ * @param scoreConfig
+ * @returns score config validation object:
+ * - success: true if the score config passes validation
+ * - data: the validated score config if success is true
+ * - error: the error object if success is false
+ */
 export const validateDbScoreConfigSafe = (scoreConfig: ScoreConfigDbType) =>
   ValidatedScoreConfigSchema.safeParse(scoreConfig);
 
