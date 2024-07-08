@@ -37,7 +37,7 @@ export const ModelUsageChart = ({
     {
       projectId,
       from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
-        ? "observations"
+        ? "traces_observations"
         : "traces_observationsview",
       select: [
         { column: "totalTokens", agg: "SUM" },
