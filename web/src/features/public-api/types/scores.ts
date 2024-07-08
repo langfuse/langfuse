@@ -10,6 +10,11 @@ import { isPresent } from "@/src/utils/typeChecks";
 import { Category as ConfigCategory } from "./score-configs";
 
 /**
+ * Types to use across codebase
+ */
+export type ValidatedScore = z.infer<typeof ValidatedScoreSchema>;
+
+/**
  * Objects
  */
 
@@ -59,35 +64,11 @@ const BaseScoreBody = z.object({
   comment: z.string().nullish(),
 });
 
-const GetScoresDataBase = z.object({
-  id: z.string(),
-  timestamp: z.coerce.date(),
-  name: z.string(),
-  source: z.enum(ScoreSource),
-  comment: z.string().nullish(),
-  traceId: z.string(),
-  observationId: z.string().nullish(),
-  trace: z.object({
-    userId: z.string().nullish(),
-  }),
-  configId: z.string().nullish(),
-});
-
-export const GetScoresData = z.discriminatedUnion("dataType", [
-  GetScoresDataBase.merge(NumericData),
-  GetScoresDataBase.merge(CategoricalData),
-  GetScoresDataBase.merge(BooleanData),
-]);
-
 const ValidatedScoreSchema = z.discriminatedUnion("dataType", [
   ScoreBase.merge(NumericData),
   ScoreBase.merge(CategoricalData),
   ScoreBase.merge(BooleanData),
 ]);
-
-export type ValidatedGetScoresData = z.infer<typeof GetScoresData>;
-
-export type ValidatedScore = z.infer<typeof ValidatedScoreSchema>;
 
 /**
  * Validation objects
@@ -167,6 +148,12 @@ export const ScorePropsAgainstConfig = z.union([
  * Transformations
  */
 
+/**
+ * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
+ * All scores are expected to pass the validation. If a score fails validation, it will be logged to Sentry.
+ * @param scores
+ * @returns list of validated scores
+ */
 export const filterAndValidateDbScoreList = (
   scores: Score[],
 ): ValidatedScore[] =>
@@ -175,11 +162,19 @@ export const filterAndValidateDbScoreList = (
     if (result.success) {
       acc.push(result.data);
     } else {
+      console.error("Score parsing error: ", result.error);
       Sentry.captureException(result.error);
     }
     return acc;
   }, [] as ValidatedScore[]);
 
+/**
+ * Use this function when pulling a single score from the database before using in the application to ensure type safety.
+ * The score is expected to pass the validation. If a score fails validation, an error will be thrown.
+ * @param score
+ * @returns validated score
+ * @throws error if score fails validation
+ */
 export const validateDbScore = (score: Score): ValidatedScore =>
   ValidatedScoreSchema.parse(score);
 
@@ -271,10 +266,36 @@ export const GetScoresQuery = z.object({
     .nullish(),
 });
 
+// LegacyGetScoreResponseDataV1 is only used for response of GET /scores list endpoint
+const LegacyGetScoreResponseDataV1 = z.intersection(
+  ValidatedScoreSchema,
+  z.object({
+    trace: z.object({
+      userId: z.string().nullish(),
+    }),
+  }),
+);
 export const GetScoresResponse = z.object({
-  data: z.array(GetScoresData),
+  data: z.array(LegacyGetScoreResponseDataV1),
   meta: paginationMetaResponseZod,
 });
+
+export const legacyFilterAndValidateV1GetScoreList = (
+  scores: unknown[],
+): z.infer<typeof LegacyGetScoreResponseDataV1>[] =>
+  scores.reduce(
+    (acc: z.infer<typeof LegacyGetScoreResponseDataV1>[], ts) => {
+      const result = LegacyGetScoreResponseDataV1.safeParse(ts);
+      if (result.success) {
+        acc.push(result.data);
+      } else {
+        console.error("Score parsing error: ", result.error);
+        Sentry.captureException(result.error);
+      }
+      return acc;
+    },
+    [] as z.infer<typeof LegacyGetScoreResponseDataV1>[],
+  );
 
 // GET /scores/{scoreId}
 export const GetScoreQuery = z.object({

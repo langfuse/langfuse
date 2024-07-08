@@ -401,7 +401,7 @@ export const handleBatchResult = (
   return res.status(207).send({ errors: returnedErrors, successes });
 };
 
-export const handleBatchResultLegacy = (
+export const handleSingleIngestionObject = (
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
   res: NextApiResponse,

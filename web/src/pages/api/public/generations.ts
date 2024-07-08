@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared";
 import {
   handleBatch,
-  handleBatchResultLegacy,
+  handleSingleIngestionObject,
 } from "@/src/pages/api/public/ingestion";
 import { z } from "zod";
 import { isPrismaException } from "@/src/utils/exceptions";
@@ -22,6 +22,7 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
 
+  // POST endpoint defined for backwards compatibility only. Observations should be created via the ingestion endpoint
   if (req.method === "POST") {
     try {
       // CHECK AUTH
@@ -67,7 +68,7 @@ export default async function handler(
         authCheck,
       );
 
-      handleBatchResultLegacy(result.errors, result.results, res);
+      handleSingleIngestionObject(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
       if (error instanceof z.ZodError) {
@@ -132,7 +133,7 @@ export default async function handler(
         authCheck,
       );
 
-      handleBatchResultLegacy(result.errors, result.results, res);
+      handleSingleIngestionObject(result.errors, result.results, res);
     } catch (error: unknown) {
       console.error(error);
       if (error instanceof z.ZodError) {
