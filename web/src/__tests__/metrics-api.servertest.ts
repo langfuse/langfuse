@@ -3,6 +3,7 @@ import {
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
+import { GetMetricsDailyV1Response } from "@/src/features/public-api/types/metrics";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 import { v4 as uuidv4 } from "uuid";
 
@@ -65,9 +66,11 @@ describe("/api/public/metrics/daily API Endpoint", () => {
     });
 
     // Retrieve the daily metrics
-    const dailyMetricsResponse = await makeAPICall<{
-      data: Array<Record<string, unknown>>;
-    }>("GET", `/api/public/metrics/daily`);
+    const dailyMetricsResponse = await makeZodVerifiedAPICall(
+      GetMetricsDailyV1Response,
+      "GET",
+      `/api/public/metrics/daily`,
+    );
     const dailyMetricsData = dailyMetricsResponse.body.data;
 
     // Check if the daily metrics are calculated correctly

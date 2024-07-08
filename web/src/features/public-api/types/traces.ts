@@ -1,7 +1,7 @@
 import {
   paginationZod,
   paginationMetaResponseZod,
-  stringDate,
+  stringDateTime,
   orderBy,
   TraceBody,
 } from "@langfuse/shared";
@@ -11,7 +11,7 @@ import { z } from "zod";
  * Objects
  */
 
-const Trace = z.object({
+export const ApiTrace = z.object({
   id: z.string(),
   externalId: z.string().nullable(),
   timestamp: z.coerce.date(),
@@ -31,7 +31,7 @@ const Trace = z.object({
   updatedAt: z.coerce.date(),
 });
 
-const ExtendedTrace = Trace.extend({
+const ApiExtendedTrace = ApiTrace.extend({
   observations: z.array(z.string()),
   scores: z.array(z.string()),
   totalCost: z.number(),
@@ -50,7 +50,7 @@ export const GetTracesV1Query = z.object({
   name: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
   sessionId: z.string().nullish(),
-  fromTimestamp: stringDate,
+  fromTimestamp: stringDateTime,
   orderBy: z
     .string() // orderBy=timestamp.asc
     .nullish()
@@ -63,19 +63,19 @@ export const GetTracesV1Query = z.object({
 });
 
 export const GetTracesV1Response = z.object({
-  data: z.array(ExtendedTrace),
+  data: z.array(ApiExtendedTrace),
   meta: paginationMetaResponseZod,
 });
 
 // POST /api/public/traces
 export const PostTracesV1Body = TraceBody;
-export const PostTracesV1Response = Trace;
+export const PostTracesV1Response = ApiTrace;
 
 // GET /api/public/traces/{traceId}
 export const GetTraceV1Query = z.object({
   traceId: z.string(),
 });
-export const GetTraceV1Response = ExtendedTrace.extend({
+export const GetTraceV1Response = ApiExtendedTrace.extend({
   scores: z.array(z.any()), // TODO: Define Score type
   observations: z.array(z.any()), // TODO: Define Observation type
 });

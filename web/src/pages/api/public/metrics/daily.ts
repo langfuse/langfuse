@@ -3,18 +3,8 @@ import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { paginationZod } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { stringDate } from "@langfuse/shared";
-
-const GetUsageSchema = z.object({
-  ...paginationZod,
-  traceName: z.string().nullish(),
-  userId: z.string().nullish(),
-  tags: z.union([z.array(z.string()), z.string()]).nullish(),
-  fromTimestamp: stringDate,
-  toTimestamp: stringDate,
-});
+import { GetMetricsDailyV1Query } from "@/src/features/public-api/types/metrics";
 
 export default async function handler(
   req: NextApiRequest,
@@ -39,7 +29,7 @@ export default async function handler(
           message: "Access denied - need to use basic auth with secret key",
         });
       }
-      const obj = GetUsageSchema.parse(req.query); // uses query and not body
+      const obj = GetMetricsDailyV1Query.parse(req.query); // uses query and not body
 
       const traceNameCondition = obj.traceName
         ? Prisma.sql`AND t.name = ${obj.traceName}`

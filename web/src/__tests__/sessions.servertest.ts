@@ -1,10 +1,10 @@
 /** @jest-environment node */
 
 import {
-  makeAPICall,
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
+import { GetSessionV1Response } from "@/src/features/public-api/types/sessions";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -56,7 +56,8 @@ describe("/api/public/traces API Endpoint", () => {
       },
     );
 
-    const response = await makeAPICall(
+    const response = await makeZodVerifiedAPICall(
+      GetSessionV1Response,
       "GET",
       "/api/public/sessions/session-id",
     );

@@ -2,7 +2,7 @@ import {
   type ObservationView,
   paginationMetaResponseZod,
   paginationZod,
-  stringDate,
+  stringDateTime,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -106,7 +106,7 @@ export const GetObservationsV1Query = z.object({
   userId: z.string().nullish(),
   traceId: z.string().nullish(),
   parentObservationId: z.string().nullish(),
-  fromStartTime: stringDate,
+  fromStartTime: stringDateTime,
 });
 export const GetObservationsV1Response = z.object({
   data: z.array(Observation),
