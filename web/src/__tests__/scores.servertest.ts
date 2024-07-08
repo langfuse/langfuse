@@ -105,7 +105,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(fetchedScore.body?.observationId).toBeNull();
   });
 
-  it("should create score with minimal score data and minimal trace data", async () => {
+  it("should GET score with minimal score data and minimal trace data", async () => {
     const minimalTraceId = uuidv4();
     await makeAPICall("POST", "/api/public/traces", {
       id: minimalTraceId,
@@ -120,33 +120,22 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace.length).toBeGreaterThan(0);
     expect(dbTrace[0]?.id).toBe(minimalTraceId);
 
-    const createScore = await makeAPICall("POST", "/api/public/scores", {
+    const minimalScoreId = uuidv4();
+
+    await makeAPICall("POST", "/api/public/scores", {
+      id: minimalScoreId,
       name: "score-name",
       value: 100,
       traceId: minimalTraceId,
     });
 
-    expect(createScore.status).toBe(200);
-
-    const fetchedScores = await makeZodVerifiedAPICall(
-      GetScoresResponse,
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
       "GET",
-      `/api/public/scores`,
+      `/api/public/scores/${minimalScoreId}`,
     );
 
-    expect(fetchedScores.status).toBe(200);
-    expect(fetchedScores.body.meta).toMatchObject({
-      page: 1,
-      limit: 50,
-      totalItems: 1,
-      totalPages: 1,
-    });
-    expect(fetchedScores.body.data.length).toBe(1);
-    for (const val of fetchedScores.body.data) {
-      expect(val).toMatchObject({
-        traceId: minimalTraceId,
-      });
-    }
+    expect(fetchedScore.status).toBe(200);
   });
 
   it("should create score for a generation", async () => {
@@ -1168,6 +1157,45 @@ describe("/api/public/scores API Endpoint", () => {
         },
       ]);
     });
+    it("should GET ALL scores with minimal score data and minimal trace data", async () => {
+      const minimalTraceId = uuidv4();
+      await makeAPICall("POST", "/api/public/traces", {
+        id: minimalTraceId,
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      });
+      const dbTrace = await prisma.trace.findMany({
+        where: {
+          id: minimalTraceId,
+        },
+      });
+
+      expect(dbTrace.length).toBeGreaterThan(0);
+      expect(dbTrace[0]?.id).toBe(minimalTraceId);
+
+      const createScore = await makeAPICall("POST", "/api/public/scores", {
+        name: "score-name",
+        value: 100,
+        traceId: minimalTraceId,
+      });
+
+      expect(createScore.status).toBe(200);
+
+      const fetchedScores = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores`,
+      );
+
+      expect(fetchedScores.status).toBe(200);
+      expect(fetchedScores.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 4,
+        totalPages: 1,
+      });
+      expect(fetchedScores.body.data.length).toBe(4);
+    });
+
     it("test invalid operator", async () => {
       try {
         await makeZodVerifiedAPICall(
