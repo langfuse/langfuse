@@ -476,7 +476,7 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
     Sentry.captureException(parsedObj.error);
   }
   // should not fail in prod but just log an exception, see above
-  return parsedObj as z.infer<T>;
+  return results[0].result as z.infer<T>;
 };
 
 // cleans NULL characters from the event
