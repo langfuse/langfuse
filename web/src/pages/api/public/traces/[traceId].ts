@@ -1,6 +1,5 @@
 import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { mapUsageOutput } from "@/src/features/public-api/server/outputSchemaConversion";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -11,6 +10,7 @@ import {
 } from "@/src/features/public-api/types/traces";
 import { validateZodSchema } from "@langfuse/shared";
 import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
+import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
 
 export default async function handler(
   req: NextApiRequest,
@@ -72,7 +72,7 @@ export default async function handler(
       },
     });
 
-    const outObservations = observations.map(mapUsageOutput);
+    const outObservations = observations.map(transformDbToApiObservation);
 
     const { duration, ...restOfTrace } = trace;
 
