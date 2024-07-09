@@ -143,4 +143,4 @@ const sentryOptions = {
   tunnelRoute: "/api/monitoring-tunnel",
 };
 
-export default withSentryConfig(nextConfig, sentryOptions);
+export default nextConfig;
