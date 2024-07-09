@@ -209,18 +209,28 @@ describe("/api/public/traces API Endpoint", () => {
     console.log(traceId);
 
     // Simulate observations with costs and latencies
-    await makeAPICall("POST", "/api/public/generations", {
-      traceId: traceId,
-      usage: { totalCost: 10.5 },
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:10:00.000Z",
-    });
-    await makeAPICall("POST", "/api/public/generations", {
-      traceId: traceId,
-      usage: { totalCost: 5.25 },
-      startTime: "2021-01-01T00:10:00.000Z",
-      endTime: "2021-01-01T00:20:00.000Z",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/generations",
+      {
+        traceId: traceId,
+        usage: { totalCost: 10.5 },
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:10:00.000Z",
+      },
+    );
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/generations",
+      {
+        traceId: traceId,
+        usage: { totalCost: 5.25 },
+        startTime: "2021-01-01T00:10:00.000Z",
+        endTime: "2021-01-01T00:20:00.000Z",
+      },
+    );
 
     // Simulate scores on the trace
     const scoreId1 = uuidv4();

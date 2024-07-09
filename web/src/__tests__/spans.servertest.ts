@@ -8,6 +8,7 @@ import {
 } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
+import { PostSpansV1Response } from "@/src/features/public-api/types/spans";
 
 describe("/api/public/spans API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -41,16 +42,23 @@ describe("/api/public/spans API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
 
     const spanId = uuidv4();
-    const createSpan = await makeAPICall("POST", "/api/public/spans", {
-      id: spanId,
-      traceId: traceId,
-      name: "span-name",
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
+    const createSpan = await makeZodVerifiedAPICall(
+      PostSpansV1Response,
+      "POST",
+      "/api/public/spans",
+      {
+        id: spanId,
+        traceId: traceId,
+        name: "span-name",
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        input: { input: "value" },
+        metadata: { meta: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     expect(createSpan.status).toBe(200);
     const dbSpan = await prisma.observation.findUnique({
@@ -73,16 +81,23 @@ describe("/api/public/spans API Endpoint", () => {
     const traceId = uuidv4();
     const spanId = uuidv4();
 
-    const createSpan = await makeAPICall("POST", "/api/public/spans", {
-      id: spanId,
-      traceId: traceId,
-      name: "span-name",
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
+    const createSpan = await makeZodVerifiedAPICall(
+      PostSpansV1Response,
+      "POST",
+      "/api/public/spans",
+      {
+        id: spanId,
+        traceId: traceId,
+        name: "span-name",
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        input: { input: "value" },
+        metadata: { meta: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     expect(createSpan.status).toBe(200);
     const dbSpan = await prisma.observation.findUnique({
@@ -142,13 +157,20 @@ describe("/api/public/spans API Endpoint", () => {
       },
     );
     expect(response.status).toBe(200);
-    const createSpan = await makeAPICall("POST", "/api/public/spans", {
-      id: spanId,
-      name: "spanName",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      traceId: traceId,
-      externalTraceIdType: "EXTERNAL",
-    });
+    const createSpan = await makeZodVerifiedAPICall(
+      PostSpansV1Response,
+      "POST",
+      "/api/public/spans",
+      {
+        id: spanId,
+        name: "spanName",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        traceId: traceId,
+        externalTraceIdType: "EXTERNAL",
+      },
+      undefined,
+      false,
+    );
     expect(createSpan.status).toBe(200);
 
     const dbSpan = await prisma.observation.findFirstOrThrow({
@@ -164,15 +186,22 @@ describe("/api/public/spans API Endpoint", () => {
     const spanName = uuidv4();
 
     const spanId = uuidv4();
-    const createSpan = await makeAPICall("POST", "/api/public/spans", {
-      id: spanId,
-      name: spanName,
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
+    const createSpan = await makeZodVerifiedAPICall(
+      PostSpansV1Response,
+      "POST",
+      "/api/public/spans",
+      {
+        id: spanId,
+        name: spanName,
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        input: { input: "value" },
+        metadata: { meta: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -205,17 +234,24 @@ describe("/api/public/spans API Endpoint", () => {
 
     const spanId = uuidv4();
     const traceId = uuidv4();
-    const createSpan = await makeAPICall("POST", "/api/public/spans", {
-      id: spanId,
-      traceIdType: "EXTERNAL",
-      traceId: traceId,
-      name: spanName,
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
+    const createSpan = await makeZodVerifiedAPICall(
+      PostSpansV1Response,
+      "POST",
+      "/api/public/spans",
+      {
+        id: spanId,
+        traceIdType: "EXTERNAL",
+        traceId: traceId,
+        name: spanName,
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        input: { input: "value" },
+        metadata: { meta: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     expect(createSpan.status).toBe(200);
 
@@ -237,15 +273,22 @@ describe("/api/public/spans API Endpoint", () => {
     const generationName = uuidv4();
 
     const spanId = uuidv4();
-    const createSpan = await makeAPICall("POST", "/api/public/spans", {
-      id: spanId,
-      name: generationName,
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:00:00.000Z",
-      input: { key: "value" },
-      metadata: { key: "value" },
-      version: "2.0.0",
-    });
+    const createSpan = await makeZodVerifiedAPICall(
+      PostSpansV1Response,
+      "POST",
+      "/api/public/spans",
+      {
+        id: spanId,
+        name: generationName,
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        input: { key: "value" },
+        metadata: { key: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     const dbSpan = await prisma.observation.findFirstOrThrow({
       where: {
@@ -278,15 +321,22 @@ describe("/api/public/spans API Endpoint", () => {
     const spanName = uuidv4();
 
     const spanId = uuidv4();
-    const createSpan = await makeAPICall("POST", "/api/public/spans", {
-      id: spanId,
-      name: spanName,
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
+    const createSpan = await makeZodVerifiedAPICall(
+      PostSpansV1Response,
+      "POST",
+      "/api/public/spans",
+      {
+        id: spanId,
+        name: spanName,
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        input: { input: "value" },
+        metadata: { meta: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     expect(createSpan.status).toBe(200);
 

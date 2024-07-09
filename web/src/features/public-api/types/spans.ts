@@ -57,8 +57,8 @@ export const transformLegacySpanPatchToIngestionBatch = ({
 
 // POST /spans
 export const PostSpansV1Body = LegacySpanPostSchema;
-export const PostSpansV1Response = z.object({});
+export const PostSpansV1Response = z.object({ id: z.string() });
 
 // PATCH /spans
 export const PatchSpansV1Body = LegacySpanPatchSchema;
-export const PatchSpansV1Response = z.object({});
+export const PatchSpansV1Response = z.object({ id: z.string() });

@@ -149,17 +149,22 @@ describe("/api/public/scores API Endpoint", () => {
 
     const generationId = uuidv4();
 
-    await makeAPICall("POST", "/api/public/generations", {
-      id: generationId,
-      name: "generation-name",
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:00:00.000Z",
-      model: "model-name",
-      modelParameters: { key: "value" },
-      prompt: { key: "value" },
-      metadata: { key: "value" },
-      version: "2.0.0",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/generations",
+      {
+        id: generationId,
+        name: "generation-name",
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        model: "model-name",
+        modelParameters: { key: "value" },
+        prompt: { key: "value" },
+        metadata: { key: "value" },
+        version: "2.0.0",
+      },
+    );
 
     const dbGeneration = await prisma.observation.findMany({
       where: {
@@ -715,18 +720,23 @@ describe("/api/public/scores API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
 
     const generationId = uuidv4();
-    await makeAPICall("POST", "/api/public/generations", {
-      id: generationId,
-      name: "generation-name",
-      traceId,
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:00:00.000Z",
-      model: "model-name",
-      modelParameters: { key: "value" },
-      prompt: { key: "value" },
-      metadata: { key: "value" },
-      version: "2.0.0",
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/generations",
+      {
+        id: generationId,
+        name: "generation-name",
+        traceId,
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        model: "model-name",
+        modelParameters: { key: "value" },
+        prompt: { key: "value" },
+        metadata: { key: "value" },
+        version: "2.0.0",
+      },
+    );
 
     const dbGeneration = await prisma.observation.findMany({
       where: {
@@ -830,9 +840,14 @@ describe("/api/public/scores API Endpoint", () => {
       },
     );
     const generationId = uuidv4();
-    await makeAPICall("POST", "/api/public/generations", {
-      id: generationId,
-    });
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/generations",
+      {
+        id: generationId,
+      },
+    );
 
     const scoreId = uuidv4();
     await makeAPICall("POST", "/api/public/scores", {
@@ -887,9 +902,14 @@ describe("/api/public/scores API Endpoint", () => {
           userId: userId,
         },
       );
-      await makeAPICall("POST", "/api/public/generations", {
-        id: generationId,
-      });
+      await makeZodVerifiedAPICall(
+        PostTracesV1Response,
+        "POST",
+        "/api/public/generations",
+        {
+          id: generationId,
+        },
+      );
 
       await makeAPICall("POST", "/api/public/score-configs", {
         name: scoreName,

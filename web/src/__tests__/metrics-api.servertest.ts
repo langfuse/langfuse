@@ -1,8 +1,8 @@
 import {
-  makeAPICall,
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
+import { PostGenerationsV1Response } from "@/src/features/public-api/types/generations";
 import { GetMetricsDailyV1Response } from "@/src/features/public-api/types/metrics";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 import { v4 as uuidv4 } from "uuid";
@@ -43,33 +43,61 @@ describe("/api/public/metrics/daily API Endpoint", () => {
     );
 
     // Simulate observations with usage metrics on different days
-    await makeAPICall("POST", "/api/public/generations", {
-      traceId: traceId1,
-      model: "modelA",
-      usage: { input: 100, output: 200, total: 300 },
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:01:00.000Z",
-    });
-    await makeAPICall("POST", "/api/public/generations", {
-      traceId: traceId2,
-      model: "modelB",
-      usage: { input: 333 },
-      startTime: "2021-01-02T00:00:00.000Z",
-      endTime: "2021-01-02T00:02:00.000Z",
-    });
-    await makeAPICall("POST", "/api/public/generations", {
-      traceId: traceId2,
-      model: "modelC",
-      usage: { input: 666, output: 777, totalCost: 1024.22 },
-      startTime: "2021-01-02T00:00:00.000Z",
-      endTime: "2021-01-02T00:04:00.000Z",
-    });
-    await makeAPICall("POST", "/api/public/generations", {
-      traceId: traceId2,
-      usage: { output: 300 },
-      startTime: "2021-01-02T00:00:00.000Z",
-      endTime: "2021-01-02T00:04:00.000Z",
-    });
+    await makeZodVerifiedAPICall(
+      PostGenerationsV1Response,
+      "POST",
+      "/api/public/generations",
+      {
+        traceId: traceId1,
+        model: "modelA",
+        usage: { input: 100, output: 200, total: 300 },
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:01:00.000Z",
+      },
+      undefined,
+      false,
+    );
+    await makeZodVerifiedAPICall(
+      PostGenerationsV1Response,
+      "POST",
+      "/api/public/generations",
+      {
+        traceId: traceId2,
+        model: "modelB",
+        usage: { input: 333 },
+        startTime: "2021-01-02T00:00:00.000Z",
+        endTime: "2021-01-02T00:02:00.000Z",
+      },
+      undefined,
+      false,
+    );
+    await makeZodVerifiedAPICall(
+      PostGenerationsV1Response,
+      "POST",
+      "/api/public/generations",
+      {
+        traceId: traceId2,
+        model: "modelC",
+        usage: { input: 666, output: 777, totalCost: 1024.22 },
+        startTime: "2021-01-02T00:00:00.000Z",
+        endTime: "2021-01-02T00:04:00.000Z",
+      },
+      undefined,
+      false,
+    );
+    await makeZodVerifiedAPICall(
+      PostGenerationsV1Response,
+      "POST",
+      "/api/public/generations",
+      {
+        traceId: traceId2,
+        usage: { output: 300 },
+        startTime: "2021-01-02T00:00:00.000Z",
+        endTime: "2021-01-02T00:04:00.000Z",
+      },
+      undefined,
+      false,
+    );
 
     // Retrieve the daily metrics
     const dailyMetricsResponse = await makeZodVerifiedAPICall(

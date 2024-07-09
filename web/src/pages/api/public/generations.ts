@@ -12,7 +12,6 @@ import {
   handleBatch,
   parseSingleTypedIngestionApiResponse,
 } from "@/src/pages/api/public/ingestion";
-import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -25,9 +24,9 @@ export default withMiddlewares({
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,
+        PostGenerationsV1Response,
       );
-      const generation = transformDbToApiObservation(response);
-      return generation;
+      return response;
     },
   }),
   PATCH: createAuthedAPIRoute({
@@ -40,9 +39,9 @@ export default withMiddlewares({
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,
+        PatchGenerationsV1Response,
       );
-      const generation = transformDbToApiObservation(response);
-      return generation;
+      return response;
     },
   }),
 });

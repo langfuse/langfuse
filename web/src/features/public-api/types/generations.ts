@@ -1,6 +1,6 @@
 // src/features/public-api/types/generations.ts
 
-import { type z } from "zod";
+import { z } from "zod";
 import {
   LegacyGenerationsCreateSchema,
   LegacyGenerationPatchSchema,
@@ -8,7 +8,6 @@ import {
   type ingestionApiSchema,
 } from "@langfuse/shared";
 import { v4 as uuidv4 } from "uuid";
-import { APIBaseObservation } from "@/src/features/public-api/types/observations";
 
 /**
  * Transforms
@@ -66,8 +65,8 @@ export const transformGenerationPatchToIngestionBatch = ({
 
 // POST /generations
 export const PostGenerationsV1Body = LegacyGenerationsCreateSchema;
-export const PostGenerationsV1Response = APIBaseObservation;
+export const PostGenerationsV1Response = z.object({ id: z.string() });
 
 // PATCH /generations
 export const PatchGenerationsV1Body = LegacyGenerationPatchSchema;
-export const PatchGenerationsV1Response = APIBaseObservation;
+export const PatchGenerationsV1Response = z.object({ id: z.string() });

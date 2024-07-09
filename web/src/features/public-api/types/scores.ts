@@ -244,7 +244,7 @@ export const PostScoresBody = z
     }
   });
 
-export const PostScoresResponse = z.void();
+export const PostScoresResponse = z.object({ id: z.string() });
 
 // GET /scores
 export const GetScoresQuery = z.object({

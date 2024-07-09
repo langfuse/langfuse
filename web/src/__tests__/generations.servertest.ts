@@ -3,14 +3,17 @@
 import { v4 as uuidv4 } from "uuid";
 
 import {
-  makeAPICall,
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import { ModelUsageUnit } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
-import { PostGenerationsV1Response } from "@/src/features/public-api/types/generations";
+import {
+  PatchGenerationsV1Response,
+  PostGenerationsV1Body,
+  PostGenerationsV1Response,
+} from "@/src/features/public-api/types/generations";
 
 describe("/api/public/generations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -138,6 +141,8 @@ describe("/api/public/generations API Endpoint", () => {
           version: "2.0.0",
           usage: testConfig.usage,
         },
+        undefined,
+        false,
       );
 
       expect(createGeneration.status).toBe(200);
@@ -176,7 +181,8 @@ describe("/api/public/generations API Endpoint", () => {
     const traceId = uuidv4();
 
     const generationId = uuidv4();
-    const createGeneration = await makeAPICall(
+    const createGeneration = await makeZodVerifiedAPICall(
+      PostGenerationsV1Body,
       "POST",
       "/api/public/generations",
       {
@@ -191,6 +197,8 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -269,7 +277,8 @@ describe("/api/public/generations API Endpoint", () => {
     expect(dbTrace[0]?.id).not.toBe(traceId);
 
     const generationId = uuidv4();
-    const createGeneration = await makeAPICall(
+    const createGeneration = await makeZodVerifiedAPICall(
+      PostGenerationsV1Body,
       "POST",
       "/api/public/generations",
       {
@@ -285,6 +294,8 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -312,7 +323,8 @@ describe("/api/public/generations API Endpoint", () => {
     const generationName = uuidv4();
 
     const generationId = uuidv4();
-    const createGeneration = await makeAPICall(
+    const createGeneration = await makeZodVerifiedAPICall(
+      PostGenerationsV1Body,
       "POST",
       "/api/public/generations",
       {
@@ -326,6 +338,8 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -362,7 +376,8 @@ describe("/api/public/generations API Endpoint", () => {
     const generationName = uuidv4();
 
     const generationId = uuidv4();
-    const createGeneration = await makeAPICall(
+    const createGeneration = await makeZodVerifiedAPICall(
+      PostGenerationsV1Body,
       "POST",
       "/api/public/generations",
       {
@@ -376,6 +391,8 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -390,7 +407,8 @@ describe("/api/public/generations API Endpoint", () => {
     const generationId2 = uuidv4();
     const generationName2 = uuidv4();
 
-    const createGeneration2 = await makeAPICall(
+    const createGeneration2 = await makeZodVerifiedAPICall(
+      PostGenerationsV1Body,
       "POST",
       "/api/public/generations",
       {
@@ -405,6 +423,8 @@ describe("/api/public/generations API Endpoint", () => {
         version: "2.0.0",
         parentObservationId: generationId,
       },
+      undefined,
+      false,
     );
     expect(createGeneration2.status).toBe(200);
 
@@ -423,7 +443,8 @@ describe("/api/public/generations API Endpoint", () => {
 
     const generationId = uuidv4();
     const externalTraceId = uuidv4();
-    const createGeneration = await makeAPICall(
+    const createGeneration = await makeZodVerifiedAPICall(
+      PostGenerationsV1Body,
       "POST",
       "/api/public/generations",
       {
@@ -439,6 +460,8 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -459,7 +482,8 @@ describe("/api/public/generations API Endpoint", () => {
     const generationName = uuidv4();
 
     const generationId = uuidv4();
-    const createGeneration = await makeAPICall(
+    const createGeneration = await makeZodVerifiedAPICall(
+      PostGenerationsV1Body,
       "POST",
       "/api/public/generations",
       {
@@ -473,6 +497,8 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     const dbGeneration = await prisma.observation.findFirstOrThrow({
@@ -510,7 +536,8 @@ describe("/api/public/generations API Endpoint", () => {
     const generationName = uuidv4();
 
     const generationId = uuidv4();
-    const createGeneration = await makeAPICall(
+    const createGeneration = await makeZodVerifiedAPICall(
+      PostGenerationsV1Body,
       "POST",
       "/api/public/generations",
       {
@@ -524,17 +551,22 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     expect(createGeneration.status).toBe(200);
 
-    const updateGeneration = await makeAPICall(
+    const updateGeneration = await makeZodVerifiedAPICall(
+      PatchGenerationsV1Response,
       "PATCH",
       "/api/public/generations",
       {
         generationId: generationId,
         completion: "this is a great gpt response",
       },
+      undefined,
+      false,
     );
     expect(updateGeneration.status).toBe(200);
 
@@ -562,7 +594,8 @@ describe("/api/public/generations API Endpoint", () => {
     const generationName = uuidv4();
 
     const generationId = uuidv4();
-    const createGeneration = await makeAPICall(
+    const createGeneration = await makeZodVerifiedAPICall(
+      PostGenerationsV1Body,
       "POST",
       "/api/public/generations",
       {
@@ -580,6 +613,8 @@ describe("/api/public/generations API Endpoint", () => {
           },
         ],
       },
+      undefined,
+      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -608,13 +643,16 @@ describe("/api/public/generations API Endpoint", () => {
   it("should not succeed update if generation does not exist", async () => {
     const generationId = uuidv4();
 
-    const updateGeneration = await makeAPICall(
+    const updateGeneration = await makeZodVerifiedAPICall(
+      PatchGenerationsV1Response,
       "PATCH",
       "/api/public/generations",
       {
         generationId: generationId,
         completion: "this is a great gpt response",
       },
+      undefined,
+      false,
     );
     expect(updateGeneration.status).toBe(404);
 

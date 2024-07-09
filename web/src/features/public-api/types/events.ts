@@ -32,4 +32,4 @@ export const transformEventToIngestionBatch = (
 
 // POST /events
 export const PostEventsV1Body = CreateEventEvent;
-export const PostEventsV1Response = z.object({});
+export const PostEventsV1Response = z.object({ id: z.string() });
