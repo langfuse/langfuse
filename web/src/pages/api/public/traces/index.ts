@@ -68,6 +68,9 @@ export default withMiddlewares({
       const fromTimestampCondition = query.fromTimestamp
         ? Prisma.sql`AND t."timestamp" >= ${query.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
+      const toTimestampCondition = query.toTimestamp
+        ? Prisma.sql`AND t."timestamp" < ${query.toTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
 
       const orderByCondition = orderByToPrismaSql(
         query.orderBy ?? null,
@@ -113,6 +116,7 @@ export default withMiddlewares({
           FROM "traces" t
           WHERE project_id = ${auth.scope.projectId}
           ${fromTimestampCondition}
+          ${toTimestampCondition}
           ${userCondition}
           ${nameCondition}
           ${tagsCondition}
@@ -142,9 +146,12 @@ export default withMiddlewares({
           name: query.name ? query.name : undefined,
           userId: query.userId ? query.userId : undefined,
           sessionId: query.sessionId ? query.sessionId : undefined,
-          timestamp: query.fromTimestamp
-            ? { gte: new Date(query.fromTimestamp) }
-            : undefined,
+          timestamp: {
+            gte: query.fromTimestamp
+              ? new Date(query.fromTimestamp)
+              : undefined,
+            lt: query.toTimestamp ? new Date(query.toTimestamp) : undefined,
+          },
           tags: query.tags
             ? {
                 hasEvery: Array.isArray(query.tags) ? query.tags : [query.tags],

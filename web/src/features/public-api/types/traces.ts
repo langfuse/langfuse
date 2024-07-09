@@ -53,6 +53,7 @@ export const GetTracesV1Query = z.object({
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
   sessionId: z.string().nullish(),
   fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
   orderBy: z
     .string() // orderBy=timestamp.asc
     .nullish()
