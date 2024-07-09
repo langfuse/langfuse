@@ -54,6 +54,7 @@ export default withMiddlewares({
         userId,
         name,
         fromTimestamp,
+        toTimestamp,
         source,
         operator,
         value,
@@ -76,6 +77,9 @@ export default withMiddlewares({
         : Prisma.empty;
       const fromTimestampCondition = fromTimestamp
         ? Prisma.sql`AND s."timestamp" >= ${fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
+      const toTimestampCondition = toTimestamp
+        ? Prisma.sql`AND s."timestamp" < ${toTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
       const sourceCondition = source
         ? Prisma.sql`AND s."source" = ${source}`
@@ -115,6 +119,7 @@ export default withMiddlewares({
           ${nameCondition}
           ${sourceCondition}
           ${fromTimestampCondition}
+          ${toTimestampCondition}
           ${valueCondition}
           ${scoreIdCondition}
           ORDER BY s."timestamp" DESC
@@ -133,6 +138,7 @@ export default withMiddlewares({
           ${nameCondition}
           ${sourceCondition}
           ${fromTimestampCondition}
+          ${toTimestampCondition}
           ${valueCondition}
           ${scoreIdCondition}
         `,

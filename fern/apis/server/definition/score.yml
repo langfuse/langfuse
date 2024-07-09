@@ -33,7 +33,10 @@ service:
             docs: Retrieve only scores with this name.
           fromTimestamp:
             type: optional<datetime>
-            docs: Retrieve only scores newer than this datetime (ISO 8601).
+            docs: Optional filter to only include scores created on or after a certain datetime (ISO 8601)
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include scores created before a certain datetime (ISO 8601)
           source:
             type: optional<commons.ScoreSource>
             docs: Retrieve only scores from a specific source.

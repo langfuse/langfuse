@@ -4,6 +4,7 @@ import {
   paginationMetaResponseZod,
   NonEmptyString,
   type Score,
+  stringDateTime,
 } from "@langfuse/shared";
 import { z } from "zod";
 import { isPresent } from "@/src/utils/typeChecks";
@@ -255,7 +256,8 @@ export const GetScoresQuery = z.object({
   dataType: z.enum(ScoreDataType).nullish(),
   configId: z.string().nullish(),
   name: z.string().nullish(),
-  fromTimestamp: z.coerce.date().nullish(),
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
   source: z.enum(ScoreSource).nullish(),
   value: z.coerce.number().nullish(),
   operator: z.enum(operators).nullish(),
