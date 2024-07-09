@@ -28,7 +28,6 @@ import {
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@langfuse/shared";
-import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";
 import Decimal from "decimal.js";
@@ -813,11 +812,7 @@ export class SdkLogProcessor implements EventProcessor {
 
   process(apiScope: ApiAccessScope) {
     try {
-      void sendToBetterstack({
-        type: "sdk-log",
-        event: this.event,
-        projectId: apiScope.projectId,
-      });
+      console.log("SDK Log", this.event);
       return undefined;
     } catch (error) {
       return undefined;
