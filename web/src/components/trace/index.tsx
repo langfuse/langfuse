@@ -261,7 +261,7 @@ export function TracePage({ traceId }: { traceId: string }) {
               itemId={traceId}
               projectId={trace.data.projectId}
               scope="traces:delete"
-              invalidateFunc={() => void utils.traces.invalidate()}
+              invalidateFunc={() => void utils.traces.all.invalidate()}
               type="trace"
               redirectUrl={`/project/${router.query.projectId as string}/traces`}
             />
