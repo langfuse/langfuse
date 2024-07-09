@@ -481,6 +481,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
+      console.log("Sending events to worker via redis", traceEvents);
       const body: EventBodyType = {
         name: EventName.TraceUpsert,
         payload: traceEvents,
