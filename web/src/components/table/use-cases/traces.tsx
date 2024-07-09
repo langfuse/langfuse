@@ -594,7 +594,7 @@ export default function TracesTable({
             itemId={traceId}
             projectId={projectId}
             scope="traces:delete"
-            invalidateFunc={() => void utils.traces.invalidate()}
+            invalidateFunc={() => void utils.traces.all.invalidate()}
             type="trace"
             isTableAction={true}
           />
