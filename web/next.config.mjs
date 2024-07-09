@@ -3,7 +3,6 @@
  * for Docker builds.
  */
 await import("./src/env.mjs");
-import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 
 /**
@@ -143,4 +142,4 @@ const sentryOptions = {
   tunnelRoute: "/api/monitoring-tunnel",
 };
 
-export default withSentryConfig(nextConfig, sentryOptions);
+export default nextConfig;
