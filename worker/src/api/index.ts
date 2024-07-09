@@ -8,7 +8,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
-import { redis } from "../../../packages/shared/src/server/redis/redis";
+import { redis } from "@langfuse/shared/src/server";
 import emojis from "./emojis";
 import { createRedisEvents, evalQueue } from "@langfuse/shared/src/server";
 

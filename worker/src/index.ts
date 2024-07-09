@@ -1,10 +1,9 @@
-import "./instrumentation";
+import "newrelic";
+import app from "./app";
 import { env } from "./env";
 import logger from "./logger";
-
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
-import app from "./app";
 
 const server = app.listen(env.PORT, () => {
   logger.info(`Listening: http://localhost:${env.PORT}`);
@@ -28,14 +27,6 @@ function onShutdown() {
   batchExportJobExecutor
     ?.close()
     .then(() => logger.info("Batch Export Executor has been closed."));
-
-  // sdk
-  //   .shutdown()
-  //   .then(
-  //     () => logger.info("SDK shut down successfully"),
-  //     (err) => logger.error("Error shutting down SDK", err)
-  //   )
-  //   .finally(() => process.exit(0));
 }
 
 // Capture shutdown signals
