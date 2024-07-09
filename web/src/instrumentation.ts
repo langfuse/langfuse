@@ -11,7 +11,7 @@ export async function register() {
     const provider = new TracerProvider();
 
     registerOTel({
-      instrumentations: [new PrismaInstrumentation()],
+      // instrumentations: [new PrismaInstrumentation()],
     });
     provider.register();
   }
