@@ -192,8 +192,8 @@ types:
   CreateScoreValue:
     discriminated: false
     union:
-      - string
       - double
+      - string
     docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
   Dataset:
     properties:

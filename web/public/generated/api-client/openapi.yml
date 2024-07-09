@@ -231,9 +231,9 @@ components:
     CreateScoreValue:
       title: CreateScoreValue
       oneOf:
-        - type: string
         - type: number
           format: double
+        - type: string
       description: >-
         The value of the score. Must be passed as string for categorical scores,
         and numeric for boolean and numeric scores

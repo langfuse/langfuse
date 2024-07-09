@@ -108,7 +108,13 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     .record(
       z.string(),
       z
-        .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+        .union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.array(z.string()),
+          z.record(z.string()),
+        ])
         .nullish()
     )
     .nullish(),
@@ -130,7 +136,13 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     .record(
       z.string(),
       z
-        .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+        .union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.array(z.string()),
+          z.record(z.string()),
+        ])
         .nullish()
     )
     .nullish(),

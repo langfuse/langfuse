@@ -123,9 +123,7 @@ export const IOPreview: React.FC<{
 
 const ChatMlMessageSchema = z
   .object({
-    role: z
-      .enum(["system", "user", "assistant", "function", "tool"])
-      .optional(),
+    role: z.string().optional(),
     name: z.string().optional(),
     content: z
       .union([z.record(z.any()), z.string(), z.array(z.any())])
