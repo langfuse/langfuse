@@ -19,7 +19,7 @@ interface ProjectInvitationTemplateProps {
   invitedByUsername: string;
   invitedByUserEmail: string;
   projectName: string;
-  recieverEmail: string;
+  receiverEmail: string;
   inviteLink: string;
   emailFromAddress: string;
   langfuseCloudRegion?: string;
@@ -29,7 +29,7 @@ export const ProjectInvitationTemplate = ({
   invitedByUsername,
   invitedByUserEmail,
   projectName,
-  recieverEmail,
+  receiverEmail,
   inviteLink,
   emailFromAddress,
   langfuseCloudRegion,
@@ -90,7 +90,7 @@ export const ProjectInvitationTemplate = ({
             <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
             <Text className="text-xs leading-6 text-[#666666]">
               This invitation was intended for{" "}
-              <span className="text-black">{recieverEmail}</span>. This invite
+              <span className="text-black">{receiverEmail}</span>. This invite
               was sent from{" "}
               <span className="text-black">{emailFromAddress}</span>. If you
               were not expecting this invitation, you can ignore this email.

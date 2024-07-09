@@ -2,7 +2,7 @@
   push:
     branches:
       - production
-name: Deploy to worker
+name: Deploy to worker (US temp)
 jobs:
   porter-deploy:
     runs-on: ubuntu-latest

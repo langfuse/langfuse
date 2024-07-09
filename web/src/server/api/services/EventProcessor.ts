@@ -12,8 +12,10 @@ import {
   type legacyObservationUpdateEvent,
   type sdkLogEvent,
   type traceEvent,
+  LangfuseNotFoundError,
+  InvalidRequestError,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@langfuse/shared";
 import {
@@ -26,10 +28,17 @@ import {
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@langfuse/shared";
-import { sendToBetterstack } from "@/src/features/betterstack/server/betterstack-webhook";
 import { ForbiddenError } from "@langfuse/shared";
 import { instrument } from "@/src/utils/instrumentation";
 import Decimal from "decimal.js";
+import {
+  ScoreBodyWithoutConfig,
+  ScorePropsAgainstConfig,
+} from "@/src/features/public-api/types/scores";
+import {
+  validateDbScoreConfigSafe,
+  type ValidatedScoreConfig,
+} from "@/src/features/public-api/types/score-configs";
 
 export interface EventProcessor {
   process(
@@ -418,33 +427,37 @@ export class ObservationProcessor implements EventProcessor {
     },
     tokenCounts: { input?: number; output?: number; total?: number },
   ): {
-    inputCost?: Decimal;
-    outputCost?: Decimal;
-    totalCost?: Decimal;
+    inputCost?: Decimal | null;
+    outputCost?: Decimal | null;
+    totalCost?: Decimal | null;
   } {
-    if (!model) return {};
+    // If user has provided any cost point, do not calculate anything else
+    if (
+      userProvidedCosts.inputCost ||
+      userProvidedCosts.outputCost ||
+      userProvidedCosts.totalCost
+    ) {
+      return userProvidedCosts;
+    }
 
     const finalInputCost =
-      userProvidedCosts.inputCost ??
-      (tokenCounts.input !== undefined && model.inputPrice
+      tokenCounts.input !== undefined && model?.inputPrice
         ? model.inputPrice.mul(tokenCounts.input)
-        : undefined);
+        : undefined;
 
     const finalOutputCost =
-      userProvidedCosts.outputCost ??
-      (tokenCounts.output !== undefined && model.outputPrice
+      tokenCounts.output !== undefined && model?.outputPrice
         ? model.outputPrice.mul(tokenCounts.output)
         : finalInputCost
           ? new Decimal(0)
-          : undefined);
+          : undefined;
 
     const finalTotalCost =
-      userProvidedCosts.totalCost ??
-      (tokenCounts.total !== undefined && model.totalPrice
+      tokenCounts.total !== undefined && model?.totalPrice
         ? model.totalPrice.mul(tokenCounts.total)
         : finalInputCost ?? finalOutputCost
           ? new Decimal(finalInputCost ?? 0).add(finalOutputCost ?? 0)
-          : undefined);
+          : undefined;
 
     return {
       inputCost: finalInputCost,
@@ -602,6 +615,145 @@ export class ScoreProcessor implements EventProcessor {
     this.event = event;
   }
 
+  static inferDataType(value: string | number): ScoreDataType {
+    return typeof value === "number"
+      ? ScoreDataType.NUMERIC
+      : ScoreDataType.CATEGORICAL;
+  }
+
+  static mapStringValueToNumericValue(
+    config: ValidatedScoreConfig,
+    label: string,
+  ): number | null {
+    return (
+      config.categories?.find((category) => category.label === label)?.value ??
+      null
+    );
+  }
+
+  static inflateScoreBody(
+    body: any,
+    id: string,
+    projectId: string,
+    config?: ValidatedScoreConfig,
+  ): Score {
+    const relevantDataType = config?.dataType ?? body.dataType;
+    const scoreProps = { ...body, id, projectId, source: "API" };
+
+    if (typeof body.value === "number") {
+      if (relevantDataType && relevantDataType === ScoreDataType.BOOLEAN) {
+        return {
+          ...scoreProps,
+          value: body.value,
+          stringValue: body.value === 1 ? "True" : "False",
+          dataType: ScoreDataType.BOOLEAN,
+        };
+      }
+
+      return {
+        ...scoreProps,
+        value: body.value,
+        dataType: ScoreDataType.NUMERIC,
+      };
+    }
+    return {
+      ...scoreProps,
+      value: config
+        ? ScoreProcessor.mapStringValueToNumericValue(config, body.value)
+        : null,
+      stringValue: body.value,
+      dataType: ScoreDataType.CATEGORICAL,
+    };
+  }
+
+  validateConfigAgainstBody(body: any, config: ValidatedScoreConfig): void {
+    const { maxValue, minValue, categories, dataType: configDataType } = config;
+    if (body.dataType && body.dataType !== configDataType) {
+      throw new InvalidRequestError(
+        `Data type mismatch based on config: expected ${configDataType}, got ${body.dataType}`,
+      );
+    }
+
+    if (config.isArchived) {
+      throw new InvalidRequestError(
+        "Config is archived and cannot be used to create new scores. Please restore the config first.",
+      );
+    }
+
+    if (config.name !== body.name) {
+      throw new InvalidRequestError(
+        `Name mismatch based on config: expected ${config.name}, got ${body.name}`,
+      );
+    }
+
+    const relevantDataType = configDataType ?? body.dataType;
+
+    const dataTypeValidation = ScoreBodyWithoutConfig.safeParse({
+      ...body,
+      dataType: relevantDataType,
+    });
+    if (!dataTypeValidation.success) {
+      throw new InvalidRequestError(
+        `Ingested score body not valid against provided config data type.`,
+      );
+    }
+
+    const rangeValidation = ScorePropsAgainstConfig.safeParse({
+      value: body.value,
+      dataType: relevantDataType,
+      ...(maxValue !== null && maxValue !== undefined && { maxValue }),
+      ...(minValue !== null && minValue !== undefined && { minValue }),
+      ...(categories && { categories }),
+    });
+    if (!rangeValidation.success) {
+      const errorDetails = rangeValidation.error.errors
+        .map((error) => `${error.path.join(".")} - ${error.message}`)
+        .join(", ");
+      throw new InvalidRequestError(
+        `Ingested score body not valid against provided config: ${errorDetails}`,
+      );
+    }
+  }
+
+  async validateAndInflate(
+    body: any,
+    id: string,
+    projectId: string,
+  ): Promise<Score> {
+    if (body.configId) {
+      const config = await prisma.scoreConfig.findFirst({
+        where: {
+          projectId,
+          id: body.configId,
+        },
+      });
+
+      if (!config || !validateDbScoreConfigSafe(config).success)
+        throw new LangfuseNotFoundError(
+          "The configId you provided does not match a valid config in this project",
+        );
+
+      this.validateConfigAgainstBody(body, config as ValidatedScoreConfig);
+      return ScoreProcessor.inflateScoreBody(
+        body,
+        id,
+        projectId,
+        config as ValidatedScoreConfig,
+      );
+    } else {
+      const validation = ScoreBodyWithoutConfig.safeParse({
+        ...body,
+        dataType: body.dataType ?? ScoreProcessor.inferDataType(body.value),
+      });
+      if (!validation.success) {
+        throw new InvalidRequestError(
+          `Ingested score value type not valid against provided data type. Provide numeric values for numeric and boolean scores, and string values for categorical scores.`,
+        );
+      }
+      return ScoreProcessor.inflateScoreBody(body, id, projectId);
+    }
+  }
+
   async process(
     apiScope: ApiAccessScope,
   ): Promise<Trace | Observation | Score> {
@@ -628,6 +780,12 @@ export class ScoreProcessor implements EventProcessor {
       );
     }
 
+    const validatedScore = await this.validateAndInflate(
+      body,
+      id,
+      apiScope.projectId,
+    );
+
     return await prisma.score.upsert({
       where: {
         id_projectId: {
@@ -636,24 +794,10 @@ export class ScoreProcessor implements EventProcessor {
         },
       },
       create: {
-        id,
-        projectId: apiScope.projectId,
-        traceId: body.traceId,
-        observationId: body.observationId ?? undefined,
-        timestamp: new Date(),
-        value: body.value,
-        name: body.name,
-        comment: body.comment,
-        source: "API",
+        ...validatedScore,
       },
       update: {
-        traceId: body.traceId,
-        observationId: body.observationId ?? undefined,
-        timestamp: new Date(),
-        value: body.value,
-        name: body.name,
-        comment: body.comment,
-        source: "API",
+        ...validatedScore,
       },
     });
   }
@@ -668,11 +812,7 @@ export class SdkLogProcessor implements EventProcessor {
 
   process(apiScope: ApiAccessScope) {
     try {
-      void sendToBetterstack({
-        type: "sdk-log",
-        event: this.event,
-        projectId: apiScope.projectId,
-      });
+      console.log("SDK Log", this.event);
       return undefined;
     } catch (error) {
       return undefined;

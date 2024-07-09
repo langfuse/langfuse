@@ -19,7 +19,7 @@ import {
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
   TraceUpsertEventSchema,
-  ValidationError,
+  InvalidRequestError,
   variableMappingList,
   ZodModelConfig,
 } from "@langfuse/shared";
@@ -96,6 +96,19 @@ export const createEvalJobs = async ({
           `Eval job for config ${config.id} and trace ${event.traceId} already exists`
         );
         continue;
+      }
+
+      // apply sampling. Only if the job is sampled, we create a job
+      // user supplies a number between 0 and 1, which is the probability of sampling
+
+      if (parseFloat(config.sampling) !== 1) {
+        const random = Math.random();
+        if (random > parseFloat(config.sampling)) {
+          logger.info(
+            `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`
+          );
+          continue;
+        }
       }
 
       logger.info(
@@ -241,7 +254,7 @@ export const evaluate = async ({
     .parse(template.output_schema);
 
   if (!parsedOutputSchema) {
-    throw new ValidationError("Output schema not found");
+    throw new InvalidRequestError("Output schema not found");
   }
 
   const openAIFunction = z.object({

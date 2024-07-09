@@ -635,6 +635,7 @@ export const promptRouter = createTRPCRouter({
           WHERE
               o.type = 'GENERATION'
               AND s.data_type != 'CATEGORICAL'
+              AND s.value IS NOT NULL
               AND o.prompt_id IS NOT NULL
               AND o.project_id = ${input.projectId}
               AND p.id IN (${Prisma.join(input.promptIds)})
@@ -692,6 +693,7 @@ export const promptRouter = createTRPCRouter({
           LEFT JOIN scores s ON tp.trace_id = s.trace_id AND s.observation_id IS NULL AND s.project_id = ${input.projectId}
           WHERE 
               s.data_type != 'CATEGORICAL'
+              AND s.value IS NOT NULL
         ), average_scores_by_prompt AS (
           SELECT 
               prompt_id,

@@ -5,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 const GetTraceSchema = z.object({
   traceId: z.string(),
@@ -74,7 +75,7 @@ export default async function handler(
 
     return res.status(200).json({
       ...trace,
-      scores,
+      scores: filterAndValidateDbScoreList(scores),
       htmlPath: `/project/${authCheck.scope.projectId}/traces/${traceId}`,
       totalCost: outObservations.reduce(
         (acc, obs) => acc + (obs.calculatedTotalCost ?? 0),
