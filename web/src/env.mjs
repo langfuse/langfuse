@@ -113,6 +113,18 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+    REDIS_HOST: z.string().nullish(),
+    REDIS_PORT: z.coerce
+      .number({
+        description:
+          ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+      })
+      .positive()
+      .max(65536, `options.port should be >= 0 and < 65536`)
+      .default(6379)
+      .nullable(),
+    REDIS_AUTH: z.string().nullish(),
+    REDIS_CONNECTION_STRING: z.string().nullish(),
   },
 
   /**
@@ -232,6 +244,10 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
+    REDIS_HOST: process.env.REDIS_HOST,
+    REDIS_PORT: process.env.REDIS_PORT,
+    REDIS_AUTH: process.env.REDIS_AUTH,
+    REDIS_CONNECTION_STRING: process.env.REDIS_CONNECTION_STRING,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

@@ -136,7 +136,7 @@ importers:
         version: 5.13.0(prisma@5.13.0)
       '@react-email/components':
         specifier: ^0.0.19
-        version: 0.0.19(@types/react@18.2.79)(react@18.2.0)
+        version: 0.0.19(react@18.2.0)
       '@react-email/render':
         specifier: ^0.0.15
         version: 0.0.15
@@ -149,12 +149,18 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
+      bullmq:
+        specifier: ^5.4.2
+        version: 5.4.3
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.4.1
       kysely:
         specifier: ^0.27.3
         version: 0.27.3
       langchain:
         specifier: ^0.2.6
-        version: 0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)
+        version: 0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(ioredis@5.4.1)
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -497,7 +503,7 @@ importers:
         version: 0.27.3
       langchain:
         specifier: ^0.2.6
-        version: 0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)
+        version: 0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(ioredis@5.4.1)
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -7183,7 +7189,7 @@ packages:
       react: 18.2.0
     dev: false
 
-  /@react-email/components@0.0.19(@types/react@18.2.79)(react@18.2.0):
+  /@react-email/components@0.0.19(react@18.2.0):
     resolution: {integrity: sha512-yf49eIq0NDDXzO2RTZaT8fKa16eKUFMdWWMx4V5Bq+b2JdGuAMobO5s9Ea6azSVL6RDcJ8epdY1TCR2kL2PPHw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
@@ -7197,7 +7203,7 @@ packages:
       '@react-email/container': 0.0.12(react@18.2.0)
       '@react-email/font': 0.0.6(react@18.2.0)
       '@react-email/head': 0.0.9(react@18.2.0)
-      '@react-email/heading': 0.0.12(@types/react@18.2.79)(react@18.2.0)
+      '@react-email/heading': 0.0.12(react@18.2.0)
       '@react-email/hr': 0.0.8(react@18.2.0)
       '@react-email/html': 0.0.8(react@18.2.0)
       '@react-email/img': 0.0.8(react@18.2.0)
@@ -7240,7 +7246,7 @@ packages:
       react: 18.2.0
     dev: false
 
-  /@react-email/heading@0.0.12(@types/react@18.2.79)(react@18.2.0):
+  /@react-email/heading@0.0.12(react@18.2.0):
     resolution: {integrity: sha512-eB7mpnAvDmwvQLoPuwEiPRH4fPXWe6ltz6Ptbry2BlI88F0a2k11Ghb4+sZHBqg7vVw/MKbqEgtLqr3QJ/KfCQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
@@ -11528,6 +11534,7 @@ packages:
         optional: true
     dependencies:
       ms: 2.1.2
+    dev: true
 
   /debug@4.3.5(supports-color@5.5.0):
     resolution: {integrity: sha512-pt0bNEmneDIvdL1Xsd9oDQ/wrQRkXDT4AUWlNZNPKvW5x/jyO9VFXkJUP07vQ2upmw5PlaITaPKc31jK13V+jg==}
@@ -13991,7 +13998,7 @@ packages:
     dependencies:
       '@ioredis/commands': 1.2.0
       cluster-key-slot: 1.1.2
-      debug: 4.3.4
+      debug: 4.3.5(supports-color@5.5.0)
       denque: 2.1.0
       lodash.defaults: 4.2.0
       lodash.isarguments: 3.1.0
@@ -15235,7 +15242,7 @@ packages:
     resolution: {integrity: sha512-lG03Ru+XyOJFsjH3OMY6R/9U38IjDPfnOfDgO3ynhbDr+Dz8fak+X6L62vqu3iybQnj+lG84OttBuU9KY3L9kA==}
     engines: {node: '>=14.0.0'}
 
-  /langchain@0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0):
+  /langchain@0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(ioredis@5.4.1):
     resolution: {integrity: sha512-vDAJHGu/lA4pn3hkyzSC6RiaZhtj0ozfRyG8L6J2vCnXyJV/lgk9uGMP2x645EBrSozBMHJBng1UYeaUR/1fQQ==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -15397,6 +15404,7 @@ packages:
       '@langchain/openai': 0.2.0(langchain@0.2.6)
       '@langchain/textsplitters': 0.0.3(langchain@0.2.6)
       binary-extensions: 2.3.0
+      ioredis: 5.4.1
       js-tiktoken: 1.0.12
       js-yaml: 4.1.0
       jsonpointer: 5.0.1
@@ -15445,7 +15453,7 @@ packages:
       '@langchain/core': 0.2.9(langchain@0.2.6)
       '@types/uuid': 9.0.8
       commander: 10.0.1
-      langchain: 0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)
+      langchain: 0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(ioredis@5.4.1)
       p-queue: 6.6.2
       p-retry: 4.6.2
       uuid: 9.0.1
@@ -15468,7 +15476,7 @@ packages:
       '@langchain/core': 0.2.9(langchain@0.2.6)(openai@4.52.0)
       '@types/uuid': 9.0.8
       commander: 10.0.1
-      langchain: 0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)
+      langchain: 0.2.6(@aws-sdk/client-s3@3.550.0)(@aws-sdk/credential-provider-node@3.549.0)(ioredis@5.4.1)
       openai: 4.52.0
       p-queue: 6.6.2
       p-retry: 4.6.2

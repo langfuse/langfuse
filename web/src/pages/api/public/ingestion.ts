@@ -38,6 +38,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { createRedisEvents, evalQueue } from "@langfuse/shared/src/server";
 
 export const config = {
   api: {
@@ -459,24 +460,33 @@ export const sendToWorkerIfEnvironmentConfigured = async (
   batchResults: BatchResult[],
   projectId: string,
 ): Promise<void> => {
+  const traceEvents: TraceUpsertEventType[] = batchResults
+    .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
+    .map((result) =>
+      result.result &&
+      typeof result.result === "object" &&
+      "id" in result.result
+        ? // ingestion API only gets traces for one projectId
+          { traceId: result.result.id as string, projectId }
+        : null,
+    )
+    .filter(isNotNullOrUndefined);
+
   try {
+    if (
+      !env.LANGFUSE_WORKER_HOST ||
+      !env.LANGFUSE_WORKER_PASSWORD ||
+      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+    ) {
+      const jobs = createRedisEvents(traceEvents);
+      await evalQueue?.addBulk(jobs);
+    }
+
     if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      const traceEvents: TraceUpsertEventType[] = batchResults
-        .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
-        .map((result) =>
-          result.result &&
-          typeof result.result === "object" &&
-          "id" in result.result
-            ? // ingestion API only gets traces for one projectId
-              { traceId: result.result.id as string, projectId }
-            : null,
-        )
-        .filter(isNotNullOrUndefined);
-
       const body: EventBodyType = {
         name: EventName.TraceUpsert,
         payload: traceEvents,

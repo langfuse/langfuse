@@ -1,6 +1,5 @@
 import Redis from "ioredis";
-import { env } from "./env";
-import logger from "./logger";
+import { env } from "../../env";
 
 const createRedisClient = () => {
   try {
@@ -13,7 +12,7 @@ const createRedisClient = () => {
           maxRetriesPerRequest: null, // Set to `null` to disable retrying
         });
   } catch (e) {
-    logger.error(e, "Failed to connect to redis");
+    console.error(e, "Failed to connect to redis");
     return null;
   }
 };

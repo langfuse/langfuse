@@ -1,32 +1,18 @@
-import { Queue } from "bullmq";
-import { randomUUID } from "crypto";
 import express from "express";
 import basicAuth from "express-basic-auth";
 import * as Sentry from "@sentry/node";
 
-import {
-  EventBodySchema,
-  EventName,
-  QueueJobs,
-  QueueName,
-  TQueueJobTypes,
-  TraceUpsertEventType,
-} from "@langfuse/shared";
+import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
-import { redis } from "../redis";
+import { redis } from "../../../packages/shared/src/server/redis/redis";
 import emojis from "./emojis";
+import { createRedisEvents, evalQueue } from "@langfuse/shared/src/server";
 
 const router = express.Router();
-
-export const evalQueue = redis
-  ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
-      connection: redis,
-    })
-  : null;
 
 type EventsResponse = {
   status: "success" | "error";
@@ -119,42 +105,3 @@ router
 router.use("/emojis", emojis);
 
 export default router;
-
-export function createRedisEvents(events: TraceUpsertEventType[]) {
-  const uniqueTracesPerProject = events.reduce((acc, event) => {
-    if (!acc.get(event.projectId)) {
-      acc.set(event.projectId, new Set());
-    }
-    acc.get(event.projectId)?.add(event.traceId);
-    return acc;
-  }, new Map<string, Set<string>>());
-
-  const jobs = [...uniqueTracesPerProject.entries()]
-    .map((tracesPerProject) => {
-      const [projectId, traceIds] = tracesPerProject;
-
-      return [...traceIds].map((traceId) => ({
-        name: QueueJobs.TraceUpsert,
-        data: {
-          payload: {
-            projectId,
-            traceId,
-          },
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.TraceUpsert as const,
-        },
-        opts: {
-          removeOnFail: 10000,
-          removeOnComplete: true,
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
-        },
-      }));
-    })
-    .flat();
-  return jobs;
-}

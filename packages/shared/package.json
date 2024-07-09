@@ -55,6 +55,8 @@
     "@react-email/render": "^0.0.15",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
+    "bullmq": "^5.4.2",
+    "ioredis": "^5.4.1",
     "kysely": "^0.27.3",
     "langchain": "^0.2.6",
     "lodash": "^4.17.21",
