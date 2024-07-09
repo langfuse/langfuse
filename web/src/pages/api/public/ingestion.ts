@@ -473,16 +473,10 @@ export const sendToWorkerIfEnvironmentConfigured = async (
     .filter(isNotNullOrUndefined);
 
   try {
-    if (
-      !env.LANGFUSE_WORKER_HOST ||
-      !env.LANGFUSE_WORKER_PASSWORD ||
-      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-    ) {
+    if (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) {
       const jobs = createRedisEvents(traceEvents);
       await evalQueue?.addBulk(jobs);
-    }
-
-    if (
+    } else if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
