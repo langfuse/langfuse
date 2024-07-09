@@ -41,6 +41,10 @@ export default withMiddlewares({
         ? Prisma.sql`AND o."start_time" >= ${query.fromStartTime}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
 
+      const toStartTimeCondition = query.toStartTime
+        ? Prisma.sql`AND o."start_time" < ${query.toStartTime}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
+
       const observations = await prisma.$queryRaw<ObservationView[]>`
           SELECT 
             o."id",
@@ -84,6 +88,7 @@ export default withMiddlewares({
           ${traceIdCondition}
           ${parentObservationIdCondition}
           ${fromStartTimeCondition}
+          ${toStartTimeCondition}
           ORDER by o."start_time" DESC
           OFFSET ${(query.page - 1) * query.limit}
           LIMIT ${query.limit}
@@ -97,6 +102,7 @@ export default withMiddlewares({
           ${traceIdCondition}
           ${parentObservationIdCondition}
           ${fromStartTimeCondition}
+          ${toStartTimeCondition}
       `;
       if (countRes.length !== 1) {
         throw new InternalServerError("Unexpected totalItems result");

@@ -115,6 +115,7 @@ export const GetObservationsV1Query = z.object({
   traceId: z.string().nullish(),
   parentObservationId: z.string().nullish(),
   fromStartTime: stringDateTime,
+  toStartTime: stringDateTime,
 });
 export const GetObservationsV1Response = z.object({
   data: z.array(APIObservation),

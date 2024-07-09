@@ -201,6 +201,117 @@ describe("/api/public/observations API Endpoint", () => {
     expect(fetchedObservations.body.data[0]?.type).toEqual("GENERATION");
   });
 });
+
+it("GET /observations with timestamp filters and pagination", async () => {
+  await prisma.trace.create({
+    data: {
+      id: "trace-id",
+      name: "trace-name",
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    },
+  });
+  await prisma.observation.createMany({
+    data: [
+      {
+        id: "observation-2021-01-01",
+        traceId: "trace-id",
+        name: "generation-name",
+        startTime: new Date("2021-01-01T00:00:00.000Z"),
+        endTime: new Date("2021-01-01T00:00:00.000Z"),
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        type: "GENERATION",
+      },
+      {
+        id: "observation-2021-02-01",
+        traceId: "trace-id",
+        name: "generation-name",
+        startTime: new Date("2021-02-01T00:00:00.000Z"),
+        endTime: new Date("2021-02-01T00:00:00.000Z"),
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        type: "SPAN",
+      },
+      {
+        id: "observation-2021-03-01",
+        traceId: "trace-id",
+        name: "generation-name",
+        startTime: new Date("2021-03-01T00:00:00.000Z"),
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        type: "EVENT",
+      },
+      {
+        id: "observation-2021-04-01",
+        traceId: "trace-id",
+        name: "generation-name",
+        startTime: new Date("2021-04-01T00:00:00.000Z"),
+        endTime: new Date("2021-04-01T00:00:00.000Z"),
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        type: "GENERATION",
+      },
+    ],
+  });
+
+  const fromTimestamp = "2021-02-01T00:00:00.000Z";
+  const toTimestamp = "2021-04-01T00:00:00.000Z";
+
+  // Test with both fromTimestamp and toTimestamp
+  let fetchedObservations = await makeZodVerifiedAPICall(
+    GetObservationsV1Response,
+    "GET",
+    `/api/public/observations?fromStartTime=${fromTimestamp}&toStartTime=${toTimestamp}`,
+    undefined,
+  );
+
+  expect(fetchedObservations.body.data.length).toBe(2);
+  expect(fetchedObservations.body.data[0]?.id).toBe("observation-2021-03-01");
+  expect(fetchedObservations.body.data[1]?.id).toBe("observation-2021-02-01");
+  expect(fetchedObservations.body.meta.totalItems).toBe(2);
+
+  // Test with only fromTimestamp
+  fetchedObservations = await makeZodVerifiedAPICall(
+    GetObservationsV1Response,
+    "GET",
+    `/api/public/observations?fromStartTime=${fromTimestamp}`,
+    undefined,
+  );
+
+  expect(fetchedObservations.body.data.length).toBe(3);
+  expect(fetchedObservations.body.data[0]?.id).toBe("observation-2021-04-01");
+  expect(fetchedObservations.body.data[1]?.id).toBe("observation-2021-03-01");
+  expect(fetchedObservations.body.data[2]?.id).toBe("observation-2021-02-01");
+  expect(fetchedObservations.body.meta.totalItems).toBe(3);
+
+  // Test with only toTimestamp
+  fetchedObservations = await makeZodVerifiedAPICall(
+    GetObservationsV1Response,
+    "GET",
+    `/api/public/observations?toStartTime=${toTimestamp}`,
+    undefined,
+  );
+
+  expect(fetchedObservations.body.data.length).toBe(3);
+  expect(fetchedObservations.body.data[0]?.id).toBe("observation-2021-03-01");
+  expect(fetchedObservations.body.data[1]?.id).toBe("observation-2021-02-01");
+  expect(fetchedObservations.body.data[2]?.id).toBe("observation-2021-01-01");
+  expect(fetchedObservations.body.meta.totalItems).toBe(3);
+
+  // test pagination only
+  fetchedObservations = await makeZodVerifiedAPICall(
+    GetObservationsV1Response,
+    "GET",
+    `/api/public/observations?limit=1&page=2`,
+    undefined,
+  );
+
+  expect(fetchedObservations.body.data.length).toBe(1);
+  expect(fetchedObservations.body.data[0]?.id).toBe("observation-2021-03-01");
+  expect(fetchedObservations.body.meta).toMatchObject({
+    totalItems: 4,
+    totalPages: 4,
+    page: 2,
+    limit: 1,
+  });
+});
+
 it("Get a single EVENT from /observations/:id", async () => {
   const traceId = uuidv4();
   await prisma.trace.create({
