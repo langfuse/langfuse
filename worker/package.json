@@ -22,7 +22,6 @@
     "@langfuse/shared": "workspace:*",
     "@sentry/node": "^8.16.0",
     "@sentry/profiling-node": "^8.16.0",
-    "@types/newrelic": "^9.14.4",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
