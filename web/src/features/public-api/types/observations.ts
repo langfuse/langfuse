@@ -12,7 +12,7 @@ import { z } from "zod";
 
 const ObservationType = z.enum(["GENERATION", "SPAN", "EVENT"]);
 
-export const APIBaseObservation = z.object({
+export const APIBaseObservation = z.strictObject({
   id: z.string(),
   projectId: z.string(),
   traceId: z.string().nullable(),

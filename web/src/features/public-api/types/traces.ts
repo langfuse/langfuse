@@ -11,7 +11,7 @@ import { z } from "zod";
  * Objects
  */
 
-export const ApiTrace = z.object({
+export const ApiTrace = z.strictObject({
   id: z.string(),
   externalId: z.string().nullable(),
   timestamp: z.coerce.date(),
