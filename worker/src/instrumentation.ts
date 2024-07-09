@@ -1,7 +1,6 @@
 import newrelic from "newrelic";
 
 type CallbackAsyncFn<T> = () => Promise<T>;
-
 export async function instrumentAsync<T>(
   ctx: { name: string },
   callback: CallbackAsyncFn<T>
