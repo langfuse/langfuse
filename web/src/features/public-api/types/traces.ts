@@ -69,7 +69,7 @@ export const GetTracesV1Response = z.object({
 
 // POST /api/public/traces
 export const PostTracesV1Body = TraceBody;
-export const PostTracesV1Response = ApiTrace;
+export const PostTracesV1Response = z.object({ id: z.string() });
 
 // GET /api/public/traces/{traceId}
 export const GetTraceV1Query = z.object({

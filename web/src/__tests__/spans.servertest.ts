@@ -33,6 +33,8 @@ describe("/api/public/spans API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -131,6 +133,8 @@ describe("/api/public/spans API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -158,6 +162,8 @@ describe("/api/public/spans API Endpoint", () => {
         userId: "user-1",
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       },
+      undefined,
+      false,
     );
     expect(response.status).toBe(200);
     const createSpan = await makeZodVerifiedAPICall(

@@ -30,7 +30,7 @@ export default withMiddlewares({
     },
   }),
   PATCH: createAuthedAPIRoute({
-    name: "Update Generation (Legacy)",
+    name: "Patch Generation (Legacy)",
     bodySchema: PatchGenerationsV1Body,
     responseSchema: PatchGenerationsV1Response,
     fn: async ({ body, auth, req }) => {

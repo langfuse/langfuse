@@ -42,6 +42,7 @@ export default withMiddlewares({
             traceId: traceId,
             projectId: auth.scope.projectId,
           },
+          orderBy: { startTime: "asc" },
         }),
       ]);
 

@@ -26,6 +26,8 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         userId: "user-daily-metrics",
         projectId: "project-daily-metrics",
       },
+      undefined,
+      false,
     );
     await makeZodVerifiedAPICall(
       PostTracesV1Response,
@@ -38,6 +40,8 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         userId: "user-daily-metrics",
         projectId: "project-daily-metrics",
       },
+      undefined,
+      false,
     );
 
     // Simulate observations with usage metrics on different days
@@ -186,6 +190,8 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         userId: "user-daily-metrics",
         projectId: "project-daily-metrics",
       },
+      undefined,
+      false,
     );
 
     // Retrieve the daily metrics

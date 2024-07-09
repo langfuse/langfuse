@@ -112,6 +112,8 @@ describe("/api/public/generations API Endpoint", () => {
           release: "1.0.0",
           version: "2.0.0",
         },
+        undefined,
+        false,
       );
 
       const dbTrace = await prisma.trace.findMany({
@@ -234,6 +236,8 @@ describe("/api/public/generations API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -262,6 +266,8 @@ describe("/api/public/generations API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     expect(response.status).toBe(200);

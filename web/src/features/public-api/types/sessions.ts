@@ -5,7 +5,7 @@ import { z } from "zod";
  * Objects
  */
 
-const Session = z.object({
+const APISession = z.object({
   id: z.string(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -22,6 +22,6 @@ const Session = z.object({
 export const GetSessionV1Query = z.object({
   sessionId: z.string(),
 });
-export const GetSessionV1Response = Session.extend({
+export const GetSessionV1Response = APISession.extend({
   traces: z.array(ApiTrace),
 });

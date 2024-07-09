@@ -8,7 +8,6 @@ import {
 } from "@/src/__tests__/test-utils";
 import { ModelUsageUnit } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { type ObservationView } from "@langfuse/shared";
 import {
   GetObservationV1Response,
   GetObservationsV1Response,
@@ -94,13 +93,6 @@ describe("/api/public/observations API Endpoint", () => {
     );
 
     expect(fetchedObservations.status).toBe(200);
-
-    if (!isObservationList(fetchedObservations.body)) {
-      throw new Error(
-        "Expected body to be an array of observations" +
-          JSON.stringify(fetchedObservations.body),
-      );
-    }
 
     expect(fetchedObservations.body.data.length).toBe(1);
     expect(fetchedObservations.body.data[0]?.traceId).toBe(traceId);
@@ -201,10 +193,6 @@ describe("/api/public/observations API Endpoint", () => {
     console.log(fetchedObservations.body);
 
     expect(fetchedObservations.status).toBe(200);
-
-    if (!isObservationList(fetchedObservations.body)) {
-      throw new Error("Expected body to be an array of observations");
-    }
 
     expect(fetchedObservations.body.data.length).toBe(1);
     expect(fetchedObservations.body.data[0]?.traceId).toBe(traceId);
@@ -336,38 +324,3 @@ it("Get a single SPAN from /observations/:id", async () => {
     type: "SPAN",
   });
 });
-
-const isObservationList = (val: unknown): val is ObservationResponse => {
-  return (
-    typeof val === "object" &&
-    val !== null &&
-    "data" in val &&
-    Array.isArray(val.data) &&
-    val.data.every(
-      (element) =>
-        typeof element === "object" &&
-        element !== null &&
-        "id" in element &&
-        "traceId" in element &&
-        "name" in element &&
-        "startTime" in element &&
-        "endTime" in element &&
-        "model" in element &&
-        "input" in element &&
-        "output" in element &&
-        "metadata" in element &&
-        "version" in element &&
-        "modelId" in element &&
-        "inputPrice" in element &&
-        "outputPrice" in element &&
-        "totalPrice" in element &&
-        "calculatedInputCost" in element &&
-        "calculatedOutputCost" in element &&
-        "calculatedTotalCost" in element,
-    )
-  );
-};
-
-type ObservationResponse = {
-  data: ObservationView[];
-};
