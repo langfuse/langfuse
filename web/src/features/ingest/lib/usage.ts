@@ -59,7 +59,7 @@ type ChatMessage = {
 function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
-    console.log(
+    console.error(
       `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
         p.model.tokenizerConfig,
       )}, ${JSON.stringify(config.error)}`,
