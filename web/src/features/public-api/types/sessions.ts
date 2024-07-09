@@ -1,24 +1,37 @@
 import { ApiTrace } from "@/src/features/public-api/types/traces";
+import {
+  paginationMetaResponseZod,
+  paginationZod,
+  stringDateTime,
+} from "@langfuse/shared";
 import { z } from "zod";
 
 /**
  * Objects
  */
 
-const APISession = z.object({
+const APISession = z.strictObject({
   id: z.string(),
   createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
   projectId: z.string(),
-  bookmarked: z.boolean(),
-  public: z.boolean(),
 });
 
 /**
  * Endpoints
  */
 
-// Get /sessions/:id
+// GET /sessions
+export const GetSessionsV1Query = z.object({
+  ...paginationZod,
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
+});
+export const GetSessionsV1Response = z.object({
+  data: z.array(APISession),
+  meta: paginationMetaResponseZod,
+});
+
+// GET /sessions/:id
 export const GetSessionV1Query = z.object({
   sessionId: z.string(),
 });

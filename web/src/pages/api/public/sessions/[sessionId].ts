@@ -22,7 +22,10 @@ export default withMiddlewares({
             projectId: auth.scope.projectId,
           },
         },
-        include: {
+        select: {
+          id: true,
+          createdAt: true,
+          projectId: true,
           traces: true,
         },
       });
