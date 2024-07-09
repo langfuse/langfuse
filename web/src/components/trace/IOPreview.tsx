@@ -7,6 +7,10 @@ import { Button } from "@/src/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Fragment } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  MarkdownOrJsonView,
+  checkForMarkdown,
+} from "@/src/components/ui/MarkdownViewer";
 
 export const IOPreview: React.FC<{
   input?: unknown;
@@ -59,8 +63,11 @@ export const IOPreview: React.FC<{
     Array.isArray(output) ? output : [output],
   );
 
+  const inMarkdown = MarkdownSchema.safeParse(input);
+  const outMarkdown = MarkdownSchema.safeParse(output);
+
   // Pretty view available
-  const isPrettyViewAvailable = inChatMlArray.success;
+  let isPrettyViewAvailable = inChatMlArray.success || inMarkdown.success || outMarkdown.success;
 
   // default I/O
   return (
@@ -80,22 +87,39 @@ export const IOPreview: React.FC<{
         </Tabs>
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
-        <OpenAiMessageView
-          messages={[
-            ...inChatMlArray.data,
-            ...(outChatMlArray.success
-              ? outChatMlArray.data.map((m) => ({
-                  ...m,
-                  role: m.role ?? "assistant",
-                }))
-              : [
-                  ChatMlMessageSchema.parse({
-                    role: "assistant",
-                    content: outputClean ? JSON.stringify(outputClean) : null,
-                  }),
-                ]),
-          ]}
-        />
+        <>
+          {inChatMlArray.success ? (
+            <OpenAiMessageView
+              messages={[
+                ...inChatMlArray.data,
+                ...(outChatMlArray.success
+                  ? outChatMlArray.data.map((m) => ({
+                      ...m,
+                      role: m.role ?? "assistant",
+                    }))
+                  : [
+                      ChatMlMessageSchema.parse({
+                        role: "assistant",
+                        content: outputClean,
+                      }),
+                    ]),
+              ]}
+            />
+          ) : (
+            <>
+              {!(hideIfNull && !input) ? (
+                <MarkdownOrJsonView title="Input" text={input} />
+              ) : null}
+              {!(hideIfNull && !output) ? (
+                <MarkdownOrJsonView
+                  title="Output"
+                  text={output}
+                  className="bg-accent-light-green dark:border-accent-dark-green"
+                />
+              ) : null}
+            </>
+          )}
+        </>
       ) : null}
       {currentView === "json" || !isPrettyViewAvailable ? (
         <>
@@ -145,12 +169,13 @@ const ChatMlMessageSchema = z
     json: Object.keys(other).length === 0 ? undefined : other,
   }));
 export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
+export const MarkdownSchema = z.string().refine(checkForMarkdown);
 
 export const OpenAiMessageView: React.FC<{
   title?: string;
   messages: z.infer<typeof ChatMlArraySchema>;
 }> = ({ title, messages }) => {
-  const COLLAPSE_THRESHOLD = 3;
+  const COLLAPSE_THRESHOLD = 3; // ignore for markdown rendering
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
   );
@@ -183,9 +208,9 @@ export const OpenAiMessageView: React.FC<{
             <Fragment key={index}>
               <div>
                 {!!message.content && (
-                  <JSONView
+                  <MarkdownOrJsonView
                     title={message.name ?? message.role}
-                    json={message.content}
+                    text={message.content}
                     className={cn(
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",
