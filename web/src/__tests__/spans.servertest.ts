@@ -8,7 +8,10 @@ import {
 } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
-import { PostSpansV1Response } from "@/src/features/public-api/types/spans";
+import {
+  PatchSpansV1Response,
+  PostSpansV1Response,
+} from "@/src/features/public-api/types/spans";
 
 describe("/api/public/spans API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -340,10 +343,17 @@ describe("/api/public/spans API Endpoint", () => {
 
     expect(createSpan.status).toBe(200);
 
-    const updatedSpan = await makeAPICall("PATCH", "/api/public/spans", {
-      spanId: spanId,
-      output: { key: "this is a great gpt output" },
-    });
+    const updatedSpan = await makeZodVerifiedAPICall(
+      PatchSpansV1Response,
+      "PATCH",
+      "/api/public/spans",
+      {
+        spanId: spanId,
+        output: { key: "this is a great gpt output" },
+      },
+      undefined,
+      false,
+    );
     expect(updatedSpan.status).toBe(200);
 
     const dbSpan = await prisma.observation.findUnique({

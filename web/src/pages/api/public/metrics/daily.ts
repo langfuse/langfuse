@@ -131,6 +131,7 @@ export default withMiddlewares({
       const totalItems = totalItemsRes[0]?.count ?? 0;
 
       return {
+        // cannot use type warnings due to query raw, covered by tests
         data: usage as z.infer<typeof GetMetricsDailyV1Response>["data"],
         meta: {
           page: query.page,

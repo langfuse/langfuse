@@ -5,6 +5,7 @@ import {
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
+import { PostScoresResponse } from "@/src/features/public-api/types/scores";
 import {
   GetTraceV1Response,
   GetTracesV1Response,
@@ -234,13 +235,18 @@ describe("/api/public/traces API Endpoint", () => {
 
     // Simulate scores on the trace
     const scoreId1 = uuidv4();
-    await makeAPICall("POST", "/api/public/scores", {
-      id: scoreId1,
-      name: "score-1",
-      value: 75.0,
-      traceId: traceId,
-      comment: "First score",
-    });
+    await makeZodVerifiedAPICall(
+      PostScoresResponse,
+      "POST",
+      "/api/public/scores",
+      {
+        id: scoreId1,
+        name: "score-1",
+        value: 75.0,
+        traceId: traceId,
+        comment: "First score",
+      },
+    );
     const scoreId2 = uuidv4();
     await makeAPICall("POST", "/api/public/scores", {
       id: scoreId2,

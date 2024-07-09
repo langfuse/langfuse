@@ -2,12 +2,12 @@
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  makeAPICall,
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
+import { PostEventsV1Response } from "@/src/features/public-api/types/events";
 
 describe("/api/public/events API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -30,6 +30,8 @@ describe("/api/public/events API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -42,16 +44,23 @@ describe("/api/public/events API Endpoint", () => {
     expect(dbTrace[0]?.id).toBe(traceId);
 
     const eventId = uuidv4();
-    const createEvent = await makeAPICall("POST", "/api/public/events", {
-      id: eventId,
-      traceId: traceId,
-      name: "event-name",
-      startTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      output: { output: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
+    const createEvent = await makeZodVerifiedAPICall(
+      PostEventsV1Response,
+      "POST",
+      "/api/public/events",
+      {
+        id: eventId,
+        traceId: traceId,
+        name: "event-name",
+        startTime: "2021-01-01T00:00:00.000Z",
+        input: { input: "value" },
+        output: { output: "value" },
+        metadata: { meta: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     expect(createEvent.status).toBe(200);
     const dbEvent = await prisma.observation.findUnique({
@@ -76,16 +85,23 @@ describe("/api/public/events API Endpoint", () => {
     const traceId = uuidv4();
     const eventId = uuidv4();
 
-    const createEvent = await makeAPICall("POST", "/api/public/events", {
-      id: eventId,
-      traceId: traceId,
-      name: "event-name",
-      startTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      output: { output: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
+    const createEvent = await makeZodVerifiedAPICall(
+      PostEventsV1Response,
+      "POST",
+      "/api/public/events",
+      {
+        id: eventId,
+        traceId: traceId,
+        name: "event-name",
+        startTime: "2021-01-01T00:00:00.000Z",
+        input: { input: "value" },
+        output: { output: "value" },
+        metadata: { meta: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     expect(createEvent.status).toBe(200);
     const dbEvent = await prisma.observation.findUnique({
@@ -116,6 +132,8 @@ describe("/api/public/events API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -146,6 +164,8 @@ describe("/api/public/events API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
+      undefined,
+      false,
     );
 
     expect(response.status).toBe(200);
@@ -161,17 +181,24 @@ describe("/api/public/events API Endpoint", () => {
     expect(dbTrace[0]?.id).not.toBe(traceId);
 
     const eventId = uuidv4();
-    const createEvent = await makeAPICall("POST", "/api/public/events", {
-      id: eventId,
-      traceIdType: "EXTERNAL",
-      traceId: dbTrace[0]?.id,
-      name: "event-name",
-      startTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      output: { output: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
+    const createEvent = await makeZodVerifiedAPICall(
+      PostEventsV1Response,
+      "POST",
+      "/api/public/events",
+      {
+        id: eventId,
+        traceIdType: "EXTERNAL",
+        traceId: dbTrace[0]?.id,
+        name: "event-name",
+        startTime: "2021-01-01T00:00:00.000Z",
+        input: { input: "value" },
+        output: { output: "value" },
+        metadata: { meta: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     expect(createEvent.status).toBe(200);
     const dbEvent = await prisma.observation.findUnique({
@@ -194,16 +221,23 @@ describe("/api/public/events API Endpoint", () => {
     const eventName = uuidv4();
 
     const spanId = uuidv4();
-    const createEvent = await makeAPICall("POST", "/api/public/events", {
-      id: spanId,
-      name: eventName,
-      startTime: "2021-01-01T00:00:00.000Z",
-      endTime: "2021-01-01T00:00:00.000Z",
-      input: { input: "value" },
-      output: { output: "value" },
-      metadata: { meta: "value" },
-      version: "2.0.0",
-    });
+    const createEvent = await makeZodVerifiedAPICall(
+      PostEventsV1Response,
+      "POST",
+      "/api/public/events",
+      {
+        id: spanId,
+        name: eventName,
+        startTime: "2021-01-01T00:00:00.000Z",
+        endTime: "2021-01-01T00:00:00.000Z",
+        input: { input: "value" },
+        output: { output: "value" },
+        metadata: { meta: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     const dbTrace = await prisma.trace.findMany({
       where: {
@@ -235,14 +269,21 @@ describe("/api/public/events API Endpoint", () => {
     const generationName = uuidv4();
 
     const spanId = uuidv4();
-    const createSpan = await makeAPICall("POST", "/api/public/events", {
-      id: spanId,
-      name: generationName,
-      startTime: "2021-01-01T00:00:00.000Z",
-      input: { key: "value" },
-      metadata: { key: "value" },
-      version: "2.0.0",
-    });
+    const createSpan = await makeZodVerifiedAPICall(
+      PostEventsV1Response,
+      "POST",
+      "/api/public/events",
+      {
+        id: spanId,
+        name: generationName,
+        startTime: "2021-01-01T00:00:00.000Z",
+        input: { key: "value" },
+        metadata: { key: "value" },
+        version: "2.0.0",
+      },
+      undefined,
+      false,
+    );
 
     const dbEvent = await prisma.observation.findFirstOrThrow({
       where: {

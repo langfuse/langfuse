@@ -95,7 +95,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbDataset.length).toBeGreaterThan(0);
 
     // get dataset (v1) excluding items and runs
-    const getDatasetV1 = await makeAPICall(
+    const getDatasetV1 = await makeZodVerifiedAPICall(
+      GetDatasetV1Response,
       "GET",
       `/api/public/datasets/${encodeURIComponent("dataset + name")}`,
     );
@@ -824,7 +825,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
 
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
-    const response = await makeAPICall(
+    const response = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
       "POST",
       "/api/public/dataset-run-items",
       {
