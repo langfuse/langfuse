@@ -26,7 +26,6 @@ export const env = createEnv({
     ),
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.string().url().optional(),
-    LANGFUSE_TEAM_BETTERSTACK_TOKEN: z.string().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
@@ -157,8 +156,6 @@ export const env = createEnv({
     LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES:
       process.env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
-    LANGFUSE_TEAM_BETTERSTACK_TOKEN:
-      process.env.LANGFUSE_TEAM_BETTERSTACK_TOKEN,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
