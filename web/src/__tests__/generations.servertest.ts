@@ -3,6 +3,7 @@
 import { v4 as uuidv4 } from "uuid";
 
 import {
+  makeAPICall,
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
@@ -649,16 +650,13 @@ describe("/api/public/generations API Endpoint", () => {
   it("should not succeed update if generation does not exist", async () => {
     const generationId = uuidv4();
 
-    const updateGeneration = await makeZodVerifiedAPICall(
-      PatchGenerationsV1Response,
+    const updateGeneration = await makeAPICall(
       "PATCH",
       "/api/public/generations",
       {
         generationId: generationId,
         completion: "this is a great gpt response",
       },
-      undefined,
-      false,
     );
     expect(updateGeneration.status).toBe(404);
 

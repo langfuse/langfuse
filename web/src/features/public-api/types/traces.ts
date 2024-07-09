@@ -1,3 +1,5 @@
+import { APIObservation } from "@/src/features/public-api/types/observations";
+import { APIScore } from "@/src/features/public-api/types/scores";
 import {
   paginationZod,
   paginationMetaResponseZod,
@@ -76,6 +78,6 @@ export const GetTraceV1Query = z.object({
   traceId: z.string(),
 });
 export const GetTraceV1Response = ApiExtendedTrace.extend({
-  scores: z.array(z.any()), // TODO: Define Score type
-  observations: z.array(z.any()), // TODO: Define Observation type
+  scores: z.array(APIScore),
+  observations: z.array(APIObservation),
 });

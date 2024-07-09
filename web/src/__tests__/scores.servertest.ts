@@ -846,6 +846,8 @@ describe("/api/public/scores API Endpoint", () => {
       {
         id: traceId,
       },
+      undefined,
+      false,
     );
     const generationId = uuidv4();
     await makeZodVerifiedAPICall(

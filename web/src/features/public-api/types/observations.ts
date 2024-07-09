@@ -12,7 +12,7 @@ import { z } from "zod";
 
 const ObservationType = z.enum(["GENERATION", "SPAN", "EVENT"]);
 
-export const APIBaseObservation = z.strictObject({
+export const APIObservation = z.strictObject({
   id: z.string(),
   projectId: z.string(),
   traceId: z.string().nullable(),
@@ -58,11 +58,10 @@ export const APIBaseObservation = z.strictObject({
   calculatedInputCost: z.number().nullable(),
   calculatedOutputCost: z.number().nullable(),
   calculatedTotalCost: z.number().nullable(),
-});
 
-export const APIObservationWithMetrics = APIBaseObservation.extend({
   // metrics
   latency: z.number().nullable(),
+
   // generation metrics
   timeToFirstToken: z.number().nullable(),
 });
@@ -78,7 +77,7 @@ export const APIObservationWithMetrics = APIBaseObservation.extend({
  */
 export const transformDbToApiObservation = (
   observation: ObservationView,
-): z.infer<typeof APIObservationWithMetrics> => {
+): z.infer<typeof APIObservation> => {
   const { promptTokens, completionTokens, totalTokens, unit, ...rest } =
     observation;
 
@@ -118,7 +117,7 @@ export const GetObservationsV1Query = z.object({
   fromStartTime: stringDateTime,
 });
 export const GetObservationsV1Response = z.object({
-  data: z.array(APIObservationWithMetrics),
+  data: z.array(APIObservation),
   meta: paginationMetaResponseZod,
 });
 
@@ -126,4 +125,4 @@ export const GetObservationsV1Response = z.object({
 export const GetObservationV1Query = z.object({
   observationId: z.string(),
 });
-export const GetObservationV1Response = APIObservationWithMetrics;
+export const GetObservationV1Response = APIObservation;

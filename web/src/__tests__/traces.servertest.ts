@@ -224,12 +224,15 @@ describe("/api/public/traces API Endpoint", () => {
     console.log(traceId);
 
     // Simulate observations with costs and latencies
+    const generationId = uuidv4();
     await makeZodVerifiedAPICall(
       PostGenerationsV1Response,
       "POST",
       "/api/public/generations",
       {
         traceId: traceId,
+        id: generationId,
+        name: "Generation1",
         usage: { totalCost: 10.5 },
         startTime: "2021-01-01T00:00:00.000Z",
         endTime: "2021-01-01T00:10:00.000Z",
@@ -328,6 +331,12 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.body.id).toBe(traceId);
     expect(trace.body.htmlPath).toContain(`/traces/${traceId}`);
     expect(trace.body.htmlPath).toContain(`/project/`); // do not know the projectId
+    expect(trace.body.scores).toHaveLength(3);
+    expect(trace.body.scores[0].id).toBe(scoreId1);
+    expect(trace.body.scores[0].name).toBe("score-1");
+    expect(trace.body.observations).toHaveLength(2);
+    expect(trace.body.observations[0].id).toBe(generationId);
+    expect(trace.body.observations[0].name).toBe("Generation1");
   });
 
   it("should filter traces by session ID", async () => {

@@ -21,10 +21,10 @@ service:
             docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
           fromTimestamp:
             type: optional<datetime>
-            docs: Retrieve only traces newer than this datetime (ISO 8601).
+            docs: Optional filter to only include sessions created on or after a certain datetime (ISO 8601)
           toTimestamp:
             type: optional<datetime>
-            docs: Retrieve only traces newer than this datetime (ISO 8601).
+            docs: Optional filter to only include sessions created before a certain datetime (ISO 8601)
         response: PaginatedSessions
     get:
       docs: Get a session. Please note that `traces` on this endpoint are not paginated, if you plan to fetch large sessions, consider `GET /api/public/traces?sessionId=<sessionId>`

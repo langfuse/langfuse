@@ -11,7 +11,7 @@ service:
       method: POST
       path: /scores
       request: CreateScoreRequest
-      response: commons.Score
+      response: CreateScoreResponse
     get:
       docs: Get a list of scores
       method: GET
@@ -124,7 +124,11 @@ types:
           dataType: "BOOLEAN"
           configId: "1234-5678-90ab-cdef"
           traceId: "cdef-1234-5678-90ab"
-
+  CreateScoreResponse:
+    properties:
+      id:
+        type: string
+        docs: The id of the created object in Langfuse
   Scores:
     properties:
       data: list<commons.Score>
