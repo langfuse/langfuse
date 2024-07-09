@@ -12,8 +12,6 @@ describe("/api/public/metrics/daily API Endpoint", () => {
   afterEach(async () => await pruneDatabase());
 
   it("should handle daily metrics correctly", async () => {
-    await pruneDatabase();
-
     // Create traces with observations on different days
     const traceId1 = uuidv4();
     const traceId2 = uuidv4();
@@ -160,5 +158,49 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         totalCost: 0,
       },
     ]);
+  });
+
+  it("should handle daily metrics correctly when there is no data", async () => {
+    // Retrieve the daily metrics
+    const dailyMetricsResponse = await makeZodVerifiedAPICall(
+      GetMetricsDailyV1Response,
+      "GET",
+      `/api/public/metrics/daily`,
+    );
+    const dailyMetricsData = dailyMetricsResponse.body.data;
+
+    // Check if the daily metrics are calculated correctly
+    expect(dailyMetricsData).toHaveLength(0); // No data
+  });
+
+  it("should handle daily metrics correctly when there is just a trace", async () => {
+    const traceId1 = uuidv4();
+    await makeZodVerifiedAPICall(
+      PostTracesV1Response,
+      "POST",
+      "/api/public/traces",
+      {
+        id: traceId1,
+        timestamp: "2021-01-01T00:00:00.000Z",
+        name: "trace-day-1",
+        userId: "user-daily-metrics",
+        projectId: "project-daily-metrics",
+      },
+    );
+
+    // Retrieve the daily metrics
+    const dailyMetricsResponse = await makeZodVerifiedAPICall(
+      GetMetricsDailyV1Response,
+      "GET",
+      `/api/public/metrics/daily`,
+    );
+    const dailyMetricsData = dailyMetricsResponse.body.data;
+
+    // Check if the daily metrics are calculated correctly
+    expect(dailyMetricsData).toHaveLength(1);
+    expect(dailyMetricsData[0].date).toBe("2021-01-01");
+    expect(dailyMetricsData[0].countTraces).toBe(1);
+    expect(dailyMetricsData[0].totalCost).toEqual(0);
+    expect(dailyMetricsData[0].usage).toEqual([]);
   });
 });
