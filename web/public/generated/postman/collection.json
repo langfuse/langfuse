@@ -718,7 +718,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=&toStartTime=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -766,7 +766,12 @@
                 {
                   "key": "fromStartTime",
                   "value": "",
-                  "description": "Retrieve only observations with a start_time greater than this datetime (ISO 8601)."
+                  "description": "Retrieve only observations with a start_time or or after this datetime (ISO 8601)."
+                },
+                {
+                  "key": "toStartTime",
+                  "value": "",
+                  "description": "Retrieve only observations with a start_time before this datetime (ISO 8601)."
                 }
               ],
               "variable": []
@@ -1101,7 +1106,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&source=&operator=&value=&scoreIds=&configId=&dataType=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&source=&operator=&value=&scoreIds=&configId=&dataType=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1134,7 +1139,12 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Retrieve only scores newer than this datetime (ISO 8601)."
+                  "description": "Optional filter to only include scores created on or after a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "toTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include scores created before a certain datetime (ISO 8601)"
                 },
                 {
                   "key": "source",
@@ -1249,6 +1259,52 @@
       "item": [
         {
           "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get sessions.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/sessions?page=&limit=&fromTimestamp=&toTimestamp=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "sessions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
+                },
+                {
+                  "key": "fromTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include sessions created on or after a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "toTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include sessions created before a certain datetime (ISO 8601)"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get",
           "request": {
             "description": "Get a session. Please note that `traces` on this endpoint are not paginated, if you plan to fetch large sessions, consider `GET /api/public/traces?sessionId=<sessionId>`",
@@ -1324,7 +1380,7 @@
           "request": {
             "description": "Get list of traces.",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&orderBy=&tags=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1362,7 +1418,12 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Retrieve only traces newer than this datetime (ISO 8601)."
+                  "description": "Optional filter to only include traces with a trace.timestamp on or after a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "toTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include traces with a trace.timestamp before a certain datetime (ISO 8601)"
                 },
                 {
                   "key": "orderBy",
