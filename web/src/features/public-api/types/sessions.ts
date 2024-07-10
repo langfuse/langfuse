@@ -1,4 +1,4 @@
-import { ApiTrace } from "@/src/features/public-api/types/traces";
+import { APITrace } from "@/src/features/public-api/types/traces";
 import {
   paginationMetaResponseZod,
   paginationZod,
@@ -36,5 +36,5 @@ export const GetSessionV1Query = z.object({
   sessionId: z.string(),
 });
 export const GetSessionV1Response = APISession.extend({
-  traces: z.array(ApiTrace),
+  traces: z.array(APITrace),
 });

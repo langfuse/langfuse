@@ -13,7 +13,7 @@ import { z } from "zod";
  * Objects
  */
 
-export const ApiTrace = z.strictObject({
+export const APITrace = z.strictObject({
   id: z.string(),
   externalId: z.string().nullable(),
   timestamp: z.coerce.date(),
@@ -33,7 +33,7 @@ export const ApiTrace = z.strictObject({
   updatedAt: z.coerce.date(),
 });
 
-const ApiExtendedTrace = ApiTrace.extend({
+const APIExtendedTrace = APITrace.extend({
   observations: z.array(z.string()),
   scores: z.array(z.string()),
   totalCost: z.number(),
@@ -66,7 +66,7 @@ export const GetTracesV1Query = z.object({
 });
 
 export const GetTracesV1Response = z.object({
-  data: z.array(ApiExtendedTrace),
+  data: z.array(APIExtendedTrace),
   meta: paginationMetaResponseZod,
 });
 
@@ -78,7 +78,7 @@ export const PostTracesV1Response = z.object({ id: z.string() });
 export const GetTraceV1Query = z.object({
   traceId: z.string(),
 });
-export const GetTraceV1Response = ApiExtendedTrace.extend({
+export const GetTraceV1Response = APIExtendedTrace.extend({
   scores: z.array(APIScore),
   observations: z.array(APIObservation),
 });
