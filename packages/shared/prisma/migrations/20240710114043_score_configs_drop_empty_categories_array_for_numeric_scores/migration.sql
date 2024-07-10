@@ -3,4 +3,4 @@
 
 UPDATE score_configs
 SET categories = NULL
-WHERE data_type = 'NUMERIC' AND categories IS NOT NULL;
+WHERE data_type = 'NUMERIC' AND categories = '[]'::jsonb;
