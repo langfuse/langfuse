@@ -1,5 +1,5 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import React, { useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   LockIcon,
@@ -160,24 +160,18 @@ export function AnnotateDrawer({
     string[]
   >("emptySelectedConfigIds", []);
 
-  const scoreData = getDefaultScoreData({
-    scores,
-    traceId,
-    observationId,
-    emptySelectedConfigIds,
-    configs,
-  });
-
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
-      scoreData: scoreData,
+      scoreData: getDefaultScoreData({
+        scores,
+        traceId,
+        observationId,
+        emptySelectedConfigIds,
+        configs,
+      }),
     },
   });
-
-  useEffect(() => {
-    form.reset({ scoreData });
-  }, [traceId, observationId]);
 
   const router = useRouter();
 
