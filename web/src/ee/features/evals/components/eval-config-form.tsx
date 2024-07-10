@@ -153,7 +153,7 @@ export const InnerEvalConfigForm = (props: {
   });
 
   useEffect(() => {
-    if (props.evalTemplate) {
+    if (props.evalTemplate && form.getValues("mapping").length === 0) {
       form.setValue(
         "mapping",
         props.evalTemplate.vars.map((v) => ({
