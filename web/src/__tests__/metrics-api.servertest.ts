@@ -26,8 +26,6 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         userId: "user-daily-metrics",
         projectId: "project-daily-metrics",
       },
-      undefined,
-      false,
     );
     await makeZodVerifiedAPICall(
       PostTracesV1Response,
@@ -40,8 +38,6 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         userId: "user-daily-metrics",
         projectId: "project-daily-metrics",
       },
-      undefined,
-      false,
     );
 
     // Simulate observations with usage metrics on different days
@@ -56,8 +52,6 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         startTime: "2021-01-01T00:00:00.000Z",
         endTime: "2021-01-01T00:01:00.000Z",
       },
-      undefined,
-      false,
     );
     await makeZodVerifiedAPICall(
       PostGenerationsV1Response,
@@ -70,8 +64,6 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         startTime: "2021-01-02T00:00:00.000Z",
         endTime: "2021-01-02T00:02:00.000Z",
       },
-      undefined,
-      false,
     );
     await makeZodVerifiedAPICall(
       PostGenerationsV1Response,
@@ -84,8 +76,6 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         startTime: "2021-01-02T00:00:00.000Z",
         endTime: "2021-01-02T00:04:00.000Z",
       },
-      undefined,
-      false,
     );
     await makeZodVerifiedAPICall(
       PostGenerationsV1Response,
@@ -97,8 +87,6 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         startTime: "2021-01-02T00:00:00.000Z",
         endTime: "2021-01-02T00:04:00.000Z",
       },
-      undefined,
-      false,
     );
 
     // Retrieve the daily metrics
@@ -190,8 +178,6 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         userId: "user-daily-metrics",
         projectId: "project-daily-metrics",
       },
-      undefined,
-      false,
     );
 
     // Retrieve the daily metrics
