@@ -81,7 +81,6 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
   url: string,
   body?: unknown,
   auth?: string,
-  strictTypeCheck: boolean = true,
 ): Promise<{ body: z.infer<T>; status: number }> {
   const { body: resBody, status } = await makeAPICall(method, url, body, auth);
   if (status !== 200) {
@@ -89,16 +88,11 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
       `API call did not return 200, returned status ${status}, body ${JSON.stringify(resBody)}`,
     );
   }
-  try {
-    if (responseZodSchema instanceof ZodObject && strictTypeCheck) {
-      responseZodSchema.strict().parse(resBody);
-    } else {
-      responseZodSchema.parse(resBody);
-    }
-  } catch (e) {
-    console.error(e);
+  const typeCheckResult = responseZodSchema.safeParse(resBody);
+  if (!typeCheckResult.success) {
+    console.error(typeCheckResult.error);
     throw new Error(
-      `API call (${method} ${url}) did not return valid response, returned status ${status}, body ${JSON.stringify(resBody)}, error ${e}`,
+      `API call (${method} ${url}) did not return valid response, returned status ${status}, body ${JSON.stringify(resBody)}, error ${typeCheckResult.error}`,
     );
   }
   return { body: resBody, status };
