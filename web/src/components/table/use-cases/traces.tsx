@@ -37,7 +37,7 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export type TracesTableRow = {
@@ -95,7 +95,7 @@ export default function TracesTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "traces",

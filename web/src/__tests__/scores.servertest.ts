@@ -35,8 +35,6 @@ describe("/api/public/scores API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
   });
   afterEach(async () => {
@@ -166,8 +164,6 @@ describe("/api/public/scores API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     const dbGeneration = await prisma.observation.findMany({
@@ -740,8 +736,6 @@ describe("/api/public/scores API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     const dbGeneration = await prisma.observation.findMany({
@@ -799,8 +793,6 @@ describe("/api/public/scores API Endpoint", () => {
       {
         id: traceId,
       },
-      undefined,
-      false,
     );
 
     const scoreId = uuidv4();
@@ -846,8 +838,6 @@ describe("/api/public/scores API Endpoint", () => {
       {
         id: traceId,
       },
-      undefined,
-      false,
     );
     const generationId = uuidv4();
     await makeZodVerifiedAPICall(
@@ -857,8 +847,6 @@ describe("/api/public/scores API Endpoint", () => {
       {
         id: generationId,
       },
-      undefined,
-      false,
     );
 
     const scoreId = uuidv4();
@@ -913,8 +901,6 @@ describe("/api/public/scores API Endpoint", () => {
           id: traceId,
           userId: userId,
         },
-        undefined,
-        false,
       );
       await makeZodVerifiedAPICall(
         PostTracesV1Response,
@@ -923,8 +909,6 @@ describe("/api/public/scores API Endpoint", () => {
         {
           id: generationId,
         },
-        undefined,
-        false,
       );
 
       await makeAPICall("POST", "/api/public/score-configs", {

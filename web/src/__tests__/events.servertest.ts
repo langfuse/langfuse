@@ -30,8 +30,6 @@ describe("/api/public/events API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -58,8 +56,6 @@ describe("/api/public/events API Endpoint", () => {
         metadata: { meta: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(createEvent.status).toBe(200);
@@ -99,8 +95,6 @@ describe("/api/public/events API Endpoint", () => {
         metadata: { meta: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(createEvent.status).toBe(200);
@@ -132,8 +126,6 @@ describe("/api/public/events API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -164,8 +156,6 @@ describe("/api/public/events API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(response.status).toBe(200);
@@ -196,8 +186,6 @@ describe("/api/public/events API Endpoint", () => {
         metadata: { meta: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(createEvent.status).toBe(200);
@@ -235,8 +223,6 @@ describe("/api/public/events API Endpoint", () => {
         metadata: { meta: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -281,8 +267,6 @@ describe("/api/public/events API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     const dbEvent = await prisma.observation.findFirstOrThrow({

@@ -6,7 +6,11 @@ Implementation
 
 - Wrap with `withMiddleware`
 - Type-safe and authed API Route with `createAuthedAPIRoute`
-- Add zod types to `/features/public-api/types` folder. Use [`coerce`](https://zod.dev/?id=coercion-for-primitives) to handle primitives, such as dates, for use in your application and tests.
+- Add zod types to `/features/public-api/types` folder.
+
+  - Use [`coerce`](https://zod.dev/?id=coercion-for-primitives) to handle primitives, such as dates, for use in your application and tests.
+  - Use `strict()` on all objects that should not return additional properties. Recommended as default. In these cases, the test utility `makeZodVerifiedAPICall` will throw an error if the response contains additional properties. Also, we will log an error in production if the response contains additional properties.
+
 - Throw errors defined in `shared/src/errors` which translate to HTTP status codes
 
 Testing

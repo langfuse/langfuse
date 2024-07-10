@@ -113,8 +113,6 @@ describe("/api/public/generations API Endpoint", () => {
           release: "1.0.0",
           version: "2.0.0",
         },
-        undefined,
-        false,
       );
 
       const dbTrace = await prisma.trace.findMany({
@@ -144,8 +142,6 @@ describe("/api/public/generations API Endpoint", () => {
           version: "2.0.0",
           usage: testConfig.usage,
         },
-        undefined,
-        false,
       );
 
       expect(createGeneration.status).toBe(200);
@@ -200,8 +196,6 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -237,8 +231,6 @@ describe("/api/public/generations API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -267,8 +259,6 @@ describe("/api/public/generations API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(response.status).toBe(200);
@@ -301,8 +291,6 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -345,8 +333,6 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     const dbTrace = await prisma.trace.findMany({
@@ -398,8 +384,6 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -430,8 +414,6 @@ describe("/api/public/generations API Endpoint", () => {
         version: "2.0.0",
         parentObservationId: generationId,
       },
-      undefined,
-      false,
     );
     expect(createGeneration2.status).toBe(200);
 
@@ -467,8 +449,6 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -504,8 +484,6 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     const dbGeneration = await prisma.observation.findFirstOrThrow({
@@ -558,8 +536,6 @@ describe("/api/public/generations API Endpoint", () => {
         metadata: { key: "value" },
         version: "2.0.0",
       },
-      undefined,
-      false,
     );
 
     expect(createGeneration.status).toBe(200);
@@ -572,8 +548,6 @@ describe("/api/public/generations API Endpoint", () => {
         generationId: generationId,
         completion: "this is a great gpt response",
       },
-      undefined,
-      false,
     );
     expect(updateGeneration.status).toBe(200);
 
@@ -620,8 +594,6 @@ describe("/api/public/generations API Endpoint", () => {
           },
         ],
       },
-      undefined,
-      false,
     );
 
     expect(createGeneration.status).toBe(200);

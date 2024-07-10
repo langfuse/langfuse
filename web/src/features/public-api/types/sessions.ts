@@ -10,11 +10,13 @@ import { z } from "zod";
  * Objects
  */
 
-const APISession = z.strictObject({
-  id: z.string(),
-  createdAt: z.coerce.date(),
-  projectId: z.string(),
-});
+const APISession = z
+  .strictObject({
+    id: z.string(),
+    createdAt: z.coerce.date(),
+    projectId: z.string(),
+  })
+  .strict();
 
 /**
  * Endpoints
@@ -26,10 +28,12 @@ export const GetSessionsV1Query = z.object({
   fromTimestamp: stringDateTime,
   toTimestamp: stringDateTime,
 });
-export const GetSessionsV1Response = z.object({
-  data: z.array(APISession),
-  meta: paginationMetaResponseZod,
-});
+export const GetSessionsV1Response = z
+  .object({
+    data: z.array(APISession),
+    meta: paginationMetaResponseZod,
+  })
+  .strict();
 
 // GET /sessions/:id
 export const GetSessionV1Query = z.object({
@@ -37,4 +41,4 @@ export const GetSessionV1Query = z.object({
 });
 export const GetSessionV1Response = APISession.extend({
   traces: z.array(APITrace),
-});
+}).strict();
