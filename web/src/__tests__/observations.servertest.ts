@@ -190,8 +190,6 @@ describe("/api/public/observations API Endpoint", () => {
       undefined,
     );
 
-    console.log(fetchedObservations.body);
-
     expect(fetchedObservations.status).toBe(200);
 
     expect(fetchedObservations.body.data.length).toBe(1);

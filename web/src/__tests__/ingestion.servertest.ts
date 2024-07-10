@@ -1167,7 +1167,6 @@ describe("/api/public/ingestion API Endpoint", () => {
     const errors = responseOne.body.errors;
 
     expect(errors).toBeDefined();
-    console.log(errors);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(errors.length).toBe(1);
 

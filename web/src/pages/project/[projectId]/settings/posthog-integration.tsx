@@ -156,7 +156,6 @@ const PostHogIntegrationSettings = ({
       projectId,
       ...values,
     });
-    console.log(values);
   }
 
   return (

@@ -311,8 +311,6 @@ describe("cost retrieval tests", () => {
       where: { traceId: dbTrace.id },
     });
 
-    console.log(view);
-
     // calculated cost fields
     expect(view?.modelId).toBe("model-2");
     expect(view?.calculatedInputCost?.toString()).toBe("0.0004");
@@ -390,8 +388,6 @@ describe("cost retrieval tests", () => {
       where: { traceId: dbTrace.id },
     });
 
-    console.log(view);
-
     // calculated cost fields
     expect(view?.modelId).toBe("model-0");
     expect(view?.calculatedInputCost?.toString()).toBe("0");
@@ -457,8 +453,6 @@ describe("cost retrieval tests", () => {
       where: { traceId: dbTrace.id },
     });
 
-    console.log(view);
-
     // calculated cost fields
     expect(view?.modelId).toBe("model-1");
   });
@@ -517,8 +511,6 @@ describe("cost retrieval tests", () => {
     const view = await prisma.observationView.findFirst({
       where: { traceId: dbTrace.id },
     });
-
-    console.log(view);
 
     // calculated cost fields
     expect(view?.modelId).toBe("model-2");
@@ -583,8 +575,6 @@ describe("cost retrieval tests", () => {
     const view = await prisma.observationView.findFirst({
       where: { traceId: dbTrace.id },
     });
-
-    console.log(view);
 
     // calculated cost fields
     expect(view?.modelId).toBe("model-2");
@@ -652,8 +642,6 @@ describe("cost retrieval tests", () => {
     const view = await prisma.observationView.findFirst({
       where: { traceId: dbTrace.id },
     });
-
-    console.log(view);
 
     // calculated cost fields
     expect(view?.modelId).toBe("model-2");

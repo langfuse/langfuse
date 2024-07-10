@@ -16,6 +16,7 @@ import {
 } from "use-query-params";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
+import { logger } from "@/src/utils/logging";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -40,7 +41,7 @@ const getCommaArrayParam = (table: TableName) => ({
                 : f.value,
         )}`;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
+        if (DEBUG_QUERY_STATE) logger.info("stringified", stringified);
         return stringified;
       }),
       ",",
@@ -53,7 +54,7 @@ const getCommaArrayParam = (table: TableName) => ({
         const [column, type, key, operator, value] = f.split(";");
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE)
-          console.log("values", [column, type, key, operator, value]);
+          logger.info("values", [column, type, key, operator, value]);
         const decodedValue = value ? decodeURIComponent(value) : undefined;
         const parsedValue =
           decodedValue === undefined || type === undefined
@@ -70,7 +71,7 @@ const getCommaArrayParam = (table: TableName) => ({
                       ? decodedValue === "true"
                       : decodedValue;
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
+        if (DEBUG_QUERY_STATE) logger.info("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column: getColumnName(table, column),
           key: key !== "" ? key : undefined,

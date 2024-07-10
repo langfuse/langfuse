@@ -1,6 +1,7 @@
 import { VERSION } from "@/src/constants";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
+import { logger } from "@/src/utils/logging";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -54,14 +55,14 @@ export default async function handler(
         }
       }
     } catch (e) {
-      console.log("Health check failed: db not available", e);
+      logger.error("Health check failed: db not available", e);
       return res.status(503).json({
         status: "Database not available",
         version: VERSION.replace("v", ""),
       });
     }
   } catch (e) {
-    console.log("Health check failed: ", e);
+    logger.error("Health check failed: ", e);
     return res.status(503).json({
       status: "Health check failed",
       version: VERSION.replace("v", ""),

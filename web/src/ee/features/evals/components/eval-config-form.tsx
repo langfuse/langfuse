@@ -42,6 +42,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { logger } from "@/src/utils/logging";
 
 const formSchema = z.object({
   scoreName: z.string(),
@@ -198,7 +199,7 @@ export const InnerEvalConfigForm = (props: {
       .safeParse(values.mapping);
 
     if (validatedVarMapping.success === false) {
-      console.log(validatedVarMapping.error);
+      logger.error(validatedVarMapping.error);
       form.setError("mapping", {
         type: "manual",
         message: "Please fill out all variable mappings",
