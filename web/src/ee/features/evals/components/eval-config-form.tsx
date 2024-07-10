@@ -173,7 +173,6 @@ export const InnerEvalConfigForm = (props: {
     control: form.control,
     name: "mapping",
   });
-  console.log("form state", form.watch());
 
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
@@ -238,7 +237,6 @@ export const InnerEvalConfigForm = (props: {
 
   return (
     <Form {...form}>
-      {JSON.stringify(form.watch())}
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
