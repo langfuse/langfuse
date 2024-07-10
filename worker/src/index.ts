@@ -28,14 +28,6 @@ function onShutdown() {
   batchExportJobExecutor
     ?.close()
     .then(() => logger.info("Batch Export Executor has been closed."));
-
-  // sdk
-  //   .shutdown()
-  //   .then(
-  //     () => logger.info("SDK shut down successfully"),
-  //     (err) => logger.error("Error shutting down SDK", err)
-  //   )
-  //   .finally(() => process.exit(0));
 }
 
 // Capture shutdown signals
