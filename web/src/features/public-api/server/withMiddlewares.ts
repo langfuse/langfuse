@@ -40,9 +40,10 @@ export function withMiddlewares(handlers: Handlers) {
     } catch (error) {
       console.error(error);
 
-      Sentry.captureException(error);
-
       if (error instanceof BaseError) {
+        if (error.httpCode >= 500 && error.httpCode < 600) {
+          Sentry.captureException(error);
+        }
         return res.status(error.httpCode).json({
           message: error.message,
           error: error.name,
@@ -50,6 +51,7 @@ export function withMiddlewares(handlers: Handlers) {
       }
 
       if (isPrismaException(error)) {
+        Sentry.captureException(error);
         return res.status(500).json({
           message: "Internal Server Error",
           error: "An unknown error occurred",
@@ -63,6 +65,7 @@ export function withMiddlewares(handlers: Handlers) {
         });
       }
 
+      Sentry.captureException(error);
       return res.status(500).json({
         message: "Internal Server Error",
         error:
