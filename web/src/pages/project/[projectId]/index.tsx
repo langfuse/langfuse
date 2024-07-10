@@ -34,6 +34,7 @@ import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { logger } from "@/src/utils/logging";
 
 export type DashboardDateRange = {
   from: Date;
@@ -143,6 +144,8 @@ export default function Start() {
         },
       ]
     : [];
+
+  logger.info("hello world");
 
   const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
 
