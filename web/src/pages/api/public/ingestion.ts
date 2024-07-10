@@ -521,6 +521,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
 
   try {
     if (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) {
+      console.log("Sending events to worker via redis", traceEvents);
       const jobs = createRedisEvents(traceEvents);
       await traceUpsertQueue?.addBulk(jobs);
     } else if (
@@ -528,7 +529,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      console.log("Sending events to worker via redis", traceEvents);
+      console.log("Sending events to worker via HTTP", traceEvents);
       const body: EventBodyType = {
         name: EventName.TraceUpsert,
         payload: traceEvents,
