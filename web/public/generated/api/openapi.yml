@@ -990,8 +990,18 @@ paths:
         - name: fromStartTime
           in: query
           description: >-
-            Retrieve only observations with a start_time greater than this
+            Retrieve only observations with a start_time or or after this
             datetime (ISO 8601).
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toStartTime
+          in: query
+          description: >-
+            Retrieve only observations with a start_time before this datetime
+            (ISO 8601).
           required: false
           schema:
             type: string
@@ -1411,7 +1421,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Score'
+                $ref: '#/components/schemas/CreateScoreResponse'
         '400':
           description: ''
           content:
@@ -1482,7 +1492,19 @@ paths:
             nullable: true
         - name: fromTimestamp
           in: query
-          description: Retrieve only scores newer than this datetime (ISO 8601).
+          description: >-
+            Optional filter to only include scores created on or after a certain
+            datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: >-
+            Optional filter to only include scores created before a certain
+            datetime (ISO 8601)
           required: false
           schema:
             type: string
@@ -1651,6 +1673,82 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/sessions:
+    get:
+      description: Get sessions.
+      operationId: sessions_list
+      tags:
+        - Sessions
+      parameters:
+        - name: page
+          in: query
+          description: Page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: fromTimestamp
+          in: query
+          description: >-
+            Optional filter to only include sessions created on or after a
+            certain datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: >-
+            Optional filter to only include sessions created before a certain
+            datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSessions'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/sessions/{sessionId}:
     get:
       description: >-
@@ -1789,7 +1887,19 @@ paths:
             nullable: true
         - name: fromTimestamp
           in: query
-          description: Retrieve only traces newer than this datetime (ISO 8601).
+          description: >-
+            Optional filter to only include traces with a trace.timestamp on or
+            after a certain datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: >-
+            Optional filter to only include traces with a trace.timestamp before
+            a certain datetime (ISO 8601)
           required: false
           schema:
             type: string
@@ -1932,6 +2042,10 @@ components:
         htmlPath:
           type: string
           description: Path of trace in Langfuse UI
+        latency:
+          type: number
+          format: double
+          description: Latency of trace in seconds
         totalCost:
           type: number
           format: double
@@ -1940,12 +2054,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ObservationsView'
+          description: List of observations
         scores:
           type: array
           items:
             $ref: '#/components/schemas/Score'
+          description: List of scores
       required:
         - htmlPath
+        - latency
         - totalCost
         - observations
         - scores
@@ -2071,6 +2188,10 @@ components:
           format: double
           nullable: true
         latency:
+          type: number
+          format: double
+          nullable: true
+        timeToFirstToken:
           type: number
           format: double
           nullable: true
@@ -3753,6 +3874,15 @@ components:
         - traceId
         - name
         - value
+    CreateScoreResponse:
+      title: CreateScoreResponse
+      type: object
+      properties:
+        id:
+          type: string
+          description: The id of the created object in Langfuse
+      required:
+        - id
     Scores:
       title: Scores
       type: object
@@ -3761,6 +3891,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Score'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    PaginatedSessions:
+      title: PaginatedSessions
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
       required:
