@@ -34,7 +34,6 @@ import {
   ScoreDataType,
   CreateAnnotationScoreData,
   UpdateAnnotationScoreData,
-  ScoreSource,
 } from "@langfuse/shared";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import {
@@ -161,27 +160,24 @@ export function AnnotateDrawer({
     string[]
   >("emptySelectedConfigIds", []);
 
-  const annotationScores = useMemo(() => {
-    return scores.filter(
-      (s) =>
-        s.source === ScoreSource.ANNOTATION &&
-        s.traceId === traceId &&
-        (observationId !== undefined
-          ? s.observationId === observationId
-          : s.observationId === null),
-    );
-  }, [scores, traceId, observationId]);
+  const scoreData = getDefaultScoreData({
+    scores,
+    traceId,
+    observationId,
+    emptySelectedConfigIds,
+    configs,
+  });
 
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
-      scoreData: getDefaultScoreData({
-        annotationScores,
-        emptySelectedConfigIds,
-        configs,
-      }),
+      scoreData: scoreData,
     },
   });
+
+  useEffect(() => {
+    form.reset({ scoreData });
+  }, [traceId, observationId]);
 
   const router = useRouter();
 
