@@ -5,7 +5,7 @@ import { z } from "zod";
 import { BaseError, MethodNotAllowedError } from "@langfuse/shared";
 import * as Sentry from "@sentry/node";
 
-const httpMethods = ["GET", "POST", "PUT", "DELETE"] as const;
+const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
 type Handlers = {
   [Method in HttpMethod]?: (
@@ -32,6 +32,7 @@ export function withMiddlewares(handlers: Handlers) {
           POST: defaultHandler,
           PUT: defaultHandler,
           DELETE: defaultHandler,
+          PATCH: defaultHandler,
         },
         ...handlers,
       };

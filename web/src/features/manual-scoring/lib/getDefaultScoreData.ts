@@ -1,5 +1,5 @@
 import { ScoreSource } from "@langfuse/shared";
-import { type ValidatedScore } from "@/src/features/public-api/types/scores";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 import { type ValidatedScoreConfig } from "@/src/features/public-api/types/score-configs";
 
 export const getDefaultScoreData = ({
@@ -9,7 +9,7 @@ export const getDefaultScoreData = ({
   traceId,
   observationId,
 }: {
-  scores: ValidatedScore[];
+  scores: APIScore[];
   emptySelectedConfigIds: string[];
   configs: ValidatedScoreConfig[];
   traceId: string;
