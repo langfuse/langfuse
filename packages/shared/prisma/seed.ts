@@ -14,6 +14,7 @@ import { v4 } from "uuid";
 import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey } from "../src/server";
 import { encrypt } from "../src/encryption";
+import { redis } from "@langfuse/shared/src/server";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -364,11 +365,13 @@ async function main() {
 main()
   .then(async () => {
     await prisma.$disconnect();
+    redis?.disconnect();
     console.log("Disconnected from database");
   })
   .catch(async (e) => {
     console.error(e);
     await prisma.$disconnect();
+    redis?.disconnect();
     console.log("Disconnected from database");
     process.exit(1);
   });
