@@ -19,7 +19,7 @@ import { type Score } from "@langfuse/shared";
 import { utcDateOffsetByDays } from "@/src/utils/dates";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
-import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -40,7 +40,7 @@ export default function UsersPage() {
         column: "timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "users",
