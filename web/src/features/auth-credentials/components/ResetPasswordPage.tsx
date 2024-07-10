@@ -25,6 +25,7 @@ import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { logger } from "@/src/utils/logging";
 
 const resetPasswordSchema = z
   .object({
