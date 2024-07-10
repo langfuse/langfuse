@@ -1,5 +1,5 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import React from "react";
+import React, { useEffect, useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   LockIcon,
@@ -154,7 +154,7 @@ export function AnnotateDrawer({
     projectId,
   });
 
-  const configs = configsData.data?.configs ?? [];
+  const configs = useMemo(() => configsData.data?.configs ?? [], [configsData]);
 
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
@@ -172,6 +172,26 @@ export function AnnotateDrawer({
       }),
     },
   });
+
+  useEffect(() => {
+    form.reset({
+      scoreData: getDefaultScoreData({
+        scores,
+        traceId,
+        observationId,
+        emptySelectedConfigIds,
+        configs,
+      }),
+    });
+  }, [
+    traceId,
+    scores,
+    observationId,
+    projectId,
+    configs,
+    emptySelectedConfigIds,
+    form,
+  ]);
 
   const router = useRouter();
 
