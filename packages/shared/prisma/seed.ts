@@ -14,7 +14,7 @@ import { v4 } from "uuid";
 import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey } from "../src/server";
 import { encrypt } from "../src/encryption";
-import { redis } from "@langfuse/shared/src/server";
+import { redis } from "../src/server/redis/redis";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
