@@ -14,6 +14,7 @@ export const pruneDatabase = async () => {
   await prisma.scoreConfig.deleteMany();
   await prisma.observation.deleteMany();
   await prisma.trace.deleteMany();
+  await prisma.traceSession.deleteMany();
   await prisma.datasetItem.deleteMany();
   await prisma.dataset.deleteMany();
   await prisma.datasetRuns.deleteMany();
@@ -80,6 +81,7 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
   url: string,
   body?: unknown,
   auth?: string,
+  strictTypeCheck: boolean = true,
 ): Promise<{ body: z.infer<T>; status: number }> {
   const { body: resBody, status } = await makeAPICall(method, url, body, auth);
   if (status !== 200) {
@@ -88,7 +90,7 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
     );
   }
   try {
-    if (responseZodSchema instanceof ZodObject) {
+    if (responseZodSchema instanceof ZodObject && strictTypeCheck) {
       responseZodSchema.strict().parse(resBody);
     } else {
       responseZodSchema.parse(resBody);

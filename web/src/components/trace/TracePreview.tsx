@@ -19,7 +19,7 @@ import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
-import { type ValidatedScore } from "@/src/features/public-api/types/scores";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export const TracePreview = ({
   trace,
@@ -28,7 +28,7 @@ export const TracePreview = ({
 }: {
   trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
-  scores: ValidatedScore[];
+  scores: APIScore[];
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -42,7 +42,7 @@ export const TracePreview = ({
     }
     acc.get(score.source)?.push(score);
     return acc;
-  }, new Map<ScoreSource, ValidatedScore[]>());
+  }, new Map<ScoreSource, APIScore[]>());
 
   return (
     <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">

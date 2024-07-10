@@ -4,6 +4,7 @@ import {
   paginationMetaResponseZod,
   NonEmptyString,
   type Score,
+  stringDateTime,
 } from "@langfuse/shared";
 import { z } from "zod";
 import { isPresent } from "@/src/utils/typeChecks";
@@ -12,10 +13,10 @@ import { Category as ConfigCategory } from "./score-configs";
 /**
  * Types to use across codebase
  */
-export type ValidatedScore = z.infer<typeof ValidatedScoreSchema>;
+export type APIScore = z.infer<typeof APIScore>;
 
 /**
- * Objects
+ * Helpers
  */
 
 const ScoreSource = ["API", "EVAL", "ANNOTATION"] as const;
@@ -64,7 +65,11 @@ const BaseScoreBody = z.object({
   comment: z.string().nullish(),
 });
 
-const ValidatedScoreSchema = z.discriminatedUnion("dataType", [
+/**
+ * Objects
+ */
+
+export const APIScore = z.discriminatedUnion("dataType", [
   ScoreBase.merge(NumericData),
   ScoreBase.merge(CategoricalData),
   ScoreBase.merge(BooleanData),
@@ -154,11 +159,9 @@ export const ScorePropsAgainstConfig = z.union([
  * @param scores
  * @returns list of validated scores
  */
-export const filterAndValidateDbScoreList = (
-  scores: Score[],
-): ValidatedScore[] =>
+export const filterAndValidateDbScoreList = (scores: Score[]): APIScore[] =>
   scores.reduce((acc, ts) => {
-    const result = ValidatedScoreSchema.safeParse(ts);
+    const result = APIScore.safeParse(ts);
     if (result.success) {
       acc.push(result.data);
     } else {
@@ -166,7 +169,7 @@ export const filterAndValidateDbScoreList = (
       Sentry.captureException(result.error);
     }
     return acc;
-  }, [] as ValidatedScore[]);
+  }, [] as APIScore[]);
 
 /**
  * Use this function when pulling a single score from the database before using in the application to ensure type safety.
@@ -175,8 +178,8 @@ export const filterAndValidateDbScoreList = (
  * @returns validated score
  * @throws error if score fails validation
  */
-export const validateDbScore = (score: Score): ValidatedScore =>
-  ValidatedScoreSchema.parse(score);
+export const validateDbScore = (score: Score): APIScore =>
+  APIScore.parse(score);
 
 /**
  * Endpoints
@@ -244,7 +247,7 @@ export const PostScoresBody = z
     }
   });
 
-export const PostScoresResponse = z.void();
+export const PostScoresResponse = z.object({ id: z.string() });
 
 // GET /scores
 export const GetScoresQuery = z.object({
@@ -253,7 +256,8 @@ export const GetScoresQuery = z.object({
   dataType: z.enum(ScoreDataType).nullish(),
   configId: z.string().nullish(),
   name: z.string().nullish(),
-  fromTimestamp: z.coerce.date().nullish(),
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
   source: z.enum(ScoreSource).nullish(),
   value: z.coerce.number().nullish(),
   operator: z.enum(operators).nullish(),
@@ -268,7 +272,7 @@ export const GetScoresQuery = z.object({
 
 // LegacyGetScoreResponseDataV1 is only used for response of GET /scores list endpoint
 const LegacyGetScoreResponseDataV1 = z.intersection(
-  ValidatedScoreSchema,
+  APIScore,
   z.object({
     trace: z.object({
       userId: z.string().nullish(),
@@ -302,7 +306,7 @@ export const GetScoreQuery = z.object({
   scoreId: z.string(),
 });
 
-export const GetScoreResponse = ValidatedScoreSchema;
+export const GetScoreResponse = APIScore;
 
 // DELETE /scores/{scoreId}
 export const DeleteScoreQuery = z.object({

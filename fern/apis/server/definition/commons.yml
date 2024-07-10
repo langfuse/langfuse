@@ -42,11 +42,18 @@ types:
       htmlPath:
         type: string
         docs: Path of trace in Langfuse UI
+      latency:
+        type: double
+        docs: Latency of trace in seconds
       totalCost:
         type: double
         docs: Cost of trace in USD
-      observations: list<ObservationsView>
-      scores: list<Score>
+      observations:
+        type: list<ObservationsView>
+        docs: List of observations
+      scores:
+        type: list<Score>
+        docs: List of scores
   Session:
     properties:
       id: string
@@ -88,6 +95,7 @@ types:
       calculatedOutputCost: optional<double>
       calculatedTotalCost: optional<double>
       latency: optional<double>
+      timeToFirstToken: optional<double>
 
   Usage:
     docs: Standard interface for usage and cost
