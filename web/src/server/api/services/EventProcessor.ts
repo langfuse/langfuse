@@ -437,7 +437,14 @@ export class ObservationProcessor implements EventProcessor {
       userProvidedCosts.outputCost ||
       userProvidedCosts.totalCost
     ) {
-      return userProvidedCosts;
+      return {
+        ...userProvidedCosts,
+        totalCost:
+          userProvidedCosts.totalCost ??
+          (userProvidedCosts.inputCost ?? new Decimal(0)).add(
+            userProvidedCosts.outputCost ?? new Decimal(0),
+          ),
+      };
     }
 
     const finalInputCost =
