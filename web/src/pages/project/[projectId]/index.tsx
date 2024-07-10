@@ -145,8 +145,6 @@ export default function Start() {
       ]
     : [];
 
-  logger.info("hello world");
-
   const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
 
   return (
