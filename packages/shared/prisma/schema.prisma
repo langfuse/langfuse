@@ -301,9 +301,9 @@ model Observation {
     updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at")
 
     // GENERATION ONLY
-    model           String?
-    internalModel   String? @map("internal_model")
-    internalModelId String? @map("internal_model_id")
+    model           String? // user-provided model attribute
+    internalModel   String? @map("internal_model") // matched model.name that is matched at ingestion time, to be deprecated
+    internalModelId String? @map("internal_model_id") // matched model.id that is matched at ingestion time
 
     modelParameters  Json?
     input            Json?

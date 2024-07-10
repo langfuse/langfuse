@@ -14,6 +14,7 @@ export const pruneDatabase = async () => {
   await prisma.scoreConfig.deleteMany();
   await prisma.observation.deleteMany();
   await prisma.trace.deleteMany();
+  await prisma.traceSession.deleteMany();
   await prisma.datasetItem.deleteMany();
   await prisma.dataset.deleteMany();
   await prisma.datasetRuns.deleteMany();
@@ -87,16 +88,11 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
       `API call did not return 200, returned status ${status}, body ${JSON.stringify(resBody)}`,
     );
   }
-  try {
-    if (responseZodSchema instanceof ZodObject) {
-      responseZodSchema.strict().parse(resBody);
-    } else {
-      responseZodSchema.parse(resBody);
-    }
-  } catch (e) {
-    console.error(e);
+  const typeCheckResult = responseZodSchema.safeParse(resBody);
+  if (!typeCheckResult.success) {
+    console.error(typeCheckResult.error);
     throw new Error(
-      `API call (${method} ${url}) did not return valid response, returned status ${status}, body ${JSON.stringify(resBody)}, error ${e}`,
+      `API call (${method} ${url}) did not return valid response, returned status ${status}, body ${JSON.stringify(resBody)}, error ${typeCheckResult.error}`,
     );
   }
   return { body: resBody, status };

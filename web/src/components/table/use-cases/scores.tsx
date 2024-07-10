@@ -9,7 +9,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import {
   type ScoreOptions,
   scoresTableColsWithOptions,
@@ -91,7 +91,7 @@ export default function ScoresTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "scores",

@@ -126,30 +126,119 @@ describe("Token Cost Calculation", () => {
 
   it("should correctly calculate token costs when only some user provided costs are given", async () => {
     const model = {
-      inputPrice: new Decimal(0.01),
-      outputPrice: new Decimal(0.02),
-      totalPrice: new Decimal(0.03),
+      inputPrice: new Decimal(1),
+      outputPrice: new Decimal(1),
     };
 
-    const tokenCounts = {
-      input: 100,
-      output: 200,
-      total: undefined,
-    };
+    const data = [
+      // missing total
+      {
+        userProvidedCosts: {
+          input: 1,
+          output: 2,
+          total: undefined,
+        },
+        expectedCost: {
+          input: 1,
+          output: 2,
+          total: 3,
+        },
+      },
+      // only total
+      {
+        userProvidedCosts: {
+          input: undefined,
+          output: undefined,
+          total: 2,
+        },
+        expectedCost: {
+          input: undefined,
+          output: undefined,
+          total: 2,
+        },
+      },
+      // missing input
+      {
+        userProvidedCosts: {
+          input: undefined,
+          output: 2,
+          total: 2,
+        },
+        expectedCost: {
+          input: undefined,
+          output: 2,
+          total: 2,
+        },
+      },
+      // only input
+      {
+        userProvidedCosts: {
+          input: 1,
+          output: undefined,
+          total: undefined,
+        },
+        expectedCost: {
+          input: 1,
+          output: undefined,
+          total: 1,
+        },
+      },
 
-    const userProvidedCosts = {
-      outputCost: new Decimal(3.0),
-    };
+      // missing output
+      {
+        userProvidedCosts: {
+          input: 1,
+          output: undefined,
+          total: 1,
+        },
+        expectedCost: {
+          input: 1,
+          output: undefined,
+          total: 1,
+        },
+      },
 
-    const costs = ObservationProcessor.calculateTokenCosts(
-      model as any,
-      userProvidedCosts,
-      tokenCounts,
-    );
+      // only output
+      {
+        userProvidedCosts: {
+          input: undefined,
+          output: 2,
+          total: undefined,
+        },
+        expectedCost: {
+          input: undefined,
+          output: 2,
+          total: 2,
+        },
+      },
+    ];
 
-    expect(costs.inputCost).toBe(undefined); // No user provided cost
-    expect(costs.outputCost?.toNumber()).toBe(3.0); // Overridden by user provided cost
-    expect(costs.totalCost).toBe(undefined); // No user provided cost
+    for (const { userProvidedCosts, expectedCost } of data) {
+      const tokenCounts = {
+        input: 0,
+        output: 0,
+        total: 0,
+      };
+
+      const userProvidedCostsDecimal = {
+        inputCost:
+          userProvidedCosts.input && new Decimal(userProvidedCosts.input),
+        outputCost:
+          userProvidedCosts.output && new Decimal(userProvidedCosts.output),
+        totalCost:
+          userProvidedCosts.total && new Decimal(userProvidedCosts.total),
+      };
+
+      const costs = ObservationProcessor.calculateTokenCosts(
+        model as any,
+        userProvidedCostsDecimal as any,
+        tokenCounts,
+      );
+
+      expect(costs.inputCost?.toNumber()).toBe(expectedCost.input);
+      expect(costs.outputCost?.toNumber()).toBe(expectedCost.output);
+      expect(costs.totalCost?.toNumber()).toBe(expectedCost.total);
+    }
   });
 
   it("should return empty costs if no model is provided", async () => {
@@ -911,7 +1000,7 @@ describe("Token Cost Calculation", () => {
     expect(generation?.calculatedOutputCost?.toNumber()).toBe(
       generationUsage2.usage.outputCost,
     );
-    expect(generation?.calculatedTotalCost?.toNumber()).toBe(undefined);
+    expect(generation?.calculatedTotalCost?.toNumber()).toBe(1);
     expect(generation?.promptTokens).toBe(generationUsage1.usage.input);
     expect(generation?.completionTokens).toBe(generationUsage1.usage.output);
     expect(generation?.totalTokens).toBe(generationUsage1.usage.total);

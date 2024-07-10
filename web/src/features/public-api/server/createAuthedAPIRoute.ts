@@ -74,17 +74,10 @@ export const createAuthedAPIRoute = <
     });
 
     if (routeConfig.responseSchema) {
-      try {
-        // If the response schema is an object, we need to call strict() to ensure that the response object doesn't have any extra keys
-        const responseSchema = routeConfig.responseSchema;
-        if (responseSchema instanceof ZodObject) {
-          responseSchema.strict().parse(response);
-        } else {
-          responseSchema.parse(response);
-        }
-      } catch (error: unknown) {
-        console.error("Response validation failed:", error);
-        Sentry.captureException(error);
+      const parsingResult = routeConfig.responseSchema.safeParse(response);
+      if (!parsingResult.success) {
+        console.error("Response validation failed:", parsingResult.error);
+        Sentry.captureException(parsingResult.error);
       }
     }
 
