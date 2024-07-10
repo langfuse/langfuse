@@ -100,6 +100,7 @@ export const TracePreview = ({
               projectId={trace.projectId}
               traceId={trace.id}
               scores={scores}
+              key={"annotation-drawer" + trace.id}
             />
             <NewDatasetItemFromTrace
               traceId={trace.id}
