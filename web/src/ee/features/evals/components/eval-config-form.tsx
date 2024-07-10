@@ -67,10 +67,6 @@ export const EvalConfigForm = (props: {
     (t) => t.id === evalTemplate,
   );
 
-  console.log("currentTemplate", currentTemplate);
-
-  console.log("existingEvalConfig", props.existingEvalConfig);
-
   return (
     <>
       {!props.disabled ? (
@@ -118,20 +114,6 @@ export const InnerEvalConfigForm = (props: {
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
-
-  const map = props.existingEvalConfig?.variableMapping
-    ? z.array(variableMapping).parse(props.existingEvalConfig.variableMapping)
-    : z.array(variableMapping).parse(
-        props.evalTemplate
-          ? props.evalTemplate.vars.map((v) => ({
-              templateVariable: v,
-              langfuseObject: "trace" as const,
-              selectedColumnId: "input",
-            }))
-          : [],
-      );
-
-  console.log("map", map);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
