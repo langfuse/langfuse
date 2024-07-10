@@ -156,7 +156,7 @@ const PostHogIntegrationSettings = ({
       projectId,
       ...values,
     });
-    logger.ino(values);
+    console.log(values);
   }
 
   return (
