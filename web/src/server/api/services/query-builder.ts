@@ -14,6 +14,7 @@ import {
   filterInterface,
 } from "./sqlInterface";
 import { tableDefinitions } from "./tableDefinitions";
+import { logger } from "@/src/utils/logging";
 
 export type InternalDatabaseRow = {
   [key: string]: bigint | number | Decimal | string | Date;
@@ -362,7 +363,7 @@ const outputParser = (output: InternalDatabaseRow[]): DatabaseRow[] => {
       } else if (val === null) {
         newRow[key] = val;
       } else {
-        console.log(`Unknown type ${typeof val} for ${val}`);
+        logger.error(`Unknown type ${typeof val} for ${val}`);
         throw new Error(`Unknown type ${typeof val}`);
       }
     }

@@ -5,6 +5,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { logger } from "@/src/utils/logging";
 import {
   BatchExportStatus,
   type EventBodyType,
@@ -26,7 +27,7 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         const { projectId, query, format, name } = input;
-        console.log(
+        logger.info(
           "[TRPC] Creating export job",
           JSON.stringify(input, null, 2),
         );

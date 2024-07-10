@@ -4,6 +4,7 @@ import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import * as Sentry from "@sentry/node";
+import { logger } from "@/src/utils/logging";
 
 export type AuthHeaderVerificationResult =
   | AuthHeaderValidVerificationResult
@@ -46,7 +47,7 @@ export async function verifyAuthHeaderAndReturnScope(
         const isValid = await verifySecretKey(secretKey, dbKey.hashedSecretKey);
 
         if (!isValid) {
-          console.log("Old key is invalid", publicKey);
+          logger.warn("Old key is invalid", publicKey);
           throw new Error("Invalid credentials");
         }
 
@@ -62,7 +63,7 @@ export async function verifyAuthHeaderAndReturnScope(
       }
 
       if (!projectId) {
-        console.log("No project id found for key", publicKey);
+        logger.warn("No project id found for key", publicKey);
         throw new Error("Invalid credentials");
       }
 
@@ -132,7 +133,7 @@ async function findDbKeyOrThrow(publicKey: string) {
     where: { publicKey },
   });
   if (!dbKey) {
-    console.log("No api key found for public key:", publicKey);
+    logger.warn("No api key found for public key:", publicKey);
     throw new Error("Invalid public key");
   }
   return dbKey;

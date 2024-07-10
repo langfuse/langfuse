@@ -19,6 +19,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
+import { logger } from "@/src/utils/logging";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -188,7 +189,7 @@ export const promptRouter = createTRPCRouter({
 
         return prompt;
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -284,7 +285,7 @@ export const promptRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -360,7 +361,7 @@ export const promptRouter = createTRPCRouter({
 
         await ctx.prisma.$transaction(transaction);
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -441,7 +442,7 @@ export const promptRouter = createTRPCRouter({
         });
         await ctx.prisma.$transaction(toBeExecuted);
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),

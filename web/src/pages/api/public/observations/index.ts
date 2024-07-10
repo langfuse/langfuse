@@ -109,8 +109,6 @@ export default withMiddlewares({
       }
       const totalItems = Number(countRes[0].count);
 
-      console.log(observations);
-
       return {
         data: observations.map(transformDbToApiObservation),
         meta: {

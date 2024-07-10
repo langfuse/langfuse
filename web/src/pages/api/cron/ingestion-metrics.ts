@@ -1,5 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
+import { logger } from "@/src/utils/logging";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -59,7 +60,7 @@ export default async function handler(
 
     await posthog.shutdownAsync();
 
-    console.log(
+    logger.info(
       "Updated ingestion_metrics in PostHog from startTimeframe:",
       startTimeframe?.toISOString(),
       "to endTimeframe:",

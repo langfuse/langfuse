@@ -13,6 +13,7 @@ import {
   variableMapping,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import { logger } from "@/src/utils/logging";
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
@@ -271,7 +272,7 @@ export const evalRouter = createTRPCRouter({
         });
 
         if (!evalTemplate) {
-          console.log(
+          logger.warn(
             `Template not found for project ${input.projectId} and id ${input.evalTemplateId}`,
           );
           throw new Error("Template not found");
@@ -298,7 +299,7 @@ export const evalRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),

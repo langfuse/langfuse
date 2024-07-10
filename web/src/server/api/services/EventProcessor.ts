@@ -39,6 +39,7 @@ import {
   validateDbScoreConfigSafe,
   type ValidatedScoreConfig,
 } from "@/src/features/public-api/types/score-configs";
+import { logger } from "@/src/utils/logging";
 
 export interface EventProcessor {
   process(
@@ -524,7 +525,7 @@ export class TraceProcessor implements EventProcessor {
 
     const internalId = body.id ?? v4();
 
-    console.log(
+    logger.info(
       "Trying to create trace, project ",
       apiScope.projectId,
       ", id:",
@@ -819,7 +820,7 @@ export class SdkLogProcessor implements EventProcessor {
 
   process(apiScope: ApiAccessScope) {
     try {
-      console.log("SDK Log", this.event);
+      logger.info("SDK Log", this.event);
       return undefined;
     } catch (error) {
       return undefined;

@@ -17,6 +17,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
+import { logger } from "@/src/utils/logging";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@tremor/react";
@@ -155,7 +156,7 @@ const PostHogIntegrationSettings = ({
       projectId,
       ...values,
     });
-    console.log(values);
+    logger.ino(values);
   }
 
   return (
