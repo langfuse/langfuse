@@ -207,7 +207,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                         );
                         form.clearErrors();
                         if (isNumericDataType(value as ScoreDataType)) {
-                          remove();
+                          form.setValue("categories", undefined);
                         } else {
                           form.setValue("minValue", undefined);
                           form.setValue("maxValue", undefined);

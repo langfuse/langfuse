@@ -148,7 +148,11 @@ export const ObservationPreview = (props: {
                     .filter(Boolean)
                     .map(([key, value]) => (
                       <Badge variant="outline" key={key}>
-                        {key}: {value?.toString()}
+                        {key}:{" "}
+                        {Object.prototype.toString.call(value) ===
+                        "[object Object]"
+                          ? JSON.stringify(value)
+                          : value?.toString()}
                       </Badge>
                     ))
                 : null}
