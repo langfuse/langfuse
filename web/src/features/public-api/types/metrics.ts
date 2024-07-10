@@ -18,24 +18,31 @@ export const GetMetricsDailyV1Query = z.object({
   fromTimestamp: stringDateTime,
   toTimestamp: stringDateTime,
 });
-export const GetMetricsDailyV1Response = z.object({
-  data: z.array(
-    z.object({
-      date: z.string().date(),
-      countTraces: z.number(),
-      totalCost: z.number(),
-      usage: z.array(
-        z.object({
-          model: z.string().nullable(),
-          inputUsage: z.number(),
-          outputUsage: z.number(),
-          totalUsage: z.number(),
-          countObservations: z.number(),
+export const GetMetricsDailyV1Response = z
+  .object({
+    data: z.array(
+      z
+        .object({
+          date: z.string().date(),
           countTraces: z.number(),
+          countObservations: z.number(),
           totalCost: z.number(),
-        }),
-      ),
-    }),
-  ),
-  meta: paginationMetaResponseZod,
-});
+          usage: z.array(
+            z
+              .object({
+                model: z.string().nullable(),
+                inputUsage: z.number(),
+                outputUsage: z.number(),
+                totalUsage: z.number(),
+                countObservations: z.number(),
+                countTraces: z.number(),
+                totalCost: z.number(),
+              })
+              .strict(),
+          ),
+        })
+        .strict(),
+    ),
+    meta: paginationMetaResponseZod,
+  })
+  .strict();

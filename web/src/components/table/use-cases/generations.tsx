@@ -43,7 +43,7 @@ import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAl
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 
 export type GenerationsTableRow = {
   id: string;
@@ -112,7 +112,7 @@ export default function GenerationsTable({
         column: "Start Time",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "generations",

@@ -33,9 +33,7 @@ describe("/api/public/traces API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-      undefined,
-      false,
-    );
+       );
 
     const trace = await makeZodVerifiedAPICall(
       GetTraceV1Response,
@@ -66,9 +64,7 @@ describe("/api/public/traces API Endpoint", () => {
         version: "2.0.0",
         public: true,
       },
-      undefined,
-      false,
-    );
+       );
 
     const dbTrace1 = await prisma.trace.findFirst({
       where: {
@@ -98,9 +94,7 @@ describe("/api/public/traces API Endpoint", () => {
         version: "5.0.0",
         public: false,
       },
-      undefined,
-      false,
-    );
+       );
 
     const dbTrace2 = await prisma.trace.findFirst({
       where: {
@@ -131,9 +125,7 @@ describe("/api/public/traces API Endpoint", () => {
         id: "trace-1",
         tags: ["tag-1", "tag-2", "tag-3"],
       },
-      undefined,
-      false,
-    );
+       );
 
     await makeZodVerifiedAPICall(
       PostTracesV1Response,
@@ -143,9 +135,7 @@ describe("/api/public/traces API Endpoint", () => {
         id: "trace-2",
         tags: ["tag-1"],
       },
-      undefined,
-      false,
-    );
+       );
 
     await makeZodVerifiedAPICall(
       PostTracesV1Response,
@@ -155,9 +145,7 @@ describe("/api/public/traces API Endpoint", () => {
         id: "trace-3",
         tags: ["tag-2", "tag-3"],
       },
-      undefined,
-      false,
-    );
+       );
 
     // multiple tags
     const traces = await makeZodVerifiedAPICall(
@@ -218,9 +206,7 @@ describe("/api/public/traces API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-      undefined,
-      false,
-    );
+       );
     console.log(traceId);
 
     // Simulate observations with costs and latencies
@@ -237,9 +223,7 @@ describe("/api/public/traces API Endpoint", () => {
         startTime: "2021-01-01T00:00:00.000Z",
         endTime: "2021-01-01T00:10:00.000Z",
       },
-      undefined,
-      false,
-    );
+       );
     await makeZodVerifiedAPICall(
       PostGenerationsV1Response,
       "POST",
@@ -250,9 +234,7 @@ describe("/api/public/traces API Endpoint", () => {
         startTime: "2021-01-01T00:10:00.000Z",
         endTime: "2021-01-01T00:20:00.000Z",
       },
-      undefined,
-      false,
-    );
+       );
 
     // Simulate scores on the trace
     const scoreId1 = uuidv4();
@@ -267,9 +249,7 @@ describe("/api/public/traces API Endpoint", () => {
         traceId: traceId,
         comment: "First score",
       },
-      undefined,
-      false,
-    );
+       );
     const scoreId2 = uuidv4();
     await makeZodVerifiedAPICall(
       PostScoresResponse,
@@ -282,9 +262,7 @@ describe("/api/public/traces API Endpoint", () => {
         traceId: traceId,
         comment: "Second score",
       },
-      undefined,
-      false,
-    );
+       );
     const scoreId3 = uuidv4();
     await makeZodVerifiedAPICall(
       PostScoresResponse,
@@ -297,9 +275,7 @@ describe("/api/public/traces API Endpoint", () => {
         traceId: traceId,
         comment: "Third score",
       },
-      undefined,
-      false,
-    );
+       );
 
     // GET traces
     // Retrieve the trace with totalCost and latency
@@ -358,9 +334,7 @@ describe("/api/public/traces API Endpoint", () => {
         release: "1.0.0",
         version: "1.0.0",
       },
-      undefined,
-      false,
-    );
+       );
 
     await makeZodVerifiedAPICall(
       PostTracesV1Response,
@@ -376,9 +350,7 @@ describe("/api/public/traces API Endpoint", () => {
         release: "1.0.0",
         version: "1.0.0",
       },
-      undefined,
-      false,
-    );
+       );
 
     // Filter by session ID
     const tracesBySessionId = await makeZodVerifiedAPICall(

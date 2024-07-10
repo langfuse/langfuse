@@ -20,7 +20,7 @@ import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 export type SessionTableRow = {
@@ -57,7 +57,7 @@ export default function SessionsTable({
         column: "Created At",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "sessions",
