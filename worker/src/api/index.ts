@@ -10,7 +10,10 @@ import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
 import { redis } from "@langfuse/shared/src/server";
 import emojis from "./emojis";
-import { createRedisEvents, evalQueue } from "@langfuse/shared/src/server";
+import {
+  createRedisEvents,
+  traceUpsertQueue,
+} from "@langfuse/shared/src/server";
 
 const router = express.Router();
 
@@ -72,7 +75,7 @@ router
         // Find set of traces per project. There might be two events for the same trace in one API call.
         // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
         const jobs = createRedisEvents(event.data.payload);
-        await evalQueue?.addBulk(jobs); // add all jobs as bulk
+        await traceUpsertQueue?.addBulk(jobs); // add all jobs as bulk
 
         return res.json({
           status: "success",

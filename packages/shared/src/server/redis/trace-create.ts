@@ -8,7 +8,7 @@ import {
 import { Queue } from "bullmq";
 import { redis } from "./redis";
 
-export const evalQueue = redis
+export const traceUpsertQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
       connection: redis,
     })

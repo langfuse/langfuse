@@ -40,7 +40,10 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { createRedisEvents, evalQueue } from "@langfuse/shared/src/server";
+import {
+  createRedisEvents,
+  traceUpsertQueue,
+} from "@langfuse/shared/src/server";
 
 export const config = {
   api: {
@@ -519,7 +522,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
   try {
     if (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) {
       const jobs = createRedisEvents(traceEvents);
-      await evalQueue?.addBulk(jobs);
+      await traceUpsertQueue?.addBulk(jobs);
     } else if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
