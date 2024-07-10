@@ -1,5 +1,5 @@
 import { expect, test, describe } from "vitest";
-import { createRedisEvents } from "../api";
+import { createRedisEvents } from "@langfuse/shared/src/server";
 
 describe.sequential("create redis events", () => {
   test("deduplicate events from the same project id", async () => {

@@ -1,5 +1,5 @@
 import { expect, test, describe, vi } from "vitest";
-import { evalQueue } from "../api";
+import { evalQueue } from "@langfuse/shared/src/server";
 import { QueueJobs, TraceUpsertEventSchema } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { z } from "zod";
