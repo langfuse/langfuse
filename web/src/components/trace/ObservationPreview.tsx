@@ -165,6 +165,7 @@ export const ObservationPreview = (props: {
               observationId={preloadedObservation.id}
               scores={props.scores}
               type="observation"
+              key={"annotation-drawer" + preloadedObservation.id}
             />
             {observationWithInputAndOutput.data?.type === "GENERATION" && (
               <JumpToPlaygroundButton
