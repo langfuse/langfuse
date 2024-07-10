@@ -53,7 +53,7 @@ export const OrganizationUsageChart = () => {
             {plan === "Hobby" && (
               <>
                 <Flex className="mt-4">
-                  <Text>{`${numberFormatter(usage.data / planLimit)}%`}</Text>
+                  <Text>{`${numberFormatter((usage.data / planLimit) * 100)}%`}</Text>
                   <Text>Plan limit: {compactNumberFormatter(planLimit)}</Text>
                 </Flex>
                 <MarkerBar

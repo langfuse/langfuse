@@ -2,6 +2,7 @@ import { Queue } from "bullmq";
 import { randomUUID } from "crypto";
 import express from "express";
 import basicAuth from "express-basic-auth";
+import * as Sentry from "@sentry/node";
 
 import {
   EventBodySchema,
@@ -108,6 +109,7 @@ router
       return res.status(400);
     } catch (e) {
       logger.error(e, "Error processing events");
+      Sentry.captureException(e);
       return res.status(500).json({
         status: "error",
       });

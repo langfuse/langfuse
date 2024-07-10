@@ -40,7 +40,7 @@ export const GroupedScoreBadges = ({
         <span key={i} className="group/score ml-1 first:ml-0">
           {isCategoricalDataType(s.dataType) || isBooleanDataType(s.dataType)
             ? s.stringValue
-            : s.value.toFixed(2)}
+            : s.value?.toFixed(2)}
           {s.comment && (
             <HoverCard>
               <HoverCardTrigger className="ml-1 inline-block cursor-pointer">

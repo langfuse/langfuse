@@ -25,14 +25,13 @@ import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
-  type Prisma,
   type ObservationLevel,
   type FilterState,
   type ObservationOptions,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   exportOptions,
   type BatchExportFileFormat,
@@ -44,7 +43,7 @@ import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAl
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 
 export type GenerationsTableRow = {
   id: string;
@@ -58,14 +57,14 @@ export type GenerationsTableRow = {
   timeToFirstToken?: number;
   name?: string;
   model?: string;
-  // i/o not set explicitly, but fetched from the server from the cell
+  // i/o and metadata not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
+  metadata?: unknown;
   inputCost?: Decimal;
   outputCost?: Decimal;
   totalCost?: Decimal;
   traceName?: string;
-  metadata?: Prisma.JsonValue;
   scores?: ScoreSimplified[];
   usage: {
     promptTokens: number;
@@ -113,7 +112,7 @@ export default function GenerationsTable({
         column: "Start Time",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useLookBackDays()),
+        value: utcDateOffsetByDays(-useTableLookBackDays()),
       },
     ],
     "generations",
@@ -162,9 +161,12 @@ export default function GenerationsTable({
 
   const totalCount = generations.data?.totalCount ?? 0;
 
+  const startTimeFilter = filterState.find((f) => f.column === "Start Time");
   const filterOptions = api.generations.filterOptions.useQuery(
     {
       projectId,
+      startTimeFilter:
+        startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
     },
     {
       trpc: {
@@ -451,7 +453,7 @@ export default function GenerationsTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.promptTokens}</span>;
+        return <span>{numberFormatter(value.promptTokens, 0)}</span>;
       },
     },
     {
@@ -467,7 +469,7 @@ export default function GenerationsTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.completionTokens}</span>;
+        return <span>{numberFormatter(value.completionTokens, 0)}</span>;
       },
     },
     {
@@ -483,7 +485,7 @@ export default function GenerationsTable({
           completionTokens: number;
           totalTokens: number;
         } = row.getValue("usage");
-        return <span>{value.totalTokens}</span>;
+        return <span>{numberFormatter(value.totalTokens, 0)}</span>;
       },
     },
     {
@@ -516,10 +518,10 @@ export default function GenerationsTable({
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
         return (
-          <GenerationsIOCell
+          <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
-            io="input"
+            col="input"
             singleLine={rowHeight === "s"}
           />
         );
@@ -535,10 +537,10 @@ export default function GenerationsTable({
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
         return (
-          <GenerationsIOCell
+          <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
-            io="output"
+            col="output"
             singleLine={rowHeight === "s"}
           />
         );
@@ -550,12 +552,16 @@ export default function GenerationsTable({
       accessorKey: "metadata",
       header: "Metadata",
       cell: ({ row }) => {
-        const values = row.getValue(
-          "metadata",
-        ) as GenerationsTableRow["metadata"];
-        return !!values ? (
-          <IOTableCell data={values} singleLine={rowHeight === "s"} />
-        ) : null;
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <GenerationsDynamicCell
+            observationId={observationId}
+            traceId={traceId}
+            col="metadata"
+            singleLine={rowHeight === "s"}
+          />
+        );
       },
       enableHiding: true,
       defaultHidden: true,
@@ -614,7 +620,6 @@ export default function GenerationsTable({
           model: generation.model ?? "",
           scores: generation.scores,
           level: generation.level,
-          metadata: generation.metadata,
           statusMessage: generation.statusMessage ?? undefined,
           usage: {
             promptTokens: generation.promptTokens,
@@ -709,15 +714,15 @@ export default function GenerationsTable({
   );
 }
 
-const GenerationsIOCell = ({
+const GenerationsDynamicCell = ({
   traceId,
   observationId,
-  io,
+  col,
   singleLine = false,
 }: {
   traceId: string;
   observationId: string;
-  io: "input" | "output";
+  col: "input" | "output" | "metadata";
   singleLine: boolean;
 }) => {
   const observation = api.observations.byId.useQuery(
@@ -739,9 +744,13 @@ const GenerationsIOCell = ({
     <IOTableCell
       isLoading={observation.isLoading}
       data={
-        io === "output" ? observation.data?.output : observation.data?.input
+        col === "output"
+          ? observation.data?.output
+          : col === "input"
+            ? observation.data?.input
+            : observation.data?.metadata
       }
-      className={cn(io === "output" && "bg-accent-light-green")}
+      className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
     />
   );

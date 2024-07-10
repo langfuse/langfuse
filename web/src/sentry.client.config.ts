@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import * as Sentry from "@sentry/nextjs";
 
 if (process.env.NEXT_PUBLIC_SENTRY_DSN)
@@ -9,7 +10,9 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN)
     // Set tracesSampleRate to 1.0 to capture 100%
     // of transactions for performance monitoring.
     // We recommend adjusting this value in production
-    tracesSampleRate: 0.2,
+    tracesSampleRate: process.env.LANGFUSE_TRACING_SAMPLE_RATE
+      ? Number(process.env.LANGFUSE_TRACING_SAMPLE_RATE)
+      : 0.1,
 
     // Capture Replay for 100% of all sessions,
     // plus for 100% of sessions with an error

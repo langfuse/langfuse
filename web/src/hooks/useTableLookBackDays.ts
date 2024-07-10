@@ -1,7 +1,7 @@
 import { useQueryProjectOrOrganization } from "@/src/features/projects/utils/useProject";
 import { useSession } from "next-auth/react";
 
-export function useLookBackDays() {
+export function useTableLookBackDays() {
   const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
   const lookBackDays =

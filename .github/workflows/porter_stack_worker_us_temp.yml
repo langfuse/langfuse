@@ -1,0 +1,29 @@
+"on":
+  push:
+    branches:
+      - production
+name: Deploy to worker (US temp)
+jobs:
+  porter-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set Github tag
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Setup porter
+        uses: porter-dev/setup-porter@v0.1.0
+      - name: Deploy stack
+        timeout-minutes: 30
+        run: exec porter apply
+        env:
+          PORTER_CLUSTER: "4054"
+          PORTER_DEPLOYMENT_TARGET_ID: cddc0f2a-bb19-401a-9819-29f59f76b101
+          PORTER_HOST: https://dashboard.porter.run
+          PORTER_PR_NUMBER: ${{ github.event.number }}
+          PORTER_PROJECT: "12565"
+          PORTER_REPO_NAME: ${{ github.event.repository.name }}
+          PORTER_STACK_NAME: worker
+          PORTER_TAG: ${{ steps.vars.outputs.sha_short }}
+          PORTER_TOKEN: ${{ secrets.PORTER_STACK_12565_4054 }}

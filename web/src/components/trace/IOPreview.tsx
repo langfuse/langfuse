@@ -123,9 +123,7 @@ export const IOPreview: React.FC<{
 
 const ChatMlMessageSchema = z
   .object({
-    role: z
-      .enum(["system", "user", "assistant", "function", "tool"])
-      .optional(),
+    role: z.string().optional(),
     name: z.string().optional(),
     content: z
       .union([z.record(z.any()), z.string(), z.array(z.any())])
@@ -207,7 +205,7 @@ export const OpenAiMessageView: React.FC<{
                       message.role === "system" && "bg-primary-foreground",
                       message.role === "assistant" &&
                         "bg-accent-light-green dark:border-accent-dark-green",
-                      message.role === "user" && "bg-foreground",
+                      message.role === "user" && "bg-background",
                       !!message.content && "rounded-t-none border-t-0",
                     )}
                   />

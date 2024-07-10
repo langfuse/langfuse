@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.56.1",
+  "version": "2.61.1",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "dotenv -e ../.env -- vitest run --reporter=basic ",
+    "test": "dotenv -e ../.env -- vitest run --reporter=basic --pool=forks",
     "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
@@ -20,11 +20,13 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@langfuse/shared": "workspace:*",
-    "@sentry/node": "^8.9.2",
-    "@sentry/profiling-node": "^8.9.2",
+    "@prisma/instrumentation": "^5.16.2",
+    "@sentry/node": "^8.13.0",
+    "@sentry/profiling-node": "^8.13.0",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
+    "dd-trace": "^5.17.0",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -36,12 +38,12 @@
     "kysely": "^0.27.3",
     "lodash": "^4.17.21",
     "pg": "^8.11.5",
-    "pino": "^8.20.0",
+    "pino": "^9.2.0",
     "pino-http": "^9.0.0",
     "pino-pretty": "^10.3.1",
     "tiktoken": "^1.0.15",
     "uuid": "^9.0.1",
-    "zod": "^3.22.4"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",
