@@ -10,7 +10,7 @@
   "scripts": {
     "test": "dotenv -e ../.env -- vitest run --reporter=basic --pool=forks",
     "coverage": "vitest run --coverage",
-    "start": "dotenv -e ../.env -- node --experimental-loader=newrelic/esm-loader.mjs dist/index.js",
+    "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
@@ -20,8 +20,8 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@langfuse/shared": "workspace:*",
-    "@sentry/node": "^8.16.0",
-    "@sentry/profiling-node": "^8.16.0",
+    "@sentry/node": "^8.13.0",
+    "@sentry/profiling-node": "^8.13.0",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
@@ -35,7 +35,6 @@
     "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",
     "lodash": "^4.17.21",
-    "newrelic": "^11.22.0",
     "pg": "^8.11.5",
     "pino": "^9.2.0",
     "pino-http": "^9.0.0",
