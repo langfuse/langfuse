@@ -332,8 +332,8 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.body.htmlPath).toContain(`/traces/${traceId}`);
     expect(trace.body.htmlPath).toContain(`/project/`); // do not know the projectId
     expect(trace.body.scores).toHaveLength(3);
-    expect(trace.body.scores[0].id).toBe(scoreId1);
-    expect(trace.body.scores[0].name).toBe("score-1");
+    expect(trace.body.scores[0].id).toBe(scoreId3);
+    expect(trace.body.scores[0].name).toBe("score-3");
     expect(trace.body.observations).toHaveLength(2);
     expect(trace.body.observations[0].id).toBe(generationId);
     expect(trace.body.observations[0].name).toBe("Generation1");

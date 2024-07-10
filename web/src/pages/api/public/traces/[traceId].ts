@@ -36,6 +36,7 @@ export default withMiddlewares({
             traceId: traceId,
             projectId: auth.scope.projectId,
           },
+          orderBy: { timestamp: "desc" },
         }),
         prisma.observationView.findMany({
           where: {
