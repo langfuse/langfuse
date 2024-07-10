@@ -67,6 +67,10 @@ export const EvalConfigForm = (props: {
     (t) => t.id === evalTemplate,
   );
 
+  console.log("currentTemplate", currentTemplate);
+
+  console.log("existingEvalConfig", props.existingEvalConfig);
+
   return (
     <>
       {!props.disabled ? (
@@ -115,6 +119,20 @@ export const InnerEvalConfigForm = (props: {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
 
+  const map = props.existingEvalConfig?.variableMapping
+    ? z.array(variableMapping).parse(props.existingEvalConfig.variableMapping)
+    : z.array(variableMapping).parse(
+        props.evalTemplate
+          ? props.evalTemplate.vars.map((v) => ({
+              templateVariable: v,
+              langfuseObject: "trace" as const,
+              selectedColumnId: "input",
+            }))
+          : [],
+      );
+
+  console.log("map", map);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     disabled: props.disabled,
@@ -153,7 +171,7 @@ export const InnerEvalConfigForm = (props: {
   });
 
   useEffect(() => {
-    if (props.evalTemplate) {
+    if (props.evalTemplate && form.getValues("mapping").length === 0) {
       form.setValue(
         "mapping",
         props.evalTemplate.vars.map((v) => ({
@@ -173,6 +191,7 @@ export const InnerEvalConfigForm = (props: {
     control: form.control,
     name: "mapping",
   });
+  console.log("form state", form.watch());
 
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
@@ -237,6 +256,7 @@ export const InnerEvalConfigForm = (props: {
 
   return (
     <Form {...form}>
+      {JSON.stringify(form.watch())}
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
