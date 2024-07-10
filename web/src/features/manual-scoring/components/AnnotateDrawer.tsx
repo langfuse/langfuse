@@ -1,5 +1,5 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import React, { useMemo } from "react";
+import React from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   LockIcon,
@@ -154,7 +154,7 @@ export function AnnotateDrawer({
     projectId,
   });
 
-  const configs = useMemo(() => configsData.data?.configs ?? [], [configsData]);
+  const configs = configsData.data?.configs ?? [];
 
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
