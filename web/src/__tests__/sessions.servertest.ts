@@ -27,8 +27,6 @@ describe("Create and get sessions", () => {
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         sessionId: "session-id",
       },
-      undefined,
-      false,
     );
 
     const dbSession = await prisma.traceSession.findFirst({
@@ -59,8 +57,6 @@ describe("Create and get sessions", () => {
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         sessionId: "session-id",
       },
-      undefined,
-      false,
     );
 
     const response = await makeZodVerifiedAPICall(
