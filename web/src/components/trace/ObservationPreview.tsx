@@ -22,12 +22,12 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
-import { type ValidatedScore } from "@/src/features/public-api/types/scores";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
   projectId: string;
-  scores: ValidatedScore[];
+  scores: APIScore[];
   currentObservationId: string;
   traceId: string;
 }) => {
@@ -60,7 +60,7 @@ export const ObservationPreview = (props: {
     }
     acc.get(score.source)?.push(score);
     return acc;
-  }, new Map<ScoreSource, ValidatedScore[]>());
+  }, new Map<ScoreSource, APIScore[]>());
 
   return (
     <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">
