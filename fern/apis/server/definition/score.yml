@@ -11,7 +11,7 @@ service:
       method: POST
       path: /scores
       request: CreateScoreRequest
-      response: commons.Score
+      response: CreateScoreResponse
     get:
       docs: Get a list of scores
       method: GET
@@ -33,7 +33,10 @@ service:
             docs: Retrieve only scores with this name.
           fromTimestamp:
             type: optional<datetime>
-            docs: Retrieve only scores newer than this datetime (ISO 8601).
+            docs: Optional filter to only include scores created on or after a certain datetime (ISO 8601)
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include scores created before a certain datetime (ISO 8601)
           source:
             type: optional<commons.ScoreSource>
             docs: Retrieve only scores from a specific source.
@@ -124,7 +127,11 @@ types:
           dataType: "BOOLEAN"
           configId: "1234-5678-90ab-cdef"
           traceId: "cdef-1234-5678-90ab"
-
+  CreateScoreResponse:
+    properties:
+      id:
+        type: string
+        docs: The id of the created object in Langfuse
   Scores:
     properties:
       data: list<commons.Score>

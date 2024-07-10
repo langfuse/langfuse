@@ -4,7 +4,7 @@ import { eventTypes, ingestionBatchEvent } from "@langfuse/shared";
 import { v4 } from "uuid";
 import {
   handleBatch,
-  handleSingleIngestionObject,
+  parseSingleTypedIngestionApiResponse,
 } from "@/src/pages/api/public/ingestion";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -21,7 +21,7 @@ export default withMiddlewares({
     name: "Create Score",
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
-    fn: async ({ body, auth, req, res }) => {
+    fn: async ({ body, auth, req }) => {
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
@@ -34,7 +34,12 @@ export default withMiddlewares({
         req,
         auth,
       );
-      handleSingleIngestionObject(result.errors, result.results, res);
+      const response = parseSingleTypedIngestionApiResponse(
+        result.errors,
+        result.results,
+        PostScoresResponse,
+      );
+      return response;
     },
   }),
   GET: createAuthedAPIRoute({
@@ -49,6 +54,7 @@ export default withMiddlewares({
         userId,
         name,
         fromTimestamp,
+        toTimestamp,
         source,
         operator,
         value,
@@ -71,6 +77,9 @@ export default withMiddlewares({
         : Prisma.empty;
       const fromTimestampCondition = fromTimestamp
         ? Prisma.sql`AND s."timestamp" >= ${fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
+      const toTimestampCondition = toTimestamp
+        ? Prisma.sql`AND s."timestamp" < ${toTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
       const sourceCondition = source
         ? Prisma.sql`AND s."source" = ${source}`
@@ -110,6 +119,7 @@ export default withMiddlewares({
           ${nameCondition}
           ${sourceCondition}
           ${fromTimestampCondition}
+          ${toTimestampCondition}
           ${valueCondition}
           ${scoreIdCondition}
           ORDER BY s."timestamp" DESC
@@ -128,6 +138,7 @@ export default withMiddlewares({
           ${nameCondition}
           ${sourceCondition}
           ${fromTimestampCondition}
+          ${toTimestampCondition}
           ${valueCondition}
           ${scoreIdCondition}
         `,
