@@ -54,16 +54,21 @@ export default async function handler(
         }
       }
     } catch (e) {
-      console.log("Database not available in health check", e);
+      console.log("Health check failed: db not available", e);
       return res.status(503).json({
         status: "Database not available",
         version: VERSION.replace("v", ""),
       });
     }
   } catch (e) {
-    return res.status(200).json({
-      status: "OK",
+    console.log("Health check failed: ", e);
+    return res.status(503).json({
+      status: "Health check failed",
       version: VERSION.replace("v", ""),
     });
   }
+  return res.status(200).json({
+    status: "OK",
+    version: VERSION.replace("v", ""),
+  });
 }
