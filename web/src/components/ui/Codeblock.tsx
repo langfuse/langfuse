@@ -66,14 +66,14 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
         <div className="flex items-center py-1">
           <Button
             variant="ghost"
-            size="icon"
+            size="xs"
             className="text-xs hover:bg-border focus-visible:ring-1 focus-visible:ring-offset-0"
             onClick={handleCopy}
           >
             {isCopied ? (
-              <Check className="h-4 w-4" />
+              <Check className="h-3 w-3" />
             ) : (
-              <Copy className="h-4 w-4" />
+              <Copy className="h-3 w-3" />
             )}
             <span className="sr-only">Copy code</span>
           </Button>
