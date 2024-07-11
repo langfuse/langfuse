@@ -1,5 +1,5 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type ZodType, ZodObject, type z } from "zod";
+import { type ZodType, type z } from "zod";
 import * as Sentry from "@sentry/node";
 import {
   verifyAuthHeaderAndReturnScope,
