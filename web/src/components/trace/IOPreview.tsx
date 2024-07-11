@@ -2,7 +2,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { z } from "zod";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Fragment } from "react";
@@ -18,11 +18,15 @@ function MarkdownOrJsonView(props: {
   content?: unknown;
   title?: string;
   className?: string;
-  isMarkdown?: boolean;
 }) {
-  return props.isMarkdown && typeof props.content === "string" ? (
+  const validatedMarkdown = useMemo(
+    () => MarkdownSchema.safeParse(props.content),
+    [props.content],
+  );
+
+  return validatedMarkdown.success ? (
     <MarkdownView
-      markdown={props.content}
+      markdown={validatedMarkdown.data}
       title={props.title}
       className={props.className}
     />
@@ -131,17 +135,12 @@ export const IOPreview: React.FC<{
           ) : (
             <>
               {!(hideIfNull && !input) ? (
-                <MarkdownOrJsonView
-                  title="Input"
-                  content={input}
-                  isMarkdown={inMarkdown.success}
-                />
+                <MarkdownOrJsonView title="Input" content={input} />
               ) : null}
               {!(hideIfNull && !output) ? (
                 <MarkdownOrJsonView
                   title="Output"
                   content={output}
-                  isMarkdown={outMarkdown.success}
                   className="bg-accent-light-green dark:border-accent-dark-green"
                 />
               ) : null}
