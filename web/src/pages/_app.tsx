@@ -176,13 +176,19 @@ if (process.env.NEXT_MANUAL_SIG_HANDLE) {
     setSigtermReceived();
     // await cleanUp();
 
-    // process.exit(0);
+    // wait for 10 seconds
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+
+    process.exit(0);
   });
 
   process.on("SIGINT", async () => {
     console.log("SIGINT received, shutting down");
     setSigtermReceived();
-    // // await cleanUp();
-    // process.exit(0);
+
+    // wait for 10 seconds
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+
+    process.exit(0);
   });
 }

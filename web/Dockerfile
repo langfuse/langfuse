@@ -11,9 +11,6 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 RUN corepack prepare pnpm@8.15.5 --activate
 
-# Set NEXT_MANUAL_SIG_HANDLE for build time
-ENV NEXT_MANUAL_SIG_HANDLE 1
-
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
 
 WORKDIR /app
