@@ -11,6 +11,8 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 RUN corepack prepare pnpm@8.15.5 --activate
 
+# Set NEXT_MANUAL_SIG_HANDLE for build time
+ENV NEXT_MANUAL_SIG_HANDLE=true
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
 
@@ -18,7 +20,6 @@ WORKDIR /app
 
 COPY . .
 RUN turbo prune --scope=web --docker
-
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS builder
 
@@ -68,12 +69,13 @@ ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 # Needed to re-enable validation of environment variables during runtime
 ENV DOCKER_BUILD 0
+# Set NEXT_MANUAL_SIG_HANDLE for runtime
+ENV NEXT_MANUAL_SIG_HANDLE=true
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma
-
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
