@@ -37,7 +37,7 @@ export default function InvitesTable({
 }) {
   const hasViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "members:view",
+    scope: "members:read",
   });
 
   const [paginationState, setPaginationState] = useQueryParams({

@@ -50,7 +50,7 @@ export default function MembersTable({
   const session = useSession();
   const hasViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "members:view",
+    scope: "members:read",
   });
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),

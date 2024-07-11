@@ -13,18 +13,21 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LockIcon } from "lucide-react";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
-export default function RenameProject(props: { projectId: string }) {
+export default function RenameProject(props: {
+  projectId: string;
+  organizationId: string;
+}) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
-  const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "project:update",
+  const hasAccess = useHasOrganizationAccess({
+    organizationId: props.organizationId,
+    scope: "projects:update",
   });
   const { data: getSessionData, update: updateSession } = useSession();
 

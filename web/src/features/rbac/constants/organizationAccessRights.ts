@@ -1,11 +1,13 @@
 import { type OrganizationRole } from "@langfuse/shared";
 
 const scopes = [
+  "projects:view",
   "projects:create",
+  "projects:update",
   "projects:delete",
   "projects:transfer_organization",
   "organizations:update",
-  "members:view",
+  "members:read",
   "members:CUD",
 ] as const;
 
@@ -14,22 +16,26 @@ export type Scope = (typeof scopes)[number];
 
 export const roleAccessRights: Record<OrganizationRole, Scope[]> = {
   OWNER: [
+    "projects:view",
     "projects:create",
+    "projects:update",
     "projects:delete",
     "projects:transfer_organization",
     "organizations:update",
     "members:CUD",
-    "members:view",
+    "members:read",
   ],
   ADMIN: [
+    "projects:view",
     "projects:create",
+    "projects:update",
     "projects:delete",
     "projects:transfer_organization",
     "organizations:update",
     "members:CUD",
-    "members:view",
+    "members:read",
   ],
-  MEMBER: ["members:view"],
-  VIEWER: ["members:view"],
+  MEMBER: ["projects:view", "members:read"],
+  VIEWER: ["projects:view", "members:read"],
   NONE: [],
 };

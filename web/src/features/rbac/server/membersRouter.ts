@@ -26,7 +26,7 @@ export const membersRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "members:view",
+        scope: "members:read",
       });
       const orgMemberships = await ctx.prisma.organizationMembership.findMany({
         where: {
@@ -92,7 +92,7 @@ export const membersRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "members:view",
+        scope: "members:read",
       });
       const invitations = await ctx.prisma.membershipInvitation.findMany({
         where: {

@@ -34,7 +34,10 @@ export default function SettingsPage() {
             content: (
               <div className="flex flex-col gap-10">
                 <HostNameProject />
-                <RenameProject projectId={project.id} />
+                <RenameProject
+                  projectId={project.id}
+                  organizationId={organization.id}
+                />
                 <Instructions />
                 <div>
                   <Header title="Debug Information" level="h3" />

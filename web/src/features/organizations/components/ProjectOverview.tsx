@@ -79,7 +79,7 @@ export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
           const membersViewAccess = hasOrganizationAccess({
             session: session.data,
             organizationId: org.id,
-            scope: "members:view",
+            scope: "members:read",
           });
 
           const isDemoOrg =
