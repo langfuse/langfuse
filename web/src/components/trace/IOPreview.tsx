@@ -18,6 +18,7 @@ function MarkdownOrJsonView(props: {
   content?: unknown;
   title?: string;
   className?: string;
+  customCodeHeaderClassName?: string;
 }) {
   const validatedMarkdown = useMemo(
     () => MarkdownSchema.safeParse(props.content),
@@ -29,6 +30,7 @@ function MarkdownOrJsonView(props: {
       markdown={validatedMarkdown.data}
       title={props.title}
       className={props.className}
+      customCodeHeaderClassName={props.customCodeHeaderClassName}
     />
   ) : (
     <JSONView
@@ -142,6 +144,7 @@ export const IOPreview: React.FC<{
                   title="Output"
                   content={output}
                   className="bg-accent-light-green dark:border-accent-dark-green"
+                  customCodeHeaderClassName="bg-muted-green dark:bg-secondary"
                 />
               ) : null}
             </>
@@ -209,6 +212,10 @@ export const OpenAiMessageView: React.FC<{
                         "bg-accent-light-green dark:border-accent-dark-green",
                       message.role === "user" && "bg-background",
                       !!message.json && "rounded-b-none",
+                    )}
+                    customCodeHeaderClassName={cn(
+                      message.role === "assistant" &&
+                        "bg-muted-green dark:bg-secondary",
                     )}
                   />
                 )}

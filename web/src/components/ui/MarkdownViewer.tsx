@@ -1,5 +1,5 @@
 import { cn } from "@/src/utils/tailwind";
-import { type FC, memo, type ReactNode } from "react";
+import { type FC, memo, type ReactNode, useState } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
 import Image from "next/image";
@@ -7,6 +7,8 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
+import { Button } from "@/src/components/ui/button";
+import { Check, Copy } from "lucide-react";
 
 const MemoizedReactMarkdown: FC<Options> = memo(
   ReactMarkdown,
@@ -19,30 +21,55 @@ const isChecklist = (children: ReactNode) =>
   Array.isArray(children) &&
   children.some((child: any) => child?.props?.className === "task-list-item");
 
-export function MarkdownView(props: {
+export function MarkdownView({
+  markdown,
+  title,
+  className,
+  customCodeHeaderClassName,
+}: {
   markdown: string;
   title?: string;
   className?: string;
+  customCodeHeaderClassName?: string;
 }) {
-  const { theme } = useTheme();
+  const [isCopied, setIsCopied] = useState(false);
+  const { resolvedTheme: theme } = useTheme();
+
+  const handleCopy = () => {
+    setIsCopied(true);
+    void navigator.clipboard.writeText(markdown);
+    setTimeout(() => setIsCopied(false), 1000);
+  };
 
   return (
-    <div className={cn("rounded-md border", props.className)}>
-      {props.title ? (
+    <div className={cn("rounded-md border", className)} key={theme}>
+      {title ? (
         <div
           className={cn(
-            props.title === "assistant" || props.title === "Output"
+            title === "assistant" || title === "Output"
               ? "dark:border-accent-dark-green"
               : "",
-            "border-b px-3 py-1 text-xs font-medium",
+            "flex flex-row items-center justify-between border-b px-3 py-1 text-xs font-medium",
           )}
         >
-          {props.title}
+          {title}
+          <Button
+            title="Copy to clipboard"
+            variant="ghost"
+            size="xs"
+            onClick={handleCopy}
+            className="hover:bg-border"
+          >
+            {isCopied ? (
+              <Check className="h-3 w-3" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+          </Button>
         </div>
       ) : undefined}
-
       <MemoizedReactMarkdown
-        className={cn("space-y-4 break-words p-3 text-sm", props.className)}
+        className={cn("space-y-4 break-words p-3 font-mono text-xs", className)}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p({ children }) {
@@ -60,10 +87,10 @@ export function MarkdownView(props: {
             if (isChecklist(children))
               return <ul className="list-none">{children}</ul>;
 
-            return <ul className="ml-4 list-disc">{children}</ul>;
+            return <ul className="list-inside list-disc">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="ml-4 list-decimal">{children}</ol>;
+            return <ol className="list-inside list-decimal">{children}</ol>;
           },
           li({ children }) {
             return <li className="mb-1">{children}</li>;
@@ -86,6 +113,7 @@ export function MarkdownView(props: {
                 language={match[1] || ""}
                 value={String(children).replace(/\n$/, "")}
                 theme={theme}
+                className={customCodeHeaderClassName}
                 {...props}
               />
             ) : (
@@ -141,7 +169,7 @@ export function MarkdownView(props: {
           },
         }}
       >
-        {props.markdown}
+        {markdown}
       </MemoizedReactMarkdown>
     </div>
   );

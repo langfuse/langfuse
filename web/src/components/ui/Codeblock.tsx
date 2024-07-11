@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { cn } from "@/src/utils/tailwind";
 import { Check, Copy } from "lucide-react";
 import { type FC, memo, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -11,6 +12,7 @@ interface Props {
   language: string;
   value: string;
   theme?: string;
+  className?: string;
 }
 
 interface languageMap {
@@ -44,7 +46,7 @@ export const programmingLanguages: languageMap = {
   // add more file extensions here, make sure the key is same as language prop in CodeBlock.tsx component
 };
 
-const CodeBlock: FC<Props> = memo(({ language, value, theme }) => {
+const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
   const [isCopied, setIsCopied] = useState(false);
   const handleCopy = () => {
     setIsCopied(true);
@@ -54,7 +56,12 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme }) => {
 
   return (
     <div className="codeblock relative my-3 w-full overflow-hidden rounded border font-sans dark:bg-zinc-950">
-      <div className="flex w-full items-center justify-between bg-secondary px-6 pr-2">
+      <div
+        className={cn(
+          "flex w-full items-center justify-between bg-secondary px-6 pr-2",
+          className,
+        )}
+      >
         <span className="text-xs lowercase">{language}</span>
         <div className="flex items-center py-1">
           <Button
