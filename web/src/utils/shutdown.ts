@@ -1,5 +1,3 @@
-import { prisma } from "@langfuse/shared/src/db";
-
 // let sigtermReceived = false;
 
 declare global {
@@ -7,7 +5,7 @@ declare global {
   var sigtermReceived: boolean;
 }
 
-// globalThis.sigtermReceived = sigtermReceived;
+globalThis.sigtermReceived = false;
 
 // export const SIGTERM_RECEIVED = globalThis.sigtermReceived;
 
@@ -18,7 +16,8 @@ export const setSigtermReceived = () => {
   globalThis.sigtermReceived = true;
 };
 
-export const isSigtermReceived = () => globalThis.sigtermReceived;
+export const isSigtermReceived = () =>
+  Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
 
 // export const cleanUp = async () => {
 //   await prisma.$disconnect();
