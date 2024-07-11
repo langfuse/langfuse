@@ -67,7 +67,8 @@ export const IOPreview: React.FC<{
   const outMarkdown = MarkdownSchema.safeParse(output);
 
   // Pretty view available
-  let isPrettyViewAvailable = inChatMlArray.success || inMarkdown.success || outMarkdown.success;
+  let isPrettyViewAvailable =
+    inChatMlArray.success || inMarkdown.success || outMarkdown.success;
 
   // default I/O
   return (

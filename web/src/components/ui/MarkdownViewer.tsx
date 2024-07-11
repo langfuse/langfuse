@@ -1,14 +1,29 @@
 import { MarkdownSchema } from "@/src/components/trace/IOPreview";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { cn } from "@/src/utils/tailwind";
-import { useMemo } from "react";
-import Markdown from "react-markdown";
+import { type FC, memo, useMemo } from "react";
+import ReactMarkdown, { type Options } from "react-markdown";
+import Link from "next/link";
+import Image from "next/image";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import { CodeBlock } from "@/src/components/ui/Codeblock";
+import { useTheme } from "next-themes";
+
+const MemoizedReactMarkdown: FC<Options> = memo(
+  ReactMarkdown,
+  (prevProps, nextProps) =>
+    prevProps.children === nextProps.children &&
+    prevProps.className === nextProps.className,
+);
 
 export function MarkdownView(props: {
   markdown: string;
   title?: string;
   className?: string;
 }) {
+  const { theme } = useTheme();
+
   return (
     <div className={cn("rounded-md border", props.className)}>
       {props.title ? (
@@ -23,9 +38,106 @@ export function MarkdownView(props: {
           {props.title}
         </div>
       ) : undefined}
-      <div className={cn("markdown-container p-3 text-xs")}>
-        <Markdown>{props.markdown}</Markdown>
-      </div>
+
+      <MemoizedReactMarkdown
+        className={cn("break-words p-3 text-sm", props.className)}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        components={{
+          p({ children }) {
+            return <p className="mb-2 last:mb-0">{children}</p>;
+          },
+          a({ children, href }) {
+            if (href)
+              return (
+                <Link href={href} className="underline" target="_blank">
+                  {children}
+                </Link>
+              );
+          },
+          ul({ children }) {
+            return <ul className="ml-4 list-disc">{children}</ul>;
+          },
+          ol({ children }) {
+            return <ol className="ml-4 list-decimal">{children}</ol>;
+          },
+          li({ children }) {
+            return <li className="mb-1">{children}</li>;
+          },
+          h1({ children }) {
+            return <h1 className="text-2xl font-bold">{children}</h1>;
+          },
+          h2({ children }) {
+            return <h2 className="text-xl font-bold">{children}</h2>;
+          },
+          h3({ children }) {
+            return <h3 className="text-lg font-bold">{children}</h3>;
+          },
+          code({ children, className, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+
+            return match ? (
+              <CodeBlock
+                key={Math.random()}
+                language={match[1] || ""}
+                value={String(children).replace(/\n$/, "")}
+                theme={theme}
+                {...props}
+              />
+            ) : (
+              <code className={className} {...props}>
+                {children}
+              </code>
+            );
+          },
+          blockquote({ children }) {
+            return (
+              <blockquote className="border-l-4 pl-4 italic">
+                {children}
+              </blockquote>
+            );
+          },
+          img({ src, alt }) {
+            return (
+              <Image
+                src={src ?? ""}
+                alt={alt ?? ""}
+                className="h-auto max-w-full"
+              />
+            );
+          },
+          hr() {
+            return <hr className="my-4" />;
+          },
+          table({ children }) {
+            return (
+              <div className="overflow-hidden rounded border">
+                <table className="min-w-full divide-y">{children}</table>
+              </div>
+            );
+          },
+          thead({ children }) {
+            return <thead>{children}</thead>;
+          },
+          tbody({ children }) {
+            return <tbody className="divide-y divide-border">{children}</tbody>;
+          },
+          tr({ children }) {
+            return <tr>{children}</tr>;
+          },
+          th({ children }) {
+            return (
+              <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">
+                {children}
+              </th>
+            );
+          },
+          td({ children }) {
+            return <td className="whitespace-nowrap px-4 py-2">{children}</td>;
+          },
+        }}
+      >
+        {props.markdown}
+      </MemoizedReactMarkdown>
     </div>
   );
 }
@@ -35,7 +147,6 @@ export function MarkdownOrJsonView(props: {
   title?: string;
   className?: string;
 }) {
-
   const validatedMarkdown = useMemo(
     () => MarkdownSchema.safeParse(props.text),
     [props.text],
@@ -43,7 +154,7 @@ export function MarkdownOrJsonView(props: {
 
   return validatedMarkdown.success ? (
     <MarkdownView
-      markdown={validatedMarkdown.data} // is always string -> otherwise not isMarkdown
+      markdown={validatedMarkdown.data}
       title={props.title}
       className={props.className}
     />
@@ -57,20 +168,22 @@ export function MarkdownOrJsonView(props: {
 }
 
 export function containsMarkdown(text: string): boolean {
+  const markdownRegex = new RegExp(
+    [
+      "(\\*\\*?|__?)(.*?)\\1", // Matches bold (** or __) and italic (* or _) with proper escaping
+      "`{3}[\\s\\S]*?`{3}", // Matches fenced code blocks with triple backticks
+      "`[\\s\\S]*?`", // Matches inline code with single backticks
+      "(^|\\s)[-+*]\\s", // Matches unordered lists that start with -, +, or *
+      "^\\s*#{1,6}\\s", // Matches headers that start with # to ######
+      "^>\\s+", // Matches blockquotes starting with >
+      "^\\d+\\.\\s", // Matches ordered lists starting with 1. or 2. etc
+      "!\\[.*?\\]\\(.*?\\)", // Matches images ![Alt text](URL)
+      "\\[.*?\\]\\(.*?\\)", // Matches links [Link text](URL)
+    ].join("|"),
+    "gm",
+  ); // Use global and multiline flags
 
-  const markdownRegex = new RegExp([
-    '(\\*\\*?|__?)(.*?)\\1',  // Matches bold (** or __) and italic (* or _) with proper escaping
-    '`{3}[\\s\\S]*?`{3}',     // Matches fenced code blocks with triple backticks
-    '`[\\s\\S]*?`',           // Matches inline code with single backticks
-    '(^|\\s)[-+*]\\s',        // Matches unordered lists that start with -, +, or *
-    '^\\s*#{1,6}\\s',         // Matches headers that start with # to ######
-    '^>\\s+',                 // Matches blockquotes starting with >
-    '^\\d+\\.\\s',            // Matches ordered lists starting with 1. or 2. etc
-    '!\\[.*?\\]\\(.*?\\)',    // Matches images ![Alt text](URL)
-    '\\[.*?\\]\\(.*?\\)'      // Matches links [Link text](URL)
-].join('|'), 'gm');  // Use global and multiline flags
-
-return markdownRegex.test(text);
+  return markdownRegex.test(text);
 }
 
 export function checkForMarkdown(...texts: string[]): boolean {
