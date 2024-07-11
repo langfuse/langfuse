@@ -641,9 +641,6 @@ importers:
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
-      '@prisma/instrumentation':
-        specifier: ^5.16.2
-        version: 5.16.2
       '@sentry/node':
         specifier: ^8.13.0
         version: 8.13.0
@@ -4633,16 +4630,6 @@ packages:
 
   /@prisma/instrumentation@5.16.0:
     resolution: {integrity: sha512-MVzNRW2ikWvVNnMIEgQMcwWxpFD+XF2U2h0Qz7MjutRqJxrhWexWV2aSi2OXRaU8UL5wzWw7pnjdKUzYhWauLg==}
-    dependencies:
-      '@opentelemetry/api': 1.9.0
-      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/sdk-trace-base': 1.25.1(@opentelemetry/api@1.9.0)
-    transitivePeerDependencies:
-      - supports-color
-    dev: false
-
-  /@prisma/instrumentation@5.16.2:
-    resolution: {integrity: sha512-14MwK98rx3BbHOOFAQHgR8MvcOMeSmCT1k/qBRqPCh8Okxyt6EMttwBjY4XJe0LiQcurjLbSuUmHETqVecblFg==}
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.0)
