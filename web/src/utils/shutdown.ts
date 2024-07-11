@@ -15,3 +15,9 @@ export const SIGTERM_RECEIVED = globalThis.sigtermReceived;
 
 if (process.env.NODE_ENV !== "production")
   globalThis.sigtermReceived = sigtermReceived;
+
+export const cleanUp = async () => {
+  await prisma?.$disconnect();
+
+  console.log("Disconnected from Postgres");
+};

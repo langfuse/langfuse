@@ -15,9 +15,13 @@ export default async function handler(
     const failIfNoRecentEvents = req.query.failIfNoRecentEvents === "true";
 
     try {
+      console.log("Health check");
       if (SIGTERM_RECEIVED) {
+        console.log(
+          "Health check failed: SIGTERM / SIGINT received, shutting down",
+        );
         return res.status(500).json({
-          status: "SIGTERM received, shutting down",
+          status: "SIGTERM / SIGINT received, shutting down",
           version: VERSION.replace("v", ""),
         });
       }
