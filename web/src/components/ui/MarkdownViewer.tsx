@@ -1,5 +1,5 @@
 import { cn } from "@/src/utils/tailwind";
-import { type FC, memo } from "react";
+import { type FC, memo, type ReactNode } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
 import Image from "next/image";
@@ -14,6 +14,10 @@ const MemoizedReactMarkdown: FC<Options> = memo(
     prevProps.children === nextProps.children &&
     prevProps.className === nextProps.className,
 );
+
+const isChecklist = (children: ReactNode) =>
+  Array.isArray(children) &&
+  children.some((child: any) => child?.props?.className === "task-list-item");
 
 export function MarkdownView(props: {
   markdown: string;
@@ -38,7 +42,7 @@ export function MarkdownView(props: {
       ) : undefined}
 
       <MemoizedReactMarkdown
-        className={cn("break-words p-3 text-sm", props.className)}
+        className={cn("space-y-4 break-words p-3 text-sm", props.className)}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p({ children }) {
@@ -53,6 +57,9 @@ export function MarkdownView(props: {
               );
           },
           ul({ children }) {
+            if (isChecklist(children))
+              return <ul className="list-none">{children}</ul>;
+
             return <ul className="ml-4 list-disc">{children}</ul>;
           },
           ol({ children }) {
