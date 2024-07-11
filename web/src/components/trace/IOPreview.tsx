@@ -15,20 +15,20 @@ import {
 } from "@/src/components/schemas/ChatMlSchema";
 
 function MarkdownOrJsonView(props: {
-  text?: unknown;
+  content?: unknown;
   title?: string;
   className?: string;
   isMarkdown?: boolean;
 }) {
-  return props.isMarkdown && typeof props.text === "string" ? (
+  return props.isMarkdown && typeof props.content === "string" ? (
     <MarkdownView
-      markdown={props.text}
+      markdown={props.content}
       title={props.title}
       className={props.className}
     />
   ) : (
     <JSONView
-      json={props.text}
+      json={props.content}
       title={props.title}
       className={props.className}
     />
@@ -133,14 +133,14 @@ export const IOPreview: React.FC<{
               {!(hideIfNull && !input) ? (
                 <MarkdownOrJsonView
                   title="Input"
-                  text={input}
+                  content={input}
                   isMarkdown={inMarkdown.success}
                 />
               ) : null}
               {!(hideIfNull && !output) ? (
                 <MarkdownOrJsonView
                   title="Output"
-                  text={output}
+                  content={output}
                   isMarkdown={outMarkdown.success}
                   className="bg-accent-light-green dark:border-accent-dark-green"
                 />
@@ -177,7 +177,7 @@ export const OpenAiMessageView: React.FC<{
   title?: string;
   messages: z.infer<typeof ChatMlArraySchema>;
 }> = ({ title, messages }) => {
-  const COLLAPSE_THRESHOLD = 3; // ignore for markdown rendering
+  const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
   );
@@ -202,7 +202,7 @@ export const OpenAiMessageView: React.FC<{
                 {!!message.content && (
                   <MarkdownOrJsonView
                     title={message.name ?? message.role}
-                    text={message.content}
+                    content={message.content}
                     className={cn(
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",
