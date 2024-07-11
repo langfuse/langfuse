@@ -44,15 +44,6 @@ export const programmingLanguages: languageMap = {
   // add more file extensions here, make sure the key is same as language prop in CodeBlock.tsx component
 };
 
-export const generateRandomString = (length: number, lowercase = false) => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXY3456789"; // excluding similar looking characters like Z, 2, I, 1, O, 0
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return lowercase ? result.toLowerCase() : result;
-};
-
 const CodeBlock: FC<Props> = memo(({ language, value, theme }) => {
   const [isCopied, setIsCopied] = useState(false);
   const handleCopy = () => {
