@@ -165,6 +165,10 @@ function UserTracking() {
   return null;
 }
 
+// https://github.com/vercel/next.js/issues/51404
+// There is no official best way to gracefully shutdown a Next.js app.
+// This here is a workaround to handle SIGTERM and SIGINT signals.
+
 if (process.env.NEXT_MANUAL_SIG_HANDLE) {
   process.on("SIGTERM", async () => {
     /** graceful shutdown **/
