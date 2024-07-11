@@ -12,7 +12,7 @@ RUN corepack enable
 RUN corepack prepare pnpm@8.15.5 --activate
 
 # Set NEXT_MANUAL_SIG_HANDLE for build time
-ENV NEXT_MANUAL_SIG_HANDLE=true
+ENV NEXT_MANUAL_SIG_HANDLE 1
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
 
@@ -70,7 +70,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 # Needed to re-enable validation of environment variables during runtime
 ENV DOCKER_BUILD 0
 # Set NEXT_MANUAL_SIG_HANDLE for runtime
-ENV NEXT_MANUAL_SIG_HANDLE=true
+ENV NEXT_MANUAL_SIG_HANDLE 1
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
