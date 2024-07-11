@@ -19,6 +19,7 @@ function isMarkdownIncluded(text: string): boolean {
 }
 
 export function containsAnyMarkdown(...texts: string[]): boolean {
+  MARKDOWN_REGEX.lastIndex = 0;
   return texts.some((text) => isMarkdownIncluded(text));
 }
 
