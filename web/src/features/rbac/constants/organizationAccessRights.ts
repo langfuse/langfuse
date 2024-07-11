@@ -7,6 +7,7 @@ const scopes = [
   "projects:delete",
   "projects:transfer_organization",
   "organizations:update",
+  "organizations:delete",
   "members:read",
   "members:CUD",
 ] as const;
@@ -22,6 +23,7 @@ export const roleAccessRights: Record<OrganizationRole, Scope[]> = {
     "projects:delete",
     "projects:transfer_organization",
     "organizations:update",
+    "organizations:delete",
     "members:CUD",
     "members:read",
   ],
