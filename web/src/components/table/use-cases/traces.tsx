@@ -37,8 +37,8 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { useLookBackDays } from "@/src/hooks/useLookBackDays";
-import { type ValidatedScore } from "@/src/features/public-api/types/scores";
+import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -56,7 +56,7 @@ export type TracesTableRow = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
-  scores: ValidatedScore[];
+  scores: APIScore[];
   tags: string[];
   usage: {
     promptTokens: number;
@@ -95,7 +95,7 @@ export default function TracesTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useLookBackDays(projectId)),
+        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "traces",
@@ -463,7 +463,7 @@ export default function TracesTable({
       header: "Scores",
       enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
       cell: ({ row }) => {
-        const values: ValidatedScore[] = row.getValue("scores");
+        const values: APIScore[] = row.getValue("scores");
         return <GroupedScoreBadges scores={values} variant="headings" />;
       },
       enableHiding: true,
@@ -594,7 +594,7 @@ export default function TracesTable({
             itemId={traceId}
             projectId={projectId}
             scope="traces:delete"
-            invalidateFunc={() => void utils.traces.invalidate()}
+            invalidateFunc={() => void utils.traces.all.invalidate()}
             type="trace"
             isTableAction={true}
           />

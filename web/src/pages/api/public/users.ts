@@ -1,3 +1,8 @@
+/**
+ * LEGACY API, NOT DOCUMENTED AND WILL BE DEPRECATED
+ * THE /metrics/daily endpoint is to be used instead
+ */
+
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";

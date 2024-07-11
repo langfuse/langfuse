@@ -34,12 +34,12 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { type ValidatedScore } from "@/src/features/public-api/types/scores";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
   trace: Trace;
-  scores: ValidatedScore[];
+  scores: APIScore[];
   projectId: string;
 }) {
   const capture = usePostHogClientCapture();
@@ -261,7 +261,7 @@ export function TracePage({ traceId }: { traceId: string }) {
               itemId={traceId}
               projectId={trace.data.projectId}
               scope="traces:delete"
-              invalidateFunc={() => void utils.traces.invalidate()}
+              invalidateFunc={() => void utils.traces.all.invalidate()}
               type="trace"
               redirectUrl={`/project/${router.query.projectId as string}/traces`}
             />

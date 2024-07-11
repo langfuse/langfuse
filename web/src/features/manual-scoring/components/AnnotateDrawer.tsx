@@ -35,7 +35,7 @@ import {
   CreateAnnotationScoreData,
   UpdateAnnotationScoreData,
 } from "@langfuse/shared";
-import { type ValidatedScore } from "@/src/features/public-api/types/scores";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 import {
   type ValidatedScoreConfig,
   type ConfigCategory,
@@ -137,7 +137,7 @@ export function AnnotateDrawer({
   source = "TraceDetail",
 }: {
   traceId: string;
-  scores: ValidatedScore[];
+  scores: APIScore[];
   observationId?: string;
   projectId: string;
   variant?: "button" | "badge";
@@ -214,7 +214,7 @@ export function AnnotateDrawer({
 
   const utils = api.useUtils();
 
-  const onSettledUpsert = async (data?: ValidatedScore, error?: unknown) => {
+  const onSettledUpsert = async (data?: APIScore, error?: unknown) => {
     if (!data || error) return;
 
     const { id, value, stringValue, name, dataType, configId, comment } = data;

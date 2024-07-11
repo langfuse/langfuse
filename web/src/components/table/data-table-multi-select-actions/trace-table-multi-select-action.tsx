@@ -38,7 +38,7 @@ export function TraceTableMultiSelectAction({
   const mutDeleteTraces = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       onDeleteSuccess();
-      void utils.traces.invalidate();
+      void utils.traces.all.invalidate();
     },
   });
 
