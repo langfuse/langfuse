@@ -174,17 +174,10 @@ if (process.env.NEXT_MANUAL_SIG_HANDLE) {
     /** graceful shutdown **/
     console.log("SIGTERM received, shutting down");
     setSigtermReceived();
-    // await cleanUp();
-
-    // wait for 10 seconds
-    await new Promise((resolve) => setTimeout(resolve, 10000));
   });
 
   process.on("SIGINT", async () => {
     console.log("SIGINT received, shutting down");
     setSigtermReceived();
-
-    // wait for 10 seconds
-    await new Promise((resolve) => setTimeout(resolve, 10000));
   });
 }

@@ -15,7 +15,7 @@ export default async function handler(
     const failIfNoRecentEvents = req.query.failIfNoRecentEvents === "true";
 
     try {
-      console.log("Health check");
+      console.log(`Health check ${isSigtermReceived()}`);
       if (isSigtermReceived()) {
         console.log(
           "Health check failed: SIGTERM / SIGINT received, shutting down",
