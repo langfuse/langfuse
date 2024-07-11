@@ -1,7 +1,7 @@
 import { VERSION } from "@/src/constants";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
-import { SIGTERM_RECEIVED } from "@/src/utils/shutdown";
+import { isSigtermReceived } from "@/src/utils/shutdown";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -16,7 +16,7 @@ export default async function handler(
 
     try {
       console.log("Health check");
-      if (SIGTERM_RECEIVED) {
+      if (isSigtermReceived()) {
         console.log(
           "Health check failed: SIGTERM / SIGINT received, shutting down",
         );

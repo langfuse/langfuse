@@ -31,6 +31,7 @@ import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
+import { cleanUp, setSigtermReceived } from "@/src/utils/shutdown";
 
 const setProjectInPosthog = () => {
   // project
@@ -162,4 +163,22 @@ function UserTracking() {
     }
   }, [session]);
   return null;
+}
+
+if (process.env.NEXT_MANUAL_SIG_HANDLE) {
+  process.on("SIGTERM", async () => {
+    /** graceful shutdown **/
+    console.log("SIGTERM received, shutting down");
+    setSigtermReceived();
+    await cleanUp();
+
+    process.exit(0);
+  });
+
+  process.on("SIGINT", async () => {
+    console.log("SIGINT received, shutting down");
+    setSigtermReceived();
+    await cleanUp();
+    process.exit(0);
+  });
 }
