@@ -1,3 +1,5 @@
+import { prisma } from "@langfuse/shared/src/db";
+
 let sigtermReceived = false;
 
 process.on("SIGTERM", () => {
@@ -17,7 +19,7 @@ if (process.env.NODE_ENV !== "production")
   globalThis.sigtermReceived = sigtermReceived;
 
 export const cleanUp = async () => {
-  await prisma?.$disconnect();
+  await prisma.$disconnect();
 
   console.log("Disconnected from Postgres");
 };

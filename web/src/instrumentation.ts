@@ -10,6 +10,7 @@ export async function register() {
       process.on("SIGTERM", async () => {
         /** graceful shutdown **/
         console.log("SIGTERM received, shutting down");
+        sigtermReceived = true;
 
         await cleanUp();
 
@@ -18,6 +19,7 @@ export async function register() {
 
       process.on("SIGINT", async () => {
         console.log("SIGINT received, shutting down");
+        sigtermReceived = true;
         await cleanUp();
         process.exit(0);
       });
