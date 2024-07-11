@@ -1,6 +1,7 @@
 import { VERSION } from "@/src/constants";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
+import { SIGTERM_RECEIVED } from "@/src/utils/shutdown";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -14,6 +15,12 @@ export default async function handler(
     const failIfNoRecentEvents = req.query.failIfNoRecentEvents === "true";
 
     try {
+      if (SIGTERM_RECEIVED) {
+        return res.status(500).json({
+          status: "SIGTERM received, shutting down",
+          version: VERSION.replace("v", ""),
+        });
+      }
       await prisma.$queryRaw`SELECT 1;`;
 
       if (failIfNoRecentEvents) {
