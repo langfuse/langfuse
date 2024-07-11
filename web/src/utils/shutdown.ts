@@ -1,22 +1,18 @@
 import { prisma } from "@langfuse/shared/src/db";
 
-let sigtermReceived = false;
-
-process.on("SIGTERM", () => {
-  sigtermReceived = true;
-});
+// let sigtermReceived = false;
 
 declare global {
   // eslint-disable-next-line no-var
   var sigtermReceived: boolean;
 }
 
-globalThis.sigtermReceived = sigtermReceived;
+// globalThis.sigtermReceived = sigtermReceived;
 
-export const SIGTERM_RECEIVED = globalThis.sigtermReceived;
+// export const SIGTERM_RECEIVED = globalThis.sigtermReceived;
 
-if (process.env.NODE_ENV !== "production")
-  globalThis.sigtermReceived = sigtermReceived;
+// if (process.env.NODE_ENV !== "production")
+//   globalThis.sigtermReceived = sigtermReceived;
 
 export const setSigtermReceived = () => {
   globalThis.sigtermReceived = true;
@@ -24,11 +20,11 @@ export const setSigtermReceived = () => {
 
 export const isSigtermReceived = () => globalThis.sigtermReceived;
 
-export const cleanUp = async () => {
-  await prisma.$disconnect();
+// export const cleanUp = async () => {
+//   await prisma.$disconnect();
 
-  // wait for 5 seconds
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+//   // wait for 5 seconds
+//   await new Promise((resolve) => setTimeout(resolve, 5000));
 
-  console.log("Disconnected from Postgres");
-};
+//   console.log("Disconnected from Postgres");
+// };
