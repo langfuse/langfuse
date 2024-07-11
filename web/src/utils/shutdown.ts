@@ -1,11 +1,4 @@
-// let sigtermReceived = false;
-
-declare global {
-  // eslint-disable-next-line no-var
-  var sigtermReceived: boolean;
-}
-
-globalThis.sigtermReceived = false;
+let sigtermReceived = false;
 
 // export const SIGTERM_RECEIVED = globalThis.sigtermReceived;
 
@@ -13,11 +6,11 @@ globalThis.sigtermReceived = false;
 //   globalThis.sigtermReceived = sigtermReceived;
 
 export const setSigtermReceived = () => {
-  globalThis.sigtermReceived = true;
+  sigtermReceived = true;
 };
 
 export const isSigtermReceived = () =>
-  Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
+  Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && sigtermReceived;
 
 // export const cleanUp = async () => {
 //   await prisma.$disconnect();
