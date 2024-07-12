@@ -172,12 +172,18 @@ function UserTracking() {
 // We wait for 30 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
 if (process.env.NEXT_MANUAL_SIG_HANDLE) {
   process.on("SIGTERM", async () => {
-    console.log("SIGTERM received, shutting down");
-    setSigtermReceived();
+    await shutdown();
   });
 
   process.on("SIGINT", async () => {
-    console.log("SIGINT received, shutting down");
-    setSigtermReceived();
+    await shutdown();
   });
 }
+
+const shutdown = async () => {
+  console.log("SIGTERM / SIGINT received. Shutting down");
+  setSigtermReceived();
+
+  // wait for 30 seconds to allow the app to finish processing requests
+  await new Promise((resolve) => setTimeout(resolve, 30000));
+};
