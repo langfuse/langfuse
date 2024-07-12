@@ -11,6 +11,7 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 RUN corepack prepare pnpm@8.15.5 --activate
 
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
 
 WORKDIR /app
@@ -54,6 +55,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 
 RUN turbo run build --filter=web
 
+
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
 
@@ -67,7 +69,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 # Needed to re-enable validation of environment variables during runtime
 ENV DOCKER_BUILD 0
 # Set NEXT_MANUAL_SIG_HANDLE for runtime
-ENV NEXT_MANUAL_SIG_HANDLE 1
+ENV NEXT_MANUAL_SIG_HANDLE true
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

@@ -1,22 +1,16 @@
-let sigtermReceived = false;
+declare global {
+  // eslint-disable-next-line no-var
+  var sigtermReceived: boolean | undefined;
+}
 
-// export const SIGTERM_RECEIVED = globalThis.sigtermReceived;
-
-// if (process.env.NODE_ENV !== "production")
-//   globalThis.sigtermReceived = sigtermReceived;
+globalThis.sigtermReceived = globalThis.sigtermReceived ?? false;
 
 export const setSigtermReceived = () => {
-  sigtermReceived = true;
+  console.log("Set sigterm received to true");
+  globalThis.sigtermReceived = true;
 };
 
 export const isSigtermReceived = () =>
-  Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && sigtermReceived;
+  Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
 
-// export const cleanUp = async () => {
-//   await prisma.$disconnect();
-
-//   // wait for 5 seconds
-//   await new Promise((resolve) => setTimeout(resolve, 5000));
-
-//   console.log("Disconnected from Postgres");
-// };
+export const a = () => globalThis.sigtermReceived;
