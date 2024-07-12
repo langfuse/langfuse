@@ -18,6 +18,7 @@ import { useRouter } from "next/router";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
+import prexit from "prexit";
 
 // Custom polyfills not yet available in `next-core`:
 // https://github.com/vercel/next.js/issues/58242
@@ -171,11 +172,15 @@ function UserTracking() {
 // NEVER call process.exit() in this process. Kubernetes should kill the container: https://kostasbariotis.com/why-you-should-not-use-process-exit/
 // We wait for 30 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
 if (process.env.NEXT_MANUAL_SIG_HANDLE) {
-  process.on("SIGTERM", async () => {
-    await shutdown();
-  });
+  // process.on("SIGTERM", async () => {
+  //   await shutdown();
+  // });
 
-  process.on("SIGINT", async () => {
+  // process.on("SIGINT", async () => {
+  //   await shutdown();
+  // });
+  prexit(async (signal) => {
+    console.log("Signal: ", signal);
     await shutdown();
   });
 }
