@@ -181,14 +181,11 @@ if (process.env.NEXT_MANUAL_SIG_HANDLE) {
   // });
   prexit(async (signal) => {
     console.log("Signal: ", signal);
-    await shutdown();
+    shutdown();
   });
 }
 
-const shutdown = async () => {
+const shutdown = () => {
   console.log("SIGTERM / SIGINT received. Shutting down");
   setSigtermReceived();
-
-  // wait for 30 seconds to allow the app to finish processing requests
-  await new Promise((resolve) => setTimeout(resolve, 30000));
 };
