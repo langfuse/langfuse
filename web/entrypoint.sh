@@ -1,5 +1,12 @@
 #!/bin/sh
 
+# Function to handle SIGTERM
+handle_sigterm() {
+    echo "SIGTERM received, waiting for 5 seconds before shutting down..."
+    sleep 30 # Delay in seconds
+    kill -15 "$PID" # Send SIGKILL to the Node.js process
+}
+
 # Run cleanup script before running migrations
 # Check if DATABASE_URL is not set
 if [ -z "$DATABASE_URL" ]; then
@@ -35,5 +42,14 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-# Start server
-node web/server.js
+# Start the Node.js application
+node web/server.js &
+
+# Save the PID of the Node.js process
+PID=$!
+
+# Trap SIGTERM signals
+trap 'handle_sigterm' SIGTERM
+
+# Wait for the Node.js process to exit
+wait $PID
