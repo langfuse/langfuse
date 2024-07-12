@@ -31,6 +31,7 @@ COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 
 ENV DOCKER_BUILD 1
+ENV NEXT_MANUAL_SIG_HANDLE true
 
 # pass public variables in build step
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
