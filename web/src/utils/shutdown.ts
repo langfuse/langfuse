@@ -10,7 +10,12 @@ export const setSigtermReceived = () => {
   globalThis.sigtermReceived = true;
 };
 
-export const isSigtermReceived = () =>
-  Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
+export const isSigtermReceived = () => {
+  const returnValue =
+    Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
+
+  console.log("isSigtermReceived", returnValue);
+  return returnValue;
+};
 
 export const a = () => globalThis.sigtermReceived;

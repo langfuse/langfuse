@@ -3,10 +3,14 @@
 
 # Function to handle SIGTERM
 handle_sigterm() {
-    echo "SIGTERM received, shutting down Node.js process immediately..."
+    echo "handle_sigterm:init: Logging all processes running in the container..."
+    ps aux
+    echo "SIGTERM received, sending SIGTERM to Node.js process..."
     kill -15 "$PID" # Send SIGTERM to the Node.js process
     echo "Waiting for 30 seconds before completing shutdown..."
     sleep 30 # Delay in seconds
+    echo "handle_sigterm:exit: Logging all processes running in the container..."
+    ps aux
 }
 
 # Run cleanup script before running migrations
