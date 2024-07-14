@@ -1,5 +1,6 @@
 #!/bin/sh
 
+
 # Function to handle SIGTERM
 handle_sigterm() {
     echo "SIGTERM received, shutting down Node.js process immediately..."
