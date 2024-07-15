@@ -16,7 +16,7 @@ export default async function handler(
 
     try {
       console.log(
-        `Health check ${isSigtermReceived()}, ${a()}, ${Boolean(process.env.NEXT_MANUAL_SIG_HANDLE)}`,
+        `Health check ${isSigtermReceived()}, ${Boolean(process.env.SHUTDOWN_NOW)}`,
       );
 
       if (isSigtermReceived()) {

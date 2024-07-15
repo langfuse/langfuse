@@ -31,7 +31,6 @@ COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 
 ENV DOCKER_BUILD 1
-ENV NEXT_MANUAL_SIG_HANDLE true
 
 # pass public variables in build step
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
@@ -69,8 +68,7 @@ ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 # Needed to re-enable validation of environment variables during runtime
 ENV DOCKER_BUILD 0
-# Set NEXT_MANUAL_SIG_HANDLE for runtime
-ENV NEXT_MANUAL_SIG_HANDLE true
+ENV SHUTDOWN_NOW false
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -98,4 +96,4 @@ USER nextjs
 ENV PORT 3000
 
 # CMD ["node", "server.js"]
-CMD ["dumb-init", "--", "./web/entrypoint.sh"]
+CMD ["dumb-init","--single-child", "--", "./web/entrypoint.sh"]

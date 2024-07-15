@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - web-container-shutdown
+      - web-container-shutdown-env
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
