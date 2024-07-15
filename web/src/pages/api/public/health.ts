@@ -19,7 +19,7 @@ export default async function handler(
         `Health check ${isSigtermReceived()}, ${Boolean(process.env.SHUTDOWN_NOW)}`,
       );
 
-      if (isSigtermReceived()) {
+      if (isSigtermReceived() || process.env.SHUTDOWN_NOW === "true") {
         console.log(
           "Health check failed: SIGTERM / SIGINT received, shutting down",
         );
