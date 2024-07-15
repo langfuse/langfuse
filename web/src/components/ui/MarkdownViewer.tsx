@@ -89,10 +89,12 @@ export function MarkdownView({
             if (isChecklist(children))
               return <ul className="list-none">{children}</ul>;
 
-            return <ul className="list-inside list-disc">{children}</ul>;
+            return <ul className="list-inside list-disc pl-2">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="list-inside list-decimal">{children}</ol>;
+            return (
+              <ol className="list-inside list-decimal pl-2">{children}</ol>
+            );
           },
           li({ children }) {
             return <li className="mb-1">{children}</li>;
