@@ -106,6 +106,15 @@ export function MarkdownView({
           h3({ children }) {
             return <h3 className="text-lg font-bold">{children}</h3>;
           },
+          h4({ children }) {
+            return <h4 className="text-base font-bold">{children}</h4>;
+          },
+          h5({ children }) {
+            return <h5 className="text-sm font-bold">{children}</h5>;
+          },
+          h6({ children }) {
+            return <h6 className="text-xs font-bold">{children}</h6>;
+          },
           code({ children, className }) {
             const match = /language-(\w+)/.exec(className || "");
 
