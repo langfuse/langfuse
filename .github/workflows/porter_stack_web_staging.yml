@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - web-container-shutdown
+      - web-container-shutdown-again
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
