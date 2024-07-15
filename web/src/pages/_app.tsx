@@ -181,11 +181,19 @@ if (process.env.NEXT_MANUAL_SIG_HANDLE) {
   // });
   prexit(async (signal) => {
     console.log("Signal: ", signal);
-    shutdown();
+    return await shutdown();
   });
 }
 
-const shutdown = () => {
+const shutdown = async () => {
   console.log("SIGTERM / SIGINT received. Shutting down");
   setSigtermReceived();
+
+  // wait for 15 seconds
+  return await new Promise<void>((resolve) => {
+    setTimeout(() => {
+      console.log("Shutdown complete");
+      resolve();
+    }, 15000);
+  });
 };

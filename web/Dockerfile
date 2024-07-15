@@ -60,6 +60,10 @@ RUN turbo run build --filter=web
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
 
+ENV TINI_VERSION v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
+
 RUN apk add --no-cache dumb-init
 
 WORKDIR /app
@@ -98,4 +102,4 @@ USER nextjs
 ENV PORT 3000
 
 # CMD ["node", "server.js"]
-CMD ["dumb-init", "--", "./web/entrypoint.sh"]
+CMD ["/tini", "--", "./web/entrypoint.sh"]
