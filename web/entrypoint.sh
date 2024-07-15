@@ -2,20 +2,13 @@
 
 
 # Function to handle SIGTERM
-handle_sigterm() {
-    echo "handle_sigterm:init: Logging all processes running in the container..."
-    ps aux
-    echo "SIGTERM received, sending SIGTERM to Node.js process..."
-    export SIGTERM_RECEIVED=true # Set environment variable
-    echo "Waiting for 15 seconds before completing shutdown..."
-    sleep 15 # Delay in seconds
-    
-    echo "Killing Node.js process..."
-    kill -15 "$PID" # Send SIGTERM to the Node.js process
-    
-    
-    echo "handle_sigterm:exit: Logging all processes running in the container..."
-    ps aux
+GRACE_PERIOD="${ENTRYPOINT_GRACE_PERIOD:-30}"
+
+_term() { 
+  echo "Caught SIGTERM signal on entrypoint. Sleeping ${GRACE_PERIOD}s"
+  sleep $GRACE_PERIOD
+  kill -TERM "$PID" 2>/dev/null
+  echo "Bye"
 }
 
 # Run cleanup script before running migrations
@@ -53,14 +46,12 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
+trap _term SIGTERM
+
 # Start the Node.js application
 node web/server.js &
 
 # Save the PID of the Node.js process
 PID=$!
 
-# Trap SIGTERM signals
-trap 'handle_sigterm' SIGTERM
-
-# Wait for the Node.js process to exit
 wait $PID
