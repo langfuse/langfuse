@@ -2,7 +2,7 @@ import { cn } from "@/src/utils/tailwind";
 import { type FC, memo, type ReactNode, useState } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
-import Image from "next/image";
+import DOMPurify from "dompurify";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
@@ -34,6 +34,8 @@ export function MarkdownView({
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const { resolvedTheme: theme } = useTheme();
+
+  const sanitizedMarkdown = DOMPurify.sanitize(markdown);
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -104,7 +106,7 @@ export function MarkdownView({
           h3({ children }) {
             return <h3 className="text-lg font-bold">{children}</h3>;
           },
-          code({ children, className, ...props }) {
+          code({ children, className }) {
             const match = /language-(\w+)/.exec(className || "");
 
             return match ? (
@@ -114,12 +116,9 @@ export function MarkdownView({
                 value={String(children).replace(/\n$/, "")}
                 theme={theme}
                 className={customCodeHeaderClassName}
-                {...props}
               />
             ) : (
-              <code className={className} {...props}>
-                {children}
-              </code>
+              <code>{children}</code>
             );
           },
           blockquote({ children }) {
@@ -129,13 +128,11 @@ export function MarkdownView({
               </blockquote>
             );
           },
-          img({ src, alt }) {
+          img({ src }) {
             return (
-              <Image
-                src={src ?? ""}
-                alt={alt ?? ""}
-                className="h-auto max-w-full"
-              />
+              <Link href={src ?? ""} className="underline" target="_blank">
+                {src ?? ""}
+              </Link>
             );
           },
           hr() {
@@ -169,7 +166,7 @@ export function MarkdownView({
           },
         }}
       >
-        {markdown}
+        {sanitizedMarkdown}
       </MemoizedReactMarkdown>
     </div>
   );
