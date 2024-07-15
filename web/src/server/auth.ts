@@ -342,7 +342,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       );
                       return {
                         id: orgMembership.organization.id,
-                        name: orgMembership.organization.name,
                         role: orgMembership.role,
                         cloudConfig: parsedCloudConfig.success
                           ? parsedCloudConfig.data
@@ -356,7 +355,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                               )?.role ?? orgMembership.role;
                             return {
                               id: project.id,
-                              name: project.name,
                               role: projectRole,
                             };
                           })

@@ -26,7 +26,7 @@ import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useQueryProject } from "@/src/features/projects/utils/useProject";
+import { useQueryProjectAndOrganization } from "@/src/features/projects/utils/useProject";
 import { useSession } from "next-auth/react";
 import {
   Select,
@@ -42,14 +42,14 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 export function TransferProjectButton() {
   const capture = usePostHogClientCapture();
   const session = useSession();
-  //code for dynamic confirmation message
-  const { project, organization } = useQueryProject();
+  const { project, organization } = useQueryProjectAndOrganization();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "projects:transfer_organization",
   });
+  const allOrgs = api.organizations.all.useQuery();
   const organizationsToTransferTo =
-    session.data?.user?.organizations.filter((org) =>
+    allOrgs.data?.filter((org) =>
       hasOrganizationAccess({
         session: session.data,
         organizationId: org.id,

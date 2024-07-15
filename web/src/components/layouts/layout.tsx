@@ -28,8 +28,7 @@ import {
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import DOMPurify from "dompurify";
-import { useQueryProject } from "@/src/features/projects/utils/useProject";
-import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
+import { useQueryProjectAndOrganization } from "@/src/features/projects/utils/useProject";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { EnvLabel } from "@/src/components/EnvLabel";
 import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
@@ -82,17 +81,20 @@ export default function Layout(props: PropsWithChildren) {
     session.data?.environment.enableExperimentalFeatures ?? false;
 
   // project info based on projectId in the URL
-  const { project, organization } = useQueryProject();
-  // org info based on organizationId in the URL
-  const queryOrg = useQueryOrganization();
+  const { project, organization } = useQueryProjectAndOrganization();
   const isEeEnabled = useIsEeEnabled();
 
   const mapNavigation = (route: Route): NavigationItem | null => {
     // Project-level routes
-    if (!project && route.pathname?.includes("[projectId]")) return null;
+    if (!router.query.projectId && route.pathname?.includes("[projectId]"))
+      return null;
 
     // Organization-level routes
-    if (!queryOrg && route.pathname?.includes("[organizationId]")) return null;
+    if (
+      !router.query.organizationId &&
+      route.pathname?.includes("[organizationId]")
+    )
+      return null;
 
     // Feature Flags
     if (
@@ -136,7 +138,7 @@ export default function Layout(props: PropsWithChildren) {
       ...route,
       href: route.pathname
         ?.replace("[projectId]", project?.id ?? "")
-        .replace("[organizationId]", organization?.id ?? queryOrg?.id ?? ""),
+        .replace("[organizationId]", organization?.id ?? ""),
       current: router.pathname === route.pathname,
       children:
         children.length > 0

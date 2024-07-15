@@ -29,11 +29,10 @@ export default function RenameProject(props: {
     organizationId: props.organizationId,
     scope: "projects:update",
   });
-  const { data: getSessionData, update: updateSession } = useSession();
-
-  const projectName = getSessionData?.user?.organizations
-    .flatMap((org) => org.projects)
-    .find((p) => p.id === props.projectId)?.name;
+  const { update: updateSession } = useSession();
+  const projectData = api.projects.byId.useQuery({
+    projectId: props.projectId,
+  });
 
   const form = useForm<z.infer<typeof projectNameSchema>>({
     resolver: zodResolver(projectNameSchema),
@@ -71,12 +70,15 @@ export default function RenameProject(props: {
       <Card className="mb-4 p-4">
         {form.getValues().name !== "" ? (
           <p className="mb-4 text-sm text-primary">
-            Your Project will be renamed to &quot;
+            Your Project will be renamed from &quot;
+            {projectData.data?.name ?? ""}
+            &quot; to &quot;
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
           <p className="mb-4 text-sm text-primary" data-testid="project-name">
-            Your Project is currently named &quot;<b>{projectName}</b>
+            Your Project is currently named &quot;
+            <b>{projectData.data?.name ?? ""}</b>
             &quot;.
           </p>
         )}
@@ -96,7 +98,7 @@ export default function RenameProject(props: {
                   <FormControl>
                     <div className="relative">
                       <Input
-                        placeholder={projectName}
+                        placeholder={projectData.data?.name ?? ""}
                         {...field}
                         className="flex-1"
                         data-testid="new-project-name-input"

@@ -30,7 +30,8 @@ export default function RenameOrganization() {
   });
   const { update: updateSession } = useSession();
 
-  const orgName = organization?.name;
+  const orgName =
+    organization && "name" in organization ? organization.name : "";
 
   const form = useForm<z.infer<typeof projectNameSchema>>({
     resolver: zodResolver(projectNameSchema),
@@ -67,8 +68,10 @@ export default function RenameOrganization() {
       <Header title="Organization Name" level="h3" />
       <Card className="mb-4 p-4">
         {form.getValues().name !== "" ? (
-          <p className="mb-4 text-sm">
-            Your Organization will be renamed to &quot;
+          <p className="mb-4 text-sm text-primary">
+            Your Organization will be renamed from &quot;
+            {orgName}
+            &quot; to &quot;
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (

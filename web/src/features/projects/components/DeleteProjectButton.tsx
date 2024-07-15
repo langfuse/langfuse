@@ -21,13 +21,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useQueryProject } from "@/src/features/projects/utils/useProject";
+import { useQueryProjectAndOrganization } from "@/src/features/projects/utils/useProject";
 
 export function DeleteProjectButton() {
   const capture = usePostHogClientCapture();
 
   //code for dynamic confirmation message
-  const { project, organization } = useQueryProject();
+  const { project, organization } = useQueryProjectAndOrganization();
   const confirmMessage = (organization?.name + "/" + project?.name)
     .replaceAll(" ", "-")
     .toLowerCase();

@@ -143,17 +143,6 @@ export const membersRouter = createTRPCRouter({
         scope: "members:CUD",
       });
 
-      const sessionOrganization = ctx.session.user.organizations.find(
-        (org) => org.id === input.orgId,
-      );
-      // should never happen, validated by throwIfNoOrganizationAccess
-      if (!sessionOrganization) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "User is not a member of this organization",
-        });
-      }
-
       const user = await ctx.prisma.user.findUnique({
         where: {
           email: input.email.toLowerCase(),
@@ -167,6 +156,14 @@ export const membersRouter = createTRPCRouter({
             },
           })
         : null;
+      const org = await ctx.prisma.organization.findFirst({
+        where: {
+          id: input.orgId,
+        },
+      });
+      if (!org) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Org not found" });
+      }
 
       if (user) {
         const existingOrgMembership =
@@ -218,7 +215,7 @@ export const membersRouter = createTRPCRouter({
           inviterEmail: ctx.session.user.email!,
           inviterName: ctx.session.user.name!,
           to: input.email,
-          orgName: sessionOrganization.name,
+          orgName: org.name,
           env: env,
         });
       } else {
@@ -252,7 +249,7 @@ export const membersRouter = createTRPCRouter({
           inviterEmail: ctx.session.user.email!,
           inviterName: ctx.session.user.name!,
           to: input.email,
-          orgName: sessionOrganization.name,
+          orgName: org.name,
           env: env,
         });
 
