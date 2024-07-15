@@ -165,30 +165,44 @@ function UserTracking() {
   }, [session]);
   return null;
 }
+// // https://github.com/vercel/next.js/issues/51404
+// // There is no official best way to gracefully shutdown a Next.js app.
+// // This here is a workaround to handle SIGTERM and SIGINT signals.
+// // NEVER call process.exit() in this process. Kubernetes should kill the container: https://kostasbariotis.com/why-you-should-not-use-process-exit/
 
-// https://github.com/vercel/next.js/issues/51404
-// There is no official best way to gracefully shutdown a Next.js app.
-// This here is a workaround to handle SIGTERM and SIGINT signals.
-// NEVER call process.exit() in this process. Kubernetes should kill the container: https://kostasbariotis.com/why-you-should-not-use-process-exit/
-// We wait for 30 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
-if (process.env.NEXT_MANUAL_SIG_HANDLE) {
-  // process.on("SIGTERM", async () => {
-  //   await shutdown();
-  // });
+// // We wait for 30 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
+// if (process.env.NEXT_MANUAL_SIG_HANDLE) {
+//   // process.on("SIGTERM", async () => {
+//   //   await shutdown();
+//   // });
 
-  // process.on("SIGINT", async () => {
-  //   await shutdown();
-  // });
-  prexit(async (signal) => {
-    console.log("Signal: ", signal);
-    await shutdown();
-  });
-}
+//   // process.on("SIGINT", async () => {
+//   //   await shutdown();
+//   // });
+//   prexit(async (signal) => {
+//     console.log("Signal: ", signal);
+//     return await shutdown();
+//   });
+// }
 
-const shutdown = async () => {
-  console.log("SIGTERM / SIGINT received. Shutting down");
-  setSigtermReceived();
+// const shutdown = async () => {
+//   console.log("SIGTERM / SIGINT received. Shutting down");
+//   setSigtermReceived();
 
-  // wait for 30 seconds to allow the app to finish processing requests
-  await new Promise((resolve) => setTimeout(resolve, 30000));
-};
+//   console.log(
+//     "Waiting for 30 seconds to allow the app to finish processing requests",
+//   );
+
+//   // wait for 10 seconds to allow the app to finish processing requests
+//   await new Promise<void>((resolve) => {
+//     let secondsWaited = 0;
+//     const interval = setInterval(() => {
+//       secondsWaited++;
+//       console.log(`Waited ${secondsWaited} second(s)`);
+//       if (secondsWaited >= 10) {
+//         clearInterval(interval);
+//         resolve();
+//       }
+//     }, 1000);
+//   });
+// };

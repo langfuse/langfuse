@@ -6,9 +6,14 @@ handle_sigterm() {
     echo "handle_sigterm:init: Logging all processes running in the container..."
     ps aux
     echo "SIGTERM received, sending SIGTERM to Node.js process..."
+    export SIGTERM_RECEIVED=true # Set environment variable
+    echo "Waiting for 15 seconds before completing shutdown..."
+    sleep 15 # Delay in seconds
+    
+    echo "Killing Node.js process..."
     kill -15 "$PID" # Send SIGTERM to the Node.js process
-    echo "Waiting for 30 seconds before completing shutdown..."
-    sleep 30 # Delay in seconds
+    
+    
     echo "handle_sigterm:exit: Logging all processes running in the container..."
     ps aux
 }

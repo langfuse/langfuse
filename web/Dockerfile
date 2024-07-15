@@ -71,6 +71,8 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ENV DOCKER_BUILD 0
 # Set NEXT_MANUAL_SIG_HANDLE for runtime
 ENV NEXT_MANUAL_SIG_HANDLE true
+ENV SIGTERM_RECEIVED false
+
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
