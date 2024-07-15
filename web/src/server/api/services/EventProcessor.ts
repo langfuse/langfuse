@@ -1,28 +1,24 @@
-import { tokenCount } from "@/src/features/ingest/lib/usage";
+import { tokenCount } from "@/src/features/ingest/usage";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import {
   type legacyObservationCreateEvent,
   eventTypes,
   type scoreEvent,
-  type eventCreateEvent,
-  type spanCreateEvent,
   type generationCreateEvent,
-  type spanUpdateEvent,
-  type generationUpdateEvent,
-  type legacyObservationUpdateEvent,
   type sdkLogEvent,
   type traceEvent,
   LangfuseNotFoundError,
   InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
+import { type ObservationEvent, findModel } from "@langfuse/shared/backend";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { mergeJson } from "@langfuse/shared";
 import {
   type Trace,
   type Observation,
   type Score,
-  Prisma,
+  type Prisma,
   type Model,
 } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
@@ -118,9 +114,11 @@ type ObservationEvent =
 
 export class ObservationProcessor implements EventProcessor {
   event: ObservationEvent;
+  eventTs: Date;
 
-  constructor(event: ObservationEvent) {
+  constructor(event: ObservationEvent, eventTs: Date) {
     this.event = event;
+    this.eventTs = eventTs;
   }
 
   async convertToObservation(
@@ -496,20 +494,27 @@ export class ObservationProcessor implements EventProcessor {
 
     // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
     // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
-    return await prisma.observation.upsert({
+    const returnObs = await prisma.observation.upsert({
       where: {
         id: obs.id,
       },
       create: obs.create,
       update: obs.update,
     });
+    console.log(
+      `Upserted observation ${obs.id} for project ${apiScope.projectId}`,
+    );
+
+    return returnObs;
   }
 }
 export class TraceProcessor implements EventProcessor {
   event: z.infer<typeof traceEvent>;
+  eventTs: Date;
 
-  constructor(event: z.infer<typeof traceEvent>) {
+  constructor(event: z.infer<typeof traceEvent>, eventTs: Date) {
     this.event = event;
+    this.eventTs = eventTs;
   }
 
   async process(
@@ -575,7 +580,7 @@ export class TraceProcessor implements EventProcessor {
 
     // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
     // https://www.prisma.io/docs/orm/reference/prisma-client-reference#database-upserts
-    const upsertedTrace = await prisma.trace.upsert({
+    return await prisma.trace.upsert({
       where: {
         id: internalId,
       },
@@ -612,14 +617,15 @@ export class TraceProcessor implements EventProcessor {
         tags: mergedTags ?? undefined,
       },
     });
-    return upsertedTrace;
   }
 }
 export class ScoreProcessor implements EventProcessor {
   event: z.infer<typeof scoreEvent>;
+  eventTs: Date;
 
-  constructor(event: z.infer<typeof scoreEvent>) {
+  constructor(event: z.infer<typeof scoreEvent>, eventTs: Date) {
     this.event = event;
+    this.eventTs = eventTs;
   }
 
   static inferDataType(value: string | number): ScoreDataType {

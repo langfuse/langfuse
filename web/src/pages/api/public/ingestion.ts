@@ -40,6 +40,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { instrumentAsync } from "@/src/utils/instrumentation";
 
 export const config = {
   api: {
@@ -47,6 +48,7 @@ export const config = {
       sizeLimit: "4.5mb",
     },
   },
+  maxDuration: 250, // max 250 seconds runtime on vercel
 };
 
 type BatchResult = {
@@ -90,7 +92,9 @@ export default async function handler(
         errors: parsedSchema.error.issues.map((issue) => issue.message),
       });
     }
-
+    console.log(
+      `handling ingestion ${JSON.stringify(parsedSchema.data.batch)}`,
+    );
     const validationErrors: { id: string; error: unknown }[] = [];
 
     const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
@@ -111,6 +115,7 @@ export default async function handler(
           return parsed.data;
         }
       });
+
     const filteredBatch: z.infer<typeof ingestionEvent>[] =
       batch.filter(isNotNullOrUndefined);
 
@@ -214,28 +219,56 @@ export const handleBatch = async (
     type: string;
   }[] = []; // Array to store the errors
 
-  for (const singleEvent of events) {
-    try {
-      const result = await retry(async () => {
-        return await handleSingleEvent(
-          singleEvent,
-          metadata,
-          req,
-          authCheck.scope,
-        );
-      });
-      results.push({
-        result: result,
-        id: singleEvent.id,
-        type: singleEvent.type,
-      }); // Push each result into the array
-    } catch (error) {
-      // Handle or log the error if `handleSingleEvent` fails
-      console.error("Error handling event:", error);
-      // Decide how to handle the error: rethrow, continue, or push an error object to results
-      // For example, push an error object:
-      errors.push({ error: error, id: singleEvent.id, type: singleEvent.type });
+  if (env.TRACE_IN_POSTGRES === "true") {
+    for (const singleEvent of events) {
+      try {
+        const result = await retry(async () => {
+          return await handleSingleEvent(
+            singleEvent,
+            metadata,
+            req,
+            authCheck.scope,
+          );
+        });
+        results.push({
+          result: result,
+          id: singleEvent.id,
+          type: singleEvent.type,
+        }); // Push each result into the array
+      } catch (error) {
+        // Handle or log the error if `handleSingleEvent` fails
+        console.error("Error handling event:", error);
+        // Decide how to handle the error: rethrow, continue, or push an error object to results
+        // For example, push an error object:
+        errors.push({
+          error: error,
+          id: singleEvent.id,
+          type: singleEvent.type,
+        });
+      }
     }
+  }
+
+  if (env.CLICKHOUSE_URL) {
+    await instrumentAsync({ name: "insert-clickhouse" }, async () => {
+      try {
+        console.log(`senfing to ${env.LANGFUSE_WORKER_HOST}/api/ingestion`);
+        await fetch(`${env.LANGFUSE_WORKER_HOST}/api/ingestion`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:
+              "Basic " +
+              Buffer.from(
+                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
+              ).toString("base64"),
+          },
+          body: JSON.stringify({ batch: events, metadata }),
+        });
+      } catch (error) {
+        console.error("Error sending events to worker", JSON.stringify(error));
+      }
+    });
   }
 
   return { results, errors };
@@ -310,7 +343,7 @@ const handleSingleEvent = async (
   let processor: EventProcessor;
   switch (type) {
     case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(cleanedEvent);
+      processor = new TraceProcessor(cleanedEvent, new Date(event.timestamp));
       break;
     case eventTypes.OBSERVATION_CREATE:
     case eventTypes.OBSERVATION_UPDATE:
@@ -319,10 +352,13 @@ const handleSingleEvent = async (
     case eventTypes.SPAN_UPDATE:
     case eventTypes.GENERATION_CREATE:
     case eventTypes.GENERATION_UPDATE:
-      processor = new ObservationProcessor(cleanedEvent);
+      processor = new ObservationProcessor(
+        cleanedEvent,
+        new Date(event.timestamp),
+      );
       break;
     case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(cleanedEvent);
+      processor = new ScoreProcessor(cleanedEvent, new Date(event.timestamp));
       break;
     }
     case eventTypes.SDK_LOG:

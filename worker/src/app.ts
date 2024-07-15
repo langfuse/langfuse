@@ -5,6 +5,8 @@ import * as Sentry from "@sentry/node";
 import * as middlewares from "./middlewares";
 import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
+import { env } from "./env";
+import { redis } from "./redis/redis";
 
 require("dotenv").config();
 
@@ -14,6 +16,7 @@ import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
 import { repeatQueueExecutor } from "./queues/repeatQueue";
 import helmet from "helmet";
+import { flushEvents } from "./api/data-aggregation-service";
 
 const app = express();
 
@@ -66,5 +69,7 @@ repeatQueueExecutor?.on("failed", (job, err) => {
     `Repeat Queue Job with id ${job?.id} failed with error ${err}`
   );
 });
+// set interval to flush redis to clickhouse regularly
+setInterval(flushEvents, 2000);
 
 export default app;

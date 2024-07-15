@@ -13,6 +13,8 @@ import {
   TraceUpsertEventType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { ingestionApiSchema } from "@langfuse/shared/backend";
+import { ingestData } from "./data-ingestion-service";
 
 import { env } from "../env";
 import logger from "../logger";
@@ -115,6 +117,35 @@ router
       });
     }
   });
+router.post("/ingestion", async (req, res) => {
+  try {
+    const { body } = req;
+
+    console.log(`Received ingestion events, ${JSON.stringify(body)}`);
+
+    const events = ingestionApiSchema.safeParse(body);
+
+    if (!events.success) {
+      logger.error(events.error, "Failed to parse ingestion event");
+      return res.status(400).json({
+        status: "error",
+      });
+    }
+
+    await ingestData(events.data.batch, "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+
+    res.json({
+      status: "success",
+    });
+  } catch (e) {
+    logger.error(e, "Failed to process ingestion event");
+    if (!res.headersSent) {
+      return res.status(500).json({
+        status: "error",
+      });
+    }
+  }
+});
 
 router.use("/emojis", emojis);
 

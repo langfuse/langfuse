@@ -1,9 +1,8 @@
 import lodash from "lodash";
 import { z } from "zod";
-
-import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ObservationLevel } from "@prisma/client";
+import { NonEmptyString, jsonSchema } from "../../utils/zod";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
@@ -334,24 +333,33 @@ export const SdkLogEvent = z.object({
 
 // definitions for the ingestion API
 
+export const observationTypes = [
+  "observation-create",
+  "observation-update",
+  "generation-create",
+  "generation-update",
+  "span-create",
+  "span-update",
+  "event-create",
+];
+
 export const eventTypes = {
   TRACE_CREATE: "trace-create",
   SCORE_CREATE: "score-create",
+  OBSERVATION_CREATE: "observation-create",
+  OBSERVATION_UPDATE: "observation-update",
   EVENT_CREATE: "event-create",
   SPAN_CREATE: "span-create",
   SPAN_UPDATE: "span-update",
   GENERATION_CREATE: "generation-create",
   GENERATION_UPDATE: "generation-update",
   SDK_LOG: "sdk-log",
-
-  // LEGACY, only required for backwards compatibility
-  OBSERVATION_CREATE: "observation-create",
-  OBSERVATION_UPDATE: "observation-update",
 } as const;
 
 const base = z.object({
   id: z.string(),
-  timestamp: z.string().datetime({ offset: true }),
+  // potentially high resolution timestamp. Date object cuts off precision, hence using a string
+  timestamp: z.string(),
   metadata: jsonSchema.nullish(),
 });
 export const traceEvent = base.extend({
@@ -416,3 +424,12 @@ export const ingestionApiSchema = z.object({
   batch: ingestionBatchEvent,
   metadata: jsonSchema.nullish(),
 });
+
+export type ObservationEvent =
+  | z.infer<typeof legacyObservationCreateEvent>
+  | z.infer<typeof legacyObservationUpdateEvent>
+  | z.infer<typeof eventCreateEvent>
+  | z.infer<typeof spanCreateEvent>
+  | z.infer<typeof spanUpdateEvent>
+  | z.infer<typeof generationCreateEvent>
+  | z.infer<typeof generationUpdateEvent>;

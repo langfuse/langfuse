@@ -27,5 +27,8 @@
     "editor.defaultFormatter": "Prisma.prisma"
   },
   "eslint.lintTask.enable": true,
-  "eslint.workingDirectories": ["./web", "./worker"]
+  "eslint.workingDirectories": ["./web", "./worker"],
+  "[sql]": {
+    "editor.defaultFormatter": "mtxr.sqltools"
+  }
 }
