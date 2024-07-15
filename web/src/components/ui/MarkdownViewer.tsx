@@ -1,5 +1,14 @@
 import { cn } from "@/src/utils/tailwind";
-import { type FC, memo, type ReactNode, useState } from "react";
+import {
+  type FC,
+  type ReactNode,
+  type ReactElement,
+  memo,
+  useState,
+  isValidElement,
+  Children,
+  createElement,
+} from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
 import DOMPurify from "dompurify";
@@ -20,6 +29,22 @@ const MemoizedReactMarkdown: FC<Options> = memo(
 const isChecklist = (children: ReactNode) =>
   Array.isArray(children) &&
   children.some((child: any) => child?.props?.className === "task-list-item");
+
+const isTextElement = (child: ReactNode): child is ReactElement =>
+  isValidElement(child) &&
+  typeof child.type !== "string" &&
+  ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type.name);
+
+const transformListItemChildren = (children: ReactNode) =>
+  Children.map(children, (child) =>
+    isTextElement(child) ? (
+      <div className="mb-1 inline-flex">
+        {createElement(child.type, { ...child.props })}
+      </div>
+    ) : (
+      child
+    ),
+  );
 
 export function MarkdownView({
   markdown,
@@ -97,7 +122,14 @@ export function MarkdownView({
             );
           },
           li({ children }) {
-            return <li className="mb-1">{children}</li>;
+            return (
+              <li className="mb-1 list-item">
+                {transformListItemChildren(children)}
+              </li>
+            );
+          },
+          pre({ children }) {
+            return <pre className="rounded p-2">{children}</pre>;
           },
           h1({ children }) {
             return <h1 className="text-2xl font-bold">{children}</h1>;
