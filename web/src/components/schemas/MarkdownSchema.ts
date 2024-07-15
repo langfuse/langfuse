@@ -14,13 +14,9 @@ const MARKDOWN_PATTERNS = [
 
 const MARKDOWN_REGEX = new RegExp(MARKDOWN_PATTERNS, "gm");
 
-function isMarkdownIncluded(text: string): boolean {
-  return MARKDOWN_REGEX.test(text);
-}
-
 export function containsAnyMarkdown(...texts: string[]): boolean {
   MARKDOWN_REGEX.lastIndex = 0;
-  return texts.some((text) => isMarkdownIncluded(text));
+  return texts.some((text) => MARKDOWN_REGEX.test(text));
 }
 
 export const MarkdownSchema = z.string().refine(containsAnyMarkdown);
