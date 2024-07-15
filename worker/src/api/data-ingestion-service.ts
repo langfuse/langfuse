@@ -1,6 +1,6 @@
-import { ingestionBatchEvent } from "@langfuse/shared/backend";
+import { ingestionBatchEvent } from "@langfuse/shared/src/server";
 import z from "zod";
-import { redis } from "../redis/redis";
+import { redis } from "../redis";
 
 export const ingestData = async (
   events: z.infer<typeof ingestionBatchEvent>,

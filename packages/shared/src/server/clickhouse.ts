@@ -3,12 +3,11 @@ import { env } from "../env";
 import { observationRecordRead, traceRecordRead } from "./definitions";
 import z from "zod";
 import { convertRecordToJsonSchema, parseJsonPrioritised } from "../utils/json";
-import { jsonSchema } from "../utils/zod";
 
 export const clickhouseClient = createClient({
-  url: env.CLICKHOUSE_URL ?? "http://localhost:8123",
-  username: env.CLICKHOUSE_USER ?? "clickhouse",
-  password: env.CLICKHOUSE_PASSWORD ?? "clickhouse",
+  url: env.CLICKHOUSE_URL,
+  username: env.CLICKHOUSE_USER,
+  password: env.CLICKHOUSE_PASSWORD,
   database: "default",
   clickhouse_settings: {
     async_insert: 1,

@@ -6,7 +6,6 @@ import {
   convertTraceReadToInsert,
   eventTypes,
   findModel,
-  ingestionBatchEvent,
   ingestionEvent,
   observationRecordInsert,
   observationRecordRead,
@@ -16,18 +15,16 @@ import {
   traceEvent,
   traceRecordInsert,
   traceRecordRead,
-} from "@langfuse/shared/backend";
+} from "@langfuse/shared/src/server";
 import z from "zod";
 import { instrumentAsync } from "../instrumentation";
-import { redis } from "../redis/redis";
+import { redis } from "../redis";
 import { v4 } from "uuid";
-import _, { create } from "lodash";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "../features/tokenisation/usage";
 import {
   convertJsonSchemaToRecord,
   dedupeAndOverwriteObjectById,
-  overwriteObject,
 } from "./ingestion-utils";
 
 export const flushEvents = async () => {

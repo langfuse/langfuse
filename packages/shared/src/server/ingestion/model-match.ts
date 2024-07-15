@@ -53,7 +53,7 @@ export async function findModel(p: {
     }::timestamp with time zone at time zone 'UTC')
     ORDER BY
       project_id ASC,
-      start_date DESC
+      start_date DESC NULLS LAST
     LIMIT 1
   `;
 

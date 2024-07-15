@@ -5,8 +5,6 @@ import * as Sentry from "@sentry/node";
 import * as middlewares from "./middlewares";
 import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
-import { env } from "./env";
-import { redis } from "./redis/redis";
 
 require("dotenv").config();
 

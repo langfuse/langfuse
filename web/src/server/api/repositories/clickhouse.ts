@@ -1,14 +1,10 @@
-import {
-  jsonSchema,
-  parseJsonPrioritised,
-  type JsonNested,
-} from "@langfuse/shared";
+import { parseJsonPrioritised, type JsonNested } from "@langfuse/shared";
 import {
   clickhouseClient,
   convertTraces,
   observationRecordRead,
   scoreRecord,
-} from "@langfuse/shared/backend";
+} from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 export const getObservation = async (
@@ -16,7 +12,7 @@ export const getObservation = async (
   projectId: string,
 ) => {
   const observation = await clickhouseClient.query({
-    query: `SELECT * FROM observations FINAl where id = '${observationId}' and project_id = '${projectId}' LIMIT 1`,
+    query: `SELECT * FROM observations FINAL where id = '${observationId}' and project_id = '${projectId}' LIMIT 1`,
     format: "JSONEachRow",
   });
   const jsonRecords = await observation.json();
@@ -28,7 +24,7 @@ export const getObservation = async (
 
 export const getObservations = async (traceId: string, projectId: string) => {
   const observations = await clickhouseClient.query({
-    query: `SELECT * FROM observations FINAl where trace_id = '${traceId}' and project_id = '${projectId}'`,
+    query: `SELECT * FROM observations FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`,
     format: "JSONEachRow",
   });
   const jsonRecords = await observations.json();
@@ -38,7 +34,7 @@ export const getObservations = async (traceId: string, projectId: string) => {
 
 export const getTraces = async (traceId: string, projectId: string) => {
   const trace = await clickhouseClient.query({
-    query: `SELECT * FROM traces FINAl where id = '${traceId}' and project_id = '${projectId}' LIMIT 1`,
+    query: `SELECT * FROM traces FINAL where id = '${traceId}' and project_id = '${projectId}' LIMIT 1`,
     format: "JSONEachRow",
   });
   const traceJson = await trace.json();
@@ -49,7 +45,7 @@ export const getTraces = async (traceId: string, projectId: string) => {
 
 export const getScores = async (traceId: string, projectId: string) => {
   const scores = await clickhouseClient.query({
-    query: `SELECT * FROM scores FINAl where trace_id = '${traceId}' and project_id = '${projectId}'`,
+    query: `SELECT * FROM scores FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`,
     format: "JSONEachRow",
   });
   const jsonRecords = await scores.json();

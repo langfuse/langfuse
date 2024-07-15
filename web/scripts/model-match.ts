@@ -5,7 +5,7 @@
 
 import "dotenv/config";
 
-import { findModel, tokenCount } from "@langfuse/shared/backend";
+import { findModel, tokenCount } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import lodash from "lodash";
 import { type Prisma } from "@langfuse/shared/src/db";

@@ -13,7 +13,7 @@ import {
   TraceUpsertEventType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { ingestionApiSchema } from "@langfuse/shared/backend";
+import { ingestionApiSchema } from "@langfuse/shared/src/server";
 import { ingestData } from "./data-ingestion-service";
 
 import { env } from "../env";

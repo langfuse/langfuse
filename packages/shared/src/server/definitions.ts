@@ -1,5 +1,5 @@
 import z from "zod";
-import { jsonSchema } from "../utils/zod";
+
 export const clickhouseStringDate = z
   .string()
   // clickhouse stores UTC like '2024-05-23 18:33:41.602000'

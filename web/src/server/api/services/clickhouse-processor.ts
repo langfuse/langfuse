@@ -1,15 +1,14 @@
 import {
+  clickhouseClient,
   type ingestionEvent,
   type ObservationEvent,
   eventTypes,
   type traceEvent,
   type scoreEvent,
-} from "@langfuse/shared/backend";
+} from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { instrumentAsync } from "@/src/utils/instrumentation";
-import { type JsonNested } from "@/src/utils/zod";
-import { env } from "@langfuse/shared";
-import { clickhouseClient } from "@langfuse/shared/backend";
+import { type JsonNested, env } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { type z } from "zod";
 
