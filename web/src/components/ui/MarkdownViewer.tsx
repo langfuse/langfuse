@@ -7,6 +7,7 @@ import {
   useState,
   isValidElement,
   Children,
+  createElement,
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
@@ -38,7 +39,7 @@ const transformListItemChildren = (children: ReactNode) =>
   Children.map(children, (child) =>
     isTextElement(child) ? (
       <div className="mb-1 inline-flex">
-        <child.type {...child.props} />
+        {createElement(child.type, { ...child.props })}
       </div>
     ) : (
       child
