@@ -8,6 +8,7 @@ import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
 import { BsMarkdown } from "react-icons/bs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function JSONView(props: {
   isMarkdown?: boolean;
@@ -22,6 +23,7 @@ export function JSONView(props: {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = deepParseJson(props.json);
   const { resolvedTheme } = useTheme();
+  const capture = usePostHogClientCapture();
 
   const handleMarkdownSelection = props.setIsMarkdown ?? (() => {});
 
@@ -42,7 +44,12 @@ export function JSONView(props: {
               title="Enable/disable markdown"
               variant="ghost"
               size="xs"
-              onClick={() => handleMarkdownSelection(!props.isMarkdown)}
+              onClick={() => {
+                handleMarkdownSelection(!props.isMarkdown);
+                capture("trace_detail:io_pretty_format_toggle_group", {
+                  renderMarkdown: props.isMarkdown,
+                });
+              }}
               className="hover:bg-border"
             >
               <BsMarkdown className="h-4 w-4 text-foreground" />

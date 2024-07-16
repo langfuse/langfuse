@@ -19,6 +19,7 @@ import { useTheme } from "next-themes";
 import { Button } from "@/src/components/ui/button";
 import { Check, Copy } from "lucide-react";
 import { BsMarkdown } from "react-icons/bs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const MemoizedReactMarkdown: FC<Options> = memo(
   ReactMarkdown,
@@ -64,6 +65,7 @@ export function MarkdownView({
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const { resolvedTheme: theme } = useTheme();
+  const capture = usePostHogClientCapture();
 
   const sanitizedMarkdown = DOMPurify.sanitize(markdown);
 
@@ -103,7 +105,12 @@ export function MarkdownView({
               title="Enable/disable markdown"
               variant="ghost"
               size="xs"
-              onClick={() => setIsMarkdown(!isMarkdown)}
+              onClick={() => {
+                setIsMarkdown(!isMarkdown);
+                capture("trace_detail:io_pretty_format_toggle_group", {
+                  renderMarkdown: isMarkdown,
+                });
+              }}
               className="hover:bg-border"
             >
               <BsMarkdown className="h-4 w-4" />
