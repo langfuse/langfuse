@@ -8,9 +8,9 @@ import {
   GetTraceV1Response,
 } from "@/src/features/public-api/types/traces";
 import {
-  getObservations,
+  getTraceObservations,
   getScores,
-  getTraces,
+  getTrace,
 } from "@/src/server/api/repositories/clickhouse";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -53,7 +53,7 @@ export default withMiddlewares({
           orderBy: { timestamp: "desc" },
         }),
         env.SERVE_FROM_CLICKHOUSE
-          ? await getObservations(traceId, auth.scope.projectId)
+          ? await getTraceObservations(traceId, auth.scope.projectId)
           : await prisma.observationView.findMany({
               where: {
                 traceId: traceId,
@@ -86,19 +86,11 @@ const queryTracesAndScoresFromClickhouse = async (
   traceId: string,
   projectId: string,
 ): Promise<any> => {
-  const traces = await getTraces(traceId, projectId);
+  const trace = await getTrace(traceId, projectId);
   const scores = await getScores(traceId, projectId);
 
-  if (traces.length === 0) {
-    return undefined;
-  }
-
-  if (traces.length > 1) {
-    throw new Error("Multiple traces found");
-  }
-
   return {
-    ...traces[0],
-    scores: scores,
+    ...trace,
+    scores,
   };
 };

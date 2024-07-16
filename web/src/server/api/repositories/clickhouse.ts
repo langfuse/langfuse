@@ -11,50 +11,35 @@ export const getObservation = async (
   observationId: string,
   projectId: string,
 ) => {
-  const observation = await clickhouseClient.query({
-    query: `SELECT * FROM observations FINAL where id = '${observationId}' and project_id = '${projectId}' LIMIT 1`,
-    format: "JSONEachRow",
-  });
-  const jsonRecords = await observation.json();
-  if (jsonRecords.length === 0) {
-    return undefined;
-  }
-  return convertObservations(jsonRecords)[0];
+  const query = `SELECT * FROM observations FINAL WHERE id = '${observationId}' AND project_id = '${projectId}' LIMIT 1`;
+  const records = await queryClickhouse(query);
+
+  return records.length ? convertObservations(records)[0] : undefined;
 };
 
-export const getObservations = async (traceId: string, projectId: string) => {
-  const observations = await clickhouseClient.query({
-    query: `SELECT * FROM observations FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`,
-    format: "JSONEachRow",
-  });
-  const jsonRecords = await observations.json();
+export const getTraceObservations = async (
+  traceId: string,
+  projectId: string,
+) => {
+  const query = `SELECT * FROM observations FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`;
+  const records = await queryClickhouse(query);
 
-  return convertObservations(jsonRecords);
+  return convertObservations(records);
 };
 
-export const getTraces = async (traceId: string, projectId: string) => {
-  const trace = await clickhouseClient.query({
-    query: `SELECT * FROM traces FINAL where id = '${traceId}' and project_id = '${projectId}' LIMIT 1`,
-    format: "JSONEachRow",
-  });
-  const traceJson = await trace.json();
+export const getTrace = async (traceId: string, projectId: string) => {
+  const query = `SELECT * FROM traces FINAL where id = '${traceId}' and project_id = '${projectId}' LIMIT 1`;
+  const records = await queryClickhouse(query);
 
-  console.log("traceJson", traceJson);
-  return convertTraces(traceJson);
+  return records.length ? convertTraces(records)[0] : undefined;
 };
 
 export const getScores = async (traceId: string, projectId: string) => {
-  const scores = await clickhouseClient.query({
-    query: `SELECT * FROM scores FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`,
-    format: "JSONEachRow",
-  });
-  const jsonRecords = await scores.json();
+  const query = `SELECT * FROM scores FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`;
+  const records = await queryClickhouse(query);
+  const parsedRecords = z.array(scoreRecord).parse(records);
 
-  console.log("scores", jsonRecords);
-
-  const parsedRecord = z.array(scoreRecord).parse(jsonRecords);
-
-  return parsedRecord.map((record) => {
+  return parsedRecords.map((record) => {
     return {
       ...record,
       projectId: record.project_id,
@@ -85,10 +70,16 @@ export const convertRecordToJsonSchema = (
   return jsonSchema;
 };
 
+async function queryClickhouse(query: string) {
+  return (
+    await clickhouseClient.query({ query, format: "JSONEachRow" })
+  ).json();
+}
+
 function convertObservations(jsonRecords: unknown[]) {
   const parsedRecord = z.array(observationRecordRead).parse(jsonRecords);
 
-  const a = parsedRecord.map((record) => {
+  const parsedObservations = parsedRecord.map((record) => {
     return {
       id: record.id,
       traceId: record.trace_id,
@@ -122,6 +113,5 @@ function convertObservations(jsonRecords: unknown[]) {
     };
   });
 
-  console.log("🚨🚨🚨🚨", JSON.stringify(a));
-  return a;
+  return parsedObservations;
 }
