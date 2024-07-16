@@ -17,7 +17,7 @@ export default async function handler(
     try {
       if (isSigtermReceived()) {
         console.log(
-          "Health check failed: SIGTERM / SIGINT received, shutting down",
+          "Health check failed: SIGTERM / SIGINT received, shutting down.",
         );
         return res.status(500).json({
           status: "SIGTERM / SIGINT received, shutting down",
