@@ -16,7 +16,7 @@ async function onShutdown() {
 
   // Stop accepting new connections
   server.close();
-
+  logger.info("Server has been closed.");
   // Perform necessary cleanup tasks here
   // For example, close database connections, stop job executors, etc.
   await evalJobCreator?.close();
