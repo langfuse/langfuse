@@ -32,7 +32,14 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        run: pnpm run lint
+        shell: bash
+        run: |
+          pnpm run lint
+          # Fail if there are any linting errors or warnings
+          if [ $? -ne 0 ]; then
+            echo "Linting failed. Please fix the issues and try again."
+            exit 1
+          fi
 
   test-docker-build:
     runs-on: ubuntu-latest
