@@ -9,7 +9,7 @@
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
     "dev": "dotenv -e ../.env -- next dev",
-    "lint": "dotenv -e ../.env -- next lint",
+    "lint": "dotenv -e ../.env -- next lint --max-warnings 0",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
