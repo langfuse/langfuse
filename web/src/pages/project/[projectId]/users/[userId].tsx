@@ -137,9 +137,7 @@ function DetailsTab({ userId, projectId }: TabProps) {
         },
         {
           label: "Completion Tokens",
-          value: compactNumberFormatter(
-            Number(user.data.totalCompletionTokens),
-          ),
+          value: compactNumberFormatter(user.data.totalCompletionTokens),
         },
         {
           label: "Total Tokens",
