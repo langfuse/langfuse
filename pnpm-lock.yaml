@@ -480,6 +480,9 @@ importers:
       posthog-node:
         specifier: ^3.6.3
         version: 3.6.3
+      prexit:
+        specifier: ^2.2.0
+        version: 2.2.0
       prisma:
         specifier: ^5.13.0
         version: 5.13.0
@@ -16748,6 +16751,10 @@ packages:
 
   /pretty-format@3.8.0:
     resolution: {integrity: sha512-WuxUnVtlWL1OfZFQFuqvnvs6MiAGk9UNsBostyBOB0Is9wb5uRESevA6rnl/rkksXaGX3GzZhPup5d6Vp1nFew==}
+    dev: false
+
+  /prexit@2.2.0:
+    resolution: {integrity: sha512-MrkWg5/0XFTM0txQtPFZlhk3qhMtyd+bP1vXJKQqOOYcdQ8/Wl5+G0Utxv69TLfH0PMm/ushn0YTYQ2SH2WzJg==}
     dev: false
 
   /prisma-erd-generator@1.11.2(@prisma/client@5.13.0)(typescript@5.4.5):
