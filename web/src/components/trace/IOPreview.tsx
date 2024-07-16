@@ -13,6 +13,8 @@ import {
   ChatMlArraySchema,
   ChatMlMessageSchema,
 } from "@/src/components/schemas/ChatMlSchema";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 function MarkdownOrJsonView(props: {
   content?: unknown;
@@ -48,6 +50,10 @@ export const IOPreview: React.FC<{
   hideIfNull?: boolean;
 }> = ({ isLoading = false, hideIfNull = false, ...props }) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const [formatSelection, setFormatSelection] = useLocalStorage(
+    "formatSelection",
+    ["chatml", "markdown"],
+  );
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
@@ -102,18 +108,55 @@ export const IOPreview: React.FC<{
   return (
     <>
       {isPrettyViewAvailable ? (
-        <Tabs
-          value={currentView}
-          onValueChange={(v) => {
-            setCurrentView(v as "pretty" | "json"),
-              capture("trace_detail:io_mode_switch", { view: v });
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
-            <TabsTrigger value="json">JSON</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-row justify-between">
+          <Tabs
+            value={currentView}
+            onValueChange={(v) => {
+              setCurrentView(v as "pretty" | "json"),
+                capture("trace_detail:io_mode_switch", { view: v });
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
+              <TabsTrigger value="json">JSON</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {currentView === "pretty" && (
+            <ToggleGroup
+              type="multiple"
+              className="h-10"
+              value={formatSelection}
+              onValueChange={(value) => {
+                if (Boolean(value.length)) setFormatSelection(value);
+              }}
+            >
+              <ToggleGroupItem
+                key="chatml"
+                value="chatml"
+                className={cn(
+                  "h-8 bg-muted text-muted-foreground data-[state=on]:bg-border",
+                  formatSelection.includes("chatml") &&
+                    formatSelection.length === 1 &&
+                    "cursor-default",
+                )}
+              >
+                ChatML
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                key="markdown"
+                value="markdown"
+                className={cn(
+                  "h-8 bg-muted text-muted-foreground data-[state=on]:bg-border",
+                  formatSelection.includes("markdown") &&
+                    formatSelection.length === 1 &&
+                    "cursor-default",
+                )}
+              >
+                Markdown
+              </ToggleGroupItem>
+            </ToggleGroup>
+          )}
+        </div>
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
         <>
