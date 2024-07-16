@@ -40,6 +40,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { isSigtermReceived } from "@/src/utils/shutdown";
 
 export const config = {
   api: {
@@ -202,7 +203,9 @@ export const handleBatch = async (
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
-  console.log(`handling ingestion ${events.length} events`);
+  console.log(
+    `handling ingestion ${events.length} events ${isSigtermReceived() ? "after SIGTERM" : ""}`,
+  );
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
