@@ -53,6 +53,7 @@ RUN rm -f ./web/src/middleware.ts
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_MANUAL_SIG_HANDLE true
 
 RUN turbo run build --filter=web
 
