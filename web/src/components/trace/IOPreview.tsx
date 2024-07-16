@@ -134,7 +134,12 @@ export const IOPreview: React.FC<{
               className="h-10"
               value={formatSelection}
               onValueChange={(value) => {
-                if (Boolean(value.length)) setFormatSelection(value);
+                if (Boolean(value.length)) {
+                  setFormatSelection(value);
+                  capture("trace_detail:io_pretty_format_toggle_group", {
+                    formatSelection: value,
+                  });
+                }
               }}
             >
               <ToggleGroupItem
