@@ -30,12 +30,9 @@ const options = {
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Seeding data...");
   const environment = parseArgs({
     options,
   }).values.environment;
-
-  console.log("Seeding users...");
 
   const user = await prisma.user.upsert({
     where: { id: "user-1" },
@@ -52,8 +49,6 @@ async function main() {
       image: "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png",
     },
   });
-
-  console.log("Seeding projects...");
 
   const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -73,8 +68,6 @@ async function main() {
       },
     },
   });
-
-  console.log("Seeding prompts...");
 
   await prisma.prompt.upsert({
     where: {
@@ -102,8 +95,6 @@ async function main() {
     note: "seeded key",
   };
 
-  console.log("Seeding API keys...");
-
   if (!(await prisma.apiKey.findUnique({ where: { id: seedApiKey.id } }))) {
     await prisma.apiKey.create({
       data: {
@@ -120,8 +111,6 @@ async function main() {
       },
     });
   }
-
-  console.log("Seeding examples or load");
 
   // Do not run the following for local docker compose setup
   if (environment === "examples" || environment === "load") {
@@ -358,21 +347,19 @@ async function main() {
       }
     }
   }
-
-  console.log("Seeding complete...");
 }
 
 main()
   .then(async () => {
     await prisma.$disconnect();
     redis?.disconnect();
-    console.log("Disconnected from database");
+    console.log("Disconnected from postgres and redis");
   })
   .catch(async (e) => {
     console.error(e);
     await prisma.$disconnect();
     redis?.disconnect();
-    console.log("Disconnected from database");
+    console.log("Disconnected from postgres and redis");
     process.exit(1);
   });
 
