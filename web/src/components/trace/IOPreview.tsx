@@ -17,7 +17,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { Toggle } from "@/src/components/ui/toggle";
 
 function MarkdownOrJsonView(props: {
-  formatSelection: boolean;
+  renderMarkdown: boolean;
   content?: unknown;
   title?: string;
   className?: string;
@@ -28,7 +28,7 @@ function MarkdownOrJsonView(props: {
     [props.content],
   );
 
-  const isMarkdownEnabled = validatedMarkdown.success && props.formatSelection;
+  const isMarkdownEnabled = validatedMarkdown.success && props.renderMarkdown;
 
   return isMarkdownEnabled ? (
     <MarkdownView
@@ -53,8 +53,8 @@ export const IOPreview: React.FC<{
   hideIfNull?: boolean;
 }> = ({ isLoading = false, hideIfNull = false, ...props }) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
-  const [formatSelection, setFormatSelection] = useLocalStorage(
-    "prettyFormatSelection",
+  const [renderMarkdown, setRenderMarkdown] = useLocalStorage(
+    "prettyRenderMarkdown",
     true,
   );
   const capture = usePostHogClientCapture();
@@ -127,12 +127,12 @@ export const IOPreview: React.FC<{
           {currentView === "pretty" && (
             <Toggle
               className="h-8 bg-muted text-muted-foreground data-[state=on]:bg-border"
-              pressed={formatSelection}
+              pressed={renderMarkdown}
               onPressedChange={(value) => {
                 capture("trace_detail:io_pretty_format_toggle_group", {
-                  formatSelection: value,
+                  renderMarkdown: value,
                 });
-                setFormatSelection(value);
+                setRenderMarkdown(value);
               }}
             >
               Markdown
@@ -144,7 +144,7 @@ export const IOPreview: React.FC<{
         <>
           {inChatMlArray.success ? (
             <OpenAiMessageView
-              formatSelection={formatSelection}
+              renderMarkdown={renderMarkdown}
               messages={[
                 ...inChatMlArray.data,
                 ...(outChatMlArray.success
@@ -166,14 +166,14 @@ export const IOPreview: React.FC<{
                 <MarkdownOrJsonView
                   title="Input"
                   content={input}
-                  formatSelection={formatSelection}
+                  renderMarkdown={renderMarkdown}
                 />
               ) : null}
               {!(hideIfNull && !output) ? (
                 <MarkdownOrJsonView
                   title="Output"
                   content={output}
-                  formatSelection={formatSelection}
+                  renderMarkdown={renderMarkdown}
                   className="bg-accent-light-green dark:border-accent-dark-green"
                   customCodeHeaderClassName="bg-muted-green dark:bg-secondary"
                 />
@@ -207,10 +207,10 @@ export const IOPreview: React.FC<{
 };
 
 export const OpenAiMessageView: React.FC<{
-  formatSelection?: boolean;
+  renderMarkdown?: boolean;
   title?: string;
   messages: z.infer<typeof ChatMlArraySchema>;
-}> = ({ formatSelection, title, messages }) => {
+}> = ({ renderMarkdown, title, messages }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
@@ -237,7 +237,7 @@ export const OpenAiMessageView: React.FC<{
                   <MarkdownOrJsonView
                     title={message.name ?? message.role}
                     content={message.content}
-                    formatSelection={formatSelection ?? false}
+                    renderMarkdown={renderMarkdown ?? false}
                     className={cn(
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",
