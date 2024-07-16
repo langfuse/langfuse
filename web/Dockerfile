@@ -11,14 +11,12 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 RUN corepack prepare pnpm@8.15.5 --activate
 
-
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
 
 WORKDIR /app
 
 COPY . .
 RUN turbo prune --scope=web --docker
-
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS builder
 
@@ -32,6 +30,7 @@ COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 
 ENV DOCKER_BUILD 1
+ENV NEXT_MANUAL_SIG_HANDLE true
 
 # pass public variables in build step
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
@@ -53,13 +52,12 @@ RUN rm -f ./web/src/middleware.ts
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_MANUAL_SIG_HANDLE true
 
 RUN turbo run build --filter=web
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
-
-RUN apk add --no-cache dumb-init
 
 WORKDIR /app
 
@@ -68,12 +66,15 @@ ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 # Needed to re-enable validation of environment variables during runtime
 ENV DOCKER_BUILD 0
+# Set NEXT_MANUAL_SIG_HANDLE for runtime
+ENV NEXT_MANUAL_SIG_HANDLE true
+
+RUN apk add --no-cache dumb-init
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma
-
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
@@ -95,5 +96,8 @@ USER nextjs
 # Default port to 3000
 ENV PORT 3000
 
-# CMD ["node", "server.js"]
-CMD ["dumb-init", "--", "./web/entrypoint.sh"]
+
+ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
+
+# startup command
+CMD ["node", "./web/server.js"]

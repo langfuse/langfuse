@@ -35,5 +35,5 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-# Start server
-node web/server.js
+# Run the command passed to the docker image on start
+exec "$@"
