@@ -1,7 +1,7 @@
 import { VERSION } from "@/src/constants";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
-import { a, isSigtermReceived } from "@/src/utils/shutdown";
+import { isSigtermReceived } from "@/src/utils/shutdown";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -15,10 +15,6 @@ export default async function handler(
     const failIfNoRecentEvents = req.query.failIfNoRecentEvents === "true";
 
     try {
-      console.log(
-        `Health check ${isSigtermReceived()}, ${a()}, ${Boolean(process.env.NEXT_MANUAL_SIG_HANDLE)}`,
-      );
-
       if (isSigtermReceived()) {
         console.log(
           "Health check failed: SIGTERM / SIGINT received, shutting down",

@@ -13,4 +13,17 @@ export const setSigtermReceived = () => {
 export const isSigtermReceived = () =>
   Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
 
-export const a = () => globalThis.sigtermReceived;
+export const shutdown = async (signal: PrexitSignal) => {
+  if (signal === "SIGTERM" || signal === "SIGINT") {
+    console.log("SIGTERM / SIGINT received. Shutting down");
+    setSigtermReceived();
+
+    // wait for 15 seconds
+    return await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        console.log("Shutdown complete");
+        resolve();
+      }, 15000);
+    });
+  }
+};

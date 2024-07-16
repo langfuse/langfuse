@@ -32,7 +32,7 @@ import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
-import { setSigtermReceived } from "@/src/utils/shutdown";
+import { setSigtermReceived, shutdown } from "@/src/utils/shutdown";
 
 const setProjectInPosthog = () => {
   // project
@@ -172,28 +172,8 @@ function UserTracking() {
 // NEVER call process.exit() in this process. Kubernetes should kill the container: https://kostasbariotis.com/why-you-should-not-use-process-exit/
 // We wait for 30 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
 if (process.env.NEXT_MANUAL_SIG_HANDLE) {
-  // process.on("SIGTERM", async () => {
-  //   await shutdown();
-  // });
-
-  // process.on("SIGINT", async () => {
-  //   await shutdown();
-  // });
   prexit(async (signal) => {
     console.log("Signal: ", signal);
-    return await shutdown();
+    return await shutdown(signal);
   });
 }
-
-export const shutdown = async () => {
-  console.log("SIGTERM / SIGINT received. Shutting down");
-  setSigtermReceived();
-
-  // wait for 15 seconds
-  return await new Promise<void>((resolve) => {
-    setTimeout(() => {
-      console.log("Shutdown complete");
-      resolve();
-    }, 15000);
-  });
-};
