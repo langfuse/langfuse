@@ -1,4 +1,4 @@
-export const compactNumberFormatter = (number?: number) => {
+export const compactNumberFormatter = (number?: number | bigint) => {
   return Intl.NumberFormat("en-US", {
     notation: "compact",
     compactDisplay: "short",
@@ -6,7 +6,10 @@ export const compactNumberFormatter = (number?: number) => {
   }).format(number ?? 0);
 };
 
-export const numberFormatter = (number?: number, fractionDigits?: number) => {
+export const numberFormatter = (
+  number?: number | bigint,
+  fractionDigits?: number,
+) => {
   return Intl.NumberFormat("en-US", {
     notation: "standard",
     minimumFractionDigits: fractionDigits ?? 2,
@@ -14,7 +17,10 @@ export const numberFormatter = (number?: number, fractionDigits?: number) => {
   }).format(number ?? 0);
 };
 
-export const latencyFormatter = (number?: number, fractionDigits?: number) => {
+export const latencyFormatter = (
+  number?: number | bigint,
+  fractionDigits?: number,
+) => {
   return Intl.NumberFormat("en-US", {
     style: "unit",
     unit: "second",
@@ -26,7 +32,7 @@ export const latencyFormatter = (number?: number, fractionDigits?: number) => {
 };
 
 export const usdFormatter = (
-  number: number,
+  number?: number | bigint,
   minimumFractionDigits: number = 2,
   maximumFractionDigits: number = 4,
 ) => {
