@@ -44,6 +44,7 @@ function MarkdownOrJsonView(props: {
       json={props.content}
       isMarkdown={props.isMarkdown}
       setIsMarkdown={handleMarkdownSelection}
+      containsMarkdown={validatedMarkdown.success}
       title={props.title}
       className={props.className}
     />

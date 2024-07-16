@@ -13,6 +13,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 export function JSONView(props: {
   isMarkdown?: boolean;
   setIsMarkdown?: (isMarkdown: boolean) => void;
+  containsMarkdown?: boolean;
   json?: unknown;
   title?: string;
   className?: string;
@@ -39,9 +40,9 @@ export function JSONView(props: {
           )}
         >
           {props.title}
-          {!!props.setIsMarkdown && (
+          {!!props.setIsMarkdown && props.containsMarkdown && (
             <Button
-              title="Enable/disable markdown"
+              title={props.isMarkdown ? "Disable Markdown" : "Enable Markdown"}
               variant="ghost"
               size="xs"
               onClick={() => {
@@ -50,7 +51,10 @@ export function JSONView(props: {
                   renderMarkdown: props.isMarkdown,
                 });
               }}
-              className="hover:bg-border"
+              className={cn(
+                "hover:bg-border",
+                !props.isMarkdown && "opacity-50",
+              )}
             >
               <BsMarkdown className="h-4 w-4 text-foreground" />
             </Button>

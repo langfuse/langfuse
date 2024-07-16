@@ -102,7 +102,7 @@ export function MarkdownView({
               )}
             </Button>
             <Button
-              title="Enable/disable markdown"
+              title={isMarkdown ? "Disable Markdown" : "Enable Markdown"}
               variant="ghost"
               size="xs"
               onClick={() => {
@@ -111,7 +111,7 @@ export function MarkdownView({
                   renderMarkdown: isMarkdown,
                 });
               }}
-              className="hover:bg-border"
+              className={cn("hover:bg-border", !isMarkdown && "opacity-50")}
             >
               <BsMarkdown className="h-4 w-4" />
             </Button>
