@@ -100,7 +100,7 @@ export function MarkdownView({
               )}
             </Button>
             <Button
-              title="Enable markdown"
+              title="Enable/disable markdown"
               variant="ghost"
               size="xs"
               onClick={() => setIsMarkdown(!isMarkdown)}

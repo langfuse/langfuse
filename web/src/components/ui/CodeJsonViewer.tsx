@@ -39,7 +39,7 @@ export function JSONView(props: {
           {props.title}
           {!!props.setIsMarkdown && (
             <Button
-              title="Enable markdown"
+              title="Enable/disable markdown"
               variant="ghost"
               size="xs"
               onClick={() => handleMarkdownSelection(!props.isMarkdown)}
