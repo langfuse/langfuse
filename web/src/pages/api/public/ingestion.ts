@@ -7,15 +7,17 @@ import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
-  type ingestionApiSchema,
-  eventTypes,
-  ingestionEvent,
   type TraceUpsertEventType,
   type EventBodyType,
   EventName,
   LangfuseNotFoundError,
   InternalServerError,
 } from "@langfuse/shared";
+import {
+  type ingestionApiSchema,
+  eventTypes,
+  ingestionEvent,
+} from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";

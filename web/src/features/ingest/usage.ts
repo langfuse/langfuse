@@ -6,7 +6,6 @@ import {
   getEncoding,
   encodingForModel,
 } from "js-tiktoken";
-
 import { z } from "zod";
 
 const chatModels = [
@@ -142,8 +141,8 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
   if (!config.success) {
     console.error(
       `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
-        p.model.tokenizerConfig
-      )}, ${JSON.stringify(config.error)}`
+        p.model.tokenizerConfig,
+      )}, ${JSON.stringify(config.error)}`,
     );
     return undefined;
   }
@@ -153,13 +152,13 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
   if (isChatMessageArray(p.text) && isChatModel(config.data.tokenizerModel)) {
     // check if the tokenizerConfig is a valid chat config
     const parsedConfig = OpenAiChatTokenConfig.safeParse(
-      p.model.tokenizerConfig
+      p.model.tokenizerConfig,
     );
     if (!parsedConfig.success) {
       console.error(
         `Invalid tokenizer config for chat model ${
           p.model.id
-        }: ${JSON.stringify(p.model.tokenizerConfig)}`
+        }: ${JSON.stringify(p.model.tokenizerConfig)}`,
       );
       return undefined;
     }
@@ -259,7 +258,7 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
       typeof item.role === "string" &&
       "content" in item &&
       typeof item.content === "string" &&
-      (!("name" in item) || typeof item.name === "string")
+      (!("name" in item) || typeof item.name === "string"),
   );
 }
 
