@@ -18,6 +18,7 @@ import { useRouter } from "next/router";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
+import prexit from "prexit";
 
 // Custom polyfills not yet available in `next-core`:
 // https://github.com/vercel/next.js/issues/58242
@@ -31,6 +32,7 @@ import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
+import { setSigtermReceived, shutdown } from "@/src/utils/shutdown";
 
 const setProjectInPosthog = () => {
   // project
@@ -162,4 +164,11 @@ function UserTracking() {
     }
   }, [session]);
   return null;
+}
+
+if (process.env.NEXT_MANUAL_SIG_HANDLE) {
+  prexit(async (signal) => {
+    console.log("Signal: ", signal);
+    return await shutdown(signal);
+  });
 }
