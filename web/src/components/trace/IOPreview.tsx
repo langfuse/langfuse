@@ -13,14 +13,11 @@ import {
   ChatMlArraySchema,
   ChatMlMessageSchema,
 } from "@/src/components/schemas/ChatMlSchema";
-import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import useLocalStorage from "@/src/components/useLocalStorage";
-
-const CHATML = "chatml";
-const MARKDOWN = "markdown";
+import { Toggle } from "@/src/components/ui/toggle";
 
 function MarkdownOrJsonView(props: {
-  formatSelection: string[];
+  formatSelection: boolean;
   content?: unknown;
   title?: string;
   className?: string;
@@ -31,8 +28,7 @@ function MarkdownOrJsonView(props: {
     [props.content],
   );
 
-  const isMarkdownEnabled =
-    validatedMarkdown.success && props.formatSelection.includes(MARKDOWN);
+  const isMarkdownEnabled = validatedMarkdown.success && props.formatSelection;
 
   return isMarkdownEnabled ? (
     <MarkdownView
@@ -59,7 +55,7 @@ export const IOPreview: React.FC<{
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
   const [formatSelection, setFormatSelection] = useLocalStorage(
     "prettyFormatSelection",
-    [CHATML, MARKDOWN],
+    true,
   );
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
@@ -129,50 +125,24 @@ export const IOPreview: React.FC<{
             </TabsList>
           </Tabs>
           {currentView === "pretty" && (
-            <ToggleGroup
-              type="multiple"
-              className="h-10"
-              value={formatSelection}
-              onValueChange={(value) => {
-                if (Boolean(value.length)) {
-                  setFormatSelection(value);
-                  capture("trace_detail:io_pretty_format_toggle_group", {
-                    formatSelection: value,
-                  });
-                }
+            <Toggle
+              className="h-8 bg-muted text-muted-foreground data-[state=on]:bg-border"
+              pressed={formatSelection}
+              onPressedChange={(value) => {
+                capture("trace_detail:io_pretty_format_toggle_group", {
+                  formatSelection: value,
+                });
+                setFormatSelection(value);
               }}
             >
-              <ToggleGroupItem
-                key={CHATML}
-                value={CHATML}
-                className={cn(
-                  "h-8 bg-muted text-muted-foreground data-[state=on]:bg-border",
-                  formatSelection.includes(CHATML) &&
-                    formatSelection.length === 1 &&
-                    "cursor-default",
-                )}
-              >
-                ChatML
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                key={MARKDOWN}
-                value={MARKDOWN}
-                className={cn(
-                  "h-8 bg-muted text-muted-foreground data-[state=on]:bg-border",
-                  formatSelection.includes(MARKDOWN) &&
-                    formatSelection.length === 1 &&
-                    "cursor-default",
-                )}
-              >
-                Markdown
-              </ToggleGroupItem>
-            </ToggleGroup>
+              Markdown
+            </Toggle>
           )}
         </div>
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
         <>
-          {inChatMlArray.success && formatSelection.includes(CHATML) ? (
+          {inChatMlArray.success ? (
             <OpenAiMessageView
               formatSelection={formatSelection}
               messages={[
@@ -237,7 +207,7 @@ export const IOPreview: React.FC<{
 };
 
 export const OpenAiMessageView: React.FC<{
-  formatSelection?: string[];
+  formatSelection?: boolean;
   title?: string;
   messages: z.infer<typeof ChatMlArraySchema>;
 }> = ({ formatSelection, title, messages }) => {
@@ -267,7 +237,7 @@ export const OpenAiMessageView: React.FC<{
                   <MarkdownOrJsonView
                     title={message.name ?? message.role}
                     content={message.content}
-                    formatSelection={formatSelection ?? []}
+                    formatSelection={formatSelection ?? false}
                     className={cn(
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",
