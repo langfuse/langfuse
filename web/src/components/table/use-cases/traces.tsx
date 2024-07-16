@@ -59,9 +59,9 @@ export type TracesTableRow = {
   scores: APIScore[];
   tags: string[];
   usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+    promptTokens: bigint;
+    completionTokens: bigint;
+    totalTokens: bigint;
   };
   inputCost?: Decimal;
   outputCost?: Decimal;

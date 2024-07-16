@@ -259,10 +259,12 @@ export default function UsersPage() {
                         t.lastTrace?.toLocaleString() ??
                         "No event yet",
                       totalEvents: compactNumberFormatter(
-                        (Number(t.totalTraces) || 0) +
-                          (Number(t.totalObservations) || 0),
+                        Number(t.totalTraces ?? 0) +
+                          Number(t.totalObservations ?? 0),
                       ),
-                      totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
+                      totalTokens: compactNumberFormatter(
+                        Number(t.totalTokens ?? 0),
+                      ),
                       lastScore: t.lastScore,
                       totalCost: usdFormatter(
                         t.sumCalculatedTotalCost ?? 0,
@@ -274,7 +276,7 @@ export default function UsersPage() {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
         }}

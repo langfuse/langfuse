@@ -127,15 +127,17 @@ function DetailsTab({ userId, projectId }: TabProps) {
         { label: "Total Traces", value: user.data.totalTraces },
         {
           label: "Prompt Tokens",
-          value: compactNumberFormatter(user.data.totalPromptTokens),
+          value: compactNumberFormatter(Number(user.data.totalPromptTokens)),
         },
         {
           label: "Completion Tokens",
-          value: compactNumberFormatter(user.data.totalCompletionTokens),
+          value: compactNumberFormatter(
+            Number(user.data.totalCompletionTokens),
+          ),
         },
         {
           label: "Total Tokens",
-          value: compactNumberFormatter(user.data.totalTokens),
+          value: compactNumberFormatter(Number(user.data.totalTokens)),
         },
         {
           label: "Total Cost",
