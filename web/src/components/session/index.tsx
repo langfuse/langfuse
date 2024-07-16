@@ -132,6 +132,7 @@ export const SessionPage: React.FC<{
                 variant="badge"
                 type="session"
                 source="SessionDetail"
+                key={"annotation-drawer" + trace.id}
               />
             </div>
           </Card>

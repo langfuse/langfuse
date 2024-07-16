@@ -2,6 +2,11 @@ import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { env } from "./env";
 import * as Sentry from "@sentry/node";
 
+require("dd-trace").init({
+  profiling: true,
+  runtimeMetrics: true,
+});
+
 Sentry.init({
   dsn: String(env.SENTRY_DSN),
   integrations: [
@@ -22,7 +27,6 @@ Sentry.init({
 });
 
 type CallbackAsyncFn<T> = (span?: Sentry.Span) => Promise<T>;
-
 export async function instrumentAsync<T>(
   ctx: { name: string },
   callback: CallbackAsyncFn<T>
