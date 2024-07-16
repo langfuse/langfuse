@@ -96,6 +96,7 @@ USER nextjs
 # Default port to 3000
 ENV PORT 3000
 
+
 ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
 
 CMD ["node", "./web/server.js"]

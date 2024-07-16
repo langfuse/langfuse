@@ -166,11 +166,6 @@ function UserTracking() {
   return null;
 }
 
-// https://github.com/vercel/next.js/issues/51404
-// There is no official best way to gracefully shutdown a Next.js app.
-// This here is a workaround to handle SIGTERM and SIGINT signals.
-// NEVER call process.exit() in this process. Kubernetes should kill the container: https://kostasbariotis.com/why-you-should-not-use-process-exit/
-// We wait for 30 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
 if (process.env.NEXT_MANUAL_SIG_HANDLE) {
   prexit(async (signal) => {
     console.log("Signal: ", signal);

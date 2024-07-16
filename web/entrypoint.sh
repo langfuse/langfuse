@@ -35,4 +35,5 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-exec node web/server.js
+# Ensure that the server is started as the main process
+exec "$@"
