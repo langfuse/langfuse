@@ -15,7 +15,7 @@ export const isSigtermReceived = () =>
 
 export const shutdown = async (signal: PrexitSignal) => {
   if (signal === "SIGTERM" || signal === "SIGINT") {
-    console.log("SIGTERM / SIGINT received. Shutting down");
+    console.log("SIGTERM / SIGINT received. Shutting down in 20 seconds.");
     setSigtermReceived();
 
     // wait for 15 seconds
@@ -23,7 +23,7 @@ export const shutdown = async (signal: PrexitSignal) => {
       setTimeout(() => {
         console.log("Shutdown complete");
         resolve();
-      }, 15000);
+      }, 20000);
     });
   }
 };
