@@ -13,6 +13,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 export function JSONView(props: {
   isMarkdown?: boolean;
   setIsMarkdown?: (isMarkdown: boolean) => void;
+  containsMarkdown?: boolean;
   json?: unknown;
   title?: string;
   className?: string;
@@ -21,11 +22,18 @@ export function JSONView(props: {
   collapseStringsAfterLength?: number | null;
 }) {
   // some users ingest stringified json nested in json, parse it
+  const [isCopied, setIsCopied] = useState(false);
   const parsedJson = deepParseJson(props.json);
   const { resolvedTheme } = useTheme();
   const capture = usePostHogClientCapture();
 
   const handleMarkdownSelection = props.setIsMarkdown ?? (() => {});
+
+  const handleCopy = () => {
+    setIsCopied(true);
+    void navigator.clipboard.writeText(stringifyJsonNode(parsedJson));
+    setTimeout(() => setIsCopied(false), 1000);
+  };
 
   return (
     <div className={cn("rounded-md border", props.className)}>
@@ -39,22 +47,44 @@ export function JSONView(props: {
           )}
         >
           {props.title}
-          {!!props.setIsMarkdown && (
+          <div className="flex items-center gap-1">
+            {!!props.setIsMarkdown && props.containsMarkdown && (
+              <Button
+                title={
+                  props.isMarkdown ? "Disable Markdown" : "Enable Markdown"
+                }
+                variant="ghost"
+                type="button"
+                size="xs"
+                onClick={() => {
+                  handleMarkdownSelection(!props.isMarkdown);
+                  capture("trace_detail:io_pretty_format_toggle_group", {
+                    renderMarkdown: props.isMarkdown,
+                  });
+                }}
+                className={cn(
+                  "hover:bg-border",
+                  !props.isMarkdown && "opacity-50",
+                )}
+              >
+                <BsMarkdown className="h-4 w-4 text-foreground" />
+              </Button>
+            )}
             <Button
-              title="Enable/disable markdown"
+              title="Copy to clipboard"
               variant="ghost"
               size="xs"
-              onClick={() => {
-                handleMarkdownSelection(!props.isMarkdown);
-                capture("trace_detail:io_pretty_format_toggle_group", {
-                  renderMarkdown: props.isMarkdown,
-                });
-              }}
+              type="button"
+              onClick={handleCopy}
               className="hover:bg-border"
             >
-              <BsMarkdown className="h-4 w-4 text-foreground" />
+              {isCopied ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
             </Button>
-          )}
+          </div>
         </div>
       ) : undefined}
       <div

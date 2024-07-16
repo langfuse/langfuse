@@ -32,7 +32,7 @@ import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
-import { setSigtermReceived, shutdown } from "@/src/utils/shutdown";
+import { shutdown } from "@/src/utils/shutdown";
 
 const setProjectInPosthog = () => {
   // project
