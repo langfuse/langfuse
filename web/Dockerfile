@@ -11,7 +11,6 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 RUN corepack prepare pnpm@8.15.5 --activate
 
-
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
 
 WORKDIR /app
@@ -57,7 +56,6 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 
 RUN turbo run build --filter=web
 
-
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
 
@@ -98,5 +96,6 @@ USER nextjs
 # Default port to 3000
 ENV PORT 3000
 
-# CMD ["node", "server.js"]
-CMD ["dumb-init","--single-child", "--", "./web/entrypoint.sh"]
+ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
+
+CMD ["node", "./web/server.js"]

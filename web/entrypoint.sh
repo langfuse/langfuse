@@ -35,4 +35,4 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-node web/server.js
+exec node web/server.js
