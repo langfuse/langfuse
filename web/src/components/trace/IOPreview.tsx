@@ -13,8 +13,11 @@ import {
   ChatMlArraySchema,
   ChatMlMessageSchema,
 } from "@/src/components/schemas/ChatMlSchema";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 function MarkdownOrJsonView(props: {
+  isMarkdown: boolean;
+  setIsMarkdown?: (value: boolean) => void;
   content?: unknown;
   title?: string;
   className?: string;
@@ -25,9 +28,13 @@ function MarkdownOrJsonView(props: {
     [props.content],
   );
 
-  return validatedMarkdown.success ? (
+  const handleMarkdownSelection = props.setIsMarkdown ?? (() => {});
+
+  return validatedMarkdown.success && props.isMarkdown ? (
     <MarkdownView
       markdown={validatedMarkdown.data}
+      isMarkdown={props.isMarkdown}
+      setIsMarkdown={handleMarkdownSelection}
       title={props.title}
       className={props.className}
       customCodeHeaderClassName={props.customCodeHeaderClassName}
@@ -35,6 +42,8 @@ function MarkdownOrJsonView(props: {
   ) : (
     <JSONView
       json={props.content}
+      isMarkdown={props.isMarkdown}
+      setIsMarkdown={handleMarkdownSelection}
       title={props.title}
       className={props.className}
     />
@@ -48,6 +57,10 @@ export const IOPreview: React.FC<{
   hideIfNull?: boolean;
 }> = ({ isLoading = false, hideIfNull = false, ...props }) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const [isMarkdown, setIsMarkdown] = useLocalStorage(
+    "shouldRenderMarkdown",
+    true,
+  );
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
@@ -102,18 +115,20 @@ export const IOPreview: React.FC<{
   return (
     <>
       {isPrettyViewAvailable ? (
-        <Tabs
-          value={currentView}
-          onValueChange={(v) => {
-            setCurrentView(v as "pretty" | "json"),
-              capture("trace_detail:io_mode_switch", { view: v });
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
-            <TabsTrigger value="json">JSON</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-row justify-between">
+          <Tabs
+            value={currentView}
+            onValueChange={(v) => {
+              setCurrentView(v as "pretty" | "json"),
+                capture("trace_detail:io_mode_switch", { view: v });
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
+              <TabsTrigger value="json">JSON</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
         <>
@@ -133,16 +148,25 @@ export const IOPreview: React.FC<{
                       }),
                     ]),
               ]}
+              isMarkdown={isMarkdown}
+              setIsMarkdown={setIsMarkdown}
             />
           ) : (
             <>
               {!(hideIfNull && !input) ? (
-                <MarkdownOrJsonView title="Input" content={input} />
+                <MarkdownOrJsonView
+                  title="Input"
+                  content={input}
+                  isMarkdown={isMarkdown}
+                  setIsMarkdown={setIsMarkdown}
+                />
               ) : null}
               {!(hideIfNull && !output) ? (
                 <MarkdownOrJsonView
                   title="Output"
                   content={output}
+                  isMarkdown={isMarkdown}
+                  setIsMarkdown={setIsMarkdown}
                   className="bg-accent-light-green dark:border-accent-dark-green"
                   customCodeHeaderClassName="bg-muted-green dark:bg-secondary"
                 />
@@ -178,7 +202,9 @@ export const IOPreview: React.FC<{
 export const OpenAiMessageView: React.FC<{
   title?: string;
   messages: z.infer<typeof ChatMlArraySchema>;
-}> = ({ title, messages }) => {
+  isMarkdown?: boolean;
+  setIsMarkdown?: (value: boolean) => void;
+}> = ({ title, messages, isMarkdown, setIsMarkdown }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
@@ -205,6 +231,8 @@ export const OpenAiMessageView: React.FC<{
                   <MarkdownOrJsonView
                     title={message.name ?? message.role}
                     content={message.content}
+                    isMarkdown={isMarkdown ?? false}
+                    setIsMarkdown={setIsMarkdown}
                     className={cn(
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",

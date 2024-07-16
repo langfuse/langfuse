@@ -18,6 +18,8 @@ import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { Button } from "@/src/components/ui/button";
 import { Check, Copy } from "lucide-react";
+import { BsMarkdown } from "react-icons/bs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const MemoizedReactMarkdown: FC<Options> = memo(
   ReactMarkdown,
@@ -48,17 +50,22 @@ const transformListItemChildren = (children: ReactNode) =>
 
 export function MarkdownView({
   markdown,
+  isMarkdown,
+  setIsMarkdown,
   title,
   className,
   customCodeHeaderClassName,
 }: {
   markdown: string;
+  isMarkdown: boolean;
+  setIsMarkdown: (value: boolean) => void;
   title?: string;
   className?: string;
   customCodeHeaderClassName?: string;
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const { resolvedTheme: theme } = useTheme();
+  const capture = usePostHogClientCapture();
 
   const sanitizedMarkdown = DOMPurify.sanitize(markdown);
 
@@ -80,19 +87,35 @@ export function MarkdownView({
           )}
         >
           {title}
-          <Button
-            title="Copy to clipboard"
-            variant="ghost"
-            size="xs"
-            onClick={handleCopy}
-            className="hover:bg-border"
-          >
-            {isCopied ? (
-              <Check className="h-3 w-3" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              title="Copy to clipboard"
+              variant="ghost"
+              size="xs"
+              onClick={handleCopy}
+              className="hover:bg-border"
+            >
+              {isCopied ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </Button>
+            <Button
+              title="Enable/disable markdown"
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                setIsMarkdown(!isMarkdown);
+                capture("trace_detail:io_pretty_format_toggle_group", {
+                  renderMarkdown: isMarkdown,
+                });
+              }}
+              className="hover:bg-border"
+            >
+              <BsMarkdown className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       ) : undefined}
       <MemoizedReactMarkdown

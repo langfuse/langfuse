@@ -7,8 +7,12 @@ import "react18-json-view/src/dark.css";
 import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
+import { BsMarkdown } from "react-icons/bs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function JSONView(props: {
+  isMarkdown?: boolean;
+  setIsMarkdown?: (isMarkdown: boolean) => void;
   json?: unknown;
   title?: string;
   className?: string;
@@ -19,6 +23,10 @@ export function JSONView(props: {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = deepParseJson(props.json);
   const { resolvedTheme } = useTheme();
+  const capture = usePostHogClientCapture();
+
+  const handleMarkdownSelection = props.setIsMarkdown ?? (() => {});
+
   return (
     <div className={cn("rounded-md border", props.className)}>
       {props.title ? (
@@ -27,10 +35,26 @@ export function JSONView(props: {
             props.title === "assistant" || props.title === "Output"
               ? "dark:border-accent-dark-green"
               : "",
-            "border-b px-3 py-1 text-xs font-medium",
+            "flex flex-row items-center justify-between border-b px-3 py-1 text-xs font-medium",
           )}
         >
           {props.title}
+          {!!props.setIsMarkdown && (
+            <Button
+              title="Enable/disable markdown"
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                handleMarkdownSelection(!props.isMarkdown);
+                capture("trace_detail:io_pretty_format_toggle_group", {
+                  renderMarkdown: props.isMarkdown,
+                });
+              }}
+              className="hover:bg-border"
+            >
+              <BsMarkdown className="h-4 w-4 text-foreground" />
+            </Button>
+          )}
         </div>
       ) : undefined}
       <div
