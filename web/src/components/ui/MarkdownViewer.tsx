@@ -33,9 +33,13 @@ const isChecklist = (children: ReactNode) =>
   Array.isArray(children) &&
   children.some((child: any) => child?.props?.className === "task-list-item");
 
+// Implemented customLoader to prevent next/image from requiring all user provided url domains to be whitelisted.
+// Security risks are taken care of by a combination of DOMPurify and api.public.validateImgUrl, to ensure images are valid.
+// Do not use this customLoader in production if you are not using the above mentioned security measures.
 const customLoader = ({ src }: { src: string }) => {
   return src;
 };
+
 const isTextElement = (child: ReactNode): child is ReactElement =>
   isValidElement(child) &&
   typeof child.type !== "string" &&
