@@ -14,6 +14,7 @@ export function JSONView(props: {
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
+  collapseStringsAfterLength?: number | null;
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = deepParseJson(props.json);
@@ -46,7 +47,11 @@ export function JSONView(props: {
             theme="github"
             dark={resolvedTheme === "dark"}
             collapseObjectsAfterLength={20}
-            collapseStringsAfterLength={500}
+            collapseStringsAfterLength={
+              props.collapseStringsAfterLength === null
+                ? 100_000_000 // if null, show all (100M chars)
+                : props.collapseStringsAfterLength ?? 500
+            }
             displaySize={"collapsed"}
             matchesURL={true}
             customizeCopy={(node) => stringifyJsonNode(node)}
@@ -148,6 +153,7 @@ export const IOTableCell = ({
             className,
           )}
           codeClassName="py-1 px-2"
+          collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         />
       )}
     </>

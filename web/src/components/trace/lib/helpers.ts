@@ -16,8 +16,19 @@ export function nestObservations(
 ): NestedObservation[] {
   if (list.length === 0) return [];
 
+  // Data prep: Remove parentObservationId attribute from observations if the id does not exist in the list of observations
+  const mutableList = list.map((o) => ({ ...o }));
+  mutableList.forEach((observation) => {
+    if (
+      observation.parentObservationId &&
+      !list.find((o) => o.id === observation.parentObservationId)
+    ) {
+      observation.parentObservationId = null;
+    }
+  });
+
   // Step 0: Sort the list by start time to ensure observations are in right order
-  const sortedObservations = list.sort(
+  const sortedObservations = mutableList.sort(
     (a, b) => a.startTime.getTime() - b.startTime.getTime(),
   );
 
