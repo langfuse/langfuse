@@ -9,7 +9,6 @@ import {
   type SessionOptions,
   getSessionTableSQL,
 } from "@langfuse/shared";
-import * as Sentry from "@sentry/node";
 import { Prisma } from "@langfuse/shared/src/db";
 import { paginationZod } from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
