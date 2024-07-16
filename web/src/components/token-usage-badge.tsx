@@ -26,9 +26,9 @@ export const TokenUsageBadge = (
         observation: Observation;
       }
     | {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
+        promptTokens: number | bigint;
+        completionTokens: number | bigint;
+        totalTokens: number | bigint;
       }
   ) & {
     inline?: boolean;
