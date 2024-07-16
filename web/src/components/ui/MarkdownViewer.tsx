@@ -89,22 +89,10 @@ export function MarkdownView({
           {title}
           <div className="flex items-center gap-1">
             <Button
-              title="Copy to clipboard"
-              variant="ghost"
-              size="xs"
-              onClick={handleCopy}
-              className="hover:bg-border"
-            >
-              {isCopied ? (
-                <Check className="h-3 w-3" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </Button>
-            <Button
               title={isMarkdown ? "Disable Markdown" : "Enable Markdown"}
               variant="ghost"
               size="xs"
+              type="button"
               onClick={() => {
                 setIsMarkdown(!isMarkdown);
                 capture("trace_detail:io_pretty_format_toggle_group", {
@@ -114,6 +102,20 @@ export function MarkdownView({
               className={cn("hover:bg-border", !isMarkdown && "opacity-50")}
             >
               <BsMarkdown className="h-4 w-4" />
+            </Button>
+            <Button
+              title="Copy to clipboard"
+              variant="ghost"
+              size="xs"
+              type="button"
+              onClick={handleCopy}
+              className="hover:bg-border"
+            >
+              {isCopied ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
             </Button>
           </div>
         </div>
