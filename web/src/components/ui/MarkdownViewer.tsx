@@ -2,6 +2,7 @@ import { cn } from "@/src/utils/tailwind";
 import { type FC, memo, type ReactNode, useState } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
+import Image from "next/image";
 import DOMPurify from "dompurify";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -9,6 +10,8 @@ import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { Button } from "@/src/components/ui/button";
 import { Check, Copy } from "lucide-react";
+import { api } from "@/src/utils/api";
+import { isPresent } from "@/src/utils/typeChecks";
 
 const MemoizedReactMarkdown: FC<Options> = memo(
   ReactMarkdown,
@@ -20,6 +23,10 @@ const MemoizedReactMarkdown: FC<Options> = memo(
 const isChecklist = (children: ReactNode) =>
   Array.isArray(children) &&
   children.some((child: any) => child?.props?.className === "task-list-item");
+
+const customLoader = ({ src }: { src: string }) => {
+  return src;
+};
 
 export function MarkdownView({
   markdown,
@@ -139,10 +146,31 @@ export function MarkdownView({
               </blockquote>
             );
           },
-          img({ src }) {
+          img({ src, alt }) {
+            if (!isPresent(src)) return null;
+
+            const isValidImage = api.public.validateImgUrl.useQuery(src);
+            if (isValidImage.isLoading) {
+              return <div>Loading Image...</div>;
+            }
+
+            if (isValidImage.data?.valid) {
+              return (
+                <Image
+                  loader={customLoader}
+                  src={src}
+                  alt={alt ?? `Markdown Image-${Math.random()}`}
+                  layout="intrinsic"
+                  loading="lazy"
+                  width={300}
+                  height={500}
+                />
+              );
+            }
+
             return (
-              <Link href={src ?? ""} className="underline" target="_blank">
-                {src ?? ""}
+              <Link href={src} className="underline" target="_blank">
+                {src}
               </Link>
             );
           },
