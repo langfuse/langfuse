@@ -112,7 +112,7 @@ type TabProps = {
 function DetailsTab({ userId, projectId }: TabProps) {
   const user = api.users.byId.useQuery({ projectId: projectId, userId });
 
-  const userData = user.data
+  const userData: { value: string; label: string }[] = user.data
     ? [
         { label: "User Id", value: user.data.userId },
         {
@@ -123,11 +123,17 @@ function DetailsTab({ userId, projectId }: TabProps) {
           label: "Last Observation",
           value: user.data.lastObservation?.toLocaleString(),
         },
-        { label: "Total Observations", value: user.data.totalObservations },
-        { label: "Total Traces", value: user.data.totalTraces },
+        {
+          label: "Total Observations",
+          value: compactNumberFormatter(user.data.totalObservations),
+        },
+        {
+          label: "Total Traces",
+          value: compactNumberFormatter(user.data.totalTraces),
+        },
         {
           label: "Prompt Tokens",
-          value: compactNumberFormatter(Number(user.data.totalPromptTokens)),
+          value: compactNumberFormatter(user.data.totalPromptTokens),
         },
         {
           label: "Completion Tokens",
@@ -137,7 +143,7 @@ function DetailsTab({ userId, projectId }: TabProps) {
         },
         {
           label: "Total Tokens",
-          value: compactNumberFormatter(Number(user.data.totalTokens)),
+          value: compactNumberFormatter(user.data.totalTokens),
         },
         {
           label: "Total Cost",

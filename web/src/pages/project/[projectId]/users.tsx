@@ -262,9 +262,7 @@ export default function UsersPage() {
                         Number(t.totalTraces ?? 0) +
                           Number(t.totalObservations ?? 0),
                       ),
-                      totalTokens: compactNumberFormatter(
-                        Number(t.totalTokens ?? 0),
-                      ),
+                      totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
                       lastScore: t.lastScore,
                       totalCost: usdFormatter(
                         t.sumCalculatedTotalCost ?? 0,
