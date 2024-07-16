@@ -35,5 +35,5 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-# Ensure that the server is started as the main process
+# Run the command passed to the docker image on start
 exec "$@"

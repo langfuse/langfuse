@@ -24,7 +24,6 @@ export const shutdown = async (signal: PrexitSignal) => {
     console.log("SIGTERM / SIGINT received. Shutting down in 20 seconds.");
     setSigtermReceived();
 
-    // wait for 15 seconds
     return await new Promise<void>((resolve) => {
       setTimeout(() => {
         console.log("Shutdown complete");
