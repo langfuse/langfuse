@@ -5,7 +5,6 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { type Status, StatusBadge } from "./status-badge";
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
-import { useQueryProjectAndOrganization } from "@/src/features/projects/utils/useProject";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -25,6 +24,8 @@ import { ChevronDownIcon, PlusIcon, Settings, Slash } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { createProjectRoute } from "@/src/components/setup";
 import { env } from "@/src/env.mjs";
+import { api } from "@/src/utils/api";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/utils/useProject";
 
 export default function Header({
   level = "h2",
@@ -114,7 +115,8 @@ const BreadcrumbComponent = ({
 }: {
   items?: { name: string; href?: string }[];
 }) => {
-  const { project, organization } = useQueryProjectAndOrganization();
+  const organizations = api.organizations.all.useQuery();
+  const { organization, project } = useQueryProjectOrOrganization();
   const session = useSession();
 
   return null; // todo: fix this component

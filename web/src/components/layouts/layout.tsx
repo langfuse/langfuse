@@ -28,10 +28,10 @@ import {
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import DOMPurify from "dompurify";
-import { useQueryProjectAndOrganization } from "@/src/features/projects/utils/useProject";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { EnvLabel } from "@/src/components/EnvLabel";
 import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/utils/useProject";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -81,7 +81,7 @@ export default function Layout(props: PropsWithChildren) {
     session.data?.environment.enableExperimentalFeatures ?? false;
 
   // project info based on projectId in the URL
-  const { project, organization } = useQueryProjectAndOrganization();
+  const { project, organization } = useQueryProjectOrOrganization();
   const isEeEnabled = useIsEeEnabled();
 
   const mapNavigation = (route: Route): NavigationItem | null => {

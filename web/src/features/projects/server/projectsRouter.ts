@@ -10,26 +10,9 @@ import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { cloudConfigSchema } from "@/src/features/cloud-config/types/cloudConfigSchema";
+import { parseDbOrg } from "@/src/features/organizations/utils/parseDbOrg";
 
 export const projectsRouter = createTRPCRouter({
-  all: protectedProcedure.query(async ({ ctx }) => {
-    const memberships = await ctx.prisma.projectMembership.findMany({
-      where: {
-        userId: ctx.session.user.id,
-      },
-      include: {
-        project: true,
-      },
-    });
-    const projects = memberships.map((membership) => ({
-      id: membership.project.id,
-      name: membership.project.name,
-      role: membership.role,
-    }));
-
-    return projects;
-  }),
   byId: protectedProcedure
     .input(
       z.object({
@@ -37,18 +20,24 @@ export const projectsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const project = await ctx.prisma.project.findUnique({
+      const data = await ctx.prisma.project.findUnique({
         where: {
           id: input.projectId,
         },
+        omit: {
+          cloudConfig: true, // deprecated
+        },
+        include: {
+          organization: true,
+        },
       });
-      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!data) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const cloudConfig = cloudConfigSchema.safeParse(project.cloudConfig);
+      const { organization, ...project } = data;
 
       return {
-        ...project,
-        cloudConfig: cloudConfig.success ? cloudConfig.data : null,
+        project,
+        organization: organization ? parseDbOrg(organization) : null, // todo: remove once org is mandatory on projects
       };
     }),
   create: protectedOrganizationProcedure
@@ -199,69 +188,4 @@ export const projectsRouter = createTRPCRouter({
         }),
       ]);
     }),
-
-  // transfer: protectedProjectProcedure
-  //   .input(
-  //     z.object({
-  //       projectId: z.string(),
-  //       newOwnerEmail: z.string().email(),
-  //     }),
-  //   )
-  //   .mutation(async ({ input, ctx }) => {
-  //     throwIfNoOrganizationAccess({
-  //       session: ctx.session,
-  //       orgId: ctx.session.orgId,
-  //       scope: "projects:",
-  //     });
-
-  //     // Check if new owner exists
-  //     const newOwner = await ctx.prisma.user.findUnique({
-  //       where: {
-  //         email: input.newOwnerEmail.toLowerCase(),
-  //       },
-  //     });
-  //     if (!newOwner) throw new Error("User not found");
-  //     if (newOwner.id === ctx.session.user.id)
-  //       throw new Error("You cannot transfer project to yourself");
-
-  //     await auditLog({
-  //       session: ctx.session,
-  //       resourceType: "project",
-  //       resourceId: input.projectId,
-  //       action: "transfer",
-  //       after: { ownerId: newOwner.id },
-  //     });
-
-  //     return ctx.prisma.$transaction([
-  //       // Add new owner, upsert to update role if already exists
-  //       ctx.prisma.projectMembership.upsert({
-  //         where: {
-  //           projectId_userId: {
-  //             projectId: input.projectId,
-  //             userId: newOwner.id,
-  //           },
-  //         },
-  //         update: {
-  //           role: "OWNER",
-  //         },
-  //         create: {
-  //           userId: newOwner.id,
-  //           projectId: input.projectId,
-  //           role: "OWNER",
-  //         },
-  //       }),
-  //       // Update old owner to admin
-  //       ctx.prisma.projectMembership.update({
-  //         where: {
-  //           projectId_userId: {
-  //             projectId: input.projectId,
-  //             userId: ctx.session.user.id,
-  //           },
-  //         },
-  //         data: {
-  //           role: "ADMIN",
-  //         },
-  //       }),
-  //     ]);
-  //   }),
 });

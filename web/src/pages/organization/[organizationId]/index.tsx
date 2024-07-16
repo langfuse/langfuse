@@ -1,5 +1,5 @@
 import { OrganizationProjectOverview } from "@/src/features/organizations/components/ProjectOverview";
-import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
+import { useQueryOrganization } from "@/src/features/organizations/hooks/useOrganization";
 
 export default function GetStartedPage() {
   const organization = useQueryOrganization();

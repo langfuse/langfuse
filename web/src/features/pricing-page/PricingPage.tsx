@@ -1,4 +1,4 @@
-import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
+import { useQueryOrganization } from "@/src/features/organizations/hooks/useOrganization";
 import Script from "next/script";
 
 export function PricingPage(props: { className?: string }) {

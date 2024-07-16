@@ -5,7 +5,7 @@ import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { env } from "@/src/env.mjs";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
-import { useQueryOrganization } from "@/src/features/organizations/utils/useOrganization";
+import { useQueryOrganization } from "@/src/features/organizations/hooks/useOrganization";
 import { OrganizationUsageChart } from "@/src/features/usage-metering/OrganizationUsageChart";
 
 const OrgSettingsPage = () => {

@@ -2,13 +2,12 @@ import {
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedProcedure,
-  protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { cloudConfigSchema } from "@/src/features/cloud-config/types/cloudConfigSchema";
+import { parseDbOrg } from "@/src/features/organizations/utils/parseDbOrg";
 
 export const organizationsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
@@ -21,7 +20,7 @@ export const organizationsRouter = createTRPCRouter({
         },
       },
     });
-    return orgs;
+    return orgs.map(parseDbOrg);
   }),
   byId: protectedOrganizationProcedure
     .input(
@@ -39,34 +38,15 @@ export const organizationsRouter = createTRPCRouter({
         },
       });
 
-      const parsedCloudConfig = cloudConfigSchema.safeParse(
-        organization?.cloudConfig,
-      );
+      if (!organization) {
+        throw new Error("Organization not found");
+      }
 
-      // todo: add filter for projects if user has no view access to all projects in org
-      return { ...organization, cloudConfig: parsedCloudConfig.data };
-    }),
-  byProjectId: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const project = await ctx.prisma.project.findFirst({
-        where: {
-          id: input.projectId,
-        },
-        include: {
-          organization: true,
-        },
-      });
-
-      const parsedCloudConfig = cloudConfigSchema.safeParse(
-        project?.organization?.cloudConfig,
-      );
-
-      return project?.organization;
+      const { projects, ...org } = organization;
+      return {
+        ...parseDbOrg(org),
+        projects,
+      };
     }),
   create: protectedProcedure
     .input(organizationNameSchema)
