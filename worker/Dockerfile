@@ -64,5 +64,5 @@ COPY --from=builder --chown=expressjs:expressjs /app .
 EXPOSE 3030
 ENV PORT=3030
 
-CMD ["dumb-init", "--", "worker/dist/index.js"]
+ENTRYPOINT ["dumb-init", "--", "node", "worker/dist/index.js"]
 
