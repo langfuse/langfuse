@@ -185,7 +185,7 @@ if (process.env.NEXT_MANUAL_SIG_HANDLE) {
   });
 }
 
-const shutdown = async () => {
+export const shutdown = async () => {
   console.log("SIGTERM / SIGINT received. Shutting down");
   setSigtermReceived();
 
