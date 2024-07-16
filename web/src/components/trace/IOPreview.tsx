@@ -16,7 +16,11 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
+const CHATML = "chatml";
+const MARKDOWN = "markdown";
+
 function MarkdownOrJsonView(props: {
+  formatSelection: string[];
   content?: unknown;
   title?: string;
   className?: string;
@@ -27,7 +31,10 @@ function MarkdownOrJsonView(props: {
     [props.content],
   );
 
-  return validatedMarkdown.success ? (
+  const isMarkdownEnabled =
+    validatedMarkdown.success && props.formatSelection.includes(MARKDOWN);
+
+  return isMarkdownEnabled ? (
     <MarkdownView
       markdown={validatedMarkdown.data}
       title={props.title}
@@ -51,8 +58,8 @@ export const IOPreview: React.FC<{
 }> = ({ isLoading = false, hideIfNull = false, ...props }) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
   const [formatSelection, setFormatSelection] = useLocalStorage(
-    "formatSelection",
-    ["chatml", "markdown"],
+    "prettyFormatSelection",
+    [CHATML, MARKDOWN],
   );
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
@@ -131,11 +138,11 @@ export const IOPreview: React.FC<{
               }}
             >
               <ToggleGroupItem
-                key="chatml"
-                value="chatml"
+                key={CHATML}
+                value={CHATML}
                 className={cn(
                   "h-8 bg-muted text-muted-foreground data-[state=on]:bg-border",
-                  formatSelection.includes("chatml") &&
+                  formatSelection.includes(CHATML) &&
                     formatSelection.length === 1 &&
                     "cursor-default",
                 )}
@@ -143,11 +150,11 @@ export const IOPreview: React.FC<{
                 ChatML
               </ToggleGroupItem>
               <ToggleGroupItem
-                key="markdown"
-                value="markdown"
+                key={MARKDOWN}
+                value={MARKDOWN}
                 className={cn(
                   "h-8 bg-muted text-muted-foreground data-[state=on]:bg-border",
-                  formatSelection.includes("markdown") &&
+                  formatSelection.includes(MARKDOWN) &&
                     formatSelection.length === 1 &&
                     "cursor-default",
                 )}
@@ -160,8 +167,9 @@ export const IOPreview: React.FC<{
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
         <>
-          {inChatMlArray.success ? (
+          {inChatMlArray.success && formatSelection.includes(CHATML) ? (
             <OpenAiMessageView
+              formatSelection={formatSelection}
               messages={[
                 ...inChatMlArray.data,
                 ...(outChatMlArray.success
@@ -180,12 +188,17 @@ export const IOPreview: React.FC<{
           ) : (
             <>
               {!(hideIfNull && !input) ? (
-                <MarkdownOrJsonView title="Input" content={input} />
+                <MarkdownOrJsonView
+                  title="Input"
+                  content={input}
+                  formatSelection={formatSelection}
+                />
               ) : null}
               {!(hideIfNull && !output) ? (
                 <MarkdownOrJsonView
                   title="Output"
                   content={output}
+                  formatSelection={formatSelection}
                   className="bg-accent-light-green dark:border-accent-dark-green"
                   customCodeHeaderClassName="bg-muted-green dark:bg-secondary"
                 />
@@ -219,9 +232,10 @@ export const IOPreview: React.FC<{
 };
 
 export const OpenAiMessageView: React.FC<{
+  formatSelection?: string[];
   title?: string;
   messages: z.infer<typeof ChatMlArraySchema>;
-}> = ({ title, messages }) => {
+}> = ({ formatSelection, title, messages }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
@@ -248,6 +262,7 @@ export const OpenAiMessageView: React.FC<{
                   <MarkdownOrJsonView
                     title={message.name ?? message.role}
                     content={message.content}
+                    formatSelection={formatSelection ?? []}
                     className={cn(
                       "bg-muted",
                       message.role === "system" && "bg-primary-foreground",
