@@ -48,6 +48,8 @@ RUN turbo run build --filter=worker...
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
 
+RUN apk add --no-cache dumb-init
+
 WORKDIR /app
 
 ENV NODE_ENV production
@@ -62,5 +64,5 @@ COPY --from=builder --chown=expressjs:expressjs /app .
 EXPOSE 3030
 ENV PORT=3030
 
-CMD ["node", "worker/dist/index.js"]
+ENTRYPOINT ["dumb-init", "--", "node", "worker/dist/index.js"]
 
