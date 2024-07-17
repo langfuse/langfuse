@@ -1,5 +1,3 @@
-import { redis } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
 // https://github.com/vercel/next.js/issues/51404
 // There is no official best way to gracefully shutdown a Next.js app in Docker.
 // This here is a workaround to handle SIGTERM and SIGINT signals.
@@ -32,8 +30,6 @@ export const shutdown = async (signal: PrexitSignal) => {
 
     return await new Promise<void>((resolve) => {
       setTimeout(async () => {
-        redis?.disconnect();
-        prisma.$disconnect();
         console.log("Shutdown complete");
         resolve();
       }, TIMEOUT);
