@@ -1,10 +1,11 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { redis } from "../../redis";
 import { Response } from "express";
+import logger from "../../logger";
 
 export const checkContainerHealth = async (res: Response) => {
   if (isSigtermReceived()) {
-    console.log(
+    logger.info(
       "Health check failed: SIGTERM / SIGINT received, shutting down."
     );
     return res.status(500).json({
@@ -37,7 +38,7 @@ export const checkContainerHealth = async (res: Response) => {
 let sigtermReceived: boolean = false;
 
 export const setSigtermReceived = () => {
-  console.log("Set sigterm received to true");
+  logger.info("Set sigterm received to true");
   sigtermReceived = true;
 };
 
