@@ -20,6 +20,7 @@ import { Check, Copy } from "lucide-react";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
+// ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 const MemoizedReactMarkdown: FC<Options> = memo(
   ReactMarkdown,
   (prevProps, nextProps) =>
