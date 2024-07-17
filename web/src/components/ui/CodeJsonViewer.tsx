@@ -108,9 +108,9 @@ export function JSONView(props: {
             collapseObjectsAfterLength={20}
             collapseStringsAfterLength={collapseStringsAfterLength}
             collapseStringMode="word"
-            customizeCollapseStringUI={(str_show, truncated) =>
+            customizeCollapseStringUI={(fullSTring, truncated) =>
               truncated ? (
-                <div className="opacity-50">{`\n...expand (${Math.max(str_show.length - collapseStringsAfterLength, 0)} more characters)`}</div>
+                <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
               ) : (
                 ""
               )
