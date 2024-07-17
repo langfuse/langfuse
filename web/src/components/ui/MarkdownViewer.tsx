@@ -124,7 +124,7 @@ export function MarkdownView({
       ) : undefined}
       <MemoizedReactMarkdown
         className={cn(
-          "space-y-4 overflow-x-auto break-words p-3 font-mono text-xs",
+          "space-y-4 overflow-x-auto break-words p-3 text-sm",
           className,
         )}
         remarkPlugins={[remarkGfm, remarkMath]}
