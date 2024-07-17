@@ -5,6 +5,7 @@ import logger from "./logger";
 
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
+import { setSigtermReceived } from "./features/health";
 
 const server = app.listen(env.PORT, () => {
   logger.info(`Listening: http://localhost:${env.PORT}`);
@@ -13,6 +14,7 @@ const server = app.listen(env.PORT, () => {
 // Function to handle shutdown logic
 async function onShutdown() {
   logger.info("Shutting down application...");
+  setSigtermReceived();
 
   // Stop accepting new connections
   server.close();
