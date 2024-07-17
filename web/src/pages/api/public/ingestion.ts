@@ -554,8 +554,8 @@ export const sendToWorkerIfEnvironmentConfigured = async (
 };
 
 const gaugePrismaStats = async () => {
-  // execute with a 10% probability
-  if (Math.random() > 0.1) {
+  // execute with a 50% probability
+  if (Math.random() > 0.5) {
     return;
   }
   const metrics = await prisma.$metrics.json();
