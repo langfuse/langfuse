@@ -817,7 +817,7 @@ export class SdkLogProcessor implements EventProcessor {
     this.event = event;
   }
 
-  process(apiScope: ApiAccessScope) {
+  process() {
     try {
       console.log("SDK Log", this.event);
       return undefined;

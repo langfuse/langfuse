@@ -12,7 +12,6 @@ import {
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
 import Image from "next/image";
-import DOMPurify from "dompurify";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
@@ -21,7 +20,11 @@ import { Button } from "@/src/components/ui/button";
 import { Check, Copy } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { isPresent } from "@/src/utils/typeChecks";
+import { BsMarkdown } from "react-icons/bs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
+// ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
+// html is rendered as plain text by default.
 const MemoizedReactMarkdown: FC<Options> = memo(
   ReactMarkdown,
   (prevProps, nextProps) =>
@@ -58,19 +61,22 @@ const transformListItemChildren = (children: ReactNode) =>
 
 export function MarkdownView({
   markdown,
+  isMarkdown,
+  setIsMarkdown,
   title,
   className,
   customCodeHeaderClassName,
 }: {
   markdown: string;
+  isMarkdown: boolean;
+  setIsMarkdown: (value: boolean) => void;
   title?: string;
   className?: string;
   customCodeHeaderClassName?: string;
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const { resolvedTheme: theme } = useTheme();
-
-  const sanitizedMarkdown = DOMPurify.sanitize(markdown);
+  const capture = usePostHogClientCapture();
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -90,27 +96,50 @@ export function MarkdownView({
           )}
         >
           {title}
-          <Button
-            title="Copy to clipboard"
-            variant="ghost"
-            size="xs"
-            onClick={handleCopy}
-            className="hover:bg-border"
-          >
-            {isCopied ? (
-              <Check className="h-3 w-3" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              title={isMarkdown ? "Disable Markdown" : "Enable Markdown"}
+              variant="ghost"
+              size="xs"
+              type="button"
+              onClick={() => {
+                setIsMarkdown(!isMarkdown);
+                capture("trace_detail:io_pretty_format_toggle_group", {
+                  renderMarkdown: isMarkdown,
+                });
+              }}
+              className={cn("hover:bg-border", !isMarkdown && "opacity-50")}
+            >
+              <BsMarkdown className="h-4 w-4" />
+            </Button>
+            <Button
+              title="Copy to clipboard"
+              variant="ghost"
+              size="xs"
+              type="button"
+              onClick={handleCopy}
+              className="hover:bg-border"
+            >
+              {isCopied ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
         </div>
       ) : undefined}
       <MemoizedReactMarkdown
-        className={cn("space-y-4 break-words p-3 font-mono text-xs", className)}
+        className={cn(
+          "space-y-4 overflow-x-auto break-words p-3 font-mono text-xs",
+          className,
+        )}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p({ children }) {
-            return <p className="mb-2 last:mb-0">{children}</p>;
+            return (
+              <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>
+            );
           },
           a({ children, href }) {
             if (href)
@@ -240,7 +269,7 @@ export function MarkdownView({
           },
         }}
       >
-        {sanitizedMarkdown}
+        {markdown}
       </MemoizedReactMarkdown>
     </div>
   );

@@ -28,7 +28,6 @@ import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 export const SaveToPromptButton: React.FC = () => {
   const isEeEnabled = useIsEeEnabled();
-  const [open, setOpen] = useState(false);
   const [selectedPromptId, setSelectedPromptId] = useState("");
   const { modelParams, messages, output, promptVariables } =
     usePlaygroundContext();
@@ -115,7 +114,6 @@ export const SaveToPromptButton: React.FC = () => {
                     setSelectedPromptId(
                       currentValue === selectedPromptId ? "" : currentValue,
                     );
-                    setOpen(false);
                   }}
                 >
                   <Check
