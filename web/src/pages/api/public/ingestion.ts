@@ -297,6 +297,10 @@ const handleSingleEvent = async (
     restEvent = rest;
   }
 
+  console.log(
+    `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
+  );
+
   const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
 
   const { type } = cleanedEvent;
