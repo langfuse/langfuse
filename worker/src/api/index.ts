@@ -12,13 +12,13 @@ import {
   TQueueJobTypes,
   TraceUpsertEventType,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
 import { redis } from "../redis";
 import emojis from "./emojis";
+import { checkContainerHealth } from "../features/health";
 
 const router = express.Router();
 
@@ -32,28 +32,9 @@ type EventsResponse = {
   status: "success" | "error";
 };
 
-router.get<{}, { status: string }>("/health", async (_req, res) => {
+router.get<{}, { status: string }>("/health", async (req, res) => {
   try {
-    //check database health
-    await prisma.$queryRaw`SELECT 1;`;
-
-    if (!redis) {
-      throw new Error("Redis connection not available");
-    }
-
-    await Promise.race([
-      redis?.ping(),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Redis ping timeout after 2 seconds")),
-          2000
-        )
-      ),
-    ]);
-
-    res.json({
-      status: "ok",
-    });
+    await checkContainerHealth(req, res);
   } catch (e) {
     logger.error(e, "Health check failed");
     res.status(500).json({
