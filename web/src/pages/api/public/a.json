@@ -1,0 +1,125 @@
+{
+  "counters": [
+    {
+      "key": "prisma_client_queries_total",
+      "labels": {},
+      "value": 8203,
+      "description": "The total number of Prisma Client queries executed"
+    },
+    {
+      "key": "prisma_datasource_queries_total",
+      "labels": {},
+      "value": 11904,
+      "description": "The total number of datasource queries executed"
+    },
+    {
+      "key": "prisma_pool_connections_closed_total",
+      "labels": {},
+      "value": 4,
+      "description": "The total number of pool connections closed"
+    },
+    {
+      "key": "prisma_pool_connections_opened_total",
+      "labels": {},
+      "value": 18,
+      "description": "The total number of pool connections opened"
+    }
+  ],
+  "gauges": [
+    {
+      "key": "prisma_client_queries_active",
+      "labels": {},
+      "value": 0,
+      "description": "The number of currently active Prisma Client queries"
+    },
+    {
+      "key": "prisma_client_queries_wait",
+      "labels": {},
+      "value": 0,
+      "description": "The number of datasource queries currently waiting for a free connection"
+    },
+    {
+      "key": "prisma_pool_connections_busy",
+      "labels": {},
+      "value": 0,
+      "description": "The number of pool connections currently executing datasource queries"
+    },
+    {
+      "key": "prisma_pool_connections_idle",
+      "labels": {},
+      "value": 18,
+      "description": "The number of pool connections that are not busy running a query"
+    },
+    {
+      "key": "prisma_pool_connections_open",
+      "labels": {},
+      "value": 14,
+      "description": "The number of pool connections currently open"
+    }
+  ],
+  "histograms": [
+    {
+      "key": "prisma_client_queries_duration_histogram_ms",
+      "labels": {},
+      "value": {
+        "buckets": [
+          [0, 0],
+          [1, 1105],
+          [5, 5371],
+          [10, 1171],
+          [50, 530],
+          [100, 19],
+          [500, 7],
+          [1000, 0],
+          [5000, 0],
+          [50000, 0]
+        ],
+        "sum": 32551.555317999984,
+        "count": 8203
+      },
+      "description": "The distribution of the time Prisma Client queries took to run end to end"
+    },
+    {
+      "key": "prisma_client_queries_wait_histogram_ms",
+      "labels": {},
+      "value": {
+        "buckets": [
+          [0, 0],
+          [1, 8204],
+          [5, 0],
+          [10, 0],
+          [50, 0],
+          [100, 0],
+          [500, 0],
+          [1000, 0],
+          [5000, 0],
+          [50000, 0]
+        ],
+        "sum": 5.101923000000002,
+        "count": 8204
+      },
+      "description": "The distribution of the time all datasource queries spent waiting for a free connection"
+    },
+    {
+      "key": "prisma_datasource_queries_duration_histogram_ms",
+      "labels": {},
+      "value": {
+        "buckets": [
+          [0, 0],
+          [1, 3476],
+          [5, 7376],
+          [10, 769],
+          [50, 265],
+          [100, 12],
+          [500, 6],
+          [1000, 0],
+          [5000, 0],
+          [50000, 0]
+        ],
+        "sum": 29510.927079999987,
+        "count": 11904
+      },
+      "description": "The distribution of the time datasource queries took to run"
+    }
+  ]
+}
