@@ -75,7 +75,10 @@ export function MarkdownView({
   };
 
   return (
-    <div className={cn("rounded-md border", className)} key={theme}>
+    <div
+      className={cn("overflow-hidden rounded-md border", className)}
+      key={theme}
+    >
       {title ? (
         <div
           className={cn(
