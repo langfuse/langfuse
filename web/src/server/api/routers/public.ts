@@ -56,7 +56,7 @@ const isValidURL = (urlString: string): boolean => {
   }
 };
 
-const fetchImage = async (url: string): Promise<boolean> => {
+const isValidImageUrl = async (url: string): Promise<boolean> => {
   try {
     const response = await fetch(url, { method: "HEAD" });
     if (!response.ok) {
@@ -127,10 +127,10 @@ export const publicRouter = createTRPCRouter({
     .input(z.string().url())
     .query(async ({ input: url }) => {
       if (!isValidURL(url)) {
-        return { valid: false };
+        return { isValid: false };
       }
 
-      const isValidImage = await fetchImage(url);
-      return { valid: isValidImage };
+      const isValidImage = await isValidImageUrl(url);
+      return { isValid: isValidImage };
     }),
 });
