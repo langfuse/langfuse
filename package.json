@@ -5,8 +5,7 @@
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": ">=20",
-    "pnpm": "<9"
+    "node": ">=20"
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
@@ -79,5 +78,6 @@
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
     }
-  }
+  },
+  "packageManager": "pnpm@8.15.7+sha256.50783dd0fa303852de2dd1557cd4b9f07cb5b018154a6e76d0f40635d6cee019"
 }
