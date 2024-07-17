@@ -11,7 +11,6 @@ import {
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
-import DOMPurify from "dompurify";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
@@ -67,8 +66,6 @@ export function MarkdownView({
   const { resolvedTheme: theme } = useTheme();
   const capture = usePostHogClientCapture();
 
-  const sanitizedMarkdown = DOMPurify.sanitize(markdown);
-
   const handleCopy = () => {
     setIsCopied(true);
     void navigator.clipboard.writeText(markdown);
@@ -121,11 +118,16 @@ export function MarkdownView({
         </div>
       ) : undefined}
       <MemoizedReactMarkdown
-        className={cn("space-y-4 break-words p-3 font-mono text-xs", className)}
+        className={cn(
+          "space-y-4 overflow-x-auto break-words p-3 font-mono text-xs",
+          className,
+        )}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p({ children }) {
-            return <p className="mb-2 last:mb-0">{children}</p>;
+            return (
+              <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>
+            );
           },
           a({ children, href }) {
             if (href)
@@ -234,7 +236,7 @@ export function MarkdownView({
           },
         }}
       >
-        {sanitizedMarkdown}
+        {markdown}
       </MemoizedReactMarkdown>
     </div>
   );
