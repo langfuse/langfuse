@@ -83,9 +83,9 @@ export const traceRouter = createTRPCRouter({
           t."user_id" AS "userId",
           t.session_id AS "sessionId",
           t."bookmarked" AS "bookmarked",
-          COALESCE(tm."promptTokens", 0)::int AS "promptTokens",
-          COALESCE(tm."completionTokens", 0)::int AS "completionTokens",
-          COALESCE(tm."totalTokens", 0)::int AS "totalTokens",
+          COALESCE(tm."promptTokens", 0)::bigint AS "promptTokens",
+          COALESCE(tm."completionTokens", 0)::bigint AS "completionTokens",
+          COALESCE(tm."totalTokens", 0)::bigint AS "totalTokens",
           tl.latency AS "latency",
           tl."observationCount" AS "observationCount",
           COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
@@ -109,9 +109,9 @@ export const traceRouter = createTRPCRouter({
           await ctx.prisma.$queryRaw<
             Array<
               Trace & {
-                promptTokens: number;
-                completionTokens: number;
-                totalTokens: number;
+                promptTokens: bigint;
+                completionTokens: bigint;
+                totalTokens: bigint;
                 totalCount: number;
                 latency: number | null;
                 level: ObservationLevel;

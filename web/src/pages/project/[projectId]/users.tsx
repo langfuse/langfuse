@@ -28,6 +28,9 @@ type RowData = {
   firstEvent: string;
   lastEvent: string;
   totalEvents: string;
+  lastScore: Score | undefined;
+  totalTokens: string;
+  totalCost: string;
 };
 
 export default function UsersPage() {
@@ -112,7 +115,7 @@ export default function UsersPage() {
       enableColumnFilter: true,
       header: "User ID",
       cell: ({ row }) => {
-        const value = row.getValue("userId");
+        const value: RowData["userId"] = row.getValue("userId");
         return typeof value === "string" ? (
           <>
             <TableLink
@@ -128,7 +131,7 @@ export default function UsersPage() {
       accessorKey: "firstEvent",
       header: "First Event",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("firstEvent");
+        const value: RowData["firstEvent"] = row.getValue("firstEvent");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -141,7 +144,7 @@ export default function UsersPage() {
       accessorKey: "lastEvent",
       header: "Last Event",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("lastEvent");
+        const value: RowData["lastEvent"] = row.getValue("lastEvent");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -154,7 +157,7 @@ export default function UsersPage() {
       accessorKey: "totalEvents",
       header: "Total Events",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("totalEvents");
+        const value: RowData["totalEvents"] = row.getValue("totalEvents");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -167,7 +170,7 @@ export default function UsersPage() {
       accessorKey: "totalTokens",
       header: "Total Tokens",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("totalTokens");
+        const value: RowData["totalTokens"] = row.getValue("totalTokens");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -180,7 +183,7 @@ export default function UsersPage() {
       accessorKey: "totalCost",
       header: "Total Cost",
       cell: ({ row }) => {
-        const value: unknown = row.getValue("totalCost");
+        const value: RowData["totalCost"] = row.getValue("totalCost");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -193,7 +196,7 @@ export default function UsersPage() {
       accessorKey: "lastScore",
       header: "Last Score",
       cell: ({ row }) => {
-        const value: Score | null = row.getValue("lastScore");
+        const value: RowData["lastScore"] = row.getValue("lastScore");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -259,8 +262,8 @@ export default function UsersPage() {
                         t.lastTrace?.toLocaleString() ??
                         "No event yet",
                       totalEvents: compactNumberFormatter(
-                        (Number(t.totalTraces) || 0) +
-                          (Number(t.totalObservations) || 0),
+                        Number(t.totalTraces ?? 0) +
+                          Number(t.totalObservations ?? 0),
                       ),
                       totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
                       lastScore: t.lastScore,
@@ -274,7 +277,7 @@ export default function UsersPage() {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
         }}
