@@ -15,6 +15,8 @@ import { batchExportJobExecutor } from "./queues/batchExportQueue";
 import { flushIngestionQueueExecutor } from "./queues/ingestionFlushQueue";
 import { repeatQueueExecutor } from "./queues/repeatQueue";
 import helmet from "helmet";
+import { logQueueWorkerError } from "./utils/logQueueWorkerError";
+import { gracefulShutdown } from "./utils/shutdown";
 
 const app = express();
 
@@ -47,36 +49,13 @@ logger.info(
   flushIngestionQueueExecutor?.isRunning()
 );
 
-evalJobCreator?.on("failed", (job, err) => {
-  logger.error(err, `Eval Job with id ${job?.id} failed with error ${err}`);
-});
+evalJobCreator?.on("failed", logQueueWorkerError);
+evalJobExecutor?.on("failed", logQueueWorkerError);
+batchExportJobExecutor?.on("failed", logQueueWorkerError);
+repeatQueueExecutor?.on("failed", logQueueWorkerError);
+flushIngestionQueueExecutor?.on("failed", logQueueWorkerError);
 
-evalJobExecutor?.on("failed", (job, err) => {
-  logger.error(
-    err,
-    `Eval execution Job with id ${job?.id} failed with error ${err}`
-  );
-});
-
-batchExportJobExecutor?.on("failed", (job, err) => {
-  logger.error(
-    err,
-    `Batch Export Job with id ${job?.id} failed with error ${err}`
-  );
-});
-
-repeatQueueExecutor?.on("failed", (job, err) => {
-  logger.error(
-    err,
-    `Repeat Queue Job with id ${job?.id} failed with error ${err}`
-  );
-});
-
-flushIngestionQueueExecutor?.on("failed", (job, err) => {
-  logger.error(
-    err,
-    `Flush Ingestion Queue Job with id ${job?.id} failed with error ${err}`
-  );
-});
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
 export default app;

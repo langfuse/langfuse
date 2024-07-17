@@ -20,7 +20,6 @@ CREATE TABLE traces (
 ) ENGINE = ReplacingMergeTree Partition by toYYYYMM(timestamp)
 ORDER BY (
         project_id,
-        `name`,
         toUnixTimestamp(timestamp),
         id
     );

@@ -420,7 +420,7 @@ export class IngestionService {
       | typeof observationRecordRead
   ) {
     const nonOverwritableProperties = {
-      traces: ["id", "project_id", "name", "timestamp", "created_at"], // TODO: drop name
+      traces: ["id", "project_id", "timestamp", "created_at"],
       scores: [
         "id",
         "project_id",
