@@ -27,6 +27,11 @@ export function JSONView(props: {
   const { resolvedTheme } = useTheme();
   const capture = usePostHogClientCapture();
 
+  const collapseStringsAfterLength =
+    props.collapseStringsAfterLength === null
+      ? 100_000_000 // if null, show all (100M chars)
+      : props.collapseStringsAfterLength ?? 500;
+
   const handleMarkdownSelection = props.setIsMarkdown ?? (() => {});
 
   const handleCopy = () => {
@@ -101,10 +106,14 @@ export function JSONView(props: {
             theme="github"
             dark={resolvedTheme === "dark"}
             collapseObjectsAfterLength={20}
-            collapseStringsAfterLength={
-              props.collapseStringsAfterLength === null
-                ? 100_000_000 // if null, show all (100M chars)
-                : props.collapseStringsAfterLength ?? 500
+            collapseStringsAfterLength={collapseStringsAfterLength}
+            collapseStringMode="word"
+            customizeCollapseStringUI={(fullSTring, truncated) =>
+              truncated ? (
+                <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
+              ) : (
+                ""
+              )
             }
             displaySize={"collapsed"}
             matchesURL={true}
