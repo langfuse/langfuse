@@ -11,23 +11,20 @@ const server = app.listen(env.PORT, () => {
 });
 
 // Function to handle shutdown logic
-function onShutdown() {
+async function onShutdown() {
   logger.info("Shutting down application...");
 
   // Stop accepting new connections
   server.close();
-
+  logger.info("Server has been closed.");
   // Perform necessary cleanup tasks here
   // For example, close database connections, stop job executors, etc.
-  evalJobCreator
-    ?.close()
-    .then(() => logger.info("Eval Job Creator has been closed."));
-  evalJobExecutor
-    ?.close()
-    .then(() => logger.info("Eval Job Executor has been closed."));
-  batchExportJobExecutor
-    ?.close()
-    .then(() => logger.info("Batch Export Executor has been closed."));
+  await Promise.all([
+    evalJobCreator?.close(),
+    evalJobExecutor?.close(),
+    batchExportJobExecutor?.close(),
+  ]);
+  logger.info("Http server and Redis jobs have been closed.");
 }
 
 // Capture shutdown signals
