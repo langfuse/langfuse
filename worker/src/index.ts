@@ -19,12 +19,12 @@ async function onShutdown() {
   logger.info("Server has been closed.");
   // Perform necessary cleanup tasks here
   // For example, close database connections, stop job executors, etc.
-  await evalJobCreator?.close();
-  logger.info("Eval Job Creator has been closed.");
-  await evalJobExecutor?.close();
-  logger.info("Eval Job Executor has been closed.");
-  await batchExportJobExecutor?.close();
-  logger.info("Batch Export Executor has been closed.");
+  await Promise.all([
+    evalJobCreator?.close(),
+    evalJobExecutor?.close(),
+    batchExportJobExecutor?.close(),
+  ]);
+  logger.info("Http server and Redis jobs have been closed.");
 }
 
 // Capture shutdown signals
