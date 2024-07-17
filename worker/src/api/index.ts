@@ -157,7 +157,9 @@ router
       logger.error(e, "Failed to process ingestion event");
 
       if (!res.headersSent)
-        return res.status(500).send(e instanceof Error ? e.message : undefined);
+        return res
+          .status(500)
+          .json({ message: e instanceof Error ? e.message : undefined });
     }
   });
 

@@ -50,7 +50,6 @@ export const config = {
       sizeLimit: "4.5mb",
     },
   },
-  maxDuration: 250, // max 250 seconds runtime on vercel
 };
 
 type BatchResult = {
@@ -94,9 +93,7 @@ export default async function handler(
         errors: parsedSchema.error.issues.map((issue) => issue.message),
       });
     }
-    console.log(
-      `handling ingestion ${JSON.stringify(parsedSchema.data.batch)}`,
-    );
+
     const validationErrors: { id: string; error: unknown }[] = [];
 
     const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
@@ -117,7 +114,6 @@ export default async function handler(
           return parsed.data;
         }
       });
-
     const filteredBatch: z.infer<typeof ingestionEvent>[] =
       batch.filter(isNotNullOrUndefined);
 

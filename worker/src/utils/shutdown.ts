@@ -17,9 +17,7 @@ export const gracefulShutdown: NodeJS.SignalsListener = async (signal) => {
     repeatQueueExecutor,
   ];
 
-  for (const worker of workers) {
-    await worker?.close();
-  }
+  await Promise.all(workers.map((worker) => worker?.close()));
 
   // Other asynchronous closings
 
