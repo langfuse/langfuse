@@ -42,7 +42,7 @@ export const flushIngestionQueueExecutor = redis
             prisma,
             ingestionFlushQueue,
             60 * 60
-          ).flushProjectEntityToClickhouse(projectEntityId);
+          ).flush(projectEntityId);
 
           logger.info(`Flushed ingestion buffer for ${projectEntityId}`);
         }

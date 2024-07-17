@@ -27,6 +27,7 @@ import {
 
 import { tokenCount } from "../features/tokenisation/usage";
 import { instrumentAsync } from "../instrumentation";
+import logger from "../logger";
 import { IngestionFlushQueue } from "../queues/ingestionFlushQueue";
 import {
   convertJsonSchemaToRecord,
@@ -45,11 +46,9 @@ export class IngestionService {
     events: IngestionBatchEventType,
     projectId: string
   ): Promise<void> {
-    console.log("🚨", "Received events", events);
-
     for (const event of events) {
       if (!("id" in event.body) || !event.body.id) {
-        console.log(
+        logger.info(
           `Received ingestion event without id, ${JSON.stringify(event)}`
         );
         throw new Error("Event body must have an id"); // TODO: should we throw here?
@@ -66,8 +65,6 @@ export class IngestionService {
       await this.ingestionFlushQueue.add(QueueJobs.FlushIngestionEntity, null, {
         jobId: projectEntityKey,
       });
-
-      console.log("🚨", "Added event", projectEntityKey);
     }
   }
 
@@ -82,9 +79,7 @@ export class IngestionService {
     return projectEntityKey.split("_")[1];
   }
 
-  public async flushProjectEntityToClickhouse(
-    projectEntityKey: string
-  ): Promise<void> {
+  public async flush(projectEntityKey: string): Promise<void> {
     const entityEventList = (await this.redis.lrange(projectEntityKey, 0, -1))
       .map((serializedEvent) => {
         const parsed = ingestionBatchEventWithProjectId.safeParse(
@@ -92,7 +87,7 @@ export class IngestionService {
         );
 
         if (!parsed.success) {
-          console.error(
+          logger.error(
             `Failed to parse event ${serializedEvent} : ${parsed.error}`
           );
 
@@ -116,9 +111,6 @@ export class IngestionService {
     projectEntityKey: string,
     eventList: IngestionBatchEventWithProjectIdType[]
   ) {
-    console.log(
-      `Processing entity ${projectEntityKey} events ${JSON.stringify(eventList)}`
-    );
     const projectId = this.parseProjectIdFromKey(projectEntityKey);
 
     switch (eventList[0].type) {
@@ -335,15 +327,9 @@ export class IngestionService {
         continue;
       }
 
-      console.log(`Execute key: ${model} ${unit} ${projectId}`);
-
       const foundModel = await findModel({
         event: { projectId, model, unit },
       });
-
-      console.log(
-        `Found model: ${foundModel?.id} for key: ${key} with observations: ${observationsGroup.length}`
-      );
 
       if (foundModel) {
         observationsGroup.forEach((observation) => {
@@ -357,9 +343,6 @@ export class IngestionService {
             !observation.provided_output_usage &&
             !observation.provided_total_usage
           ) {
-            console.log(
-              `tokenizing ${JSON.stringify(observation.input)} ${JSON.stringify(observation.output)}`
-            );
             const newInputCount = tokenCount({
               model: foundModel,
               text: observation.input,
@@ -371,9 +354,6 @@ export class IngestionService {
             const newTotalCount =
               (newInputCount ?? 0) + (newOutputCount ?? 0) || null;
 
-            console.log(
-              `found model ${foundModel.id} ${newInputCount} ${newOutputCount} ${newTotalCount}`
-            );
             updatedObservation = {
               ...updatedObservation,
               input_usage: newInputCount ?? null,
@@ -411,7 +391,6 @@ export class IngestionService {
             };
           }
 
-          console.log(`Fully updated ${JSON.stringify(updatedObservation)}`);
           updatedObservations.push(updatedObservation);
         });
       }
@@ -420,10 +399,6 @@ export class IngestionService {
     const allObservations = Object.values(groupedGenerations).flat();
     const nonUpdatedObservations = allObservations.filter(
       (obs) => !updatedObservations.find((u) => u.id === obs.id)
-    );
-
-    console.log(
-      `returning ${JSON.stringify([...updatedObservations, ...nonUpdatedObservations])}`
     );
 
     return [...updatedObservations, ...nonUpdatedObservations];
@@ -468,8 +443,6 @@ export class IngestionService {
 
         const result = await queryResult.json();
 
-        console.log(`clickhouse ${recordType} ${JSON.stringify(result)}`);
-
         const record = result.length ? recordRead.parse(result[0]) : null;
 
         if (!record) return null;
@@ -486,8 +459,6 @@ export class IngestionService {
       }
     );
 
-    console.log(`clickhouse ${recordType} ${JSON.stringify(clickhouseRecord)}`);
-
     // if the record exists, we need to update the existing record with the new record
     const recordsToCollapse = clickhouseRecord
       ? [clickhouseRecord, ...records]
@@ -501,8 +472,6 @@ export class IngestionService {
       orderedByTimestamp,
       nonOverwritableProperties[recordType]
     );
-
-    console.log(`deduped ${recordType} ${JSON.stringify(deduped)} `);
 
     return z.array(recordInsert).parse(deduped)[0]; // todo: fix to single record
   }
