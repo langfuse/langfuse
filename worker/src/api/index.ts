@@ -32,9 +32,9 @@ type EventsResponse = {
   status: "success" | "error";
 };
 
-router.get<{}, { status: string }>("/health", async (req, res) => {
+router.get<{}, { status: string }>("/health", async (_req, res) => {
   try {
-    await checkContainerHealth(req, res);
+    await checkContainerHealth(res);
   } catch (e) {
     logger.error(e, "Health check failed");
     res.status(500).json({

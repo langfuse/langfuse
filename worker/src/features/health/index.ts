@@ -1,7 +1,8 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { redis } from "../../redis";
+import { Response } from "express";
 
-export const checkContainerHealth = async (req, res) => {
+export const checkContainerHealth = async (res: Response) => {
   if (isSigtermReceived()) {
     console.log(
       "Health check failed: SIGTERM / SIGINT received, shutting down."
