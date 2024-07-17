@@ -3,7 +3,7 @@ import { hash } from "bcryptjs";
 import { env } from "@/src/env.mjs";
 import { getDisplaySecretKey, hashSecretKey } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { type z, ZodObject } from "zod";
+import { type z } from "zod";
 
 export const pruneDatabase = async () => {
   if (!env.DATABASE_URL.includes("localhost:5432")) {
