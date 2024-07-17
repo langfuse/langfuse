@@ -1,4 +1,4 @@
-import { overwriteObject } from "../api/ingestion-utils";
+import { overwriteObject } from "../services/ingestion-utils";
 import { expect, describe, it } from "vitest";
 
 describe("overwriteObject", () => {

@@ -42,7 +42,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { instrumentAsync } from "@/src/utils/instrumentation";
+import { WorkerClient } from "@/src/server/api/services/WorkerClient";
 
 export const config = {
   api: {
@@ -252,24 +252,10 @@ export const handleBatch = async (
   }
 
   if (env.CLICKHOUSE_URL) {
-    await instrumentAsync({ name: "insert-clickhouse" }, async () => {
-      try {
-        console.log(`senfing to ${env.LANGFUSE_WORKER_HOST}/api/ingestion`);
-        await fetch(`${env.LANGFUSE_WORKER_HOST}/api/ingestion`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:
-              "Basic " +
-              Buffer.from(
-                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
-              ).toString("base64"),
-          },
-          body: JSON.stringify({ batch: events, metadata }),
-        });
-      } catch (error) {
-        console.error("Error sending events to worker", JSON.stringify(error));
-      }
+    await new WorkerClient().sendIngestionBatch({
+      batch: events,
+      metadata,
+      projectId: authCheck.scope.projectId,
     });
   }
 
@@ -345,7 +331,7 @@ const handleSingleEvent = async (
   let processor: EventProcessor;
   switch (type) {
     case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(cleanedEvent, new Date(event.timestamp));
+      processor = new TraceProcessor(cleanedEvent);
       break;
     case eventTypes.OBSERVATION_CREATE:
     case eventTypes.OBSERVATION_UPDATE:
@@ -354,13 +340,10 @@ const handleSingleEvent = async (
     case eventTypes.SPAN_UPDATE:
     case eventTypes.GENERATION_CREATE:
     case eventTypes.GENERATION_UPDATE:
-      processor = new ObservationProcessor(
-        cleanedEvent,
-        new Date(event.timestamp),
-      );
+      processor = new ObservationProcessor(cleanedEvent);
       break;
     case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(cleanedEvent, new Date(event.timestamp));
+      processor = new ScoreProcessor(cleanedEvent);
       break;
     }
     case eventTypes.SDK_LOG:

@@ -40,6 +40,13 @@ const EnvSchema = z.object({
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
+  // Ingestion flush queue:
+  INGESTION_FLUSH_JOB_DELAY: z.coerce.number().positive().default(10000),
+  INGESTION_FLUSH_JOB_ATTEMPTS: z.coerce.number().positive().default(3),
+  INGESTION_FLUSH_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(1000),
 });
 
 export const env = EnvSchema.parse(process.env);

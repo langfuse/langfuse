@@ -366,6 +366,7 @@ export const traceEvent = base.extend({
   type: z.literal(eventTypes.TRACE_CREATE),
   body: TraceBody,
 });
+export type TraceEventType = z.infer<typeof traceEvent>;
 
 export const eventCreateEvent = base.extend({
   type: z.literal(eventTypes.EVENT_CREATE),
@@ -391,6 +392,7 @@ export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE_CREATE),
   body: ScoreBody,
 });
+export type ScoreEventType = z.infer<typeof scoreEvent>;
 export const sdkLogEvent = base.extend({
   type: z.literal(eventTypes.SDK_LOG),
   body: SdkLogEvent,
@@ -419,11 +421,26 @@ export const ingestionEvent = z.discriminatedUnion("type", [
 ]);
 
 export const ingestionBatchEvent = z.array(ingestionEvent);
+export type IngestionBatchEventType = z.infer<typeof ingestionBatchEvent>;
+
+export const ingestionBatchEventWithProjectId = ingestionEvent.and(
+  z.object({ projectId: z.string() })
+);
+export type IngestionBatchEventWithProjectIdType = z.infer<
+  typeof ingestionBatchEventWithProjectId
+>;
 
 export const ingestionApiSchema = z.object({
   batch: ingestionBatchEvent,
   metadata: jsonSchema.nullish(),
 });
+
+export const ingestionApiSchemaWithProjectId = ingestionApiSchema.extend({
+  projectId: z.string(),
+});
+export type IngestionApiSchemaWithProjectId = z.infer<
+  typeof ingestionApiSchemaWithProjectId
+>;
 
 export type ObservationEvent =
   | z.infer<typeof legacyObservationCreateEvent>

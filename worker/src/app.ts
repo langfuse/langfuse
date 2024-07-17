@@ -12,9 +12,9 @@ import logger from "./logger";
 
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
+import { flushIngestionQueueExecutor } from "./queues/ingestionFlushQueue";
 import { repeatQueueExecutor } from "./queues/repeatQueue";
 import helmet from "helmet";
-import { flushEvents } from "./api/data-aggregation-service";
 
 const app = express();
 
@@ -42,6 +42,10 @@ logger.info(
   batchExportJobExecutor?.isRunning()
 );
 logger.info("Repeat Queue Executor started", repeatQueueExecutor?.isRunning());
+logger.info(
+  "Flush Ingestion Queue Executor started",
+  flushIngestionQueueExecutor?.isRunning()
+);
 
 evalJobCreator?.on("failed", (job, err) => {
   logger.error(err, `Eval Job with id ${job?.id} failed with error ${err}`);
@@ -67,7 +71,12 @@ repeatQueueExecutor?.on("failed", (job, err) => {
     `Repeat Queue Job with id ${job?.id} failed with error ${err}`
   );
 });
-// set interval to flush redis to clickhouse regularly
-setInterval(flushEvents, 2000);
+
+flushIngestionQueueExecutor?.on("failed", (job, err) => {
+  logger.error(
+    err,
+    `Flush Ingestion Queue Job with id ${job?.id} failed with error ${err}`
+  );
+});
 
 export default app;

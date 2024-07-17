@@ -2,7 +2,6 @@ import { Queue } from "bullmq";
 import { randomUUID } from "crypto";
 import express from "express";
 import basicAuth from "express-basic-auth";
-import * as Sentry from "@sentry/node";
 
 import {
   EventBodySchema,
@@ -13,14 +12,15 @@ import {
   TraceUpsertEventType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { ingestionApiSchema } from "@langfuse/shared/src/server";
-import { ingestData } from "./data-ingestion-service";
+import { ingestionApiSchemaWithProjectId } from "@langfuse/shared/src/server";
+import * as Sentry from "@sentry/node";
 
 import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
+import { ingestionFlushQueue } from "../queues/ingestionFlushQueue";
 import { redis } from "../redis";
-import emojis from "./emojis";
+import { IngestionService } from "../services/IngestionService";
 
 const router = express.Router();
 
@@ -108,7 +108,7 @@ router
         });
       }
 
-      return res.status(400);
+      return res.status(400).send();
     } catch (e) {
       logger.error(e, "Error processing events");
       Sentry.captureException(e);
@@ -117,37 +117,49 @@ router
       });
     }
   });
-router.post("/ingestion", async (req, res) => {
-  try {
-    const { body } = req;
 
-    console.log(`Received ingestion events, ${JSON.stringify(body)}`);
+router
+  .use(
+    basicAuth({
+      users: { admin: env.LANGFUSE_WORKER_PASSWORD },
+    })
+  )
+  .post("/ingestion", async (req, res) => {
+    try {
+      if (!redis) {
+        throw new Error("Redis connection not available");
+      }
 
-    const events = ingestionApiSchema.safeParse(body);
+      const { body } = req;
+      const events = ingestionApiSchemaWithProjectId.safeParse(body);
 
-    if (!events.success) {
-      logger.error(events.error, "Failed to parse ingestion event");
-      return res.status(400).json({
-        status: "error",
-      });
+      if (!events.success) {
+        logger.error(events.error, "Failed to parse ingestion event");
+
+        return res.status(400).json(events.error);
+      }
+
+      const { batch, projectId } = events.data;
+
+      if (!ingestionFlushQueue) {
+        throw Error("Ingestion flush queue not available");
+      }
+
+      await new IngestionService(
+        redis,
+        prisma,
+        ingestionFlushQueue,
+        60 * 60
+      ).addBatch(batch, projectId);
+
+      return res.status(200).send();
+    } catch (e) {
+      logger.error(e, "Failed to process ingestion event");
+
+      if (!res.headersSent)
+        return res.status(500).send(e instanceof Error ? e.message : undefined);
     }
-
-    await ingestData(events.data.batch, "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-
-    res.json({
-      status: "success",
-    });
-  } catch (e) {
-    logger.error(e, "Failed to process ingestion event");
-    if (!res.headersSent) {
-      return res.status(500).json({
-        status: "error",
-      });
-    }
-  }
-});
-
-router.use("/emojis", emojis);
+  });
 
 export default router;
 
