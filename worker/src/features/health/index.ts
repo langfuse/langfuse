@@ -34,7 +34,7 @@ export const checkContainerHealth = async (res: Response) => {
   });
 };
 
-var sigtermReceived: boolean = false;
+let sigtermReceived: boolean = false;
 
 export const setSigtermReceived = () => {
   console.log("Set sigterm received to true");
