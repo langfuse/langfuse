@@ -8,7 +8,6 @@ updates:
   - package-ecosystem: npm
     directory: "/" # Location of package manifests
     rebase-strategy: "disabled" # use dependabot-rebase-stale
-    target-branch: fix-pnpm-version-s
     schedule:
       interval: "daily"
     versioning-strategy: "increase"
