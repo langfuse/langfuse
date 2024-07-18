@@ -2650,6 +2650,7 @@ components:
         - MILLISECONDS
         - SECONDS
         - IMAGES
+        - REQUESTS
       description: Unit of usage in Langfuse
     ObservationLevel:
       title: ObservationLevel
