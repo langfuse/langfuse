@@ -182,18 +182,25 @@ export function MarkdownView({
             return <h6 className="text-xs font-bold">{children}</h6>;
           },
           code({ children, className }) {
-            const match = /language-(\w+)/.exec(className || "");
+            const languageMatch = /language-(\w+)/.exec(className || "");
+            const language = languageMatch ? languageMatch[1] : "";
+            const codeContent = String(children).replace(/\n$/, "");
+            const isMultiLine = codeContent.includes("\n");
 
-            return match ? (
+            return language || isMultiLine ? (
+              // code block
               <CodeBlock
                 key={Math.random()}
-                language={match[1] || ""}
-                value={String(children).replace(/\n$/, "")}
+                language={language}
+                value={codeContent}
                 theme={theme}
                 className={customCodeHeaderClassName}
               />
             ) : (
-              <code>{children}</code>
+              // inline code
+              <code className="rounded border bg-secondary px-0.5">
+                {codeContent}
+              </code>
             );
           },
           blockquote({ children }) {
