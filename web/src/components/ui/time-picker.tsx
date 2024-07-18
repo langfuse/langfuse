@@ -26,7 +26,7 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
   return (
     <div className="flex w-full flex-1 items-center gap-1 rounded-b-md border-t-2 bg-transparent px-3 py-2 text-sm ring-offset-background">
       <div className="mx-1 grid gap-1 text-center">
-        <TimeIcon date={date} />
+        <TimeIcon date={date ?? period} />
       </div>
       <div className="grid gap-1 text-center">
         <TimePickerInput
