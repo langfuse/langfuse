@@ -15,31 +15,29 @@ import {
 } from "@/src/components/schemas/ChatMlSchema";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 
+// MarkdownOrJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
+// otherwise, it will render JSON with switch to enable markdown
 function MarkdownOrJsonView({
   content,
   title,
   className,
   customCodeHeaderClassName,
-  shouldRenderMarkdown = true,
 }: {
   content?: unknown;
   title?: string;
   className?: string;
   customCodeHeaderClassName?: string;
-  shouldRenderMarkdown?: boolean;
 }) {
   const validatedMarkdown = useMemo(
     () => MarkdownSchema.safeParse(content),
     [content],
   );
 
-  const { isMarkdown, setIsMarkdown } = useMarkdownContext();
+  const { isMarkdownEnabled } = useMarkdownContext();
 
-  return shouldRenderMarkdown && validatedMarkdown.success && isMarkdown ? (
+  return validatedMarkdown.success && isMarkdownEnabled ? (
     <MarkdownView
       markdown={validatedMarkdown.data}
-      isMarkdown={isMarkdown}
-      setIsMarkdown={setIsMarkdown}
       title={title}
       className={className}
       customCodeHeaderClassName={customCodeHeaderClassName}
@@ -47,9 +45,7 @@ function MarkdownOrJsonView({
   ) : (
     <JSONView
       json={content}
-      isMarkdown={isMarkdown}
-      setIsMarkdown={setIsMarkdown}
-      canEnableMarkdown={validatedMarkdown.success && shouldRenderMarkdown}
+      canEnableMarkdown={validatedMarkdown.success}
       title={title}
       className={className}
     />
@@ -220,25 +216,38 @@ export const OpenAiMessageView: React.FC<{
           .map((message, index) => (
             <Fragment key={index}>
               <div>
-                {!!message.content && (
-                  <MarkdownOrJsonView
-                    title={message.name ?? message.role}
-                    content={message.content}
-                    className={cn(
-                      "bg-muted",
-                      message.role === "system" && "bg-primary-foreground",
-                      message.role === "assistant" &&
-                        "bg-accent-light-green dark:border-accent-dark-green",
-                      message.role === "user" && "bg-background",
-                      !!message.json && "rounded-b-none",
-                    )}
-                    customCodeHeaderClassName={cn(
-                      message.role === "assistant" &&
-                        "bg-muted-green dark:bg-secondary",
-                    )}
-                    shouldRenderMarkdown={shouldRenderMarkdown}
-                  />
-                )}
+                {!!message.content &&
+                  (shouldRenderMarkdown ? (
+                    <MarkdownOrJsonView
+                      title={message.name ?? message.role}
+                      content={message.content}
+                      className={cn(
+                        "bg-muted",
+                        message.role === "system" && "bg-primary-foreground",
+                        message.role === "assistant" &&
+                          "bg-accent-light-green dark:border-accent-dark-green",
+                        message.role === "user" && "bg-background",
+                        !!message.json && "rounded-b-none",
+                      )}
+                      customCodeHeaderClassName={cn(
+                        message.role === "assistant" &&
+                          "bg-muted-green dark:bg-secondary",
+                      )}
+                    />
+                  ) : (
+                    <JSONView
+                      title={message.name ?? message.role}
+                      json={message.content}
+                      className={cn(
+                        "bg-muted",
+                        message.role === "system" && "bg-primary-foreground",
+                        message.role === "assistant" &&
+                          "bg-accent-light-green dark:border-accent-dark-green",
+                        message.role === "user" && "bg-background",
+                        !!message.json && "rounded-b-none",
+                      )}
+                    />
+                  ))}
                 {!!message.json && (
                   <JSONView
                     title={

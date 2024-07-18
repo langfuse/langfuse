@@ -6,8 +6,8 @@ import React, {
 } from "react";
 
 interface MarkdownContextType {
-  isMarkdown: boolean;
-  setIsMarkdown: (value: boolean) => void;
+  isMarkdownEnabled: boolean;
+  setIsMarkdownEnabled: (value: boolean) => void;
 }
 
 const MarkdownContext = createContext<MarkdownContextType | undefined>(
@@ -25,13 +25,15 @@ export const useMarkdownContext = (): MarkdownContextType => {
 };
 
 export const MarkdownContextProvider = (props: PropsWithChildren) => {
-  const [isMarkdown, setIsMarkdown] = useLocalStorage(
+  const [isMarkdownEnabled, setIsMarkdownEnabled] = useLocalStorage(
     "shouldRenderMarkdown",
     true,
   );
 
   return (
-    <MarkdownContext.Provider value={{ isMarkdown, setIsMarkdown }}>
+    <MarkdownContext.Provider
+      value={{ isMarkdownEnabled, setIsMarkdownEnabled }}
+    >
       {props.children}
     </MarkdownContext.Provider>
   );
