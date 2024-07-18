@@ -264,6 +264,7 @@ export type Observation = {
     updated_at: Generated<Timestamp>;
     model: string | null;
     internal_model: string | null;
+    internal_model_id: string | null;
     modelParameters: unknown | null;
     input: unknown | null;
     output: unknown | null;
@@ -274,6 +275,9 @@ export type Observation = {
     input_cost: string | null;
     output_cost: string | null;
     total_cost: string | null;
+    calculated_input_cost: string | null;
+    calculated_output_cost: string | null;
+    calculated_total_cost: string | null;
     completion_start_time: Timestamp | null;
     prompt_id: string | null;
 };
@@ -282,7 +286,7 @@ export type ObservationView = {
     trace_id: string | null;
     project_id: string;
     type: ObservationType;
-    start_time: Generated<Timestamp>;
+    start_time: Timestamp;
     end_time: Timestamp | null;
     name: string | null;
     metadata: unknown | null;
@@ -290,7 +294,8 @@ export type ObservationView = {
     level: Generated<ObservationLevel>;
     status_message: string | null;
     version: string | null;
-    created_at: Generated<Timestamp>;
+    created_at: Timestamp;
+    updated_at: Timestamp;
     model: string | null;
     modelParameters: unknown | null;
     input: unknown | null;
@@ -353,7 +358,7 @@ export type Score = {
     timestamp: Generated<Timestamp>;
     project_id: string;
     name: string;
-    value: number;
+    value: number | null;
     source: ScoreSource;
     author_user_id: string | null;
     comment: string | null;
@@ -434,6 +439,8 @@ export type TraceView = {
     input: unknown | null;
     output: unknown | null;
     session_id: string | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
     duration: number | null;
 };
 export type User = {

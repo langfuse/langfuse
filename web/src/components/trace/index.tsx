@@ -1,4 +1,4 @@
-import { type Trace, type Score } from "@langfuse/shared";
+import { type Trace } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -34,11 +34,12 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
   trace: Trace;
-  scores: Score[];
+  scores: APIScore[];
   projectId: string;
 }) {
   const capture = usePostHogClientCapture();
@@ -101,6 +102,7 @@ export function Trace(props: {
   const expandAll = useCallback(() => {
     capture("trace_detail:observation_tree_expand", { type: "all" });
     setCollapsedObservations([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -260,7 +262,7 @@ export function TracePage({ traceId }: { traceId: string }) {
               itemId={traceId}
               projectId={trace.data.projectId}
               scope="traces:delete"
-              invalidateFunc={() => void utils.traces.invalidate()}
+              invalidateFunc={() => void utils.traces.all.invalidate()}
               type="trace"
               redirectUrl={`/project/${router.query.projectId as string}/traces`}
             />
@@ -293,7 +295,7 @@ export function TracePage({ traceId }: { traceId: string }) {
           </Badge>
         ) : undefined}
       </div>
-      <div className="mt-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
+      <div className="mt-4 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
         <div className="flex flex-row items-center gap-3 p-2.5">
           Tags
           <TagTraceDetailsPopover
@@ -311,19 +313,19 @@ export function TracePage({ traceId }: { traceId: string }) {
           setSelectedTab(tab);
           capture("trace_detail:display_mode_switch", { view: tab });
         }}
-        className="flex w-full justify-end border-b bg-background"
+        className="mt-2 flex w-full justify-end border-b bg-transparent"
       >
-        <TabsList className="bg-background py-0">
+        <TabsList className="bg-transparent py-0">
           <TabsTrigger
             value="details"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             <Network className="mr-1 h-4 w-4"></Network>
             Tree
           </TabsTrigger>
           <TabsTrigger
             value="timeline"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
@@ -332,7 +334,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         </TabsList>
       </Tabs>
       {selectedTab === "details" && (
-        <div className="mt-5 flex-1 overflow-hidden border-t pt-5">
+        <div className="mt-5 flex-1 overflow-hidden">
           <Trace
             key={trace.data.id}
             trace={trace.data}

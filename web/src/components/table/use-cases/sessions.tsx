@@ -18,12 +18,12 @@ import {
   formatIntervalSeconds,
   localtimeDateOffsetByDays,
 } from "@/src/utils/dates";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { useLookBackDays } from "@/src/hooks/useLookBackDays";
+import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useDateRange } from "@/src/components/useDateRange";
 
@@ -278,7 +278,9 @@ export default function SessionsTable({
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("inputTokens");
 
-        return value ? <span>{Number(value)}</span> : undefined;
+        return value ? (
+          <span>{numberFormatter(Number(value), 0)}</span>
+        ) : undefined;
       },
     },
     {
@@ -291,7 +293,9 @@ export default function SessionsTable({
       cell: ({ row }) => {
         const value = row.getValue("outputTokens");
 
-        return value ? <span>{Number(value)}</span> : undefined;
+        return value ? (
+          <span>{numberFormatter(Number(value), 0)}</span>
+        ) : undefined;
       },
     },
     {
@@ -303,7 +307,9 @@ export default function SessionsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("totalTokens");
-        return value ? <span>{Number(value)}</span> : undefined;
+        return value ? (
+          <span>{numberFormatter(Number(value), 0)}</span>
+        ) : undefined;
       },
     },
     {

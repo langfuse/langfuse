@@ -4,10 +4,7 @@ import { useRouter } from "next/router";
 import { NumberParam, useQueryParam } from "use-query-params";
 import type { z } from "zod";
 import Header from "@/src/components/layouts/header";
-import {
-  ChatMlArraySchema,
-  OpenAiMessageView,
-} from "@/src/components/trace/IOPreview";
+import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -31,6 +28,7 @@ import {
 } from "@/src/components/ui/accordion";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();

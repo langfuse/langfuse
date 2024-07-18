@@ -6,8 +6,10 @@ export const dateTimeAggregationOptions = [
   "1 month",
   "7 days",
   "24 hours",
+  "3 hours",
   "1 hour",
   "30 minutes",
+  "5 minutes",
 ] as const;
 
 export type DateTimeAggregationOption =
@@ -53,6 +55,12 @@ export const dateTimeAggregationSettings: DateTimeAggregationSettings = {
       date.toLocaleTimeString("en-US", { hour: "numeric" }),
     minutes: 24 * 60,
   },
+  "3 hours": {
+    date_trunc: "minute",
+    date_formatter: (date) =>
+      date.toLocaleTimeString("en-US", { hour: "numeric", minute: "numeric" }),
+    minutes: 3 * 60,
+  },
   "1 hour": {
     date_trunc: "minute",
     date_formatter: (date) =>
@@ -64,6 +72,12 @@ export const dateTimeAggregationSettings: DateTimeAggregationSettings = {
     date_formatter: (date) =>
       date.toLocaleTimeString("en-US", { hour: "numeric", minute: "numeric" }),
     minutes: 30,
+  },
+  "5 minutes": {
+    date_trunc: "minute",
+    date_formatter: (date) =>
+      date.toLocaleTimeString("en-US", { hour: "numeric", minute: "numeric" }),
+    minutes: 5,
   },
 };
 

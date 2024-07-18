@@ -106,6 +106,57 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get dataset items",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/dataset-items?datasetName=&sourceTraceId=&sourceObservationId=&page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items"
+              ],
+              "query": [
+                {
+                  "key": "datasetName",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "sourceTraceId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "sourceObservationId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
@@ -160,25 +211,26 @@
           "request": {
             "description": "Get all datasets",
             "url": {
-              "raw": "{{baseUrl}}/api/public/datasets?page=&limit=",
+              "raw": "{{baseUrl}}/api/public/v2/datasets?page=&limit=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "datasets"
               ],
               "query": [
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 }
               ],
               "variable": []
@@ -194,15 +246,16 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get a dataset and its items",
+            "description": "Get a dataset",
             "url": {
-              "raw": "{{baseUrl}}/api/public/datasets/:datasetName",
+              "raw": "{{baseUrl}}/api/public/v2/datasets/:datasetName",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "datasets",
                 ":datasetName"
               ],
@@ -228,13 +281,14 @@
           "request": {
             "description": "Create a dataset",
             "url": {
-              "raw": "{{baseUrl}}/api/public/datasets",
+              "raw": "{{baseUrl}}/api/public/v2/datasets",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
+                "v2",
                 "datasets"
               ],
               "query": [],
@@ -257,7 +311,7 @@
         },
         {
           "_type": "endpoint",
-          "name": "Get Runs",
+          "name": "Get Run",
           "request": {
             "description": "Get a dataset run and its items",
             "url": {
@@ -282,6 +336,50 @@
                 },
                 {
                   "key": "runName",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Runs",
+          "request": {
+            "description": "Get dataset runs",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/datasets/:datasetName/runs?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets",
+                ":datasetName",
+                "runs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "datasetName",
                   "value": "",
                   "description": null
                 }
@@ -440,6 +538,146 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Models",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a model",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"modelName\": \"example\",\n    \"matchPattern\": \"example\",\n    \"startDate\": \"1994-11-05\",\n    \"unit\": \"CHARACTERS\",\n    \"inputPrice\": 0,\n    \"outputPrice\": 0,\n    \"totalPrice\": 0,\n    \"tokenizerId\": \"example\",\n    \"tokenizerConfig\": \"UNKNOWN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get all models",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/models?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get a model",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/models/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/models/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Observations",
       "item": [
         {
@@ -480,7 +718,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=&toStartTime=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -528,7 +766,12 @@
                 {
                   "key": "fromStartTime",
                   "value": "",
-                  "description": "Retrieve only observations with a start_time greater than this datetime (ISO 8601)."
+                  "description": "Retrieve only observations with a start_time or or after this datetime (ISO 8601)."
+                },
+                {
+                  "key": "toStartTime",
+                  "value": "",
+                  "description": "Retrieve only observations with a start_time before this datetime (ISO 8601)."
                 }
               ],
               "variable": []
@@ -658,12 +901,12 @@
                 {
                   "key": "page",
                   "value": "",
-                  "description": null
+                  "description": "page number, starts at 1"
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": null
+                  "description": "limit of items per page"
                 }
               ],
               "variable": []
@@ -714,6 +957,114 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Score Configs",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a score configuration (config). Score configs are used to define the structure of scores",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/score-configs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"example\",\n    \"dataType\": \"NUMERIC\",\n    \"categories\": [\n        {\n            \"value\": 0,\n            \"label\": \"example\"\n        }\n    ],\n    \"minValue\": 0,\n    \"maxValue\": 0,\n    \"description\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get all score configs",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/score-configs?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page number, starts at 1."
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get By Id",
+          "request": {
+            "description": "Get a score config",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/score-configs/:configId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs",
+                ":configId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "configId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a score config"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Score",
       "item": [
         {
@@ -739,7 +1090,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": \"example\",\n    \"traceId\": \"example\",\n    \"name\": \"example\",\n    \"value\": 0,\n    \"observationId\": \"example\",\n    \"comment\": \"example\"\n}",
+              "raw": "{\n    \"name\": \"novelty\",\n    \"value\": 0.9,\n    \"traceId\": \"cdef-1234-5678-90ab\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -755,7 +1106,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&source=&operator=&value=&scoreIds=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&source=&operator=&value=&scoreIds=&configId=&dataType=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -778,17 +1129,22 @@
                 {
                   "key": "userId",
                   "value": "",
-                  "description": null
+                  "description": "Retrieve only scores with this userId associated to the trace."
                 },
                 {
                   "key": "name",
                   "value": "",
-                  "description": null
+                  "description": "Retrieve only scores with this name."
                 },
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Retrieve only scores newer than this datetime (ISO 8601)."
+                  "description": "Optional filter to only include scores created on or after a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "toTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include scores created before a certain datetime (ISO 8601)"
                 },
                 {
                   "key": "source",
@@ -809,6 +1165,16 @@
                   "key": "scoreIds",
                   "value": "",
                   "description": "Comma-separated list of score IDs to limit the results to."
+                },
+                {
+                  "key": "configId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific configId."
+                },
+                {
+                  "key": "dataType",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific dataType."
                 }
               ],
               "variable": []
@@ -893,6 +1259,52 @@
       "item": [
         {
           "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get sessions.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/sessions?page=&limit=&fromTimestamp=&toTimestamp=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "sessions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit."
+                },
+                {
+                  "key": "fromTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include sessions created on or after a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "toTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include sessions created before a certain datetime (ISO 8601)"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get",
           "request": {
             "description": "Get a session. Please note that `traces` on this endpoint are not paginated, if you plan to fetch large sessions, consider `GET /api/public/traces?sessionId=<sessionId>`",
@@ -968,7 +1380,7 @@
           "request": {
             "description": "Get list of traces.",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&orderBy=&tags=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1006,7 +1418,12 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Retrieve only traces newer than this datetime (ISO 8601)."
+                  "description": "Optional filter to only include traces with a trace.timestamp on or after a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "toTimestamp",
+                  "value": "",
+                  "description": "Optional filter to only include traces with a trace.timestamp before a certain datetime (ISO 8601)"
                 },
                 {
                   "key": "orderBy",

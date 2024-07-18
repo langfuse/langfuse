@@ -1,10 +1,10 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { type Score } from "@langfuse/shared";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export const ScoresPreview = ({
   itemScoresBySource,
 }: {
-  itemScoresBySource: Map<string, Score[]>;
+  itemScoresBySource: Map<string, APIScore[]>;
 }) => {
   if (!Boolean(itemScoresBySource.size)) return null;
 

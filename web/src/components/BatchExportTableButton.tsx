@@ -15,7 +15,8 @@ import {
 import React from "react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
+import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -30,6 +31,11 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
 ) => {
   const [isExporting, setIsExporting] = React.useState(false);
   const createExport = api.batchExport.create.useMutation();
+  const isEeEnabled = useIsEeEnabled();
+  const hasAccess = useHasAccess({
+    projectId: props.projectId,
+    scope: "batchExport:create",
+  });
 
   const handleExport = async (format: BatchExportFileFormat) => {
     setIsExporting(true);
@@ -50,7 +56,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
     });
   };
 
-  if (!isEeEnabled) return null;
+  if (!isEeEnabled || !hasAccess) return null;
 
   return (
     <DropdownMenu>
