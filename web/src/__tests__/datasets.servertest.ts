@@ -855,12 +855,26 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const datasetBody = {
       name: "dataset-name",
     };
+    // dataset, id is generated
+    const apiDataset = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { ...datasetBody, metadata: "api-dataset" },
+    );
     const otherProjDbDataset = await prisma.dataset.create({
       data: {
         ...datasetBody,
         projectId: otherProject.id,
+        id: apiDataset.body.id, // use the same id, not possible via api, done to check security of this
       },
     });
+    const getApiDataset = await makeZodVerifiedAPICall(
+      GetDatasetV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(datasetBody.name)}`,
+    );
+    expect(getApiDataset.body.metadata).toBe("api-dataset");
 
     // item ids can be set by the user
     const datasetItemBody = {
@@ -870,24 +884,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     await prisma.datasetItem.create({
       data: {
         ...datasetItemBody,
+        expectedOutput: "other-proj",
         projectId: otherProject.id,
         datasetId: otherProjDbDataset.id,
       },
     });
-
-    // dataset, id is generated
-    const apiDataset = await makeZodVerifiedAPICall(
-      PostDatasetsV1Response,
-      "POST",
-      "/api/public/datasets",
-      { ...datasetBody, metadata: "api-dataset" },
-    );
-    const getApiDataset = await makeZodVerifiedAPICall(
-      GetDatasetV1Response,
-      "GET",
-      `/api/public/datasets/${encodeURIComponent(datasetBody.name)}`,
-    );
-    expect(getApiDataset.body.metadata).toBe("api-dataset");
 
     // dataset item, id is set
     await makeZodVerifiedAPICall(
@@ -896,6 +897,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       "/api/public/dataset-items",
       {
         ...datasetItemBody,
+        expectedOutput: "api-item",
         datasetName: datasetBody.name,
         metadata: "api-item",
       },
