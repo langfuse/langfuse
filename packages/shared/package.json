@@ -44,7 +44,7 @@
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.550.0",
+    "@aws-sdk/client-s3": "^3.616.0",
     "@aws-sdk/lib-storage": "^3.568.0",
     "@aws-sdk/s3-request-presigner": "^3.554.0",
     "@langchain/anthropic": "^0.1.21",
