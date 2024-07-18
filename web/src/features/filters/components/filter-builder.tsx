@@ -28,7 +28,6 @@ import {
 import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { createTimeFromDate } from "@/src/utils/dates";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -225,6 +224,7 @@ function FilterBuilderForm({
 }) {
   const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
+      console.log("filter", filter);
       const newState = [...prev];
       newState[i] = filter;
       return newState;
@@ -417,9 +417,6 @@ function FilterBuilderForm({
                           i,
                         );
                       }}
-                      time={createTimeFromDate(
-                        filter.value ? new Date(filter.value) : undefined,
-                      )}
                     />
                   ) : filter.type === "stringOptions" ||
                     filter.type === "arrayOptions" ? (
