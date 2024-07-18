@@ -551,7 +551,7 @@ model DatasetRuns {
     datasetRunItems DatasetRunItems[]
 
     @@id([id, projectId])
-    @@unique([datasetId, name])
+    @@unique([datasetId, projectId, name])
     @@index([datasetId], type: Hash)
     @@index([createdAt])
     @@index([updatedAt])
