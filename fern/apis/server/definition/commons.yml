@@ -292,6 +292,7 @@ types:
       - MILLISECONDS
       - SECONDS
       - IMAGES
+      - REQUESTS
   ObservationLevel:
     enum:
       - DEBUG
