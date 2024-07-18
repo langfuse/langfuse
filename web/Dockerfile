@@ -9,7 +9,7 @@ RUN npm install turbo@^1.13.3 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@8.15.5 --activate
+RUN corepack prepare pnpm@9.5.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
 
