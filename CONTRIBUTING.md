@@ -198,6 +198,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 20 as specified in the [.nvmrc](.nvmrc)
+- Pnpm v.9.5.0
 - Docker to run the database locally
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
