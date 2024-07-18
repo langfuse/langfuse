@@ -295,12 +295,15 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     });
     expect(dbDatasetItems.length).toBe(5);
-    const dbDatasetItemsApiResponseFormat = dbDatasetItems.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-      datasetName: "dataset-name",
-    }));
+    const dbDatasetItemsApiResponseFormat = dbDatasetItems.map(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ({ projectId, ...item }) => ({
+        ...item,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+        datasetName: "dataset-name",
+      }),
+    );
 
     // add another dataset to test the list endpoint
     await makeZodVerifiedAPICall(
@@ -333,7 +336,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbDatasetItemsOther.length).toBe(1);
     const dbDatasetItemsOtherApiResponseFormat = dbDatasetItemsOther.map(
-      (item) => ({
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ({ projectId, ...item }) => ({
         ...item,
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
@@ -784,12 +788,15 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     });
     expect(dbRuns.length).toBe(3);
-    const dbRunsApiResponseFormat = dbRuns.map((run) => ({
-      ...run,
-      createdAt: run.createdAt.toISOString(),
-      updatedAt: run.updatedAt.toISOString(),
-      datasetName: "dataset-name",
-    }));
+    const dbRunsApiResponseFormat = dbRuns.map(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ({ projectId, ...run }) => ({
+        ...run,
+        createdAt: run.createdAt.toISOString(),
+        updatedAt: run.updatedAt.toISOString(),
+        datasetName: "dataset-name",
+      }),
+    );
 
     // test get runs
     const getRuns = await makeZodVerifiedAPICall(
