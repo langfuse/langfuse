@@ -58,8 +58,7 @@ DROP CONSTRAINT "dataset_run_items_pkey",
 ADD CONSTRAINT "dataset_run_items_pkey" PRIMARY KEY ("id", "project_id");
 
 
-
--- Add foreign keys
+-- Add new foreign keys
 ALTER TABLE "dataset_items" ADD CONSTRAINT "dataset_items_dataset_id_project_id_fkey" FOREIGN KEY ("dataset_id", "project_id") REFERENCES "datasets"("id", "project_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "dataset_runs" ADD CONSTRAINT "dataset_runs_dataset_id_project_id_fkey" FOREIGN KEY ("dataset_id", "project_id") REFERENCES "datasets"("id", "project_id") ON DELETE CASCADE ON UPDATE CASCADE;
