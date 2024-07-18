@@ -24,11 +24,11 @@ export default withMiddlewares({
 
       const datasetItem = await prisma.datasetItem.findUnique({
         where: {
-          id: datasetItemId,
-          status: "ACTIVE",
-          dataset: {
+          id_projectId: {
             projectId: auth.scope.projectId,
+            id: datasetItemId,
           },
+          status: "ACTIVE",
         },
         include: {
           dataset: true,
@@ -63,9 +63,10 @@ export default withMiddlewares({
 
       const run = await prisma.datasetRuns.upsert({
         where: {
-          datasetId_name: {
+          datasetId_projectId_name: {
             datasetId: datasetItem.datasetId,
             name: runName,
+            projectId: auth.scope.projectId,
           },
         },
         create: {
@@ -73,6 +74,7 @@ export default withMiddlewares({
           description: runDescription ?? undefined,
           datasetId: datasetItem.datasetId,
           metadata: metadata ?? undefined,
+          projectId: auth.scope.projectId,
         },
         update: {
           metadata: metadata ?? undefined,
@@ -86,6 +88,7 @@ export default withMiddlewares({
           traceId: finalTraceId,
           observationId,
           datasetRunId: run.id,
+          projectId: auth.scope.projectId,
         },
       });
 

@@ -15,6 +15,7 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const datasetRuns = await prisma.datasetRuns.findMany({
         where: {
+          projectId: auth.scope.projectId,
           name: query.runName,
           dataset: {
             name: query.name,

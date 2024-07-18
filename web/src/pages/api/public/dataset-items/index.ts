@@ -41,8 +41,11 @@ export default withMiddlewares({
 
       const item = await prisma.datasetItem.upsert({
         where: {
-          id: itemId,
           datasetId: dataset.id,
+          id_projectId: {
+            projectId: auth.scope.projectId,
+            id: itemId,
+          },
         },
         create: {
           id: itemId,
@@ -53,6 +56,7 @@ export default withMiddlewares({
           sourceTraceId: sourceTraceId ?? undefined,
           sourceObservationId: sourceObservationId ?? undefined,
           status: status ?? undefined,
+          projectId: auth.scope.projectId,
         },
         update: {
           input: input ?? undefined,
@@ -95,6 +99,7 @@ export default withMiddlewares({
       const items = (
         await prisma.datasetItem.findMany({
           where: {
+            projectId: auth.scope.projectId,
             dataset: {
               projectId: auth.scope.projectId,
               ...(datasetId ? { id: datasetId } : {}),

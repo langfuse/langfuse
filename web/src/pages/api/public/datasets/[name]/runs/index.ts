@@ -36,6 +36,7 @@ export default withMiddlewares({
       const totalItems = await prisma.datasetRuns.count({
         where: {
           datasetId: dataset.id,
+          projectId: auth.scope.projectId,
         },
       });
 

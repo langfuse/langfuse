@@ -15,11 +15,11 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { datasetItemId } = query;
 
-      const datasetItem = await prisma.datasetItem.findFirst({
+      const datasetItem = await prisma.datasetItem.findUnique({
         where: {
-          id: datasetItemId,
-          dataset: {
+          id_projectId: {
             projectId: auth.scope.projectId,
+            id: datasetItemId,
           },
         },
         include: {

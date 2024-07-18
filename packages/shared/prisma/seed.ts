@@ -286,6 +286,7 @@ async function main() {
             : undefined;
         const datasetItem = await prisma.datasetItem.create({
           data: {
+            projectId: project2.id,
             datasetId: dataset.id,
             sourceTraceId: sourceObservation?.traceId,
             sourceObservationId:
@@ -312,6 +313,7 @@ async function main() {
       for (let datasetRunNumber = 0; datasetRunNumber < 5; datasetRunNumber++) {
         const datasetRun = await prisma.datasetRuns.create({
           data: {
+            projectId: project2.id,
             name: `demo-dataset-run-${datasetRunNumber}`,
             description: Math.random() > 0.5 ? "Dataset run description" : "",
             datasetId: dataset.id,
@@ -336,6 +338,7 @@ async function main() {
 
           await prisma.datasetRunItems.create({
             data: {
+              projectId: project2.id,
               datasetItemId,
               traceId: observation.traceId as string,
               observationId: Math.random() > 0.5 ? observation.id : undefined,
