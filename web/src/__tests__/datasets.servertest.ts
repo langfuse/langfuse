@@ -21,6 +21,7 @@ import {
   PostDatasetsV1Response,
   PostDatasetsV2Response,
 } from "@/src/features/public-api/types/datasets";
+import { v4 as uuidv4 } from "uuid";
 
 describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () => {
   const traceId = v4();
@@ -841,5 +842,88 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     );
     expect(response.status).toBe(400);
+  });
+
+  it("dataset item ids should be reusable across projects", async () => {
+    const otherProject = await prisma.project.create({
+      data: {
+        name: "other-project",
+      },
+    });
+
+    // dataset ids are always generated
+    const datasetBody = {
+      name: "dataset-name",
+    };
+    const otherProjDbDataset = await prisma.dataset.create({
+      data: {
+        ...datasetBody,
+        projectId: otherProject.id,
+      },
+    });
+
+    // item ids can be set by the user
+    const datasetItemBody = {
+      input: "item-input",
+      id: uuidv4(),
+    };
+    await prisma.datasetItem.create({
+      data: {
+        ...datasetItemBody,
+        projectId: otherProject.id,
+        datasetId: otherProjDbDataset.id,
+      },
+    });
+
+    // dataset, id is generated
+    const apiDataset = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { ...datasetBody, metadata: "api-dataset" },
+    );
+    const getApiDataset = await makeZodVerifiedAPICall(
+      GetDatasetV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(datasetBody.name)}`,
+    );
+    expect(getApiDataset.body.metadata).toBe("api-dataset");
+
+    // dataset item, id is set
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        ...datasetItemBody,
+        datasetName: datasetBody.name,
+        metadata: "api-item",
+      },
+    );
+    const getApiDatasetItem = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
+      "GET",
+      `/api/public/dataset-items/${datasetItemBody.id}`,
+    );
+    expect(getApiDatasetItem.body.metadata).toBe("api-item");
+    const dbItems = await prisma.datasetItem.findMany({
+      where: { id: datasetItemBody.id },
+    });
+    expect(dbItems.length).toBe(2);
+    expect(dbItems).toHaveLength(2);
+    expect(dbItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metadata: "api-item",
+          projectId: apiDataset.body.projectId,
+          id: datasetItemBody.id,
+        }),
+        expect.objectContaining({
+          metadata: null,
+          projectId: otherProject.id,
+          id: datasetItemBody.id,
+        }),
+      ]),
+    );
   });
 });
