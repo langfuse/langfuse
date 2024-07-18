@@ -42,12 +42,14 @@ export function DatePicker({
   clearable = false,
   className,
   disabled,
+  time,
 }: {
   date?: Date | undefined;
   onChange: (date: Date | undefined) => void;
   clearable?: boolean;
   className?: string;
   disabled?: boolean;
+  time?: boolean;
 }) {
   return (
     <div className="flex flex-row gap-2 align-middle">
@@ -73,7 +75,7 @@ export function DatePicker({
             onSelect={(d) => onChange(d)}
             initialFocus
           />
-          <TimePicker date={date} setDate={(d) => onChange(d)} />
+          {time && <TimePicker date={date} setDate={(d) => onChange(d)} />}
         </PopoverContent>
       </Popover>
       {date && clearable && (
