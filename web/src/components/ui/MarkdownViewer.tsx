@@ -17,7 +17,7 @@ import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { Button } from "@/src/components/ui/button";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, ZoomIn, ZoomOut } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { isPresent } from "@/src/utils/typeChecks";
 import { BsMarkdown } from "react-icons/bs";
@@ -221,6 +221,7 @@ export function MarkdownView({
             );
           },
           img({ src, alt }) {
+            const [isZoomedIn, setIsZoomedIn] = useState(true);
             if (!isPresent(src)) return null;
 
             const isValidImage = api.public.validateImgUrl.useQuery(src);
@@ -230,15 +231,37 @@ export function MarkdownView({
 
             if (isValidImage.data?.isValid) {
               return (
-                <Image
-                  loader={customLoader}
-                  src={src}
-                  alt={alt ?? `Markdown Image-${Math.random()}`}
-                  layout="intrinsic"
-                  loading="lazy"
-                  width={300}
-                  height={500}
-                />
+                <div>
+                  <div
+                    className={cn(
+                      "group relative",
+                      isZoomedIn ? "h-1/3 w-1/3" : "h-2/3 w-2/3",
+                    )}
+                  >
+                    <Image
+                      loader={customLoader}
+                      src={src}
+                      alt={alt ?? `Markdown Image-${Math.random()}`}
+                      loading="lazy"
+                      width={0}
+                      height={0}
+                      className="h-full w-full object-contain"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 mr-1 mt-1 opacity-0 group-hover:opacity-100"
+                      onClick={() => setIsZoomedIn(!isZoomedIn)}
+                    >
+                      {isZoomedIn ? (
+                        <ZoomOut className="h-4 w-4"></ZoomOut>
+                      ) : (
+                        <ZoomIn className="h-4 w-4"></ZoomIn>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               );
             }
 
