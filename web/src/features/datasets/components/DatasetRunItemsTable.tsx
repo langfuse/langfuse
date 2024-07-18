@@ -7,7 +7,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
-import { type Score } from "@langfuse/shared";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 import { usdFormatter } from "../../../utils/numbers";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -30,7 +30,7 @@ type RowData = {
   output?: unknown;
   expectedOutput?: unknown;
 
-  scores: Score[];
+  scores: APIScore[];
   latency?: number;
   totalCost?: string;
 };

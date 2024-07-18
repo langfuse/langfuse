@@ -1,12 +1,10 @@
+import "./instrumentation"; // this is required to make instrumentation work
 import express from "express";
 import cors from "cors";
 import * as Sentry from "@sentry/node";
-import { nodeProfilingIntegration } from "@sentry/profiling-node";
-
 import * as middlewares from "./middlewares";
 import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
-import { env } from "./env";
 
 require("dotenv").config();
 
@@ -19,27 +17,6 @@ import helmet from "helmet";
 
 const app = express();
 
-const isSentryEnabled = String(env.SENTRY_DSN) !== undefined;
-
-if (isSentryEnabled) {
-  Sentry.init({
-    dsn: String(env.SENTRY_DSN),
-    integrations: [
-      Sentry.httpIntegration(),
-      Sentry.expressIntegration(),
-      nodeProfilingIntegration(),
-      Sentry.redisIntegration(),
-    ],
-
-    tracesSampleRate: 0.01, //  Capture 100% of the transactions
-
-    profilesSampleRate: 0.01,
-    sampleRate: 0.1,
-  });
-
-  logger.info("Sentry enabled");
-}
-
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
@@ -51,10 +28,9 @@ app.get<{}, MessageResponse>("/", (req, res) => {
 
 app.use("/api", api);
 
-if (isSentryEnabled) {
-  // The error handler must be before any other error middleware and after all controllers
-  app.use(Sentry.expressErrorHandler());
-}
+// The error handler must be before any other error middleware and after all controllers
+app.use(Sentry.expressErrorHandler());
+
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
 

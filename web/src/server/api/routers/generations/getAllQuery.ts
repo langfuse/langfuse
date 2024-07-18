@@ -17,7 +17,7 @@ const getAllGenerationsInput = GenerationTableOptions.extend({
 
 export type ScoreSimplified = {
   name: string;
-  value: number;
+  value?: number | null;
   dataType: ScoreDataType;
   stringValue?: string | null;
   comment?: string | null;
@@ -37,7 +37,7 @@ export const getAllQuery = protectedProjectProcedure
   .input(getAllGenerationsInput)
   .query(async ({ input, ctx }) => {
     const { generations, datetimeFilter, filterCondition, searchCondition } =
-      await getAllGenerations({ input, selectIO: false });
+      await getAllGenerations({ input, selectIOAndMetadata: false });
 
     const totalGenerations = await ctx.prisma.$queryRaw<
       Array<{ count: bigint }>
@@ -61,6 +61,7 @@ export const getAllQuery = protectedProjectProcedure
                 scores."project_id" = ${input.projectId}
                 AND scores."trace_id" = t.id
                 AND scores."observation_id" = o.id
+                AND scores.value IS NOT NULL
             GROUP BY
                 name
         ) tmp

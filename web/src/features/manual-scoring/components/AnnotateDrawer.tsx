@@ -31,11 +31,15 @@ import {
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
 import {
-  type ConfigCategory,
   ScoreDataType,
-  type Score,
-  type ScoreConfig,
+  CreateAnnotationScoreData,
+  UpdateAnnotationScoreData,
 } from "@langfuse/shared";
+import { type APIScore } from "@/src/features/public-api/types/scores";
+import {
+  type ValidatedScoreConfig,
+  type ConfigCategory,
+} from "@/src/features/public-api/types/score-configs";
 import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -56,10 +60,8 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { ScoreConfigDetails } from "@/src/features/manual-scoring/components/ScoreConfigDetails";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
   isNumericDataType,
-  isPresent,
   isScoreUnsaved,
 } from "@/src/features/manual-scoring/lib/helpers";
 import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaultScoreData";
@@ -71,6 +73,7 @@ import { useRouter } from "next/router";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
+import { isPresent } from "@/src/utils/typeChecks";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -134,7 +137,7 @@ export function AnnotateDrawer({
   source = "TraceDetail",
 }: {
   traceId: string;
-  scores: Score[];
+  scores: APIScore[];
   observationId?: string;
   projectId: string;
   variant?: "button" | "badge";
@@ -178,9 +181,6 @@ export function AnnotateDrawer({
   });
 
   const mutDeleteScore = api.scores.deleteAnnotationScore.useMutation({
-    onError: (error) => {
-      trpcErrorToast(error);
-    },
     onSettled: async (data, error) => {
       if (!data || error) return;
 
@@ -214,7 +214,7 @@ export function AnnotateDrawer({
 
   const utils = api.useUtils();
 
-  const onSettledUpsert = async (data?: Score, error?: unknown) => {
+  const onSettledUpsert = async (data?: APIScore, error?: unknown) => {
     if (!data || error) return;
 
     const { id, value, stringValue, name, dataType, configId, comment } = data;
@@ -240,16 +240,10 @@ export function AnnotateDrawer({
   };
 
   const mutCreateScores = api.scores.createAnnotationScore.useMutation({
-    onError: (error) => {
-      trpcErrorToast(error);
-    },
     onSettled: onSettledUpsert,
   });
 
   const mutUpdateScores = api.scores.updateAnnotationScore.useMutation({
-    onError: (error) => {
-      trpcErrorToast(error);
-    },
     onSettled: onSettledUpsert,
   });
 
@@ -314,12 +308,21 @@ export function AnnotateDrawer({
 
         if (!!stringValue) {
           if (!!score.scoreId) {
-            await mutUpdateScores.mutateAsync({
-              projectId,
-              ...score,
+            const validatedScore = UpdateAnnotationScoreData.parse({
               id: score.scoreId,
+              projectId,
+              traceId,
+              name: score.name,
+              dataType: score.dataType,
+              configId: score.configId,
+              comment: score.comment,
+              observationId,
               value: newValue,
               stringValue,
+            });
+
+            await mutUpdateScores.mutateAsync({
+              ...validatedScore,
             });
             capture("score:update", {
               type: type,
@@ -327,13 +330,20 @@ export function AnnotateDrawer({
               dataType: score.dataType,
             });
           } else {
-            await mutCreateScores.mutateAsync({
+            const validatedScore = CreateAnnotationScoreData.parse({
               projectId,
               traceId,
-              ...score,
+              name: score.name,
+              dataType: score.dataType,
+              configId: score.configId,
+              comment: score.comment,
               observationId,
               value: newValue,
               stringValue,
+            });
+
+            await mutCreateScores.mutateAsync({
+              ...validatedScore,
             });
             capture("score:create", {
               type: type,
@@ -361,13 +371,23 @@ export function AnnotateDrawer({
     return async () => {
       const { value, scoreId } = score;
       if (!!field.value && !!scoreId && isPresent(value)) {
-        await mutUpdateScores.mutateAsync({
-          projectId,
-          ...score,
-          value,
+        const validatedScore = UpdateAnnotationScoreData.parse({
           id: scoreId,
+          projectId,
+          traceId,
+          name: score.name,
+          dataType: score.dataType,
+          configId: score.configId,
+          stringValue: score.stringValue,
+          observationId,
+          value,
           comment,
         });
+
+        await mutUpdateScores.mutateAsync({
+          ...validatedScore,
+        });
+
         capture(comment ? "score:update_comment" : "score:delete_comment", {
           type: type,
           source: source,
@@ -382,7 +402,7 @@ export function AnnotateDrawer({
     index,
     score,
   }: {
-    config: ScoreConfig;
+    config: ValidatedScoreConfig;
     field: ControllerRenderProps<
       AnnotateFormSchemaType,
       `scoreData.${number}.value`
@@ -409,25 +429,45 @@ export function AnnotateDrawer({
 
       if (isPresent(field.value)) {
         if (!!score.scoreId) {
-          await mutUpdateScores.mutateAsync({
-            projectId,
-            ...score,
-            value: Number(field.value),
+          const validatedScore = UpdateAnnotationScoreData.parse({
             id: score.scoreId,
+            projectId,
+            traceId,
+            name: score.name,
+            dataType: score.dataType,
+            configId: score.configId,
+            stringValue: score.stringValue,
+            comment: score.comment,
+            observationId,
+            value: Number(field.value),
           });
+
+          await mutUpdateScores.mutateAsync({
+            ...validatedScore,
+          });
+
           capture("score:update", {
             type: type,
             source: source,
             dataType: score.dataType,
           });
         } else {
-          await mutCreateScores.mutateAsync({
+          const validatedScore = CreateAnnotationScoreData.parse({
             projectId,
             traceId,
-            ...score,
+            name: score.name,
+            dataType: score.dataType,
+            configId: score.configId,
+            stringValue: score.stringValue,
+            comment: score.comment,
             observationId,
             value: Number(field.value),
           });
+
+          await mutCreateScores.mutateAsync({
+            ...validatedScore,
+          });
+
           capture("score:create", {
             type: type,
             source: source,

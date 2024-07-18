@@ -19,10 +19,13 @@ if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL=$DATABASE_URL
 fi
 
-prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
+# Always execute the scripts, except when disabled.
+if [ "$LANGFUSE_AUTO_POSTGRES_MIGRATION_DISABLED" != "true" ]; then
+    prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
 
-# Apply migrations
-prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
+    # Apply migrations
+    prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
+fi
 status=$?
 
 # If migration fails (returns non-zero exit status), exit script with that status
@@ -32,5 +35,5 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-# Start server
-node web/server.js
+# Run the command passed to the docker image on start
+exec "$@"

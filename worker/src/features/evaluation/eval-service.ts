@@ -19,7 +19,7 @@ import {
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
   TraceUpsertEventSchema,
-  ValidationError,
+  InvalidRequestError,
   variableMappingList,
   ZodModelConfig,
 } from "@langfuse/shared";
@@ -96,6 +96,19 @@ export const createEvalJobs = async ({
           `Eval job for config ${config.id} and trace ${event.traceId} already exists`
         );
         continue;
+      }
+
+      // apply sampling. Only if the job is sampled, we create a job
+      // user supplies a number between 0 and 1, which is the probability of sampling
+
+      if (parseFloat(config.sampling) !== 1) {
+        const random = Math.random();
+        if (random > parseFloat(config.sampling)) {
+          logger.info(
+            `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`
+          );
+          continue;
+        }
       }
 
       logger.info(
@@ -220,7 +233,9 @@ export const evaluate = async ({
     parsedVariableMapping
   );
 
-  logger.info(`Extracted variables ${JSON.stringify(mappingResult)} `);
+  logger.info(
+    `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `
+  );
 
   // compile the prompt and send out the LLM request
   const prompt = compileHandlebarString(template.prompt, {
@@ -239,7 +254,7 @@ export const evaluate = async ({
     .parse(template.output_schema);
 
   if (!parsedOutputSchema) {
-    throw new ValidationError("Output schema not found");
+    throw new InvalidRequestError("Output schema not found");
   }
 
   const openAIFunction = z.object({
@@ -290,24 +305,28 @@ export const evaluate = async ({
 
   const parsedLLMOutput = openAIFunction.parse(completion);
 
-  logger.info(`Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`);
+  logger.info(
+    `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`
+  );
 
   // persist the score and update the job status
   const scoreId = randomUUID();
-  await kyselyPrisma.$kysely
-    .insertInto("scores")
-    .values({
+
+  await prisma.score.create({
+    data: {
       id: scoreId,
-      trace_id: job.job_input_trace_id,
+      traceId: job.job_input_trace_id,
       name: config.score_name,
       value: parsedLLMOutput.score,
       comment: parsedLLMOutput.reasoning,
-      source: sql`'EVAL'::"ScoreSource"`,
-      project_id: event.projectId,
-    })
-    .execute();
+      source: "EVAL",
+      projectId: event.projectId,
+    },
+  });
 
-  logger.info(`Persisted score ${scoreId} for trace ${job.job_input_trace_id}`);
+  logger.info(
+    `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.job_input_trace_id}`
+  );
 
   await kyselyPrisma.$kysely
     .updateTable("job_executions")
@@ -326,7 +345,6 @@ export function compileHandlebarString(
   handlebarString: string,
   context: Record<string, any>
 ): string {
-  logger.info("Compiling handlebar string", handlebarString, context);
   const template = Handlebars.compile(handlebarString, { noEscape: true });
   return template(context);
 }

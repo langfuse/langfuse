@@ -3,7 +3,7 @@
 
 generator client {
     provider        = "prisma-client-js"
-    previewFeatures = ["tracing", "views", "relationJoins"]
+    previewFeatures = ["tracing", "views", "relationJoins", "metrics"]
 }
 
 datasource db {
@@ -272,6 +272,8 @@ view TraceView {
     input      Json?
     output     Json?
     sessionId  String?  @map("session_id")
+    createdAt  DateTime @map("created_at")
+    updatedAt  DateTime @map("updated_at")
 
     // calculated fields
     duration Float? @map("duration") // can be null if no observations in trace
@@ -299,18 +301,28 @@ model Observation {
     updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at")
 
     // GENERATION ONLY
-    model               String?
-    internalModel       String?       @map("internal_model")
-    modelParameters     Json?
-    input               Json?
-    output              Json?
-    promptTokens        Int           @default(0) @map("prompt_tokens")
-    completionTokens    Int           @default(0) @map("completion_tokens")
-    totalTokens         Int           @default(0) @map("total_tokens")
-    unit                String?
-    inputCost           Decimal?      @map("input_cost")
-    outputCost          Decimal?      @map("output_cost")
-    totalCost           Decimal?      @map("total_cost")
+    model           String? // user-provided model attribute
+    internalModel   String? @map("internal_model") // matched model.name that is matched at ingestion time, to be deprecated
+    internalModelId String? @map("internal_model_id") // matched model.id that is matched at ingestion time
+
+    modelParameters  Json?
+    input            Json?
+    output           Json?
+    promptTokens     Int     @default(0) @map("prompt_tokens")
+    completionTokens Int     @default(0) @map("completion_tokens")
+    totalTokens      Int     @default(0) @map("total_tokens")
+    unit             String?
+
+    // User provided cost at ingestion
+    inputCost  Decimal? @map("input_cost")
+    outputCost Decimal? @map("output_cost")
+    totalCost  Decimal? @map("total_cost")
+
+    // Calculated cost
+    calculatedInputCost  Decimal? @map("calculated_input_cost")
+    calculatedOutputCost Decimal? @map("calculated_output_cost")
+    calculatedTotalCost  Decimal? @map("calculated_total_cost")
+
     completionStartTime DateTime?     @map("completion_start_time")
     project             Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     derivedDatasetItems DatasetItem[]
@@ -342,7 +354,7 @@ view ObservationView {
     traceId             String?          @map("trace_id")
     projectId           String           @map("project_id")
     type                ObservationType
-    startTime           DateTime         @default(now()) @map("start_time")
+    startTime           DateTime         @map("start_time")
     endTime             DateTime?        @map("end_time")
     name                String?
     metadata            Json?
@@ -350,7 +362,8 @@ view ObservationView {
     level               ObservationLevel @default(DEFAULT)
     statusMessage       String?          @map("status_message")
     version             String?
-    createdAt           DateTime         @default(now()) @map("created_at")
+    createdAt           DateTime         @map("created_at")
+    updatedAt           DateTime         @map("updated_at")
 
     // GENERATION ONLY
     model               String?
@@ -400,14 +413,14 @@ model Score {
     projectId     String         @map("project_id")
     project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
     name          String
-    value         Float
+    value         Float? // always defined if data type is NUMERIC or BOOLEAN, optional for CATEGORICAL
     source        ScoreSource
     authorUserId  String?        @map("author_user_id")
     comment       String?
     traceId       String         @map("trace_id")
     observationId String?        @map("observation_id")
     configId      String?        @map("config_id")
-    stringValue   String?        @map("string_value")
+    stringValue   String?        @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
     createdAt     DateTime       @default(now()) @map("created_at")
     updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
     dataType      ScoreDataType  @default(NUMERIC) @map("data_type")

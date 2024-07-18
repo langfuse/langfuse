@@ -34,10 +34,10 @@ export const userRouter = createTRPCRouter({
       const totalUsers = (
         await ctx.prisma.$queryRaw<
           Array<{
-            totalCount: number;
+            totalCount: bigint;
           }>
         >`
-        SELECT COUNT(DISTINCT t.user_id)::int AS "totalCount"
+        SELECT COUNT(DISTINCT t.user_id)::bigint AS "totalCount"
         FROM traces t
         WHERE t.project_id = ${input.projectId}
         ${filterCondition}
@@ -47,12 +47,12 @@ export const userRouter = createTRPCRouter({
       const users = await ctx.prisma.$queryRaw<
         Array<{
           userId: string;
-          totalTraces: number;
+          totalTraces: bigint;
         }>
       >`
         SELECT
           t.user_id AS "userId",
-          COUNT(t.id)::int AS "totalTraces"
+          COUNT(t.id)::bigint AS "totalTraces"
         FROM
           traces t
         WHERE
@@ -89,13 +89,13 @@ export const userRouter = createTRPCRouter({
           userId: string;
           firstTrace: Date | null;
           lastTrace: Date | null;
-          totalPromptTokens: number;
-          totalCompletionTokens: number;
-          totalTokens: number;
+          totalPromptTokens: bigint;
+          totalCompletionTokens: bigint;
+          totalTokens: bigint;
           firstObservation: Date | null;
           lastObservation: Date | null;
-          totalObservations: number;
-          totalCount: number;
+          totalObservations: bigint;
+          totalCount: bigint;
           sumCalculatedTotalCost: number;
         }>
       >`
@@ -103,24 +103,24 @@ export const userRouter = createTRPCRouter({
           t.user_id AS "userId",
           MIN(t."timestamp") AS "firstTrace",
           MAX(t."timestamp") AS "lastTrace",
-          COALESCE(SUM(o.prompt_tokens), 0)::int AS "totalPromptTokens",
-          COALESCE(SUM(o.completion_tokens), 0)::int AS "totalCompletionTokens",
-          COALESCE(SUM(o.total_tokens), 0)::int AS "totalTokens",
+          COALESCE(SUM(o.prompt_tokens), 0)::bigint AS "totalPromptTokens",
+          COALESCE(SUM(o.completion_tokens), 0)::bigint AS "totalCompletionTokens",
+          COALESCE(SUM(o.total_tokens), 0)::bigint AS "totalTokens",
           MIN(o."firstObservation") AS "firstObservation",
           MAX(o."lastObservation") AS "lastObservation",
-          COUNT(o."totalObservations")::int AS "totalObservations",
-          (COUNT(*) OVER ())::int AS "totalCount",
+          COUNT(o."totalObservations")::bigint AS "totalObservations",
+          (COUNT(*) OVER ())::bigint AS "totalCount",
           SUM(COALESCE(ov.calculated_total_cost, 0)) AS "sumCalculatedTotalCost"
         FROM
           traces t
           LEFT JOIN LATERAL (
             SELECT
-              COALESCE(SUM(o.prompt_tokens), 0)::int AS "prompt_tokens",
-              COALESCE(SUM(o.completion_tokens), 0)::int AS "completion_tokens",
-              COALESCE(SUM(o.total_tokens), 0)::int AS "total_tokens",
+              COALESCE(SUM(o.prompt_tokens), 0)::bigint AS "prompt_tokens",
+              COALESCE(SUM(o.completion_tokens), 0)::bigint AS "completion_tokens",
+              COALESCE(SUM(o.total_tokens), 0)::bigint AS "total_tokens",
               MIN(o.start_time) AS "firstObservation",
               MAX(o.start_time) AS "lastObservation",
-              COUNT(DISTINCT o.id)::int AS "totalObservations"
+              COUNT(DISTINCT o.id)::bigint AS "totalObservations"
             FROM
               observations o
             WHERE
@@ -216,13 +216,13 @@ export const userRouter = createTRPCRouter({
           userId: string;
           firstTrace: Date;
           lastTrace: Date;
-          totalTraces: number;
-          totalPromptTokens: number;
-          totalCompletionTokens: number;
-          totalTokens: number;
+          totalTraces: bigint;
+          totalPromptTokens: bigint;
+          totalCompletionTokens: bigint;
+          totalTokens: bigint;
           firstObservation: Date;
           lastObservation: Date;
-          totalObservations: number;
+          totalObservations: bigint;
           sumCalculatedTotalCost: number;
         }[]
       >`
@@ -230,13 +230,13 @@ export const userRouter = createTRPCRouter({
           t.user_id "userId",
           min(t."timestamp") "firstTrace",
           max(t."timestamp") "lastTrace",
-          COUNT(distinct t.id)::int "totalTraces",
-          COALESCE(SUM(o.prompt_tokens),0)::int "totalPromptTokens",
-          COALESCE(SUM(o.completion_tokens),0)::int "totalCompletionTokens",
-          COALESCE(SUM(o.total_tokens),0)::int "totalTokens",
+          COUNT(distinct t.id)::bigint "totalTraces",
+          COALESCE(SUM(o.prompt_tokens),0)::bigint "totalPromptTokens",
+          COALESCE(SUM(o.completion_tokens),0)::bigint "totalCompletionTokens",
+          COALESCE(SUM(o.total_tokens),0)::bigint "totalTokens",
           MIN(o.start_time) "firstObservation",
           MAX(o.start_time) "lastObservation",
-          COUNT(distinct o.id)::int "totalObservations",
+          COUNT(distinct o.id)::bigint "totalObservations",
           SUM(COALESCE(o.calculated_total_cost, 0)) AS "sumCalculatedTotalCost"
         FROM traces t
         LEFT JOIN observations_view o on o.trace_id = t.id

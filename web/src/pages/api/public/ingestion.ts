@@ -13,6 +13,8 @@ import {
   type TraceUpsertEventType,
   type EventBodyType,
   EventName,
+  LangfuseNotFoundError,
+  InternalServerError,
 } from "@langfuse/shared";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
@@ -32,12 +34,13 @@ import * as Sentry from "@sentry/nextjs";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { env } from "@/src/env.mjs";
 import {
-  ValidationError,
+  InvalidRequestError,
   MethodNotAllowedError,
   BaseError,
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { isSigtermReceived } from "@/src/utils/shutdown";
 
 export const config = {
   api: {
@@ -81,6 +84,8 @@ export default async function handler(
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
 
+    await gaugePrismaStats();
+
     if (!parsedSchema.success) {
       console.log("Invalid request data", parsedSchema.error);
       return res.status(400).json({
@@ -102,7 +107,7 @@ export default async function handler(
                   ? event.id
                   : "unknown"
                 : "unknown",
-            error: new ValidationError(parsed.error.message),
+            error: new InvalidRequestError(parsed.error.message),
           });
           return undefined;
         } else {
@@ -134,7 +139,11 @@ export default async function handler(
       res,
     );
   } catch (error: unknown) {
-    console.error("error handling ingestion event", error);
+    console.error("error_handling_ingestion_event", error);
+
+    if (!(error instanceof UnauthorizedError)) {
+      Sentry.captureException(error);
+    }
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({
@@ -165,17 +174,26 @@ export default async function handler(
   }
 }
 
-const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
-  // keep the order of events as they are. Order events in a way that types containing updates come last
-  // Filter out OBSERVATION_UPDATE events
-  const updates = batch.filter(
-    (event) => event.type === eventTypes.OBSERVATION_UPDATE,
-  );
+/**
+ * Sorts a batch of ingestion events. Orders by: updating events last, sorted by timestamp asc.
+ */
 
-  // Keep all other events in their original order
-  const others = batch.filter(
-    (event) => event.type !== eventTypes.OBSERVATION_UPDATE,
-  );
+const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
+  const updateEvents: (typeof eventTypes)[keyof typeof eventTypes][] = [
+    eventTypes.GENERATION_UPDATE,
+    eventTypes.SPAN_UPDATE,
+    eventTypes.OBSERVATION_UPDATE, // legacy event type
+  ];
+  const updates = batch
+    .filter((event) => updateEvents.includes(event.type))
+    .sort((a, b) => {
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    });
+  const others = batch
+    .filter((event) => !updateEvents.includes(event.type))
+    .sort((a, b) => {
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    });
 
   // Return the array with non-update events first, followed by update events
   return [...others, ...updates];
@@ -187,7 +205,9 @@ export const handleBatch = async (
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
-  console.log(`handling ingestion ${events.length} events`);
+  console.log(
+    `handling ingestion ${events.length} events ${isSigtermReceived() ? "after SIGTERM" : ""}`,
+  );
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
@@ -239,9 +259,12 @@ async function retry<T>(request: () => Promise<T>): Promise<T> {
     },
   });
 }
-export const getBadRequestError = (errors: Array<unknown>): ValidationError[] =>
+export const getBadRequestError = (
+  errors: Array<unknown>,
+): InvalidRequestError[] =>
   errors.filter(
-    (error): error is ValidationError => error instanceof ValidationError,
+    (error): error is InvalidRequestError =>
+      error instanceof InvalidRequestError,
   );
 
 export const getResourceNotFoundError = (
@@ -253,7 +276,7 @@ export const getResourceNotFoundError = (
   );
 
 export const hasBadRequestError = (errors: Array<unknown>) =>
-  errors.some((error) => error instanceof ValidationError);
+  errors.some((error) => error instanceof InvalidRequestError);
 
 const handleSingleEvent = async (
   event: z.infer<typeof ingestionEvent>,
@@ -273,8 +296,9 @@ const handleSingleEvent = async (
     const { output, ...rest } = restEvent;
     restEvent = rest;
   }
+
   console.log(
-    `handling single event ${event.id} ${JSON.stringify({ body: restEvent })}`,
+    `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
   );
 
   const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
@@ -338,7 +362,7 @@ export const handleBatchResult = (
   }[] = [];
 
   errors.forEach((error) => {
-    if (error.error instanceof ValidationError) {
+    if (error.error instanceof InvalidRequestError) {
       returnedErrors.push({
         id: error.id,
         status: 400,
@@ -385,37 +409,79 @@ export const handleBatchResult = (
   return res.status(207).send({ errors: returnedErrors, successes });
 };
 
-export const handleBatchResultLegacy = (
+/**
+ * Handle single event which is usually send via /ingestion endpoint. Returns errors and results via `res` directly.
+ *
+ * Use `parseSingleTypedIngestionApiResponse` for a typed version of this function that throws `BaseError`.
+ */
+export const handleSingleIngestionObject = (
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
   res: NextApiResponse,
 ) => {
-  const unknownErrors = errors.map((error) => error.error);
+  try {
+    // use method untyped for backwards compatibility
+    const parsedResult = parseSingleTypedIngestionApiResponse(errors, results);
 
+    return res.status(200).json(parsedResult);
+  } catch (error) {
+    if (error instanceof BaseError) {
+      return res.status(error.httpCode).json({
+        message: error.message,
+        error: error.name,
+      });
+    }
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error:
+        error instanceof Error ? error.message : "An unknown error occurred",
+    });
+  }
+};
+
+/**
+ * Parses the response from the ingestion batch API event processor and throws an error of `BaserError` if the response is not as expected.
+ *
+ * @param errors - Array of errors from `handleBatch()`
+ * @param results - Array of results from `handleBatch()`
+ * @param object - Zod object to parse the result, if not provided, the result is returned as is without parsing
+ * @returns - Parsed result
+ * @throws - Throws an error of type `BaseError` if there are errors in the arguments
+ */
+
+export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
+  errors: Array<{ id: string; error: unknown }>,
+  results: Array<{ id: string; result: unknown }>,
+  object?: T,
+): T extends z.ZodTypeAny ? z.infer<T> : unknown => {
+  const unknownErrors = errors.map((error) => error.error);
   const badRequestErrors = getBadRequestError(unknownErrors);
   if (badRequestErrors.length > 0) {
-    console.log("Bad request errors", badRequestErrors);
-    return res.status(400).json({
-      message: "Invalid request data",
-      errors: badRequestErrors.map((error) => error.message),
-    });
+    throw new InvalidRequestError(badRequestErrors[0].message);
   }
-
   const ResourceNotFoundError = getResourceNotFoundError(unknownErrors);
   if (ResourceNotFoundError.length > 0) {
-    return res.status(404).json({
-      message: "Resource not found",
-      errors: ResourceNotFoundError.map((error) => error.message),
-    });
+    throw new LangfuseNotFoundError(ResourceNotFoundError[0].message);
+  }
+  if (errors.length > 0) {
+    throw new InternalServerError("Internal Server Error");
   }
 
-  if (errors.length > 0) {
-    console.log("Error processing events", unknownErrors);
-    return res.status(500).json({
-      errors: ["Internal Server Error"],
-    });
+  if (results.length === 0) {
+    throw new InternalServerError("No results returned");
   }
-  return res.status(200).send(results.length > 0 ? results[0]?.result : {});
+
+  if (object === undefined) {
+    return results[0].result as T extends z.ZodTypeAny ? z.infer<T> : unknown;
+  }
+
+  const parsedObj = object.safeParse(results[0].result);
+  if (!parsedObj.success) {
+    console.error("Error parsing response", parsedObj.error);
+    Sentry.captureException(parsedObj.error);
+  }
+  // should not fail in prod but just log an exception, see above
+  return results[0].result as z.infer<T>;
 };
 
 // cleans NULL characters from the event
@@ -478,10 +544,23 @@ export const sendToWorkerIfEnvironmentConfigured = async (
               ).toString("base64"),
           },
           body: JSON.stringify(body),
+          signal: AbortSignal.timeout(2 * 1000),
         });
       }
     }
   } catch (error) {
     console.error("Error sending events to worker", error);
   }
+};
+
+const gaugePrismaStats = async () => {
+  // execute with a 50% probability
+  if (Math.random() > 0.5) {
+    return;
+  }
+  const metrics = await prisma.$metrics.json();
+
+  metrics.gauges.forEach((gauge) => {
+    Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
+  });
 };

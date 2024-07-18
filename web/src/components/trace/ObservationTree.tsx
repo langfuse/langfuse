@@ -1,6 +1,7 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
-import { type Trace, type Score, type $Enums } from "@langfuse/shared";
+import { type Trace, type $Enums } from "@langfuse/shared";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
@@ -22,7 +23,7 @@ export const ObservationTree = (props: {
   collapseAll: () => void;
   expandAll: () => void;
   trace: Trace;
-  scores: Score[];
+  scores: APIScore[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics: boolean;
@@ -61,7 +62,7 @@ const ObservationTreeTraceNode = (props: {
   trace: Trace & { latency?: number };
   expandAll: () => void;
   collapseAll: () => void;
-  scores: Score[];
+  scores: APIScore[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics?: boolean;
@@ -119,7 +120,7 @@ const ObservationTreeNode = (props: {
   observations: NestedObservation[];
   collapsedObservations: string[];
   toggleCollapsedObservation: (id: string) => void;
-  scores: Score[];
+  scores: APIScore[];
   indentationLevel: number;
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;

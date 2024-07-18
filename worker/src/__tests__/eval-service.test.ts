@@ -17,6 +17,7 @@ import {
 import { encrypt } from "@langfuse/shared/encryption";
 import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
+import { evalQueue } from "../queues/evalQueue";
 
 vi.mock("../redis/consumer", () => ({
   evalQueue: {
@@ -149,6 +150,19 @@ describe("create eval jobs", () => {
       })
       .execute();
 
+    await kyselyPrisma.$kysely
+      .insertInto("llm_api_keys")
+      .values({
+        id: randomUUID(),
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        secret_key: encrypt(String(OPENAI_API_KEY)),
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        custom_models: [],
+        display_secret_key: "123456",
+      })
+      .execute();
+
     await prisma.jobConfiguration.create({
       data: {
         id: randomUUID(),
@@ -185,6 +199,104 @@ describe("create eval jobs", () => {
     expect(jobs[0].end_time).to.be.null;
   }, 10_000);
 
+  test("does not create job for inactive config", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      })
+      .execute();
+
+    await prisma.jobConfiguration.create({
+      data: {
+        id: randomUUID(),
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        filter: JSON.parse("[]"),
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal("1"),
+        targetObject: "traces",
+        scoreName: "score",
+        variableMapping: JSON.parse("[]"),
+        status: "INACTIVE",
+      },
+    });
+
+    const payload = {
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      traceId: traceId,
+    };
+
+    await createEvalJobs({ event: payload });
+
+    const jobs = await kyselyPrisma.$kysely
+      .selectFrom("job_executions")
+      .selectAll()
+      .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+      .execute();
+
+    expect(jobs.length).toBe(0);
+  }, 10_000);
+
+  test("does not create eval job for 0 sample rate", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("llm_api_keys")
+      .values({
+        id: randomUUID(),
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        secret_key: encrypt(String(OPENAI_API_KEY)),
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        custom_models: [],
+        display_secret_key: "123456",
+      })
+      .execute();
+
+    await prisma.jobConfiguration.create({
+      data: {
+        id: randomUUID(),
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        filter: JSON.parse("[]"),
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal("0"),
+        targetObject: "traces",
+        scoreName: "score",
+        variableMapping: JSON.parse("[]"),
+      },
+    });
+
+    const payload = {
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      traceId: traceId,
+    };
+
+    await createEvalJobs({ event: payload });
+
+    const jobs = await kyselyPrisma.$kysely
+      .selectFrom("job_executions")
+      .selectAll()
+      .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+      .execute();
+
+    expect(jobs.length).toBe(0);
+  }, 10_000);
+
   test("cancels a job if the second event deselects", async () => {
     await pruneDatabase();
     const traceId = randomUUID();
@@ -195,6 +307,19 @@ describe("create eval jobs", () => {
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         user_id: "a",
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("llm_api_keys")
+      .values({
+        id: randomUUID(),
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        secret_key: encrypt(String(OPENAI_API_KEY)),
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        custom_models: [],
+        display_secret_key: "123456",
       })
       .execute();
 
@@ -266,6 +391,9 @@ describe("create eval jobs", () => {
     expect(jobs.length).toBe(1);
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
+    console.log(jobs[0]);
+    const j = await evalQueue?.getJob(jobs[0].id);
+    console.log(j);
     expect(jobs[0].status.toString()).toBe("CANCELLED");
     expect(jobs[0].start_time).not.toBeNull();
     expect(jobs[0].end_time).not.toBeNull();

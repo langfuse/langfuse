@@ -11,7 +11,7 @@ import {
   type ObservationView,
   type ObservationLevel,
 } from "@langfuse/shared/src/db";
-import { paginationZod } from "@langfuse/shared";
+import { paginationZod, timeFilter } from "@langfuse/shared";
 import { type TraceOptions, singleFilter } from "@langfuse/shared";
 import { tracesTableCols } from "@langfuse/shared";
 import {
@@ -25,13 +25,13 @@ import { orderByToPrismaSql } from "@langfuse/shared";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   searchQuery: z.string().nullable(),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
-  returnIO: z.boolean().default(true),
   ...paginationZod,
 });
 
@@ -46,7 +46,6 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const returnIO = input.returnIO;
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter ?? [],
         tracesTableCols,
@@ -82,12 +81,11 @@ export const traceRouter = createTRPCRouter({
       const tracesQuery = createTracesQuery(
         Prisma.sql`t.*,
           t."user_id" AS "userId",
-          t."metadata" AS "metadata",
           t.session_id AS "sessionId",
           t."bookmarked" AS "bookmarked",
-          COALESCE(tm."promptTokens", 0)::int AS "promptTokens",
-          COALESCE(tm."completionTokens", 0)::int AS "completionTokens",
-          COALESCE(tm."totalTokens", 0)::int AS "totalTokens",
+          COALESCE(tm."promptTokens", 0)::bigint AS "promptTokens",
+          COALESCE(tm."completionTokens", 0)::bigint AS "completionTokens",
+          COALESCE(tm."totalTokens", 0)::bigint AS "totalTokens",
           tl.latency AS "latency",
           tl."observationCount" AS "observationCount",
           COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
@@ -111,9 +109,9 @@ export const traceRouter = createTRPCRouter({
           await ctx.prisma.$queryRaw<
             Array<
               Trace & {
-                promptTokens: number;
-                completionTokens: number;
-                totalTokens: number;
+                promptTokens: bigint;
+                completionTokens: bigint;
+                totalTokens: bigint;
                 totalCount: number;
                 latency: number | null;
                 level: ObservationLevel;
@@ -150,33 +148,46 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
+      const validatedScores = filterAndValidateDbScoreList(scores);
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
-        traces: traces.map((trace) => {
-          const filteredScores = scores.filter((s) => s.traceId === trace.id);
-
-          const { input, output, ...rest } = trace;
-          if (returnIO) {
-            return { ...rest, input, output, scores: filteredScores };
-          } else {
-            return {
-              ...rest,
-              input: undefined,
-              output: undefined,
-              scores: filteredScores,
-            };
-          }
-        }),
+        traces: traces.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ input, output, metadata, ...trace }) => ({
+            ...trace,
+            scores: validatedScores.filter((s) => s.traceId === trace.id),
+          }),
+        ),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
     }),
   filterOptions: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        timestampFilter: timeFilter.optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
+      const { timestampFilter } = input;
+      const prismaTimestampFilter =
+        timestampFilter?.type === "datetime"
+          ? timestampFilter?.operator === ">="
+            ? { gte: timestampFilter.value }
+            : timestampFilter?.operator === ">"
+              ? { gt: timestampFilter.value }
+              : timestampFilter?.operator === "<="
+                ? { lte: timestampFilter.value }
+                : timestampFilter?.operator === "<"
+                  ? { lt: timestampFilter.value }
+                  : {}
+          : {};
+
       const scores = await ctx.prisma.score.groupBy({
         where: {
           projectId: input.projectId,
+          timestamp: prismaTimestampFilter,
         },
         take: 1000,
         orderBy: {
@@ -189,6 +200,7 @@ export const traceRouter = createTRPCRouter({
       const names = await ctx.prisma.trace.groupBy({
         where: {
           projectId: input.projectId,
+          timestamp: prismaTimestampFilter,
         },
         by: ["name"],
         // limiting to 1k trace names to avoid performance issues.
@@ -204,11 +216,21 @@ export const traceRouter = createTRPCRouter({
           id: true,
         },
       });
+
+      const rawTimestampFilter =
+        timestampFilter && timestampFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "timestamp",
+              timestampFilter.operator,
+              timestampFilter.value,
+            )
+          : Prisma.empty;
+
       const tags: { count: number; value: string }[] = await ctx.prisma
         .$queryRaw`
         SELECT COUNT(*)::integer AS "count", tags.tag as value
         FROM traces, UNNEST(traces.tags) AS tags(tag)
-        WHERE traces.project_id = ${input.projectId}
+        WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
         GROUP BY tags.tag
         LIMIT 1000
       `;
@@ -281,6 +303,7 @@ export const traceRouter = createTRPCRouter({
           projectId: trace.projectId,
         },
       });
+      const validatedScores = filterAndValidateDbScoreList(scores);
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -302,7 +325,7 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
-        scores,
+        scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations as ObservationReturnType[],
       };

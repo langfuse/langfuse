@@ -16,6 +16,7 @@ import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type Decimal from "decimal.js";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -136,6 +137,8 @@ export const sessionRouter = createTRPCRouter({
           },
         });
 
+        const validatedScores = filterAndValidateDbScoreList(scores);
+
         const totalCostQuery = Prisma.sql`
         SELECT
           SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
@@ -155,7 +158,7 @@ export const sessionRouter = createTRPCRouter({
           ...session,
           traces: session.traces.map((t) => ({
             ...t,
-            scores: scores.filter((s) => s.traceId === t.id),
+            scores: validatedScores.filter((s) => s.traceId === t.id),
           })),
           totalCost: costData?.totalCost ?? 0,
           users: [

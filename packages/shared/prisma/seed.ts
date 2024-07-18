@@ -17,6 +17,11 @@ import { encrypt } from "../src/encryption";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
+type ConfigCategory = {
+  label: string;
+  value: number;
+};
+
 const options = {
   environment: { type: "string" },
 } as const;
@@ -459,7 +464,15 @@ function createObjects(
   project1: Project,
   project2: Project,
   promptIds: Map<string, string[]>,
-  configIdsAndNames: Map<string, { name: string; id: string }[]>
+  configParams: Map<
+    string,
+    {
+      name: string;
+      id: string;
+      dataType: ScoreDataType;
+      categories: ConfigCategory[] | null;
+    }[]
+  >
 ) {
   const traces: Prisma.TraceCreateManyInput[] = [];
   const observations: Prisma.ObservationCreateManyInput[] = [];
@@ -518,13 +531,34 @@ function createObjects(
 
     traces.push(trace);
 
-    const configArray = configIdsAndNames.get(projectId) ?? [];
+    const configArray = configParams.get(projectId) ?? [];
     const randomIndex = Math.floor(Math.random() * 3);
     const config =
       configArray.length >= randomIndex - 1 && configArray[randomIndex];
-    const { name: annotationScoreName, id: configId } = config || {
+    const {
+      name: annotationScoreName,
+      id: configId,
+      dataType,
+      categories,
+    } = config || {
       name: "manual-score",
       id: undefined,
+      dataType: ScoreDataType.NUMERIC,
+      categories: null,
+    };
+
+    const value = Math.floor(Math.random() * 2);
+    const scoreNumericAndStringValue = {
+      ...(dataType === ScoreDataType.NUMERIC && { value }),
+      ...(dataType === ScoreDataType.CATEGORICAL && {
+        value,
+        stringValue: categories?.find((category) => category.value === value)
+          ?.label,
+      }),
+      ...(dataType === ScoreDataType.BOOLEAN && {
+        value,
+        stringValue: value === 1 ? "True" : "False",
+      }),
     };
 
     const traceScores = [
@@ -533,12 +567,12 @@ function createObjects(
             {
               traceId: trace.id,
               name: annotationScoreName,
-              value: Math.floor(Math.random() * 3) - 1,
               timestamp: traceTs,
               source: ScoreSource.ANNOTATION,
               projectId,
               authorUserId: `user-${i}`,
-              dataType: ScoreDataType.NUMERIC,
+              dataType,
+              ...scoreNumericAndStringValue,
               ...(configId ? { configId } : {}),
             },
           ]
@@ -553,6 +587,20 @@ function createObjects(
               source: ScoreSource.API,
               projectId,
               dataType: ScoreDataType.NUMERIC,
+            },
+          ]
+        : []),
+      ...(Math.random() < 0.8
+        ? [
+            {
+              traceId: trace.id,
+              name: "Completeness",
+              timestamp: traceTs,
+              source: ScoreSource.API,
+              projectId,
+              dataType: ScoreDataType.CATEGORICAL,
+              stringValue:
+                Math.floor(Math.random() * 2) === 1 ? "Fully" : "Partially",
             },
           ]
         : []),
@@ -662,7 +710,7 @@ function createObjects(
                   },
                   {
                     role: "user",
-                    content: "How can i create a React component?",
+                    content: "How can i create a *React* component?",
                   },
                 ]
               : {
@@ -680,37 +728,8 @@ function createObjects(
                     },
                   ],
                 },
-          output: {
-            completion: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
-
-              1.  **Functional Component**:
-              
-              A functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:
-              
-              
-              'import React from 'react';  function Greeting(props) {   return <h1>Hello, {props.name}</h1>; }  export default Greeting;'
-              
-              To use this component in another file, you can do:
-              
-              
-              'import Greeting from './Greeting';  function App() {   return (     <div>       <Greeting name="John" />     </div>   ); }  export default App;'
-              
-              2.  **Class Component**:
-              
-              You can also define components as classes in React. These have some additional features compared to functional components:
-              
-              
-              'import React, { Component } from 'react';  class Greeting extends Component {   render() {     return <h1>Hello, {this.props.name}</h1>;   } }  export default Greeting;'
-              
-              And here's how to use this component:
-              
-              
-              'import Greeting from './Greeting';  class App extends Component {   render() {     return (       <div>         <Greeting name="John" />       </div>     );   } }  export default App;'
-              
-              With the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.
-              
-              Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
-          },
+          output:
+            "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.\n\n1.  **Functional Component**:\n\nA functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:\n\n```javascript\nimport React from 'react';\nfunction Greeting(props) {\n  return <h1>Hello, {props.name}</h1>;\n}\nexport default Greeting;\n```\n\nTo use this component in another file, you can do:\n\n```javascript\nimport Greeting from './Greeting';\nfunction App() {\n  return (\n    <div>\n      <Greeting name=\"John\" />\n    </div>\n  );\n}\nexport default App;\n```\n\n2.  **Class Component**:\n\nYou can also define components as classes in React. These have some additional features compared to functional components:\n\n```javascript\nimport React, { Component } from 'react';\nclass Greeting extends Component {\n  render() {\n    return <h1>Hello, {this.props.name}</h1>;\n  }\n}\nexport default Greeting;\n```\n\nAnd here's how to use this component:\n\n```javascript\nimport Greeting from './Greeting';\nclass App extends Component {\n  render() {\n    return (\n      <div>\n        <Greeting name=\"John\" />\n      </div>\n    );\n  }\n}\nexport default App;\n```\n\nWith the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.\n\nRemember to import React at the top of your file whenever you're creating a component, because JSX transpiles to `React.createElement` calls under the hood.",
           model: model,
           internalModel: model,
           modelParameters: {
@@ -976,8 +995,15 @@ async function generatePrompts(project: Project) {
 }
 
 async function generateConfigsForProject(projects: Project[]) {
-  const projectIdsToConfigs: Map<string, { name: string; id: string }[]> =
-    new Map();
+  const projectIdsToConfigs: Map<
+    string,
+    {
+      name: string;
+      id: string;
+      dataType: ScoreDataType;
+      categories: ConfigCategory[] | null;
+    }[]
+  > = new Map();
 
   await Promise.all(
     projects.map(async (project) => {
@@ -989,7 +1015,12 @@ async function generateConfigsForProject(projects: Project[]) {
 }
 
 async function generateConfigs(project: Project) {
-  const configNameAndId: { name: string; id: string }[] = [];
+  const configNameAndId: {
+    name: string;
+    id: string;
+    dataType: ScoreDataType;
+    categories: ConfigCategory[] | null;
+  }[] = [];
 
   const configs = [
     {
@@ -1046,7 +1077,12 @@ async function generateConfigs(project: Project) {
         id: config.id,
       },
     });
-    configNameAndId.push({ name: config.name, id: config.id });
+    configNameAndId.push({
+      name: config.name,
+      id: config.id,
+      dataType: config.dataType,
+      categories: config.categories ?? null,
+    });
   }
 
   return configNameAndId;
