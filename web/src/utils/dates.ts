@@ -43,3 +43,13 @@ export const formatIntervalSeconds = (seconds: number, scale: number = 2) => {
   if (mins > 0) return `${mins}m ${pad(secs)}s`;
   return `${seconds.toFixed(scale)}s`;
 };
+
+export const getShortLocalTimezone = () => {
+  return new Date()
+    .toLocaleTimeString("en-us", { timeZoneName: "short" })
+    .split(" ")[2];
+};
+
+export const getLongLocalTimezone = () => {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+};

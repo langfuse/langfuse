@@ -4,7 +4,8 @@ import * as React from "react";
 import { TimePickerInput } from "./time-picker-input";
 import { TimePeriodSelect } from "./time-period-select";
 import { type Period } from "./time-picker-utils";
-import { Clock, Moon, Sun } from "lucide-react";
+import { getLongLocalTimezone, getShortLocalTimezone } from "@/src/utils/dates";
+import { TimeIcon } from "@/src/components/ui/time-icon";
 
 interface TimePickerProps {
   date: Date | undefined;
@@ -19,24 +20,14 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
   const secondRef = React.useRef<HTMLInputElement>(null);
   const periodRef = React.useRef<HTMLButtonElement>(null);
 
-  const getIcon = () => {
-    if (date) {
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      const seconds = date.getSeconds();
-      if (hours === 12 && minutes === 0 && seconds === 0) {
-        return <Moon className="size-5" />;
-      }
-      if (hours === 0 && minutes === 0 && seconds === 0) {
-        return <Sun className="size-5" />;
-      }
-      return <Clock className="size-5" />;
-    }
-  };
+  const shortTimeZone = React.useMemo(() => getShortLocalTimezone(), []);
+  const longTimeZone = React.useMemo(() => getLongLocalTimezone(), []);
 
   return (
     <div className="flex w-full flex-1 items-center gap-1 rounded-b-md border-t-2 bg-transparent px-3 py-2 text-sm ring-offset-background">
-      <div className="ml-2 mr-2 grid gap-1 text-center">{getIcon()}</div>
+      <div className="mx-1 grid gap-1 text-center">
+        <TimeIcon date={date ?? period} />
+      </div>
       <div className="grid gap-1 text-center">
         <TimePickerInput
           picker="12hours"
@@ -80,6 +71,12 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
           ref={periodRef}
           onLeftFocus={() => secondRef.current?.focus()}
         />
+      </div>
+      <div className="group relative ml-1">
+        <span>{shortTimeZone}</span>
+        <div className="text-s absolute left-1/2 top-full mt-2 hidden -translate-x-1/2 transform rounded bg-card px-2 py-1 text-card-foreground shadow-md ring-1 ring-border group-hover:block">
+          {longTimeZone}
+        </div>
       </div>
     </div>
   );
