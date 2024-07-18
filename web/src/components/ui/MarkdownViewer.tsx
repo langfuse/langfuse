@@ -73,7 +73,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
           />
           <Button
             type="button"
-            className="absolute right-0 top-0 mr-1 mt-1 opacity-0 hover:!bg-accent/30 group-hover:opacity-100"
+            className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
             variant="ghost"
             size="icon"
             onClick={() => setIsZoomedIn(!isZoomedIn)}
