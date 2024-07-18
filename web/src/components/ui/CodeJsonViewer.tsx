@@ -3,24 +3,93 @@ import { Button } from "@/src/components/ui/button";
 import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
-import { deepParseJson } from "@/src/utils/json";
+import "react18-json-view/src/dark.css";
+import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useTheme } from "next-themes";
+import { BsMarkdown } from "react-icons/bs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function JSONView(props: {
+  isMarkdown?: boolean;
+  setIsMarkdown?: (isMarkdown: boolean) => void;
+  containsMarkdown?: boolean;
   json?: unknown;
   title?: string;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
+  collapseStringsAfterLength?: number | null;
 }) {
   // some users ingest stringified json nested in json, parse it
+  const [isCopied, setIsCopied] = useState(false);
   const parsedJson = deepParseJson(props.json);
+  const { resolvedTheme } = useTheme();
+  const capture = usePostHogClientCapture();
+
+  const collapseStringsAfterLength =
+    props.collapseStringsAfterLength === null
+      ? 100_000_000 // if null, show all (100M chars)
+      : props.collapseStringsAfterLength ?? 500;
+
+  const handleMarkdownSelection = props.setIsMarkdown ?? (() => {});
+
+  const handleCopy = () => {
+    setIsCopied(true);
+    void navigator.clipboard.writeText(stringifyJsonNode(parsedJson));
+    setTimeout(() => setIsCopied(false), 1000);
+  };
 
   return (
-    <div className={cn("rounded-md border", props.className)}>
+    <div className={cn("overflow-hidden rounded-md border", props.className)}>
       {props.title ? (
-        <div className="border-b px-3 py-1 text-xs font-medium">
+        <div
+          className={cn(
+            props.title === "assistant" || props.title === "Output"
+              ? "dark:border-accent-dark-green"
+              : "",
+            "flex flex-row items-center justify-between border-b px-3 py-1 text-xs font-medium",
+          )}
+        >
           {props.title}
+          <div className="flex items-center gap-1">
+            {!!props.setIsMarkdown && props.containsMarkdown && (
+              <Button
+                title={
+                  props.isMarkdown ? "Disable Markdown" : "Enable Markdown"
+                }
+                variant="ghost"
+                type="button"
+                size="xs"
+                onClick={() => {
+                  handleMarkdownSelection(!props.isMarkdown);
+                  capture("trace_detail:io_pretty_format_toggle_group", {
+                    renderMarkdown: props.isMarkdown,
+                  });
+                }}
+                className={cn(
+                  "hover:bg-border",
+                  !props.isMarkdown && "opacity-50",
+                )}
+              >
+                <BsMarkdown className="h-4 w-4 text-foreground" />
+              </Button>
+            )}
+            <Button
+              title="Copy to clipboard"
+              variant="ghost"
+              size="xs"
+              type="button"
+              onClick={handleCopy}
+              className="hover:bg-border"
+            >
+              {isCopied ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
         </div>
       ) : undefined}
       <div
@@ -35,8 +104,17 @@ export function JSONView(props: {
           <React18JsonView
             src={parsedJson}
             theme="github"
+            dark={resolvedTheme === "dark"}
             collapseObjectsAfterLength={20}
-            collapseStringsAfterLength={500}
+            collapseStringsAfterLength={collapseStringsAfterLength}
+            collapseStringMode="word"
+            customizeCollapseStringUI={(fullSTring, truncated) =>
+              truncated ? (
+                <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
+              ) : (
+                ""
+              )
+            }
             displaySize={"collapsed"}
             matchesURL={true}
             customizeCopy={(node) => stringifyJsonNode(node)}
@@ -138,6 +216,7 @@ export const IOTableCell = ({
             className,
           )}
           codeClassName="py-1 px-2"
+          collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         />
       )}
     </>

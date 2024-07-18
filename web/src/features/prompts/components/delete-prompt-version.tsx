@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { useState } from "react";
 import {
   Popover,
@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/popover";
 import { useRouter } from "next/router";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function DeletePromptVersion({
   promptVersionId,
@@ -20,6 +21,7 @@ export function DeletePromptVersion({
   version: number;
   countVersions: number;
 }) {
+  const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const router = useRouter();
@@ -44,19 +46,25 @@ export function DeletePromptVersion({
     },
   });
 
-  if (!hasAccess) {
-    return null;
-  }
-
   return (
     <Popover
       key={promptVersionId}
       open={isOpen}
-      onOpenChange={() => setIsOpen(!isOpen)}
+      onOpenChange={() => {
+        if (isOpen) {
+          capture("prompt_detail:version_delete_open");
+        }
+        setIsOpen(!isOpen);
+      }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" type="button" size="icon">
-          <Trash2 className="h-5 w-5" />
+        <Button
+          variant="outline"
+          type="button"
+          size="icon"
+          disabled={!hasAccess}
+        >
+          <Trash className="h-5 w-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>
@@ -79,6 +87,7 @@ export function DeletePromptVersion({
 
                 return;
               }
+              capture("prompt_detail:version_delete_submit");
 
               void mutDeletePromptVersion.mutateAsync({
                 promptVersionId,

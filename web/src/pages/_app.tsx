@@ -18,6 +18,7 @@ import { useRouter } from "next/router";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
+import prexit from "prexit";
 
 // Custom polyfills not yet available in `next-core`:
 // https://github.com/vercel/next.js/issues/58242
@@ -30,6 +31,8 @@ import "core-js/features/array/to-sorted";
 import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
+import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
+import { shutdown } from "@/src/utils/shutdown";
 
 const setProjectInPosthog = () => {
   // project
@@ -52,10 +55,12 @@ if (
   setProjectInPosthog();
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
+    ui_host: "https://eu.posthog.com",
     // Enable debug mode in development
     loaded: (posthog) => {
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
+    autocapture: false,
   });
 }
 
@@ -87,10 +92,16 @@ const MyApp: AppType<{ session: Session | null }> = ({
         <PostHogProvider client={posthog}>
           <SessionProvider session={session} refetchOnWindowFocus={true}>
             <DetailPageListsProvider>
-              <Layout>
-                <Component {...pageProps} />
-                <UserTracking />
-              </Layout>
+              <ThemeProvider
+                attribute="class"
+                enableSystem
+                disableTransitionOnChange
+              >
+                <Layout>
+                  <Component {...pageProps} />
+                  <UserTracking />
+                </Layout>
+              </ThemeProvider>
               <CrispWidget />
             </DetailPageListsProvider>
           </SessionProvider>
@@ -153,4 +164,11 @@ function UserTracking() {
     }
   }, [session]);
   return null;
+}
+
+if (process.env.NEXT_MANUAL_SIG_HANDLE) {
+  prexit(async (signal) => {
+    console.log("Signal: ", signal);
+    return await shutdown(signal);
+  });
 }

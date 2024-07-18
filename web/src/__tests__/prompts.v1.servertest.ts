@@ -219,7 +219,7 @@ describe("/api/public/prompts API Endpoint", () => {
     });
 
     // Third prompt is deactivated
-    const prompt3 = await makeAPICall("POST", "/api/public/prompts", {
+    await makeAPICall("POST", "/api/public/prompts", {
       name: "prompt-name",
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       prompt: "prompt3",
@@ -698,7 +698,7 @@ describe("/api/public/prompts API Endpoint", () => {
 
     expect(postResponse2.status).toBe(400);
     expect(postResponse2.body).toEqual({
-      error: "ValidationError",
+      error: "InvalidRequestError",
       message:
         "Previous versions have different prompt type. Create a new prompt with a different name.",
     });

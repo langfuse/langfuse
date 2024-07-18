@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { jsonSchema } from "@/src/utils/zod";
+import { jsonSchema } from "@langfuse/shared";
 import type { Prompt } from "@langfuse/shared";
 
 export const ChatMessageSchema = z.object({
@@ -27,6 +27,7 @@ export const CreateTextPromptSchema = z.object({
   type: z.literal(PromptType.Text).optional(),
   prompt: z.string(),
   config: jsonSchema.nullable().default({}),
+  tags: z.array(z.string()).nullish(),
 });
 
 export const CreateChatPromptSchema = z.object({
@@ -35,6 +36,7 @@ export const CreateChatPromptSchema = z.object({
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema.nullable().default({}),
+  tags: z.array(z.string()).nullish(),
 });
 
 export const CreatePromptSchema = z.union([

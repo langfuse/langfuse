@@ -6,20 +6,17 @@ import {
 } from "@/src/server/api/trpc";
 import {
   singleFilter,
-  tableColumnsToSqlFilterAndPrefix,
+  type SessionOptions,
+  getSessionTableSQL,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
-import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type Decimal from "decimal.js";
-import {
-  type SessionOptions,
-  sessionsViewCols,
-} from "@/src/server/api/definitions/sessionsView";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -33,16 +30,7 @@ export const sessionRouter = createTRPCRouter({
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
       try {
-        const filterCondition = tableColumnsToSqlFilterAndPrefix(
-          input.filter ?? [],
-          sessionsViewCols,
-          "sessions",
-        );
-
-        const orderByCondition = orderByToPrismaSql(
-          input.orderBy,
-          sessionsViewCols,
-        );
+        const query = getSessionTableSQL(input);
 
         const sessions = await ctx.prisma.$queryRaw<
           Array<{
@@ -61,62 +49,8 @@ export const sessionRouter = createTRPCRouter({
             completionTokens: number;
             totalTokens: number;
           }>
-        >(Prisma.sql`
-      WITH observation_metrics AS (
-        SELECT
-          t.session_id,
-          EXTRACT(EPOCH FROM COALESCE(MAX(o."end_time"), MAX(o."start_time"), MAX(t.timestamp))) - EXTRACT(EPOCH FROM COALESCE(MIN(o."start_time"), MIN(t.timestamp)))::double precision AS "sessionDuration",
-          SUM(COALESCE(o."calculated_input_cost", 0)) AS "inputCost",
-          SUM(COALESCE(o."calculated_output_cost", 0)) AS "outputCost",
-          SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost",
-          SUM(o.prompt_tokens) AS "promptTokens",
-          SUM(o.completion_tokens) AS "completionTokens",
-          SUM(o.total_tokens) AS "totalTokens"
-        FROM traces t
-        LEFT JOIN observations_view o ON o.trace_id = t.id
-        WHERE
-          t."project_id" = ${input.projectId}
-          AND o."project_id" = ${input.projectId}
-          AND t.session_id IS NOT NULL
-        GROUP BY 1
-      ),
-      trace_metrics AS (
-        SELECT
-          session_id,
-          array_agg(distinct t.user_id) "userIds",
-          count(t.id)::int "countTraces"
-        FROM traces t
-        WHERE
-          t."project_id" = ${input.projectId}
-          AND t.session_id IS NOT NULL
-        GROUP BY 1
-      )
+        >(query);
 
-      SELECT
-        s.id,
-        s."created_at" "createdAt",
-        s.bookmarked,
-        s.public,
-        t."userIds",
-        t."countTraces",
-        o."sessionDuration",
-        COALESCE(o."totalCost", 0) AS "totalCost",
-        COALESCE(o."inputCost", 0) AS "inputCost",
-        COALESCE(o."outputCost", 0) AS "outputCost",
-        COALESCE(o."promptTokens", 0) AS "promptTokens",
-        COALESCE(o."completionTokens", 0) AS "completionTokens",
-        COALESCE(o."totalTokens", 0) AS "totalTokens",
-        (count(*) OVER ())::int AS "totalCount"
-      FROM trace_sessions s
-      LEFT JOIN trace_metrics t ON t.session_id = s.id
-      LEFT JOIN observation_metrics o ON o.session_id = s.id
-      WHERE
-        s."project_id" = ${input.projectId}
-        ${filterCondition}
-      ${orderByCondition}
-      LIMIT ${input.limit}
-      OFFSET ${input.page * input.limit}
-    `);
         return sessions.map((s) => ({
           ...s,
           userIds: (s.userIds?.filter((t) => t !== null) ?? []) as string[],
@@ -136,18 +70,33 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const userIds: { value: string; count: number }[] = await ctx.prisma
-        .$queryRaw`
-      SELECT traces.user_id as value, COUNT(traces.user_id)::int as count
-      FROM traces
-      WHERE traces.session_id IS NOT NULL
-      AND traces.project_id = ${input.projectId}
-      GROUP BY traces.user_id;
-    `;
-      const res: SessionOptions = {
-        userIds: userIds,
-      };
-      return res;
+      try {
+        const userIds = await ctx.prisma.$queryRaw<
+          Array<{ value: string }>
+        >(Prisma.sql`
+        SELECT 
+          traces.user_id AS value
+        FROM traces
+        WHERE 
+          traces.session_id IS NOT NULL
+          AND traces.user_id IS NOT NULL
+          AND traces.project_id = ${input.projectId}
+        GROUP BY
+          traces.user_id
+        LIMIT 1000;
+      `);
+
+        const res: SessionOptions = {
+          userIds: userIds,
+        };
+        return res;
+      } catch (e) {
+        console.error(e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "unable to get session filter options",
+        });
+      }
     }),
   byId: protectedGetSessionProcedure
     .input(z.object({ projectId: z.string(), sessionId: z.string() }))
@@ -166,7 +115,6 @@ export const sessionRouter = createTRPCRouter({
               select: {
                 id: true,
                 userId: true,
-                scores: true,
                 name: true,
                 timestamp: true,
               },
@@ -179,6 +127,17 @@ export const sessionRouter = createTRPCRouter({
             message: "Session not found in project",
           });
         }
+
+        const scores = await ctx.prisma.score.findMany({
+          where: {
+            traceId: {
+              in: session.traces.map((t) => t.id),
+            },
+            projectId: input.projectId,
+          },
+        });
+
+        const validatedScores = filterAndValidateDbScoreList(scores);
 
         const totalCostQuery = Prisma.sql`
         SELECT
@@ -197,6 +156,10 @@ export const sessionRouter = createTRPCRouter({
 
         return {
           ...session,
+          traces: session.traces.map((t) => ({
+            ...t,
+            scores: validatedScores.filter((s) => s.traceId === t.id),
+          })),
           totalCost: costData?.totalCost ?? 0,
           users: [
             ...new Set(

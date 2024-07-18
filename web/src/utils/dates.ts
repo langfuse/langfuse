@@ -5,6 +5,15 @@ export const utcDateOffsetByDays = (days: number) => {
   return date;
 };
 
+export const utcDate = (localDateTime: Date) =>
+  new Date(
+    Date.UTC(
+      localDateTime.getFullYear(),
+      localDateTime.getMonth(),
+      localDateTime.getDate(),
+    ),
+  );
+
 export const setBeginningOfDay = (date: Date) => {
   date.setHours(0, 0, 0, 0);
   return date;

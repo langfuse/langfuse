@@ -6,9 +6,9 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
-import { usePostHog } from "posthog-js/react";
 import { useEffect } from "react";
 
 export const DetailPageNav = (props: {
@@ -19,8 +19,7 @@ export const DetailPageNav = (props: {
   const { detailPagelists } = useDetailPageLists();
   const ids = detailPagelists[props.listKey] ?? [];
 
-  const posthog = usePostHog();
-
+  const capture = usePostHogClientCapture();
   const router = useRouter();
   const currentIndex = ids.findIndex((id) => id === props.currentId);
   const previousPageId = currentIndex > 0 ? ids[currentIndex - 1] : undefined;
@@ -61,9 +60,7 @@ export const DetailPageNav = (props: {
               disabled={!previousPageId}
               onClick={() => {
                 if (previousPageId) {
-                  posthog.capture(
-                    "navigate_detail_pages:button_click_prev_or_next",
-                  );
+                  capture("navigate_detail_pages:button_click_prev_or_next");
                   void router.push(
                     props.path(encodeURIComponent(previousPageId)),
                   );
@@ -75,7 +72,7 @@ export const DetailPageNav = (props: {
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate up</span>
-            <CommandShortcut className="ml-2 rounded-sm bg-gray-100 p-1 px-2">
+            <CommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
               k
             </CommandShortcut>
           </TooltipContent>
@@ -89,9 +86,7 @@ export const DetailPageNav = (props: {
               disabled={!nextPageId}
               onClick={() => {
                 if (nextPageId) {
-                  posthog.capture(
-                    "navigate_detail_pages:button_click_prev_or_next",
-                  );
+                  capture("navigate_detail_pages:button_click_prev_or_next");
                   void router.push(props.path(encodeURIComponent(nextPageId)));
                 }
               }}
@@ -101,7 +96,7 @@ export const DetailPageNav = (props: {
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate down</span>
-            <CommandShortcut className="ml-2 rounded-sm bg-gray-100 p-1 px-2">
+            <CommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
               j
             </CommandShortcut>
           </TooltipContent>

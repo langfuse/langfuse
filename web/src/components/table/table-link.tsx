@@ -19,7 +19,8 @@ export default function TableLink({
       : value;
   return (
     <Link
-      className="inline-block rounded bg-indigo-50 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm hover:bg-indigo-100"
+      className="inline-block rounded bg-primary-accent/20 px-2
+       py-1 text-xs font-semibold text-accent-dark-blue shadow-sm hover:bg-accent-light-blue/45"
       href={path}
       title={value}
     >

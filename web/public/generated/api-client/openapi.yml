@@ -1,0 +1,243 @@
+openapi: 3.0.1
+info:
+  title: langfuse
+  version: ''
+paths:
+  /api/public/scores:
+    post:
+      description: Add a score to the database, upserts on id
+      operationId: score_create
+      tags:
+        - Score
+      parameters: []
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScoreRequest'
+components:
+  schemas:
+    CreateScoreRequest:
+      title: CreateScoreRequest
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+          example: cdef-1234-5678-90ab
+        name:
+          type: string
+          example: novelty
+        value:
+          $ref: '#/components/schemas/CreateScoreValue'
+          description: >-
+            The value of the score. Must be passed as string for categorical
+            scores, and numeric for boolean and numeric scores. Boolean score
+            values must equal either 1 or 0 (true or false)
+        observationId:
+          type: string
+        comment:
+          type: string
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          description: >-
+            When set, must match the score value's type. If not set, will be
+            inferred from the score value or config
+        configId:
+          type: string
+          description: >-
+            Reference a score config on a score. When set, the score name must
+            equal the config name and scores must comply with the config's range
+            and data type. For categorical scores, the value must map to a
+            config category. Numeric scores might be constrained by the score
+            config's max and min values
+      required:
+        - traceId
+        - name
+        - value
+    BaseScore:
+      title: BaseScore
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        name:
+          type: string
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        observationId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        authorUserId:
+          type: string
+        comment:
+          type: string
+        configId:
+          type: string
+          description: >-
+            Reference a score config on a score. When set, config and score name
+            must be equal and value must comply to optionally defined numerical
+            range
+      required:
+        - id
+        - traceId
+        - name
+        - source
+        - timestamp
+        - createdAt
+        - updatedAt
+    NumericScore:
+      title: NumericScore
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: The numeric value of the score
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScore'
+    BooleanScore:
+      title: BooleanScore
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: >-
+            The numeric value of the score. Equals 1 for "True" and 0 for
+            "False"
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. Is inferred from the
+            numeric value and equals "True" or "False"
+      required:
+        - value
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScore'
+    CategoricalScore:
+      title: CategoricalScore
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: >-
+            Only defined if a config is linked. Represents the numeric category
+            mapping of the stringValue
+        stringValue:
+          type: string
+          description: >-
+            The string representation of the score value. If no config is
+            linked, can be any string. Otherwise, must map to a config category
+      required:
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScore'
+    Score:
+      title: Score
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/NumericScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/CategoricalScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/BooleanScore'
+          required:
+            - dataType
+    ScoreSource:
+      title: ScoreSource
+      type: string
+      enum:
+        - ANNOTATION
+        - API
+        - EVAL
+    ScoreDataType:
+      title: ScoreDataType
+      type: string
+      enum:
+        - NUMERIC
+        - CATEGORICAL
+        - BOOLEAN
+    CreateScoreValue:
+      title: CreateScoreValue
+      oneOf:
+        - type: number
+          format: double
+        - type: string
+      description: >-
+        The value of the score. Must be passed as string for categorical scores,
+        and numeric for boolean and numeric scores
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer

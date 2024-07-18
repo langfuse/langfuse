@@ -1,22 +1,21 @@
 import { env } from "@/src/env.mjs";
-import {
-  createShaHash,
-  verifySecretKey,
-} from "@langfuse/shared/src/server/auth";
+import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import * as Sentry from "@sentry/node";
 
 export type AuthHeaderVerificationResult =
-  | {
-      validKey: true;
-      scope: ApiAccessScope;
-    }
+  | AuthHeaderValidVerificationResult
   | {
       validKey: false;
       error: string;
     };
+
+export type AuthHeaderValidVerificationResult = {
+  validKey: true;
+  scope: ApiAccessScope;
+};
 
 export async function verifyAuthHeaderAndReturnScope(
   authHeader: string | undefined,

@@ -8,10 +8,11 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { cloudConfigSchema } from "@/src/server/auth";
 
 export const projectsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
-    const memberships = await ctx.prisma.membership.findMany({
+    const memberships = await ctx.prisma.projectMembership.findMany({
       where: {
         userId: ctx.session.user.id,
       },
@@ -41,10 +42,6 @@ export const projectsRouter = createTRPCRouter({
       });
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const cloudConfigSchema = z.object({
-        plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
-        monthlyObservationLimit: z.number().int().positive().optional(),
-      });
       const cloudConfig = cloudConfigSchema.safeParse(project.cloudConfig);
 
       return {
@@ -63,7 +60,7 @@ export const projectsRouter = createTRPCRouter({
       const project = await ctx.prisma.project.create({
         data: {
           name: input.name,
-          members: {
+          projectMembers: {
             create: {
               userId: ctx.session.user.id,
               role: "OWNER",
@@ -182,7 +179,7 @@ export const projectsRouter = createTRPCRouter({
 
       return ctx.prisma.$transaction([
         // Add new owner, upsert to update role if already exists
-        ctx.prisma.membership.upsert({
+        ctx.prisma.projectMembership.upsert({
           where: {
             projectId_userId: {
               projectId: input.projectId,
@@ -199,7 +196,7 @@ export const projectsRouter = createTRPCRouter({
           },
         }),
         // Update old owner to admin
-        ctx.prisma.membership.update({
+        ctx.prisma.projectMembership.update({
           where: {
             projectId_userId: {
               projectId: input.projectId,

@@ -5,6 +5,8 @@ services:
     build:
       dockerfile: ./web/Dockerfile
       context: .
+      args:
+        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
     depends_on:
       - db
       - redis
@@ -20,11 +22,18 @@ services:
       - LANGFUSE_WORKER_HOST=${LANGFUSE_WORKER_HOST:-worker}
       - LANGFUSE_WORKER_PASSWORD=${LANGFUSE_WORKER_PASSWORD:-mybasicauthsecret}
     restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/public/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   worker:
     build:
       dockerfile: ./worker/Dockerfile
       context: .
+      args:
+        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
     depends_on:
       - db
       - redis
@@ -41,6 +50,11 @@ services:
       - REDIS_AUTH=${REDIS_AUTH:-myredissecret}
       - LANGFUSE_WORKER_PASSWORD=${LANGFUSE_WORKER_PASSWORD:-mybasicauthsecret}
     restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3030/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   redis:
     image: redis:7.2.4

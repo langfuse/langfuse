@@ -7,7 +7,7 @@ export const PromptDescription = ({
 }) => {
   return (
     <>
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-muted-foreground">
         You can use <code className="text-xs">{"{{variable}}"}</code> to insert
         variables into your prompt.
         <b className="font-semibold"> Note:</b> Variables must be alphabetical

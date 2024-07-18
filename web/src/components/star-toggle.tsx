@@ -6,6 +6,8 @@ import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 export function StarToggle({
   value,
@@ -31,7 +33,7 @@ export function StarToggle({
       <StarIcon
         className={cn(
           "h-4 w-4",
-          value ? "fill-current text-yellow-500" : "text-gray-500",
+          value ? "fill-current text-yellow-500" : "text-muted-foreground",
         )}
       />
     </Button>
@@ -53,7 +55,7 @@ export function StarTraceToggle({
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
-
+  const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
@@ -75,7 +77,7 @@ export function StarTraceToggle({
     onError: (err, _newTodo, context) => {
       setIsLoading(false);
       // Rollback to the previous value if mutation fails
-      console.log("error", err);
+      trpcErrorToast(err);
       utils.traces.all.setData(tracesFilter, context?.prev);
     },
     onSettled: () => {
@@ -109,13 +111,18 @@ export function StarTraceToggle({
       size={size}
       disabled={!hasAccess}
       isLoading={isLoading}
-      onClick={(value) =>
-        mutBookmarkTrace.mutateAsync({
+      onClick={(value) => {
+        capture("table:bookmark_button_click", {
+          table: "traces",
+          id: traceId,
+          value: value,
+        });
+        return mutBookmarkTrace.mutateAsync({
           projectId,
           traceId,
           bookmarked: value,
-        })
-      }
+        });
+      }}
     />
   );
 }
@@ -133,7 +140,7 @@ export function StarTraceDetailsToggle({
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
-
+  const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
@@ -151,7 +158,7 @@ export function StarTraceDetailsToggle({
     },
     onError: (err, _newTodo, context) => {
       setIsLoading(false);
-      console.log("error", err);
+      trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
       utils.traces.byId.setData({ traceId }, context?.prevData);
     },
@@ -180,13 +187,17 @@ export function StarTraceDetailsToggle({
       size={size}
       disabled={!hasAccess}
       isLoading={isLoading}
-      onClick={(value) =>
-        mutBookmarkTrace.mutateAsync({
+      onClick={(value) => {
+        capture("trace_detail:bookmark_button_click", {
+          id: traceId,
+          value: value,
+        });
+        return mutBookmarkTrace.mutateAsync({
           projectId,
           traceId,
           bookmarked: value,
-        })
-      }
+        });
+      }}
     />
   );
 }
@@ -204,6 +215,7 @@ export function StarSessionToggle({
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+  const capture = usePostHogClientCapture();
   const mutBookmarkSession = api.sessions.bookmark.useMutation({
     onSuccess: () => {
       void utils.sessions.invalidate();
@@ -216,13 +228,18 @@ export function StarSessionToggle({
       size={size}
       isLoading={mutBookmarkSession.isLoading}
       disabled={!hasAccess}
-      onClick={(value) =>
-        mutBookmarkSession.mutateAsync({
+      onClick={(value) => {
+        capture("table:bookmark_button_click", {
+          table: "sessions",
+          id: sessionId,
+          value: value,
+        });
+        return mutBookmarkSession.mutateAsync({
           projectId,
           sessionId,
           bookmarked: value,
-        })
-      }
+        });
+      }}
     />
   );
 }

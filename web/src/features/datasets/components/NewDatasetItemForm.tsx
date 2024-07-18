@@ -19,10 +19,10 @@ import {
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { usePostHog } from "posthog-js/react";
 import { JsonEditor } from "@/src/components/json-editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const formSchema = z.object({
   datasetId: z.string().min(1, "Select a dataset"),
@@ -85,7 +85,7 @@ export const NewDatasetItemForm = (props: {
   onFormSuccess?: () => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -107,10 +107,13 @@ export const NewDatasetItemForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("datasets:new_dataset_item_form_submit", {
-      hasSourceTrace: !!props.traceId,
-      hasSourceObservation: !!props.observationId,
-    });
+    if (props.traceId) {
+      capture("dataset_item:new_from_trace_form_submit", {
+        object: props.observationId ? "observation" : "trace",
+      });
+    } else {
+      capture("dataset_item:new_form_submit");
+    }
     createDatasetItemMutation
       .mutateAsync({
         ...values,

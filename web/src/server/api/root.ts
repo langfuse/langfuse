@@ -8,7 +8,6 @@ import { apiKeysRouter } from "@/src/features/public-api/server/apiKeyRouter";
 import { projectMembersRouter } from "@/src/features/rbac/server/projectMembersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
 import { datasetRouter } from "@/src/features/datasets/server/dataset-router";
-import { environmentRouter } from "@/src/server/api/routers/environment";
 import { usageMeteringRouter } from "@/src/features/usage-metering/server/usageMeteringRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
@@ -17,6 +16,10 @@ import { modelRouter } from "@/src/server/api/routers/models";
 import { evalRouter } from "@/src/ee/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
+import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
+import { publicRouter } from "@/src/server/api/routers/public";
+import { credentialsRouter } from "@/src/features/auth-credentials/server/credentialsRouter";
+import { batchExportRouter } from "@/src/server/api/routers/batchExport";
 
 /**
  * This is the primary router for your server.
@@ -24,17 +27,18 @@ import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
+  batchExport: batchExportRouter,
   traces: traceRouter,
   sessions: sessionRouter,
   generations: generationsRouter,
   scores: scoresRouter,
+  scoreConfigs: scoreConfigsRouter,
   dashboard: dashboardRouter,
   projects: projectsRouter,
   users: userRouter,
   apiKeys: apiKeysRouter,
   projectMembers: projectMembersRouter,
   datasets: datasetRouter,
-  environment: environmentRouter,
   usageMetering: usageMeteringRouter,
   observations: observationsRouter,
   prompts: promptRouter,
@@ -42,6 +46,8 @@ export const appRouter = createTRPCRouter({
   evals: evalRouter,
   posthogIntegration: posthogIntegrationRouter,
   llmApiKey: llmApiKeyRouter,
+  public: publicRouter,
+  credentials: credentialsRouter,
 });
 
 // export type definition of API

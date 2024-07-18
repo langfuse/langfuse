@@ -17,6 +17,7 @@ import superjson from "superjson";
 
 import { type AppRouter } from "@/src/server/api/root";
 import { setUpSuperjson } from "@/src/utils/superjson";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 setUpSuperjson();
 
@@ -60,9 +61,32 @@ export const api = createTRPCNext<AppRouter>({
           // when condition is false, use batching
           false: httpBatchLink({
             url: `${getBaseUrl()}/api/trpc`,
+            maxURLLength: 2083, // avoid too large batches
           }),
         }),
       ],
+      queryClientConfig: {
+        defaultOptions: {
+          queries: {
+            onError: (error) => trpcErrorToast(error),
+            // react query defaults to `online`, but we want to disable it in dev and when self-hosting
+            networkMode:
+              process.env.NODE_ENV === "development" ||
+              process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
+                ? "always"
+                : "online",
+          },
+          mutations: {
+            onError: (error) => trpcErrorToast(error),
+            // react query defaults to `online`, but we want to disable it in dev and when self-hosting
+            networkMode:
+              process.env.NODE_ENV === "development" ||
+              process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
+                ? "always"
+                : "online",
+          },
+        },
+      },
     };
   },
   /**
@@ -87,6 +111,7 @@ export const directApi = createTRPCProxyClient<AppRouter>({
     }),
     httpBatchLink({
       url: `${getBaseUrl()}/api/trpc`,
+      maxURLLength: 2083, // avoid too large batches
     }),
   ],
 });

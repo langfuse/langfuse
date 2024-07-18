@@ -1,4 +1,3 @@
-import { usePostHog } from "posthog-js/react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -19,22 +18,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
 import router from "next/router";
 import { type EvalTemplate } from "@prisma/client";
+import { ModelParameters } from "@/src/components/ModelParameters";
 import {
-  ModelParameters,
-  type ModelParamsContext,
-} from "@/src/components/ModelParameters";
-import {
-  EvalModelNames,
   OutputSchema,
-  evalLLMModels,
   type UIModelParams,
-  ModelProvider,
-  type OpenAIModel,
-  type OpenAIModelParams,
+  type ModelParams,
+  ZodModelConfig,
 } from "@langfuse/shared";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import Link from "next/dist/client/link";
-import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import {
   Select,
   SelectContent,
@@ -43,8 +34,9 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
-import { Label } from "@/src/components/ui/label";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
+import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -71,9 +63,9 @@ export const EvalTemplateForm = (props: {
             value={langfuseTemplate ?? ""}
             onValueChange={updateLangfuseTemplate}
           >
-            <SelectTrigger className="text-gray-700 ring-transparent focus:ring-0 focus:ring-offset-0">
+            <SelectTrigger className="text-primary ring-transparent focus:ring-0 focus:ring-offset-0">
               <SelectValue
-                className="text-sm font-semibold text-gray-700"
+                className="text-sm font-semibold text-primary"
                 placeholder={"Select a Langfuse managed template"}
               />
             </SelectTrigger>
@@ -104,15 +96,6 @@ export const EvalTemplateForm = (props: {
                     score: currentTemplate?.outputScore?.trim() ?? "",
                     reasoning: currentTemplate?.outputReasoning?.trim() ?? "",
                   },
-                  model: "gpt-3.5-turbo",
-                  modelParams: {
-                    model: "gpt-3.5-turbo",
-                    provider: ModelProvider.OpenAI,
-                    temperature: 1,
-                    maxTemperature: 2,
-                    max_tokens: 256,
-                    top_p: 1,
-                  },
                 }
               : props.existingEvalTemplate
                 ? {
@@ -123,10 +106,13 @@ export const EvalTemplateForm = (props: {
                       score: string;
                       reasoning: string;
                     },
-                    model: props.existingEvalTemplate.model as OpenAIModel,
-                    modelParams: props.existingEvalTemplate
-                      .modelParams as OpenAIModelParams & {
-                      maxTemperature: number;
+                    selectedModel: {
+                      provider: props.existingEvalTemplate.provider,
+                      model: props.existingEvalTemplate.model,
+                      modelParams: props.existingEvalTemplate
+                        .modelParams as ModelParams & {
+                        maxTemperature: number;
+                      },
                     },
                   }
                 : undefined
@@ -136,6 +122,12 @@ export const EvalTemplateForm = (props: {
     </div>
   );
 };
+
+const selectedModelSchema = z.object({
+  provider: z.string().min(1, "Select a provider"),
+  model: z.string().min(1, "Select a model"),
+  modelParams: ZodModelConfig,
+});
 
 const formSchema = z.object({
   name: z.string().min(1, "Enter a name"),
@@ -169,9 +161,12 @@ export type EvalTemplateFormPreFill = {
     score: string;
     reasoning: string;
   };
-  model: OpenAIModel;
-  modelParams: OpenAIModelParams & {
-    maxTemperature: number;
+  selectedModel?: {
+    provider: string;
+    model: string;
+    modelParams: ModelParams & {
+      maxTemperature: number;
+    };
   };
 };
 
@@ -186,30 +181,43 @@ export const InnerEvalTemplateForm = (props: {
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
 }) => {
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
 
   // updates the model params based on the pre-filled data
   // either form update or from langfuse-generated template
-  const [modelParams, setModelParams] = useState<UIModelParams>({
-    model: props.preFilledFormValues?.model ?? "gpt-3.5-turbo",
-    provider:
-      props.preFilledFormValues?.modelParams.provider ?? ModelProvider.OpenAI,
-    max_tokens: props.preFilledFormValues?.modelParams.max_tokens ?? 100,
-    maxTemperature:
-      props.preFilledFormValues?.modelParams.provider === ModelProvider.OpenAI
-        ? 2
-        : 1,
-    top_p: props.preFilledFormValues?.modelParams.top_p ?? 1,
-    temperature: props.preFilledFormValues?.modelParams.temperature ?? 1,
-  });
+  const {
+    modelParams,
+    setModelParams,
+    updateModelParamValue,
+    setModelParamEnabled,
+    availableModels,
+    availableProviders,
+  } = useModelParams({ evalModelsOnly: true });
 
-  const updateModelParam: ModelParamsContext["updateModelParam"] = (
-    key,
-    value,
-  ) => {
-    setModelParams((prev) => ({ ...prev, [key]: value }));
-  };
+  useEffect(() => {
+    if (props.preFilledFormValues?.selectedModel) {
+      const { provider, model, modelParams } =
+        props.preFilledFormValues.selectedModel;
+
+      const modelConfig = Object.entries(modelParams).reduce(
+        (acc, [key, value]) => {
+          return {
+            ...acc,
+            [key]: { value, enabled: true },
+          };
+        },
+        {} as UIModelParams,
+      );
+
+      setModelParams((prev) => ({
+        ...prev,
+        ...modelConfig,
+        provider: { value: provider, enabled: true },
+        model: { value: model, enabled: true },
+      }));
+    }
+  }, [props.preFilledFormValues?.selectedModel, setModelParams]);
 
   // updates the form based on the pre-filled data
   // either form update or from langfuse-generated template
@@ -246,27 +254,6 @@ export const InnerEvalTemplateForm = (props: {
         outputScore: OutputSchema.parse(props.preFilledFormValues.outputSchema)
           .score,
       });
-
-      // state for the model params is outside of the form, hence needs to be handled individually
-      // also set the context for the playground
-      const model = EvalModelNames.parse(props.preFilledFormValues.model);
-      updateModelParam("model", model);
-      setModelParams((prev) => ({
-        ...prev,
-        ...(props.preFilledFormValues?.modelParams as UIModelParams),
-      }));
-
-      const modelProvider = evalLLMModels.find(
-        (m) => m.model === model,
-      )?.provider;
-
-      if (modelProvider) {
-        updateModelParam("provider", modelProvider); // updating the provider based on the model
-        updateModelParam(
-          "maxTemperature",
-          modelProvider === ModelProvider.OpenAI ? 2 : 1,
-        ); // setting the max value of the slider based on the provider
-      }
     }
   }, [props.preFilledFormValues, form, props.existingEvalTemplateName]);
 
@@ -281,28 +268,37 @@ export const InnerEvalTemplateForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("evals:new_template_form");
+    capture(
+      props.isEditing
+        ? "eval_templates:update_form_submit"
+        : "eval_templates:new_form_submit",
+    );
 
-    const model = EvalModelNames.safeParse(modelParams.model);
+    const evalTemplate = {
+      name: values.name,
+      projectId: props.projectId,
+      prompt: values.prompt,
+      provider: modelParams.provider.value,
+      model: modelParams.model.value,
+      modelParams: getFinalModelParams(modelParams),
+      vars: extractedVariables ?? [],
+      outputSchema: {
+        score: values.outputScore,
+        reasoning: values.outputReasoning,
+      },
+    };
 
-    if (!model.success) {
-      setFormError("Please select a model.");
+    const parsedModel = selectedModelSchema.safeParse(evalTemplate);
+
+    if (!parsedModel.success) {
+      setFormError(
+        `${parsedModel.error.errors[0].path}: ${parsedModel.error.errors[0].message}`,
+      );
       return;
     }
 
     createEvalTemplateMutation
-      .mutateAsync({
-        name: values.name,
-        projectId: props.projectId,
-        prompt: values.prompt,
-        model: model.data,
-        modelParams: modelParams,
-        vars: extractedVariables ?? [],
-        outputSchema: {
-          score: values.outputScore,
-          reasoning: values.outputReasoning,
-        },
-      })
+      .mutateAsync(evalTemplate)
       .then((res) => {
         props.onFormSuccess?.();
         form.reset();
@@ -422,13 +418,14 @@ export const InnerEvalTemplateForm = (props: {
         <div className="col-span-1 row-span-3">
           <div className="flex flex-col gap-6">
             <ModelParameters
-              {...{ modelParams, updateModelParam }}
-              availableModels={[...evalLLMModels]}
-              disabled={!props.isEditing}
-            />
-            <LLMApiKeyComponent
-              projectId={props.projectId}
-              modelParams={modelParams}
+              {...{
+                modelParams,
+                availableModels,
+                availableProviders,
+                updateModelParamValue: updateModelParamValue,
+                setModelParamEnabled,
+              }}
+              formDisabled={!props.isEditing}
             />
           </div>
         </div>
@@ -449,77 +446,5 @@ export const InnerEvalTemplateForm = (props: {
         </p>
       ) : null}
     </Form>
-  );
-};
-
-export const LLMApiKeyComponent = (p: {
-  projectId: string;
-  modelParams: UIModelParams;
-}) => {
-  const hasAccess = useHasAccess({
-    projectId: p.projectId,
-    scope: "llmApiKeys:read",
-  });
-
-  if (!hasAccess) {
-    return (
-      <div>
-        <Label>API key</Label>
-        <p className="text-sm text-muted-foreground">
-          LLM API Key only visible to Owner and Admin roles.
-        </p>
-      </div>
-    );
-  }
-
-  const apiKeys = api.llmApiKey.all.useQuery({
-    projectId: p.projectId,
-  });
-
-  if (apiKeys.isLoading) {
-    return (
-      <div>
-        <Label>API key</Label>
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
-
-  const getModelProvider = (model: string) => {
-    return evalLLMModels.find((m) => m.model === model)?.provider;
-  };
-
-  const getApiKeyForModel = (model: string) => {
-    const modelProvider = getModelProvider(model);
-    return apiKeys.data?.data.find((k) => k.provider === modelProvider);
-  };
-
-  return (
-    <div>
-      <Label>API key</Label>
-      <div>
-        {getApiKeyForModel(p.modelParams.model) ? (
-          <span className="mr-2 rounded-sm bg-gray-200 p-1 text-xs">
-            {getApiKeyForModel(p.modelParams.model)?.displaySecretKey}
-          </span>
-        ) : undefined}
-      </div>
-      {/* Custom form message to include a link to the already existing prompt */}
-      {!getApiKeyForModel(p.modelParams.model) ? (
-        <div className="flex flex-col text-sm font-medium text-destructive">
-          {"No LLM API key found."}
-
-          <Link
-            href={`/project/${p.projectId}/settings`}
-            className="flex flex-row"
-          >
-            Create a new API key here. <ArrowTopRightIcon />
-          </Link>
-        </div>
-      ) : undefined}
-      <p className="text-sm text-muted-foreground">
-        The API key is used for each evaluation and will incur costs.
-      </p>
-    </div>
   );
 };

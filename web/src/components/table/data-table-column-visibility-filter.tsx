@@ -14,6 +14,7 @@ import {
 import { type VisibilityState } from "@tanstack/react-table";
 import { ChevronDown, Columns } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -27,14 +28,24 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   setColumnVisibility,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const [isOpen, setIsOpen] = useState(false);
-
+  const capture = usePostHogClientCapture();
   const toggleColumn = useCallback(
     (columnId: string) => {
-      setColumnVisibility((old) => ({
-        ...old,
-        [columnId]: !old[columnId],
-      }));
+      setColumnVisibility((old) => {
+        const newColumnVisibility = {
+          ...old,
+          [columnId]: !old[columnId],
+        };
+        const selectedColumns = Object.keys(newColumnVisibility).filter(
+          (key) => newColumnVisibility[key],
+        );
+        capture("table:column_visibility_changed", {
+          selectedColumns: selectedColumns,
+        });
+        return newColumnVisibility;
+      });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [setColumnVisibility],
   );
 
@@ -72,7 +83,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       >
         <Button variant="outline" title="Show/hide columns">
           <Columns className="mr-2 h-4 w-4" />
-          <span className="text-xs text-gray-500">{`(${count}/${total})`}</span>
+          <span className="text-xs text-muted-foreground">{`(${count}/${total})`}</span>
           <ChevronDown className="ml-2 h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

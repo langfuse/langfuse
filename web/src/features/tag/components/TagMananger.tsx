@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Command, CommandList, CommandGroup } from "cmdk";
 import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type TagManagerProps = {
   tags: string[];
@@ -17,6 +18,7 @@ type TagManagerProps = {
   hasAccess: boolean;
   isLoading: boolean;
   mutateTags: (value: string[]) => void;
+  className?: string;
 };
 
 const TagManager = ({
@@ -25,6 +27,7 @@ const TagManager = ({
   hasAccess,
   isLoading,
   mutateTags,
+  className,
 }: TagManagerProps) => {
   const {
     selectedTags,
@@ -34,7 +37,7 @@ const TagManager = ({
     setInputValue,
     setSelectedTags,
   } = useTagManager({ initialTags: tags, allTags });
-
+  const capture = usePostHogClientCapture();
   const filteredTags = availableTags.filter(
     (value) =>
       value.toLowerCase().includes(inputValue.trim().toLowerCase()) &&
@@ -42,6 +45,9 @@ const TagManager = ({
   );
 
   const handlePopoverChange = (open: boolean) => {
+    if (open) {
+      capture("tag:modal_open");
+    }
     if (!open && selectedTags !== tags) {
       setInputValue("");
       mutateTags(selectedTags);
@@ -55,7 +61,7 @@ const TagManager = ({
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       <PopoverTrigger className="select-none" asChild>
-        <div className="flex gap-x-2 gap-y-1">
+        <div className={cn("flex gap-x-2 gap-y-1", className)}>
           <TagList selectedTags={selectedTags} isLoading={isLoading} />
         </div>
       </PopoverTrigger>

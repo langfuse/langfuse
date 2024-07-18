@@ -64,11 +64,39 @@ export const AzureAdProviderSchema = base.extend({
     .nullish(),
 });
 
+export const CognitoProviderSchema = base.extend({
+  authProvider: z.literal("cognito"),
+  authConfig: z
+    .object({
+      clientId: z.string(),
+      clientSecret: z.string(),
+      issuer: z.string(),
+      allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+    })
+    .nullish(),
+});
+
+export const CustomProviderSchema = base.extend({
+  authProvider: z.literal("custom"),
+  authConfig: z
+    .object({
+      name: z.string(),
+      clientId: z.string(),
+      clientSecret: z.string(),
+      issuer: z.string(),
+      scope: z.string().nullish(),
+      allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+    })
+    .nullish(),
+});
+
 export type GoogleProviderSchema = z.infer<typeof GoogleProviderSchema>;
 export type GithubProviderSchema = z.infer<typeof GithubProviderSchema>;
 export type Auth0ProviderSchema = z.infer<typeof Auth0ProviderSchema>;
 export type OktaProviderSchema = z.infer<typeof OktaProviderSchema>;
 export type AzureAdProviderSchema = z.infer<typeof AzureAdProviderSchema>;
+export type CognitoProviderSchema = z.infer<typeof CognitoProviderSchema>;
+export type CustomProviderSchema = z.infer<typeof CustomProviderSchema>;
 
 export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   GoogleProviderSchema,
@@ -76,6 +104,8 @@ export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   Auth0ProviderSchema,
   OktaProviderSchema,
   AzureAdProviderSchema,
+  CognitoProviderSchema,
+  CustomProviderSchema,
 ]);
 
 export type SsoProviderSchema = z.infer<typeof SsoProviderSchema>;

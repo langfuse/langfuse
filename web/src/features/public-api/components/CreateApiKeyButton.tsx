@@ -10,12 +10,12 @@ import {
 } from "@/src/components/ui/dialog";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { usePostHog } from "posthog-js/react";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useUtils();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const hasAccess = useHasAccess({
     projectId: props.projectId,
     scope: "apiKeys:create",
@@ -47,7 +47,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
             publicKey,
           });
           setOpen(true);
-          posthog.capture("project_settings:api_key_create");
+          capture("project_settings:api_key_create");
         })
         .catch((error) => {
           console.error(error);

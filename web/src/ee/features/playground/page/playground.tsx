@@ -6,10 +6,6 @@ import { Messages } from "./components/Messages";
 export default function Playground() {
   const playgroundContext = usePlaygroundContext();
 
-  if (playgroundContext.isInitializing) {
-    return <div>Loading...</div>;
-  }
-
   return (
     <div className="flex h-full flex-row space-x-8">
       <div className="h-full basis-3/4 overflow-auto">
@@ -20,7 +16,7 @@ export default function Playground() {
           <div className="basis-[55%] ">
             <ModelParameters {...playgroundContext} />
           </div>
-          <div className="basis-[45%]  overflow-auto">
+          <div className="mt-4 basis-[45%] overflow-auto">
             <Variables />
           </div>
         </div>

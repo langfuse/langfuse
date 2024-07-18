@@ -7,19 +7,24 @@ import { IOPreview } from "@/src/components/trace/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
+import { Button } from "@/src/components/ui/button";
+
+// some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
+const PAGE_SIZE = 50;
 
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const { setDetailPageList } = useDetailPageLists();
+  const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const session = api.sessions.byId.useQuery(
     {
       sessionId,
@@ -98,9 +103,9 @@ export const SessionPage: React.FC<{
         )}
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
-        {session.data?.traces.map((trace) => (
+        {session.data?.traces.slice(0, visibleTraces).map((trace) => (
           <Card
-            className="border-border-gray-150 group grid gap-3 p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
+            className="group grid gap-3 border-border p-2 shadow-none hover:border-ring md:grid-cols-3"
             key={trace.id}
           >
             <SessionIO traceId={trace.id} />
@@ -111,22 +116,36 @@ export const SessionPage: React.FC<{
               >
                 Trace: {trace.name} ({trace.id})&nbsp;↗
               </Link>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted-foreground">
                 {trace.timestamp.toLocaleString()}
               </div>
-              <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
-              <div className="flex flex-wrap content-start items-start gap-1">
+              <div className="mb-1 mt-2 text-xs text-muted-foreground">
+                Scores
+              </div>
+              <div className="mb-1 flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>
-              <ManualScoreButton
+              <AnnotateDrawer
                 projectId={projectId}
                 traceId={trace.id}
                 scores={trace.scores}
                 variant="badge"
+                type="session"
+                source="SessionDetail"
+                key={"annotation-drawer" + trace.id}
               />
             </div>
           </Card>
         ))}
+        {session.data?.traces && session.data.traces.length > visibleTraces && (
+          <Button
+            onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
+            variant="ghost"
+            className="self-center"
+          >
+            {`Load ${Math.min(session.data.traces.length - visibleTraces, PAGE_SIZE)} More`}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -160,7 +179,7 @@ const SessionIO = ({ traceId }: { traceId: string }) => {
           hideIfNull
         />
       ) : (
-        <div className="p-2 text-xs text-gray-500">
+        <div className="p-2 text-xs text-muted-foreground">
           This trace has no input or output.
         </div>
       )}

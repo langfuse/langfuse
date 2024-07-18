@@ -1,7 +1,9 @@
 import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { AreaChart, LineChart } from "@tremor/react";
+import { AreaChart, type CustomTooltipProps, LineChart } from "@tremor/react";
+import { Tooltip } from "@/src/features/dashboard/components/Tooltip";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
@@ -40,7 +42,13 @@ export function BaseTimeSeriesChart(props: {
   }
 
   const convertDate = (date: number, agg: DateTimeAggregationOption) => {
-    if (agg === "24 hours" || agg === "1 hour" || agg === "30 minutes") {
+    const showMinutes: DateTimeAggregationOption[] = [
+      "5 minutes",
+      "30 minutes",
+      "1 hour",
+      "3 hours",
+    ];
+    if (showMinutes.includes(agg)) {
       return new Date(date).toLocaleTimeString("en-US", {
         year: "2-digit",
         month: "numeric",
@@ -57,6 +65,14 @@ export function BaseTimeSeriesChart(props: {
   };
 
   const ChartComponent = props.chartType === "area" ? AreaChart : LineChart;
+  const TooltipComponent = (tooltipProps: CustomTooltipProps) => (
+    <Tooltip
+      {...tooltipProps}
+      formatter={props.valueFormatter ?? compactNumberFormatter}
+    />
+  );
+  const colors = getColorsForCategories(Array.from(labels));
+
   return (
     <ChartComponent
       className={cn("mt-4", props.className)}
@@ -64,15 +80,14 @@ export function BaseTimeSeriesChart(props: {
       index="timestamp"
       categories={Array.from(labels)}
       connectNulls={props.connectNulls}
-      colors={["indigo", "cyan", "zinc", "purple"]}
-      valueFormatter={
-        props.valueFormatter ? props.valueFormatter : compactNumberFormatter
-      }
+      colors={colors}
+      valueFormatter={props.valueFormatter ?? compactNumberFormatter}
       noDataText="No data"
       showLegend={props.showLegend}
       showAnimation={true}
       onValueChange={() => {}}
       enableLegendSlider={true}
+      customTooltip={TooltipComponent}
     />
   );
 }

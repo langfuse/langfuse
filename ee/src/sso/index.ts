@@ -2,14 +2,16 @@ import { type Provider } from "next-auth/providers/index";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
+import CognitoProvider from "next-auth/providers/cognito";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { isEeAvailable } from "..";
-import { prisma } from "@langfuse/shared/src/db";
+import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "../env";
+import { CustomSSOProvider } from "@langfuse/shared/src/server";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -25,14 +27,36 @@ let cachedSsoConfigs: {
 async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
   if (!isEeAvailable) return [];
   const CACHE_TTL = 60 * 1000; // 1 minute
+  const DB_MAX_WAIT = 2000; // 2 seconds
+  const DB_TIMEOUT = 3000; // 3 seconds
 
   // Set/refresh the cache if it's empty or expired
   if (
     cachedSsoConfigs === null ||
     Date.now() - cachedSsoConfigs.timestamp > CACHE_TTL
   ) {
+    // findMany with custom timeout via $transaction
+    let dbConfigs: SsoConfig[] = [];
+    try {
+      dbConfigs = await prisma.$transaction(
+        async (prisma) => prisma.ssoConfig.findMany(),
+        {
+          maxWait: DB_MAX_WAIT,
+          timeout: DB_TIMEOUT,
+        }
+      );
+    } catch (e) {
+      // cache empty array to prevent repeated DB calls on error
+      cachedSsoConfigs = {
+        data: [],
+        timestamp: Date.now(),
+      };
+
+      // caught and logged in the caller
+      throw e;
+    }
+
     // transform into zod object
-    const dbConfigs = await prisma.ssoConfig.findMany();
     const parsedSsoConfigs = dbConfigs
       .map((v) => {
         try {
@@ -143,6 +167,21 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
+  else if (provider.authProvider === "cognito")
+    return CognitoProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
+  else if (provider.authProvider === "custom")
+    return CustomSSOProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+      authorization: {
+        params: { scope: provider.authConfig.scope ?? "openid email profile" },
+      },
     });
   else {
     // Type check to ensure we handle all providers

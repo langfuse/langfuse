@@ -25,19 +25,23 @@ import {
   filterOperators,
   singleFilter,
 } from "@langfuse/shared";
-import { NonEmptyString } from "@/src/utils/zod";
+import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
   columns,
   filterState,
   onChange,
+  columnsWithCustomSelect = [],
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
   onChange: Dispatch<SetStateAction<FilterState>>;
+  columnsWithCustomSelect?: string[];
 }) {
+  const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
   const addNewFilter = () => {
@@ -75,10 +79,16 @@ export function PopoverFilterBuilder({
     <div className="flex items-center">
       <Popover
         onOpenChange={(open) => {
+          if (open) {
+            capture("table:filter_builder_open");
+          }
           // Create empty filter when opening popover
           if (open && filterState.length === 0) addNewFilter();
           // Discard all wip filters when closing popover
           if (!open) {
+            capture("table:filter_builder_close", {
+              filter: filterState,
+            });
             setWipFilterState(filterState);
           }
         }}
@@ -86,15 +96,15 @@ export function PopoverFilterBuilder({
         <PopoverTrigger asChild>
           <Button variant="outline">
             <Filter className="h-4 w-4" />
-            <span className="hidden lg:ml-2 lg:inline">Filter</span>
+            <span className="hidden @6xl:ml-2 @6xl:inline">Filter</span>
             {filterState.length > 0 && filterState.length < 3 ? (
               <InlineFilterState filterState={filterState} />
             ) : null}
             {filterState.length > 0 && (
               <span
                 className={cn(
-                  "ml-3 rounded-md bg-slate-200 px-2 py-1 text-xs lg:hidden",
-                  filterState.length > 2 && "lg:inline",
+                  "ml-3 rounded-md bg-input px-2 py-1 text-xs @6xl:hidden",
+                  filterState.length > 2 && "@6xl:inline",
                 )}
               >
                 {filterState.length}
@@ -110,6 +120,7 @@ export function PopoverFilterBuilder({
             columns={columns}
             filterState={wipFilterState}
             onChange={setWipFilterState}
+            columnsWithCustomSelect={columnsWithCustomSelect}
           />
         </PopoverContent>
       </Popover>
@@ -136,7 +147,7 @@ export function InlineFilterState({
     return (
       <span
         key={i}
-        className="ml-2 hidden whitespace-nowrap rounded-md bg-slate-200 px-2 py-1 text-xs lg:block"
+        className="ml-2 hidden whitespace-nowrap rounded-md bg-input px-2 py-1 text-xs @6xl:block"
       >
         {filter.column}
         {filter.type === "stringObject" || filter.type === "numberObject"
@@ -203,11 +214,13 @@ function FilterBuilderForm({
   filterState,
   onChange,
   disabled,
+  columnsWithCustomSelect = [],
 }: {
   columns: ColumnDefinition[];
   filterState: WipFilterState;
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;
+  columnsWithCustomSelect?: string[];
 }) {
   const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
@@ -255,11 +268,17 @@ function FilterBuilderForm({
                     value={column ? column.id : ""}
                     disabled={disabled}
                     onValueChange={(value) => {
+                      const col = columns.find((c) => c.id === value);
                       handleFilterChange(
                         {
-                          column: columns.find((c) => c.id === value)?.name,
-                          type: columns.find((c) => c.id === value)?.type,
-                          operator: undefined,
+                          column: col?.name,
+                          type: col?.type,
+                          operator:
+                            // does not work as expected on eval-template form when embedded into form via InlineFilterBuilder
+                            // col?.type !== undefined &&
+                            // filterOperators[col.type]?.length > 0
+                            //   ? (filterOperators[col.type][0] as any) // operator matches type
+                            undefined,
                           value: undefined,
                           key: undefined,
                         },
@@ -411,6 +430,10 @@ function FilterBuilderForm({
                       }
                       values={Array.isArray(filter.value) ? filter.value : []}
                       disabled={disabled}
+                      isCustomSelectEnabled={
+                        column?.type === filter.type &&
+                        columnsWithCustomSelect.includes(column.id)
+                      }
                     />
                   ) : filter.type === "boolean" ? (
                     <Select

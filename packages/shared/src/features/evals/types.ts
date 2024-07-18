@@ -1,5 +1,5 @@
 import z from "zod";
-import { ModelProvider } from "../..";
+import { LLMAdapter } from "../..";
 
 export const langfuseObjects = [
   "trace",
@@ -77,26 +77,16 @@ export const availableEvalVariables = [
   },
 ];
 
-export const evalLLMModels = [
-  {
-    provider: ModelProvider.OpenAI,
-    model: "gpt-3.5-turbo",
-    temperature: 1,
-    maxTemperature: 2,
-    max_tokens: 256,
-    top_p: 1,
-  },
-  {
-    provider: ModelProvider.OpenAI,
-    model: "gpt-4-turbo-preview",
-    temperature: 1,
-    maxTemperature: 2,
-    max_tokens: 256,
-    top_p: 1,
-  },
-] as const;
-
-export const EvalModelNames = z.enum(["gpt-3.5-turbo", "gpt-4-turbo-preview"]);
+export const evalModelsByAdapter: Record<LLMAdapter, string[]> = {
+  [LLMAdapter.OpenAI]: [
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4-turbo-preview",
+    "gpt-3.5-turbo",
+  ] as const,
+  [LLMAdapter.Anthropic]: [] as const,
+  [LLMAdapter.Azure]: [] as const,
+};
 
 export const OutputSchema = z.object({
   reasoning: z.string(),

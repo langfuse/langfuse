@@ -12,6 +12,7 @@ import {
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
 import { Search } from "lucide-react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface SearchConfig {
   placeholder: string;
@@ -30,6 +31,7 @@ interface DataTableToolbarProps<TData, TValue> {
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
+  columnsWithCustomSelect?: string[];
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -43,13 +45,15 @@ export function DataTableToolbar<TData, TValue>({
   setColumnVisibility,
   rowHeight,
   setRowHeight,
+  columnsWithCustomSelect,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+  const capture = usePostHogClientCapture();
 
   return (
-    <div className="my-2 flex flex-1 flex-wrap items-center gap-2">
+    <div className="my-2 flex flex-wrap items-center gap-2 @container">
       {searchConfig && (
         <div className="flex max-w-md items-center">
           <Input
@@ -59,14 +63,18 @@ export function DataTableToolbar<TData, TValue>({
             onChange={(event) => setSearchString(event.currentTarget.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
+                capture("table:search_submit");
                 searchConfig.updateQuery(searchString);
               }
             }}
-            className="h-10 w-[200px] rounded-r-none lg:w-[250] 2xl:w-[350px]"
+            className="h-10 w-[150px] rounded-r-none @6xl:w-[250px]"
           />
           <Button
             variant="outline"
-            onClick={() => searchConfig.updateQuery(searchString)}
+            onClick={() => {
+              capture("table:search_submit");
+              searchConfig.updateQuery(searchString);
+            }}
             className="rounded-l-none border-l-0 p-3"
           >
             <Search className="h-4 w-4" />
@@ -78,9 +86,10 @@ export function DataTableToolbar<TData, TValue>({
           columns={filterColumnDefinition}
           filterState={filterState}
           onChange={setFilterState}
+          columnsWithCustomSelect={columnsWithCustomSelect}
         />
       )}
-      <div className="flex flex-row flex-wrap gap-2 lg:ml-auto">
+      <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
         {!!columnVisibility && !!setColumnVisibility && (
           <DataTableColumnVisibilityFilter
             columns={columns}

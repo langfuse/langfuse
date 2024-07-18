@@ -1,39 +1,34 @@
 import { z } from "zod";
-
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { env } from "@/src/env.mjs";
-import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
+import {
+  type ChatMessage,
+  LLMApiKeySchema,
+  fetchLLMCompletion,
+  ChatMessageRole,
+  supportedModels,
+} from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
 
 export function getDisplaySecretKey(secretKey: string) {
   return "..." + secretKey.slice(-4);
 }
-
-export const LlmApiKey = z
-  .object({
-    id: z.string(),
-    projectId: z.string(),
-    provider: z.string(),
-    createdAt: z.date(),
-    updatedAt: z.date(),
-    displaySecretKey: z.string(),
-  })
-  // strict mode to prevent extra keys. Thorws error otherwise
-  // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
-  .strict();
 
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
       try {
-        if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-          throw new Error("Evals available in cloud only");
+        if (!isEeEnabled) {
+          throw new Error(
+            "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
+          );
         }
         throwIfNoAccess({
           session: ctx.session,
@@ -45,8 +40,12 @@ export const llmApiKeyRouter = createTRPCRouter({
           data: {
             projectId: input.projectId,
             secretKey: encrypt(input.secretKey),
+            adapter: input.adapter,
             displaySecretKey: getDisplaySecretKey(input.secretKey),
             provider: input.provider,
+            baseURL: input.baseURL,
+            withDefaultModels: input.withDefaultModels,
+            customModels: input.customModels,
           },
         });
 
@@ -69,8 +68,10 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
+      if (!isEeEnabled) {
+        throw new Error(
+          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
+        );
       }
       throwIfNoAccess({
         session: ctx.session,
@@ -99,8 +100,10 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
+      if (!isEeEnabled) {
+        throw new Error(
+          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
+        );
       }
 
       throwIfNoAccess({
@@ -109,22 +112,28 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:read",
       });
 
-      const apiKeys = z.array(LlmApiKey).parse(
-        await ctx.prisma.llmApiKeys.findMany({
-          // we must not return the secret key via the API, hence not selected
-          select: {
-            id: true,
-            createdAt: true,
-            updatedAt: true,
-            provider: true,
-            displaySecretKey: true,
-            projectId: true,
-          },
-          where: {
-            projectId: input.projectId,
-          },
-        }),
-      );
+      const apiKeys = z
+        .array(LLMApiKeySchema.extend({ secretKey: z.undefined() }))
+        .parse(
+          await ctx.prisma.llmApiKeys.findMany({
+            // we must not return the secret key via the API, hence not selected
+            select: {
+              id: true,
+              createdAt: true,
+              updatedAt: true,
+              provider: true,
+              displaySecretKey: true,
+              projectId: true,
+              adapter: true,
+              baseURL: true,
+              customModels: true,
+              withDefaultModels: true,
+            },
+            where: {
+              projectId: input.projectId,
+            },
+          }),
+        );
 
       const count = await ctx.prisma.llmApiKeys.count({
         where: {
@@ -136,5 +145,50 @@ export const llmApiKeyRouter = createTRPCRouter({
         data: apiKeys, // does not contain the secret key
         totalCount: count,
       };
+    }),
+
+  test: protectedProjectProcedure
+    .input(CreateLlmApiKey)
+    .mutation(async ({ input }) => {
+      if (!isEeEnabled) {
+        throw new Error(
+          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
+        );
+      }
+
+      try {
+        const model = input.customModels?.length
+          ? input.customModels[0]
+          : supportedModels[input.adapter][0];
+
+        if (!model) throw Error("No model found");
+
+        const testMessages: ChatMessage[] = [
+          { role: ChatMessageRole.System, content: "You are a bot" },
+          { role: ChatMessageRole.User, content: "How are you?" },
+        ];
+
+        await fetchLLMCompletion({
+          modelParams: {
+            adapter: input.adapter,
+            provider: input.provider,
+            model,
+          },
+          baseURL: input.baseURL,
+          apiKey: input.secretKey,
+          messages: testMessages,
+          streaming: false,
+          maxRetries: 1,
+        });
+
+        return { success: true };
+      } catch (err) {
+        console.log(err);
+
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+        };
+      }
     }),
 });

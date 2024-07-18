@@ -15,6 +15,14 @@ import { type Flags } from "@/src/features/feature-flags/types";
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: User | null; // null if user does not exist anymore in the database but has active jwt
+    environment: {
+      // Run-time environment variables that need to be available client-side
+      enableExperimentalFeatures: boolean;
+      disableExpensivePostgresQueries: boolean;
+      defaultTableDateTimeOffset?: number;
+      // Enables features that are only available under an enterprise license when self-hosting Langfuse
+      eeEnabled: boolean;
+    };
   }
 
   interface User extends DefaultUser {
@@ -23,11 +31,14 @@ declare module "next-auth" {
     email?: PrismaUser["email"];
     image?: PrismaUser["image"];
     admin?: PrismaUser["admin"];
-    emailVerified?: PrismaUser["emailVerified"];
+    emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
     projects: {
       id: PrismaProject["id"];
       name: PrismaProject["name"];
       role: PrismaMembership["role"];
+      cloudConfig: {
+        defaultLookBackDays: number | null;
+      };
     }[];
     featureFlags: Flags;
   }

@@ -12,7 +12,7 @@ import { useEffect } from "react";
 import { usdFormatter } from "../../../utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { type Prisma } from "@langfuse/shared";
+import { ScoreDataType, type Prisma } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 
@@ -120,6 +120,7 @@ export function DatasetRunsTable(props: {
             scores={Object.entries(scores).map(([k, v]) => ({
               name: k,
               value: v,
+              dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
             }))}
             variant="headings"
           />
@@ -167,7 +168,7 @@ export function DatasetRunsTable(props: {
   );
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
@@ -204,6 +205,6 @@ export function DatasetRunsTable(props: {
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}
       />
-    </div>
+    </>
   );
 }

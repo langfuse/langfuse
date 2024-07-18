@@ -105,8 +105,8 @@ export const AutoComplete = ({
       </div>
       <div className="relative mt-1">
         {isOpen ? (
-          <div className="absolute top-0 z-10 w-full rounded-xl bg-stone-50 outline-none animate-in fade-in-0 zoom-in-95">
-            <CommandList className="rounded-lg ring-1 ring-slate-200">
+          <div className="absolute top-0 z-10 w-full rounded-xl bg-background outline-none animate-in fade-in-0 zoom-in-95">
+            <CommandList className="rounded-lg ring-1 ring-border">
               {options.length > 0 ? (
                 <CommandGroup>
                   {options.map((option) => {

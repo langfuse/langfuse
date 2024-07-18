@@ -1,13 +1,15 @@
+import * as z from "zod";
+
+import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { sendProjectInvitation } from "@/src/features/email/lib/project-invitation";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { MembershipRole } from "@langfuse/shared/src/db";
+import { ProjectRole } from "@langfuse/shared/src/db";
+import { sendProjectInvitationEmail } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import * as z from "zod";
 
 export const projectMembersRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -23,11 +25,11 @@ export const projectMembersRouter = createTRPCRouter({
         scope: "members:read",
       });
 
-      const memberships = await ctx.prisma.membership.findMany({
+      const memberships = await ctx.prisma.projectMembership.findMany({
         where: {
           projectId: input.projectId,
           project: {
-            members: {
+            projectMembers: {
               some: {
                 userId: ctx.session.user.id,
               },
@@ -77,12 +79,12 @@ export const projectMembersRouter = createTRPCRouter({
       if (input.userId === ctx.session.user.id)
         throw new Error("You cannot remove yourself from a project");
 
-      const membership = await ctx.prisma.membership.findFirst({
+      const membership = await ctx.prisma.projectMembership.findFirst({
         where: {
           projectId: input.projectId,
           userId: input.userId,
           role: {
-            not: MembershipRole.OWNER,
+            not: ProjectRole.OWNER,
           },
         },
       });
@@ -98,7 +100,7 @@ export const projectMembersRouter = createTRPCRouter({
       });
 
       // use ids from membership to make sure owners cannot delete themselves
-      return await ctx.prisma.membership.delete({
+      return await ctx.prisma.projectMembership.delete({
         where: {
           projectId_userId: {
             projectId: membership.projectId,
@@ -141,9 +143,9 @@ export const projectMembersRouter = createTRPCRouter({
         projectId: z.string(),
         email: z.string().email(),
         role: z.enum([
-          MembershipRole.ADMIN,
-          MembershipRole.MEMBER,
-          MembershipRole.VIEWER,
+          ProjectRole.ADMIN,
+          ProjectRole.MEMBER,
+          ProjectRole.VIEWER,
         ]),
       }),
     )
@@ -160,7 +162,7 @@ export const projectMembersRouter = createTRPCRouter({
         },
       });
       if (user) {
-        const membership = await ctx.prisma.membership.create({
+        const membership = await ctx.prisma.projectMembership.create({
           data: {
             userId: user.id,
             projectId: input.projectId,
@@ -200,12 +202,13 @@ export const projectMembersRouter = createTRPCRouter({
 
         if (!project) throw new Error("Project not found");
 
-        await sendProjectInvitation(
-          input.email,
-          ctx.session.user.name!,
-          ctx.session.user.email!,
-          project.name,
-        );
+        await sendProjectInvitationEmail({
+          env,
+          to: input.email,
+          inviterName: ctx.session.user.name!,
+          inviterEmail: ctx.session.user.email!,
+          projectName: project.name,
+        });
 
         return invitation;
       }

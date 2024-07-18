@@ -8,7 +8,6 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DEFAULT_TRACE_JOB_DELAY, EvalTargetObject } from "@langfuse/shared";
 import {
-  EvalModelNames,
   ZodModelConfig,
   singleFilter,
   variableMapping,
@@ -19,7 +18,8 @@ export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
   projectId: z.string(),
   prompt: z.string(),
-  model: EvalModelNames,
+  provider: z.string(),
+  model: z.string(),
   modelParams: ZodModelConfig,
   vars: z.array(z.string()),
   outputSchema: z.object({
@@ -45,7 +45,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "evalJob:read",
       });
 
       const configs = await ctx.prisma.jobConfiguration.findMany({
@@ -86,7 +86,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "evalJob:read",
       });
 
       const config = await ctx.prisma.jobConfiguration.findUnique({
@@ -249,7 +249,7 @@ export const evalRouter = createTRPCRouter({
         filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
         mapping: z.array(variableMapping),
         sampling: z.number().gte(0).lte(1),
-        delay: z.number().gte(0).default(10_000),
+        delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -260,7 +260,7 @@ export const evalRouter = createTRPCRouter({
         throwIfNoAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "job:CUD",
+          scope: "evalJob:CUD",
         });
 
         const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
@@ -287,7 +287,7 @@ export const evalRouter = createTRPCRouter({
             filter: input.filter ?? [],
             variableMapping: input.mapping,
             sampling: input.sampling,
-            delay: DEFAULT_TRACE_JOB_DELAY, // 10 seconds default
+            delay: input.delay,
             status: "ACTIVE",
           },
         });
@@ -332,6 +332,7 @@ export const evalRouter = createTRPCRouter({
           modelParams: input.modelParams,
           vars: input.vars,
           outputSchema: input.outputSchema,
+          provider: input.provider,
         },
       });
 
@@ -359,7 +360,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:CUD",
+        scope: "evalJob:CUD",
       });
 
       await ctx.prisma.jobConfiguration.update({
@@ -396,7 +397,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "job:read",
+        scope: "evalJob:read",
       });
 
       const jobExecutions = await ctx.prisma.jobExecution.findMany({
