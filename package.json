@@ -6,8 +6,9 @@
   "private": true,
   "engines": {
     "node": ">=20",
-    "pnpm": "<9"
+    "pnpm": "8.15.5"
   },
+  "packageManager": "pnpm@8.15.5",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d",
