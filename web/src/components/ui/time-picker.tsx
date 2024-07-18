@@ -25,19 +25,18 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
       const minutes = date.getMinutes();
       const seconds = date.getSeconds();
       if (hours === 12 && minutes === 0 && seconds === 0) {
-        return period === "PM" ? (
-          <Moon className="size-5" />
-        ) : (
-          <Sun className="size-5" />
-        );
+        return <Moon className="size-5" />;
       }
+      if (hours === 0 && minutes === 0 && seconds === 0) {
+        return <Sun className="size-5" />;
+      }
+      return <Clock className="size-5" />;
     }
-    return <Clock className="size-5" />;
   };
 
   return (
-    <div className="my-2 flex items-center gap-1">
-      <div className="ml-4 mr-2 grid gap-1 text-center">{getIcon()}</div>
+    <div className="flex w-full flex-1 items-center gap-1 rounded-b-md border-t-2 bg-transparent px-3 py-2 text-sm ring-offset-background">
+      <div className="ml-2 mr-2 grid gap-1 text-center">{getIcon()}</div>
       <div className="grid gap-1 text-center">
         <TimePickerInput
           picker="12hours"
@@ -48,6 +47,7 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
           onRightFocus={() => minuteRef.current?.focus()}
         />
       </div>
+      {":"}
       <div className="grid gap-1 text-center">
         <TimePickerInput
           picker="minutes"
@@ -59,6 +59,7 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
           onRightFocus={() => secondRef.current?.focus()}
         />
       </div>
+      {":"}
       <div className="grid gap-1 text-center">
         <TimePickerInput
           picker="seconds"
@@ -70,7 +71,7 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
           onRightFocus={() => periodRef.current?.focus()}
         />
       </div>
-      <div className="grid gap-1 text-center">
+      <div className="ml-0.5 grid gap-1 text-center">
         <TimePeriodSelect
           period={period}
           setPeriod={setPeriod}
