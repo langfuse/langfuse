@@ -75,7 +75,10 @@ export function MarkdownView({
   };
 
   return (
-    <div className={cn("rounded-md border", className)} key={theme}>
+    <div
+      className={cn("overflow-hidden rounded-md border", className)}
+      key={theme}
+    >
       {title ? (
         <div
           className={cn(
@@ -121,7 +124,7 @@ export function MarkdownView({
       ) : undefined}
       <MemoizedReactMarkdown
         className={cn(
-          "space-y-4 overflow-x-auto break-words p-3 font-mono text-xs",
+          "space-y-4 overflow-x-auto break-words p-3 text-sm",
           className,
         )}
         remarkPlugins={[remarkGfm, remarkMath]}
@@ -179,18 +182,25 @@ export function MarkdownView({
             return <h6 className="text-xs font-bold">{children}</h6>;
           },
           code({ children, className }) {
-            const match = /language-(\w+)/.exec(className || "");
+            const languageMatch = /language-(\w+)/.exec(className || "");
+            const language = languageMatch ? languageMatch[1] : "";
+            const codeContent = String(children).replace(/\n$/, "");
+            const isMultiLine = codeContent.includes("\n");
 
-            return match ? (
+            return language || isMultiLine ? (
+              // code block
               <CodeBlock
                 key={Math.random()}
-                language={match[1] || ""}
-                value={String(children).replace(/\n$/, "")}
+                language={language}
+                value={codeContent}
                 theme={theme}
                 className={customCodeHeaderClassName}
               />
             ) : (
-              <code>{children}</code>
+              // inline code
+              <code className="rounded border bg-secondary px-0.5">
+                {codeContent}
+              </code>
             );
           },
           blockquote({ children }) {
