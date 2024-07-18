@@ -224,7 +224,6 @@ function FilterBuilderForm({
 }) {
   const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
-      console.log("filter", filter);
       const newState = [...prev];
       newState[i] = filter;
       return newState;
