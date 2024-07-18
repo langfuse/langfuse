@@ -17,7 +17,6 @@ import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/tim
 import { useMediaQuery } from "react-responsive";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
-import { type TimeValue } from "react-aria";
 import { TimePicker } from "@/src/components/ui/time-picker";
 import DateRangeDropdown from "@/src/components/DateRangeDropdown";
 
@@ -26,32 +25,18 @@ export type AvailableDateRangeSelections =
   | typeof DEFAULT_DATE_RANGE_SELECTION
   | DateTimeAggregationOption;
 
-const handleTimeChange = (
-  newTime: TimeValue,
-  date: Date | undefined,
-  onChange: (date: Date | undefined) => void,
-) => {
-  if (date) {
-    const updatedDate = new Date(date);
-    updatedDate.setHours(newTime.hour, newTime.minute, newTime.second);
-    onChange(updatedDate);
-  }
-};
-
 export function DatePicker({
   date,
   onChange,
   clearable = false,
   className,
   disabled,
-  time,
 }: {
   date?: Date | undefined;
   onChange: (date: Date | undefined) => void;
   clearable?: boolean;
   className?: string;
   disabled?: boolean;
-  time?: TimeValue | undefined;
 }) {
   return (
     <div className="flex flex-row gap-2 align-middle">
@@ -77,12 +62,7 @@ export function DatePicker({
             onSelect={(d) => onChange(d)}
             initialFocus
           />
-          {time && (
-            <TimePicker
-              value={time}
-              onChange={(newTime) => handleTimeChange(newTime, date, onChange)}
-            />
-          )}
+          <TimePicker date={date} setDate={(d) => onChange(d)} />
         </PopoverContent>
       </Popover>
       {date && clearable && (
