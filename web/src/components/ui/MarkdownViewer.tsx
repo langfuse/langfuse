@@ -9,7 +9,7 @@ import {
   Children,
   createElement,
 } from "react";
-import ReactMarkdown, { type Options } from "react-markdown";
+import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import Link from "next/link";
 import Image from "next/image";
 import remarkGfm from "remark-gfm";
@@ -17,7 +17,7 @@ import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { Button } from "@/src/components/ui/button";
-import { Check, Copy, ZoomIn, ZoomOut } from "lucide-react";
+import { Check, Copy, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { isPresent } from "@/src/utils/typeChecks";
 import { BsMarkdown } from "react-icons/bs";
@@ -41,6 +41,59 @@ const isChecklist = (children: ReactNode) =>
 // Do not use this customLoader in production if you are not using the above mentioned security measures.
 const customLoader = ({ src }: { src: string }) => {
   return src;
+};
+
+const MarkdownImage: Components["img"] = ({ src, alt }) => {
+  const [isZoomedIn, setIsZoomedIn] = useState(true);
+
+  if (!isPresent(src)) return null;
+
+  const isValidImage = api.public.validateImgUrl.useQuery(src);
+  if (isValidImage.isLoading) {
+    return <div>Loading Image...</div>;
+  }
+
+  if (isValidImage.data?.isValid) {
+    return (
+      <div>
+        <div
+          className={cn(
+            "group relative w-full overflow-hidden rounded border",
+            isZoomedIn ? "h-1/3 w-1/3" : "h-2/3 w-2/3",
+          )}
+        >
+          <Image
+            loader={customLoader}
+            src={src}
+            alt={alt ?? `Markdown Image-${Math.random()}`}
+            loading="lazy"
+            width={0}
+            height={0}
+            className="h-full w-full object-contain"
+          />
+          <Button
+            type="button"
+            className="absolute right-0 top-0 mr-1 mt-1 opacity-0 hover:!bg-accent/30 group-hover:opacity-100"
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsZoomedIn(!isZoomedIn)}
+          >
+            {isZoomedIn ? (
+              <Maximize2 className="h-4 w-4"></Maximize2>
+            ) : (
+              <Minimize2 className="h-4 w-4"></Minimize2>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Link href={src} className="underline" target="_blank">
+      {src}
+    </Link>
+  );
 };
 
 const isTextElement = (child: ReactNode): child is ReactElement =>
@@ -220,57 +273,7 @@ export function MarkdownView({
               </blockquote>
             );
           },
-          img({ src, alt }) {
-            const [isZoomedIn, setIsZoomedIn] = useState(true);
-            if (!isPresent(src)) return null;
-
-            const isValidImage = api.public.validateImgUrl.useQuery(src);
-            if (isValidImage.isLoading) {
-              return <div>Loading Image...</div>;
-            }
-
-            if (isValidImage.data?.isValid) {
-              return (
-                <div>
-                  <div
-                    className={cn(
-                      "group relative",
-                      isZoomedIn ? "h-1/3 w-1/3" : "h-2/3 w-2/3",
-                    )}
-                  >
-                    <Image
-                      loader={customLoader}
-                      src={src}
-                      alt={alt ?? `Markdown Image-${Math.random()}`}
-                      loading="lazy"
-                      width={0}
-                      height={0}
-                      className="h-full w-full object-contain"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 mr-1 mt-1 opacity-0 group-hover:opacity-100"
-                      onClick={() => setIsZoomedIn(!isZoomedIn)}
-                    >
-                      {isZoomedIn ? (
-                        <ZoomOut className="h-4 w-4"></ZoomOut>
-                      ) : (
-                        <ZoomIn className="h-4 w-4"></ZoomIn>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <Link href={src} className="underline" target="_blank">
-                {src}
-              </Link>
-            );
-          },
+          img: MarkdownImage,
           hr() {
             return <hr className="my-4" />;
           },
