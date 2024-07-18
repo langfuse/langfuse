@@ -16,7 +16,7 @@ import {
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 
 // MarkdownOrJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
-// otherwise, it will render JSON with switch to enable markdown
+// otherwise, it will render JSON with switch to enable markdown globally
 function MarkdownOrJsonView({
   content,
   title,
