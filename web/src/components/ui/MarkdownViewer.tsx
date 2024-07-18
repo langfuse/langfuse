@@ -11,7 +11,6 @@ import {
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
-import DOMPurify from "dompurify";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
@@ -21,6 +20,8 @@ import { Check, Copy } from "lucide-react";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
+// ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
+// html is rendered as plain text by default.
 const MemoizedReactMarkdown: FC<Options> = memo(
   ReactMarkdown,
   (prevProps, nextProps) =>
@@ -67,8 +68,6 @@ export function MarkdownView({
   const { resolvedTheme: theme } = useTheme();
   const capture = usePostHogClientCapture();
 
-  const sanitizedMarkdown = DOMPurify.sanitize(markdown);
-
   const handleCopy = () => {
     setIsCopied(true);
     void navigator.clipboard.writeText(markdown);
@@ -76,7 +75,10 @@ export function MarkdownView({
   };
 
   return (
-    <div className={cn("rounded-md border", className)} key={theme}>
+    <div
+      className={cn("overflow-hidden rounded-md border", className)}
+      key={theme}
+    >
       {title ? (
         <div
           className={cn(
@@ -121,11 +123,16 @@ export function MarkdownView({
         </div>
       ) : undefined}
       <MemoizedReactMarkdown
-        className={cn("space-y-4 break-words p-3 font-mono text-xs", className)}
+        className={cn(
+          "space-y-4 overflow-x-auto break-words p-3 text-sm",
+          className,
+        )}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p({ children }) {
-            return <p className="mb-2 last:mb-0">{children}</p>;
+            return (
+              <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>
+            );
           },
           a({ children, href }) {
             if (href)
@@ -175,18 +182,25 @@ export function MarkdownView({
             return <h6 className="text-xs font-bold">{children}</h6>;
           },
           code({ children, className }) {
-            const match = /language-(\w+)/.exec(className || "");
+            const languageMatch = /language-(\w+)/.exec(className || "");
+            const language = languageMatch ? languageMatch[1] : "";
+            const codeContent = String(children).replace(/\n$/, "");
+            const isMultiLine = codeContent.includes("\n");
 
-            return match ? (
+            return language || isMultiLine ? (
+              // code block
               <CodeBlock
                 key={Math.random()}
-                language={match[1] || ""}
-                value={String(children).replace(/\n$/, "")}
+                language={language}
+                value={codeContent}
                 theme={theme}
                 className={customCodeHeaderClassName}
               />
             ) : (
-              <code>{children}</code>
+              // inline code
+              <code className="rounded border bg-secondary px-0.5">
+                {codeContent}
+              </code>
             );
           },
           blockquote({ children }) {
@@ -234,7 +248,7 @@ export function MarkdownView({
           },
         }}
       >
-        {sanitizedMarkdown}
+        {markdown}
       </MemoizedReactMarkdown>
     </div>
   );

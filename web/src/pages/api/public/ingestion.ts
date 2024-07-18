@@ -84,6 +84,8 @@ export default async function handler(
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
 
+    await gaugePrismaStats();
+
     if (!parsedSchema.success) {
       console.log("Invalid request data", parsedSchema.error);
       return res.status(400).json({
@@ -294,6 +296,7 @@ const handleSingleEvent = async (
     const { output, ...rest } = restEvent;
     restEvent = rest;
   }
+
   console.log(
     `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
   );
@@ -548,4 +551,16 @@ export const sendToWorkerIfEnvironmentConfigured = async (
   } catch (error) {
     console.error("Error sending events to worker", error);
   }
+};
+
+const gaugePrismaStats = async () => {
+  // execute with a 50% probability
+  if (Math.random() > 0.5) {
+    return;
+  }
+  const metrics = await prisma.$metrics.json();
+
+  metrics.gauges.forEach((gauge) => {
+    Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
+  });
 };
