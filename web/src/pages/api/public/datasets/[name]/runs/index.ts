@@ -2,6 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   GetDatasetRunsV1Query,
   GetDatasetRunsV1Response,
+  transformDbDatasetRunToAPIDatasetRun,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
@@ -41,10 +42,12 @@ export default withMiddlewares({
       });
 
       return {
-        data: dataset.datasetRuns.map((run) => ({
-          ...run,
-          datasetName: dataset.name,
-        })),
+        data: dataset.datasetRuns
+          .map((run) => ({
+            ...run,
+            datasetName: dataset.name,
+          }))
+          .map(transformDbDatasetRunToAPIDatasetRun),
         meta: {
           page: query.page,
           limit: query.limit,

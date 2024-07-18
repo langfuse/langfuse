@@ -7,6 +7,7 @@ import {
   GetDatasetItemsV1Response,
   PostDatasetItemsV1Body,
   PostDatasetItemsV1Response,
+  transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
@@ -68,10 +69,10 @@ export default withMiddlewares({
         },
       });
 
-      return {
+      return transformDbDatasetItemToAPIDatasetItem({
         ...item,
         datasetName: dataset.name,
-      };
+      });
     },
   }),
   GET: createAuthedAPIRoute({
@@ -137,7 +138,7 @@ export default withMiddlewares({
       });
 
       return {
-        data: items,
+        data: items.map(transformDbDatasetItemToAPIDatasetItem),
         meta: {
           page,
           limit,

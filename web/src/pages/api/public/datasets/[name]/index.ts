@@ -4,6 +4,7 @@ import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAut
 import {
   GetDatasetV1Query,
   GetDatasetV1Response,
+  transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
@@ -45,10 +46,12 @@ export default withMiddlewares({
 
       return {
         ...params,
-        items: datasetItems.map((item) => ({
-          ...item,
-          datasetName: dataset.name,
-        })),
+        items: datasetItems
+          .map((item) => ({
+            ...item,
+            datasetName: dataset.name,
+          }))
+          .map(transformDbDatasetItemToAPIDatasetItem),
         runs: datasetRuns.map((run) => run.name),
       };
     },

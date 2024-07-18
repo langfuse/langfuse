@@ -4,6 +4,7 @@ import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAut
 import {
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
+  transformDbDatasetRunItemToAPIDatasetRunItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
 
@@ -92,10 +93,10 @@ export default withMiddlewares({
         },
       });
 
-      return {
+      return transformDbDatasetRunItemToAPIDatasetRunItem({
         ...runItem,
         datasetRunName: run.name,
-      };
+      });
     },
   }),
 });

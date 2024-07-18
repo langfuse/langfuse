@@ -4,6 +4,7 @@ import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAut
 import {
   GetDatasetItemV1Query,
   GetDatasetItemV1Response,
+  transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
@@ -35,10 +36,11 @@ export default withMiddlewares({
       }
 
       const { dataset, ...datasetItemBody } = datasetItem;
-      return {
+
+      return transformDbDatasetItemToAPIDatasetItem({
         ...datasetItemBody,
         datasetName: dataset.name,
-      };
+      });
     },
   }),
 });
