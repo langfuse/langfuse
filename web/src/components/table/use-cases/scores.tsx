@@ -86,7 +86,7 @@ export default function ScoresTable({
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
   const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
-    localtimeDateOffsetByDays(-useLookBackDays(projectId)),
+    localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
   );
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(

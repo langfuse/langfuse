@@ -55,7 +55,7 @@ export default function SessionsTable({
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
-    localtimeDateOffsetByDays(-useLookBackDays(projectId)),
+    localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
   );
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(

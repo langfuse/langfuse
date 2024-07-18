@@ -19,7 +19,6 @@ import { type Score } from "@langfuse/shared";
 import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
-import { useLookBackDays } from "@/src/hooks/useLookBackDays";
 import { useDateRange } from "@/src/components/useDateRange";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 
@@ -52,7 +51,7 @@ export default function UsersPage() {
   });
 
   const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
-    localtimeDateOffsetByDays(-useLookBackDays(projectId)),
+    localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
   );
 
   const users = api.users.all.useQuery({
