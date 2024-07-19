@@ -155,7 +155,7 @@ export function InlineFilterState({
           : ""}{" "}
         {filter.operator}{" "}
         {filter.type === "datetime"
-          ? new Date(filter.value).toLocaleDateString()
+          ? new Date(filter.value).toLocaleString()
           : filter.type === "stringOptions" || filter.type === "arrayOptions"
             ? filter.value.length > 2
               ? `${filter.value.length} selected`
@@ -416,6 +416,7 @@ function FilterBuilderForm({
                           i,
                         );
                       }}
+                      includeTimePicker
                     />
                   ) : filter.type === "stringOptions" ||
                     filter.type === "arrayOptions" ? (
