@@ -16,7 +16,7 @@ import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type Score } from "@langfuse/shared";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
@@ -43,7 +43,7 @@ export default function UsersPage() {
         column: "timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
+        value: localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "users",
