@@ -40,7 +40,9 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 const formSchema = z
   .object({
     secretKey: z.string().min(1),
-    provider: z.string().min(1),
+    provider: z
+      .string()
+      .min(1, "Please add a provider name that identifies this connection."),
     adapter: z.nativeEnum(LLMAdapter),
     baseURL: z.union([z.literal(""), z.string().url()]),
     withDefaultModels: z.boolean(),
