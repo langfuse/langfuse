@@ -13,17 +13,15 @@ import { cn } from "@/src/utils/tailwind";
 import { type DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { useEffect, useState } from "react";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useMediaQuery } from "react-responsive";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";
 import DateRangeDropdown from "@/src/components/DateRangeDropdown";
-
-export const DEFAULT_DATE_RANGE_SELECTION = "Date range" as const;
-export type AvailableDateRangeSelections =
-  | typeof DEFAULT_DATE_RANGE_SELECTION
-  | DateTimeAggregationOption;
+import {
+  DEFAULT_DATE_RANGE_SELECTION,
+  type AllDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 export function DatePicker({
   date,
@@ -90,9 +88,9 @@ export function DatePicker({
 export type DatePickerWithRangeProps = {
   dateRange?: DashboardDateRange;
   className?: string;
-  selectedOption: AvailableDateRangeSelections;
+  selectedOption: AllDateRangeAggregationOption;
   setDateRangeAndOption: (
-    option: AvailableDateRangeSelections,
+    option: AllDateRangeAggregationOption,
     date?: DashboardDateRange,
   ) => void;
 };
@@ -172,6 +170,7 @@ export function DatePickerWithRange({
         </PopoverContent>
       </Popover>
       <DateRangeDropdown
+        type="dashboard"
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
       />
