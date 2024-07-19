@@ -9,11 +9,10 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 
 export function JSONView(props: {
-  isMarkdown?: boolean;
-  setIsMarkdown?: (isMarkdown: boolean) => void;
-  containsMarkdown?: boolean;
+  canEnableMarkdown?: boolean;
   json?: unknown;
   title?: string;
   className?: string;
@@ -25,14 +24,13 @@ export function JSONView(props: {
   const [isCopied, setIsCopied] = useState(false);
   const parsedJson = deepParseJson(props.json);
   const { resolvedTheme } = useTheme();
+  const { setIsMarkdownEnabled } = useMarkdownContext();
   const capture = usePostHogClientCapture();
 
   const collapseStringsAfterLength =
     props.collapseStringsAfterLength === null
       ? 100_000_000 // if null, show all (100M chars)
       : props.collapseStringsAfterLength ?? 500;
-
-  const handleMarkdownSelection = props.setIsMarkdown ?? (() => {});
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -53,24 +51,19 @@ export function JSONView(props: {
         >
           {props.title}
           <div className="flex items-center gap-1">
-            {!!props.setIsMarkdown && props.containsMarkdown && (
+            {props.canEnableMarkdown && (
               <Button
-                title={
-                  props.isMarkdown ? "Disable Markdown" : "Enable Markdown"
-                }
+                title="Enable Markdown"
                 variant="ghost"
                 type="button"
                 size="xs"
                 onClick={() => {
-                  handleMarkdownSelection(!props.isMarkdown);
+                  setIsMarkdownEnabled(true);
                   capture("trace_detail:io_pretty_format_toggle_group", {
-                    renderMarkdown: props.isMarkdown,
+                    renderMarkdown: true,
                   });
                 }}
-                className={cn(
-                  "hover:bg-border",
-                  !props.isMarkdown && "opacity-50",
-                )}
+                className="opacity-50 hover:bg-border"
               >
                 <BsMarkdown className="h-4 w-4 text-foreground" />
               </Button>
