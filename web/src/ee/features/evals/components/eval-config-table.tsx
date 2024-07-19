@@ -1,3 +1,4 @@
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -48,8 +49,12 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("status", {
-      id: "state",
-      header: "State",
+      header: "Status",
+      id: "status",
+      cell: (row) => {
+        const status = row.getValue();
+        return <StatusBadge type={status.toLowerCase()} />;
+      },
     }),
     columnHelper.accessor("createdAt", {
       id: "createdAt",

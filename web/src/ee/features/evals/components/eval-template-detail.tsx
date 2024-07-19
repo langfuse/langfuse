@@ -124,7 +124,7 @@ export function EvalVersionDropdown(props: {
         <SelectGroup>
           {props.options?.map((template) => (
             <SelectItem key={template.id} value={template.id}>
-              {template.version} - {template.createdAt.toLocaleDateString()}
+              v{template.version} - {template.createdAt.toLocaleDateString()}
             </SelectItem>
           ))}
         </SelectGroup>

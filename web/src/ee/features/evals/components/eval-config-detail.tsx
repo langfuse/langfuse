@@ -89,7 +89,10 @@ export const EvalConfigDetail = () => {
             <Label>Eval Template</Label>
             <TableLink
               path={`/project/${projectId}/evals/templates/${existingEvalConfig.evalTemplateId}`}
-              value={existingEvalConfig.evalTemplateId ?? ""}
+              value={
+                `${existingEvalConfig.evalTemplate.name} (v${existingEvalConfig.evalTemplate.version})` ??
+                ""
+              }
               truncateAt={40}
             />
           </div>
