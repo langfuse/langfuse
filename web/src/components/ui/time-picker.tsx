@@ -4,7 +4,7 @@ import * as React from "react";
 import { TimePickerInput } from "./time-picker-input";
 import { TimePeriodSelect } from "./time-period-select";
 import { type Period } from "./time-picker-utils";
-import { getLongLocalTimezone, getShortLocalTimezone } from "@/src/utils/dates";
+import { getTimezoneDetails, getShortLocalTimezone } from "@/src/utils/dates";
 import { TimeIcon } from "@/src/components/ui/time-icon";
 
 interface TimePickerProps {
@@ -13,20 +13,20 @@ interface TimePickerProps {
 }
 
 export function TimePicker({ date, setDate }: TimePickerProps) {
-  const [period, setPeriod] = React.useState<Period>("PM");
+  const [period, setPeriod] = React.useState<Period>("AM");
 
   const minuteRef = React.useRef<HTMLInputElement>(null);
   const hourRef = React.useRef<HTMLInputElement>(null);
   const secondRef = React.useRef<HTMLInputElement>(null);
   const periodRef = React.useRef<HTMLButtonElement>(null);
 
-  const shortTimeZone = React.useMemo(() => getShortLocalTimezone(), []);
-  const longTimeZone = React.useMemo(() => getLongLocalTimezone(), []);
+  const shortTimezone = React.useMemo(() => getShortLocalTimezone(), []);
+  const timezoneDetails = React.useMemo(() => getTimezoneDetails(), []);
 
   return (
     <div className="flex w-full flex-1 items-center gap-1 rounded-b-md border-t-2 bg-transparent px-3 py-2 text-sm ring-offset-background">
       <div className="mx-1 grid gap-1 text-center">
-        <TimeIcon date={date ?? period} />
+        <TimeIcon time={date ?? period} />
       </div>
       <div className="grid gap-1 text-center">
         <TimePickerInput
@@ -51,7 +51,7 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
         />
       </div>
       {":"}
-      <div className="grid gap-1 text-center">
+      <div className="grid gap-1">
         <TimePickerInput
           picker="seconds"
           id="seconds"
@@ -73,9 +73,9 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
         />
       </div>
       <div className="group relative ml-1">
-        <span>{shortTimeZone}</span>
-        <div className="text-s absolute left-1/2 top-full mt-2 hidden -translate-x-1/2 transform rounded bg-card px-2 py-1 text-card-foreground shadow-md ring-1 ring-border group-hover:block">
-          {longTimeZone}
+        <span>{shortTimezone}</span>
+        <div className="text-s absolute left-1/2 top-full mt-2 hidden -translate-x-1/2 transform whitespace-nowrap rounded bg-card px-2 py-1 text-card-foreground shadow-md ring-1 ring-border group-hover:block">
+          {timezoneDetails}
         </div>
       </div>
     </div>

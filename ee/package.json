@@ -30,8 +30,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
-    "@repo/typescript-config": "*",
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
     "@types/node": "^20.11.29",
     "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",
