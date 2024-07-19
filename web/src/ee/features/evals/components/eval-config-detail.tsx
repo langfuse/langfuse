@@ -75,6 +75,13 @@ export const EvalConfigDetail = () => {
             isLoading={config.isLoading}
           />
         }
+        breadcrumb={[
+          {
+            name: "Eval Configs",
+            href: `/project/${router.query.projectId as string}/evals/configs`,
+          },
+          { name: config.data?.id },
+        ]}
       />
       {existingEvalConfig && (
         <>

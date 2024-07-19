@@ -72,6 +72,13 @@ export const EvalTemplateDetail = () => {
             </>
           )
         }
+        breadcrumb={[
+          {
+            name: "Eval Templates",
+            href: `/project/${router.query.projectId as string}/evals/templates`,
+          },
+          { name: template.data?.name ?? "Loading..." },
+        ]}
       />
       {allTemplates.isLoading || !allTemplates.data ? (
         <div>Loading...</div>
