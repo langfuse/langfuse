@@ -4,10 +4,10 @@ import { type Period } from "@/src/components/ui/time-picker-utils";
 
 export const TimeIcon: React.FC<{ date: Date | Period }> = ({ date }) => {
   if (typeof date === "string") {
-    if (date === "AM") {
+    if (date === "PM") {
       return <Sun className="size-5" />;
     }
-    if (date === "PM") {
+    if (date === "AM") {
       return <Moon className="size-5" />;
     }
   } else {
