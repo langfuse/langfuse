@@ -72,6 +72,11 @@ export function MarkdownView({
     setTimeout(() => setIsCopied(false), 1000);
   };
 
+  // react-markdown parses such that leading whitespace is removed. Preprocessing to replace leading spaces with &nbsp; to maintain indentation.
+  const preprocessedMarkdown = markdown.replace(/^ +/gm, (match) =>
+    match.replace(/ /g, "&nbsp;"),
+  );
+
   return (
     <div
       className={cn("overflow-hidden rounded-md border", className)}
@@ -182,7 +187,9 @@ export function MarkdownView({
           code({ children, className }) {
             const languageMatch = /language-(\w+)/.exec(className || "");
             const language = languageMatch ? languageMatch[1] : "";
-            const codeContent = String(children).replace(/\n$/, "");
+            const codeContent = String(children)
+              .replace(/\n$/, "")
+              .replace(/&nbsp;/g, " ");
             const isMultiLine = codeContent.includes("\n");
 
             return language || isMultiLine ? (
@@ -246,7 +253,7 @@ export function MarkdownView({
           },
         }}
       >
-        {markdown}
+        {preprocessedMarkdown}
       </MemoizedReactMarkdown>
     </div>
   );
