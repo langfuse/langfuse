@@ -46,7 +46,7 @@ const customLoader = ({ src }: { src: string }) => {
 };
 
 const MarkdownImage: Components["img"] = ({ src, alt }) => {
-  const [isZoomedIn, setIsZoomedIn] = useState(true);
+  const [isZoomedIn, setIsZoomedIn] = useState(false);
 
   if (!isPresent(src)) return null;
 
