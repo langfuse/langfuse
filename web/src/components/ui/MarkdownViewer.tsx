@@ -187,9 +187,9 @@ export function MarkdownView({
           code({ children, className }) {
             const languageMatch = /language-(\w+)/.exec(className || "");
             const language = languageMatch ? languageMatch[1] : "";
+            // revert preprocessing: replace &nbsp; with space as it's interpreted as literal by SyntaxHighlighter
             const codeContent = String(children)
               .replace(/\n$/, "")
-              // revert preprocessing: replace &nbsp; with space as it's interpreted as literal by SyntaxHighlighter
               .replace(/&nbsp;/g, " ");
             const isMultiLine = codeContent.includes("\n");
 
