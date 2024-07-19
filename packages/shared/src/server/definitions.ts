@@ -1,13 +1,13 @@
 import z from "zod";
 
-export const clickhouseStringDate = z
+export const clickhouseStringDateSchema = z
   .string()
   // clickhouse stores UTC like '2024-05-23 18:33:41.602000'
   // we need to convert it to '2024-05-23T18:33:41.602000Z'
   .transform((str) => str.replace(" ", "T") + "Z")
   .pipe(z.string().datetime());
 
-export const observationRecordBase = z.object({
+export const observationRecordBaseSchema = z.object({
   id: z.string(),
   trace_id: z.string().nullish(),
   project_id: z.string(),
@@ -22,6 +22,7 @@ export const observationRecordBase = z.object({
   output: z.string().nullish(),
   model: z.string().nullish(),
   internal_model: z.string().nullish(),
+  internal_model_id: z.string().nullish(),
   model_parameters: z.string().nullish(),
   unit: z.string().nullish(),
   input_usage: z.number().nullish(),
@@ -36,23 +37,35 @@ export const observationRecordBase = z.object({
   provided_input_cost: z.number().nullish(),
   provided_output_cost: z.number().nullish(),
   provided_total_cost: z.number().nullish(),
-  completion_start_time: z.date().nullish(),
   prompt_id: z.string().nullish(),
 });
+export type ObservationRecordBaseType = z.infer<
+  typeof observationRecordBaseSchema
+>;
 
-export const observationRecordRead = observationRecordBase.extend({
-  created_at: clickhouseStringDate,
-  start_time: clickhouseStringDate,
-  end_time: clickhouseStringDate.nullish(),
+export const observationRecordReadSchema = observationRecordBaseSchema.extend({
+  created_at: clickhouseStringDateSchema,
+  start_time: clickhouseStringDateSchema,
+  end_time: clickhouseStringDateSchema.nullish(),
+  completion_start_time: clickhouseStringDateSchema.nullish(),
 });
+export type ObservationRecordReadType = z.infer<
+  typeof observationRecordReadSchema
+>;
 
-export const observationRecordInsert = observationRecordBase.extend({
-  created_at: z.number(),
-  start_time: z.number(),
-  end_time: z.number().nullish(),
-});
+export const observationRecordInsertSchema = observationRecordBaseSchema.extend(
+  {
+    created_at: z.number(),
+    start_time: z.number(),
+    end_time: z.number().nullish(),
+    completion_start_time: z.number().nullish(),
+  }
+);
+export type ObservationRecordInsertType = z.infer<
+  typeof observationRecordInsertSchema
+>;
 
-export const traceRecordBase = z.object({
+export const traceRecordBaseSchema = z.object({
   id: z.string(),
 
   name: z.string().nullish(),
@@ -68,41 +81,51 @@ export const traceRecordBase = z.object({
   output: z.string().nullish(),
   session_id: z.string().nullish(),
 });
+export type TraceRecordBaseType = z.infer<typeof traceRecordBaseSchema>;
 
-export const traceRecordRead = traceRecordBase.extend({
-  timestamp: clickhouseStringDate,
-  created_at: clickhouseStringDate,
+export const traceRecordReadSchema = traceRecordBaseSchema.extend({
+  timestamp: clickhouseStringDateSchema,
+  created_at: clickhouseStringDateSchema,
 });
+export type TraceRecordReadType = z.infer<typeof traceRecordReadSchema>;
 
-export const traceRecordInsert = traceRecordBase.extend({
+export const traceRecordInsertSchema = traceRecordBaseSchema.extend({
   timestamp: z.number(),
   created_at: z.number(),
 });
+export type TraceRecordInsertType = z.infer<typeof traceRecordInsertSchema>;
 
-export const scoreRecord = z.object({
+export const scoreRecordBaseSchema = z.object({
   id: z.string(),
   project_id: z.string(),
   name: z.string().nullish(),
-  value: z.number().nullish(),
+  value: z.union([z.number(), z.string()]).nullish(),
   source: z.string(),
+  authorUserId: z.string().nullish(),
   comment: z.string().nullish(),
   trace_id: z.string(),
   observation_id: z.string().nullish(),
+  configId: z.string().nullish(),
+  stringValue: z.string().nullish(),
+  dataType: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
 });
+export type ScoreRecordBaseType = z.infer<typeof scoreRecordBaseSchema>;
 
-export const scoreRecordRead = scoreRecord.extend({
-  created_at: clickhouseStringDate,
-  timestamp: clickhouseStringDate,
+export const scoreRecordReadSchema = scoreRecordBaseSchema.extend({
+  created_at: clickhouseStringDateSchema,
+  timestamp: clickhouseStringDateSchema,
 });
+export type ScoreRecordReadType = z.infer<typeof scoreRecordReadSchema>;
 
-export const scoreRecordInsert = scoreRecord.extend({
+export const scoreRecordInsertSchema = scoreRecordBaseSchema.extend({
   created_at: z.number(),
   timestamp: z.number(),
 });
+export type ScoreRecordInsertType = z.infer<typeof scoreRecordInsertSchema>;
 
 export const convertTraceReadToInsert = (
-  record: z.infer<typeof traceRecordRead>
-) => {
+  record: TraceRecordReadType
+): TraceRecordInsertType => {
   return {
     ...record,
     timestamp: new Date(record.timestamp).getTime(),
@@ -111,19 +134,22 @@ export const convertTraceReadToInsert = (
 };
 
 export const convertObservationReadToInsert = (
-  record: z.infer<typeof observationRecordRead>
-) => {
+  record: ObservationRecordReadType
+): ObservationRecordInsertType => {
   return {
     ...record,
     created_at: new Date(record.created_at).getTime(),
     start_time: new Date(record.start_time).getTime(),
     end_time: record.end_time ? new Date(record.end_time).getTime() : undefined,
+    completion_start_time: record.completion_start_time
+      ? new Date(record.completion_start_time).getTime()
+      : undefined,
   };
 };
 
 export const convertScoreReadToInsert = (
-  record: z.infer<typeof scoreRecordRead>
-) => {
+  record: ScoreRecordReadType
+): ScoreRecordInsertType => {
   return {
     ...record,
     created_at: new Date(record.created_at).getTime(),

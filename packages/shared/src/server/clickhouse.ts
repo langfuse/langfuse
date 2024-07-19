@@ -1,8 +1,13 @@
-import { createClient } from "@clickhouse/client";
-import { env } from "../env";
-import { observationRecordRead, traceRecordRead } from "./definitions";
 import z from "zod";
+
+import { createClient } from "@clickhouse/client";
+
+import { env } from "../env";
 import { convertRecordToJsonSchema, parseJsonPrioritised } from "../utils/json";
+import {
+  observationRecordReadSchema,
+  traceRecordReadSchema,
+} from "./definitions";
 
 export const clickhouseClient = createClient({
   url: env.CLICKHOUSE_URL,
@@ -14,8 +19,9 @@ export const clickhouseClient = createClient({
     wait_for_async_insert: 1, // if disabled, we wont get errors from clickhouse
   },
 });
+
 export const convertTraces = (traces: unknown[]) => {
-  const parsedRecord = z.array(traceRecordRead).parse(traces);
+  const parsedRecord = z.array(traceRecordReadSchema).parse(traces);
 
   return parsedRecord.map((record) => {
     return {
@@ -39,7 +45,7 @@ export const convertTraces = (traces: unknown[]) => {
 };
 
 export function convertObservations(jsonRecords: unknown[]) {
-  const parsedRecord = z.array(observationRecordRead).parse(jsonRecords);
+  const parsedRecord = z.array(observationRecordReadSchema).parse(jsonRecords);
 
   return parsedRecord.map((record) => {
     return {

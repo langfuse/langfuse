@@ -347,14 +347,15 @@ export const observationTypes = [
 export const eventTypes = {
   TRACE_CREATE: "trace-create",
   SCORE_CREATE: "score-create",
-  OBSERVATION_CREATE: "observation-create",
-  OBSERVATION_UPDATE: "observation-update",
   EVENT_CREATE: "event-create",
   SPAN_CREATE: "span-create",
   SPAN_UPDATE: "span-update",
   GENERATION_CREATE: "generation-create",
   GENERATION_UPDATE: "generation-update",
   SDK_LOG: "sdk-log",
+  // LEGACY, only required for backwards compatibility
+  OBSERVATION_CREATE: "observation-create",
+  OBSERVATION_UPDATE: "observation-update",
 } as const;
 
 const base = z.object({
@@ -424,11 +425,11 @@ export const ingestionEvent = z.discriminatedUnion("type", [
 export const ingestionBatchEvent = z.array(ingestionEvent);
 export type IngestionBatchEventType = z.infer<typeof ingestionBatchEvent>;
 
-export const ingestionBatchEventWithProjectId = ingestionEvent.and(
+export const ingestionEventWithProjectId = ingestionEvent.and(
   z.object({ projectId: z.string() })
 );
-export type IngestionBatchEventWithProjectIdType = z.infer<
-  typeof ingestionBatchEventWithProjectId
+export type IngestionEventWithProjectIdType = z.infer<
+  typeof ingestionEventWithProjectId
 >;
 
 export const ingestionApiSchema = z.object({

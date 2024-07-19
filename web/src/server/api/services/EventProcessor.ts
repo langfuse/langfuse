@@ -104,6 +104,7 @@ export class ObservationProcessor implements EventProcessor {
           })
         : undefined;
 
+    // TODO: this is not yet implemented in the V3 ingestion pipeline. Necessary or not?
     const traceId =
       !this.event.body.traceId && !existingObservation
         ? // Create trace if no traceid
