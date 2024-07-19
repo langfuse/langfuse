@@ -46,14 +46,14 @@ const customLoader = ({ src }: { src: string }) => {
 };
 
 const MarkdownImage: Components["img"] = ({ src, alt }) => {
-  const [isZoomedIn, setIsZoomedIn] = useState(false);
+  const [isZoomedIn, setIsZoomedIn] = useState(true);
 
   if (!isPresent(src)) return null;
 
   const isValidImage = api.public.validateImgUrl.useQuery(src);
   if (isValidImage.isLoading) {
     return (
-      <Skeleton className="h-8 w-1/3 items-center p-2 text-xs">
+      <Skeleton className="h-8 w-1/2 items-center p-2 text-xs">
         <span className="opacity-80">Loading image...</span>
       </Skeleton>
     );
@@ -65,7 +65,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
         <div
           className={cn(
             "group relative w-full overflow-hidden rounded border",
-            isZoomedIn ? "h-1/3 w-1/3" : "h-full w-full",
+            isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full",
           )}
         >
           <Image
