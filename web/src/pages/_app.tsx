@@ -33,6 +33,7 @@ import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/co
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { shutdown } from "@/src/utils/shutdown";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 const setProjectInPosthog = () => {
   // project
@@ -92,16 +93,18 @@ const MyApp: AppType<{ session: Session | null }> = ({
         <PostHogProvider client={posthog}>
           <SessionProvider session={session} refetchOnWindowFocus={true}>
             <DetailPageListsProvider>
-              <ThemeProvider
-                attribute="class"
-                enableSystem
-                disableTransitionOnChange
-              >
-                <Layout>
-                  <Component {...pageProps} />
-                  <UserTracking />
-                </Layout>
-              </ThemeProvider>
+              <MarkdownContextProvider>
+                <ThemeProvider
+                  attribute="class"
+                  enableSystem
+                  disableTransitionOnChange
+                >
+                  <Layout>
+                    <Component {...pageProps} />
+                    <UserTracking />
+                  </Layout>
+                </ThemeProvider>
+              </MarkdownContextProvider>
               <CrispWidget />
             </DetailPageListsProvider>
           </SessionProvider>

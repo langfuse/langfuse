@@ -20,7 +20,7 @@ export default function ConfigsPage() {
   return (
     <FullScreenPage>
       <Header
-        title="Eval configs"
+        title="Eval Configs"
         help={{
           description:
             "Eval configs let you define how your evaluations templates are applied to incoming traces in Langfuse.",
