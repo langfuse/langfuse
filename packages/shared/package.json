@@ -65,8 +65,8 @@
     "zod-to-json-schema": "^3.22.5"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
-    "@repo/typescript-config": "*",
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
     "@types/lodash": "^4.17.5",
     "@types/node": "^20.11.29",
     "@types/nodemailer": "^6.4.15",
