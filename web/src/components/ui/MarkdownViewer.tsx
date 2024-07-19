@@ -65,7 +65,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
         <div
           className={cn(
             "group relative w-full overflow-hidden rounded border",
-            isZoomedIn ? "h-1/3 w-1/3" : "h-2/3 w-2/3",
+            isZoomedIn ? "h-1/3 w-1/3" : "h-full w-full",
           )}
         >
           <Image
