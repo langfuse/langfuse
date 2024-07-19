@@ -50,13 +50,9 @@ export const getShortLocalTimezone = () => {
     .split(" ")[2];
 };
 
-export const getLongLocalTimezone = () => {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-};
-
 export const getTimezoneDetails = () => {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const location = tz.replace(/_/g, " ");
-  const utcDifference = new Date().getTimezoneOffset() / 60;
+  const longLocalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const location = longLocalTz.replace(/_/g, " ");
+  const utcDifference = -(new Date().getTimezoneOffset() / 60); // negative because TZ info is the opposite of UTC offset
   return `${location} (UTC${utcDifference >= 0 ? "+" : ""}${utcDifference})`;
 };

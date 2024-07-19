@@ -416,7 +416,7 @@ function FilterBuilderForm({
                           i,
                         );
                       }}
-                      time
+                      includeTimePicker
                     />
                   ) : filter.type === "stringOptions" ||
                     filter.type === "arrayOptions" ? (
