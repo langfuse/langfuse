@@ -25,7 +25,6 @@ import { orderByToPrismaSql } from "@langfuse/shared";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { times } from "lodash";
 import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
 const TraceFilterOptions = z.object({
@@ -83,9 +82,9 @@ export const traceRouter = createTRPCRouter({
         : Prisma.empty;
 
       const dateRangeCondition =
-        !!timeseriesFilter && input.from && input.to
+        !timeseriesFilter && input.from && input.to
           ? Prisma.sql`
-        AND t."created_at" >= ${input.from} AND t."created_at" <= ${input.to}
+        AND t.timestamp >= ${input.from} AND t.timestamp <= ${input.to}
       `
           : Prisma.empty;
 

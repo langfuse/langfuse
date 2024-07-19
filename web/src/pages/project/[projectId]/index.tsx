@@ -1,5 +1,4 @@
 import Header from "@/src/components/layouts/header";
-import { findClosestInterval } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useRouter } from "next/router";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
@@ -9,11 +8,7 @@ import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
-import {
-  type AvailableDateRangeSelections,
-  DEFAULT_DATE_RANGE_SELECTION,
-  DatePickerWithRange,
-} from "@/src/components/date-picker";
+import { DatePickerWithRange } from "@/src/components/date-picker";
 import { addDays } from "date-fns";
 import {
   NumberParam,
@@ -21,7 +16,6 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import { isValidOption } from "@/src/utils/types";
 import { api } from "@/src/utils/api";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { BarChart2 } from "lucide-react";
@@ -34,6 +28,13 @@ import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  DEFAULT_DATE_RANGE_SELECTION,
+  isValidOption,
+  type AllDateRangeAggregationOption,
+  type DateTimeAggregationOption,
+} from "@/src/utils/date-range-utils";
+import { findClosestDashboardInterval } from "@/src/features/dashboard/lib/timeseries-aggregation";
 
 export type DashboardDateRange = {
   from: Date;
@@ -69,12 +70,14 @@ export default function Start() {
     [urlParams.from, urlParams.to],
   );
 
-  const selectedOption = isValidOption(urlParams.select)
+  const selectedOption: DateTimeAggregationOption = isValidOption(
+    urlParams.select,
+  )
     ? urlParams.select
     : DEFAULT_DATE_RANGE_SELECTION;
 
   const setDateRangeAndOption = (
-    option?: AvailableDateRangeSelections,
+    option?: AllDateRangeAggregationOption,
     dateRange?: DashboardDateRange,
   ) => {
     capture("dashboard:date_range_changed");
@@ -123,7 +126,10 @@ export default function Start() {
   );
 
   const agg = useMemo(
-    () => (dateRange ? findClosestInterval(dateRange) ?? "7 days" : "7 days"),
+    () =>
+      dateRange
+        ? findClosestDashboardInterval(dateRange) ?? "7 days"
+        : "7 days",
     [dateRange],
   );
 
