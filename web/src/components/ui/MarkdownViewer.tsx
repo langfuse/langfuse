@@ -50,7 +50,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
 
   if (!isPresent(src)) return null;
 
-  const isValidImage = api.public.validateImgUrl.useQuery(src);
+  const isValidImage = api.utilities.validateImgUrl.useQuery(src);
   if (isValidImage.isLoading) {
     return (
       <Skeleton className="h-8 w-1/2 items-center p-2 text-xs">
