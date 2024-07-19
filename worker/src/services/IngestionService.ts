@@ -620,9 +620,9 @@ export class IngestionService {
 
       if (result.length === 0) return null;
 
-      return table === "traces"
+      return table === TableName.Traces
         ? convertTraceReadToInsert(recordParser[table].parse(result[0]))
-        : table === "scores"
+        : table === TableName.Scores
           ? convertScoreReadToInsert(recordParser[table].parse(result[0]))
           : convertObservationReadToInsert(
               recordParser[table].parse(result[0])
