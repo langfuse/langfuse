@@ -23,6 +23,7 @@ import { isPresent } from "@/src/utils/typeChecks";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
@@ -119,15 +120,11 @@ const transformListItemChildren = (children: ReactNode) =>
 
 export function MarkdownView({
   markdown,
-  isMarkdown,
-  setIsMarkdown,
   title,
   className,
   customCodeHeaderClassName,
 }: {
   markdown: string;
-  isMarkdown: boolean;
-  setIsMarkdown: (value: boolean) => void;
   title?: string;
   className?: string;
   customCodeHeaderClassName?: string;
@@ -135,6 +132,7 @@ export function MarkdownView({
   const [isCopied, setIsCopied] = useState(false);
   const { resolvedTheme: theme } = useTheme();
   const capture = usePostHogClientCapture();
+  const { setIsMarkdownEnabled } = useMarkdownContext();
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -159,17 +157,17 @@ export function MarkdownView({
           {title}
           <div className="flex items-center gap-1">
             <Button
-              title={isMarkdown ? "Disable Markdown" : "Enable Markdown"}
+              title="Disable Markdown"
               variant="ghost"
               size="xs"
               type="button"
               onClick={() => {
-                setIsMarkdown(!isMarkdown);
+                setIsMarkdownEnabled(false);
                 capture("trace_detail:io_pretty_format_toggle_group", {
-                  renderMarkdown: isMarkdown,
+                  renderMarkdown: false,
                 });
               }}
-              className={cn("hover:bg-border", !isMarkdown && "opacity-50")}
+              className="hover:bg-border"
             >
               <BsMarkdown className="h-4 w-4" />
             </Button>
