@@ -41,7 +41,7 @@ export const flushIngestionQueueExecutor = redis
             redis,
             prisma,
             ingestionFlushQueue,
-            60 * 60
+            60 * 60 // TODO: Make this configurable
           ).flush(projectEntityId);
 
           logger.info(`Flushed ingestion buffer for ${projectEntityId}`);

@@ -370,6 +370,7 @@ export class IngestionService {
     return { ...parsed, ...generationUsage };
   }
 
+  // TODO: check and test whether this works as intended. This is the core of the merge logic
   private mergeRecords(
     records: {
       id: string;
@@ -772,10 +773,3 @@ export class IngestionService {
     });
   }
 }
-
-type PromptMapping = {
-  name: string;
-  version: number;
-  projectId: string;
-  promptId?: string;
-};

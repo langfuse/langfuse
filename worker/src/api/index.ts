@@ -149,7 +149,7 @@ router
         redis,
         prisma,
         ingestionFlushQueue,
-        60 * 60
+        60 * 60 // TODO: Make this configurable
       ).addBatch(batch, projectId);
 
       return res.status(200).send();

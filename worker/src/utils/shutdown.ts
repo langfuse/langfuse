@@ -19,8 +19,6 @@ export const gracefulShutdown: NodeJS.SignalsListener = async (signal) => {
 
   await Promise.all(workers.map((worker) => worker?.close()));
 
-  // Other asynchronous closings
-
   logger.info("Server closed, exiting process...");
   process.exit(0);
 };
