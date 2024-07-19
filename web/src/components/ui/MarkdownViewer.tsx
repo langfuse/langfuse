@@ -22,6 +22,7 @@ import { api } from "@/src/utils/api";
 import { isPresent } from "@/src/utils/typeChecks";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
@@ -50,7 +51,11 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
 
   const isValidImage = api.public.validateImgUrl.useQuery(src);
   if (isValidImage.isLoading) {
-    return <div>Loading Image...</div>;
+    return (
+      <Skeleton className="h-8 w-1/3 items-center p-2 text-xs">
+        <span className="opacity-80">Loading image...</span>
+      </Skeleton>
+    );
   }
 
   if (isValidImage.data?.isValid) {
