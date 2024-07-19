@@ -15,7 +15,11 @@ import { Search } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DateRangeDropdown from "@/src/components/DateRangeDropdown";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
-import { type AvailableTableDateRangeSelections } from "@/src/components/useDateRange";
+import {
+  type DashboardDateRangeAggregationOption,
+  type DEFAULT_DATE_RANGE_SELECTION,
+  type TableDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 interface SearchConfig {
   placeholder: string;
@@ -35,9 +39,15 @@ interface DataTableToolbarProps<TData, TValue> {
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
   columnsWithCustomSelect?: string[];
-  selectedOption?: AvailableTableDateRangeSelections;
+  selectedOption?:
+    | DashboardDateRangeAggregationOption
+    | TableDateRangeAggregationOption
+    | typeof DEFAULT_DATE_RANGE_SELECTION;
   setDateRangeAndOption?: (
-    option: AvailableTableDateRangeSelections,
+    option:
+      | DashboardDateRangeAggregationOption
+      | TableDateRangeAggregationOption
+      | typeof DEFAULT_DATE_RANGE_SELECTION,
     date?: DashboardDateRange,
   ) => void;
 }
@@ -101,6 +111,7 @@ export function DataTableToolbar<TData, TValue>({
           />
           {selectedOption && setDateRangeAndOption && (
             <DateRangeDropdown
+              type="table"
               selectedOption={selectedOption}
               setDateRangeAndOption={setDateRangeAndOption}
             />
