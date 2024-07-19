@@ -41,7 +41,7 @@ export function JSONView(props: {
   };
 
   return (
-    <div className={cn("overflow-hidden rounded-md border", props.className)}>
+    <div className={cn("rounded-md border", props.className)}>
       {props.title ? (
         <div
           className={cn(
