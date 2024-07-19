@@ -75,6 +75,13 @@ export const EvalConfigDetail = () => {
             isLoading={config.isLoading}
           />
         }
+        breadcrumb={[
+          {
+            name: "Eval Configs",
+            href: `/project/${router.query.projectId as string}/evals/configs`,
+          },
+          { name: config.data?.id },
+        ]}
       />
       {existingEvalConfig && (
         <>
@@ -82,7 +89,10 @@ export const EvalConfigDetail = () => {
             <Label>Eval Template</Label>
             <TableLink
               path={`/project/${projectId}/evals/templates/${existingEvalConfig.evalTemplateId}`}
-              value={existingEvalConfig.evalTemplateId ?? ""}
+              value={
+                `${existingEvalConfig.evalTemplate.name} (v${existingEvalConfig.evalTemplate.version})` ??
+                ""
+              }
               truncateAt={40}
             />
           </div>
