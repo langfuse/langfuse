@@ -40,11 +40,10 @@ export const TimePeriodSelect = React.forwardRef<
      * otherwise user must manually change the hour each time
      */
     if (date) {
-      const tempDate = new Date(date);
       const hours = display12HourValue(date.getHours());
       setDate(
         setDateByType(
-          tempDate,
+          new Date(date),
           hours.toString(),
           "12hours",
           period === "AM" ? "PM" : "AM",
