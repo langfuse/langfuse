@@ -13,30 +13,41 @@ import {
   ChatMlArraySchema,
   ChatMlMessageSchema,
 } from "@/src/components/schemas/ChatMlSchema";
+import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 
-function MarkdownOrJsonView(props: {
+// MarkdownOrJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
+// otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
+function MarkdownOrJsonView({
+  content,
+  title,
+  className,
+  customCodeHeaderClassName,
+}: {
   content?: unknown;
   title?: string;
   className?: string;
   customCodeHeaderClassName?: string;
 }) {
   const validatedMarkdown = useMemo(
-    () => MarkdownSchema.safeParse(props.content),
-    [props.content],
+    () => MarkdownSchema.safeParse(content),
+    [content],
   );
 
-  return validatedMarkdown.success ? (
+  const { isMarkdownEnabled } = useMarkdownContext();
+
+  return validatedMarkdown.success && isMarkdownEnabled ? (
     <MarkdownView
       markdown={validatedMarkdown.data}
-      title={props.title}
-      className={props.className}
-      customCodeHeaderClassName={props.customCodeHeaderClassName}
+      title={title}
+      className={className}
+      customCodeHeaderClassName={customCodeHeaderClassName}
     />
   ) : (
     <JSONView
-      json={props.content}
-      title={props.title}
-      className={props.className}
+      json={content}
+      canEnableMarkdown={validatedMarkdown.success}
+      title={title}
+      className={className}
     />
   );
 }
@@ -102,18 +113,20 @@ export const IOPreview: React.FC<{
   return (
     <>
       {isPrettyViewAvailable ? (
-        <Tabs
-          value={currentView}
-          onValueChange={(v) => {
-            setCurrentView(v as "pretty" | "json"),
-              capture("trace_detail:io_mode_switch", { view: v });
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
-            <TabsTrigger value="json">JSON</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-row justify-between">
+          <Tabs
+            value={currentView}
+            onValueChange={(v) => {
+              setCurrentView(v as "pretty" | "json"),
+                capture("trace_detail:io_mode_switch", { view: v });
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
+              <TabsTrigger value="json">JSON</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
         <>
@@ -133,6 +146,7 @@ export const IOPreview: React.FC<{
                       }),
                     ]),
               ]}
+              shouldRenderMarkdown
             />
           ) : (
             <>
@@ -176,9 +190,10 @@ export const IOPreview: React.FC<{
 };
 
 export const OpenAiMessageView: React.FC<{
-  title?: string;
   messages: z.infer<typeof ChatMlArraySchema>;
-}> = ({ title, messages }) => {
+  title?: string;
+  shouldRenderMarkdown?: boolean;
+}> = ({ title, messages, shouldRenderMarkdown = false }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
@@ -201,24 +216,38 @@ export const OpenAiMessageView: React.FC<{
           .map((message, index) => (
             <Fragment key={index}>
               <div>
-                {!!message.content && (
-                  <MarkdownOrJsonView
-                    title={message.name ?? message.role}
-                    content={message.content}
-                    className={cn(
-                      "bg-muted",
-                      message.role === "system" && "bg-primary-foreground",
-                      message.role === "assistant" &&
-                        "bg-accent-light-green dark:border-accent-dark-green",
-                      message.role === "user" && "bg-background",
-                      !!message.json && "rounded-b-none",
-                    )}
-                    customCodeHeaderClassName={cn(
-                      message.role === "assistant" &&
-                        "bg-muted-green dark:bg-secondary",
-                    )}
-                  />
-                )}
+                {!!message.content &&
+                  (shouldRenderMarkdown ? (
+                    <MarkdownOrJsonView
+                      title={message.name ?? message.role}
+                      content={message.content}
+                      className={cn(
+                        "bg-muted",
+                        message.role === "system" && "bg-primary-foreground",
+                        message.role === "assistant" &&
+                          "bg-accent-light-green dark:border-accent-dark-green",
+                        message.role === "user" && "bg-background",
+                        !!message.json && "rounded-b-none",
+                      )}
+                      customCodeHeaderClassName={cn(
+                        message.role === "assistant" &&
+                          "bg-muted-green dark:bg-secondary",
+                      )}
+                    />
+                  ) : (
+                    <JSONView
+                      title={message.name ?? message.role}
+                      json={message.content}
+                      className={cn(
+                        "bg-muted",
+                        message.role === "system" && "bg-primary-foreground",
+                        message.role === "assistant" &&
+                          "bg-accent-light-green dark:border-accent-dark-green",
+                        message.role === "user" && "bg-background",
+                        !!message.json && "rounded-b-none",
+                      )}
+                    />
+                  ))}
                 {!!message.json && (
                   <JSONView
                     title={

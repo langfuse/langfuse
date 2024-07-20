@@ -102,6 +102,7 @@ export function Trace(props: {
   const expandAll = useCallback(() => {
     capture("trace_detail:observation_tree_expand", { type: "all" });
     setCollapsedObservations([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
