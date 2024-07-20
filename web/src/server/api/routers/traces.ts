@@ -60,7 +60,7 @@ export const traceRouter = createTRPCRouter({
 
       // to improve query performance, add timeseries filter to observation queries as well
       const timeseriesFilter = input.filter?.find(
-        (f) => f.column === "timestamp" && f.type === "datetime",
+        (f) => f.column === "Timestamp" && f.type === "datetime",
       );
       const observationTimeseriesFilter =
         timeseriesFilter && timeseriesFilter.type === "datetime"
@@ -81,7 +81,7 @@ export const traceRouter = createTRPCRouter({
         : Prisma.empty;
 
       const dateRangeCondition =
-        !timeseriesFilter && input.from && input.to
+        input.from && input.to
           ? Prisma.sql`
         AND t.timestamp >= ${input.from} AND t.timestamp <= ${input.to}
       `
@@ -108,8 +108,8 @@ export const traceRouter = createTRPCRouter({
         input.page,
         input.limit,
         searchCondition,
-        filterCondition,
         dateRangeCondition,
+        filterCondition,
         orderByCondition,
       );
 
