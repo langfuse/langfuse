@@ -65,7 +65,7 @@ export function findClosestInterval<T extends DateRangeAggregationOption>(
 
   return diffs[0]?.interval;
 }
-
+export const DEFAULT_DASHBOARD_DATE_RANGE_SELECTION = "24 hours" as const;
 export const DEFAULT_DATE_RANGE_SELECTION = "All time" as const;
 
 export type DateTimeAggregationOption =
