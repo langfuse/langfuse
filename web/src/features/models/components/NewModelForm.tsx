@@ -269,16 +269,16 @@ export const NewModelForm = (props: {
                   <FormDescription>
                     <ul className="font-mono text-xs">
                       <li>
-                        {(parseFloat(field.value ?? "0") * 1000).toFixed(4)} USD
+                        {(parseFloat(field.value ?? "0") * 1000).toFixed(8)} USD
                         / 1k {form.getValues("unit").toLowerCase()}
                       </li>
                       <li>
-                        {(parseFloat(field.value ?? "0") * 100_000).toFixed(4)}{" "}
+                        {(parseFloat(field.value ?? "0") * 100_000).toFixed(8)}{" "}
                         USD / 100k {form.getValues("unit").toLowerCase()}
                       </li>
                       <li>
                         {(parseFloat(field.value ?? "0") * 1_000_000).toFixed(
-                          4,
+                          8,
                         )}{" "}
                         USD / 1M {form.getValues("unit").toLowerCase()}
                       </li>
@@ -305,16 +305,16 @@ export const NewModelForm = (props: {
                   <FormDescription>
                     <ul className="font-mono text-xs">
                       <li>
-                        {(parseFloat(field.value ?? "0") * 1000).toFixed(4)} USD
+                        {(parseFloat(field.value ?? "0") * 1000).toFixed(8)} USD
                         / 1k {form.getValues("unit").toLowerCase()}
                       </li>
                       <li>
-                        {(parseFloat(field.value ?? "0") * 100_000).toFixed(4)}{" "}
+                        {(parseFloat(field.value ?? "0") * 100_000).toFixed(8)}{" "}
                         USD / 100k {form.getValues("unit").toLowerCase()}
                       </li>
                       <li>
                         {(parseFloat(field.value ?? "0") * 1_000_000).toFixed(
-                          4,
+                          8,
                         )}{" "}
                         USD / 1M {form.getValues("unit").toLowerCase()}
                       </li>
@@ -341,16 +341,16 @@ export const NewModelForm = (props: {
                   {field.value !== null && field.value !== "" ? (
                     <ul className="mt-2 font-mono text-xs">
                       <li>
-                        {(parseFloat(field.value ?? "0") * 1000).toFixed(4)} USD
+                        {(parseFloat(field.value ?? "0") * 1000).toFixed(8)} USD
                         / 1k {form.getValues("unit").toLowerCase()}
                       </li>
                       <li>
-                        {(parseFloat(field.value ?? "0") * 100_000).toFixed(4)}{" "}
+                        {(parseFloat(field.value ?? "0") * 100_000).toFixed(8)}{" "}
                         USD / 100k {form.getValues("unit").toLowerCase()}
                       </li>
                       <li>
                         {(parseFloat(field.value ?? "0") * 1_000_000).toFixed(
-                          4,
+                          8,
                         )}{" "}
                         USD / 1M {form.getValues("unit").toLowerCase()}
                       </li>
