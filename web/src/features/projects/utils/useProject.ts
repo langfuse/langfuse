@@ -15,6 +15,8 @@ export const useProject = (projectId: string | null) => {
     },
     {
       enabled: Boolean(projectId),
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
     },
   );
   if (!project.data)
@@ -33,5 +35,5 @@ export const useQueryProjectOrOrganization = () => {
   const p = useQueryProject();
   const o = useQueryOrganization();
 
-  return p || { organization: o, project: null };
+  return p.project ? p : { organization: o, project: null };
 };

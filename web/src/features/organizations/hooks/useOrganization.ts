@@ -16,6 +16,8 @@ export const useOrganization = (organizationId: string | null) => {
     },
     {
       enabled: Boolean(organizationId),
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
     },
   );
 

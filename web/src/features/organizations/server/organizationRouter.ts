@@ -19,8 +19,21 @@ export const organizationsRouter = createTRPCRouter({
           },
         },
       },
+      include: {
+        projects: {
+          omit: {
+            cloudConfig: true,
+          },
+        },
+      },
     });
-    return orgs.map(parseDbOrg);
+    // wait for 2 seconds
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const res = orgs.map(({ projects, ...org }) => ({
+      ...parseDbOrg(org),
+      projects,
+    }));
+    return res;
   }),
   byId: protectedOrganizationProcedure
     .input(
@@ -34,7 +47,11 @@ export const organizationsRouter = createTRPCRouter({
           id: input.orgId,
         },
         include: {
-          projects: true,
+          projects: {
+            omit: {
+              cloudConfig: true,
+            },
+          },
         },
       });
 

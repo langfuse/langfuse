@@ -1,4 +1,3 @@
-import { useSession } from "next-auth/react";
 import {
   Building2,
   LifeBuoy,
@@ -29,40 +28,36 @@ import { Divider } from "@tremor/react";
 import { Badge } from "@/src/components/ui/badge";
 import { Fragment } from "react";
 import { api } from "@/src/utils/api";
+import { useRouter } from "next/router";
+import { type RouterOutput } from "@/src/utils/types";
 
 // SingleOrganizationProjectOverview.tsx
 export const SingleOrganizationProjectOverview = ({
-  orgId,
+  org,
   search,
   level = "h2",
 }: {
-  orgId: string;
+  org: RouterOutput["organizations"]["all"][0];
   search?: string;
   level?: "h2" | "h3";
 }) => {
   const createProjectAccess = useHasOrganizationAccess({
-    organizationId: orgId,
+    organizationId: org.id,
     scope: "projects:create",
   });
   const membersViewAccess = useHasOrganizationAccess({
-    organizationId: orgId,
+    organizationId: org.id,
     scope: "members:read",
   });
 
-  const org = api.organizations.byId.useQuery({ orgId });
-
-  if (!org.data) {
-    return "loading...";
-  }
-
   const isDemoOrg =
-    env.NEXT_PUBLIC_DEMO_ORG_ID === orgId &&
-    org.data.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
+    env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
+    org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
   // todo: render demo org only when user has None role in demo project
 
   if (isDemoOrg) {
     return (
-      <div key={orgId}>
+      <div key={org.id}>
         {level === "h2" && <Header title="Demo Organization" />}
         <Card>
           <CardHeader>
@@ -88,28 +83,28 @@ export const SingleOrganizationProjectOverview = ({
   }
 
   return (
-    <div key={orgId} className="mb-10">
+    <div key={org.id} className="mb-10">
       <Header
-        title={org.data.name}
+        title={org.name}
         level={level}
-        status={orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
+        status={org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
         actionButtons={
           <>
             <Button asChild variant="ghost">
-              <Link href={`/organization/${orgId}/settings`}>
+              <Link href={`/organization/${org.id}/settings`}>
                 <Settings size={14} />
               </Link>
             </Button>
             {membersViewAccess && (
               <Button asChild variant="ghost">
-                <Link href={`/organization/${orgId}/settings?page=Members`}>
+                <Link href={`/organization/${org.id}/settings?page=Members`}>
                   <Users size={14} />
                 </Link>
               </Button>
             )}
             {createProjectAccess ? (
               <Button asChild variant="secondary">
-                <Link href={createProjectRoute(orgId)}>
+                <Link href={createProjectRoute(org.id)}>
                   <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
                   New project
                 </Link>
@@ -124,7 +119,7 @@ export const SingleOrganizationProjectOverview = ({
         }
       />
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {org.data.projects
+        {org.projects
           .filter(
             (p) =>
               !search || p.name.toLowerCase().includes(search.toLowerCase()),
@@ -159,14 +154,19 @@ export const SingleOrganizationProjectOverview = ({
   );
 };
 
-export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
-  const session = useSession();
-  const organizations = session.data?.user?.organizations ?? [];
+export const OrganizationProjectOverview = () => {
+  const router = useRouter();
+  const queryOrgId = router.query.organizationId;
+  const organizations = api.organizations.all.useQuery();
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
+
+  if (!organizations.data) {
+    return "loading...";
+  }
 
   return (
     <div className="md:container">
-      {!orgId && (
+      {!queryOrgId && (
         <>
           <Header
             title="Home"
@@ -189,10 +189,11 @@ export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
           <IntroducingOrganizations />
         </>
       )}
-      {organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
-        .length === 0 && <Onboarding />}
-      {organizations
-        .filter((org) => orgId === undefined || org.id === orgId)
+      {organizations.data.filter(
+        (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
+      ).length === 0 && <Onboarding />}
+      {organizations.data
+        .filter((org) => queryOrgId === undefined || org.id === queryOrgId)
         .sort((a, b) => {
           // sort demo org to the bottom
           const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
@@ -203,9 +204,11 @@ export const OrganizationProjectOverview = ({ orgId }: { orgId?: string }) => {
         })
         .map((org) => (
           <Fragment key={org.id}>
-            {!orgId && org.id === env.NEXT_PUBLIC_DEMO_ORG_ID && <Divider />}
+            {!queryOrgId && org.id === env.NEXT_PUBLIC_DEMO_ORG_ID && (
+              <Divider />
+            )}
             <SingleOrganizationProjectOverview
-              orgId={org.id}
+              org={org}
               search={search ?? undefined}
               level="h3"
             />

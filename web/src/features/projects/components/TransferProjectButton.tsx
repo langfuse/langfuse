@@ -2,7 +2,6 @@ import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -38,16 +37,20 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { TriangleAlert } from "lucide-react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useState } from "react";
 
 export function TransferProjectButton() {
   const capture = usePostHogClientCapture();
   const session = useSession();
+  const [isOpen, setIsOpen] = useState(false);
   const { project, organization } = useQueryProject();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "projects:transfer_organization",
   });
-  const allOrgs = api.organizations.all.useQuery();
+  const allOrgs = api.organizations.all.useQuery(undefined, {
+    enabled: isOpen,
+  });
   const organizationsToTransferTo =
     allOrgs.data?.filter((org) =>
       hasOrganizationAccess({
@@ -97,7 +100,7 @@ export function TransferProjectButton() {
   };
 
   return (
-    <Dialog>
+    <Dialog onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="destructive-secondary" disabled={!hasAccess}>
           Transfer Project
@@ -108,19 +111,16 @@ export function TransferProjectButton() {
           <DialogTitle className="text-lg font-semibold">
             Transfer Project
           </DialogTitle>
-          <DialogDescription>
-            <Alert variant="destructive" className="mt-2">
-              <TriangleAlert className="h-4 w-4" />
-              <AlertTitle>Warning</AlertTitle>
-              <AlertDescription>
-                Transferring the project will remove it from this organization.
-                Members will lose access unless they are also members of the new
-                organization. All API keys, settings, and data will remain
-                intact.
-              </AlertDescription>
-            </Alert>
-          </DialogDescription>
         </DialogHeader>
+        <Alert className="mt-2">
+          <TriangleAlert className="h-4 w-4" />
+          <AlertTitle>Warning</AlertTitle>
+          <AlertDescription>
+            Transferring the project will remove it from this organization.
+            Members will lose access unless they are also members of the new
+            organization. All API keys, settings, and data will remain intact.
+          </AlertDescription>
+        </Alert>
         <Form {...form}>
           <form
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -181,6 +181,7 @@ export function TransferProjectButton() {
                 </FormItem>
               )}
             />
+
             <Button
               type="submit"
               variant="destructive"

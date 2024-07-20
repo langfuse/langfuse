@@ -2,7 +2,6 @@ import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import { useSession } from "next-auth/react";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -18,20 +17,15 @@ import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LockIcon } from "lucide-react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useQueryProject } from "@/src/features/projects/utils/useProject";
 
-export default function RenameProject(props: {
-  projectId: string;
-  organizationId: string;
-}) {
+export default function RenameProject() {
+  const { project, organization } = useQueryProject();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const hasAccess = useHasOrganizationAccess({
-    organizationId: props.organizationId,
+    organizationId: organization?.id,
     scope: "projects:update",
-  });
-  const { update: updateSession } = useSession();
-  const projectData = api.projects.byId.useQuery({
-    projectId: props.projectId,
   });
 
   const form = useForm<z.infer<typeof projectNameSchema>>({
@@ -42,18 +36,17 @@ export default function RenameProject(props: {
   });
   const renameProject = api.projects.update.useMutation({
     onSuccess: (_) => {
-      void updateSession();
       void utils.projects.invalidate();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
-    if (!hasAccess) return;
+    if (!hasAccess || !project) return;
     capture("project_settings:rename_form_submit");
     renameProject
       .mutateAsync({
-        projectId: props.projectId,
+        projectId: project.id,
         newName: values.name,
       })
       .then(() => {
@@ -71,14 +64,14 @@ export default function RenameProject(props: {
         {form.getValues().name !== "" ? (
           <p className="mb-4 text-sm text-primary">
             Your Project will be renamed from &quot;
-            {projectData.data?.name ?? ""}
+            {project?.name ?? ""}
             &quot; to &quot;
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
           <p className="mb-4 text-sm text-primary" data-testid="project-name">
             Your Project is currently named &quot;
-            <b>{projectData.data?.name ?? ""}</b>
+            <b>{project?.name ?? ""}</b>
             &quot;.
           </p>
         )}
@@ -98,7 +91,7 @@ export default function RenameProject(props: {
                   <FormControl>
                     <div className="relative">
                       <Input
-                        placeholder={projectData.data?.name ?? ""}
+                        placeholder={project?.name ?? ""}
                         {...field}
                         className="flex-1"
                         data-testid="new-project-name-input"

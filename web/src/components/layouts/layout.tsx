@@ -73,6 +73,10 @@ const publishablePaths: string[] = [
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
+  const routerProjectId = router.query.projectId as string | undefined;
+  const routerOrganizationId = router.query.organizationId as
+    | string
+    | undefined;
   const session = useSession();
 
   useCheckNotification(NOTIFICATIONS, session.status === "authenticated");
@@ -137,8 +141,8 @@ export default function Layout(props: PropsWithChildren) {
     return {
       ...route,
       href: route.pathname
-        ?.replace("[projectId]", project?.id ?? "")
-        .replace("[organizationId]", organization?.id ?? ""),
+        ?.replace("[projectId]", routerProjectId ?? "")
+        .replace("[organizationId]", routerOrganizationId ?? ""),
       current: router.pathname === route.pathname,
       children:
         children.length > 0

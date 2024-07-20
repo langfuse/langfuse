@@ -34,14 +34,12 @@ export default function SettingsPage() {
             content: (
               <div className="flex flex-col gap-10">
                 <HostNameProject />
-                <RenameProject
-                  projectId={project.id}
-                  organizationId={organization.id}
-                />
+                <RenameProject />
                 <Instructions />
                 <div>
                   <Header title="Debug Information" level="h3" />
                   <JSONView
+                    title="Metadata"
                     json={{
                       project: { name: project.name, id: project.id },
                       org: { name: organization.name, id: organization.id },
@@ -71,9 +69,7 @@ export default function SettingsPage() {
                       >
                         <div>
                           <h4 className="font-semibold">{item.title}</h4>
-                          <p className="text-sm text-gray-600">
-                            {item.description}
-                          </p>
+                          <p className="text-sm">{item.description}</p>
                         </div>
                         {item.button}
                       </div>

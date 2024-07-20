@@ -1,7 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import { useSession } from "next-auth/react";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -28,7 +27,6 @@ export default function RenameOrganization() {
     organizationId: organization?.id,
     scope: "organizations:update",
   });
-  const { update: updateSession } = useSession();
 
   const orgName =
     organization && "name" in organization ? organization.name : "";
@@ -41,7 +39,6 @@ export default function RenameOrganization() {
   });
   const renameOrganization = api.organizations.update.useMutation({
     onSuccess: (_) => {
-      void updateSession();
       void utils.organizations.invalidate();
     },
     onError: (error) => form.setError("name", { message: error.message }),

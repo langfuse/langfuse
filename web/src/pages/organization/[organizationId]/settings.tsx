@@ -25,6 +25,7 @@ const OrgSettingsPage = () => {
                 <div>
                   <Header title="Debug Information" level="h3" />
                   <JSONView
+                    title="Metadata"
                     json={{ name: organization.name, id: organization.id }}
                   />
                 </div>
