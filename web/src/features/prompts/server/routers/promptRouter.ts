@@ -84,8 +84,8 @@ export const promptRouter = createTRPCRouter({
         generatePromptQuery(
           Prisma.sql` count(*) AS "totalCount"`,
           input.projectId,
-          filterCondition,
           dateRangeCondition,
+          filterCondition,
           Prisma.empty,
           1, // limit
           0, // page
