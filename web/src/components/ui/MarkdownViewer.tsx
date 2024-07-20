@@ -9,16 +9,21 @@ import {
   Children,
   createElement,
 } from "react";
-import ReactMarkdown, { type Options } from "react-markdown";
+import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import Link from "next/link";
+import Image from "next/image";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { Button } from "@/src/components/ui/button";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Maximize2, Minimize2 } from "lucide-react";
+import { api } from "@/src/utils/api";
+import { isPresent } from "@/src/utils/typeChecks";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
@@ -32,6 +37,70 @@ const MemoizedReactMarkdown: FC<Options> = memo(
 const isChecklist = (children: ReactNode) =>
   Array.isArray(children) &&
   children.some((child: any) => child?.props?.className === "task-list-item");
+
+// Implemented customLoader as we cannot whitelist user provided image domains.
+// Security risks are taken care of by a validation in api.public.validateImgUrl.
+// Do not use this customLoader in production if you are not using the above mentioned security measures.
+const customLoader = ({ src }: { src: string }) => {
+  return src;
+};
+
+const MarkdownImage: Components["img"] = ({ src, alt }) => {
+  const [isZoomedIn, setIsZoomedIn] = useState(true);
+
+  if (!isPresent(src)) return null;
+
+  const isValidImage = api.utilities.validateImgUrl.useQuery(src);
+  if (isValidImage.isLoading) {
+    return (
+      <Skeleton className="h-8 w-1/2 items-center p-2 text-xs">
+        <span className="opacity-80">Loading image...</span>
+      </Skeleton>
+    );
+  }
+
+  if (isValidImage.data?.isValid) {
+    return (
+      <div>
+        <div
+          className={cn(
+            "group relative w-full overflow-hidden rounded border",
+            isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full",
+          )}
+        >
+          <Image
+            loader={customLoader}
+            src={src}
+            alt={alt ?? `Markdown Image-${Math.random()}`}
+            loading="lazy"
+            width={0}
+            height={0}
+            className="h-full w-full object-contain"
+          />
+          <Button
+            type="button"
+            className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsZoomedIn(!isZoomedIn)}
+          >
+            {isZoomedIn ? (
+              <Maximize2 className="h-4 w-4"></Maximize2>
+            ) : (
+              <Minimize2 className="h-4 w-4"></Minimize2>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Link href={src} className="underline" target="_blank">
+      {src}
+    </Link>
+  );
+};
 
 const isTextElement = (child: ReactNode): child is ReactElement =>
   isValidElement(child) &&
@@ -51,15 +120,11 @@ const transformListItemChildren = (children: ReactNode) =>
 
 export function MarkdownView({
   markdown,
-  isMarkdown,
-  setIsMarkdown,
   title,
   className,
   customCodeHeaderClassName,
 }: {
   markdown: string;
-  isMarkdown: boolean;
-  setIsMarkdown: (value: boolean) => void;
   title?: string;
   className?: string;
   customCodeHeaderClassName?: string;
@@ -67,6 +132,7 @@ export function MarkdownView({
   const [isCopied, setIsCopied] = useState(false);
   const { resolvedTheme: theme } = useTheme();
   const capture = usePostHogClientCapture();
+  const { setIsMarkdownEnabled } = useMarkdownContext();
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -91,17 +157,17 @@ export function MarkdownView({
           {title}
           <div className="flex items-center gap-1">
             <Button
-              title={isMarkdown ? "Disable Markdown" : "Enable Markdown"}
+              title="Disable Markdown"
               variant="ghost"
               size="xs"
               type="button"
               onClick={() => {
-                setIsMarkdown(!isMarkdown);
+                setIsMarkdownEnabled(false);
                 capture("trace_detail:io_pretty_format_toggle_group", {
-                  renderMarkdown: isMarkdown,
+                  renderMarkdown: false,
                 });
               }}
-              className={cn("hover:bg-border", !isMarkdown && "opacity-50")}
+              className="hover:bg-border"
             >
               <BsMarkdown className="h-4 w-4" />
             </Button>
@@ -210,13 +276,7 @@ export function MarkdownView({
               </blockquote>
             );
           },
-          img({ src }) {
-            return (
-              <Link href={src ?? ""} className="underline" target="_blank">
-                {src ?? ""}
-              </Link>
-            );
-          },
+          img: MarkdownImage,
           hr() {
             return <hr className="my-4" />;
           },

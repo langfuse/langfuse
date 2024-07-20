@@ -1,12 +1,11 @@
 {
   "name": "langfuse",
-  "version": "2.63.1",
+  "version": "2.64.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": ">=20",
-    "pnpm": "<9"
+    "node": ">=20"
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
@@ -35,7 +34,7 @@
     "husky": "^9.0.11",
     "prettier": "^3.2.5",
     "release-it": "^17.3.0",
-    "turbo": "^1.13.3"
+    "turbo": "^1.13.4"
   },
   "release-it": {
     "git": {
@@ -79,5 +78,6 @@
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
     }
-  }
+  },
+  "packageManager": "pnpm@9.5.0"
 }
