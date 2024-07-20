@@ -29,7 +29,7 @@ import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  DEFAULT_DATE_RANGE_SELECTION,
+  DEFAULT_DASHBOARD_DATE_RANGE_SELECTION,
   isValidOption,
   type AllDateRangeAggregationOption,
   type DateTimeAggregationOption,
@@ -74,7 +74,7 @@ export default function Start() {
     urlParams.select,
   )
     ? urlParams.select
-    : DEFAULT_DATE_RANGE_SELECTION;
+    : DEFAULT_DASHBOARD_DATE_RANGE_SELECTION;
 
   const setDateRangeAndOption = (
     option?: AllDateRangeAggregationOption,
