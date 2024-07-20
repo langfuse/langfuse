@@ -129,7 +129,6 @@ export default function TracesTable({
     filter: filterState,
     searchQuery,
     orderBy: orderByState,
-    returnIO: false,
     from: dateRange?.from ?? null,
     to: dateRange?.to ?? null,
   };

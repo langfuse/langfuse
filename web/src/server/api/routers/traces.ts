@@ -32,7 +32,6 @@ const TraceFilterOptions = z.object({
   searchQuery: z.string().nullable(),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
-  returnIO: z.boolean().default(true),
   from: z.date().nullable(),
   to: z.date().nullable(),
   ...paginationZod,
