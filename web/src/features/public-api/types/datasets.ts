@@ -3,7 +3,7 @@ import {
   paginationZod,
   paginationMetaResponseZod,
   queryStringZod,
-  type DatasetRuns as DbDasetRuns,
+  type DatasetRuns as DbDatasetRuns,
   type DatasetItem as DbDatasetItems,
   type DatasetRunItems as DbDatasetRunItems,
   removeObjectKeys,
@@ -73,7 +73,7 @@ const APIDatasetItem = z
  */
 
 export const transformDbDatasetRunToAPIDatasetRun = (
-  dbDatasetRun: DbDasetRuns & { datasetName: string },
+  dbDatasetRun: DbDatasetRuns & { datasetName: string },
 ): z.infer<typeof APIDatasetRun> =>
   removeObjectKeys(dbDatasetRun, ["projectId"]);
 
