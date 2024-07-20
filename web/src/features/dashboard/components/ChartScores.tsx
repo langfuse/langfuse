@@ -11,8 +11,10 @@ import {
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import { dashboardDateRangeAggregationSettings } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 export function ChartScores(props: {
   className?: string;

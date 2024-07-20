@@ -8,14 +8,15 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
-import { tableDateRangeAggregationSettings } from "@/src/components/useDateRange";
-import { dashboardDateRangeAggregationSettings } from "@/src/features/dashboard/lib/timeseries-aggregation";
+
 import {
   type AllDateRangeAggregationOption,
-  DEFAULT_DATE_RANGE_SELECTION,
+  DEFAULT_AGGREGATION_SELECTION,
   isValidOption,
   type DashboardDateRangeAggregationOption,
   type TableDateRangeAggregationOption,
+  tableDateRangeAggregationSettings,
+  dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 
 type DateRangeDropdownProps = {
@@ -36,7 +37,7 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
     value:
       | DashboardDateRangeAggregationOption
       | TableDateRangeAggregationOption
-      | typeof DEFAULT_DATE_RANGE_SELECTION,
+      | typeof DEFAULT_AGGREGATION_SELECTION,
   ) => {
     if (isValidOption(value)) {
       let fromDate: Date;
@@ -53,7 +54,7 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
           ];
         fromDate = addMinutes(new Date(), -setting.minutes);
       } else {
-        setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, undefined);
+        setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, undefined);
         return;
       }
       setDateRangeAndOption(value, {
@@ -61,24 +62,24 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
         to: new Date(),
       });
     } else {
-      setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, undefined);
+      setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, undefined);
     }
   };
 
   const dashboardOptions = [
-    DEFAULT_DATE_RANGE_SELECTION,
+    DEFAULT_AGGREGATION_SELECTION,
     ...Object.keys(dashboardDateRangeAggregationSettings),
   ] as (
     | DashboardDateRangeAggregationOption
-    | typeof DEFAULT_DATE_RANGE_SELECTION
+    | typeof DEFAULT_AGGREGATION_SELECTION
   )[];
 
   const tableOptions = [
-    DEFAULT_DATE_RANGE_SELECTION,
+    DEFAULT_AGGREGATION_SELECTION,
     ...Object.keys(tableDateRangeAggregationSettings),
   ] as (
     | TableDateRangeAggregationOption
-    | typeof DEFAULT_DATE_RANGE_SELECTION
+    | typeof DEFAULT_AGGREGATION_SELECTION
   )[];
 
   const currentOptions = type === "dashboard" ? dashboardOptions : tableOptions;

@@ -17,7 +17,7 @@ import DateRangeDropdown from "@/src/components/DateRangeDropdown";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import {
   type DashboardDateRangeAggregationOption,
-  type DEFAULT_DATE_RANGE_SELECTION,
+  type DEFAULT_AGGREGATION_SELECTION,
   type TableDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 
@@ -42,12 +42,12 @@ interface DataTableToolbarProps<TData, TValue> {
   selectedOption?:
     | DashboardDateRangeAggregationOption
     | TableDateRangeAggregationOption
-    | typeof DEFAULT_DATE_RANGE_SELECTION;
+    | typeof DEFAULT_AGGREGATION_SELECTION;
   setDateRangeAndOption?: (
     option:
       | DashboardDateRangeAggregationOption
       | TableDateRangeAggregationOption
-      | typeof DEFAULT_DATE_RANGE_SELECTION,
+      | typeof DEFAULT_AGGREGATION_SELECTION,
     date?: DashboardDateRange,
   ) => void;
 }

@@ -11,8 +11,10 @@ import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTim
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { latencyFormatter } from "@/src/utils/numbers";
 import { NoData } from "@/src/features/dashboard/components/NoData";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import { dashboardDateRangeAggregationSettings } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 export const GenerationLatencyChart = ({
   className,

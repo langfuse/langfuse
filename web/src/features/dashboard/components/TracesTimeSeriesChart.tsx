@@ -7,8 +7,10 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
 import { NoData } from "@/src/features/dashboard/components/NoData";
-import { dashboardDateRangeAggregationSettings } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 export const TracesTimeSeriesChart = ({
   className,

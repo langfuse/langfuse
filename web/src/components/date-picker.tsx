@@ -19,7 +19,9 @@ import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";
 import DateRangeDropdown from "@/src/components/DateRangeDropdown";
 import {
-  DEFAULT_DATE_RANGE_SELECTION,
+  DEFAULT_AGGREGATION_SELECTION,
+  type DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
+  type DateRangeAggregationOption,
   type AllDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 
@@ -88,7 +90,9 @@ export function DatePicker({
 export type DatePickerWithRangeProps = {
   dateRange?: DashboardDateRange;
   className?: string;
-  selectedOption: AllDateRangeAggregationOption;
+  selectedOption:
+    | DateRangeAggregationOption
+    | typeof DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
   setDateRangeAndOption: (
     option: AllDateRangeAggregationOption,
     date?: DashboardDateRange,
@@ -123,7 +127,7 @@ export function DatePickerWithRange({
         from: newRange.from,
         to: newRange.to,
       };
-      setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, dashboardDateRange);
+      setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, dashboardDateRange);
     }
   };
 

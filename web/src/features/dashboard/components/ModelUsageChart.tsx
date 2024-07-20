@@ -15,8 +15,10 @@ import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTim
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
-import { dashboardDateRangeAggregationSettings } from "@/src/features/dashboard/lib/timeseries-aggregation";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 import { env } from "@/src/env.mjs";
 
