@@ -88,8 +88,8 @@ export const scoresRouter = createTRPCRouter({
           u.name AS "authorUserName"
           `,
           input.projectId,
-          filterCondition,
           dateRangeCondition,
+          filterCondition,
           orderByCondition,
           input.limit,
           input.page,
