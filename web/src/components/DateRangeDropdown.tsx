@@ -44,6 +44,10 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
           ];
         fromDate = addMinutes(new Date(), -setting.minutes);
       } else if (type === "table") {
+        if (value.toString() === DEFAULT_AGGREGATION_SELECTION) {
+          setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, undefined);
+          return;
+        }
         const setting =
           tableDateRangeAggregationSettings[
             value as TableDateRangeAggregationOption
