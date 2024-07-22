@@ -38,7 +38,7 @@ export type DateRangeAggregationOption =
   | DashboardDateRangeAggregationOption
   | TableDateRangeAggregationOption;
 
-export type AllDateRangeAggregationOption =
+export type DateRangeOptions =
   | DashboardDateRangeAggregationOption
   | TableDateRangeAggregationOption
   | typeof DEFAULT_AGGREGATION_SELECTION

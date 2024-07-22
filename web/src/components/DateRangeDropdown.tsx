@@ -16,16 +16,15 @@ import {
   type TableDateRangeAggregationOption,
   tableDateRangeAggregationSettings,
   dashboardDateRangeAggregationSettings,
-  type AllDateRangeAggregationOption,
   DASHBOARD_AGGREGATION_PLACEHOLDER,
+  type DateRangeOptions,
 } from "@/src/utils/date-range-utils";
 
 type DateRangeDropdownProps = {
   type: "dashboard" | "table";
-  selectedOption: AllDateRangeAggregationOption;
-
+  selectedOption: DateRangeOptions;
   setDateRangeAndOption: (
-    option: AllDateRangeAggregationOption,
+    option: DateRangeOptions,
     date?: DashboardDateRange,
   ) => void;
 };
@@ -35,22 +34,16 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
   selectedOption,
   setDateRangeAndOption,
 }) => {
-  const onDropDownSelection = (
-    value:
-      | DashboardDateRangeAggregationOption
-      | TableDateRangeAggregationOption
-      | typeof DEFAULT_AGGREGATION_SELECTION
-      | typeof DASHBOARD_AGGREGATION_PLACEHOLDER,
-  ) => {
+  const onDropDownSelection = (value: DateRangeOptions) => {
     if (isValidOption(value)) {
       let fromDate: Date;
-      if (value in dashboardDateRangeAggregationSettings) {
+      if (type === "dashboard") {
         const setting =
           dashboardDateRangeAggregationSettings[
             value as DashboardDateRangeAggregationOption
           ];
         fromDate = addMinutes(new Date(), -setting.minutes);
-      } else if (value in tableDateRangeAggregationSettings) {
+      } else if (type === "table") {
         const setting =
           tableDateRangeAggregationSettings[
             value as TableDateRangeAggregationOption
@@ -73,23 +66,27 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
     }
   };
 
-  const dashboardOptions = [
-    ...Object.keys(dashboardDateRangeAggregationSettings),
-    DASHBOARD_AGGREGATION_PLACEHOLDER,
-  ] as (
-    | DashboardDateRangeAggregationOption
-    | typeof DASHBOARD_AGGREGATION_PLACEHOLDER
-  )[];
+  const getOptions = (type: "dashboard" | "table") => {
+    if (type === "dashboard") {
+      return [
+        ...Object.keys(dashboardDateRangeAggregationSettings),
+        DASHBOARD_AGGREGATION_PLACEHOLDER,
+      ] as (
+        | DashboardDateRangeAggregationOption
+        | typeof DASHBOARD_AGGREGATION_PLACEHOLDER
+      )[];
+    } else {
+      return [
+        DEFAULT_AGGREGATION_SELECTION,
+        ...Object.keys(tableDateRangeAggregationSettings),
+      ] as (
+        | TableDateRangeAggregationOption
+        | typeof DEFAULT_AGGREGATION_SELECTION
+      )[];
+    }
+  };
 
-  const tableOptions = [
-    DEFAULT_AGGREGATION_SELECTION,
-    ...Object.keys(tableDateRangeAggregationSettings),
-  ] as (
-    | TableDateRangeAggregationOption
-    | typeof DEFAULT_AGGREGATION_SELECTION
-  )[];
-
-  const currentOptions = type === "dashboard" ? dashboardOptions : tableOptions;
+  const currentOptions = getOptions(type);
 
   return (
     <Select value={selectedOption} onValueChange={onDropDownSelection}>

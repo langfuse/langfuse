@@ -32,9 +32,8 @@ import {
   findClosestDashboardInterval,
   isValidOption,
   DASHBOARD_AGGREGATION_PLACEHOLDER,
-  type DashboardDateRangeAggregationOption,
-  type AllDateRangeAggregationOption,
   DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
+  type DateRangeOptions,
 } from "@/src/utils/date-range-utils";
 
 export type DashboardDateRange = {
@@ -71,16 +70,14 @@ export default function Start() {
     [urlParams.from, urlParams.to],
   );
 
-  const selectedOption:
-    | DashboardDateRangeAggregationOption
-    | typeof DASHBOARD_AGGREGATION_PLACEHOLDER = isValidOption(urlParams.select)
-    ? (urlParams.select as DashboardDateRangeAggregationOption)
+  const selectedOption: DateRangeOptions = isValidOption(urlParams.select)
+    ? (urlParams.select as DateRangeOptions)
     : urlParams.select === DASHBOARD_AGGREGATION_PLACEHOLDER
       ? DASHBOARD_AGGREGATION_PLACEHOLDER
       : DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
 
   const setDateRangeAndOption = (
-    option?: AllDateRangeAggregationOption,
+    option?: DateRangeOptions,
     dateRange?: DashboardDateRange,
   ) => {
     capture("dashboard:date_range_changed");
