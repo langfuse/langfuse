@@ -24,6 +24,8 @@ import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { captureException } from "@sentry/nextjs";
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
@@ -39,7 +41,7 @@ const isChecklist = (children: ReactNode) =>
   children.some((child: any) => child?.props?.className === "task-list-item");
 
 // Implemented customLoader as we cannot whitelist user provided image domains.
-// Security risks are taken care of by a validation in api.public.validateImgUrl.
+// Security risks are taken care of by a validation in api.utilities.validateImgUrl.
 // Do not use this customLoader in production if you are not using the above mentioned security measures.
 const customLoader = ({ src }: { src: string }) => {
   return src;
@@ -76,6 +78,14 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
             width={0}
             height={0}
             className="h-full w-full object-contain"
+            // onError is called when SSL/TLS certificate is invalid or expired
+            onError={(error) => {
+              captureException(error);
+              showErrorToast(
+                "Error loading image",
+                "An unexpected error occurred. Please check that your image url is valid and try again.",
+              );
+            }}
           />
           <Button
             type="button"
