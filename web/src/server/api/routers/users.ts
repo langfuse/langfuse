@@ -27,6 +27,11 @@ export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
+      if (input.filter && input.from && input.to) {
+        input.filter = input.filter.filter(
+          (f) => f.column !== "Timestamp" || f.type !== "datetime",
+        );
+      }
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter ?? [],
         usersTableCols,

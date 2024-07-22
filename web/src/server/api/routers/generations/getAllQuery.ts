@@ -74,10 +74,10 @@ export const getAllQuery = protectedProjectProcedure
       WHERE
         o.type = 'GENERATION'
         AND o.project_id = ${input.projectId}
+        ${dateRangeCondition}
         ${datetimeFilter}
         ${searchCondition}
         ${filterCondition}
-        ${dateRangeCondition}
     `,
     );
     const count = totalGenerations[0]?.count;
