@@ -4,10 +4,10 @@ import { addMinutes } from "date-fns";
 
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import {
-  type AllDateRangeAggregationOption,
   DEFAULT_AGGREGATION_SELECTION,
   findClosestTableIntervalToDate,
   tableDateRangeAggregationSettings,
+  type TableDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 
 export function useDateRange(defaultDate?: Date) {
@@ -15,12 +15,15 @@ export function useDateRange(defaultDate?: Date) {
     ? findClosestTableIntervalToDate(defaultDate)
     : undefined;
   const defaultDateRange = closestInterval ?? DEFAULT_AGGREGATION_SELECTION;
-  const [selectedOption, setSelectedOption] =
-    useState<AllDateRangeAggregationOption>(defaultDateRange);
+  const [selectedOption, setSelectedOption] = useState<
+    TableDateRangeAggregationOption | typeof DEFAULT_AGGREGATION_SELECTION
+  >(defaultDateRange);
   const [dateRange, setDateRange] = useState<DashboardDateRange | null>(null);
 
   const setDateRangeAndOption = (
-    option: AllDateRangeAggregationOption,
+    option:
+      | TableDateRangeAggregationOption
+      | typeof DEFAULT_AGGREGATION_SELECTION,
     date?: DashboardDateRange,
   ) => {
     setSelectedOption(option);
