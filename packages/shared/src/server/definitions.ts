@@ -11,7 +11,7 @@ export const observationRecordBaseSchema = z.object({
   id: z.string(),
   trace_id: z.string().nullish(),
   project_id: z.string(),
-  type: z.string().nullish(),
+  type: z.string(),
   parent_observation_id: z.string().nullish(),
   name: z.string().nullish(),
   metadata: z.record(z.string()),

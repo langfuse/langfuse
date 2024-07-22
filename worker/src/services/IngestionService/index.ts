@@ -783,7 +783,6 @@ export class IngestionService {
   }
 
   private getMicrosecondTimestamp(timestamp?: string | null): number {
-    console.log(timestamp);
     return timestamp ? new Date(timestamp).getTime() * 1000 : Date.now() * 1000;
   }
 }

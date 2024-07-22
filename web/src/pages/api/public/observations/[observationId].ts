@@ -16,8 +16,10 @@ export default withMiddlewares({
     querySchema: GetObservationV1Query,
     responseSchema: GetObservationV1Response,
     fn: async ({ query, auth }) => {
+      const shouldServeFromClickhouse = env.SERVE_FROM_CLICKHOUSE === "true";
       const { observationId } = query;
-      const observation = env.CLICKHOUSE_URL
+
+      const observation = shouldServeFromClickhouse
         ? await getObservation(observationId, auth.scope.projectId)
         : await prisma.observationView.findFirst({
             where: {

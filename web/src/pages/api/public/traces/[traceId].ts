@@ -21,9 +21,10 @@ export default withMiddlewares({
     querySchema: GetTraceV1Query,
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
+      const shouldServeFromClickhouse = env.SERVE_FROM_CLICKHOUSE === "true";
       const { traceId } = query;
 
-      const trace = env.SERVE_FROM_CLICKHOUSE
+      const trace = shouldServeFromClickhouse
         ? await queryTracesAndScoresFromClickhouse(
             traceId,
             auth.scope.projectId,
@@ -52,7 +53,7 @@ export default withMiddlewares({
           },
           orderBy: { timestamp: "desc" },
         }),
-        env.SERVE_FROM_CLICKHOUSE
+        shouldServeFromClickhouse
           ? await getTraceObservations(traceId, auth.scope.projectId)
           : await prisma.observationView.findMany({
               where: {
