@@ -94,7 +94,6 @@ export const traceRouter = createTRPCRouter({
       )`
         : Prisma.empty;
 
-      console.log("observationTimeseriesFilter", observationTimeseriesFilter);
       const tracesQuery = createTracesQuery(
         Prisma.sql`t.*,
           t."user_id" AS "userId",
