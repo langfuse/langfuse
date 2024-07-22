@@ -48,6 +48,23 @@ const customLoader = ({ src }: { src: string }) => {
   return src;
 };
 
+const ImageErrorDisplay = ({
+  src,
+  errorDescription,
+}: {
+  src: string;
+  errorDescription: string;
+}) => (
+  <div className="flex flex-row items-center gap-2">
+    <span title={errorDescription} className="h-4 w-4">
+      <ImageOff className="h-4 w-4" />
+    </span>
+    <Link href={src} className="underline" target="_blank">
+      {src}
+    </Link>
+  </div>
+);
+
 const MarkdownImage: Components["img"] = ({ src, alt }) => {
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
@@ -63,21 +80,14 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
     );
   }
 
+  const isHttp = new URL(src).protocol === "http:";
+  const errorDescription = `Cannot load image. ${isHttp ? "Http images are not rendered in Langfuse for security reasons." : ""} Click to view image in new tab`;
+
   if (isValidImage.data?.isValid) {
     return (
       <div>
         {hasFetchError ? (
-          <div className="flex flex-row items-center gap-2">
-            <span
-              title="Error loading image. Please check that your image url is valid and try again."
-              className="h-4 w-4"
-            >
-              <ImageOff className="h-4 w-4" />
-            </span>
-            <Link href={src} className="underline" target="_blank">
-              {src}
-            </Link>
-          </div>
+          <ImageErrorDisplay src={src} errorDescription={errorDescription} />
         ) : (
           <div
             className={cn(
@@ -98,32 +108,26 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
                 captureException(error);
               }}
             />
-            {!hasFetchError && (
-              <Button
-                type="button"
-                className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsZoomedIn(!isZoomedIn)}
-              >
-                {isZoomedIn ? (
-                  <Maximize2 className="h-4 w-4"></Maximize2>
-                ) : (
-                  <Minimize2 className="h-4 w-4"></Minimize2>
-                )}
-              </Button>
-            )}
+            <Button
+              type="button"
+              className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsZoomedIn(!isZoomedIn)}
+            >
+              {isZoomedIn ? (
+                <Maximize2 className="h-4 w-4"></Maximize2>
+              ) : (
+                <Minimize2 className="h-4 w-4"></Minimize2>
+              )}
+            </Button>
           </div>
         )}
       </div>
     );
   }
 
-  return (
-    <Link href={src} className="underline" target="_blank">
-      {src}
-    </Link>
-  );
+  return <ImageErrorDisplay src={src} errorDescription={errorDescription} />;
 };
 
 const isTextElement = (child: ReactNode): child is ReactElement =>
