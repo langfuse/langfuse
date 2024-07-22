@@ -40,9 +40,11 @@ const isChecklist = (children: ReactNode) =>
   Array.isArray(children) &&
   children.some((child: any) => child?.props?.className === "task-list-item");
 
-// Implemented customLoader as we cannot whitelist user provided image domains.
-// Security risks are taken care of by a validation in api.utilities.validateImgUrl.
-// Do not use this customLoader in production if you are not using the above mentioned security measures.
+/**
+ * Implemented customLoader as we cannot whitelist user provided image domains
+ * Security risks are taken care of by a validation in api.utilities.validateImgUrl
+ * Fetching image will fail if SSL/TLS certificate is invalid or expired
+ * Do not use this customLoader in production if you are not using the above mentioned security measures */
 const customLoader = ({ src }: { src: string }) => {
   return src;
 };
@@ -78,7 +80,6 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
             width={0}
             height={0}
             className="h-full w-full object-contain"
-            // onError is called when SSL/TLS certificate is invalid or expired
             onError={(error) => {
               captureException(error);
               showErrorToast(
