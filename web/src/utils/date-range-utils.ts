@@ -1,6 +1,7 @@
 import { type DateRange } from "react-day-picker";
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "24 hours" as const;
+export const DASHBOARD_AGGREGATION_PLACEHOLDER = "Date range" as const;
 export const DEFAULT_AGGREGATION_SELECTION = "All time" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
@@ -40,7 +41,8 @@ export type DateRangeAggregationOption =
 export type AllDateRangeAggregationOption =
   | DashboardDateRangeAggregationOption
   | TableDateRangeAggregationOption
-  | typeof DEFAULT_AGGREGATION_SELECTION;
+  | typeof DEFAULT_AGGREGATION_SELECTION
+  | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
 
 export type DateRangeAggregationSettings<T extends DateRangeAggregationOption> =
   Record<
