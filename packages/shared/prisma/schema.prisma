@@ -112,7 +112,7 @@ model Project {
     name               String
     cloudConfig        Json?                  @map("cloud_config") // Langfuse Cloud, for zod schema see projectsRouter.ts
     projectMembers     ProjectMembership[]
-    organization       Organization?          @relation(fields: [orgId], references: [id])
+    organization       Organization?          @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
     traces             Trace[]
     observations       Observation[]
     apiKeys            ApiKey[]
