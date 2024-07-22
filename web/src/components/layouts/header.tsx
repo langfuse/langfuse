@@ -31,6 +31,7 @@ import { createProjectRoute } from "@/src/components/setup";
 import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/utils/useProject";
+import { useRouter } from "next/router";
 
 export default function Header({
   level = "h2",
@@ -131,6 +132,7 @@ const BreadcrumbComponent = ({
   const organizations = api.organizations.all.useQuery(undefined, {
     enabled: fetchOptions,
   });
+  const router = useRouter();
 
   return (
     <Breadcrumb>
@@ -181,9 +183,17 @@ const BreadcrumbComponent = ({
                               size="xs"
                               className="-my-1 ml-4 mr-1 hover:bg-background"
                             >
-                              <Link href={`/organization/${org.id}/settings`}>
+                              <div
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  router.push(
+                                    `/organization/${org.id}/settings`,
+                                  );
+                                }}
+                              >
                                 <Settings size={12} />
-                              </Link>
+                              </div>
                             </Button>
                           </Link>
                         </DropdownMenuItem>
@@ -253,9 +263,17 @@ const BreadcrumbComponent = ({
                               size="xs"
                               className="-my-1 ml-4 mr-1 hover:bg-background"
                             >
-                              <Link href={`/project/${project.id}/settings`}>
+                              <div
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  router.push(
+                                    `/project/${project.id}/settings`,
+                                  );
+                                }}
+                              >
                                 <Settings size={12} />
-                              </Link>
+                              </div>
                             </Button>
                           </Link>
                         </DropdownMenuItem>

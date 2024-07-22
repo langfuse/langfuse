@@ -6,7 +6,8 @@ import {
   type OrganizationMembership as PrismaOrganizationMembership,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
-import { type cloudConfigSchema } from "@/src/features/cloud-config/types/cloudConfigSchema";
+import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
+import { type Plan } from "@/src/features/entitlements/constants/plans";
 import { type z } from "zod";
 
 /**
@@ -38,11 +39,12 @@ declare module "next-auth" {
     organizations: {
       id: PrismaOrganization["id"];
       role: PrismaOrganizationMembership["role"];
-      cloudConfig: z.infer<typeof cloudConfigSchema> | undefined;
+      cloudConfig: z.infer<typeof CloudConfigSchema> | undefined;
       projects: {
         id: PrismaProject["id"];
         role: PrismaMembership["role"];
       }[];
+      plan: Plan;
     }[];
     featureFlags: Flags;
   }

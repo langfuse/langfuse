@@ -25,27 +25,31 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
-import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
+import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 
 export function LlmApiKeyList(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:read",
   });
-  const isEeEnabled = useIsEeEnabled();
+
+  // only show if the user has access to features that require LLM API keys
+  const entitlements = useOrgEntitlements();
+  const isAvailable =
+    entitlements.includes("playground") ||
+    entitlements.includes("model-based-evaluations");
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
       projectId: props.projectId,
     },
     {
-      enabled: hasAccess && isEeEnabled,
+      enabled: hasAccess && isAvailable,
     },
   );
 
-  if (!isEeEnabled) return null;
+  if (!isAvailable) return null;
 
   if (!hasAccess) {
     return (

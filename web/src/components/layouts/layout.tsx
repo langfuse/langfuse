@@ -32,6 +32,7 @@ import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { EnvLabel } from "@/src/components/EnvLabel";
 import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/utils/useProject";
+import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -84,6 +85,8 @@ export default function Layout(props: PropsWithChildren) {
   const enableExperimentalFeatures =
     session.data?.environment.enableExperimentalFeatures ?? false;
 
+  const entitlements = useOrgEntitlements();
+
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
   const isEeEnabled = useIsEeEnabled();
@@ -107,6 +110,13 @@ export default function Layout(props: PropsWithChildren) {
         enableExperimentalFeatures ||
         session.data?.user?.featureFlags[route.featureFlag]
       )
+    )
+      return null;
+
+    // check entitlements
+    if (
+      route.entitlement !== undefined &&
+      !entitlements.includes(route.entitlement)
     )
       return null;
 

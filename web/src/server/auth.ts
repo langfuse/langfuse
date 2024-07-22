@@ -30,11 +30,12 @@ import {
 } from "@langfuse/ee/sso";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
-import { cloudConfigSchema } from "@/src/features/cloud-config/types/cloudConfigSchema";
+import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
 import {
   CustomSSOProvider,
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
+import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -322,6 +323,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
             defaultTableDateTimeOffset:
               env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
+
             // Enables features that are only available under an enterprise license when self-hosting Langfuse
             // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
             eeEnabled: env.LANGFUSE_EE_LICENSE_KEY !== undefined,
@@ -337,15 +339,13 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                   admin: dbUser.admin,
                   organizations: dbUser.organizationMemberships.map(
                     (orgMembership) => {
-                      const parsedCloudConfig = cloudConfigSchema.safeParse(
+                      const parsedCloudConfig = CloudConfigSchema.safeParse(
                         orgMembership.organization.cloudConfig,
                       );
                       return {
                         id: orgMembership.organization.id,
                         role: orgMembership.role,
-                        cloudConfig: parsedCloudConfig.success
-                          ? parsedCloudConfig.data
-                          : undefined,
+                        cloudConfig: parsedCloudConfig.data,
                         projects: orgMembership.organization.projects
                           .map((project) => {
                             const projectRole: ProjectRole | "NONE" =
@@ -360,6 +360,10 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           })
                           // Hide all projects where the user has no role
                           .filter((project) => project.role !== "NONE"),
+
+                        // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting
+                        // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
+                        plan: getOrganizationPlan(parsedCloudConfig.data),
                       };
                     },
                   ),

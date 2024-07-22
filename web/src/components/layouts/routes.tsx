@@ -17,6 +17,7 @@ import {
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { type ReactNode } from "react";
 import { VersionLabel } from "@/src/components/VersionLabel";
+import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 
 export type Route = {
   name: string;
@@ -29,6 +30,7 @@ export type Route = {
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
   requires?: "cloud" | "cloud-or-ee"; // feature requires cloud or ee
+  entitlement?: Entitlement; // entitlement required
 };
 
 export const ROUTES: Route[] = [
@@ -77,25 +79,25 @@ export const ROUTES: Route[] = [
   {
     name: "Evaluation",
     icon: Lightbulb,
-    requires: "cloud",
+    entitlement: "model-based-evaluations",
     label: "Beta",
     children: [
       {
         name: "Templates",
         pathname: `/project/[projectId]/evals/templates`,
-        requires: "cloud",
+        entitlement: "model-based-evaluations",
         rbacScope: "evalTemplate:read",
       },
       {
         name: "Configs",
         pathname: `/project/[projectId]/evals/configs`,
-        requires: "cloud",
+        entitlement: "model-based-evaluations",
         rbacScope: "evalJob:read",
       },
       {
         name: "Log",
         pathname: `/project/[projectId]/evals/log`,
-        requires: "cloud",
+        entitlement: "model-based-evaluations",
         rbacScope: "evalJobExecution:read",
       },
     ],
@@ -115,7 +117,7 @@ export const ROUTES: Route[] = [
     name: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
-    requires: "cloud-or-ee",
+    entitlement: "playground",
     label: "Beta",
   },
   {
