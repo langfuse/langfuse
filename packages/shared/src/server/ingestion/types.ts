@@ -421,6 +421,7 @@ export const ingestionEvent = z.discriminatedUnion("type", [
   legacyObservationCreateEvent,
   legacyObservationUpdateEvent,
 ]);
+export type IngestionEventType = z.infer<typeof ingestionEvent>;
 
 export const ingestionBatchEvent = z.array(ingestionEvent);
 export type IngestionBatchEventType = z.infer<typeof ingestionBatchEvent>;

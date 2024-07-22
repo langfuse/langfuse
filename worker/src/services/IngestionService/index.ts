@@ -10,6 +10,7 @@ import {
   eventTypes,
   findModel,
   IngestionBatchEventType,
+  IngestionEventType,
   ingestionEventWithProjectId,
   IngestionEventWithProjectIdType,
   ObservationEvent,
@@ -36,6 +37,13 @@ enum TableName {
   Traces = "traces",
   Scores = "scores",
   Observations = "observations",
+}
+
+enum EntityType {
+  Trace = "trace",
+  Score = "score",
+  Observation = "observation",
+  SDK_LOG = "sdk-log",
 }
 
 const immutableEntityKeys: {
@@ -83,6 +91,7 @@ export class IngestionService {
 
       const projectEntityKey = this.getProjectEntityKey({
         entityId: event.body.id,
+        eventType: this.getEventType(event),
         projectId,
       });
       const serializedEventData = JSON.stringify({ ...event, projectId });
@@ -122,17 +131,36 @@ export class IngestionService {
       );
     }
 
-    const { projectId, entityId } =
+    const { projectId, eventType, entityId } =
       this.parseProjectEntityKey(projectEntityKey);
-    const entityType = eventList[0].type;
 
-    switch (entityType) {
-      case eventTypes.TRACE_CREATE:
+    switch (eventType) {
+      case EntityType.Trace:
         return await this.processTraceEventList({
           projectId,
           entityId,
           traceEventList: eventList as TraceEventType[],
         });
+      case EntityType.Observation:
+        return await this.processObservationEventList({
+          projectId,
+          entityId,
+          observationEventList: eventList as ObservationEvent[],
+        });
+      case EntityType.Score: {
+        return await this.processScoreEventList({
+          projectId,
+          entityId,
+          scoreEventList: eventList as ScoreEventType[],
+        });
+      }
+    }
+  }
+
+  private getEventType(event: IngestionEventType): EntityType {
+    switch (event.type) {
+      case eventTypes.TRACE_CREATE:
+        return EntityType.Trace;
       case eventTypes.OBSERVATION_CREATE:
       case eventTypes.OBSERVATION_UPDATE:
       case eventTypes.EVENT_CREATE:
@@ -140,36 +168,20 @@ export class IngestionService {
       case eventTypes.SPAN_UPDATE:
       case eventTypes.GENERATION_CREATE:
       case eventTypes.GENERATION_UPDATE:
-        return await this.processObservationEventList({
-          projectId,
-          entityId,
-          observationEventList: eventList as ObservationEvent[],
-        });
-      case eventTypes.SCORE_CREATE: {
-        return await this.processScoreEventList({
-          projectId,
-          entityId,
-          scoreEventList: eventList as ScoreEventType[],
-        });
-      }
+        return EntityType.Observation;
+      case eventTypes.SCORE_CREATE:
+        return EntityType.Score;
       case eventTypes.SDK_LOG:
-        break;
-
-      default: {
-        // This is a typescript hack to ensure that we have handled all cases
-        const fallThrough: never = entityType;
-        logger.error(
-          `Unknown entity type ${fallThrough} for ${projectEntityKey}`
-        );
-      }
+        return EntityType.SDK_LOG;
     }
   }
 
   private getProjectEntityKey(params: {
-    entityId: string;
     projectId: string;
+    eventType: EntityType;
+    entityId: string;
   }): string {
-    return `project_${params.projectId}_entity_${params.entityId}`;
+    return `ingestionBuffer_${params.projectId}_${params.eventType}_${params.entityId}`;
   }
 
   private parseProjectEntityKey(projectEntityKey: string) {
@@ -183,6 +195,7 @@ export class IngestionService {
 
     return {
       projectId: split[1],
+      eventType: split[2] as EntityType,
       entityId: split[3],
     };
   }
