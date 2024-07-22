@@ -29,12 +29,12 @@ import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  DEFAULT_DASHBOARD_DATE_RANGE_SELECTION,
+  findClosestDashboardInterval,
   isValidOption,
   type AllDateRangeAggregationOption,
-  type DateTimeAggregationOption,
+  DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
+  type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
-import { findClosestDashboardInterval } from "@/src/features/dashboard/lib/timeseries-aggregation";
 
 export type DashboardDateRange = {
   from: Date;
@@ -70,11 +70,14 @@ export default function Start() {
     [urlParams.from, urlParams.to],
   );
 
-  const selectedOption: DateTimeAggregationOption = isValidOption(
+  const selectedOption:
+    | DashboardDateRangeAggregationOption
+    | typeof DEFAULT_DASHBOARD_AGGREGATION_SELECTION = isValidOption(
     urlParams.select,
   )
-    ? urlParams.select
-    : DEFAULT_DASHBOARD_DATE_RANGE_SELECTION;
+    ? (urlParams.select as DashboardDateRangeAggregationOption)
+    : DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
+  selectedOption;
 
   const setDateRangeAndOption = (
     option?: AllDateRangeAggregationOption,
