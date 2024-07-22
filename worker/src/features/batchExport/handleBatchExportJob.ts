@@ -78,8 +78,6 @@ export const handleBatchExportJob = async (
         orderBy,
         limit: pageSize,
         page: Math.floor(offset / pageSize),
-        from: null,
-        to: null,
       });
 
       const chunk = await prisma.$queryRaw<unknown[]>(query);

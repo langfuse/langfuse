@@ -13,8 +13,8 @@ const GetSessionTableSQLParamsSchema = z.object({
   orderBy: orderBy,
   page: z.number(),
   limit: z.number(),
-  from: z.date().nullable(),
-  to: z.date().nullable(),
+  from: z.date().nullish(),
+  to: z.date().nullish(),
 });
 type GetSessionTableSQLParams = z.infer<typeof GetSessionTableSQLParamsSchema>;
 

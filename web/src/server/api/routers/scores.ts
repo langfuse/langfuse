@@ -28,8 +28,8 @@ const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
   orderBy: orderBy,
-  from: z.date().nullable(),
-  to: z.date().nullable(),
+  from: z.date().nullish(),
+  to: z.date().nullish(),
 });
 
 const ScoreAllOptions = ScoreFilterOptions.extend({

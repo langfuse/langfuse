@@ -15,8 +15,8 @@ import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
-  from: z.date().nullable(),
-  to: z.date().nullable(),
+  from: z.date().nullish(),
+  to: z.date().nullish(),
 });
 
 const UserAllOptions = UserFilterOptions.extend({
