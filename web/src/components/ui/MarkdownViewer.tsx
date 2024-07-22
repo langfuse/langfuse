@@ -43,7 +43,7 @@ const isChecklist = (children: ReactNode) =>
 /**
  * Implemented customLoader as we cannot whitelist user provided image domains
  * Security risks are taken care of by a validation in api.utilities.validateImgUrl
- * Fetching image will fail if SSL/TLS certificate is invalid or expired
+ * Fetching image will fail if SSL/TLS certificate is invalid or expired, will be handled by onError
  * Do not use this customLoader in production if you are not using the above mentioned security measures */
 const customLoader = ({ src }: { src: string }) => {
   return src;
