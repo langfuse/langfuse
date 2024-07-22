@@ -19,9 +19,8 @@ import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";
 import DateRangeDropdown from "@/src/components/DateRangeDropdown";
 import {
-  DEFAULT_AGGREGATION_SELECTION,
   type AllDateRangeAggregationOption,
-  type DashboardDateRangeAggregationOption,
+  DASHBOARD_AGGREGATION_PLACEHOLDER,
 } from "@/src/utils/date-range-utils";
 
 export function DatePicker({
@@ -89,7 +88,7 @@ export function DatePicker({
 export type DatePickerWithRangeProps = {
   dateRange?: DashboardDateRange;
   className?: string;
-  selectedOption: DashboardDateRangeAggregationOption;
+  selectedOption: AllDateRangeAggregationOption;
   setDateRangeAndOption: (
     option: AllDateRangeAggregationOption,
     date?: DashboardDateRange,
@@ -109,7 +108,6 @@ export function DatePickerWithRange({
   useEffect(() => {
     setInternalDateRange(dateRange);
   }, [dateRange]);
-
   const onCalendarSelection = (range?: DateRange) => {
     const newRange = range
       ? {
@@ -124,10 +122,12 @@ export function DatePickerWithRange({
         from: newRange.from,
         to: newRange.to,
       };
-      setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, dashboardDateRange);
+      setDateRangeAndOption(
+        DASHBOARD_AGGREGATION_PLACEHOLDER,
+        dashboardDateRange,
+      );
     }
   };
-
   const isSmallScreen = useMediaQuery({ query: "(max-width: 640px)" });
 
   return (
