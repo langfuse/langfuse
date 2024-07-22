@@ -72,13 +72,13 @@ export const dashboardDateRangeAggregationSettings: DateRangeAggregationSettings
       date_trunc: "month",
       date_formatter: (date: Date) =>
         date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      minutes: 3 * 30 * 24 * 60,
+      minutes: 3 * 28 * 24 * 60,
     },
     "1 month": {
       date_trunc: "month",
       date_formatter: (date: Date) =>
         date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      minutes: 30 * 24 * 60,
+      minutes: 28 * 24 * 60,
     },
     "7 days": {
       date_trunc: "day",
@@ -136,13 +136,13 @@ export const tableDateRangeAggregationSettings: DateRangeAggregationSettings<Tab
       date_trunc: "month",
       date_formatter: (date: Date) =>
         date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      minutes: 3 * 30 * 24 * 60,
+      minutes: 3 * 28 * 24 * 60,
     },
     "1 month": {
       date_trunc: "month",
       date_formatter: (date: Date) =>
         date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      minutes: 30 * 24 * 60,
+      minutes: 28 * 24 * 60,
     },
     "14 days": {
       date_trunc: "day",
