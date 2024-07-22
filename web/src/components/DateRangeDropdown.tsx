@@ -10,18 +10,20 @@ import {
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 
 import {
-  type AllDateRangeAggregationOption,
   DEFAULT_AGGREGATION_SELECTION,
   isValidOption,
   type DashboardDateRangeAggregationOption,
   type TableDateRangeAggregationOption,
   tableDateRangeAggregationSettings,
   dashboardDateRangeAggregationSettings,
+  type AllDateRangeAggregationOption,
+  DASHBOARD_AGGREGATION_PLACEHOLDER,
 } from "@/src/utils/date-range-utils";
 
 type DateRangeDropdownProps = {
   type: "dashboard" | "table";
   selectedOption: AllDateRangeAggregationOption;
+
   setDateRangeAndOption: (
     option: AllDateRangeAggregationOption,
     date?: DashboardDateRange,
@@ -37,7 +39,8 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
     value:
       | DashboardDateRangeAggregationOption
       | TableDateRangeAggregationOption
-      | typeof DEFAULT_AGGREGATION_SELECTION,
+      | typeof DEFAULT_AGGREGATION_SELECTION
+      | typeof DASHBOARD_AGGREGATION_PLACEHOLDER,
   ) => {
     if (isValidOption(value)) {
       let fromDate: Date;
@@ -62,16 +65,20 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
         to: new Date(),
       });
     } else {
+      if (value.toString() === DASHBOARD_AGGREGATION_PLACEHOLDER) {
+        setDateRangeAndOption(DASHBOARD_AGGREGATION_PLACEHOLDER, undefined);
+        return;
+      }
       setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, undefined);
     }
   };
 
   const dashboardOptions = [
-    DEFAULT_AGGREGATION_SELECTION,
     ...Object.keys(dashboardDateRangeAggregationSettings),
+    DASHBOARD_AGGREGATION_PLACEHOLDER,
   ] as (
     | DashboardDateRangeAggregationOption
-    | typeof DEFAULT_AGGREGATION_SELECTION
+    | typeof DASHBOARD_AGGREGATION_PLACEHOLDER
   )[];
 
   const tableOptions = [
@@ -85,7 +92,7 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
   const currentOptions = type === "dashboard" ? dashboardOptions : tableOptions;
 
   return (
-    <Select value={String(selectedOption)} onValueChange={onDropDownSelection}>
+    <Select value={selectedOption} onValueChange={onDropDownSelection}>
       <SelectTrigger className="w-[120px] hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
         <SelectValue placeholder="Select" />
       </SelectTrigger>
