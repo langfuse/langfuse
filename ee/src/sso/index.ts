@@ -5,13 +5,13 @@ import OktaProvider from "next-auth/providers/okta";
 import CognitoProvider from "next-auth/providers/cognito";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
-import { isEeAvailable } from "..";
 import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "../env";
 import { CustomSSOProvider } from "@langfuse/shared/src/server";
+import { isEeAvailable } from "../ee-license-check";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
