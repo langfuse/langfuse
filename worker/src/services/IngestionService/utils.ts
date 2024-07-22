@@ -95,6 +95,5 @@ export function overwriteObject(
         ? a.metadata
         : mergeRecords(a.metadata, b.metadata) ?? {};
 
-  console.log(`Result ${JSON.stringify(result)}`);
   return result;
 }

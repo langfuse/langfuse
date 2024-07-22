@@ -26,11 +26,11 @@ import {
   traceRecordReadSchema,
 } from "@langfuse/shared/src/server";
 
-import { tokenCount } from "../features/tokenisation/usage";
-import { instrumentAsync, instrument } from "../instrumentation";
-import logger from "../logger";
-import { IngestionFlushQueue } from "../queues/ingestionFlushQueue";
-import { convertJsonSchemaToRecord, overwriteObject } from "./ingestion-utils";
+import { tokenCount } from "../../features/tokenisation/usage";
+import { instrumentAsync, instrument } from "../../instrumentation";
+import logger from "../../logger";
+import { IngestionFlushQueue } from "../../queues/ingestionFlushQueue";
+import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
 
 enum TableName {
   Traces = "traces",
@@ -384,11 +384,13 @@ export class IngestionService {
     }
 
     // TODO: check if this works as intended for observations that don't have a timestamp
-    const timestampAscendingRecords = records
-      .slice()
-      .sort((a, b) =>
-        "timestamp" in a && "timestamp" in b ? a.timestamp - b.timestamp : 0
-      );
+    const timestampAscendingRecords = records.slice().sort((a, b) =>
+      "timestamp" in a && "timestamp" in b
+        ? a.timestamp - b.timestamp
+        : "startTime" in a && "startTime" in b // Generations have startTime instead of timestamp
+          ? a.startTime - b.startTime
+          : 0
+    );
 
     let result: {
       id: string;
