@@ -28,7 +28,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
-import { instrumentAsync, instrument } from "../../instrumentation";
+import { instrumentAsync } from "../../instrumentation";
 import logger from "../../logger";
 import { IngestionFlushQueue } from "../../queues/ingestionFlushQueue";
 import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
@@ -213,7 +213,7 @@ export class IngestionService {
       (score) => ({
         id: entityId,
         project_id: projectId,
-        timestamp: new Date(score.timestamp).getTime(),
+        timestamp: this.getMicrosecondTimestamp(),
         name: score.body.name,
         value: score.body.value,
         source: "API",
@@ -373,14 +373,15 @@ export class IngestionService {
       immutableScoreRecordKeys
     );
 
-    const parsed = observationRecordInsertSchema.parse(mergedRecord);
+    const parsedObservationRecord =
+      observationRecordInsertSchema.parse(mergedRecord);
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
-      observationRecord: mergedRecord as any as ObservationRecordInsertType, // TODO: fix this
+      observationRecord: parsedObservationRecord,
     });
 
-    return { ...parsed, ...generationUsage };
+    return { ...parsedObservationRecord, ...generationUsage };
   }
 
   // TODO: check and test whether this works as intended. This is the core of the merge logic
@@ -396,7 +397,6 @@ export class IngestionService {
       throw new Error("No records to merge");
     }
 
-    // TODO: check if this works as intended for observations that don't have a timestamp
     const timestampAscendingRecords = records.slice().sort((a, b) =>
       "timestamp" in a && "timestamp" in b
         ? a.timestamp - b.timestamp
@@ -462,13 +462,12 @@ export class IngestionService {
   }): Promise<
     | Pick<
         ObservationRecordInsertType,
-        | "input_usage"
-        | "output_usage"
-        | "total_usage"
+        | "input_usage_units"
+        | "output_usage_units"
+        | "total_usage_units"
         | "input_cost"
         | "output_cost"
         | "total_cost"
-        | "internal_model"
         | "internal_model_id"
       >
     | {}
@@ -478,7 +477,7 @@ export class IngestionService {
     const internalModel = await findModel({
       event: {
         projectId,
-        model: observationRecord.model ?? undefined,
+        model: observationRecord.provided_model_name ?? undefined,
         unit: observationRecord.unit ?? undefined,
       },
     });
@@ -505,13 +504,13 @@ export class IngestionService {
     model: Model
   ): Pick<
     ObservationRecordInsertType,
-    "input_usage" | "output_usage" | "total_usage"
+    "input_usage_units" | "output_usage_units" | "total_usage_units"
   > {
     if (
       // No user provided usage. Note only two equal signs operator here to check for null and undefined
-      observationRecord.provided_input_usage == null &&
-      observationRecord.provided_output_usage == null &&
-      observationRecord.provided_total_usage == null
+      observationRecord.provided_input_usage_units == null &&
+      observationRecord.provided_output_usage_units == null &&
+      observationRecord.provided_total_usage_units == null
     ) {
       const newInputCount = tokenCount({
         text: observationRecord.input,
@@ -528,16 +527,16 @@ export class IngestionService {
           : undefined;
 
       return {
-        input_usage: newInputCount,
-        output_usage: newOutputCount,
-        total_usage: newTotalCount,
+        input_usage_units: newInputCount,
+        output_usage_units: newOutputCount,
+        total_usage_units: newTotalCount,
       };
     }
 
     return {
-      input_usage: observationRecord.provided_input_usage,
-      output_usage: observationRecord.provided_output_usage,
-      total_usage: observationRecord.provided_total_usage,
+      input_usage_units: observationRecord.provided_input_usage_units,
+      output_usage_units: observationRecord.provided_output_usage_units,
+      total_usage_units: observationRecord.provided_total_usage_units,
     };
   }
 
@@ -549,9 +548,9 @@ export class IngestionService {
       provided_total_cost?: number | null;
     },
     tokenCounts: {
-      input_usage?: number | null;
-      output_usage?: number | null;
-      total_usage?: number | null;
+      input_usage_units?: number | null;
+      output_usage_units?: number | null;
+      total_usage_units?: number | null;
     }
   ): {
     input_cost?: number | null;
@@ -574,20 +573,20 @@ export class IngestionService {
     }
 
     const finalInputCost =
-      tokenCounts.input_usage != null && model?.inputPrice
-        ? model.inputPrice.toNumber() * tokenCounts.input_usage
+      tokenCounts.input_usage_units != null && model?.inputPrice
+        ? model.inputPrice.toNumber() * tokenCounts.input_usage_units
         : undefined;
 
     const finalOutputCost =
-      tokenCounts.output_usage != null && model?.outputPrice
-        ? model.outputPrice.toNumber() * tokenCounts.output_usage
+      tokenCounts.output_usage_units != null && model?.outputPrice
+        ? model.outputPrice.toNumber() * tokenCounts.output_usage_units
         : finalInputCost
           ? 0
           : undefined;
 
     const finalTotalCost =
-      tokenCounts.total_usage != null && model?.totalPrice
-        ? model.totalPrice.toNumber() * tokenCounts.total_usage
+      tokenCounts.total_usage_units != null && model?.totalPrice
+        ? model.totalPrice.toNumber() * tokenCounts.total_usage_units
         : finalInputCost ?? finalOutputCost
           ? (finalInputCost ?? 0) + (finalOutputCost ?? 0)
           : undefined;
@@ -658,9 +657,7 @@ export class IngestionService {
         id: entityId,
         // in the default implementation, we set timestamps server side if not provided.
         // we need to insert timestamps here and change the SDKs to send timestamps client side.
-        timestamp: trace.body.timestamp
-          ? new Date(trace.body.timestamp).getTime()
-          : Date.now(),
+        timestamp: this.getMicrosecondTimestamp(trace.body.timestamp),
         name: trace.body.name,
         user_id: trace.body.userId,
         metadata: trace.body.metadata
@@ -677,7 +674,6 @@ export class IngestionService {
           ? JSON.stringify(trace.body.output)
           : undefined, // convert even json to string
         session_id: trace.body.sessionId,
-        // updated_at: Date.now(), TODO: what about updated_at?
         created_at: Date.now(),
       };
 
@@ -694,22 +690,22 @@ export class IngestionService {
     const { projectId, entityId, observationEventList, promptId } = params;
 
     return observationEventList.map((obs) => {
-      let type: "EVENT" | "SPAN" | "GENERATION";
+      let observationType: "EVENT" | "SPAN" | "GENERATION";
       switch (obs.type) {
         case eventTypes.OBSERVATION_CREATE:
         case eventTypes.OBSERVATION_UPDATE:
-          type = obs.body.type;
+          observationType = obs.body.type;
           break;
         case eventTypes.EVENT_CREATE:
-          type = "EVENT" as const;
+          observationType = "EVENT" as const;
           break;
         case eventTypes.SPAN_CREATE:
         case eventTypes.SPAN_UPDATE:
-          type = "SPAN" as const;
+          observationType = "SPAN" as const;
           break;
         case eventTypes.GENERATION_CREATE:
         case eventTypes.GENERATION_UPDATE:
-          type = "GENERATION" as const;
+          observationType = "GENERATION" as const;
           break;
       }
 
@@ -740,11 +736,9 @@ export class IngestionService {
       const observationRecord: ObservationRecordInsertType = {
         id: entityId,
         trace_id: obs.body.traceId ?? v4(),
-        type: type,
+        type: observationType,
         name: obs.body.name,
-        start_time: obs.body.startTime
-          ? new Date(obs.body.startTime).getTime()
-          : new Date().getTime(),
+        start_time: this.getMicrosecondTimestamp(obs.body.startTime),
         end_time:
           "endTime" in obs.body && obs.body.endTime
             ? new Date(obs.body.endTime).getTime()
@@ -756,7 +750,7 @@ export class IngestionService {
         metadata: obs.body.metadata
           ? convertJsonSchemaToRecord(obs.body.metadata)
           : {},
-        model: "model" in obs.body ? obs.body.model : undefined,
+        provided_model_name: "model" in obs.body ? obs.body.model : undefined,
         model_parameters:
           "modelParameters" in obs.body
             ? obs.body.modelParameters
@@ -765,9 +759,9 @@ export class IngestionService {
             : undefined,
         input: obs.body.input ? JSON.stringify(obs.body.input) : undefined, // convert even json to string
         output: obs.body.output ? JSON.stringify(obs.body.output) : undefined, // convert even json to string
-        provided_input_usage: newInputCount,
-        provided_output_usage: newOutputCount,
-        provided_total_usage: newTotalCount,
+        provided_input_usage_units: newInputCount,
+        provided_output_usage_units: newOutputCount,
+        provided_total_usage_units: newTotalCount,
         unit: newUnit,
         level: obs.body.level ?? "DEFAULT",
         status_message: obs.body.statusMessage ?? undefined,
@@ -786,5 +780,10 @@ export class IngestionService {
 
       return observationRecord;
     });
+  }
+
+  private getMicrosecondTimestamp(timestamp?: string | null): number {
+    console.log(timestamp);
+    return timestamp ? new Date(timestamp).getTime() * 1000 : Date.now() * 1000;
   }
 }
