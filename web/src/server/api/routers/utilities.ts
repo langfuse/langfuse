@@ -9,6 +9,15 @@ const IP_4_PRIVATE_A_SUBNET = "10.0.0.0/8";
 const IP_4_PRIVATE_B_SUBNET = "172.16.0.0/12";
 const IP_4_PRIVATE_C_SUBNET = "192.168.0.0/16";
 
+/**
+ * Check if the hostname is a private IP address
+ * This function is used to protect against Server Side Request Forgery (SSRF) attacks.
+ * SSRF attacks can cause the server to make requests to internal resources that should not be accessible.
+ * By checking if a hostname resolves to a private IP address, we can prevent such attacks.
+ *
+ * @param hostname - The hostname to check
+ * @returns True if the hostname is a private IP address, false otherwise
+ */
 const isPrivateIp = (hostname: string): boolean => {
   try {
     if (Address6.isValid(hostname)) {
@@ -35,8 +44,9 @@ const isPrivateIp = (hostname: string): boolean => {
 
 const resolveHostname = async (hostname: string): Promise<string[]> => {
   try {
-    const addresses = await dns.resolve4(hostname);
-    return addresses;
+    const addresses4 = await dns.resolve4(hostname);
+    const addresses6 = await dns.resolve6(hostname);
+    return [...addresses4, ...addresses6];
   } catch (error) {
     console.error("DNS resolution error:", error);
     return [];
@@ -61,16 +71,10 @@ const isValidAndSecureUrl = async (urlString: string): Promise<boolean> => {
 
 const isValidImageUrl = async (url: string): Promise<boolean> => {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-    }, 5000);
-
     const response = await fetch(url, {
       method: "HEAD",
-      signal: controller.signal,
+      signal: AbortSignal.timeout(5000),
     });
-    clearTimeout(timeout);
     if (!response.ok) {
       return false;
     }
