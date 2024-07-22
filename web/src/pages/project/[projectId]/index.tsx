@@ -31,9 +31,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import {
   findClosestDashboardInterval,
   isValidOption,
+  DASHBOARD_AGGREGATION_PLACEHOLDER,
+  type DashboardDateRangeAggregationOption,
   type AllDateRangeAggregationOption,
   DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
-  type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 
 export type DashboardDateRange = {
@@ -72,12 +73,11 @@ export default function Start() {
 
   const selectedOption:
     | DashboardDateRangeAggregationOption
-    | typeof DEFAULT_DASHBOARD_AGGREGATION_SELECTION = isValidOption(
-    urlParams.select,
-  )
+    | typeof DASHBOARD_AGGREGATION_PLACEHOLDER = isValidOption(urlParams.select)
     ? (urlParams.select as DashboardDateRangeAggregationOption)
-    : DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
-  selectedOption;
+    : urlParams.select === DASHBOARD_AGGREGATION_PLACEHOLDER
+      ? DASHBOARD_AGGREGATION_PLACEHOLDER
+      : DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
 
   const setDateRangeAndOption = (
     option?: AllDateRangeAggregationOption,
