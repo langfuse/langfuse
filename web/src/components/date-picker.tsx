@@ -22,6 +22,7 @@ import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DateRangeOptions,
 } from "@/src/utils/date-range-utils";
+import { combineDateAndTime } from "@/src/components/ui/time-picker-utils";
 
 export function DatePicker({
   date,
@@ -154,19 +155,7 @@ export function DatePickerWithRange({
   };
 
   const onStartTimeSelection = (date: Date | undefined) => {
-    const startDate = internalDateRange?.from;
-    const startTime = date;
-    // Combine the date and time
-    const newDateTime = startDate
-      ? new Date(
-          startDate.getFullYear(),
-          startDate.getMonth(),
-          startDate.getDate(),
-          startTime?.getHours() ?? 0,
-          startTime?.getMinutes() ?? 0,
-          startTime?.getSeconds() ?? 0,
-        )
-      : undefined;
+    const newDateTime = combineDateAndTime(internalDateRange?.from, date);
     const newRange = setNewDateRange(
       internalDateRange,
       newDateTime,
@@ -177,18 +166,7 @@ export function DatePickerWithRange({
   };
 
   const onEndTimeSelection = (date: Date | undefined) => {
-    const endDate = internalDateRange?.to;
-    const endTime = date;
-    const newDateTime = endDate
-      ? new Date(
-          endDate.getFullYear(),
-          endDate.getMonth(),
-          endDate.getDate(),
-          endTime?.getHours() ?? 0,
-          endTime?.getMinutes() ?? 0,
-          endTime?.getSeconds() ?? 0,
-        )
-      : undefined;
+    const newDateTime = combineDateAndTime(internalDateRange?.to, date);
     const newRange = setNewDateRange(
       internalDateRange,
       internalDateRange?.from,
@@ -239,9 +217,9 @@ export function DatePickerWithRange({
             numberOfMonths={isSmallScreen ? 1 : 2} // TODO: make this configurable to screen size
           />
           {!isSmallScreen && (
-            <div className="flex flex-row border-t-2 pt-2">
+            <div className="flex flex-row border-t-2 pt-1.5">
               <div className="px-3">
-                <p className="px-1">Start time</p>
+                <p className="px-1 font-medium">Start time</p>
                 <TimePicker
                   date={internalDateRange?.from}
                   setDate={onStartTimeSelection}
@@ -249,7 +227,27 @@ export function DatePickerWithRange({
                 />
               </div>
               <div className="px-3">
-                <p className="px-1">End time</p>
+                <p className="px-1 font-medium">End time</p>
+                <TimePicker
+                  date={internalDateRange?.to}
+                  setDate={onEndTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+            </div>
+          )}
+          {isSmallScreen && (
+            <div className="flex flex-col gap-2 border-t-2 pt-1.5">
+              <div className="px-3">
+                <p className="px-1 font-medium">Start</p>
+                <TimePicker
+                  date={internalDateRange?.from}
+                  setDate={onStartTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+              <div className="px-3">
+                <p className="px-1 font-medium">End</p>
                 <TimePicker
                   date={internalDateRange?.to}
                   setDate={onEndTimeSelection}
