@@ -96,7 +96,7 @@ const isValidImageUrl = async (url: string): Promise<boolean> => {
 
 export const utilsRouter = createTRPCRouter({
   validateImgUrl: protectedProcedure
-    .input(z.string().url().max(2048))
+    .input(z.string().max(2048))
     .query(async ({ input: url }) => {
       const isValidUrl = await isValidAndSecureUrl(url);
       if (!isValidUrl) {
