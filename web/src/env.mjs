@@ -112,6 +112,11 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+    // Blocked public api keys
+    LANGFUSE_BLOCKED_PUBLIC_API_KEYS: z
+      .string()
+      .optional()
+      .transform((v) => (v ? v.split(",").map((key) => key.trim()) : [])),
   },
 
   /**
@@ -229,6 +234,9 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
+    // Blocked public api keys
+    LANGFUSE_BLOCKED_PUBLIC_API_KEYS:
+      process.env.LANGFUSE_BLOCKED_PUBLIC_API_KEYS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

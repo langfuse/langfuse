@@ -34,6 +34,8 @@ export async function verifyAuthHeaderAndReturnScope(
       const { username: publicKey, password: secretKey } =
         extractBasicAuthCredentials(authHeader);
 
+      filterBlockedPublicKey(publicKey);
+
       const salt = env.SALT;
       const hashFromProvidedKey = createShaHash(secretKey, salt);
       const apiKey = await prisma.apiKey.findUnique({
@@ -82,6 +84,8 @@ export async function verifyAuthHeaderAndReturnScope(
     if (authHeader.startsWith("Bearer ")) {
       const publicKey = authHeader.replace("Bearer ", "");
 
+      filterBlockedPublicKey(publicKey);
+
       const dbKey = await findDbKeyOrThrow(publicKey);
       Sentry.setUser({
         id: dbKey.projectId,
@@ -113,6 +117,15 @@ export async function verifyAuthHeaderAndReturnScope(
     validKey: false,
     error: "Invalid authorization header",
   };
+}
+
+function filterBlockedPublicKey(publicKey: string) {
+  const blocked = env.LANGFUSE_BLOCKED_PUBLIC_API_KEYS.includes(publicKey);
+
+  if (blocked) {
+    console.log("Blocked public key:", publicKey);
+    throw new Error("Invalid public key");
+  }
 }
 
 function extractBasicAuthCredentials(basicAuthHeader: string): {
