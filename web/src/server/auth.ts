@@ -354,9 +354,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         // Block sign in without valid user.email
         const email = user.email?.toLowerCase();
         if (!email) {
+          console.error("No email found in user object");
           throw new Error("No email found in user object");
         }
         if (z.string().email().safeParse(email).success === false) {
+          console.error("Invalid email found in user object");
           throw new Error("Invalid email found in user object");
         }
 
@@ -365,6 +367,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         const domain = email.split("@")[1];
         const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
         if (customSsoProvider && account?.provider !== customSsoProvider) {
+          console.log(
+            "Custom SSO provider enforced for domain, user signed in with other provider",
+          );
           throw new Error(`You must sign in via SSO for this domain.`);
         }
 

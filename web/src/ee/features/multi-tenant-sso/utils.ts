@@ -10,6 +10,7 @@ import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { CustomSSOProvider } from "@langfuse/shared/src/server";
+import * as Sentry from "@sentry/node";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -44,14 +45,9 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
         },
       );
     } catch (e) {
-      // cache empty array to prevent repeated DB calls on error
-      cachedSsoConfigs = {
-        data: [],
-        timestamp: Date.now(),
-      };
-
-      // caught and logged in the caller
-      throw e;
+      // empty array will be cached to prevent repeated DB queries
+      console.error("Failed to load SSO configs from the database", e);
+      Sentry.captureException(e);
     }
 
     // transform into zod object
@@ -65,6 +61,7 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
             `Failed to parse SSO provider config for domain ${v.domain}`,
             e,
           );
+          Sentry.captureException(e);
           return null;
         }
       })
@@ -185,9 +182,15 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     // Type check to ensure we handle all providers
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _: never = provider;
-    throw new Error(
+    console.error(
       `Unrecognized SSO provider for domain ${(provider as any).domain}`,
     );
+    Sentry.captureException(
+      new Error(
+        `Unrecognized SSO provider for domain ${(provider as any).domain}`,
+      ),
+    );
+    return null;
   }
 };
 
