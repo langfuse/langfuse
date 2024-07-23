@@ -16,7 +16,7 @@ service:
           docs: The unique langfuse identifier of a trace
       response: commons.TraceWithFullDetails
     list:
-      docs: Get list of traces.
+      docs: Get list of traces
       method: GET
       path: /traces
       request:
