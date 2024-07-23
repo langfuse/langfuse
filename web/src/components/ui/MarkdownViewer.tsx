@@ -81,7 +81,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
   }
 
   const errorDescription =
-    "Cannot load image. Http images are not rendered in Langfuse for security reasons. Click to view image in new tab";
+    "Cannot load image. Http images are not rendered in Langfuse for security reasons";
 
   if (isValidImage.data?.isValid) {
     return (
