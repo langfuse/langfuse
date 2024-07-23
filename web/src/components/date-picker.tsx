@@ -108,15 +108,27 @@ export function DatePickerWithRange({
   useEffect(() => {
     setInternalDateRange(dateRange);
   }, [dateRange]);
-  const onCalendarSelection = (range?: DateRange) => {
-    const newRange = range
+
+  const setNewDateRange = (
+    internalDateRange: DateRange | undefined,
+    newFromDate: Date | undefined,
+    newToDate: Date | undefined,
+  ): DateRange | undefined => {
+    return internalDateRange
       ? {
-          from: range.from ? setBeginningOfDay(range.from) : undefined,
-          to: range.to ? setEndOfDay(range.to) : undefined,
+          from: newFromDate ?? internalDateRange.from,
+          to: newToDate ?? internalDateRange.to,
         }
       : undefined;
+  };
 
-    setInternalDateRange(newRange);
+  const updateDashboardDateRange = (
+    newRange: DateRange | undefined,
+    setDateRangeAndOption: (
+      option: DateRangeOptions,
+      date?: DashboardDateRange,
+    ) => void,
+  ) => {
     if (newRange && newRange.from && newRange.to) {
       const dashboardDateRange: DashboardDateRange = {
         from: newRange.from,
@@ -128,6 +140,64 @@ export function DatePickerWithRange({
       );
     }
   };
+
+  const onCalendarSelection = (range?: DateRange) => {
+    const newRange = range
+      ? {
+          from: range.from ? setBeginningOfDay(range.from) : undefined,
+          to: range.to ? setEndOfDay(range.to) : undefined,
+        }
+      : undefined;
+
+    setInternalDateRange(newRange);
+    updateDashboardDateRange(newRange, setDateRangeAndOption);
+  };
+
+  const onStartTimeSelection = (date: Date | undefined) => {
+    const startDate = internalDateRange?.from;
+    const startTime = date;
+    // Combine the date and time
+    const newDateTime = startDate
+      ? new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate(),
+          startTime?.getHours() ?? 0,
+          startTime?.getMinutes() ?? 0,
+          startTime?.getSeconds() ?? 0,
+        )
+      : undefined;
+    const newRange = setNewDateRange(
+      internalDateRange,
+      newDateTime,
+      internalDateRange?.to,
+    );
+    setInternalDateRange(newRange);
+    updateDashboardDateRange(newRange, setDateRangeAndOption);
+  };
+
+  const onEndTimeSelection = (date: Date | undefined) => {
+    const endDate = internalDateRange?.to;
+    const endTime = date;
+    const newDateTime = endDate
+      ? new Date(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          endDate.getDate(),
+          endTime?.getHours() ?? 0,
+          endTime?.getMinutes() ?? 0,
+          endTime?.getSeconds() ?? 0,
+        )
+      : undefined;
+    const newRange = setNewDateRange(
+      internalDateRange,
+      internalDateRange?.from,
+      newDateTime,
+    );
+    setInternalDateRange(newRange);
+    updateDashboardDateRange(newRange, setDateRangeAndOption);
+  };
+
   const isSmallScreen = useMediaQuery({ query: "(max-width: 640px)" });
 
   return (
@@ -168,6 +238,26 @@ export function DatePickerWithRange({
             onSelect={onCalendarSelection}
             numberOfMonths={isSmallScreen ? 1 : 2} // TODO: make this configurable to screen size
           />
+          {!isSmallScreen && (
+            <div className="flex flex-row border-t-2 pt-2">
+              <div className="px-3">
+                <p className="px-1">Start time</p>
+                <TimePicker
+                  date={internalDateRange?.from}
+                  setDate={onStartTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+              <div className="px-3">
+                <p className="px-1">End time</p>
+                <TimePicker
+                  date={internalDateRange?.to}
+                  setDate={onEndTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+            </div>
+          )}
         </PopoverContent>
       </Popover>
       <DateRangeDropdown
