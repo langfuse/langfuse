@@ -27,7 +27,7 @@ import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@langfuse/ee/sso";
+} from "@/src/ee/features/multi-tenant-sso/utils";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 import {
