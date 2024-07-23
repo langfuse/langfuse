@@ -32,12 +32,7 @@ import { instrumentAsync } from "../../instrumentation";
 import logger from "../../logger";
 import { IngestionFlushQueue } from "../../queues/ingestionFlushQueue";
 import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
-
-enum TableName {
-  Traces = "traces",
-  Scores = "scores",
-  Observations = "observations",
-}
+import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
 enum EntityType {
   Trace = "trace",
@@ -73,6 +68,7 @@ export class IngestionService {
     private redis: Redis,
     private prisma: PrismaClient,
     private ingestionFlushQueue: IngestionFlushQueue,
+    private clickHouseWriter: ClickhouseWriter,
     private bufferTtlSeconds: number
   ) {}
 
@@ -221,10 +217,10 @@ export class IngestionService {
         dataType: score.body.dataType,
         observation_id: score.body.observationId ?? null,
         created_at: Date.now(),
+        updated_at: Date.now(),
       })
     );
 
-    // Merge the records
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({
         projectId,
@@ -232,12 +228,7 @@ export class IngestionService {
         scoreRecords,
       });
 
-    // Insert the final record into clickhouse
-    await clickhouseClient.insert({
-      table: TableName.Scores,
-      format: "JSONEachRow",
-      values: finalScoreRecord,
-    });
+    this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
   }
 
   private async processTraceEventList(params: {
@@ -260,11 +251,7 @@ export class IngestionService {
       traceRecords,
     });
 
-    await clickhouseClient.insert({
-      table: TableName.Traces,
-      format: "JSONEachRow",
-      values: finalTraceRecord,
-    });
+    this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
   }
 
   private async processObservationEventList(params: {
@@ -290,11 +277,10 @@ export class IngestionService {
       observationRecords,
     });
 
-    await clickhouseClient.insert({
-      table: TableName.Observations,
-      format: "JSONEachRow",
-      values: finalObservationRecord,
-    });
+    this.clickHouseWriter.addToQueue(
+      TableName.Observations,
+      finalObservationRecord
+    );
   }
 
   private async mergeScoreRecords(params: {
@@ -627,7 +613,7 @@ export class IngestionService {
 
     return await instrumentAsync({ name: `get-${table}` }, async () => {
       const queryResult = await clickhouseClient.query({
-        query: `SELECT * FROM ${table} FINAL where project_id = '${projectId}' and id = '${entityId}'`,
+        query: `SELECT * FROM ${table} WHERE project_id = '${projectId}' AND id = '${entityId}' ORDER BY updated_at DESC LIMIT 1`,
         format: "JSONEachRow",
       });
 
@@ -675,6 +661,7 @@ export class IngestionService {
           : undefined, // convert even json to string
         session_id: trace.body.sessionId,
         created_at: Date.now(),
+        updated_at: Date.now(),
       };
 
       return traceRecord;
@@ -776,6 +763,7 @@ export class IngestionService {
           "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
         prompt_id: promptId,
         created_at: Date.now(),
+        updated_at: Date.now(),
       };
 
       return observationRecord;

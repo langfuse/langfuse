@@ -21,6 +21,7 @@ import { batchExportQueue } from "../queues/batchExportQueue";
 import { ingestionFlushQueue } from "../queues/ingestionFlushQueue";
 import { redis } from "../redis";
 import { IngestionService } from "../services/IngestionService";
+import { ClickhouseWriter } from "../services/ClickhouseWriter";
 
 const router = express.Router();
 
@@ -149,7 +150,8 @@ router
         redis,
         prisma,
         ingestionFlushQueue,
-        60 * 60 // TODO: Make this configurable
+        ClickhouseWriter.getInstance(),
+        60 * 60 // TODO: Make this configurable,
       ).addBatch(batch, projectId);
 
       return res.status(200).send();

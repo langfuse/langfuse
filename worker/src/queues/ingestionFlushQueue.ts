@@ -5,6 +5,7 @@ import { QueueJobs, QueueName } from "@langfuse/shared";
 import { env } from "../env";
 import logger from "../logger";
 import { IngestionService } from "../services/IngestionService";
+import { ClickhouseWriter } from "../services/ClickhouseWriter";
 
 export type IngestionFlushQueue = Queue<null>;
 
@@ -30,7 +31,9 @@ export const flushIngestionQueueExecutor = redis
             throw new Error("ProjectEntity ID not provided");
           }
 
-          logger.info(`Flushing ingestion buffer for ${projectEntityId}...`);
+          logger.debug(
+            `Received flush request after ${Date.now() - job.timestamp} ms for ${projectEntityId}`
+          );
 
           if (!redis) throw new Error("Redis not available");
           if (!prisma) throw new Error("Prisma not available");
@@ -41,10 +44,13 @@ export const flushIngestionQueueExecutor = redis
             redis,
             prisma,
             ingestionFlushQueue,
+            ClickhouseWriter.getInstance(),
             60 * 60 // TODO: Make this configurable
           ).flush(projectEntityId);
 
-          logger.info(`Flushed ingestion buffer for ${projectEntityId}`);
+          logger.info(
+            `Prepared and scheduled CH-write in ${Date.now() - job.timestamp} ms for ${projectEntityId}`
+          );
         }
       },
       {

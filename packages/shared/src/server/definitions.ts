@@ -44,6 +44,7 @@ export type ObservationRecordBaseType = z.infer<
 
 export const observationRecordReadSchema = observationRecordBaseSchema.extend({
   created_at: clickhouseStringDateSchema,
+  updated_at: clickhouseStringDateSchema,
   start_time: clickhouseStringDateSchema,
   end_time: clickhouseStringDateSchema.nullish(),
   completion_start_time: clickhouseStringDateSchema.nullish(),
@@ -55,6 +56,7 @@ export type ObservationRecordReadType = z.infer<
 export const observationRecordInsertSchema = observationRecordBaseSchema.extend(
   {
     created_at: z.number(),
+    updated_at: z.number(),
     start_time: z.number(),
     end_time: z.number().nullish(),
     completion_start_time: z.number().nullish(),
@@ -84,12 +86,14 @@ export type TraceRecordBaseType = z.infer<typeof traceRecordBaseSchema>;
 export const traceRecordReadSchema = traceRecordBaseSchema.extend({
   timestamp: clickhouseStringDateSchema,
   created_at: clickhouseStringDateSchema,
+  updated_at: clickhouseStringDateSchema,
 });
 export type TraceRecordReadType = z.infer<typeof traceRecordReadSchema>;
 
 export const traceRecordInsertSchema = traceRecordBaseSchema.extend({
   timestamp: z.number(),
   created_at: z.number(),
+  updated_at: z.number(),
 });
 export type TraceRecordInsertType = z.infer<typeof traceRecordInsertSchema>;
 
@@ -111,12 +115,14 @@ export type ScoreRecordBaseType = z.infer<typeof scoreRecordBaseSchema>;
 
 export const scoreRecordReadSchema = scoreRecordBaseSchema.extend({
   created_at: clickhouseStringDateSchema,
+  updated_at: clickhouseStringDateSchema,
   timestamp: clickhouseStringDateSchema,
 });
 export type ScoreRecordReadType = z.infer<typeof scoreRecordReadSchema>;
 
 export const scoreRecordInsertSchema = scoreRecordBaseSchema.extend({
   created_at: z.number(),
+  updated_at: z.number(),
   timestamp: z.number(),
 });
 export type ScoreRecordInsertType = z.infer<typeof scoreRecordInsertSchema>;
@@ -126,8 +132,9 @@ export const convertTraceReadToInsert = (
 ): TraceRecordInsertType => {
   return {
     ...record,
-    timestamp: new Date(record.timestamp).getTime(),
     created_at: new Date(record.created_at).getTime(),
+    updated_at: new Date(record.created_at).getTime(),
+    timestamp: new Date(record.timestamp).getTime(),
   };
 };
 
@@ -137,6 +144,7 @@ export const convertObservationReadToInsert = (
   return {
     ...record,
     created_at: new Date(record.created_at).getTime(),
+    updated_at: new Date(record.created_at).getTime(),
     start_time: new Date(record.start_time).getTime(),
     end_time: record.end_time ? new Date(record.end_time).getTime() : undefined,
     completion_start_time: record.completion_start_time
@@ -151,6 +159,7 @@ export const convertScoreReadToInsert = (
   return {
     ...record,
     created_at: new Date(record.created_at).getTime(),
+    updated_at: new Date(record.updated_at).getTime(),
     timestamp: new Date(record.timestamp).getTime(),
   };
 };

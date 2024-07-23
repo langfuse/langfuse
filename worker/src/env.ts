@@ -43,10 +43,12 @@ const EnvSchema = z.object({
   // Ingestion flush queue:
   INGESTION_FLUSH_JOB_DELAY: z.coerce.number().nonnegative().default(10000),
   INGESTION_FLUSH_JOB_ATTEMPTS: z.coerce.number().positive().default(3),
-  INGESTION_FLUSH_WORKER_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(1000),
+  INGESTION_FLUSH_WORKER_CONCURRENCY: z.coerce.number().positive().default(50),
+  CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce.number().positive().default(1000),
+  CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce.number().positive().default(3000),
+  PINO_LOG_LEVEL: z
+    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
+    .optional(),
 });
 
 export const env = EnvSchema.parse(process.env);
