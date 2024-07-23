@@ -22,6 +22,7 @@ import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DateRangeOptions,
 } from "@/src/utils/date-range-utils";
+import { combineDateAndTime } from "@/src/components/ui/time-picker-utils";
 
 export function DatePicker({
   date,
@@ -108,15 +109,27 @@ export function DatePickerWithRange({
   useEffect(() => {
     setInternalDateRange(dateRange);
   }, [dateRange]);
-  const onCalendarSelection = (range?: DateRange) => {
-    const newRange = range
+
+  const setNewDateRange = (
+    internalDateRange: DateRange | undefined,
+    newFromDate: Date | undefined,
+    newToDate: Date | undefined,
+  ): DateRange | undefined => {
+    return internalDateRange
       ? {
-          from: range.from ? setBeginningOfDay(range.from) : undefined,
-          to: range.to ? setEndOfDay(range.to) : undefined,
+          from: newFromDate ?? internalDateRange.from,
+          to: newToDate ?? internalDateRange.to,
         }
       : undefined;
+  };
 
-    setInternalDateRange(newRange);
+  const updateDashboardDateRange = (
+    newRange: DateRange | undefined,
+    setDateRangeAndOption: (
+      option: DateRangeOptions,
+      date?: DashboardDateRange,
+    ) => void,
+  ) => {
     if (newRange && newRange.from && newRange.to) {
       const dashboardDateRange: DashboardDateRange = {
         from: newRange.from,
@@ -128,6 +141,41 @@ export function DatePickerWithRange({
       );
     }
   };
+
+  const onCalendarSelection = (range?: DateRange) => {
+    const newRange = range
+      ? {
+          from: range.from ? setBeginningOfDay(range.from) : undefined,
+          to: range.to ? setEndOfDay(range.to) : undefined,
+        }
+      : undefined;
+
+    setInternalDateRange(newRange);
+    updateDashboardDateRange(newRange, setDateRangeAndOption);
+  };
+
+  const onStartTimeSelection = (date: Date | undefined) => {
+    const newDateTime = combineDateAndTime(internalDateRange?.from, date);
+    const newRange = setNewDateRange(
+      internalDateRange,
+      newDateTime,
+      internalDateRange?.to,
+    );
+    setInternalDateRange(newRange);
+    updateDashboardDateRange(newRange, setDateRangeAndOption);
+  };
+
+  const onEndTimeSelection = (date: Date | undefined) => {
+    const newDateTime = combineDateAndTime(internalDateRange?.to, date);
+    const newRange = setNewDateRange(
+      internalDateRange,
+      internalDateRange?.from,
+      newDateTime,
+    );
+    setInternalDateRange(newRange);
+    updateDashboardDateRange(newRange, setDateRangeAndOption);
+  };
+
   const isSmallScreen = useMediaQuery({ query: "(max-width: 640px)" });
 
   return (
@@ -168,6 +216,46 @@ export function DatePickerWithRange({
             onSelect={onCalendarSelection}
             numberOfMonths={isSmallScreen ? 1 : 2} // TODO: make this configurable to screen size
           />
+          {!isSmallScreen && (
+            <div className="flex flex-row border-t-2 pt-1.5">
+              <div className="px-3">
+                <p className="px-1 font-medium">Start time</p>
+                <TimePicker
+                  date={internalDateRange?.from}
+                  setDate={onStartTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+              <div className="px-3">
+                <p className="px-1 font-medium">End time</p>
+                <TimePicker
+                  date={internalDateRange?.to}
+                  setDate={onEndTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+            </div>
+          )}
+          {isSmallScreen && (
+            <div className="flex flex-col gap-2 border-t-2 pt-1.5">
+              <div className="px-3">
+                <p className="px-1 font-medium">Start</p>
+                <TimePicker
+                  date={internalDateRange?.from}
+                  setDate={onStartTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+              <div className="px-3">
+                <p className="px-1 font-medium">End</p>
+                <TimePicker
+                  date={internalDateRange?.to}
+                  setDate={onEndTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+            </div>
+          )}
         </PopoverContent>
       </Popover>
       <DateRangeDropdown
