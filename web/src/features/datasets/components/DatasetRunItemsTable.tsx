@@ -16,6 +16,7 @@ import { useEffect } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { ListTree } from "lucide-react";
 
 type RowData = {
   id: string;
@@ -107,14 +108,14 @@ export function DatasetRunItemsTable(
         return trace.observationId ? (
           <TableLink
             path={`/project/${props.projectId}/traces/${trace.traceId}?observation=${trace.observationId}`}
-            value={trace.observationId}
-            truncateAt={7}
+            value={`Trace: ${trace.traceId}, Observation: ${trace.observationId}`}
+            icon={<ListTree className="h-4 w-4" />}
           />
         ) : (
           <TableLink
             path={`/project/${props.projectId}/traces/${trace.traceId}`}
-            value={trace.traceId}
-            truncateAt={7}
+            value={`Trace: ${trace.traceId}`}
+            icon={<ListTree className="h-4 w-4" />}
           />
         );
       },
