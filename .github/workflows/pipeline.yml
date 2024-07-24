@@ -94,7 +94,7 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          cp .env.dev.example web/.env
+          grep -v '^REDIS_HOST=' .env.dev.example > web/.env
 
       - name: Run + migrate
         run: |
