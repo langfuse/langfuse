@@ -40,6 +40,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+
 import { isSigtermReceived } from "@/src/utils/shutdown";
 
 export const config = {
@@ -509,24 +510,34 @@ export const sendToWorkerIfEnvironmentConfigured = async (
   batchResults: BatchResult[],
   projectId: string,
 ): Promise<void> => {
+  const traceEvents: TraceUpsertEventType[] = batchResults
+    .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
+    .map((result) =>
+      result.result &&
+      typeof result.result === "object" &&
+      "id" in result.result
+        ? // ingestion API only gets traces for one projectId
+          { traceId: result.result.id as string, projectId }
+        : null,
+    )
+    .filter(isNotNullOrUndefined);
+
   try {
     if (
+      (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+    ) {
+      const { convertTraceUpsertEventsToRedisEvents, traceUpsertQueue } =
+        await import("@langfuse/shared/src/server");
+      console.log("Sending events to worker via redis", traceEvents);
+      const jobs = convertTraceUpsertEventsToRedisEvents(traceEvents);
+      await traceUpsertQueue?.addBulk(jobs);
+    } else if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      const traceEvents: TraceUpsertEventType[] = batchResults
-        .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
-        .map((result) =>
-          result.result &&
-          typeof result.result === "object" &&
-          "id" in result.result
-            ? // ingestion API only gets traces for one projectId
-              { traceId: result.result.id as string, projectId }
-            : null,
-        )
-        .filter(isNotNullOrUndefined);
-
+      console.log("Sending events to worker via HTTP", traceEvents);
       const body: EventBodyType = {
         name: EventName.TraceUpsert,
         payload: traceEvents,

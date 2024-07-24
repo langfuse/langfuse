@@ -10,12 +10,16 @@ const clientTestConfig = {
   displayName: "client",
   testMatch: ["/**/*.clienttest.[jt]s?(x)"],
   testEnvironment: "jest-environment-jsdom",
+  // setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
+  // globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
 };
 
 const serverTestConfig = {
   displayName: "server",
   testMatch: ["/**/*.servertest.[jt]s?(x)"],
   testEnvironment: "jest-environment-node",
+  setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
+  globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
 };
 
 // To avoid the "Cannot use import statement outside a module" errors while transforming ESM.

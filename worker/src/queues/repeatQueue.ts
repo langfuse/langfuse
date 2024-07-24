@@ -1,6 +1,6 @@
 import { Queue, Worker } from "bullmq";
 
-import { redis } from "../redis";
+import { redis } from "@langfuse/shared/src/server";
 import { enqueueBatchExportJobs } from "../features/batchExport/enqueueBatchExportJobs";
 import { QueueJobs, QueueName } from "@langfuse/shared";
 
