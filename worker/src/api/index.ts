@@ -3,7 +3,7 @@ import basicAuth from "express-basic-auth";
 import * as Sentry from "@sentry/node";
 import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import {
-  createRedisEvents,
+  convertTraceUpsertEventsToRedisEvents,
   traceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
@@ -51,7 +51,7 @@ router
       if (event.data.name === EventName.TraceUpsert) {
         // Find set of traces per project. There might be two events for the same trace in one API call.
         // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
-        const jobs = createRedisEvents(event.data.payload);
+        const jobs = convertTraceUpsertEventsToRedisEvents(event.data.payload);
         await traceUpsertQueue?.addBulk(jobs); // add all jobs as bulk
 
         return res.json({

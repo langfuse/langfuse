@@ -41,7 +41,7 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import {
-  createRedisEvents,
+  convertTraceUpsertEventsToRedisEvents,
   traceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { isSigtermReceived } from "@/src/utils/shutdown";
@@ -531,7 +531,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
       console.log("Sending events to worker via redis", traceEvents);
-      const jobs = createRedisEvents(traceEvents);
+      const jobs = convertTraceUpsertEventsToRedisEvents(traceEvents);
       await traceUpsertQueue?.addBulk(jobs);
     } else if (
       env.LANGFUSE_WORKER_HOST &&

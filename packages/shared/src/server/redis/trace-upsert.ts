@@ -14,7 +14,9 @@ export const traceUpsertQueue = redis
     })
   : null;
 
-export function createRedisEvents(events: TraceUpsertEventType[]) {
+export function convertTraceUpsertEventsToRedisEvents(
+  events: TraceUpsertEventType[]
+) {
   const uniqueTracesPerProject = events.reduce((acc, event) => {
     if (!acc.get(event.projectId)) {
       acc.set(event.projectId, new Set());

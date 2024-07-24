@@ -8,4 +8,4 @@ export * from "./llm/types";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./redis/redis";
-export * from "./redis/trace-create";
+export * from "./redis/trace-upsert";
