@@ -41,6 +41,7 @@ export const NewProjectForm = ({
       void updateSession();
       void router.push(`/project/${newProject.id}/settings`);
       void utils.projects.invalidate();
+      void utils.organizations.invalidate();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });

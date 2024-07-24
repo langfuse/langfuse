@@ -44,6 +44,7 @@ export function TransferProjectButton() {
   const session = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const { project, organization } = useQueryProject();
+  const utils = api.useUtils();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "projects:transfer_organization",
@@ -77,7 +78,10 @@ export function TransferProjectButton() {
         description:
           "The project is successfully transferred to the new organization. Redirecting...",
       });
+      void utils.organizations.invalidate();
+      void utils.projects.invalidate();
       await new Promise((resolve) => setTimeout(resolve, 5000));
+      session.update();
       window.location.href = "/";
     },
   });
@@ -116,9 +120,9 @@ export function TransferProjectButton() {
           <TriangleAlert className="h-4 w-4" />
           <AlertTitle>Warning</AlertTitle>
           <AlertDescription>
-            Transferring the project will remove it from this organization.
-            Members will lose access unless they are also members of the new
-            organization. All API keys, settings, and data will remain intact.
+            Transferring the project will move it to a different organization.
+            Members who are not part of the new organization will lose access.
+            However, all API keys, settings, and data will remain unchanged.
           </AlertDescription>
         </Alert>
         <Form {...form}>

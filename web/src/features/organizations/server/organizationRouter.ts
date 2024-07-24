@@ -27,8 +27,6 @@ export const organizationsRouter = createTRPCRouter({
         },
       },
     });
-    // wait for 2 seconds
-    await new Promise((resolve) => setTimeout(resolve, 2000));
     const res = orgs.map(({ projects, ...org }) => ({
       ...parseDbOrg(org),
       projects,

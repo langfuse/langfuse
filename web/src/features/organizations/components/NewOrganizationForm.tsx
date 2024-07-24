@@ -44,6 +44,7 @@ export const NewOrganizationForm = ({
       .then((org) => {
         void updateSession();
         void utils.projects.invalidate();
+        void utils.organizations.invalidate();
         onSuccess(org.id);
         form.reset();
       })
