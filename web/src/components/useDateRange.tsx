@@ -29,13 +29,13 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
         ? findClosestDashboardIntervalToDate(initialDate)
         : undefined;
 
-  const initialDateRange =
+  const initialRangeOption =
     closestInterval ??
     (type === "table"
       ? DEFAULT_AGGREGATION_SELECTION
       : DASHBOARD_AGGREGATION_PLACEHOLDER);
 
-  const initial: DashboardDateRange | undefined =
+  const initialRange: DashboardDateRange | undefined =
     urlParams.select !== "Select a date range" && urlParams.to && urlParams.from
       ? {
           from: new Date(urlParams.from),
@@ -43,15 +43,15 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
         }
       : undefined;
 
-  const selectedDateRangeOption = isValidOption(urlParams.select)
+  const validatedInitialRangeOption = isValidOption(urlParams.select)
     ? (urlParams.select as DateRangeAggregationOption)
-    : initialDateRange;
+    : initialRangeOption;
 
   const [selectedOption, setSelectedOption] = useState<DateRangeOptions>(
-    selectedDateRangeOption,
+    validatedInitialRangeOption,
   );
   const [dateRange, setDateRange] = useState<DashboardDateRange | undefined>(
-    initial,
+    initialRange,
   );
 
   const setDateRangeAndOption = (
