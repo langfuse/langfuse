@@ -61,6 +61,6 @@ export const getLogger = (
   });
 };
 
-const logger = getLogger(env.NODE_ENV, env.PINO_LOG_LEVEL);
+const logger = getLogger(env.NODE_ENV, env.LANGFUSE_LOG_LEVEL);
 
 export default logger;

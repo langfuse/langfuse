@@ -15,8 +15,8 @@ export const ingestionFlushQueue: IngestionFlushQueue | null = redis
       defaultJobOptions: {
         removeOnComplete: true, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
         removeOnFail: true,
-        delay: env.INGESTION_FLUSH_JOB_DELAY,
-        attempts: env.INGESTION_FLUSH_JOB_ATTEMPTS,
+        delay: env.LANGFUSE_INGESTION_FLUSH_DELAY_MS,
+        attempts: env.LANGFUSE_INGESTION_FLUSH_ATTEMPTS,
       },
     })
   : null;
@@ -55,7 +55,7 @@ export const flushIngestionQueueExecutor = redis
       },
       {
         connection: redis,
-        concurrency: env.INGESTION_FLUSH_WORKER_CONCURRENCY,
+        concurrency: env.LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY,
       }
     )
   : null;

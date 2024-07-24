@@ -217,7 +217,8 @@ export const handleBatch = async (
     type: string;
   }[] = []; // Array to store the errors
 
-  if (env.TRACE_IN_POSTGRES === "true") {
+  // Explicitly set to false to disable tracing in postgres
+  if (env.POSTGRES_TRACING_DATASTORE_ENABLED !== "false") {
     for (const singleEvent of events) {
       try {
         const result = await retry(async () => {

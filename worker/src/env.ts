@@ -40,13 +40,24 @@ const EnvSchema = z.object({
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
-  // Ingestion flush queue:
-  INGESTION_FLUSH_JOB_DELAY: z.coerce.number().nonnegative().default(10000),
-  INGESTION_FLUSH_JOB_ATTEMPTS: z.coerce.number().positive().default(3),
-  INGESTION_FLUSH_WORKER_CONCURRENCY: z.coerce.number().positive().default(50),
-  CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce.number().positive().default(1000),
-  CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce.number().positive().default(3000),
-  PINO_LOG_LEVEL: z
+  LANGFUSE_INGESTION_FLUSH_DELAY_MS: z.coerce
+    .number()
+    .nonnegative()
+    .default(10000),
+  LANGFUSE_INGESTION_FLUSH_ATTEMPTS: z.coerce.number().positive().default(3),
+  LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(50),
+  LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(1000),
+  LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(3000),
+  LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .optional(),
 });

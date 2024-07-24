@@ -23,8 +23,8 @@ export class ClickhouseWriter {
   intervalId: NodeJS.Timeout | null = null;
 
   private constructor() {
-    this.batchSize = env.CLICKHOUSE_WRITE_BATCH_SIZE;
-    this.writeInterval = env.CLICKHOUSE_WRITE_INTERVAL_MS;
+    this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
+    this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
     this.queue = {
       [TableName.Traces]: [],
       [TableName.Scores]: [],
