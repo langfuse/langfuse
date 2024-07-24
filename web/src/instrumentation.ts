@@ -1,5 +1,6 @@
 // See: https://vercel.com/docs/observability/otel-overview
 
+import { env } from "@/src/env.mjs";
 import { shutdown } from "@/src/utils/shutdown";
 import prexit from "prexit";
 
@@ -12,6 +13,8 @@ export async function register() {
         return await shutdown(signal);
       });
     }
+
+    await import("./datadog.server.config");
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {
