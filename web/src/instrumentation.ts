@@ -1,6 +1,5 @@
 // See: https://vercel.com/docs/observability/otel-overview
 
-import { env } from "@/src/env.mjs";
 import { shutdown } from "@/src/utils/shutdown";
 import prexit from "prexit";
 
