@@ -29,6 +29,7 @@ import { useMediaQuery } from "react-responsive";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import { isValidOption } from "@/src/utils/types";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
+import { TimePicker } from "@/src/components/ui/time-picker";
 
 export const DEFAULT_DATE_RANGE_SELECTION = "Date range" as const;
 export type AvailableDateRangeSelections =
@@ -41,12 +42,14 @@ export function DatePicker({
   clearable = false,
   className,
   disabled,
+  includeTimePicker,
 }: {
   date?: Date | undefined;
   onChange: (date: Date | undefined) => void;
   clearable?: boolean;
   className?: string;
   disabled?: boolean;
+  includeTimePicker?: boolean;
 }) {
   return (
     <div className="flex flex-row gap-2 align-middle">
@@ -62,7 +65,11 @@ export function DatePicker({
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {date ? format(date, "PPP") : <span>Pick a date</span>}
+            {date ? (
+              format(date, includeTimePicker ? "PPP pp" : "PPP")
+            ) : (
+              <span>Pick a date</span>
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">
@@ -72,6 +79,9 @@ export function DatePicker({
             onSelect={(d) => onChange(d)}
             initialFocus
           />
+          {includeTimePicker && (
+            <TimePicker date={date} setDate={(d) => onChange(d)} />
+          )}
         </PopoverContent>
       </Popover>
       {date && clearable && (

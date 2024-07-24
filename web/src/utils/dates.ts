@@ -5,6 +5,12 @@ export const utcDateOffsetByDays = (days: number) => {
   return date;
 };
 
+export const localtimeDateOffsetByDays = (days: number) => {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  return date;
+};
 export const utcDate = (localDateTime: Date) =>
   new Date(
     Date.UTC(
@@ -36,4 +42,17 @@ export const formatIntervalSeconds = (seconds: number, scale: number = 2) => {
   if (hrs > 0) return `${hrs}h ${pad(mins)}m ${pad(secs)}s`;
   if (mins > 0) return `${mins}m ${pad(secs)}s`;
   return `${seconds.toFixed(scale)}s`;
+};
+
+export const getShortLocalTimezone = () => {
+  return new Date()
+    .toLocaleTimeString("en-us", { timeZoneName: "short" })
+    .split(" ")[2];
+};
+
+export const getTimezoneDetails = () => {
+  const longLocalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const location = longLocalTz.replace(/_/g, " ");
+  const utcDifference = -(new Date().getTimezoneOffset() / 60); // negative because TZ info is the opposite of UTC offset
+  return `${location} (UTC${utcDifference >= 0 ? "+" : ""}${utcDifference})`;
 };

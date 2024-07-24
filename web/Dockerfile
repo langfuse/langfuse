@@ -5,11 +5,11 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node:20-alpine3.20 AS alpine
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
-RUN npm install turbo@^1.13.3 --global
+RUN npm install turbo@^1.13.4 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@8.15.5 --activate
+RUN corepack prepare pnpm@9.5.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
 

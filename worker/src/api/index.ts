@@ -2,18 +2,21 @@ import express from "express";
 import basicAuth from "express-basic-auth";
 import * as Sentry from "@sentry/node";
 
-import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import {
+  EventBodySchema,
+  EventName,
+  QueueJobs,
+  QueueName,
+  TQueueJobTypes,
+  TraceUpsertEventType,
+} from "@langfuse/shared";
 
 import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
 import { redis } from "@langfuse/shared/src/server";
 import emojis from "./emojis";
-import {
-  createRedisEvents,
-  traceUpsertQueue,
-} from "@langfuse/shared/src/server";
+import { checkContainerHealth } from "../features/health";
 
 const router = express.Router();
 
@@ -23,26 +26,7 @@ type EventsResponse = {
 
 router.get<{}, { status: string }>("/health", async (_req, res) => {
   try {
-    //check database health
-    await prisma.$queryRaw`SELECT 1;`;
-
-    if (!redis) {
-      throw new Error("Redis connection not available");
-    }
-
-    await Promise.race([
-      redis?.ping(),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Redis ping timeout after 2 seconds")),
-          2000
-        )
-      ),
-    ]);
-
-    res.json({
-      status: "ok",
-    });
+    await checkContainerHealth(res);
   } catch (e) {
     logger.error(e, "Health check failed");
     res.status(500).json({

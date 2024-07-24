@@ -11,7 +11,10 @@ import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
-import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
+import {
+  formatIntervalSeconds,
+  localtimeDateOffsetByDays,
+} from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
@@ -95,7 +98,7 @@ export default function TracesTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
+        value: localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "traces",

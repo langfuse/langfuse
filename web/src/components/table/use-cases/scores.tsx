@@ -15,7 +15,7 @@ import {
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import { isPresent } from "@/src/utils/typeChecks";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
 import type { FilterState, ScoreDataType } from "@langfuse/shared";
@@ -91,7 +91,7 @@ export default function ScoresTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
+        value: localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "scores",

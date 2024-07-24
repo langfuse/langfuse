@@ -1,10 +1,10 @@
 {
   "name": "web",
-  "version": "2.63.1",
+  "version": "2.65.1",
   "private": true,
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": "20"
   },
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
@@ -88,6 +88,7 @@
     "dompurify": "^3.1.5",
     "exponential-backoff": "^3.1.1",
     "graphql": "^16.9.0",
+    "ip-address": "^9.0.5",
     "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",
     "langchain": "^0.2.6",
