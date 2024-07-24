@@ -233,6 +233,18 @@ export const findClosestTableIntervalToDate = (
   );
 };
 
+export const findClosestDashboardIntervalToDate = (
+  targetDate: Date,
+): DashboardDateRangeAggregationOption | undefined => {
+  const currentDate = new Date();
+  const duration = Math.abs(currentDate.getTime() - targetDate.getTime());
+  return findClosestInterval(
+    DASHBOARD_AGGREGATION_OPTIONS,
+    dashboardDateRangeAggregationSettings,
+    duration,
+  );
+};
+
 export const findClosestDashboardInterval = (
   dateRange: DateRange,
 ): DashboardDateRangeAggregationOption | undefined => {
