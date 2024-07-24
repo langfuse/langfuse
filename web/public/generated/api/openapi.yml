@@ -1675,7 +1675,7 @@ paths:
       security: *ref_0
   /api/public/sessions:
     get:
-      description: Get sessions.
+      description: Get sessions
       operationId: sessions_list
       tags:
         - Sessions
@@ -1846,7 +1846,7 @@ paths:
       security: *ref_0
   /api/public/traces:
     get:
-      description: Get list of traces.
+      description: Get list of traces
       operationId: trace_list
       tags:
         - Trace

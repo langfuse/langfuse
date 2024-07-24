@@ -17,7 +17,7 @@
     "db:push": {},
     "db:seed": {},
     "models:migrate": {
-      "dependsOn": ["db:generate"]
+      "dependsOn": ["db:generate", "@langfuse/shared#build"]
     },
     "db:seed:examples": {},
     "dev": {

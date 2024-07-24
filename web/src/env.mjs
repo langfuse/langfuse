@@ -112,6 +112,14 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+    ADMIN_API_KEY: z.string().optional(),
+    ENCRYPTION_KEY: z
+      .string()
+      .length(
+        64,
+        "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32"
+      )
+      .optional(),
   },
 
   /**
@@ -229,6 +237,8 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
+    ADMIN_API_KEY: process.env.ADMIN_API_KEY,
+    ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

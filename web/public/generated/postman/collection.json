@@ -1261,7 +1261,7 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get sessions.",
+            "description": "Get sessions",
             "url": {
               "raw": "{{baseUrl}}/api/public/sessions?page=&limit=&fromTimestamp=&toTimestamp=",
               "host": [
@@ -1378,7 +1378,7 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get list of traces.",
+            "description": "Get list of traces",
             "url": {
               "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=",
               "host": [
