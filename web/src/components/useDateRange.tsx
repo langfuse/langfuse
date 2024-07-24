@@ -14,20 +14,17 @@ import {
 } from "@/src/utils/date-range-utils";
 
 export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
-  const [urlParams, setUrlParams] = useQueryParams({
+  const [queryParams, setQueryParams] = useQueryParams({
     select: withDefault(StringParam, "Select a date range"),
     from: StringParam,
     to: StringParam,
   });
 
-  const closestInterval =
-    type === "table"
-      ? initialDate
-        ? findClosestTableIntervalToDate(initialDate)
-        : undefined
-      : initialDate
-        ? findClosestDashboardIntervalToDate(initialDate)
-        : undefined;
+  const closestInterval = initialDate
+    ? type === "table"
+      ? findClosestTableIntervalToDate(initialDate)
+      : findClosestDashboardIntervalToDate(initialDate)
+    : undefined;
 
   const initialRangeOption =
     closestInterval ??
@@ -36,23 +33,19 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
       : DASHBOARD_AGGREGATION_PLACEHOLDER);
 
   const initialRange: DashboardDateRange | undefined =
-    urlParams.select !== "Select a date range" && urlParams.to && urlParams.from
+    queryParams.select !== "Select a date range" &&
+    queryParams.from &&
+    queryParams.to
       ? {
-          from: new Date(urlParams.from),
-          to: new Date(urlParams.to),
+          from: new Date(queryParams.from),
+          to: new Date(queryParams.to),
         }
       : undefined;
 
-  let validatedInitialRangeOption;
-  if (isValidOption(urlParams.select)) {
-    validatedInitialRangeOption =
-      urlParams.select as DateRangeAggregationOption;
-  } else if (urlParams.select === "Date range") {
-    validatedInitialRangeOption =
-      urlParams.select as DateRangeAggregationOption;
-  } else {
-    validatedInitialRangeOption = initialRangeOption;
-  }
+  const validatedInitialRangeOption =
+    isValidOption(queryParams.select) || queryParams.select === "Date range"
+      ? (queryParams.select as DateRangeAggregationOption)
+      : initialRangeOption;
 
   const [selectedOption, setSelectedOption] = useState<DateRangeOptions>(
     validatedInitialRangeOption,
@@ -63,30 +56,31 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
 
   const setDateRangeAndOption = (
     option: DateRangeOptions,
-    date?: DashboardDateRange,
+    range?: DashboardDateRange,
   ) => {
     setSelectedOption(option);
-    setDateRange(date);
+    setDateRange(range);
 
-    const newParams: any = { select: option };
-    if (option === "Date range" && date) {
-      newParams.from = date.from;
-      newParams.to = date.to;
+    const newParams: typeof queryParams = {
+      select: option,
+      from: undefined,
+      to: undefined,
+    };
+    if (option === "Date range" && range) {
+      newParams.from = range.from.toISOString();
+      newParams.to = range.to.toISOString();
     }
-    setUrlParams(newParams);
+    setQueryParams(newParams);
   };
 
   useEffect(() => {
-    if (selectedOption && selectedOption in tableDateRangeAggregationSettings) {
+    if (selectedOption in tableDateRangeAggregationSettings) {
       const { minutes } =
         tableDateRangeAggregationSettings[
           selectedOption as keyof typeof tableDateRangeAggregationSettings
         ];
       const fromDate = addMinutes(new Date(), -minutes);
-      setDateRange({
-        from: fromDate,
-        to: new Date(),
-      });
+      setDateRange({ from: fromDate, to: new Date() });
     }
   }, [selectedOption]);
 
