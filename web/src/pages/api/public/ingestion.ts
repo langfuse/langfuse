@@ -254,11 +254,13 @@ export const handleBatch = async (
   }
 
   if (env.CLICKHOUSE_URL) {
-    await new WorkerClient().sendIngestionBatch({
-      batch: events,
-      metadata,
-      projectId: authCheck.scope.projectId,
-    });
+    await new WorkerClient()
+      .sendIngestionBatch({
+        batch: events,
+        metadata,
+        projectId: authCheck.scope.projectId,
+      })
+      .catch(); // Ignore errors while testing the ingestion via worker
   }
 
   return { results, errors };

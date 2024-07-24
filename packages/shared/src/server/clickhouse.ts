@@ -2,6 +2,8 @@ import { createClient } from "@clickhouse/client";
 
 import { env } from "../env";
 
+export type ClickhouseClientType = ReturnType<typeof createClient>;
+
 export const clickhouseClient = createClient({
   url: env.CLICKHOUSE_URL,
   username: env.CLICKHOUSE_USER,

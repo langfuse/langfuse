@@ -4,7 +4,6 @@ import { v4 } from "uuid";
 
 import { Model, PrismaClient, QueueJobs } from "@langfuse/shared";
 import {
-  clickhouseClient,
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
@@ -26,6 +25,7 @@ import {
   traceRecordInsertSchema,
   TraceRecordInsertType,
   traceRecordReadSchema,
+  ClickhouseClientType,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -41,6 +41,11 @@ enum EntityType {
   Observation = "observation",
   SDK_LOG = "sdk-log",
 }
+
+type InsertRecord =
+  | TraceRecordInsertType
+  | ScoreRecordInsertType
+  | ObservationRecordInsertType;
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -75,6 +80,7 @@ export class IngestionService {
     private prisma: PrismaClient,
     private ingestionFlushQueue: IngestionFlushQueue,
     private clickHouseWriter: ClickhouseWriter,
+    private clickhouseClient: ClickhouseClientType,
     private bufferTtlSeconds: number
   ) {}
 
@@ -334,7 +340,6 @@ export class IngestionService {
     scoreRecords: ScoreRecordInsertType[];
   }): Promise<ScoreRecordInsertType> {
     const { projectId, entityId, scoreRecords } = params;
-    const immutableScoreRecordKeys = immutableEntityKeys[TableName.Scores];
 
     const clickhouseScoreRecord = await this.getClickhouseRecord({
       projectId,
@@ -348,7 +353,7 @@ export class IngestionService {
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
-      immutableScoreRecordKeys
+      immutableEntityKeys[TableName.Scores]
     );
 
     return scoreRecordInsertSchema.parse(mergedRecord);
@@ -360,7 +365,6 @@ export class IngestionService {
     traceRecords: TraceRecordInsertType[];
   }): Promise<TraceRecordInsertType> {
     const { projectId, entityId, traceRecords } = params;
-    const immutableScoreRecordKeys = immutableEntityKeys[TableName.Traces];
 
     const clickhouseTraceRecord = await this.getClickhouseRecord({
       projectId,
@@ -374,7 +378,7 @@ export class IngestionService {
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
-      immutableScoreRecordKeys
+      immutableEntityKeys[TableName.Traces]
     );
 
     return traceRecordInsertSchema.parse(mergedRecord);
@@ -386,8 +390,6 @@ export class IngestionService {
     observationRecords: ObservationRecordInsertType[];
   }): Promise<ObservationRecordInsertType> {
     const { projectId, entityId, observationRecords } = params;
-    const immutableScoreRecordKeys =
-      immutableEntityKeys[TableName.Observations];
 
     const existingObservationRecord = await this.getClickhouseRecord({
       projectId,
@@ -401,7 +403,7 @@ export class IngestionService {
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
-      immutableScoreRecordKeys
+      immutableEntityKeys[TableName.Observations]
     );
 
     const parsedObservationRecord =
@@ -416,25 +418,16 @@ export class IngestionService {
   }
 
   // TODO: check and test whether this works as intended. This is the core of the merge logic
-  private mergeRecords(
-    records: {
-      id: string;
-      project_id: string;
-      [key: string]: any;
-    }[],
+  private mergeRecords<T extends InsertRecord>(
+    records: T[],
     immutableEntityKeys: string[]
-  ) {
+  ): unknown {
     if (records.length === 0) {
       throw new Error("No records to merge");
     }
 
-    const timestampAscendingRecords = records.slice().sort((a, b) =>
-      "timestamp" in a && "timestamp" in b
-        ? a.timestamp - b.timestamp
-        : "startTime" in a && "startTime" in b // Generations have startTime instead of timestamp
-          ? a.startTime - b.startTime
-          : 0
-    );
+    const timestampAscendingRecords =
+      IngestionService.toTimeSortedRecords(records);
 
     let result: {
       id: string;
@@ -447,6 +440,22 @@ export class IngestionService {
     }
 
     return result;
+  }
+
+  private static toTimeSortedRecords(
+    records: (
+      | TraceRecordInsertType
+      | ScoreRecordInsertType
+      | ObservationRecordInsertType
+    )[]
+  ) {
+    return records.slice().sort((a, b) =>
+      "timestamp" in a && "timestamp" in b
+        ? a.timestamp - b.timestamp
+        : "start_time" in a && "start_time" in b // Generations have startTime instead of timestamp
+          ? a.start_time - b.start_time
+          : 0
+    );
   }
 
   private async getPromptId(
@@ -513,8 +522,6 @@ export class IngestionService {
       },
     });
 
-    if (!internalModel) return {};
-
     const tokenCounts = this.getTokenCounts(observationRecord, internalModel);
     const tokenCosts = IngestionService.calculateTokenCosts(
       internalModel,
@@ -525,20 +532,20 @@ export class IngestionService {
     return {
       ...tokenCounts,
       ...tokenCosts,
-      internal_model: internalModel.modelName,
-      internal_model_id: internalModel.id,
+      internal_model_id: internalModel?.id,
     };
   }
 
   private getTokenCounts(
     observationRecord: ObservationRecordInsertType,
-    model: Model
+    model: Model | null | undefined
   ): Pick<
     ObservationRecordInsertType,
     "input_usage_units" | "output_usage_units" | "total_usage_units"
   > {
     if (
       // No user provided usage. Note only two equal signs operator here to check for null and undefined
+      model &&
       observationRecord.provided_input_usage_units == null &&
       observationRecord.provided_output_usage_units == null &&
       observationRecord.provided_total_usage_units == null
@@ -584,18 +591,20 @@ export class IngestionService {
       total_usage_units?: number | null;
     }
   ): {
-    input_cost?: number | null;
-    output_cost?: number | null;
-    total_cost?: number | null;
+    input_cost: number | null | undefined;
+    output_cost: number | null | undefined;
+    total_cost: number | null | undefined;
   } {
     // If user has provided any cost point, do not calculate anything else
     if (
-      userProvidedCosts.provided_input_cost ||
-      userProvidedCosts.provided_output_cost ||
-      userProvidedCosts.provided_total_cost
+      userProvidedCosts.provided_input_cost != null ||
+      userProvidedCosts.provided_output_cost != null ||
+      userProvidedCosts.provided_total_cost != null
     ) {
       return {
         ...userProvidedCosts,
+        input_cost: userProvidedCosts.provided_input_cost,
+        output_cost: userProvidedCosts.provided_output_cost,
         total_cost:
           userProvidedCosts.provided_total_cost ??
           (userProvidedCosts.provided_input_cost ?? 0) +
@@ -657,7 +666,7 @@ export class IngestionService {
     const { projectId, entityId, table } = params;
 
     return await instrumentAsync({ name: `get-${table}` }, async () => {
-      const queryResult = await clickhouseClient.query({
+      const queryResult = await this.clickhouseClient.query({
         query: `SELECT * FROM ${table} WHERE project_id = '${projectId}' AND id = '${entityId}' ORDER BY updated_at DESC LIMIT 1`,
         format: "JSONEachRow",
       });

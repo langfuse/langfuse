@@ -6,6 +6,7 @@ import { env } from "../env";
 import logger from "../logger";
 import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { clickhouseClient } from "@langfuse/shared/src/server";
 
 export type IngestionFlushQueue = Queue<null>;
 
@@ -45,6 +46,7 @@ export const flushIngestionQueueExecutor = redis
             prisma,
             ingestionFlushQueue,
             ClickhouseWriter.getInstance(),
+            clickhouseClient,
             60 * 60 // TODO: Make this configurable
           ).flush(projectEntityId);
 

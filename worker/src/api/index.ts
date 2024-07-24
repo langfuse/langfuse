@@ -12,7 +12,10 @@ import {
   TraceUpsertEventType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { ingestionApiSchemaWithProjectId } from "@langfuse/shared/src/server";
+import {
+  clickhouseClient,
+  ingestionApiSchemaWithProjectId,
+} from "@langfuse/shared/src/server";
 import * as Sentry from "@sentry/node";
 
 import { env } from "../env";
@@ -133,6 +136,7 @@ router
         prisma,
         ingestionFlushQueue,
         ClickhouseWriter.getInstance(),
+        clickhouseClient,
         60 * 60 // TODO: Make this configurable,
       ).addBatch(batch, projectId);
 
