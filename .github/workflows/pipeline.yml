@@ -63,6 +63,7 @@ jobs:
           fi
 
   tests-web:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
@@ -93,7 +94,7 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          cp .env.dev.example web/.env
+          grep -v '^REDIS_HOST=' .env.dev.example > web/.env
 
       - name: Run + migrate
         run: |
@@ -118,6 +119,7 @@ jobs:
         run: pnpm --filter=web run test
 
   tests-worker:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:

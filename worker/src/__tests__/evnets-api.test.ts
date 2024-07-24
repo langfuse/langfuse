@@ -1,5 +1,5 @@
 import { expect, test, describe } from "vitest";
-import { createRedisEvents } from "../api";
+import { convertTraceUpsertEventsToRedisEvents } from "@langfuse/shared/src/server";
 
 describe.sequential("create redis events", () => {
   test("deduplicate events from the same project id", async () => {
@@ -11,7 +11,7 @@ describe.sequential("create redis events", () => {
       { traceId: "trace3", projectId: "project2" },
     ];
 
-    const jobs = createRedisEvents(events);
+    const jobs = convertTraceUpsertEventsToRedisEvents(events);
 
     expect(jobs).toBeDefined();
     expect(jobs.length).toBe(4);

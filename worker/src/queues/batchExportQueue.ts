@@ -11,7 +11,7 @@ import * as Sentry from "@sentry/node";
 
 import { instrumentAsync } from "../instrumentation";
 import logger from "../logger";
-import { redis } from "../redis";
+import { redis } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 
 export const batchExportQueue = redis
