@@ -1,20 +1,14 @@
 import express from "express";
 import basicAuth from "express-basic-auth";
 import * as Sentry from "@sentry/node";
-
+import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import {
-  EventBodySchema,
-  EventName,
-  QueueJobs,
-  QueueName,
-  TQueueJobTypes,
-  TraceUpsertEventType,
-} from "@langfuse/shared";
-
+  createRedisEvents,
+  traceUpsertQueue,
+} from "@langfuse/shared/src/server";
 import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
-import { redis } from "@langfuse/shared/src/server";
 import emojis from "./emojis";
 import { checkContainerHealth } from "../features/health";
 
