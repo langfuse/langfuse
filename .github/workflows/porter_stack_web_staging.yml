@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - create-redis-events-in-worker
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
