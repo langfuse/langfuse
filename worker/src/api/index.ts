@@ -9,7 +9,6 @@ import {
 import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
-import emojis from "./emojis";
 import { checkContainerHealth } from "../features/health";
 
 const router = express.Router();
@@ -82,7 +81,5 @@ router
       });
     }
   });
-
-router.use("/emojis", emojis);
 
 export default router;

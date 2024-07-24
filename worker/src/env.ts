@@ -28,6 +28,18 @@ const EnvSchema = z.object({
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
+  REDIS_HOST: z.string().nullish(),
+  REDIS_PORT: z.coerce
+    .number({
+      description:
+        ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+    })
+    .positive()
+    .max(65536, `options.port should be >= 0 and < 65536`)
+    .default(6379)
+    .nullable(),
+  REDIS_AUTH: z.string().nullish(),
+  REDIS_CONNECTION_STRING: z.string().nullish(),
 });
 
 export const env = EnvSchema.parse(process.env);

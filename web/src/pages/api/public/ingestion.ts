@@ -526,7 +526,10 @@ export const sendToWorkerIfEnvironmentConfigured = async (
     .filter(isNotNullOrUndefined);
 
   try {
-    if (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) {
+    if (
+      (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+    ) {
       console.log("Sending events to worker via redis", traceEvents);
       const jobs = createRedisEvents(traceEvents);
       await traceUpsertQueue?.addBulk(jobs);
