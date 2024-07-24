@@ -2715,8 +2715,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Dataset items are upserted on their id. Id needs to be globally
-            unique and cannot be reused across datasets.
+            Dataset items are upserted on their id. Id needs to be unique
+            (project-level) and cannot be reused across datasets.
         status:
           $ref: '#/components/schemas/DatasetStatus'
           nullable: true

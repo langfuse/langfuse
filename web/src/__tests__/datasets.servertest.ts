@@ -21,6 +21,7 @@ import {
   PostDatasetsV1Response,
   PostDatasetsV2Response,
 } from "@/src/features/public-api/types/datasets";
+import { v4 as uuidv4 } from "uuid";
 
 describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () => {
   const traceId = v4();
@@ -295,12 +296,15 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     });
     expect(dbDatasetItems.length).toBe(5);
-    const dbDatasetItemsApiResponseFormat = dbDatasetItems.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-      datasetName: "dataset-name",
-    }));
+    const dbDatasetItemsApiResponseFormat = dbDatasetItems.map(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ({ projectId, ...item }) => ({
+        ...item,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+        datasetName: "dataset-name",
+      }),
+    );
 
     // add another dataset to test the list endpoint
     await makeZodVerifiedAPICall(
@@ -333,7 +337,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbDatasetItemsOther.length).toBe(1);
     const dbDatasetItemsOtherApiResponseFormat = dbDatasetItemsOther.map(
-      (item) => ({
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ({ projectId, ...item }) => ({
         ...item,
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
@@ -784,12 +789,15 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     });
     expect(dbRuns.length).toBe(3);
-    const dbRunsApiResponseFormat = dbRuns.map((run) => ({
-      ...run,
-      createdAt: run.createdAt.toISOString(),
-      updatedAt: run.updatedAt.toISOString(),
-      datasetName: "dataset-name",
-    }));
+    const dbRunsApiResponseFormat = dbRuns.map(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ({ projectId, ...run }) => ({
+        ...run,
+        createdAt: run.createdAt.toISOString(),
+        updatedAt: run.updatedAt.toISOString(),
+        datasetName: "dataset-name",
+      }),
+    );
 
     // test get runs
     const getRuns = await makeZodVerifiedAPICall(
@@ -834,5 +842,90 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     );
     expect(response.status).toBe(400);
+  });
+
+  it("dataset item ids should be reusable across projects", async () => {
+    const otherProject = await prisma.project.create({
+      data: {
+        name: "other-project",
+      },
+    });
+
+    // dataset ids are always generated
+    const datasetBody = {
+      name: "dataset-name",
+    };
+    // dataset, id is generated
+    const apiDataset = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { ...datasetBody, metadata: "api-dataset" },
+    );
+    const otherProjDbDataset = await prisma.dataset.create({
+      data: {
+        ...datasetBody,
+        projectId: otherProject.id,
+        id: apiDataset.body.id, // use the same id, not possible via api, done to check security of this
+      },
+    });
+    const getApiDataset = await makeZodVerifiedAPICall(
+      GetDatasetV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(datasetBody.name)}`,
+    );
+    expect(getApiDataset.body.metadata).toBe("api-dataset");
+
+    // item ids can be set by the user
+    const datasetItemBody = {
+      input: "item-input",
+      id: uuidv4(),
+    };
+    await prisma.datasetItem.create({
+      data: {
+        ...datasetItemBody,
+        expectedOutput: "other-proj",
+        projectId: otherProject.id,
+        datasetId: otherProjDbDataset.id,
+      },
+    });
+
+    // dataset item, id is set
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        ...datasetItemBody,
+        expectedOutput: "api-item",
+        datasetName: datasetBody.name,
+        metadata: "api-item",
+      },
+    );
+    const getApiDatasetItem = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
+      "GET",
+      `/api/public/dataset-items/${datasetItemBody.id}`,
+    );
+    expect(getApiDatasetItem.body.metadata).toBe("api-item");
+    const dbItems = await prisma.datasetItem.findMany({
+      where: { id: datasetItemBody.id },
+    });
+    expect(dbItems.length).toBe(2);
+    expect(dbItems).toHaveLength(2);
+    expect(dbItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metadata: "api-item",
+          projectId: apiDataset.body.projectId,
+          id: datasetItemBody.id,
+        }),
+        expect.objectContaining({
+          metadata: null,
+          projectId: otherProject.id,
+          id: datasetItemBody.id,
+        }),
+      ]),
+    );
   });
 });

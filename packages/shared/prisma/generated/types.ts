@@ -121,15 +121,16 @@ export type CronJobs = {
 };
 export type Dataset = {
     id: string;
+    project_id: string;
     name: string;
     description: string | null;
     metadata: unknown | null;
-    project_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
 export type DatasetItem = {
     id: string;
+    project_id: string;
     status: Generated<DatasetStatus>;
     input: unknown | null;
     expected_output: unknown | null;
@@ -142,6 +143,7 @@ export type DatasetItem = {
 };
 export type DatasetRunItems = {
     id: string;
+    project_id: string;
     dataset_run_id: string;
     dataset_item_id: string;
     trace_id: string;
@@ -151,6 +153,7 @@ export type DatasetRunItems = {
 };
 export type DatasetRuns = {
     id: string;
+    project_id: string;
     name: string;
     description: string | null;
     metadata: unknown | null;
