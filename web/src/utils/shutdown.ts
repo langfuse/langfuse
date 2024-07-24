@@ -22,6 +22,8 @@ export const isSigtermReceived = () =>
   Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
 
 export const shutdown = async (signal: PrexitSignal) => {
+  // import redis at runtime
+  const { redis } = await import("@langfuse/shared/src/server");
   if (signal === "SIGTERM" || signal === "SIGINT") {
     console.log(
       `SIGTERM / SIGINT received. Shutting down in ${TIMEOUT / 1000} seconds.`,
@@ -30,6 +32,7 @@ export const shutdown = async (signal: PrexitSignal) => {
 
     return await new Promise<void>((resolve) => {
       setTimeout(() => {
+        redis?.disconnect();
         console.log("Shutdown complete");
         resolve();
       }, TIMEOUT);
