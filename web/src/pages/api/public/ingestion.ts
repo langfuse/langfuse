@@ -533,7 +533,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       const jobs = convertTraceUpsertEventsToRedisEvents(traceEvents);
       await traceUpsertQueue?.addBulk(jobs);
 
-      if (jobs.length > 0 && traceUpsertQueue) {
+      if (traceUpsertQueue) {
         console.log(
           `Added ${jobs.length} trace upsert jobs to the queue`,
           jobs,
