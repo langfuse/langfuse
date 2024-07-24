@@ -1,11 +1,11 @@
 {
   "name": "langfuse",
-  "version": "2.64.0",
+  "version": "2.65.1",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": "20"
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",

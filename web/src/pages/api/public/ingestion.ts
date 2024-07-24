@@ -560,6 +560,8 @@ const gaugePrismaStats = async () => {
   }
   const metrics = await prisma.$metrics.json();
 
+  console.log("prisma_gauges", metrics.gauges);
+
   metrics.gauges.forEach((gauge) => {
     Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
   });

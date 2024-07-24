@@ -1,11 +1,11 @@
 {
   "name": "worker",
-  "version": "2.64.0",
+  "version": "2.65.1",
   "description": "",
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": "20"
   },
   "scripts": {
     "test": "dotenv -e ../.env -- vitest run --reporter=basic --pool=forks",
