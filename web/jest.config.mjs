@@ -16,6 +16,7 @@ const serverTestConfig = {
   displayName: "server",
   testMatch: ["/**/*.servertest.[jt]s?(x)"],
   testEnvironment: "jest-environment-node",
+  globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
 };
 
 // To avoid the "Cannot use import statement outside a module" errors while transforming ESM.
