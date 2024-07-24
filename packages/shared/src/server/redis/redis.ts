@@ -16,7 +16,6 @@ const createRedisClient = () => {
     return null;
   }
 };
-
 declare global {
   // eslint-disable-next-line no-var
   var redis: undefined | ReturnType<typeof createRedisClient>;
