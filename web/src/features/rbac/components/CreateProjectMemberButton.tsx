@@ -45,7 +45,7 @@ const formSchema = z.object({
 
 export function CreateProjectMemberButton(props: {
   orgId: string;
-  projectId?: string;
+  project?: { id: string; name: string };
 }) {
   const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
@@ -75,7 +75,7 @@ export function CreateProjectMemberButton(props: {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     capture(
-      props.projectId
+      props.project
         ? "project_settings:send_membership_invitation"
         : "organization_settings:send_membership_invitation",
       {
@@ -89,7 +89,7 @@ export function CreateProjectMemberButton(props: {
         email: values.email,
         orgRole: values.orgRole,
         //optional
-        projectId: props.projectId,
+        projectId: props.project?.id,
         projectRole:
           values.projectRole === "NONE" ? undefined : values.projectRole,
       })
@@ -169,7 +169,7 @@ export function CreateProjectMemberButton(props: {
                   </FormItem>
                 )}
               />
-              {props.projectId && (
+              {props.project !== undefined && (
                 <FormField
                   control={form.control}
                   name="projectRole"
@@ -202,7 +202,7 @@ export function CreateProjectMemberButton(props: {
                       </Select>
                       <FormDescription>
                         This project role will override the default role for
-                        this current project.
+                        this current project ({props.project!.name}).
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

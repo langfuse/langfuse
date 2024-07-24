@@ -100,7 +100,7 @@ export default function SettingsPage() {
                 <div>
                   <MembersTable
                     orgId={organization.id}
-                    projectId={project.id}
+                    project={{ id: project.id, name: project.name }}
                   />
                 </div>
                 <Header title="Membership Invites" level="h3" />

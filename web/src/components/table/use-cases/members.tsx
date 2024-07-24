@@ -42,10 +42,10 @@ export type MembersTableRow = {
 
 export default function MembersTable({
   orgId,
-  projectId,
+  project,
 }: {
   orgId: string;
-  projectId?: string;
+  project?: { id: string; name: string };
 }) {
   const session = useSession();
   const hasViewAccess = useHasOrganizationAccess({
@@ -60,7 +60,7 @@ export default function MembersTable({
   const members = api.members.all.useQuery(
     {
       orgId,
-      projectId,
+      projectId: project?.id,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -146,7 +146,7 @@ export default function MembersTable({
         return value ? new Date(value).toLocaleString() : undefined;
       },
     },
-    ...(projectId
+    ...(project
       ? [
           {
             accessorKey: "projectRole",
@@ -174,7 +174,7 @@ export default function MembersTable({
                   userId={userId}
                   currentProjectRole={projectRole}
                   orgId={orgId}
-                  projectId={projectId}
+                  projectId={project.id}
                   hasCudAccess={hasCudAccess}
                 />
               );
@@ -254,7 +254,7 @@ export default function MembersTable({
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         actionButtons={
-          <CreateProjectMemberButton orgId={orgId} projectId={projectId} />
+          <CreateProjectMemberButton orgId={orgId} project={project} />
         }
       />
       <DataTable
