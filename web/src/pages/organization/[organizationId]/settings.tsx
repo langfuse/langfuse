@@ -52,6 +52,10 @@ const OrgSettingsPage = () => {
             content: <OrganizationUsageChart />,
             show: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined,
           },
+          {
+            title: "Projects",
+            href: `/organization/${organization.id}`,
+          },
         ]}
       />
     </div>
