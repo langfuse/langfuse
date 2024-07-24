@@ -22,6 +22,7 @@ import { ingestionFlushQueue } from "../queues/ingestionFlushQueue";
 import { redis } from "../redis";
 import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { checkContainerHealth } from "../features/health";
 
 const router = express.Router();
 
@@ -37,26 +38,7 @@ type EventsResponse = {
 
 router.get<{}, { status: string }>("/health", async (_req, res) => {
   try {
-    //check database health
-    await prisma.$queryRaw`SELECT 1;`;
-
-    if (!redis) {
-      throw new Error("Redis connection not available");
-    }
-
-    await Promise.race([
-      redis?.ping(),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Redis ping timeout after 2 seconds")),
-          2000
-        )
-      ),
-    ]);
-
-    res.json({
-      status: "ok",
-    });
+    await checkContainerHealth(res);
   } catch (e) {
     logger.error(e, "Health check failed");
     res.status(500).json({

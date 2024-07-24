@@ -20,6 +20,7 @@ import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
 import { publicRouter } from "@/src/server/api/routers/public";
 import { credentialsRouter } from "@/src/features/auth-credentials/server/credentialsRouter";
 import { batchExportRouter } from "@/src/server/api/routers/batchExport";
+import { utilsRouter } from "@/src/server/api/routers/utilities";
 
 /**
  * This is the primary router for your server.
@@ -48,6 +49,7 @@ export const appRouter = createTRPCRouter({
   llmApiKey: llmApiKeyRouter,
   public: publicRouter,
   credentials: credentialsRouter,
+  utilities: utilsRouter,
 });
 
 // export type definition of API

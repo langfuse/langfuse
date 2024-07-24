@@ -42,6 +42,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { isSigtermReceived } from "@/src/utils/shutdown";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
 
 export const config = {
@@ -85,6 +86,8 @@ export default async function handler(
       "ingestion_event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
+
+    await gaugePrismaStats();
 
     if (!parsedSchema.success) {
       console.log("Invalid request data", parsedSchema.error);
@@ -205,7 +208,9 @@ export const handleBatch = async (
   req: NextApiRequest,
   authCheck: AuthHeaderVerificationResult,
 ) => {
-  console.log(`handling ingestion ${events.length} events`);
+  console.log(
+    `handling ingestion ${events.length} events ${isSigtermReceived() ? "after SIGTERM" : ""}`,
+  );
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
@@ -309,6 +314,7 @@ const handleSingleEvent = async (
     const { output, ...rest } = restEvent;
     restEvent = rest;
   }
+
   console.log(
     `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
   );
@@ -556,11 +562,25 @@ export const sendToWorkerIfEnvironmentConfigured = async (
               ).toString("base64"),
           },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(2 * 1000),
+          signal: AbortSignal.timeout(8 * 1000),
         });
       }
     }
   } catch (error) {
     console.error("Error sending events to worker", error);
   }
+};
+
+const gaugePrismaStats = async () => {
+  // execute with a 50% probability
+  if (Math.random() > 0.5) {
+    return;
+  }
+  const metrics = await prisma.$metrics.json();
+
+  console.log("prisma_gauges", metrics.gauges);
+
+  metrics.gauges.forEach((gauge) => {
+    Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
+  });
 };

@@ -56,6 +56,9 @@ export const evalRouter = createTRPCRouter({
         include: {
           evalTemplate: true,
         },
+        orderBy: {
+          status: "asc",
+        },
         take: input.limit,
         skip: input.page * input.limit,
       });

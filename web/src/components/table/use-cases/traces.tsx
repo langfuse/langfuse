@@ -11,7 +11,10 @@ import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
-import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
+import {
+  formatIntervalSeconds,
+  localtimeDateOffsetByDays,
+} from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
@@ -59,9 +62,9 @@ export type TracesTableRow = {
   scores: APIScore[];
   tags: string[];
   usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+    promptTokens: bigint;
+    completionTokens: bigint;
+    totalTokens: bigint;
   };
   inputCost?: Decimal;
   outputCost?: Decimal;
@@ -95,7 +98,7 @@ export default function TracesTable({
         column: "Timestamp",
         type: "datetime",
         operator: ">",
-        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
+        value: localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
       },
     ],
     "traces",
@@ -236,7 +239,8 @@ export default function TracesTable({
       header: undefined,
       id: "bookmarked",
       cell: ({ row }) => {
-        const bookmarked = row.getValue("bookmarked");
+        const bookmarked: TracesTableRow["bookmarked"] =
+          row.getValue("bookmarked");
         const traceId = row.getValue("id");
         return typeof traceId === "string" &&
           typeof bookmarked === "boolean" ? (
@@ -256,7 +260,7 @@ export default function TracesTable({
       header: "ID",
       id: "id",
       cell: ({ row }) => {
-        const value = row.getValue("id");
+        const value: TracesTableRow["id"] = row.getValue("id");
         return value && typeof value === "string" ? (
           <TableLink
             path={`/project/${projectId}/traces/${value}`}
@@ -285,7 +289,7 @@ export default function TracesTable({
       header: "User ID",
       id: "userId",
       cell: ({ row }) => {
-        const value = row.getValue("userId");
+        const value: TracesTableRow["userId"] = row.getValue("userId");
         return value && typeof value === "string" ? (
           <TableLink
             path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
@@ -303,7 +307,7 @@ export default function TracesTable({
       id: "sessionId",
       header: "Session ID",
       cell: ({ row }) => {
-        const value = row.getValue("sessionId");
+        const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
         return value && typeof value === "string" ? (
           <TableLink
             path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
@@ -321,7 +325,7 @@ export default function TracesTable({
       header: "Latency",
       // add seconds to the end of the latency
       cell: ({ row }) => {
-        const value: number | undefined = row.getValue("latency");
+        const value: TracesTableRow["latency"] = row.getValue("latency");
         return value !== undefined ? formatIntervalSeconds(value) : undefined;
       },
       enableHiding: true,
@@ -332,11 +336,7 @@ export default function TracesTable({
       id: "inputTokens",
       header: "Input Tokens",
       cell: ({ row }) => {
-        const value: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
-        } = row.getValue("usage");
+        const value: TracesTableRow["usage"] = row.getValue("usage");
         return <span>{numberFormatter(value.promptTokens, 0)}</span>;
       },
       enableHiding: true,
@@ -348,11 +348,7 @@ export default function TracesTable({
       id: "outputTokens",
       header: "Output Tokens",
       cell: ({ row }) => {
-        const value: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
-        } = row.getValue("usage");
+        const value: TracesTableRow["usage"] = row.getValue("usage");
         return <span>{numberFormatter(value.completionTokens, 0)}</span>;
       },
       enableHiding: true,
@@ -364,11 +360,7 @@ export default function TracesTable({
       id: "totalTokens",
       header: "Total Tokens",
       cell: ({ row }) => {
-        const value: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
-        } = row.getValue("usage");
+        const value: TracesTableRow["usage"] = row.getValue("usage");
         return <span>{numberFormatter(value.totalTokens, 0)}</span>;
       },
       enableHiding: true,
@@ -381,11 +373,7 @@ export default function TracesTable({
       header: "Usage",
       id: "usage",
       cell: ({ row }) => {
-        const value: {
-          promptTokens: number;
-          completionTokens: number;
-          totalTokens: number;
-        } = row.getValue("usage");
+        const value: TracesTableRow["usage"] = row.getValue("usage");
         return (
           <TokenUsageBadge
             promptTokens={value.promptTokens}
@@ -403,7 +391,7 @@ export default function TracesTable({
       id: "inputCost",
       header: "Input Cost",
       cell: ({ row }) => {
-        const cost: Decimal | undefined = row.getValue("inputCost");
+        const cost: TracesTableRow["inputCost"] = row.getValue("inputCost");
         return (
           <div>
             {cost ? (
@@ -423,7 +411,7 @@ export default function TracesTable({
       id: "outputCost",
       header: "Output Cost",
       cell: ({ row }) => {
-        const cost: Decimal | undefined = row.getValue("outputCost");
+        const cost: TracesTableRow["outputCost"] = row.getValue("outputCost");
         return (
           <div>
             {cost ? (
@@ -443,7 +431,7 @@ export default function TracesTable({
       id: "totalCost",
       header: "Total Cost",
       cell: ({ row }) => {
-        const cost: Decimal | undefined = row.getValue("totalCost");
+        const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
         return (
           <div>
             {cost ? (
@@ -463,7 +451,7 @@ export default function TracesTable({
       header: "Scores",
       enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
       cell: ({ row }) => {
-        const values: APIScore[] = row.getValue("scores");
+        const values: TracesTableRow["scores"] = row.getValue("scores");
         return <GroupedScoreBadges scores={values} variant="headings" />;
       },
       enableHiding: true,
@@ -473,7 +461,7 @@ export default function TracesTable({
       header: "Input",
       id: "input",
       cell: ({ row }) => {
-        const traceId: string = row.getValue("id");
+        const traceId: TracesTableRow["id"] = row.getValue("id");
         return (
           <TracesDynamicCell
             traceId={traceId}
@@ -490,7 +478,7 @@ export default function TracesTable({
       header: "Output",
       id: "output",
       cell: ({ row }) => {
-        const traceId: string = row.getValue("id");
+        const traceId: TracesTableRow["id"] = row.getValue("id");
         return (
           <TracesDynamicCell
             traceId={traceId}
@@ -506,7 +494,7 @@ export default function TracesTable({
       accessorKey: "metadata",
       header: "Metadata",
       cell: ({ row }) => {
-        const traceId: string = row.getValue("id");
+        const traceId: TracesTableRow["id"] = row.getValue("id");
         return (
           <TracesDynamicCell
             traceId={traceId}
@@ -523,7 +511,7 @@ export default function TracesTable({
       id: "level",
       header: "Level",
       cell: ({ row }) => {
-        const value: ObservationLevel = row.getValue("level");
+        const value: TracesTableRow["level"] = row.getValue("level");
         return (
           <span
             className={cn(
@@ -568,8 +556,8 @@ export default function TracesTable({
       id: "tags",
       header: "Tags",
       cell: ({ row }) => {
-        const tags: string[] = row.getValue("tags");
-        const traceId: string = row.getValue("id");
+        const tags: TracesTableRow["tags"] = row.getValue("tags");
+        const traceId: TracesTableRow["id"] = row.getValue("id");
         const filterOptionTags = traceFilterOptions.data?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
         return (
@@ -588,7 +576,7 @@ export default function TracesTable({
       accessorKey: "action",
       header: "Action",
       cell: ({ row }) => {
-        const traceId = row.getValue("id");
+        const traceId: TracesTableRow["id"] = row.getValue("id");
         return traceId && typeof traceId === "string" ? (
           <DeleteButton
             itemId={traceId}

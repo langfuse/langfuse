@@ -36,6 +36,7 @@ function useColumnVisibility<TData>(
     if (!isEqual(initialColumnVisibility, columnVisibility)) {
       setColumnVisibility(initialColumnVisibility);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columnVisibility, setColumnVisibility]);
 
   return [columnVisibility, setColumnVisibility] as const;

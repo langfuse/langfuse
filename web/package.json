@@ -1,19 +1,19 @@
 {
   "name": "web",
-  "version": "2.61.1",
+  "version": "2.65.1",
   "private": true,
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": "20"
   },
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
     "dev": "dotenv -e ../.env -- next dev",
-    "lint": "dotenv -e ../.env -- next lint",
+    "lint": "dotenv -e ../.env -- next lint --max-warnings 0",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
-    "start": "dotenv -e ../.env -- next start",
+    "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
     "test": "dotenv -e ../.env -- jest --runInBand",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
@@ -88,6 +88,7 @@
     "dompurify": "^3.1.5",
     "exponential-backoff": "^3.1.1",
     "graphql": "^16.9.0",
+    "ip-address": "^9.0.5",
     "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",
     "langchain": "^0.2.6",
@@ -99,6 +100,7 @@
     "next-themes": "^0.3.0",
     "posthog-js": "^1.122.0",
     "posthog-node": "^3.6.3",
+    "prexit": "^2.2.0",
     "prisma": "^5.13.0",
     "react": "18.2.0",
     "react-day-picker": "^8.10.1",

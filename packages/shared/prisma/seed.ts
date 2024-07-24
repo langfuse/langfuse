@@ -286,6 +286,7 @@ async function main() {
             : undefined;
         const datasetItem = await prisma.datasetItem.create({
           data: {
+            projectId: project2.id,
             datasetId: dataset.id,
             sourceTraceId: sourceObservation?.traceId,
             sourceObservationId:
@@ -312,6 +313,7 @@ async function main() {
       for (let datasetRunNumber = 0; datasetRunNumber < 5; datasetRunNumber++) {
         const datasetRun = await prisma.datasetRuns.create({
           data: {
+            projectId: project2.id,
             name: `demo-dataset-run-${datasetRunNumber}`,
             description: Math.random() > 0.5 ? "Dataset run description" : "",
             datasetId: dataset.id,
@@ -336,6 +338,7 @@ async function main() {
 
           await prisma.datasetRunItems.create({
             data: {
+              projectId: project2.id,
               datasetItemId,
               traceId: observation.traceId as string,
               observationId: Math.random() > 0.5 ? observation.id : undefined,
@@ -729,7 +732,7 @@ function createObjects(
                   ],
                 },
           output:
-            "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.\n\n1.  **Functional Component**:\n\nA functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:\n\n```javascript\nimport React from 'react';\nfunction Greeting(props) {\n  return <h1>Hello, {props.name}</h1>;\n}\nexport default Greeting;\n```\n\nTo use this component in another file, you can do:\n\n```javascript\nimport Greeting from './Greeting';\nfunction App() {\n  return (\n    <div>\n      <Greeting name=\"John\" />\n    </div>\n  );\n}\nexport default App;\n```\n\n2.  **Class Component**:\n\nYou can also define components as classes in React. These have some additional features compared to functional components:\n\n```javascript\nimport React, { Component } from 'react';\nclass Greeting extends Component {\n  render() {\n    return <h1>Hello, {this.props.name}</h1>;\n  }\n}\nexport default Greeting;\n```\n\nAnd here's how to use this component:\n\n```javascript\nimport Greeting from './Greeting';\nclass App extends Component {\n  render() {\n    return (\n      <div>\n        <Greeting name=\"John\" />\n      </div>\n    );\n  }\n}\nexport default App;\n```\n\nWith the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.\n\nRemember to import React at the top of your file whenever you're creating a component, because JSX transpiles to `React.createElement` calls under the hood.",
+            "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.\n\n**Image**\n\n![Languse Example Image](https://static.langfuse.com/langfuse-dev/langfuse-example-image.jpeg)\n\n1.  **Functional Component**:\n\nA functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:\n\n```javascript\nimport React from 'react';\nfunction Greeting(props) {\n  return <h1>Hello, {props.name}</h1>;\n}\nexport default Greeting;\n```\n\nTo use this component in another file, you can do:\n\n```javascript\nimport Greeting from './Greeting';\nfunction App() {\n  return (\n    <div>\n      <Greeting name=\"John\" />\n    </div>\n  );\n}\nexport default App;\n```\n\n2.  **Class Component**:\n\nYou can also define components as classes in React. These have some additional features compared to functional components:\n\n```javascript\nimport React, { Component } from 'react';\nclass Greeting extends Component {\n  render() {\n    return <h1>Hello, {this.props.name}</h1>;\n  }\n}\nexport default Greeting;\n```\n\nAnd here's how to use this component:\n\n```javascript\nimport Greeting from './Greeting';\nclass App extends Component {\n  render() {\n    return (\n      <div>\n        <Greeting name=\"John\" />\n      </div>\n    );\n  }\n}\nexport default App;\n```\n\nWith the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.\n\nRemember to import React at the top of your file whenever you're creating a component, because JSX transpiles to `React.createElement` calls under the hood.",
           model: model,
           internalModel: model,
           modelParameters: {

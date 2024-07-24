@@ -118,6 +118,14 @@ export const env = createEnv({
     POSTGRES_TRACING_DATASTORE_ENABLED: z.enum(["true", "false"]).optional(),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+    ADMIN_API_KEY: z.string().optional(),
+    ENCRYPTION_KEY: z
+      .string()
+      .length(
+        64,
+        "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32"
+      )
+      .optional(),
   },
 
   /**
@@ -242,6 +250,8 @@ export const env = createEnv({
       process.env.POSTGRES_TRACING_DATASTORE_ENABLED,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
+    ADMIN_API_KEY: process.env.ADMIN_API_KEY,
+    ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

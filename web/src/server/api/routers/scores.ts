@@ -158,7 +158,7 @@ export const scoresRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           traceId: input.traceId,
-          observationId: input.observationId,
+          observationId: input.observationId ?? null,
           source: "ANNOTATION",
           configId: input.configId,
         },
