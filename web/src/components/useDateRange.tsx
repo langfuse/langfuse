@@ -8,34 +8,65 @@ import {
   findClosestTableIntervalToDate,
   tableDateRangeAggregationSettings,
   isValidOption,
-  type TableDateRangeAggregationOption,
+  type DateRangeAggregationOption,
+  DASHBOARD_AGGREGATION_PLACEHOLDER,
+  findClosestDashboardIntervalToDate,
 } from "@/src/utils/date-range-utils";
 
-export function useDateRange(defaultDate?: Date) {
+export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
   const [urlParams, setUrlParams] = useQueryParams({
     select: withDefault(StringParam, "Select a date range"),
+    from: StringParam,
+    to: StringParam,
   });
-  const closestInterval = defaultDate
-    ? findClosestTableIntervalToDate(defaultDate)
-    : undefined;
-  let defaultDateRange = closestInterval ?? DEFAULT_AGGREGATION_SELECTION;
-  if (urlParams.select !== "Select a date range") {
-    defaultDateRange = isValidOption(urlParams.select)
-      ? (urlParams.select as TableDateRangeAggregationOption)
-      : defaultDateRange;
-  }
-  const [selectedOption, setSelectedOption] =
-    useState<DateRangeOptions>(defaultDateRange);
-  const [dateRange, setDateRange] = useState<DashboardDateRange | null>(null);
+
+  const closestInterval =
+    type === "table"
+      ? initialDate
+        ? findClosestTableIntervalToDate(initialDate)
+        : undefined
+      : initialDate
+        ? findClosestDashboardIntervalToDate(initialDate)
+        : undefined;
+
+  const initialDateRange =
+    closestInterval ??
+    (type === "table"
+      ? DEFAULT_AGGREGATION_SELECTION
+      : DASHBOARD_AGGREGATION_PLACEHOLDER);
+
+  const initial: DashboardDateRange | undefined =
+    urlParams.select !== "Select a date range" && urlParams.to && urlParams.from
+      ? {
+          from: new Date(urlParams.from),
+          to: new Date(urlParams.to),
+        }
+      : undefined;
+
+  const selectedDateRangeOption = isValidOption(urlParams.select)
+    ? (urlParams.select as DateRangeAggregationOption)
+    : initialDateRange;
+
+  const [selectedOption, setSelectedOption] = useState<DateRangeOptions>(
+    selectedDateRangeOption,
+  );
+  const [dateRange, setDateRange] = useState<DashboardDateRange | undefined>(
+    initial,
+  );
+
   const setDateRangeAndOption = (
     option: DateRangeOptions,
     date?: DashboardDateRange,
   ) => {
     setSelectedOption(option);
-    setDateRange(date ?? null);
-    setUrlParams({
-      select: option,
-    });
+    setDateRange(date);
+
+    const newParams: any = { select: option };
+    if (option === "Date range" && date) {
+      newParams.from = date.from;
+      newParams.to = date.to;
+    }
+    setUrlParams(newParams);
   };
 
   useEffect(() => {
