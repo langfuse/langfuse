@@ -36,7 +36,7 @@ export const createEvalJobs = async ({
 }: {
   event: z.infer<typeof TraceUpsertEventSchema>;
 }) => {
-  logger.info (
+  logger.info(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`
   );
   const configs = await kyselyPrisma.$kysely
@@ -279,6 +279,11 @@ export const evaluate = async ({
 
   if (!parsedKey.success) {
     // this will fail the eval execution if a user deletes the API key.
+    logger.error(
+      `API key for provider ${template.provider} and project ${event.projectId} not
+      found. Eval will fail.`,
+      parsedKey.error
+    );
     throw new LangfuseNotFoundError(
       `API key for provider ${template.provider} and project ${event.projectId} not found.`
     );
