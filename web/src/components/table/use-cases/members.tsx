@@ -24,6 +24,7 @@ import { Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export type MembersTableRow = {
   user: {
@@ -80,6 +81,8 @@ export default function MembersTable({
     organizationId: orgId,
     scope: "members:CUD",
   });
+
+  const projectMembersEntitlement = useHasOrgEntitlement("rbac-project-roles");
 
   const columns: LangfuseColumnDef<MembersTableRow>[] = [
     {
@@ -168,6 +171,9 @@ export default function MembersTable({
               const { orgMembershipId, userId } = row.getValue(
                 "meta",
               ) as MembersTableRow["meta"];
+
+              if (!projectMembersEntitlement) return "N/A";
+
               return (
                 <ProjectRoleDropdown
                   orgMembershipId={orgMembershipId}

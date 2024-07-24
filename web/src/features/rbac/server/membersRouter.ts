@@ -12,6 +12,7 @@ import {
 import { OrganizationRole, ProjectRole, paginationZod } from "@langfuse/shared";
 import { sendProjectInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 export const membersRouter = createTRPCRouter({
   all: protectedOrganizationProcedure
@@ -142,6 +143,21 @@ export const membersRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "members:CUD",
       });
+
+      // check for entilement (project role)
+      if (input.projectRole) {
+        const entitled = hasEntitlement({
+          entitlement: "rbac-project-roles",
+          sessionUser: ctx.session.user,
+          orgId: input.orgId,
+        });
+        if (!entitled)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Organization does not have the required entitlement to set project roles",
+          });
+      }
 
       const user = await ctx.prisma.user.findUnique({
         where: {

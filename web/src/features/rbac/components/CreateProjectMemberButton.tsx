@@ -32,6 +32,7 @@ import { Input } from "@/src/components/ui/input";
 import { OrganizationRole, ProjectRole } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 const formSchema = z.object({
   email: z.string().trim().email(),
@@ -102,6 +103,8 @@ export function CreateProjectMemberButton(props: {
       });
   }
 
+  const hasProjectRoleEntitlement = useHasOrgEntitlement("rbac-project-roles");
+
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -169,7 +172,7 @@ export function CreateProjectMemberButton(props: {
                   </FormItem>
                 )}
               />
-              {props.project !== undefined && (
+              {props.project !== undefined && hasProjectRoleEntitlement && (
                 <FormField
                   control={form.control}
                   name="projectRole"
