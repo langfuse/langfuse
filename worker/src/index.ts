@@ -27,7 +27,7 @@ async function onShutdown() {
     evalJobExecutor?.close(),
     batchExportJobExecutor?.close(),
   ]);
-  redis?.shutdown();
+  redis?.disconnect();
   logger.info("Http server and Redis jobs have been closed.");
 }
 
