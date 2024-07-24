@@ -4,6 +4,7 @@ import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAut
 import {
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
+  transformDbDatasetRunItemToAPIDatasetRunItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
 
@@ -24,11 +25,11 @@ export default withMiddlewares({
 
       const datasetItem = await prisma.datasetItem.findUnique({
         where: {
-          id: datasetItemId,
-          status: "ACTIVE",
-          dataset: {
+          id_projectId: {
             projectId: auth.scope.projectId,
+            id: datasetItemId,
           },
+          status: "ACTIVE",
         },
         include: {
           dataset: true,
@@ -63,9 +64,10 @@ export default withMiddlewares({
 
       const run = await prisma.datasetRuns.upsert({
         where: {
-          datasetId_name: {
+          datasetId_projectId_name: {
             datasetId: datasetItem.datasetId,
             name: runName,
+            projectId: auth.scope.projectId,
           },
         },
         create: {
@@ -73,6 +75,7 @@ export default withMiddlewares({
           description: runDescription ?? undefined,
           datasetId: datasetItem.datasetId,
           metadata: metadata ?? undefined,
+          projectId: auth.scope.projectId,
         },
         update: {
           metadata: metadata ?? undefined,
@@ -86,13 +89,14 @@ export default withMiddlewares({
           traceId: finalTraceId,
           observationId,
           datasetRunId: run.id,
+          projectId: auth.scope.projectId,
         },
       });
 
-      return {
+      return transformDbDatasetRunItemToAPIDatasetRunItem({
         ...runItem,
         datasetRunName: run.name,
-      };
+      });
     },
   }),
 });
