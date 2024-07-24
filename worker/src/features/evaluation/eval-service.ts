@@ -114,7 +114,7 @@ export const createEvalJobs = async ({
       }
 
       logger.info(
-        `Creating eval job for config ${config.id} and trace ${event.traceId} `
+        `Creating eval job for config ${config.id} and trace ${event.traceId}`
       );
 
       await prisma.jobExecution.create({
