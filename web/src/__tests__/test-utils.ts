@@ -132,3 +132,9 @@ export const setupUserAndProject = async () => {
   });
   return { user, project };
 };
+
+export const teardownRedis = async () => {
+  const { redis } = await import("@langfuse/shared/src/server");
+  redis?.disconnect();
+  console.log("Teardown complete");
+};

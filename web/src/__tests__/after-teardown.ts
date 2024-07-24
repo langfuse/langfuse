@@ -1,5 +1,5 @@
-afterEach(async () => {
-  const { redis } = await import("@langfuse/shared/src/server");
-  redis?.disconnect();
-  console.log("Teardown complete");
+import { teardownRedis } from "@/src/__tests__/test-utils";
+
+afterAll(async () => {
+  await teardownRedis();
 });
