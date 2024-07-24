@@ -1,4 +1,7 @@
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import {
+  GroupedScoreBadges,
+  QualitativeScoreBadge,
+} from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -15,6 +18,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { ScoreDataType, type Prisma } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { cn } from "@/src/utils/tailwind";
 
 type RowData = {
   key: {
@@ -25,7 +29,10 @@ type RowData = {
   countRunItems: string;
   avgLatency: number;
   avgTotalCost: string;
-  scores: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["scores"];
+  scores: {
+    numeric: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["avgNumericScores"];
+    qualitative: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["qualitativeScoreDistribution"];
+  };
   description: string;
   metadata: Prisma.JsonValue;
 };
@@ -110,20 +117,30 @@ export function DatasetRunsTable(props: {
     },
     {
       accessorKey: "scores",
-      header: "Scores (avg)",
+      header: "Score Metrics",
       id: "scores",
       enableHiding: true,
       cell: ({ row }) => {
         const scores: RowData["scores"] = row.getValue("scores");
+        const { numeric, qualitative } = scores;
+
         return (
-          <GroupedScoreBadges
-            scores={Object.entries(scores).map(([k, v]) => ({
-              name: k,
-              value: v,
-              dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
-            }))}
-            variant="headings"
-          />
+          <div
+            className={cn(
+              "flex max-w-xl flex-row items-start gap-3 overflow-y-auto",
+              rowHeight === "s" && "h-8",
+            )}
+          >
+            <GroupedScoreBadges
+              scores={Object.entries(numeric).map(([k, v]) => ({
+                name: k,
+                value: v,
+                dataType: ScoreDataType.NUMERIC,
+              }))}
+              variant="headings"
+            />
+            <QualitativeScoreBadge scores={qualitative} />
+          </div>
         );
       },
     },
@@ -156,7 +173,10 @@ export function DatasetRunsTable(props: {
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
       avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
-      scores: item.scores,
+      scores: {
+        numeric: item.avgNumericScores,
+        qualitative: item.qualitativeScoreDistribution,
+      },
       description: item.description ?? "",
       metadata: item.metadata,
     };
