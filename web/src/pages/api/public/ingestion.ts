@@ -532,6 +532,13 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       console.log("Sending events to worker via redis", traceEvents);
       const jobs = convertTraceUpsertEventsToRedisEvents(traceEvents);
       await traceUpsertQueue?.addBulk(jobs);
+
+      if (traceUpsertQueue) {
+        console.log(
+          `Added ${jobs.length} trace upsert jobs to the queue`,
+          jobs,
+        );
+      }
     } else if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
