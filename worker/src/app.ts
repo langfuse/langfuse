@@ -14,9 +14,10 @@ import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
 import { flushIngestionQueueExecutor } from "./queues/ingestionFlushQueue";
 import { repeatQueueExecutor } from "./queues/repeatQueue";
-import helmet from "helmet";
 import { logQueueWorkerError } from "./utils/logQueueWorkerError";
-import { gracefulShutdown } from "./utils/shutdown";
+import { onShutdown } from "./utils/shutdown";
+
+import helmet from "helmet";
 
 const app = express();
 
@@ -55,7 +56,7 @@ batchExportJobExecutor?.on("failed", logQueueWorkerError);
 repeatQueueExecutor?.on("failed", logQueueWorkerError);
 flushIngestionQueueExecutor?.on("failed", logQueueWorkerError);
 
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => onShutdown("SIGINT"));
+process.on("SIGTERM", () => onShutdown("SIGTERM"));
 
 export default app;
