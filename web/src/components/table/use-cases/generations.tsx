@@ -111,6 +111,7 @@ export default function GenerationsTable({
   );
 
   const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
+    "table",
     localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
   );
 

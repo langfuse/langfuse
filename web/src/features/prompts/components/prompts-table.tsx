@@ -45,7 +45,8 @@ export function PromptTable() {
 
   const [filterState, setFilterState] = useQueryFilterState([], "prompts");
 
-  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange();
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useDateRange("table");
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
