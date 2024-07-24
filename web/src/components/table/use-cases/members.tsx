@@ -25,6 +25,7 @@ import { useSession } from "next-auth/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type MembersTableRow = {
   user: {
@@ -307,7 +308,14 @@ const OrgRoleDropdown = ({
 }) => {
   const utils = api.useUtils();
   const mut = api.members.updateOrgMembership.useMutation({
-    onSuccess: () => utils.members.invalidate(),
+    onSuccess: () => {
+      utils.members.invalidate();
+      showSuccessToast({
+        title: "Saved",
+        description: "Organization role updated successfully",
+        duration: 2000,
+      });
+    },
   });
 
   return (
@@ -349,7 +357,14 @@ const ProjectRoleDropdown = ({
 }) => {
   const utils = api.useUtils();
   const mut = api.members.updateProjectRole.useMutation({
-    onSuccess: () => utils.members.invalidate(),
+    onSuccess: () => {
+      utils.members.invalidate();
+      showSuccessToast({
+        title: "Saved",
+        description: "Project role updated successfully",
+        duration: 2000,
+      });
+    },
   });
 
   return (
