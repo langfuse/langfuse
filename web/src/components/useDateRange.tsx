@@ -43,9 +43,16 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
         }
       : undefined;
 
-  const validatedInitialRangeOption = isValidOption(urlParams.select)
-    ? (urlParams.select as DateRangeAggregationOption)
-    : initialRangeOption;
+  let validatedInitialRangeOption;
+  if (isValidOption(urlParams.select)) {
+    validatedInitialRangeOption =
+      urlParams.select as DateRangeAggregationOption;
+  } else if (urlParams.select === "Date range") {
+    validatedInitialRangeOption =
+      urlParams.select as DateRangeAggregationOption;
+  } else {
+    validatedInitialRangeOption = initialRangeOption;
+  }
 
   const [selectedOption, setSelectedOption] = useState<DateRangeOptions>(
     validatedInitialRangeOption,
@@ -81,7 +88,7 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
         to: new Date(),
       });
     }
-  }, [selectedOption, setUrlParams, urlParams]);
+  }, [selectedOption]);
 
   return { selectedOption, dateRange, setDateRangeAndOption };
 }
