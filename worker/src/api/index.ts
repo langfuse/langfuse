@@ -54,6 +54,13 @@ router
         const jobs = convertTraceUpsertEventsToRedisEvents(event.data.payload);
         await traceUpsertQueue?.addBulk(jobs); // add all jobs as bulk
 
+        if (jobs.length > 0 && traceUpsertQueue) {
+          logger.info(
+            `Added ${jobs.length} trace upsert jobs to the queue`,
+            jobs
+          );
+        }
+
         return res.json({
           status: "success",
         });
