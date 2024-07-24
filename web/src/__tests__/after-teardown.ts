@@ -1,5 +1,5 @@
-import { teardownRedis } from "@/src/__tests__/test-utils";
+import teardown from "@/src/__tests__/teardown";
 
 afterAll(async () => {
-  await teardownRedis();
+  await teardown();
 });
