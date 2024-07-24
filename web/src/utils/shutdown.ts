@@ -4,6 +4,8 @@
 // NEVER call process.exit() in this process. Kubernetes should kill the container: https://kostasbariotis.com/why-you-should-not-use-process-exit/
 // We wait for 20 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
 
+import { redis } from "@langfuse/shared/src/server";
+
 const TIMEOUT = 60_000;
 
 declare global {
@@ -23,7 +25,7 @@ export const isSigtermReceived = () =>
 
 export const shutdown = async (signal: PrexitSignal) => {
   // import redis at runtime
-  const { redis } = await import("@langfuse/shared/src/server");
+
   if (signal === "SIGTERM" || signal === "SIGINT") {
     console.log(
       `SIGTERM / SIGINT received. Shutting down in ${TIMEOUT / 1000} seconds.`,
