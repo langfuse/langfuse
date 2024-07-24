@@ -63,6 +63,11 @@ const immutableEntityKeys: {
   ],
 };
 
+const reservedCharsEscapeMap = [
+  { reserved: ":", escape: "|%|" },
+  { reserved: "_", escape: "|#|" },
+];
+
 export class IngestionService {
   constructor(
     private redis: Redis,
@@ -177,7 +182,11 @@ export class IngestionService {
     eventType: EntityType;
     entityId: string;
   }): string {
-    return `ingestionBuffer_${params.projectId}_${params.eventType}_${params.entityId}`;
+    const sanitizedEntityId = IngestionService.escapeReservedChars(
+      params.entityId
+    );
+
+    return `ingestionBuffer_${params.projectId}_${params.eventType}_${sanitizedEntityId}`;
   }
 
   private parseProjectEntityKey(projectEntityKey: string) {
@@ -189,11 +198,27 @@ export class IngestionService {
       );
     }
 
-    return {
-      projectId: split[1],
-      eventType: split[2] as EntityType,
-      entityId: split[3],
-    };
+    const projectId = split[1];
+    const eventType = split[2] as EntityType;
+    const escapedEntityId = split[3];
+
+    const entityId = IngestionService.unescapeReservedChars(escapedEntityId);
+
+    return { projectId, eventType, entityId };
+  }
+
+  private static escapeReservedChars(string: string): string {
+    return reservedCharsEscapeMap.reduce(
+      (acc, { reserved, escape }) => acc.replaceAll(reserved, escape),
+      string
+    );
+  }
+
+  private static unescapeReservedChars(escapedString: string): string {
+    return reservedCharsEscapeMap.reduce(
+      (acc, { reserved, escape }) => acc.replaceAll(escape, reserved),
+      escapedString
+    );
   }
 
   private async processScoreEventList(params: {
