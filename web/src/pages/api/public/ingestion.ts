@@ -40,6 +40,10 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import {
+  convertTraceUpsertEventsToRedisEvents,
+  traceUpsertQueue,
+} from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
 
@@ -527,8 +531,6 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      const { convertTraceUpsertEventsToRedisEvents, traceUpsertQueue } =
-        await import("@langfuse/shared/src/server");
       console.log("Sending events to worker via redis", traceEvents);
       const jobs = convertTraceUpsertEventsToRedisEvents(traceEvents);
       await traceUpsertQueue?.addBulk(jobs);
