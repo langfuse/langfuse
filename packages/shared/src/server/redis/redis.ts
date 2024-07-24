@@ -5,12 +5,14 @@ const createRedisClient = () => {
   try {
     return env.REDIS_CONNECTION_STRING
       ? new Redis(env.REDIS_CONNECTION_STRING, { maxRetriesPerRequest: null })
-      : new Redis({
-          host: String(env.REDIS_HOST),
-          port: Number(env.REDIS_PORT),
-          password: String(env.REDIS_AUTH),
-          maxRetriesPerRequest: null, // Set to `null` to disable retrying
-        });
+      : env.REDIS_HOST
+        ? new Redis({
+            host: String(env.REDIS_HOST),
+            port: Number(env.REDIS_PORT),
+            password: String(env.REDIS_AUTH),
+            maxRetriesPerRequest: null, // Set to `null` to disable retrying
+          })
+        : null;
   } catch (e) {
     console.error(e, "Failed to connect to redis");
     return null;
