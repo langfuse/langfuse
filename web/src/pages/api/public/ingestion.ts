@@ -514,24 +514,24 @@ export const sendToWorkerIfEnvironmentConfigured = async (
   batchResults: BatchResult[],
   projectId: string,
 ): Promise<void> => {
-  const traceEvents: TraceUpsertEventType[] = batchResults
-    .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
-    .map((result) =>
-      result.result &&
-      typeof result.result === "object" &&
-      "id" in result.result
-        ? // ingestion API only gets traces for one projectId
-          { traceId: result.result.id as string, projectId }
-        : null,
-    )
-    .filter(isNotNullOrUndefined);
-
   try {
+    const traceEvents: TraceUpsertEventType[] = batchResults
+      .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
+      .map((result) =>
+        result.result &&
+        typeof result.result === "object" &&
+        "id" in result.result
+          ? // ingestion API only gets traces for one projectId
+            { traceId: result.result.id as string, projectId }
+          : null,
+      )
+      .filter(isNotNullOrUndefined);
+
     if (
       (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      console.log("Sending events to worker via redis", traceEvents);
+      console.log("Sending events to worker via redis");
       const jobs = convertTraceUpsertEventsToRedisEvents(traceEvents);
       await traceUpsertQueue?.addBulk(jobs);
 
@@ -546,7 +546,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      console.log("Sending events to worker via HTTP", traceEvents);
+      console.log("Sending events to worker via HTTP");
       const body: EventBodyType = {
         name: EventName.TraceUpsert,
         payload: traceEvents,
