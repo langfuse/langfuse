@@ -95,6 +95,10 @@ jobs:
           cp .env.dev.example .env
           cp .env.dev.example web/.env
 
+      - name: Remove REDIS_HOST from web/.env
+        run: |
+          sed -i '/^REDIS_HOST=/d' web/.env
+
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
