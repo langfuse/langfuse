@@ -1,4 +1,5 @@
 import { Redis } from "ioredis";
+import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 
 import { Model, PrismaClient, QueueJobs } from "@langfuse/shared";
@@ -31,8 +32,8 @@ import { tokenCount } from "../../features/tokenisation/usage";
 import { instrumentAsync } from "../../instrumentation";
 import logger from "../../logger";
 import { IngestionFlushQueue } from "../../queues/ingestionFlushQueue";
-import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
+import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
 
 enum EntityType {
   Trace = "trace",
@@ -301,6 +302,25 @@ export class IngestionService {
       entityId,
       observationRecords,
     });
+
+    // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
+    if (!finalObservationRecord.trace_id) {
+      const traceId = randomUUID();
+      const wrapperTraceRecord: TraceRecordInsertType = {
+        id: traceId,
+        timestamp: finalObservationRecord.start_time,
+        project_id: projectId,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        metadata: {},
+        tags: [],
+        bookmarked: false,
+        public: false,
+      };
+
+      this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
+      finalObservationRecord.trace_id = traceId;
+    }
 
     this.clickHouseWriter.addToQueue(
       TableName.Observations,
