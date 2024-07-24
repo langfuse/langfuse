@@ -29,7 +29,7 @@ export const shutdown = async (signal: PrexitSignal) => {
     setSigtermReceived();
 
     return await new Promise<void>((resolve) => {
-      setTimeout(async () => {
+      setTimeout(() => {
         console.log("Shutdown complete");
         resolve();
       }, TIMEOUT);
