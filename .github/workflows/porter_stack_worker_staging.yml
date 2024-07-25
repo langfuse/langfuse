@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - max/lfe-1513-add-api-keys-to-redis
+      - main
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
