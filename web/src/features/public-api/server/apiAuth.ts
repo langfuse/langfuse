@@ -19,16 +19,16 @@ export type AuthHeaderValidVerificationResult = {
   scope: ApiAccessScope;
 };
 
-const ApiKey = z.object({
+const ApiKeyZod = z.object({
   id: z.string(),
-  createdAt: z.date(),
   note: z.string().nullable(),
   publicKey: z.string(),
   hashedSecretKey: z.string(),
   fastHashedSecretKey: z.string().nullable(),
   displaySecretKey: z.string(),
-  lastUsedAt: z.date().nullable(),
-  expiresAt: z.date().nullable(),
+  createdAt: z.string().datetime().nullable(),
+  lastUsedAt: z.string().datetime().nullable(),
+  expiresAt: z.string().datetime().nullable(),
   projectId: z.string(),
 });
 
@@ -237,7 +237,11 @@ export class ApiAuthService {
     try {
       const redisApiKey = await this.redis.get(this.createRedisKey(hash));
 
-      const parsedApiKey = ApiKey.safeParse(redisApiKey);
+      if (!redisApiKey) {
+        return null;
+      }
+
+      const parsedApiKey = ApiKeyZod.safeParse(JSON.parse(redisApiKey));
 
       if (parsedApiKey.success) {
         return parsedApiKey.data;

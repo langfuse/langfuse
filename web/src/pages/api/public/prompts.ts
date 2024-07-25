@@ -32,6 +32,7 @@ export default async function handler(
       prisma,
       redis,
     ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
     if (authCheck.scope.accessLevel !== "all")
       throw new ForbiddenError(
