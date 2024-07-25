@@ -17,6 +17,12 @@ describe("Authenticate API calls", () => {
     await prisma.trace.deleteMany();
     await prisma.apiKey.deleteMany();
   });
+  afterEach(async () => {
+    await prisma.score.deleteMany();
+    await prisma.observation.deleteMany();
+    await prisma.trace.deleteMany();
+    await prisma.apiKey.deleteMany();
+  });
 
   describe("validates without redis", () => {
     it("should create new api key", async () => {
