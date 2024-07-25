@@ -223,7 +223,7 @@ export class ApiAuthService {
   }
 
   async addApiKeyToRedis(hash: string, apiKey: ApiKey) {
-    if (!this.redis || !env.LANGFUSE_CACHE_API_KEY_ENABLED) {
+    if (!this.redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") {
       return;
     }
 
@@ -240,7 +240,7 @@ export class ApiAuthService {
   }
 
   async fetchApiKeyFromRedis(hash: string) {
-    if (!this.redis || !env.LANGFUSE_CACHE_API_KEY_ENABLED) {
+    if (!this.redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") {
       return null;
     }
 
