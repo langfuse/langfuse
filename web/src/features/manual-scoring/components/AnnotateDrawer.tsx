@@ -1,5 +1,5 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import React from "react";
+import React, { useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   LockIcon,
@@ -144,17 +144,52 @@ export function AnnotateDrawer({
   type?: "trace" | "observation" | "session";
   source?: "TraceDetail" | "SessionDetail";
 }) {
-  const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
-    projectId,
-    scope: "scores:CUD",
-  });
-
   const configsData = api.scoreConfigs.all.useQuery({
     projectId,
   });
 
   const configs = configsData.data?.configs ?? [];
+
+  if (configsData.isLoading) return null;
+
+  return (
+    <AnnotateDrawerInner
+      traceId={traceId}
+      scores={scores}
+      configs={configs}
+      observationId={observationId}
+      projectId={projectId}
+      variant={variant}
+      type={type}
+      source={source}
+    />
+  );
+}
+
+function AnnotateDrawerInner({
+  traceId,
+  scores,
+  configs,
+  observationId,
+  projectId,
+  variant = "button",
+  type = "trace",
+  source = "TraceDetail",
+}: {
+  traceId: string;
+  scores: APIScore[];
+  configs: ValidatedScoreConfig[];
+  observationId?: string;
+  projectId: string;
+  variant?: "button" | "badge";
+  type?: "trace" | "observation" | "session";
+  source?: "TraceDetail" | "SessionDetail";
+}) {
+  const capture = usePostHogClientCapture();
+  const hasAccess = useHasAccess({
+    projectId,
+    scope: "scores:CUD",
+  });
 
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
@@ -162,15 +197,6 @@ export function AnnotateDrawer({
 
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
-    defaultValues: {
-      scoreData: getDefaultScoreData({
-        scores,
-        traceId,
-        observationId,
-        emptySelectedConfigIds,
-        configs,
-      }),
-    },
   });
 
   const router = useRouter();
@@ -179,6 +205,18 @@ export function AnnotateDrawer({
     control: form.control,
     name: "scoreData",
   });
+
+  useEffect(() => {
+    form.reset({
+      scoreData: getDefaultScoreData({
+        scores,
+        emptySelectedConfigIds,
+        configs,
+        traceId,
+        observationId,
+      }),
+    });
+  }, [scores, emptySelectedConfigIds, configs, traceId, observationId, form]);
 
   const mutDeleteScore = api.scores.deleteAnnotationScore.useMutation({
     onSettled: async (data, error) => {
