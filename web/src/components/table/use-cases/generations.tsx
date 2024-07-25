@@ -147,7 +147,19 @@ export default function GenerationsTable({
       ]
     : [];
 
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Start Time",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
   const filterState = inputFilterState.concat([
+    ...dateRangeFilter,
     ...promptNameFilter,
     ...promptVersionFilter,
   ]);
