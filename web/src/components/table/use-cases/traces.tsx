@@ -106,6 +106,16 @@ export default function TracesTable({
     order: "DESC",
   });
 
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
   const userIdFilter: FilterState = userId
     ? [
         {
@@ -117,7 +127,7 @@ export default function TracesTable({
       ]
     : [];
 
-  const filterState = userFilterState.concat(userIdFilter);
+  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -130,8 +140,6 @@ export default function TracesTable({
     filter: filterState,
     searchQuery,
     orderBy: orderByState,
-    from: dateRange?.from ?? null,
-    to: dateRange?.to ?? null,
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
 
