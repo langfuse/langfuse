@@ -10,8 +10,6 @@ const clientTestConfig = {
   displayName: "client",
   testMatch: ["/**/*.clienttest.[jt]s?(x)"],
   testEnvironment: "jest-environment-jsdom",
-  // setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
-  // globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
 };
 
 const serverTestConfig = {
