@@ -156,6 +156,10 @@ describe("Authenticate API calls", () => {
         where: { publicKey: "pk-lf-1234567890" },
       });
 
+      expect(apiKey).not.toBeNull();
+      console.log(apiKey);
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
       const cachedKey = await redis.get(
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
@@ -169,10 +173,6 @@ describe("Authenticate API calls", () => {
       const cachedKey2 = await redis.get(
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
-
-      expect(apiKey).not.toBeNull();
-      console.log(apiKey);
-      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
       expect(cachedKey2).not.toBeNull();
 
