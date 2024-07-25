@@ -12,8 +12,8 @@ export const DASHBOARD_AGGREGATION_OPTIONS = [
   "24 hours",
   "3 hours",
   "1 hour",
-  "30 minutes",
-  "5 minutes",
+  "30 min",
+  "5 min",
 ] as const;
 
 export const TABLE_AGGREGATION_OPTIONS = [
@@ -25,7 +25,7 @@ export const TABLE_AGGREGATION_OPTIONS = [
   "24 hours",
   "6 hours",
   "1 hour",
-  "30 minutes",
+  "30 min",
 ] as const;
 
 export type DashboardDateRangeAggregationOption =
@@ -45,15 +45,19 @@ export type DashboardDateRangeOptions =
 export type TableDateRangeOptions =
   | TableDateRangeAggregationOption
   | typeof DEFAULT_AGGREGATION_SELECTION;
-export type DateRangeAggregationSettings<T extends DateRangeAggregationOption> =
-  Record<
-    T,
-    {
-      date_trunc: "year" | "month" | "week" | "day" | "hour" | "minute";
-      date_formatter: (date: Date) => string;
-      minutes: number;
-    }
-  >;
+export type DashboardDateRangeAggregationSettings = Record<
+  DashboardDateRangeAggregationOption,
+  {
+    date_trunc: "year" | "month" | "week" | "day" | "hour" | "minute";
+    date_formatter: (date: Date) => string;
+    minutes: number;
+  }
+>;
+
+export type TableDateRangeAggregationSettings = Record<
+  TableDateRangeAggregationOption,
+  number
+>;
 
 export const dateTimeAggregationOptions = [
   ...TABLE_AGGREGATION_OPTIONS,
@@ -61,7 +65,7 @@ export const dateTimeAggregationOptions = [
   DEFAULT_AGGREGATION_SELECTION,
 ] as const;
 
-export const dashboardDateRangeAggregationSettings: DateRangeAggregationSettings<DashboardDateRangeAggregationOption> =
+export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregationSettings =
   {
     "1 year": {
       date_trunc: "month",
@@ -111,7 +115,7 @@ export const dashboardDateRangeAggregationSettings: DateRangeAggregationSettings
         }),
       minutes: 60,
     },
-    "30 minutes": {
+    "30 min": {
       date_trunc: "minute",
       date_formatter: (date: Date) =>
         date.toLocaleTimeString("en-US", {
@@ -120,7 +124,7 @@ export const dashboardDateRangeAggregationSettings: DateRangeAggregationSettings
         }),
       minutes: 30,
     },
-    "5 minutes": {
+    "5 min": {
       date_trunc: "minute",
       date_formatter: (date) =>
         date.toLocaleTimeString("en-US", {
@@ -131,68 +135,17 @@ export const dashboardDateRangeAggregationSettings: DateRangeAggregationSettings
     },
   };
 
-export const tableDateRangeAggregationSettings: DateRangeAggregationSettings<TableDateRangeAggregationOption> =
+export const tableDateRangeAggregationSettings: TableDateRangeAggregationSettings =
   {
-    "3 months": {
-      date_trunc: "month",
-      date_formatter: (date: Date) =>
-        date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      minutes: 3 * 28 * 24 * 60,
-    },
-    "1 month": {
-      date_trunc: "month",
-      date_formatter: (date: Date) =>
-        date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      minutes: 28 * 24 * 60,
-    },
-    "14 days": {
-      date_trunc: "day",
-      date_formatter: (date: Date) =>
-        date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      minutes: 14 * 24 * 60,
-    },
-    "7 days": {
-      date_trunc: "day",
-      date_formatter: (date: Date) =>
-        date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      minutes: 7 * 24 * 60,
-    },
-    "3 days": {
-      date_trunc: "day",
-      date_formatter: (date: Date) =>
-        date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      minutes: 3 * 24 * 60,
-    },
-    "24 hours": {
-      date_trunc: "hour",
-      date_formatter: (date: Date) =>
-        date.toLocaleTimeString("en-US", { hour: "numeric" }),
-      minutes: 24 * 60,
-    },
-    "6 hours": {
-      date_trunc: "hour",
-      date_formatter: (date: Date) =>
-        date.toLocaleTimeString("en-US", { hour: "numeric" }),
-      minutes: 6 * 60,
-    },
-    "1 hour": {
-      date_trunc: "hour",
-      date_formatter: (date: Date) =>
-        date.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "numeric",
-        }),
-      minutes: 60,
-    },
-    "30 minutes": {
-      date_trunc: "minute",
-      date_formatter: (date: Date) =>
-        date.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "numeric",
-        }),
-      minutes: 30,
-    },
+    "3 months": 3 * 28 * 24 * 60,
+    "1 month": 28 * 24 * 60,
+    "14 days": 14 * 24 * 60,
+    "7 days": 7 * 24 * 60,
+    "3 days": 3 * 24 * 60,
+    "24 hours": 24 * 60,
+    "6 hours": 6 * 60,
+    "1 hour": 60,
+    "30 min": 30,
   };
 
 export function isValidDashboardDateRangeAggregationOption(
@@ -215,13 +168,14 @@ export function isValidTableDateRangeAggregationOption(
   );
 }
 
-export function findClosestInterval<T extends DateRangeAggregationOption>(
-  options: readonly T[],
-  settings: DateRangeAggregationSettings<T>,
-  duration: number,
-): T | undefined {
-  const diffs = options.map((interval) => {
-    const { minutes } = settings[interval];
+export const findClosestTableIntervalToDate = (
+  targetDate: Date,
+): TableDateRangeAggregationOption | undefined => {
+  const currentDate = new Date();
+  const duration = Math.abs(currentDate.getTime() - targetDate.getTime());
+
+  const diffs = TABLE_AGGREGATION_OPTIONS.map((interval) => {
+    const minutes = tableDateRangeAggregationSettings[interval];
     return {
       interval,
       diff: Math.abs(duration - minutes * 60 * 1000),
@@ -231,18 +185,6 @@ export function findClosestInterval<T extends DateRangeAggregationOption>(
   diffs.sort((a, b) => a.diff - b.diff);
 
   return diffs[0]?.interval;
-}
-
-export const findClosestTableIntervalToDate = (
-  targetDate: Date,
-): TableDateRangeAggregationOption | undefined => {
-  const currentDate = new Date();
-  const duration = Math.abs(currentDate.getTime() - targetDate.getTime());
-  return findClosestInterval(
-    TABLE_AGGREGATION_OPTIONS,
-    tableDateRangeAggregationSettings,
-    duration,
-  );
 };
 
 export const findClosestDashboardIntervalToDate = (
@@ -250,11 +192,18 @@ export const findClosestDashboardIntervalToDate = (
 ): DashboardDateRangeAggregationOption | undefined => {
   const currentDate = new Date();
   const duration = Math.abs(currentDate.getTime() - targetDate.getTime());
-  return findClosestInterval(
-    DASHBOARD_AGGREGATION_OPTIONS,
-    dashboardDateRangeAggregationSettings,
-    duration,
-  );
+
+  const diffs = DASHBOARD_AGGREGATION_OPTIONS.map((interval) => {
+    const { minutes } = dashboardDateRangeAggregationSettings[interval];
+    return {
+      interval,
+      diff: Math.abs(duration - minutes * 60 * 1000),
+    };
+  });
+
+  diffs.sort((a, b) => a.diff - b.diff);
+
+  return diffs[0]?.interval;
 };
 
 export const findClosestDashboardInterval = (
@@ -262,9 +211,16 @@ export const findClosestDashboardInterval = (
 ): DashboardDateRangeAggregationOption | undefined => {
   if (!dateRange.from || !dateRange.to) return undefined;
   const duration = dateRange.to.getTime() - dateRange.from.getTime();
-  return findClosestInterval(
-    DASHBOARD_AGGREGATION_OPTIONS,
-    dashboardDateRangeAggregationSettings,
-    duration,
-  );
+
+  const diffs = DASHBOARD_AGGREGATION_OPTIONS.map((interval) => {
+    const { minutes } = dashboardDateRangeAggregationSettings[interval];
+    return {
+      interval,
+      diff: Math.abs(duration - minutes * 60 * 1000),
+    };
+  });
+
+  diffs.sort((a, b) => a.diff - b.diff);
+
+  return diffs[0]?.interval;
 };
