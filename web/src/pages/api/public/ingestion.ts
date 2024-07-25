@@ -528,20 +528,6 @@ export const sendToWorkerIfEnvironmentConfigured = async (
 
   try {
     if (
-      (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-    ) {
-      console.log("Sending events to worker via redis", traceEvents);
-      const jobs = convertTraceUpsertEventsToRedisEvents(traceEvents);
-      await traceUpsertQueue?.addBulk(jobs);
-
-      if (traceUpsertQueue) {
-        console.log(
-          `Added ${jobs.length} trace upsert jobs to the queue`,
-          jobs,
-        );
-      }
-    } else if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
