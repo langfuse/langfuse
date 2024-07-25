@@ -119,12 +119,15 @@ describe("Authenticate API calls", () => {
   });
 
   describe("validates with redis", () => {
+    jest.mock("@/src/env.mjs", () => ({
+      env: {
+        LANGFUSE_CACHE_API_KEY_ENABLED: "true",
+        LANGFUSE_CACHE_API_KEY_TTL: 60,
+      },
+    }));
+
     const redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
       maxRetriesPerRequest: null,
-    });
-
-    beforeAll(() => {
-      process.env.LANGFUSE_CACHE_API_KEY_ENABLED = "true";
     });
 
     afterEach(async () => {
@@ -146,7 +149,6 @@ describe("Authenticate API calls", () => {
 
     afterAll(async () => {
       redis.disconnect();
-      delete process.env.LANGFUSE_CACHE_API_KEY_ENABLED;
     });
 
     it("should create new api key and read from cache", async () => {
