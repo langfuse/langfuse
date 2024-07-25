@@ -1,5 +1,5 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   LockIcon,
@@ -130,6 +130,8 @@ const getFormError = ({
 export function AnnotateDrawer({
   traceId,
   scores,
+  emptySelectedConfigIds,
+  setEmptySelectedConfigIds,
   observationId,
   projectId,
   variant = "button",
@@ -138,6 +140,8 @@ export function AnnotateDrawer({
 }: {
   traceId: string;
   scores: APIScore[];
+  emptySelectedConfigIds: string[];
+  setEmptySelectedConfigIds: (ids: string[]) => void;
   observationId?: string;
   projectId: string;
   variant?: "button" | "badge";
@@ -157,6 +161,8 @@ export function AnnotateDrawer({
       traceId={traceId}
       scores={scores}
       configs={configs}
+      emptySelectedConfigIds={emptySelectedConfigIds}
+      setEmptySelectedConfigIds={setEmptySelectedConfigIds}
       observationId={observationId}
       projectId={projectId}
       variant={variant}
@@ -170,6 +176,8 @@ function AnnotateDrawerInner({
   traceId,
   scores,
   configs,
+  emptySelectedConfigIds,
+  setEmptySelectedConfigIds,
   observationId,
   projectId,
   variant = "button",
@@ -179,6 +187,8 @@ function AnnotateDrawerInner({
   traceId: string;
   scores: APIScore[];
   configs: ValidatedScoreConfig[];
+  emptySelectedConfigIds: string[];
+  setEmptySelectedConfigIds: (ids: string[]) => void;
   observationId?: string;
   projectId: string;
   variant?: "button" | "badge";
@@ -191,12 +201,17 @@ function AnnotateDrawerInner({
     scope: "scores:CUD",
   });
 
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
-
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
+    defaultValues: {
+      scoreData: getDefaultScoreData({
+        scores,
+        emptySelectedConfigIds,
+        configs,
+        traceId,
+        observationId,
+      }),
+    },
   });
 
   const router = useRouter();
@@ -206,17 +221,24 @@ function AnnotateDrawerInner({
     name: "scoreData",
   });
 
+  const prevEmptySelectedConfigIdsRef = useRef(emptySelectedConfigIds);
+
   useEffect(() => {
-    form.reset({
-      scoreData: getDefaultScoreData({
-        scores,
-        emptySelectedConfigIds,
-        configs,
-        traceId,
-        observationId,
-      }),
-    });
-  }, [scores, emptySelectedConfigIds, configs, traceId, observationId, form]);
+    // Only reset the form if emptySelectedConfigIds has changed
+    if (prevEmptySelectedConfigIdsRef.current !== emptySelectedConfigIds) {
+      form.reset({
+        scoreData: getDefaultScoreData({
+          scores,
+          emptySelectedConfigIds,
+          configs,
+          traceId,
+          observationId,
+        }),
+      });
+    }
+
+    prevEmptySelectedConfigIdsRef.current = emptySelectedConfigIds;
+  }, [emptySelectedConfigIds, scores, configs, traceId, observationId, form]);
 
   const mutDeleteScore = api.scores.deleteAnnotationScore.useMutation({
     onSettled: async (data, error) => {
