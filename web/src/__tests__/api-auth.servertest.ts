@@ -185,166 +185,166 @@ describe("Authenticate API calls", () => {
       });
     });
 
-    //   it("prisma should not be used when reading cached keys", async () => {
-    //     await createAPIKey();
+    it("prisma should not be used when reading cached keys", async () => {
+      await createAPIKey();
 
-    //     // Mock prisma
-    //     const mockPrisma = {
-    //       apiKey: {
-    //         findUnique: jest.fn(),
-    //       },
-    //     };
+      // Mock prisma
+      const mockPrisma = {
+        apiKey: {
+          findUnique: jest.fn(),
+        },
+      };
 
-    //     // first auth will generate the fast hashed api key
-    //     await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
-    //       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-    //     );
+      // first auth will generate the fast hashed api key
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
 
-    //     // second will add the key to redis
-    //     const auth2 = await new ApiAuthService(
-    //       prisma,
-    //       redis,
-    //     ).verifyAuthHeaderAndReturnScope(
-    //       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-    //     );
+      // second will add the key to redis
+      const auth2 = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
 
-    //     // third will read from redis only
-    //     await new ApiAuthService(
-    //       mockPrisma as unknown as PrismaClient,
-    //       redis,
-    //     ).verifyAuthHeaderAndReturnScope(
-    //       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-    //     );
+      // third will read from redis only
+      await new ApiAuthService(
+        mockPrisma as unknown as PrismaClient,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
 
-    //     expect(auth2.validKey).toBe(true);
+      expect(auth2.validKey).toBe(true);
 
-    //     // Ensure prisma was not called
-    //     expect(mockPrisma.apiKey.findUnique).not.toHaveBeenCalled();
+      // Ensure prisma was not called
+      expect(mockPrisma.apiKey.findUnique).not.toHaveBeenCalled();
 
-    //     const cachedKey = await redis.get(
-    //       "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
-    //     );
-    //     expect(cachedKey).not.toBeNull();
+      const cachedKey = await redis.get(
+        "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
+      );
+      expect(cachedKey).not.toBeNull();
 
-    //     const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
 
-    //     expect(parsed).toEqual({
-    //       id: expect.any(String),
-    //       note: "seeded key",
-    //       publicKey: "pk-lf-1234567890",
-    //       hashedSecretKey: expect.any(String),
-    //       fastHashedSecretKey: expect.any(String),
-    //       displaySecretKey: expect.any(String),
-    //       createdAt: expect.any(String),
-    //       lastUsedAt: null,
-    //       expiresAt: null,
-    //       projectId: expect.any(String),
-    //     });
-    //   });
+      expect(parsed).toEqual({
+        id: expect.any(String),
+        note: "seeded key",
+        publicKey: "pk-lf-1234567890",
+        hashedSecretKey: expect.any(String),
+        fastHashedSecretKey: expect.any(String),
+        displaySecretKey: expect.any(String),
+        createdAt: expect.any(String),
+        lastUsedAt: null,
+        expiresAt: null,
+        projectId: expect.any(String),
+      });
+    });
 
-    //   it("ttl should be increased when reading from redis", async () => {
-    //     await createAPIKey();
+    it("ttl should be increased when reading from redis", async () => {
+      await createAPIKey();
 
-    //     // Mock prisma
-    //     const mockPrisma = {
-    //       apiKey: {
-    //         findUnique: jest.fn(),
-    //       },
-    //     };
+      // Mock prisma
+      const mockPrisma = {
+        apiKey: {
+          findUnique: jest.fn(),
+        },
+      };
 
-    //     // first auth will generate the fast hashed api key
-    //     await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
-    //       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-    //     );
+      // first auth will generate the fast hashed api key
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
 
-    //     // second will add the key to redis
-    //     await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
-    //       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-    //     );
+      // second will add the key to redis
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
 
-    //     // third will read from redis only
-    //     await new ApiAuthService(
-    //       mockPrisma as unknown as PrismaClient,
-    //       redis,
-    //     ).verifyAuthHeaderAndReturnScope(
-    //       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-    //     );
+      // third will read from redis only
+      await new ApiAuthService(
+        mockPrisma as unknown as PrismaClient,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
 
-    //     const ttl = await redis.ttl(
-    //       "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
-    //     );
+      const ttl = await redis.ttl(
+        "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
+      );
 
-    //     expect(ttl).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL - 2);
+      expect(ttl).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL - 2);
 
-    //     // wait for 5 seconds
-    //     await new Promise((resolve) => setTimeout(resolve, 5000));
+      // wait for 5 seconds
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    //     await new ApiAuthService(
-    //       mockPrisma as unknown as PrismaClient,
-    //       redis,
-    //     ).verifyAuthHeaderAndReturnScope(
-    //       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-    //     );
+      await new ApiAuthService(
+        mockPrisma as unknown as PrismaClient,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
 
-    //     const ttl2 = await redis.ttl(
-    //       "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
-    //     );
+      const ttl2 = await redis.ttl(
+        "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
+      );
 
-    //     expect(ttl2).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL - 2);
-    //   }, 10000);
+      expect(ttl2).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL - 2);
+    }, 10000);
 
-    //   it("should delete API keys from cache and db", async () => {
-    //     await createAPIKey();
+    it("should delete API keys from cache and db", async () => {
+      await createAPIKey();
 
-    //     // first auth will generate the fast hashed api key
-    //     await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
-    //       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-    //     );
+      // first auth will generate the fast hashed api key
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
 
-    //     // second will add the key to redis
-    //     const auth2 = await new ApiAuthService(
-    //       prisma,
-    //       redis,
-    //     ).verifyAuthHeaderAndReturnScope(
-    //       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-    //     );
+      // second will add the key to redis
+      const auth2 = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
 
-    //     expect(auth2.validKey).toBe(true);
+      expect(auth2.validKey).toBe(true);
 
-    //     const apiKey = await prisma.apiKey.findUnique({
-    //       where: { publicKey: "pk-lf-1234567890" },
-    //     });
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
 
-    //     expect(apiKey).not.toBeNull();
-    //     expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
-    //     const cachedKey = await redis.get(
-    //       `api-key:${apiKey?.fastHashedSecretKey}`,
-    //     );
-    //     expect(cachedKey).not.toBeNull();
+      const cachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(cachedKey).not.toBeNull();
 
-    //     const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
 
-    //     expect(parsed).toEqual({
-    //       ...apiKey,
-    //       createdAt: apiKey?.createdAt.toISOString(),
-    //     });
+      expect(parsed).toEqual({
+        ...apiKey,
+        createdAt: apiKey?.createdAt.toISOString(),
+      });
 
-    //     await new ApiAuthService(prisma, redis).deleteApiKey(
-    //       apiKey?.id!,
-    //       apiKey?.projectId!,
-    //     );
+      await new ApiAuthService(prisma, redis).deleteApiKey(
+        apiKey?.id!,
+        apiKey?.projectId!,
+      );
 
-    //     const deletedApiKey = await prisma.apiKey.findUnique({
-    //       where: { id: apiKey?.id! },
-    //     });
-    //     expect(deletedApiKey).toBeNull();
+      const deletedApiKey = await prisma.apiKey.findUnique({
+        where: { id: apiKey?.id! },
+      });
+      expect(deletedApiKey).toBeNull();
 
-    //     const deletedCachedKey = await redis.get(
-    //       `api-key:${apiKey?.fastHashedSecretKey}`,
-    //     );
-    //     expect(deletedCachedKey).toBeNull();
-    //   });
+      const deletedCachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(deletedCachedKey).toBeNull();
+    });
   });
 
   const createAPIKey = async () => {
