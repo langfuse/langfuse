@@ -1,6 +1,6 @@
 import {
   type AuthHeaderVerificationResult,
-  verifyAuthHeaderAndReturnScope,
+  ApiAuthService,
 } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
@@ -40,6 +40,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { redis } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
 
@@ -67,9 +68,10 @@ export default async function handler(
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
-    const authCheck = await verifyAuthHeaderAndReturnScope(
-      req.headers.authorization,
-    );
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 

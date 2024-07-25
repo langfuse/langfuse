@@ -6,6 +6,8 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { redis } from "@langfuse/shared/src/server";
 
 export const apiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -101,20 +103,9 @@ export const apiKeysRouter = createTRPCRouter({
         action: "delete",
       });
 
-      // Make sure the API key exists and belongs to the project the user has access to
-      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
-        where: {
-          id: input.id,
-          projectId: input.projectId,
-        },
-      });
-
-      await ctx.prisma.apiKey.delete({
-        where: {
-          id: apiKey.id,
-        },
-      });
-
-      return true;
+      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
+        input.id,
+        input.projectId,
+      );
     }),
 });
