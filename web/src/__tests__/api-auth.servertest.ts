@@ -224,7 +224,7 @@ describe("Authenticate API calls", () => {
       });
     });
 
-    it("ttl should be increased when reding from redis", async () => {
+    it("ttl should be increased when reading from redis", async () => {
       await createAPIKey();
 
       // Mock prisma
