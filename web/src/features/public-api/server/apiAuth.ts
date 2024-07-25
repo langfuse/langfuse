@@ -64,6 +64,7 @@ export class ApiAuthService {
         id: apiKey.id,
       },
     });
+    return true;
   }
 
   async verifyAuthHeaderAndReturnScope(

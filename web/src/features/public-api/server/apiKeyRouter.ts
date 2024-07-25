@@ -103,10 +103,9 @@ export const apiKeysRouter = createTRPCRouter({
         action: "delete",
       });
 
-      await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
+      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
         input.id,
         input.projectId,
       );
-      return true;
     }),
 });
