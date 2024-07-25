@@ -39,11 +39,6 @@ export async function getAllGenerations({
       )`
     : Prisma.empty;
 
-  if (input.filter && input.from && input.to) {
-    input.filter = input.filter.filter(
-      (f) => f.column !== "Start Time" || f.type !== "datetime",
-    );
-  }
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
     input.filter,
     observationsTableCols,
@@ -54,12 +49,6 @@ export async function getAllGenerations({
     input.orderBy,
     observationsTableCols,
   );
-
-  const dateRangeCondition =
-    input.from && input.to
-      ? Prisma.sql`
-    AND start_time >= ${input.from} AND start_time <= ${input.to} `
-      : Prisma.empty;
 
   // to improve query performance, add timeseries filter to observation queries as well
   const startTimeFilter = input.filter.find(
@@ -138,7 +127,6 @@ export async function getAllGenerations({
       WHERE
         o.project_id = ${input.projectId}
         AND o.type = 'GENERATION'
-        ${dateRangeCondition}
         ${datetimeFilter}
         ${searchCondition}
         ${filterCondition}
@@ -175,6 +163,5 @@ export async function getAllGenerations({
     datetimeFilter,
     searchCondition,
     filterCondition,
-    dateRangeCondition,
   };
 }
