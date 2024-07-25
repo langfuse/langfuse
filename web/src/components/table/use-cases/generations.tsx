@@ -111,9 +111,7 @@ export default function GenerationsTable({
   );
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(
-      localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-    );
+    useTableDateRange();
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [],

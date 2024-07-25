@@ -51,9 +51,7 @@ export default function UsersPage() {
   });
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(
-      localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-    );
+    useTableDateRange();
 
   const dateRangeFilter: FilterState = dateRange
     ? [

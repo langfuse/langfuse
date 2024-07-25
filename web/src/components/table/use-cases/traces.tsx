@@ -94,9 +94,7 @@ export default function TracesTable({
   );
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(
-      localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-    );
+    useTableDateRange();
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "traces",

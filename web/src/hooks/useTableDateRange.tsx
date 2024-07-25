@@ -20,16 +20,14 @@ export interface UseTableDateRangeOutput {
   ) => void;
 }
 
-export function useTableDateRange(initialDate?: Date): UseTableDateRangeOutput {
+export function useTableDateRange(
+  defaultDateRange?: TableDateRangeOptions,
+): UseTableDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
     select: withDefault(StringParam, "Select a date range"),
   });
 
-  const closestInterval = initialDate
-    ? findClosestTableIntervalToDate(initialDate)
-    : undefined;
-
-  const initialRangeOption = closestInterval ?? DEFAULT_AGGREGATION_SELECTION;
+  const initialRangeOption = defaultDateRange ?? "24 hours";
 
   const validatedInitialRangeOption = isValidTableDateRangeAggregationOption(
     queryParams.select,
