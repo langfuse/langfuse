@@ -30,6 +30,7 @@ export const userRouter = createTRPCRouter({
         usersTableCols,
         "users",
       );
+
       const totalUsers = (
         await ctx.prisma.$queryRaw<
           Array<{
