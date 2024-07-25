@@ -1007,6 +1007,13 @@ paths:
             type: string
             format: date-time
             nullable: true
+        - name: version
+          in: query
+          description: Optional filter to only include observations with a certain version.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -1924,6 +1931,20 @@ paths:
             items:
               type: string
               nullable: true
+        - name: version
+          in: query
+          description: Optional filter to only include traces with a certain version.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: release
+          in: query
+          description: Optional filter to only include traces with a certain release.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
