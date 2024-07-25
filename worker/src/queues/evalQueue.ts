@@ -9,7 +9,7 @@ import { evaluate, createEvalJobs } from "../features/evaluation/eval-service";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";
-import { redis } from "../redis";
+import { redis } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "../instrumentation";
 import * as Sentry from "@sentry/node";
 

@@ -7,6 +7,7 @@ import {
   GetDatasetItemsV1Response,
   PostDatasetItemsV1Body,
   PostDatasetItemsV1Response,
+  transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
@@ -41,8 +42,11 @@ export default withMiddlewares({
 
       const item = await prisma.datasetItem.upsert({
         where: {
-          id: itemId,
           datasetId: dataset.id,
+          id_projectId: {
+            projectId: auth.scope.projectId,
+            id: itemId,
+          },
         },
         create: {
           id: itemId,
@@ -53,6 +57,7 @@ export default withMiddlewares({
           sourceTraceId: sourceTraceId ?? undefined,
           sourceObservationId: sourceObservationId ?? undefined,
           status: status ?? undefined,
+          projectId: auth.scope.projectId,
         },
         update: {
           input: input ?? undefined,
@@ -64,10 +69,10 @@ export default withMiddlewares({
         },
       });
 
-      return {
+      return transformDbDatasetItemToAPIDatasetItem({
         ...item,
         datasetName: dataset.name,
-      };
+      });
     },
   }),
   GET: createAuthedAPIRoute({
@@ -95,6 +100,7 @@ export default withMiddlewares({
       const items = (
         await prisma.datasetItem.findMany({
           where: {
+            projectId: auth.scope.projectId,
             dataset: {
               projectId: auth.scope.projectId,
               ...(datasetId ? { id: datasetId } : {}),
@@ -132,7 +138,7 @@ export default withMiddlewares({
       });
 
       return {
-        data: items,
+        data: items.map(transformDbDatasetItemToAPIDatasetItem),
         meta: {
           page,
           limit,

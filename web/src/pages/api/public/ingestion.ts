@@ -40,6 +40,11 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import {
+  convertTraceUpsertEventsToRedisEvents,
+  traceUpsertQueue,
+} from "@langfuse/shared/src/server";
+
 import { isSigtermReceived } from "@/src/utils/shutdown";
 
 export const config = {
@@ -509,24 +514,39 @@ export const sendToWorkerIfEnvironmentConfigured = async (
   batchResults: BatchResult[],
   projectId: string,
 ): Promise<void> => {
+  const traceEvents: TraceUpsertEventType[] = batchResults
+    .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
+    .map((result) =>
+      result.result &&
+      typeof result.result === "object" &&
+      "id" in result.result
+        ? // ingestion API only gets traces for one projectId
+          { traceId: result.result.id as string, projectId }
+        : null,
+    )
+    .filter(isNotNullOrUndefined);
+
   try {
     if (
+      (env.REDIS_CONNECTION_STRING || env.REDIS_HOST) &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+    ) {
+      console.log("Sending events to worker via redis", traceEvents);
+      const jobs = convertTraceUpsertEventsToRedisEvents(traceEvents);
+      await traceUpsertQueue?.addBulk(jobs);
+
+      if (traceUpsertQueue) {
+        console.log(
+          `Added ${jobs.length} trace upsert jobs to the queue`,
+          jobs,
+        );
+      }
+    } else if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      const traceEvents: TraceUpsertEventType[] = batchResults
-        .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
-        .map((result) =>
-          result.result &&
-          typeof result.result === "object" &&
-          "id" in result.result
-            ? // ingestion API only gets traces for one projectId
-              { traceId: result.result.id as string, projectId }
-            : null,
-        )
-        .filter(isNotNullOrUndefined);
-
+      console.log("Sending events to worker via HTTP", traceEvents);
       const body: EventBodyType = {
         name: EventName.TraceUpsert,
         payload: traceEvents,
@@ -559,6 +579,8 @@ const gaugePrismaStats = async () => {
     return;
   }
   const metrics = await prisma.$metrics.json();
+
+  console.log("prisma_gauges", metrics.gauges);
 
   metrics.gauges.forEach((gauge) => {
     Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
