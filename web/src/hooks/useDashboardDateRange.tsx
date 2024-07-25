@@ -11,7 +11,18 @@ import {
 } from "@/src/utils/date-range-utils";
 import { addMinutes } from "date-fns";
 
-export function useDashboardDateRange(initialDate?: Date) {
+export interface UseDashboardDateRangeOutput {
+  selectedOption: DashboardDateRangeOptions;
+  dateRange: DashboardDateRange | undefined;
+  setDateRangeAndOption: (
+    option: DashboardDateRangeOptions,
+    range?: DashboardDateRange,
+  ) => void;
+}
+
+export function useDashboardDateRange(
+  initialDate?: Date,
+): UseDashboardDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
     select: withDefault(StringParam, "Select a date range"),
     from: StringParam,
@@ -65,6 +76,7 @@ export function useDashboardDateRange(initialDate?: Date) {
     }
     setQueryParams(newParams);
   };
+
   useEffect(() => {
     if (selectedOption in dashboardDateRangeAggregationSettings) {
       const { minutes } =
