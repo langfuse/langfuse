@@ -24,8 +24,6 @@ const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
   orderBy: orderBy,
-  from: z.date().nullish(),
-  to: z.date().nullish(),
   ...paginationZod,
 });
 
@@ -50,12 +48,6 @@ export const promptRouter = createTRPCRouter({
         "prompts",
       );
 
-      const dateRangeCondition =
-        input.from && input.to
-          ? Prisma.sql`
-        AND p."created_at" >= ${input.from} AND p."created_at" <= ${input.to}`
-          : Prisma.empty;
-
       const prompts = await ctx.prisma.$queryRaw<Array<Prompt>>(
         generatePromptQuery(
           Prisma.sql` 
@@ -70,7 +62,6 @@ export const promptRouter = createTRPCRouter({
           p.labels,
           p.tags`,
           input.projectId,
-          dateRangeCondition,
           filterCondition,
           orderByCondition,
           input.limit,
@@ -84,7 +75,6 @@ export const promptRouter = createTRPCRouter({
         generatePromptQuery(
           Prisma.sql` count(*) AS "totalCount"`,
           input.projectId,
-          dateRangeCondition,
           filterCondition,
           Prisma.empty,
           1, // limit
@@ -747,7 +737,6 @@ export const promptRouter = createTRPCRouter({
 const generatePromptQuery = (
   select: Prisma.Sql,
   projectId: string,
-  dateRangeCondition: Prisma.Sql,
   filterCondition: Prisma.Sql,
   orderCondition: Prisma.Sql,
   limit: number,
@@ -765,7 +754,6 @@ const generatePromptQuery = (
           GROUP BY name
         )
     AND "project_id" = ${projectId}
-  ${dateRangeCondition}
   ${filterCondition}
   ${orderCondition}
   LIMIT ${limit} OFFSET ${page * limit};
