@@ -11,7 +11,7 @@ import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 
 import {
   DEFAULT_AGGREGATION_SELECTION,
-  isValidOption,
+  isValidDateRangeAggregationOption,
   type DashboardDateRangeAggregationOption,
   type TableDateRangeAggregationOption,
   tableDateRangeAggregationSettings,
@@ -19,6 +19,7 @@ import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DateRangeOptions,
 } from "@/src/utils/date-range-utils";
+import { Clock } from "lucide-react";
 
 type DateRangeDropdownProps = {
   type: "dashboard" | "table";
@@ -35,7 +36,7 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
   setDateRangeAndOption,
 }) => {
   const onDropDownSelection = (value: DateRangeOptions) => {
-    if (isValidOption(value)) {
+    if (isValidDateRangeAggregationOption(value)) {
       let fromDate: Date;
       if (type === "dashboard") {
         const setting =

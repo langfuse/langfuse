@@ -194,7 +194,7 @@ export const tableDateRangeAggregationSettings: DateRangeAggregationSettings<Tab
     },
   };
 
-export function isValidOption(
+export function isValidDateRangeAggregationOption(
   value: unknown,
 ): value is DateRangeAggregationOption {
   return (

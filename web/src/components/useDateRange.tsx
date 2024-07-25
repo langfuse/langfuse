@@ -7,7 +7,7 @@ import {
   type DateRangeOptions,
   findClosestTableIntervalToDate,
   tableDateRangeAggregationSettings,
-  isValidOption,
+  isValidDateRangeAggregationOption,
   type DateRangeAggregationOption,
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   findClosestDashboardIntervalToDate,
@@ -43,7 +43,8 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
       : undefined;
 
   const validatedInitialRangeOption =
-    isValidOption(queryParams.select) || queryParams.select === "Date range"
+    isValidDateRangeAggregationOption(queryParams.select) ||
+    queryParams.select === "Date range"
       ? (queryParams.select as DateRangeAggregationOption)
       : initialRangeOption;
 
