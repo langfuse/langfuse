@@ -6,7 +6,7 @@ import {
   ApiAuthService,
   ApiKeyZod,
 } from "@/src/features/public-api/server/apiAuth";
-import { prisma } from "@langfuse/shared/src/db";
+import { type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { Redis } from "ioredis";
 import { after } from "lodash";
 
@@ -153,7 +153,6 @@ describe("Authenticate API calls", () => {
       const apiKey = await prisma.apiKey.findUnique({
         where: { publicKey: "pk-lf-1234567890" },
       });
-      console.log("api key from db: ", apiKey);
 
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
@@ -168,6 +167,66 @@ describe("Authenticate API calls", () => {
       expect(parsed).toEqual({
         ...apiKey,
         createdAt: apiKey?.createdAt.toISOString(),
+      });
+    });
+
+    it("prisma should not be used when reading cached keys", async () => {
+      await createAPIKey();
+
+      // Mock prisma
+      const mockPrisma = {
+        apiKey: {
+          findUnique: jest.fn(),
+        },
+      };
+
+      // first auth will generate the fast hashed api key
+      const auth = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      // second will add the key to redis
+      const auth2 = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      // third will read from redis only
+      const auth3 = await new ApiAuthService(
+        mockPrisma as unknown as PrismaClient,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      expect(auth2.validKey).toBe(true);
+
+      // Ensure prisma was not called
+      expect(mockPrisma.apiKey.findUnique).not.toHaveBeenCalled();
+
+      const cachedKey = await redis.get(
+        "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
+      );
+      expect(cachedKey).not.toBeNull();
+
+      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+
+      expect(parsed).toEqual({
+        id: expect.any(String),
+        note: "seeded key",
+        publicKey: "pk-lf-1234567890",
+        hashedSecretKey: expect.any(String),
+        fastHashedSecretKey: expect.any(String),
+        displaySecretKey: expect.any(String),
+        createdAt: expect.any(String),
+        lastUsedAt: null,
+        expiresAt: null,
+        projectId: expect.any(String),
       });
     });
 
@@ -195,7 +254,6 @@ describe("Authenticate API calls", () => {
       const apiKey = await prisma.apiKey.findUnique({
         where: { publicKey: "pk-lf-1234567890" },
       });
-      console.log("api key from db: ", apiKey);
 
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();

@@ -88,7 +88,6 @@ export class ApiAuthService {
 
         // fetches by redis if available, fallback to postgres
         const apiKey = await this.fetchApiKeyByHash(hashFromProvidedKey);
-        console.log(`fetched api key ${JSON.stringify(apiKey)}`);
 
         let projectId = apiKey?.projectId;
 
