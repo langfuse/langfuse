@@ -32,8 +32,6 @@ const TraceFilterOptions = z.object({
   searchQuery: z.string().nullable(),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
-  from: z.date().nullish(),
-  to: z.date().nullish(),
   ...paginationZod,
 });
 
@@ -48,15 +46,6 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const timeseriesFilter = input.filter?.find(
-        (f) => f.column === "Timestamp" && f.type === "datetime",
-      );
-
-      if (input.filter && input.from && input.to) {
-        input.filter = input.filter.filter(
-          (f) => f.column !== "Timestamp" || f.type !== "datetime",
-        );
-      }
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter ?? [],
         tracesTableCols,
@@ -67,23 +56,19 @@ export const traceRouter = createTRPCRouter({
         tracesTableCols,
       );
 
-      const dateRangeCondition =
-        input.from && input.to
-          ? Prisma.sql`
-        AND t.timestamp >= ${input.from} AND t.timestamp <= ${input.to}`
-          : Prisma.empty;
+      const timeseriesFilter = input.filter?.find(
+        (f) => f.column === "Timestamp" && f.type === "datetime",
+      );
 
       // to improve query performance, add timeseries filter to observation queries as well
       const observationTimeseriesFilter =
-        dateRangeCondition && input.from
-          ? datetimeFilterToPrismaSql("start_time", ">=", input.from)
-          : timeseriesFilter && timeseriesFilter.type === "datetime"
-            ? datetimeFilterToPrismaSql(
-                "start_time",
-                timeseriesFilter.operator,
-                timeseriesFilter.value,
-              )
-            : Prisma.empty;
+        timeseriesFilter && timeseriesFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "start_time",
+              timeseriesFilter.operator,
+              timeseriesFilter.value,
+            )
+          : Prisma.empty;
 
       const searchCondition = input.searchQuery
         ? Prisma.sql`AND (
@@ -115,7 +100,6 @@ export const traceRouter = createTRPCRouter({
         input.page,
         input.limit,
         searchCondition,
-        dateRangeCondition,
         filterCondition,
         orderByCondition,
       );
@@ -148,7 +132,6 @@ export const traceRouter = createTRPCRouter({
         0,
         1,
         searchCondition,
-        dateRangeCondition,
         filterCondition,
         Prisma.empty,
       );
@@ -542,7 +525,6 @@ function createTracesQuery(
   page: number,
   limit: number,
   searchCondition: Prisma.Sql,
-  dateRangeCondition: Prisma.Sql,
   filterCondition: Prisma.Sql,
   orderByCondition: Prisma.Sql,
 ) {
@@ -602,7 +584,6 @@ function createTracesQuery(
   WHERE 
     t."project_id" = ${projectId}
     ${searchCondition}
-    ${dateRangeCondition}
     ${filterCondition}
   ${orderByCondition}
   LIMIT ${limit}
