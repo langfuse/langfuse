@@ -23,6 +23,8 @@ const EnvSchema = z.object({
       "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32"
     )
     .optional(),
+  LANGFUSE_PROMPT_CACHE_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_PROMPT_CACHE_TTL_SECONDS: z.number().default(60 * 60),
 });
 
 export const env = EnvSchema.parse(process.env);
