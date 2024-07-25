@@ -79,7 +79,8 @@ export async function getAllGenerations({
           FROM
             scores
           WHERE
-            project_id = ${input.projectId}
+          project_id = ${input.projectId}
+          AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')
           GROUP BY
             1,
             2,

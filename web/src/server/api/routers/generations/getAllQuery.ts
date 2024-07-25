@@ -61,7 +61,7 @@ export const getAllQuery = protectedProjectProcedure
                 scores."project_id" = ${input.projectId}
                 AND scores."trace_id" = t.id
                 AND scores."observation_id" = o.id
-                AND scores.value IS NOT NULL
+                AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')
             GROUP BY
                 name
         ) tmp

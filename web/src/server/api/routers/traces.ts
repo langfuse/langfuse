@@ -188,6 +188,7 @@ export const traceRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           timestamp: prismaTimestampFilter,
+          dataType: { in: ["NUMERIC", "BOOLEAN"] },
         },
         take: 1000,
         orderBy: {
@@ -576,6 +577,7 @@ function createTracesQuery(
             scores
         WHERE
             trace_id = t.id
+            AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')
         GROUP BY
             name
     ) tmp
