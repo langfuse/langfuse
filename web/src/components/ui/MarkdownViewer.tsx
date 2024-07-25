@@ -248,11 +248,11 @@ export function MarkdownView({
             if (isChecklist(children))
               return <ul className="list-none">{children}</ul>;
 
-            return <ul className="list-inside list-disc pl-2">{children}</ul>;
+            return <ul className="list-outside list-disc pl-4">{children}</ul>;
           },
           ol({ children }) {
             return (
-              <ol className="list-inside list-decimal pl-2">{children}</ol>
+              <ol className="list-outside list-decimal pl-4">{children}</ol>
             );
           },
           li({ children }) {
