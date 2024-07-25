@@ -1,5 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "../../redis";
+import { redis } from "@langfuse/shared/src/server";
 import { Response } from "express";
 import logger from "../../logger";
 
