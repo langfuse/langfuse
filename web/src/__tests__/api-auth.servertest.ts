@@ -138,29 +138,30 @@ describe("Authenticate API calls", () => {
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
       );
 
-      // second will add the key to redis
-      const auth2 = await new ApiAuthService(
-        prisma,
-        redis,
-      ).verifyAuthHeaderAndReturnScope(
-        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
-      );
-
-      expect(auth2.validKey).toBe(true);
-
       const apiKey = await prisma.apiKey.findUnique({
         where: { publicKey: "pk-lf-1234567890" },
       });
 
-      expect(apiKey).not.toBeNull();
-      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
-
       const cachedKey = await redis.get(
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
-      expect(cachedKey).not.toBeNull();
+      expect(cachedKey).toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+      // second will add the key to redis
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const cachedKey2 = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
+      expect(cachedKey2).not.toBeNull();
+
+      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey2!));
 
       expect(parsed).toEqual({
         ...apiKey,
