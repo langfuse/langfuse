@@ -15,8 +15,6 @@ import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
-  from: z.date().nullish(),
-  to: z.date().nullish(),
 });
 
 const UserAllOptions = UserFilterOptions.extend({
@@ -27,23 +25,11 @@ export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
-      if (input.filter && input.from && input.to) {
-        input.filter = input.filter.filter(
-          (f) => f.column !== "Timestamp" || f.type !== "datetime",
-        );
-      }
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         input.filter ?? [],
         usersTableCols,
         "users",
       );
-
-      const dateRangeCondition =
-        input.from && input.to
-          ? Prisma.sql`
-          AND timestamp >= ${input.from} AND timestamp <= ${input.to}`
-          : Prisma.empty;
-
       const totalUsers = (
         await ctx.prisma.$queryRaw<
           Array<{
@@ -53,7 +39,6 @@ export const userRouter = createTRPCRouter({
         SELECT COUNT(DISTINCT t.user_id)::bigint AS "totalCount"
         FROM traces t
         WHERE t.project_id = ${input.projectId}
-        ${dateRangeCondition}
         ${filterCondition}
       `
       )[0].totalCount;
@@ -73,7 +58,6 @@ export const userRouter = createTRPCRouter({
           t.user_id IS NOT NULL
           AND t.user_id != ''
           AND t.project_id = ${input.projectId}
-          ${dateRangeCondition}
           ${filterCondition}
         GROUP BY
           t.user_id
