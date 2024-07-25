@@ -11,7 +11,16 @@ import {
   type TableDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 
-export function useTableDateRange(initialDate?: Date) {
+export interface UseTableDateRangeOutput {
+  selectedOption: TableDateRangeOptions;
+  dateRange: DashboardDateRange | undefined;
+  setDateRangeAndOption: (
+    option: TableDateRangeOptions,
+    range?: DashboardDateRange,
+  ) => void;
+}
+
+export function useTableDateRange(initialDate?: Date): UseTableDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
     select: withDefault(StringParam, "Select a date range"),
   });
@@ -44,7 +53,7 @@ export function useTableDateRange(initialDate?: Date) {
 
   useEffect(() => {
     if (selectedOption in tableDateRangeAggregationSettings) {
-      const { minutes } =
+      const minutes =
         tableDateRangeAggregationSettings[
           selectedOption as keyof typeof tableDateRangeAggregationSettings
         ];
