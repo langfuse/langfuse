@@ -8,10 +8,10 @@ import {
 import { Queue } from "bullmq";
 import { redis } from "./redis";
 
-export const getTraceUpsertQueue = () => {
-  let traceUpsertQueue: Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null =
-    null;
+let traceUpsertQueue: Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null =
+  null;
 
+export const getTraceUpsertQueue = () => {
   if (traceUpsertQueue) return traceUpsertQueue;
 
   traceUpsertQueue = redis
