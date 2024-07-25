@@ -13,15 +13,13 @@ const GetSessionTableSQLParamsSchema = z.object({
   orderBy: orderBy,
   page: z.number(),
   limit: z.number(),
-  from: z.date().nullish(),
-  to: z.date().nullish(),
 });
 type GetSessionTableSQLParams = z.infer<typeof GetSessionTableSQLParamsSchema>;
 
 export const getSessionTableSQL = (
   params: GetSessionTableSQLParams
 ): Prisma.Sql => {
-  const { projectId, filter, orderBy, page, limit, from, to } =
+  const { projectId, filter, orderBy, page, limit } =
     GetSessionTableSQLParamsSchema.parse(params);
 
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
@@ -30,12 +28,6 @@ export const getSessionTableSQL = (
     "sessions"
   );
   const orderByCondition = orderByToPrismaSql(orderBy, sessionsViewCols);
-
-  const dateRangeCondition =
-    from && to
-      ? Prisma.sql`
-        AND s."created_at" >= ${from} AND s."created_at" <= ${to}`
-      : Prisma.empty;
 
   const sql = Prisma.sql`
       SELECT
@@ -87,7 +79,6 @@ export const getSessionTableSQL = (
       WHERE
         s. "project_id" = ${projectId}
         ${filterCondition}
-        ${dateRangeCondition}
       ${orderByCondition}
       LIMIT ${limit}
       OFFSET ${page * limit}
