@@ -95,7 +95,19 @@ export default function ScoresTable({
     "scores",
   );
 
-  const filterState = createFilterState(userFilterState, [
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const combinedFilter = userFilterState.concat(dateRangeFilter);
+  const filterState = createFilterState(combinedFilter, [
     ...(userId ? [{ key: "User ID", value: userId }] : []),
     ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
     ...(observationId ? [{ key: "Observation ID", value: observationId }] : []),
@@ -112,8 +124,6 @@ export default function ScoresTable({
     projectId,
     filter: filterState,
     orderBy: orderByState,
-    from: dateRange?.from ?? null,
-    to: dateRange?.to ?? null,
   });
   const totalCount = scores.data?.totalCount ?? 0;
 
