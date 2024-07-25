@@ -214,7 +214,7 @@ export function DatePickerWithRange({
             defaultMonth={internalDateRange?.from}
             selected={internalDateRange}
             onSelect={onCalendarSelection}
-            numberOfMonths={isSmallScreen ? 1 : 2} // TODO: make this configurable to screen size
+            numberOfMonths={isSmallScreen ? 1 : 2}
           />
           {!isSmallScreen && (
             <div className="flex flex-row border-t-2 pt-1.5">
