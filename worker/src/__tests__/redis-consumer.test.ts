@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import logger from "../logger";
 import { evalJobCreator } from "../queues/evalQueue";
-import { traceUpsertQueue } from "@langfuse/shared/src/server";
+import { getTraceUpsertQueue } from "@langfuse/shared/src/server";
 
 describe.sequential("handle redis events", () => {
   test("handle redis job succeeding", async () => {
@@ -22,6 +22,8 @@ describe.sequential("handle redis events", () => {
     evalJobCreator?.on("completed", (job, err) => {
       logger.info(`Eval Job with id ${job?.id} completed`);
     });
+
+    const traceUpsertQueue = getTraceUpsertQueue();
 
     expect(traceUpsertQueue).toBeDefined();
 

@@ -8,11 +8,20 @@ import {
 import { Queue } from "bullmq";
 import { redis } from "./redis";
 
-export const traceUpsertQueue = redis
-  ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
-      connection: redis,
-    })
-  : null;
+let traceUpsertQueue: Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null =
+  null;
+
+export const getTraceUpsertQueue = () => {
+  if (traceUpsertQueue) return traceUpsertQueue;
+
+  traceUpsertQueue = redis
+    ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
+        connection: redis,
+      })
+    : null;
+
+  return traceUpsertQueue;
+};
 
 export function convertTraceUpsertEventsToRedisEvents(
   events: TraceUpsertEventType[]
