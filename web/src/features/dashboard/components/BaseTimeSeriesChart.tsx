@@ -41,10 +41,13 @@ export function BaseTimeSeriesChart(props: {
     });
   }
 
-  const convertDate = (date: number, agg: DashboardDateRangeAggregationOption) => {
+  const convertDate = (
+    date: number,
+    agg: DashboardDateRangeAggregationOption,
+  ) => {
     const showMinutes: DashboardDateRangeAggregationOption[] = [
-      "5 minutes",
-      "30 minutes",
+      "5 min",
+      "30 min",
       "1 hour",
       "3 hours",
     ];
