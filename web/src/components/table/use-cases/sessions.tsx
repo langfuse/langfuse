@@ -16,14 +16,12 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
 import {
   formatIntervalSeconds,
-  localtimeDateOffsetByDays,
 } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 

@@ -3,9 +3,7 @@ import { addMinutes } from "date-fns";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import {
-  DEFAULT_AGGREGATION_SELECTION,
   type TableDateRangeOptions,
-  findClosestTableIntervalToDate,
   tableDateRangeAggregationSettings,
   isValidTableDateRangeAggregationOption,
   type TableDateRangeAggregationOption,

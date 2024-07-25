@@ -13,7 +13,6 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { api } from "@/src/utils/api";
 import {
   formatIntervalSeconds,
-  localtimeDateOffsetByDays,
 } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -40,7 +39,6 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 

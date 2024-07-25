@@ -10,13 +10,11 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import {
   type ScoreOptions,
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import { isPresent } from "@/src/utils/typeChecks";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
 import type { FilterState, ScoreDataType } from "@langfuse/shared";

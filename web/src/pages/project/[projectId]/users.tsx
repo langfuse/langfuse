@@ -16,10 +16,8 @@ import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type FilterState, type Score } from "@langfuse/shared";
-import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
