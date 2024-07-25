@@ -15,7 +15,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type Score } from "@langfuse/shared";
+import { type FilterState, type Score } from "@langfuse/shared";
 import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -55,12 +55,22 @@ export default function UsersPage() {
       localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
     );
 
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const filterState = userFilterState.concat(dateRangeFilter);
   const users = api.users.all.useQuery({
-    filter: userFilterState,
+    filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
-    from: dateRange?.from ?? null,
-    to: dateRange?.to ?? null,
     projectId,
   });
 
