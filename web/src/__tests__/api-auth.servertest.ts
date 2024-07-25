@@ -119,6 +119,11 @@ describe("Authenticate API calls", () => {
     });
 
     afterAll(async () => {
+      // if I do not remove the key, it will remain in the cache and
+      // calling the test twice will not add the key to the cache
+      redis.del(
+        "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
+      );
       redis.disconnect();
     });
 

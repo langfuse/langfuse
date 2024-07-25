@@ -207,7 +207,7 @@ export class ApiAuthService {
     });
 
     // add the key to redis for future use if available, this does not throw
-    if (apiKey) {
+    if (apiKey && apiKey.fastHashedSecretKey) {
       await this.addApiKeyToRedis(hash, apiKey);
     }
     return apiKey;
