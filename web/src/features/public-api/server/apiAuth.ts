@@ -53,17 +53,17 @@ export class ApiAuthService {
       return false;
     }
 
-    await this.prisma.apiKey.delete({
-      where: {
-        id: apiKey.id,
-      },
-    });
-
     // if redis is available, delete the key from there as well
     // delete from redis even if caching is disabled via env for consistency
     if (this.redis && apiKey.fastHashedSecretKey) {
       await this.redis.del(this.createRedisKey(apiKey.fastHashedSecretKey));
     }
+
+    await this.prisma.apiKey.delete({
+      where: {
+        id: apiKey.id,
+      },
+    });
   }
 
   async verifyAuthHeaderAndReturnScope(
