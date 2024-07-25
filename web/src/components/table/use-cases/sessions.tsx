@@ -75,7 +75,18 @@ export default function SessionsTable({
       ]
     : [];
 
-  const filterState = userFilterState.concat(userIdFilter);
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "createdAt",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -93,8 +104,6 @@ export default function SessionsTable({
     projectId,
     filter: filterState,
     orderBy: orderByState,
-    from: dateRange?.from ?? null,
-    to: dateRange?.to ?? null,
   });
 
   const filterOptions = api.sessions.filterOptions.useQuery(
