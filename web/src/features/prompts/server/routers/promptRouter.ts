@@ -509,23 +509,32 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      const { projectId, name: promptName } = input;
+
       throwIfNoAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId,
         scope: "objects:tag",
       });
+
       try {
         await auditLog({
           session: ctx.session,
           resourceType: "prompt",
-          resourceId: input.name,
+          resourceId: promptName,
           action: "updateTags",
           after: input.tags,
         });
+
+        // Lock and invalidate cache for _all_ versions and labels of the prompt
+        const promptService = new PromptService(ctx.prisma, redis);
+        await promptService.lockCache({ projectId, promptName });
+        await promptService.invalidateCache({ projectId, promptName });
+
         await ctx.prisma.prompt.updateMany({
           where: {
-            name: input.name,
-            projectId: input.projectId,
+            name: promptName,
+            projectId,
           },
           data: {
             tags: {
@@ -533,6 +542,9 @@ export const promptRouter = createTRPCRouter({
             },
           },
         });
+
+        // Unlock cache
+        await promptService.unlockCache({ projectId, promptName });
       } catch (error) {
         console.error(error);
       }
