@@ -198,7 +198,9 @@ export class ApiAuthService {
     // if we found something, return the object.
     if (redisApiKey) {
       Sentry.metrics.increment("api_key_cache_hit");
-      console.log(`Found key ${hash} in redis ${JSON.stringify(redisApiKey)}`);
+      console.log(
+        `Found key with id ${redisApiKey.id} for project ${redisApiKey.projectId} in redis`,
+      );
       return redisApiKey;
     }
 
@@ -211,7 +213,9 @@ export class ApiAuthService {
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.
     if (apiKey && apiKey.fastHashedSecretKey) {
-      console.log(`Addd ${hash} to redis ${JSON.stringify(redisApiKey)}`);
+      console.log(
+        `Add key with id ${apiKey.id} for project ${apiKey.projectId} to redis`,
+      );
       await this.addApiKeyToRedis(hash, apiKey);
     }
     return apiKey;
