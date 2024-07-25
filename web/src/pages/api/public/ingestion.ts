@@ -42,7 +42,7 @@ import {
 } from "@langfuse/shared";
 import {
   convertTraceUpsertEventsToRedisEvents,
-  traceUpsertQueue,
+  getTraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
@@ -533,6 +533,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
     ) {
       console.log("Sending events to worker via redis", traceEvents);
       const jobs = convertTraceUpsertEventsToRedisEvents(traceEvents);
+      const traceUpsertQueue = getTraceUpsertQueue();
       await traceUpsertQueue?.addBulk(jobs);
 
       if (traceUpsertQueue) {

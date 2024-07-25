@@ -10,10 +10,13 @@ export class PromptService {
     private prisma: PrismaClient,
     private redis: Redis | null,
     private metricIncrementer: // used for Sentry metrics
-    ((name: string, value?: number) => void) | undefined
+    ((name: string, value?: number) => void) | undefined,
+    cacheEnabled?: boolean // used for testing
   ) {
     this.cacheEnabled =
-      Boolean(redis) && env.LANGFUSE_PROMPT_CACHE_ENABLED === "true";
+      Boolean(redis) &&
+      (cacheEnabled || env.LANGFUSE_PROMPT_CACHE_ENABLED === "true");
+
     this.ttlSeconds = env.LANGFUSE_PROMPT_CACHE_TTL_SECONDS;
   }
 

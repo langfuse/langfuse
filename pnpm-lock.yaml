@@ -423,6 +423,9 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
+      bullmq:
+        specifier: ^5.4.2
+        version: 5.4.3
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.0
@@ -453,6 +456,9 @@ importers:
       graphql:
         specifier: ^16.9.0
         version: 16.9.0
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.4.1
       ip-address:
         specifier: ^9.0.5
         version: 9.0.5
