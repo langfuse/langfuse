@@ -123,6 +123,10 @@ describe("Authenticate API calls", () => {
       maxRetriesPerRequest: null,
     });
 
+    beforeAll(() => {
+      process.env.LANGFUSE_CACHE_API_KEY_ENABLED = "true";
+    });
+
     afterEach(async () => {
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
@@ -142,6 +146,7 @@ describe("Authenticate API calls", () => {
 
     afterAll(async () => {
       redis.disconnect();
+      delete process.env.LANGFUSE_CACHE_API_KEY_ENABLED;
     });
 
     it("should create new api key and read from cache", async () => {
