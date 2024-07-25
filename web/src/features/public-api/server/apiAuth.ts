@@ -235,7 +235,11 @@ export class ApiAuthService {
     }
 
     try {
-      const redisApiKey = await this.redis.get(this.createRedisKey(hash));
+      const redisApiKey = await this.redis.getex(
+        this.createRedisKey(hash),
+        "EX",
+        env.LANGFUSE_CACHE_APIKEY_TTL,
+      );
 
       if (!redisApiKey) {
         return null;
