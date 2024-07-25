@@ -4,7 +4,7 @@ export default async function teardown() {
   if (!redis) {
     return;
   }
-  if (redis.status === "end") {
+  if (redis.status === "end" || redis.status === "close") {
     console.log("Redis connection already closed");
     return;
   }
