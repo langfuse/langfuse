@@ -20,7 +20,7 @@ import { TimePicker } from "@/src/components/ui/time-picker";
 import DateRangeDropdown from "@/src/components/DateRangeDropdown";
 import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
-  type DateRangeOptions,
+  type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
 import { combineDateAndTime } from "@/src/components/ui/time-picker-utils";
 
@@ -89,9 +89,9 @@ export function DatePicker({
 export type DatePickerWithRangeProps = {
   dateRange?: DashboardDateRange;
   className?: string;
-  selectedOption: DateRangeOptions;
+  selectedOption: DashboardDateRangeOptions;
   setDateRangeAndOption: (
-    option: DateRangeOptions,
+    option: DashboardDateRangeOptions,
     date?: DashboardDateRange,
   ) => void;
 };
@@ -126,7 +126,7 @@ export function DatePickerWithRange({
   const updateDashboardDateRange = (
     newRange: DateRange | undefined,
     setDateRangeAndOption: (
-      option: DateRangeOptions,
+      option: DashboardDateRangeOptions,
       date?: DashboardDateRange,
     ) => void,
   ) => {
