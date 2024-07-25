@@ -20,7 +20,6 @@ import {
 import { PromptService, redis } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import * as Sentry from "@sentry/node";
-import { redis } from "@langfuse/shared/src/server";
 
 export default async function handler(
   req: NextApiRequest,
