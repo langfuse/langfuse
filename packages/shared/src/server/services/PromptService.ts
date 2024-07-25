@@ -8,7 +8,9 @@ export class PromptService {
 
   constructor(
     private prisma: PrismaClient,
-    private redis: Redis | null
+    private redis: Redis | null,
+    private metricIncrementer: // used for Sentry metrics
+    ((name: string, value?: number) => void) | undefined
   ) {
     this.cacheEnabled =
       Boolean(redis) && env.LANGFUSE_PROMPT_CACHE_ENABLED === "true";
@@ -18,6 +20,10 @@ export class PromptService {
   public async getPrompt(params: PromptParams): Promise<Prompt | null> {
     if (await this.shouldUseCache(params)) {
       const cachedPrompt = await this.getCachedPrompt(params);
+
+      this.incrementMetric(
+        cachedPrompt ? Metrics.PromptCacheHit : Metrics.PromptCacheMiss
+      );
 
       if (cachedPrompt) return cachedPrompt;
     }
@@ -194,7 +200,15 @@ export class PromptService {
   }
 
   private logError(message: string, ...args: any[]) {
-    console.log(`[PromptService] ${message}`, ...args);
+    console.error(`[PromptService] ${message}`, ...args);
+  }
+
+  private incrementMetric(name: Metrics, value: number = 1) {
+    try {
+      this.metricIncrementer?.(name, value);
+    } catch (e) {
+      this.logError("Error incrementing metric", name, e);
+    }
   }
 }
 
@@ -205,3 +219,8 @@ type PromptParams = {
   | { version: number; label: undefined }
   | { version: null | undefined; label: string }
 );
+
+enum Metrics {
+  PromptCacheHit = "prompt_cache_hit",
+  PromptCacheMiss = "prompt_cache_miss",
+}
