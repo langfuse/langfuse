@@ -171,8 +171,6 @@ export default function GenerationsTable({
     filter: filterState,
     orderBy: orderByState,
     searchQuery,
-    from: dateRange?.from ?? null,
-    to: dateRange?.to ?? null,
   });
 
   const totalCount = generations.data?.totalCount ?? 0;
@@ -213,8 +211,6 @@ export default function GenerationsTable({
         filter: filterState,
         searchQuery,
         orderBy: orderByState,
-        from: dateRange?.from ?? null,
-        to: dateRange?.to ?? null,
       });
 
       let url: string;
