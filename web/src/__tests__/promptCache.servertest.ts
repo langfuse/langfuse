@@ -8,8 +8,8 @@ jest.mock("@prisma/client");
 jest.mock("ioredis");
 jest.mock("@langfuse/shared", () => ({
   env: {
-    LANGFUSE_PROMPT_CACHE_ENABLED: "true",
-    LANGFUSE_PROMPT_CACHE_TTL_SECONDS: 300,
+    LANGFUSE_CACHE_PROMPT_ENABLED: "true",
+    LANGFUSE_CACHE_PROMPT_TTL_SECONDS: 300,
   },
 }));
 
