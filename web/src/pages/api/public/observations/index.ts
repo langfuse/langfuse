@@ -45,6 +45,10 @@ export default withMiddlewares({
         ? Prisma.sql`AND o."start_time" < ${query.toStartTime}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
 
+      const versionCondition = query.version
+        ? Prisma.sql`AND o."version" = ${query.version}`
+        : Prisma.empty;
+
       const observations = await prisma.$queryRaw<ObservationView[]>`
           SELECT 
             o."id",
@@ -88,6 +92,7 @@ export default withMiddlewares({
           ${userIdCondition}
           ${observationTypeCondition}
           ${traceIdCondition}
+          ${versionCondition}
           ${parentObservationIdCondition}
           ${fromStartTimeCondition}
           ${toStartTimeCondition}
@@ -102,6 +107,7 @@ export default withMiddlewares({
           ${nameCondition}
           ${userIdCondition}
           ${traceIdCondition}
+          ${versionCondition}
           ${parentObservationIdCondition}
           ${fromStartTimeCondition}
           ${toStartTimeCondition}
