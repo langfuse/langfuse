@@ -15,10 +15,11 @@ import {
   BaseError,
   MethodNotAllowedError,
   ForbiddenError,
+  type Prompt,
 } from "@langfuse/shared";
+import { PromptService, redis } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import * as Sentry from "@sentry/node";
-import { redis } from "@langfuse/shared/src/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -42,18 +43,33 @@ export default async function handler(
     // Handle GET requests
     if (req.method === "GET") {
       const searchParams = GetPromptSchema.parse(req.query);
-      const prompt = await prisma.prompt.findFirst({
-        where: {
-          projectId: authCheck.scope.projectId,
-          name: searchParams.name,
-          version: searchParams.version ?? undefined, // if no version is given, we take the latest active prompt
-          labels: !searchParams.version
-            ? {
-                has: PRODUCTION_LABEL,
-              }
-            : undefined, // if no prompt is active, there will be no prompt available
-        },
-      });
+      const projectId = authCheck.scope.projectId;
+      const promptName = searchParams.name;
+      const version = searchParams.version ?? undefined;
+
+      const promptService = new PromptService(
+        prisma,
+        redis,
+        Sentry.metrics.increment,
+      );
+
+      let prompt: Prompt | null = null;
+
+      if (version) {
+        prompt = await promptService.getPrompt({
+          projectId,
+          promptName,
+          version,
+          label: undefined,
+        });
+      } else {
+        prompt = await promptService.getPrompt({
+          projectId,
+          promptName,
+          label: PRODUCTION_LABEL,
+          version: undefined,
+        });
+      }
 
       if (!prompt) throw new LangfuseNotFoundError("Prompt not found");
 
