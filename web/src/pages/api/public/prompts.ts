@@ -1,5 +1,5 @@
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
@@ -18,6 +18,7 @@ import {
 } from "@langfuse/shared";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import * as Sentry from "@sentry/node";
+import { redis } from "@langfuse/shared/src/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -27,9 +28,11 @@ export default async function handler(
 
   try {
     // Authentication and authorization
-    const authCheck = await verifyAuthHeaderAndReturnScope(
-      req.headers.authorization,
-    );
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
     if (authCheck.scope.accessLevel !== "all")
       throw new ForbiddenError(
