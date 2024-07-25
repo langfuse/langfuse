@@ -256,7 +256,7 @@ describe("Authenticate API calls", () => {
         "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
       );
 
-      expect(ttl).toBeGreaterThan(env.LANGFUSE_CACHE_APIKEY_TTL - 2);
+      expect(ttl).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL - 2);
 
       // wait for 5 seconds
       await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -272,7 +272,7 @@ describe("Authenticate API calls", () => {
         "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
       );
 
-      expect(ttl2).toBeGreaterThan(env.LANGFUSE_CACHE_APIKEY_TTL - 2);
+      expect(ttl2).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL - 2);
     }, 10000);
 
     it("should delete API keys from cache and db", async () => {

@@ -197,9 +197,11 @@ export class ApiAuthService {
 
     // if we found something, return the object.
     if (redisApiKey) {
+      Sentry.metrics.increment("api_key_cache_hit");
       return redisApiKey;
     }
 
+    Sentry.metrics.increment("api_key_cache_miss");
     // if redis not available or object not found, try the database
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { fastHashedSecretKey: hash },
@@ -213,7 +215,7 @@ export class ApiAuthService {
   }
 
   async addApiKeyToRedis(hash: string, apiKey: ApiKey) {
-    if (!this.redis || !env.LANGFUSE_CACHE_APIKEY_ENABLED) {
+    if (!this.redis || !env.LANGFUSE_CACHE_API_KEY_ENABLED) {
       return;
     }
 
@@ -222,7 +224,7 @@ export class ApiAuthService {
         this.createRedisKey(hash),
         JSON.stringify(apiKey),
         "EX",
-        env.LANGFUSE_CACHE_APIKEY_TTL, // redis API is in seconds
+        env.LANGFUSE_CACHE_API_KEY_TTL, // redis API is in seconds
       );
     } catch (error: unknown) {
       console.error("Error adding key to redis", error);
@@ -230,7 +232,7 @@ export class ApiAuthService {
   }
 
   async fetchApiKeyFromRedis(hash: string) {
-    if (!this.redis || !env.LANGFUSE_CACHE_APIKEY_ENABLED) {
+    if (!this.redis || !env.LANGFUSE_CACHE_API_KEY_ENABLED) {
       return null;
     }
 
@@ -238,7 +240,7 @@ export class ApiAuthService {
       const redisApiKey = await this.redis.getex(
         this.createRedisKey(hash),
         "EX",
-        env.LANGFUSE_CACHE_APIKEY_TTL, // redis API is in seconds
+        env.LANGFUSE_CACHE_API_KEY_TTL, // redis API is in seconds
       );
 
       if (!redisApiKey) {
