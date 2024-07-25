@@ -13,10 +13,14 @@ import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import {
+  GroupedScoreBadges,
+  QualitativeScoreBadge,
+} from "@/src/components/grouped-score-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ScoreDataType } from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
 
 type PromptVersionTableRow = {
   version: number;
@@ -26,8 +30,8 @@ type PromptVersionTableRow = {
   medianOutputTokens?: number | null;
   medianCost?: number | null;
   generationCount?: number | null;
-  averageObservationScores?: Record<string, number> | null;
-  averageTraceScores?: Record<string, number> | null;
+  observationScoreMetrics?: RouterOutput["prompts"]["versionMetrics"][number]["observationScores"];
+  traceScoreMetrics?: RouterOutput["prompts"]["versionMetrics"][number]["traceScores"];
   lastUsed?: string | null;
   firstUsed?: string | null;
 };
@@ -232,55 +236,72 @@ export default function PromptVersionTable() {
       },
     },
     {
-      accessorKey: "averageObservationScores",
-      id: "averageObservationScores",
-      header: "Average observation scores",
+      accessorKey: "observationScoreMetrics",
+      id: "observationScoreMetrics",
+      header: "Generation score metrics",
       cell: ({ row }) => {
-        const scores: PromptVersionTableRow["averageObservationScores"] =
-          row.getValue("averageObservationScores");
+        const scores: PromptVersionTableRow["observationScoreMetrics"] =
+          row.getValue("observationScoreMetrics");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
+        if (!scores) return null;
+
+        const { numericScores, qualitativeScores } = scores;
 
         return (
-          (scores && (
+          <div
+            className={cn(
+              "flex max-w-xl flex-row items-start gap-3 overflow-y-auto",
+              rowHeight === "s" && "h-8",
+            )}
+          >
             <GroupedScoreBadges
-              scores={Object.entries(scores).map(([k, v]) => ({
+              scores={Object.entries(numericScores).map(([k, v]) => ({
                 name: k,
                 value: v,
-                dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
+                dataType: ScoreDataType.NUMERIC,
               }))}
               variant="headings"
             />
-          )) ??
-          null
+            <QualitativeScoreBadge scores={qualitativeScores} />
+          </div>
         );
       },
       enableHiding: true,
     },
     {
-      accessorKey: "averageTraceScores",
-      id: "averageTraceScores",
-      header: "Average trace scores",
+      accessorKey: "traceScoreMetrics",
+      id: "traceScoreMetrics",
+      header: "Trace score metrics",
       cell: ({ row }) => {
-        const scores: PromptVersionTableRow["averageTraceScores"] =
-          row.getValue("averageTraceScores");
+        const scores: PromptVersionTableRow["traceScoreMetrics"] =
+          row.getValue("traceScoreMetrics");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
 
+        if (!scores) return null;
+
+        const { numericScores, qualitativeScores } = scores;
+
         return (
-          (scores && (
+          <div
+            className={cn(
+              "flex max-w-xl flex-row items-start gap-3 overflow-y-auto",
+              rowHeight === "s" && "h-8",
+            )}
+          >
             <GroupedScoreBadges
-              scores={Object.entries(scores).map(([k, v]) => ({
+              scores={Object.entries(numericScores).map(([k, v]) => ({
                 name: k,
                 value: v,
-                dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
+                dataType: ScoreDataType.NUMERIC,
               }))}
               variant="headings"
             />
-          )) ??
-          null
+            <QualitativeScoreBadge scores={qualitativeScores} />
+          </div>
         );
       },
       enableHiding: true,
@@ -350,8 +371,8 @@ export default function PromptVersionTable() {
           medianOutputTokens: prompt.medianOutputTokens,
           medianCost: prompt.medianTotalCost,
           generationCount: prompt.observationCount,
-          averageObservationScores: prompt.averageObservationScores,
-          averageTraceScores: prompt.averageTraceScores,
+          observationScoreMetrics: prompt.observationScores,
+          traceScoreMetrics: prompt.traceScores,
           lastUsed:
             prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
           firstUsed:
