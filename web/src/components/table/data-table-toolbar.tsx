@@ -15,7 +15,7 @@ import { Search } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DateRangeDropdown from "@/src/components/DateRangeDropdown";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
-import { type DateRangeOptions } from "@/src/utils/date-range-utils";
+import { type TableDateRangeOptions } from "@/src/utils/date-range-utils";
 
 interface SearchConfig {
   placeholder: string;
@@ -35,9 +35,9 @@ interface DataTableToolbarProps<TData, TValue> {
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
   columnsWithCustomSelect?: string[];
-  selectedOption?: DateRangeOptions;
+  selectedOption?: TableDateRangeOptions;
   setDateRangeAndOption?: (
-    option: DateRangeOptions,
+    option: TableDateRangeOptions,
     date?: DashboardDateRange,
   ) => void;
 }
@@ -92,21 +92,19 @@ export function DataTableToolbar<TData, TValue>({
         </div>
       )}
       {!!filterColumnDefinition && !!filterState && !!setFilterState && (
-        <>
-          <PopoverFilterBuilder
-            columns={filterColumnDefinition}
-            filterState={filterState}
-            onChange={setFilterState}
-            columnsWithCustomSelect={columnsWithCustomSelect}
-          />
-          {selectedOption && setDateRangeAndOption && (
-            <DateRangeDropdown
-              type="table"
-              selectedOption={selectedOption}
-              setDateRangeAndOption={setDateRangeAndOption}
-            />
-          )}
-        </>
+        <PopoverFilterBuilder
+          columns={filterColumnDefinition}
+          filterState={filterState}
+          onChange={setFilterState}
+          columnsWithCustomSelect={columnsWithCustomSelect}
+        />
+      )}
+      {selectedOption && setDateRangeAndOption && (
+        <DateRangeDropdown
+          type="table"
+          selectedOption={selectedOption}
+          setDateRangeAndOption={setDateRangeAndOption}
+        />
       )}
       <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
         {!!columnVisibility && !!setColumnVisibility && (
