@@ -45,6 +45,31 @@ class ApiAuthService {
     this.redis = redis;
   }
 
+  async deleteApiKey(id: string, projectId: string) {
+    // Make sure the API key exists and belongs to the project the user has access to
+    const apiKey = await this.prisma.apiKey.findFirstOrThrow({
+      where: {
+        id: id,
+        projectId: projectId,
+      },
+    });
+    if (!apiKey) {
+      return false;
+    }
+
+    await prisma.apiKey.delete({
+      where: {
+        id: apiKey.id,
+      },
+    });
+
+    // if redis is available, delete the key from there as well
+    // delete from redis even if caching is disabled via env for consistency
+    if (this.redis && apiKey.fastHashedSecretKey) {
+      await this.redis.del(this.createRedisKey(apiKey.fastHashedSecretKey));
+    }
+  }
+
   async verifyAuthHeaderAndReturnScope(
     authHeader: string | undefined,
   ): Promise<AuthHeaderVerificationResult> {
@@ -184,7 +209,7 @@ class ApiAuthService {
       where: { fastHashedSecretKey: hash },
     });
 
-    // add the key to redis for future use if available
+    // add the key to redis for future use if available, this does not throw
     if (apiKey) {
       await this.addApiKeyToRedis(hash, apiKey);
     }
