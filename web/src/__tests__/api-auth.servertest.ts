@@ -118,7 +118,7 @@ describe("Authenticate API calls", () => {
     });
 
     afterEach(async () => {
-      // if I do not remove the key, it will remain in the cache and
+      // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
       const keys = await redis.keys("api-key*");
       if (keys.length > 0) {
@@ -157,6 +157,7 @@ describe("Authenticate API calls", () => {
       );
 
       expect(apiKey).not.toBeNull();
+      console.log(apiKey);
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
       expect(cachedKey2).not.toBeNull();
