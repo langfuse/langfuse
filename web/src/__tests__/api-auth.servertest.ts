@@ -157,7 +157,6 @@ describe("Authenticate API calls", () => {
       });
 
       expect(apiKey).not.toBeNull();
-      console.log(apiKey);
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
       const cachedKey = await redis.get(
