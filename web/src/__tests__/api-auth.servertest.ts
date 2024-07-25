@@ -7,9 +7,8 @@ import {
   ApiKeyZod,
 } from "@/src/features/public-api/server/apiAuth";
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
 import { Redis } from "ioredis";
-import { env } from "@/src/env.mjs";
+import { after } from "lodash";
 
 describe("Authenticate API calls", () => {
   beforeEach(async () => {
@@ -118,12 +117,15 @@ describe("Authenticate API calls", () => {
       maxRetriesPerRequest: null,
     });
 
-    afterAll(async () => {
+    afterEach(async () => {
       // if I do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
       redis.del(
         "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
       );
+    });
+
+    afterAll(async () => {
       redis.disconnect();
     });
 
@@ -167,6 +169,63 @@ describe("Authenticate API calls", () => {
         ...apiKey,
         createdAt: apiKey?.createdAt.toISOString(),
       });
+    });
+
+    it("should delete API keys from cache and db", async () => {
+      await createAPIKey();
+
+      // first auth will generate the fast hashed api key
+      const auth = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      // second will add the key to redis
+      const auth2 = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      expect(auth2.validKey).toBe(true);
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      console.log("api key from db: ", apiKey);
+
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
+      const cachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(cachedKey).not.toBeNull();
+
+      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+
+      expect(parsed).toEqual({
+        ...apiKey,
+        createdAt: apiKey?.createdAt.toISOString(),
+      });
+
+      await new ApiAuthService(prisma, redis).deleteApiKey(
+        apiKey?.id!,
+        apiKey?.projectId!,
+      );
+
+      const deletedApiKey = await prisma.apiKey.findUnique({
+        where: { id: apiKey?.id! },
+      });
+      expect(deletedApiKey).toBeNull();
+
+      const deletedCachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(deletedCachedKey).toBeNull();
     });
   });
 
