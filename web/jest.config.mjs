@@ -39,4 +39,8 @@ const config = {
   ],
 };
 
+process.env = Object.assign(process.env, {
+  LANGFUSE_CACHE_API_KEY_ENABLED: "true",
+});
+
 export default config;
