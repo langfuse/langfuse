@@ -49,7 +49,6 @@ export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
   {
     date_trunc: "year" | "month" | "week" | "day" | "hour" | "minute";
-    date_formatter: (date: Date) => string;
     minutes: number;
   }
 >;
@@ -69,68 +68,38 @@ export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregatio
   {
     "1 year": {
       date_trunc: "month",
-      date_formatter: (date) =>
-        date.toLocaleDateString("en-US", { year: "2-digit", month: "short" }),
       minutes: 365 * 24 * 60,
     },
     "3 months": {
       date_trunc: "month",
-      date_formatter: (date: Date) =>
-        date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       minutes: 3 * 28 * 24 * 60,
     },
     "1 month": {
       date_trunc: "month",
-      date_formatter: (date: Date) =>
-        date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       minutes: 28 * 24 * 60,
     },
     "7 days": {
       date_trunc: "day",
-      date_formatter: (date) =>
-        date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       minutes: 7 * 24 * 60,
     },
     "24 hours": {
       date_trunc: "hour",
-      date_formatter: (date: Date) =>
-        date.toLocaleTimeString("en-US", { hour: "numeric" }),
       minutes: 24 * 60,
     },
     "3 hours": {
       date_trunc: "hour",
-      date_formatter: (date) =>
-        date.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "numeric",
-        }),
       minutes: 3 * 60,
     },
     "1 hour": {
       date_trunc: "hour",
-      date_formatter: (date: Date) =>
-        date.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "numeric",
-        }),
       minutes: 60,
     },
     "30 min": {
       date_trunc: "minute",
-      date_formatter: (date: Date) =>
-        date.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "numeric",
-        }),
       minutes: 30,
     },
     "5 min": {
       date_trunc: "minute",
-      date_formatter: (date) =>
-        date.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "numeric",
-        }),
       minutes: 5,
     },
   };
