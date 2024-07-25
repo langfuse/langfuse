@@ -35,7 +35,11 @@ export const APIObservation = z
     model: z.string().nullable(),
     modelParameters: z.any(),
     completionStartTime: z.coerce.date().nullable(),
+
+    // prompt
     promptId: z.string().nullable(),
+    promptName: z.string().nullable(),
+    promptVersion: z.number().int().positive().nullable(),
 
     // usage
     usage: z.object({

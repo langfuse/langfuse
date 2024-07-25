@@ -87,6 +87,8 @@ types:
   ObservationsView:
     extends: Observation
     properties:
+      promptName: optional<string>
+      promptVersion: optional<integer>
       modelId: optional<string>
       inputPrice: optional<double>
       outputPrice: optional<double>
