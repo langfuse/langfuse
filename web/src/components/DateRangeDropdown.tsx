@@ -19,7 +19,6 @@ import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DateRangeOptions,
 } from "@/src/utils/date-range-utils";
-import { Clock } from "lucide-react";
 
 type DateRangeDropdownProps = {
   type: "dashboard" | "table";
