@@ -19,8 +19,8 @@ import { type Score } from "@langfuse/shared";
 import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
-import { useDateRange } from "@/src/components/useDateRange";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -50,10 +50,10 @@ export default function UsersPage() {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
-    "table",
-    localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-  );
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange(
+      localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
+    );
 
   const users = api.users.all.useQuery({
     filter: userFilterState,

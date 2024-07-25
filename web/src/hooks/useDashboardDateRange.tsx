@@ -1,19 +1,17 @@
-import { useState, useEffect } from "react";
-import { addMinutes } from "date-fns";
+import { useEffect, useState } from "react";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import {
-  DEFAULT_AGGREGATION_SELECTION,
-  type DateRangeOptions,
-  findClosestTableIntervalToDate,
-  tableDateRangeAggregationSettings,
-  isValidDateRangeAggregationOption,
-  type DateRangeAggregationOption,
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   findClosestDashboardIntervalToDate,
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+  isValidDashboardDateRangeAggregationOption,
+  type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
+import { addMinutes } from "date-fns";
 
-export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
+export function useDashboardDateRange(initialDate?: Date) {
   const [queryParams, setQueryParams] = useQueryParams({
     select: withDefault(StringParam, "Select a date range"),
     from: StringParam,
@@ -21,16 +19,11 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
   });
 
   const closestInterval = initialDate
-    ? type === "table"
-      ? findClosestTableIntervalToDate(initialDate)
-      : findClosestDashboardIntervalToDate(initialDate)
-    : undefined;
+    ? findClosestDashboardIntervalToDate(initialDate)
+    : "24 hours";
 
   const initialRangeOption =
-    closestInterval ??
-    (type === "table"
-      ? DEFAULT_AGGREGATION_SELECTION
-      : DASHBOARD_AGGREGATION_PLACEHOLDER);
+    closestInterval ?? DASHBOARD_AGGREGATION_PLACEHOLDER;
 
   const initialRange: DashboardDateRange | undefined =
     queryParams.select !== "Select a date range" &&
@@ -43,20 +36,19 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
       : undefined;
 
   const validatedInitialRangeOption =
-    isValidDateRangeAggregationOption(queryParams.select) ||
+    isValidDashboardDateRangeAggregationOption(queryParams.select) ||
     queryParams.select === "Date range"
-      ? (queryParams.select as DateRangeAggregationOption)
+      ? (queryParams.select as DashboardDateRangeAggregationOption)
       : initialRangeOption;
 
-  const [selectedOption, setSelectedOption] = useState<DateRangeOptions>(
-    validatedInitialRangeOption,
-  );
+  const [selectedOption, setSelectedOption] =
+    useState<DashboardDateRangeOptions>(validatedInitialRangeOption);
   const [dateRange, setDateRange] = useState<DashboardDateRange | undefined>(
     initialRange,
   );
 
   const setDateRangeAndOption = (
-    option: DateRangeOptions,
+    option: DashboardDateRangeOptions,
     range?: DashboardDateRange,
   ) => {
     setSelectedOption(option);
@@ -73,12 +65,11 @@ export function useDateRange(type: "dashboard" | "table", initialDate?: Date) {
     }
     setQueryParams(newParams);
   };
-
   useEffect(() => {
-    if (selectedOption in tableDateRangeAggregationSettings) {
+    if (selectedOption in dashboardDateRangeAggregationSettings) {
       const { minutes } =
-        tableDateRangeAggregationSettings[
-          selectedOption as keyof typeof tableDateRangeAggregationSettings
+        dashboardDateRangeAggregationSettings[
+          selectedOption as keyof typeof dashboardDateRangeAggregationSettings
         ];
       const fromDate = addMinutes(new Date(), -minutes);
       setDateRange({ from: fromDate, to: new Date() });

@@ -25,7 +25,7 @@ import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useDateRange } from "@/src/components/useDateRange";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type SessionTableRow = {
   id: string;
@@ -54,10 +54,10 @@ export default function SessionsTable({
   omittedFilter = [],
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
-  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
-    "table",
-    localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-  );
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange(
+      localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
+    );
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],

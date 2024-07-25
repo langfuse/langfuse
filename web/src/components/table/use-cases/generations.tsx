@@ -46,8 +46,8 @@ import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAl
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useDateRange } from "@/src/components/useDateRange";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type GenerationsTableRow = {
   id: string;
@@ -110,10 +110,10 @@ export default function GenerationsTable({
     "s",
   );
 
-  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
-    "table",
-    localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-  );
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange(
+      localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
+    );
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [],

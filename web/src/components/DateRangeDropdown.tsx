@@ -11,20 +11,21 @@ import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 
 import {
   DEFAULT_AGGREGATION_SELECTION,
-  isValidDateRangeAggregationOption,
   type DashboardDateRangeAggregationOption,
   type TableDateRangeAggregationOption,
   tableDateRangeAggregationSettings,
   dashboardDateRangeAggregationSettings,
   DASHBOARD_AGGREGATION_PLACEHOLDER,
-  type DateRangeOptions,
+  type DashboardDateRangeOptions,
+  isValidDashboardDateRangeAggregationOption,
+  type TableDateRangeOptions,
 } from "@/src/utils/date-range-utils";
 
 type DateRangeDropdownProps = {
   type: "dashboard" | "table";
-  selectedOption: DateRangeOptions;
+  selectedOption: DashboardDateRangeOptions | TableDateRangeOptions;
   setDateRangeAndOption: (
-    option: DateRangeOptions,
+    option: DashboardDateRangeOptions | TableDateRangeOptions,
     date?: DashboardDateRange,
   ) => void;
 };
@@ -34,40 +35,39 @@ const DateRangeDropdown: React.FC<DateRangeDropdownProps> = ({
   selectedOption,
   setDateRangeAndOption,
 }) => {
-  const onDropDownSelection = (value: DateRangeOptions) => {
-    if (isValidDateRangeAggregationOption(value)) {
-      let fromDate: Date;
-      if (type === "dashboard") {
+  const onDropDownSelection = (
+    value: DashboardDateRangeOptions | TableDateRangeOptions,
+  ) => {
+    let fromDate: Date | undefined;
+    if (type === "dashboard") {
+      if (isValidDashboardDateRangeAggregationOption(value)) {
         const setting =
           dashboardDateRangeAggregationSettings[
             value as DashboardDateRangeAggregationOption
-          ];
-        fromDate = addMinutes(new Date(), -setting.minutes);
-      } else if (type === "table") {
-        if (value.toString() === DEFAULT_AGGREGATION_SELECTION) {
-          setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, undefined);
-          return;
-        }
-        const setting =
-          tableDateRangeAggregationSettings[
-            value as TableDateRangeAggregationOption
           ];
         fromDate = addMinutes(new Date(), -setting.minutes);
       } else {
         setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, undefined);
         return;
       }
-      setDateRangeAndOption(value, {
-        from: fromDate,
-        to: new Date(),
-      });
-    } else {
-      if (value.toString() === DASHBOARD_AGGREGATION_PLACEHOLDER) {
-        setDateRangeAndOption(DASHBOARD_AGGREGATION_PLACEHOLDER, undefined);
+    } else if (type === "table") {
+      if (value.toString() === DEFAULT_AGGREGATION_SELECTION) {
+        setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, undefined);
         return;
       }
+      const setting =
+        tableDateRangeAggregationSettings[
+          value as TableDateRangeAggregationOption
+        ];
+      fromDate = addMinutes(new Date(), -setting.minutes);
+    } else {
       setDateRangeAndOption(DEFAULT_AGGREGATION_SELECTION, undefined);
+      return;
     }
+    setDateRangeAndOption(value, {
+      from: fromDate,
+      to: new Date(),
+    });
   };
 
   const getOptions = (type: "dashboard" | "table") => {

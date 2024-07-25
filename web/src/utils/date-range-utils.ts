@@ -38,12 +38,13 @@ export type DateRangeAggregationOption =
   | DashboardDateRangeAggregationOption
   | TableDateRangeAggregationOption;
 
-export type DateRangeOptions =
+export type DashboardDateRangeOptions =
   | DashboardDateRangeAggregationOption
-  | TableDateRangeAggregationOption
-  | typeof DEFAULT_AGGREGATION_SELECTION
   | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
 
+export type TableDateRangeOptions =
+  | TableDateRangeAggregationOption
+  | typeof DEFAULT_AGGREGATION_SELECTION;
 export type DateRangeAggregationSettings<T extends DateRangeAggregationOption> =
   Record<
     T,
@@ -194,12 +195,23 @@ export const tableDateRangeAggregationSettings: DateRangeAggregationSettings<Tab
     },
   };
 
-export function isValidDateRangeAggregationOption(
+export function isValidDashboardDateRangeAggregationOption(
   value: unknown,
-): value is DateRangeAggregationOption {
+): value is DashboardDateRangeAggregationOption {
   return (
     typeof value === "string" &&
-    dateTimeAggregationOptions.includes(value as DateRangeAggregationOption)
+    DASHBOARD_AGGREGATION_OPTIONS.includes(
+      value as DashboardDateRangeAggregationOption,
+    )
+  );
+}
+
+export function isValidTableDateRangeAggregationOption(
+  value: unknown,
+): value is TableDateRangeAggregationOption {
+  return (
+    typeof value === "string" &&
+    TABLE_AGGREGATION_OPTIONS.includes(value as TableDateRangeAggregationOption)
   );
 }
 

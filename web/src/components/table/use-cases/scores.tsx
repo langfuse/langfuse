@@ -5,11 +5,11 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
-import { useDateRange } from "@/src/components/useDateRange";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import {
   type ScoreOptions,
@@ -85,10 +85,10 @@ export default function ScoresTable({
   });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
-  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
-    "table",
-    localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-  );
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange(
+      localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
+    );
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],

@@ -22,7 +22,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useDateRange } from "@/src/components/useDateRange";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 type PromptTableRow = {
   name: string;
@@ -46,7 +46,7 @@ export function PromptTable() {
   const [filterState, setFilterState] = useQueryFilterState([], "prompts");
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDateRange("table");
+    useTableDateRange();
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",

@@ -21,8 +21,7 @@ import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
-import { localtimeDateOffsetByDays } from "@/src/utils/dates";
-import { useDateRange } from "@/src/components/useDateRange";
+import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 
 export type DashboardDateRange = {
   from: Date;
@@ -32,10 +31,8 @@ export type DashboardDateRange = {
 export default function Start() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
-    "dashboard",
-    localtimeDateOffsetByDays(-1),
-  );
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useDashboardDateRange();
 
   const session = useSession();
   const disableExpensiveDashboardComponents =

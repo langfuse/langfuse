@@ -40,9 +40,9 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { useDateRange } from "@/src/components/useDateRange";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { type APIScore } from "@/src/features/public-api/types/scores";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -93,10 +93,10 @@ export default function TracesTable({
     withDefault(StringParam, null),
   );
 
-  const { selectedOption, dateRange, setDateRangeAndOption } = useDateRange(
-    "table",
-    localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-  );
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange(
+      localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
+    );
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "traces",
