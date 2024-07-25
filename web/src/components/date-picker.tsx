@@ -217,7 +217,7 @@ export function DatePickerWithRange({
             numberOfMonths={isSmallScreen ? 1 : 2}
           />
           {!isSmallScreen && (
-            <div className="flex flex-row border-t-2 pt-1.5">
+            <div className="flex flex-row border-t-2 py-1.5">
               <div className="px-3">
                 <p className="px-1 text-sm font-medium">Start time</p>
                 <TimePicker
@@ -237,7 +237,7 @@ export function DatePickerWithRange({
             </div>
           )}
           {isSmallScreen && (
-            <div className="flex flex-col gap-2 border-t-2 pt-1.5">
+            <div className="flex flex-col gap-2 border-t-2 py-1.5">
               <div className="px-3">
                 <p className="px-1 text-sm font-medium">Start</p>
                 <TimePicker
