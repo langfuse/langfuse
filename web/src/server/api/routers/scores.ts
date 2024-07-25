@@ -28,8 +28,6 @@ const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
   orderBy: orderBy,
-  from: z.date().nullish(),
-  to: z.date().nullish(),
 });
 
 const ScoreAllOptions = ScoreFilterOptions.extend({
@@ -50,12 +48,6 @@ export const scoresRouter = createTRPCRouter({
         input.orderBy,
         scoresTableCols,
       );
-
-      const dateRangeCondition =
-        input.from && input.to
-          ? Prisma.sql`
-      AND s.timestamp >= ${input.from} AND s.timestamp <= ${input.to}`
-          : Prisma.empty;
 
       const scores = await ctx.prisma.$queryRaw<
         Array<
@@ -88,7 +80,6 @@ export const scoresRouter = createTRPCRouter({
           u.name AS "authorUserName"
           `,
           input.projectId,
-          dateRangeCondition,
           filterCondition,
           orderByCondition,
           input.limit,
@@ -103,7 +94,6 @@ export const scoresRouter = createTRPCRouter({
           Prisma.sql` count(*) AS "totalCount"`,
           input.projectId,
           filterCondition,
-          dateRangeCondition,
           Prisma.empty,
           1, // limit
           0, // page
@@ -309,7 +299,6 @@ const generateScoresQuery = (
   select: Prisma.Sql,
   projectId: string,
   filterCondition: Prisma.Sql,
-  dateRangeCondition: Prisma.Sql,
   orderCondition: Prisma.Sql,
   limit: number,
   page: number,
@@ -323,7 +312,6 @@ const generateScoresQuery = (
   LEFT JOIN users u ON u.id = s.author_user_id
   WHERE s.project_id = ${projectId}
   ${filterCondition}
-  ${dateRangeCondition}
   ${orderCondition}
   LIMIT ${limit}
   OFFSET ${page * limit}
