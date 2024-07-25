@@ -2,8 +2,9 @@ import {
   getDisplaySecretKey,
   hashSecretKey,
 } from "@langfuse/shared/src/server";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { prisma } from "@langfuse/shared/src/db";
+import { redis } from "@langfuse/shared/src/server";
 
 describe("Validate api calls", () => {
   beforeEach(async () => {
@@ -15,7 +16,10 @@ describe("Validate api calls", () => {
 
   it("should create new api key", async () => {
     await createAPIKey();
-    const auth = await verifyAuthHeaderAndReturnScope(
+    const auth = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(
       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
     );
     expect(auth.validKey).toBe(true);
@@ -29,7 +33,10 @@ describe("Validate api calls", () => {
 
   it("should create new api key and succeed with new key", async () => {
     await createAPIKey();
-    const auth = await verifyAuthHeaderAndReturnScope(
+    const auth = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(
       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
     );
     expect(auth.validKey).toBe(true);
@@ -40,7 +47,10 @@ describe("Validate api calls", () => {
     expect(apiKey).not.toBeNull();
     expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
-    const auth2 = await verifyAuthHeaderAndReturnScope(
+    const auth2 = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(
       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
     );
     expect(auth2.validKey).toBe(true);
@@ -48,7 +58,10 @@ describe("Validate api calls", () => {
 
   it("should fail on wrong api key with new key", async () => {
     await createAPIKey();
-    const auth = await verifyAuthHeaderAndReturnScope(
+    const auth = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(
       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
     );
     expect(auth.validKey).toBe(true);
@@ -59,7 +72,10 @@ describe("Validate api calls", () => {
     expect(apiKey).not.toBeNull();
     expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
-    const wrongAuth = await verifyAuthHeaderAndReturnScope(
+    const wrongAuth = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(
       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkx",
     );
     expect(wrongAuth.validKey).toBe(false);
@@ -73,7 +89,10 @@ describe("Validate api calls", () => {
     expect(initialApiKey).not.toBeNull();
     expect(initialApiKey?.fastHashedSecretKey).toBeNull();
 
-    const auth = await verifyAuthHeaderAndReturnScope(
+    const auth = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(
       "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkx",
     );
     expect(auth.validKey).toBe(false);

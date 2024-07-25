@@ -1,11 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import {
-  type PrismaClient,
-  prisma,
-  type ApiKey,
-} from "@langfuse/shared/src/db";
+import { type PrismaClient, type ApiKey } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import * as Sentry from "@sentry/node";
 import { type Redis } from "ioredis";
@@ -36,11 +32,11 @@ const ApiKey = z.object({
   projectId: z.string(),
 });
 
-class ApiAuthService {
+export class ApiAuthService {
   prisma: PrismaClient;
-  redis: Redis | undefined;
+  redis: Redis | null;
 
-  constructor(prisma: PrismaClient, redis?: Redis) {
+  constructor(prisma: PrismaClient, redis: Redis | null) {
     this.prisma = prisma;
     this.redis = redis;
   }
@@ -57,7 +53,7 @@ class ApiAuthService {
       return false;
     }
 
-    await prisma.apiKey.delete({
+    await this.prisma.apiKey.delete({
       where: {
         id: apiKey.id,
       },
