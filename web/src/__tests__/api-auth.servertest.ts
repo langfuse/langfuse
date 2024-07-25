@@ -123,15 +123,17 @@ describe("Authenticate API calls", () => {
       maxRetriesPerRequest: null,
     });
 
-    afterEach(async () => {
+    beforeEach(async () => {
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
+
       const keys = await redis.keys("api-key*");
       if (keys.length > 0) {
         await redis.del(keys);
       }
     });
-    beforeEach(async () => {
+
+    afterEach(async () => {
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
       const keys = await redis.keys("api-key*");
