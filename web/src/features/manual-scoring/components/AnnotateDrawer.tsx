@@ -1,5 +1,5 @@
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   LockIcon,
@@ -70,7 +70,6 @@ import Header from "@/src/components/layouts/header";
 import { MultiSelectKeyValues } from "@/src/features/manual-scoring/components/multi-select-key-values";
 import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { isPresent } from "@/src/utils/typeChecks";
@@ -130,6 +129,8 @@ const getFormError = ({
 export function AnnotateDrawer({
   traceId,
   scores,
+  emptySelectedConfigIds,
+  setEmptySelectedConfigIds,
   observationId,
   projectId,
   variant = "button",
@@ -138,6 +139,55 @@ export function AnnotateDrawer({
 }: {
   traceId: string;
   scores: APIScore[];
+  emptySelectedConfigIds: string[];
+  setEmptySelectedConfigIds: (ids: string[]) => void;
+  observationId?: string;
+  projectId: string;
+  variant?: "button" | "badge";
+  type?: "trace" | "observation" | "session";
+  source?: "TraceDetail" | "SessionDetail";
+}) {
+  const configsData = api.scoreConfigs.all.useQuery({
+    projectId,
+  });
+
+  const configs = configsData.data?.configs ?? [];
+
+  if (configsData.isLoading) return null;
+
+  return (
+    <AnnotateDrawerInner
+      traceId={traceId}
+      scores={scores}
+      configs={configs}
+      emptySelectedConfigIds={emptySelectedConfigIds}
+      setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+      observationId={observationId}
+      projectId={projectId}
+      variant={variant}
+      type={type}
+      source={source}
+    />
+  );
+}
+
+function AnnotateDrawerInner({
+  traceId,
+  scores,
+  configs,
+  emptySelectedConfigIds,
+  setEmptySelectedConfigIds,
+  observationId,
+  projectId,
+  variant = "button",
+  type = "trace",
+  source = "TraceDetail",
+}: {
+  traceId: string;
+  scores: APIScore[];
+  configs: ValidatedScoreConfig[];
+  emptySelectedConfigIds: string[];
+  setEmptySelectedConfigIds: (ids: string[]) => void;
   observationId?: string;
   projectId: string;
   variant?: "button" | "badge";
@@ -150,25 +200,15 @@ export function AnnotateDrawer({
     scope: "scores:CUD",
   });
 
-  const configsData = api.scoreConfigs.all.useQuery({
-    projectId,
-  });
-
-  const configs = configsData.data?.configs ?? [];
-
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
-
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: {
       scoreData: getDefaultScoreData({
         scores,
-        traceId,
-        observationId,
         emptySelectedConfigIds,
         configs,
+        traceId,
+        observationId,
       }),
     },
   });
@@ -179,6 +219,25 @@ export function AnnotateDrawer({
     control: form.control,
     name: "scoreData",
   });
+
+  const prevEmptySelectedConfigIdsRef = useRef(emptySelectedConfigIds);
+
+  useEffect(() => {
+    // Only reset the form if emptySelectedConfigIds has changed
+    if (prevEmptySelectedConfigIdsRef.current !== emptySelectedConfigIds) {
+      form.reset({
+        scoreData: getDefaultScoreData({
+          scores,
+          emptySelectedConfigIds,
+          configs,
+          traceId,
+          observationId,
+        }),
+      });
+    }
+
+    prevEmptySelectedConfigIdsRef.current = emptySelectedConfigIds;
+  }, [emptySelectedConfigIds, scores, configs, traceId, observationId, form]);
 
   const mutDeleteScore = api.scores.deleteAnnotationScore.useMutation({
     onSettled: async (data, error) => {
