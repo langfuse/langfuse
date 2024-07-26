@@ -204,10 +204,10 @@ export const ScoreBody = z
   .superRefine((data, ctx) => {
     // Type guard to help TypeScript with type narrowing
     function isOfType<T extends { dataType?: string }>(
-      d: T,
+      data: T,
       type: string
-    ): d is T & { dataType: string } {
-      return d.dataType === type;
+    ): data is T & { dataType: string } {
+      return data.dataType === type;
     }
 
     if (isOfType(data, "CATEGORICAL") && typeof data.value === "number") {
