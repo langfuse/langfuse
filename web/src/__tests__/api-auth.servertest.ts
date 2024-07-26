@@ -43,12 +43,27 @@ describe("Authenticate API calls", () => {
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
     });
 
+    it("should disallow blocked api keys", async () => {
+      await createAPIKey();
+      const auth = await new ApiAuthService(prisma, null, [
+        "pk-lf-1234567890",
+      ]).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+      expect(auth.validKey).toBe(false);
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).toBeNull();
+    });
+
     it("should create new api key and succeed with new key", async () => {
       await createAPIKey();
-      const auth = await new ApiAuthService(
-        prisma,
-        null,
-      ).verifyAuthHeaderAndReturnScope(
+      const auth = await new ApiAuthService(prisma, null, [
+        "some-other-key",
+      ]).verifyAuthHeaderAndReturnScope(
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
       );
       expect(auth.validKey).toBe(true);
@@ -146,11 +161,29 @@ describe("Authenticate API calls", () => {
       redis.disconnect();
     });
 
+    it("should disallow blocked api keys", async () => {
+      await createAPIKey();
+      const auth = await new ApiAuthService(prisma, redis, [
+        "pk-lf-1234567890",
+      ]).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+      expect(auth.validKey).toBe(false);
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).toBeNull();
+    });
+
     it("should create new api key and read from cache", async () => {
       await createAPIKey();
 
       // first auth will generate the fast hashed api key
-      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+      await new ApiAuthService(prisma, redis, [
+        "blocked-key",
+      ]).verifyAuthHeaderAndReturnScope(
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
       );
 

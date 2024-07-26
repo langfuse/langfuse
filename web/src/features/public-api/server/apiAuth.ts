@@ -35,10 +35,16 @@ export const ApiKeyZod = z.object({
 export class ApiAuthService {
   prisma: PrismaClient;
   redis: Redis | null;
+  blockedPrivateKeys: string[];
 
-  constructor(prisma: PrismaClient, redis: Redis | null) {
+  constructor(
+    prisma: PrismaClient,
+    redis: Redis | null,
+    blockedPrivateKeys: string[] = env.LANGFUSE_BLOCKED_PUBLIC_API_KEYS,
+  ) {
     this.prisma = prisma;
     this.redis = redis;
+    this.blockedPrivateKeys = blockedPrivateKeys;
   }
 
   async deleteApiKey(id: string, projectId: string) {
@@ -84,7 +90,7 @@ export class ApiAuthService {
         const { username: publicKey, password: secretKey } =
           this.extractBasicAuthCredentials(authHeader);
 
-        filterBlockedPublicKey(publicKey);
+        this.filterBlockedPublicKey(publicKey);
 
         const salt = env.SALT;
         const hashFromProvidedKey = createShaHash(secretKey, salt);
@@ -138,7 +144,7 @@ export class ApiAuthService {
       if (authHeader.startsWith("Bearer ")) {
         const publicKey = authHeader.replace("Bearer ", "");
 
-        filterBlockedPublicKey(publicKey);
+        this.filterBlockedPublicKey(publicKey);
 
         const dbKey = await this.findDbKeyOrThrow(publicKey);
         Sentry.setUser({
@@ -174,7 +180,7 @@ export class ApiAuthService {
   }
 
   filterBlockedPublicKey(publicKey: string) {
-    const blocked = env.LANGFUSE_BLOCKED_PUBLIC_API_KEYS.includes(publicKey);
+    const blocked = this.blockedPrivateKeys.includes(publicKey);
 
     if (blocked) {
       console.log("Blocked public key:", publicKey);
