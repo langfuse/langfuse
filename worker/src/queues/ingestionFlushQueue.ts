@@ -1,12 +1,12 @@
 import { Queue, Worker } from "bullmq";
 
-import { redis } from "../redis";
 import { QueueJobs, QueueName } from "@langfuse/shared";
+import { clickhouseClient, redis } from "@langfuse/shared/src/server";
+
 import { env } from "../env";
 import logger from "../logger";
-import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
-import { clickhouseClient } from "@langfuse/shared/src/server";
+import { IngestionService } from "../services/IngestionService";
 
 export type IngestionFlushQueue = Queue<null>;
 

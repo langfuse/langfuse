@@ -155,6 +155,12 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
+      bullmq:
+        specifier: ^5.4.2
+        version: 5.4.3
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.4.1
       js-tiktoken:
         specifier: ^1.0.12
         version: 1.0.12
@@ -429,6 +435,9 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
+      bullmq:
+        specifier: ^5.4.2
+        version: 5.4.3
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.0
@@ -459,6 +468,9 @@ importers:
       graphql:
         specifier: ^16.9.0
         version: 16.9.0
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.4.1
       ip-address:
         specifier: ^9.0.5
         version: 9.0.5
@@ -18437,7 +18449,7 @@ snapshots:
     dependencies:
       '@ioredis/commands': 1.2.0
       cluster-key-slot: 1.1.2
-      debug: 4.3.4
+      debug: 4.3.5(supports-color@5.5.0)
       denque: 2.1.0
       lodash.defaults: 4.2.0
       lodash.isarguments: 3.1.0

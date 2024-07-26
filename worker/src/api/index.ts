@@ -1,39 +1,26 @@
-import { Queue } from "bullmq";
-import { randomUUID } from "crypto";
 import express from "express";
 import basicAuth from "express-basic-auth";
 
-import {
-  EventBodySchema,
-  EventName,
-  QueueJobs,
-  QueueName,
-  TQueueJobTypes,
-  TraceUpsertEventType,
-} from "@langfuse/shared";
+import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
+  convertTraceUpsertEventsToRedisEvents,
+  getTraceUpsertQueue,
   ingestionApiSchemaWithProjectId,
+  redis,
 } from "@langfuse/shared/src/server";
 import * as Sentry from "@sentry/node";
 
 import { env } from "../env";
+import { checkContainerHealth } from "../features/health";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
 import { ingestionFlushQueue } from "../queues/ingestionFlushQueue";
-import { redis } from "../redis";
-import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
-import { checkContainerHealth } from "../features/health";
+import { IngestionService } from "../services/IngestionService";
 
 const router = express.Router();
-
-export const evalQueue = redis
-  ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
-      connection: redis,
-    })
-  : null;
 
 type EventsResponse = {
   status: "success" | "error";
@@ -73,8 +60,17 @@ router
       if (event.data.name === EventName.TraceUpsert) {
         // Find set of traces per project. There might be two events for the same trace in one API call.
         // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
-        const jobs = createRedisEvents(event.data.payload);
-        await evalQueue?.addBulk(jobs); // add all jobs as bulk
+        const jobs = convertTraceUpsertEventsToRedisEvents(event.data.payload);
+        const traceUpsertQueue = getTraceUpsertQueue();
+
+        await traceUpsertQueue?.addBulk(jobs); // add all jobs as bulk
+
+        if (traceUpsertQueue) {
+          logger.info(
+            `Added ${jobs.length} trace upsert jobs to the queue`,
+            jobs
+          );
+        }
 
         return res.json({
           status: "success",
@@ -152,42 +148,3 @@ router
   });
 
 export default router;
-
-export function createRedisEvents(events: TraceUpsertEventType[]) {
-  const uniqueTracesPerProject = events.reduce((acc, event) => {
-    if (!acc.get(event.projectId)) {
-      acc.set(event.projectId, new Set());
-    }
-    acc.get(event.projectId)?.add(event.traceId);
-    return acc;
-  }, new Map<string, Set<string>>());
-
-  const jobs = [...uniqueTracesPerProject.entries()]
-    .map((tracesPerProject) => {
-      const [projectId, traceIds] = tracesPerProject;
-
-      return [...traceIds].map((traceId) => ({
-        name: QueueJobs.TraceUpsert,
-        data: {
-          payload: {
-            projectId,
-            traceId,
-          },
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.TraceUpsert as const,
-        },
-        opts: {
-          removeOnFail: 10000,
-          removeOnComplete: true,
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
-        },
-      }));
-    })
-    .flat();
-  return jobs;
-}

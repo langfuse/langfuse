@@ -32,5 +32,8 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   await ClickhouseWriter.getInstance().shutdown();
   logger.info("Clickhouse writer has been shut down.");
 
+  redis?.disconnect();
+  logger.info("Redis connection has been closed.");
+
   logger.info("Shutdown complete, exiting process...");
 };
