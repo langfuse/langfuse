@@ -246,15 +246,6 @@ export const PostScoresBody = z
         code: z.ZodIssueCode.custom,
         message: `Value must number equal to either 0 or 1 for data type ${data.dataType}`,
       });
-    } else if (
-      data.dataType !== null &&
-      data.dataType !== undefined &&
-      !["CATEGORICAL", "NUMERIC", "BOOLEAN"].includes(data.dataType)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Unexpected data type ${data.dataType}`,
-      });
     }
   });
 
