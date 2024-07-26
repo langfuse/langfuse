@@ -202,27 +202,38 @@ export const ScoreBody = z
     ),
   ])
   .superRefine((data, ctx) => {
-    if (data.dataType) {
-      if (typeof data.value === "number") {
-        if (data.dataType === "CATEGORICAL") {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Value must be a string for data type ${data.dataType}`,
-          });
-        }
-      } else if (typeof data.value === "string") {
-        if (data.dataType === "NUMERIC") {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Value must be a number for data type ${data.dataType}`,
-          });
-        } else if (data.dataType === "BOOLEAN") {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Value must number equal to either 0 or 1 for data type ${data.dataType}`,
-          });
-        }
-      }
+    // Type guard to help TypeScript with type narrowing
+    function isOfType<T extends { dataType?: string }>(
+      d: T,
+      type: string
+    ): d is T & { dataType: string } {
+      return d.dataType === type;
+    }
+
+    if (isOfType(data, "CATEGORICAL") && typeof data.value === "number") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Value must be a string for data type ${data.dataType}`,
+      });
+    } else if (isOfType(data, "NUMERIC") && typeof data.value === "string") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Value must be a number for data type ${data.dataType}`,
+      });
+    } else if (isOfType(data, "BOOLEAN") && typeof data.value === "string") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Value must number equal to either 0 or 1 for data type ${data.dataType}`,
+      });
+    } else if (
+      data.dataType !== null &&
+      data.dataType !== undefined &&
+      !["CATEGORICAL", "NUMERIC", "BOOLEAN"].includes(data.dataType)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Unexpected data type ${data.dataType}`,
+      });
     }
   });
 
