@@ -232,7 +232,7 @@ export class ApiAuthService {
         this.createRedisKey(hash),
         JSON.stringify(apiKey),
         "EX",
-        env.LANGFUSE_CACHE_API_KEY_TTL, // redis API is in seconds
+        env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
       );
     } catch (error: unknown) {
       console.error("Error adding key to redis", error);
@@ -248,7 +248,7 @@ export class ApiAuthService {
       const redisApiKey = await this.redis.getex(
         this.createRedisKey(hash),
         "EX",
-        env.LANGFUSE_CACHE_API_KEY_TTL, // redis API is in seconds
+        env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
       );
 
       if (!redisApiKey) {
