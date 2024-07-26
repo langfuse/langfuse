@@ -2,9 +2,11 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
 import * as Sentry from "@sentry/node";
 import {
-  verifyAuthHeaderAndReturnScope,
+  ApiAuthService,
   type AuthHeaderValidVerificationResult,
 } from "@/src/features/public-api/server/apiAuth";
+import { prisma } from "@langfuse/shared/src/db";
+import { redis } from "@langfuse/shared/src/server";
 
 type RouteConfig<
   TQuery extends ZodType<any>,
@@ -33,9 +35,10 @@ export const createAuthedAPIRoute = <
   routeConfig: RouteConfig<TQuery, TBody, TResponse>,
 ): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
   return async (req: NextApiRequest, res: NextApiResponse) => {
-    const auth = await verifyAuthHeaderAndReturnScope(
-      req.headers.authorization,
-    );
+    const auth = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
     if (!auth.validKey) {
       res.status(401).json({ message: auth.error });
       return;

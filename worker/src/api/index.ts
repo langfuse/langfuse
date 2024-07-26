@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/node";
 import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import {
   convertTraceUpsertEventsToRedisEvents,
-  traceUpsertQueue,
+  getTraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import logger from "../logger";
@@ -52,6 +52,8 @@ router
         // Find set of traces per project. There might be two events for the same trace in one API call.
         // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
         const jobs = convertTraceUpsertEventsToRedisEvents(event.data.payload);
+        const traceUpsertQueue = getTraceUpsertQueue();
+
         await traceUpsertQueue?.addBulk(jobs); // add all jobs as bulk
 
         if (traceUpsertQueue) {
