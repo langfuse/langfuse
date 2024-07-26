@@ -488,17 +488,18 @@ model CronJobs {
 }
 
 model Dataset {
-    id           String        @id @default(cuid())
+    id           String        @default(cuid())
+    projectId    String        @map("project_id")
     name         String
     description  String?
     metadata     Json?
-    projectId    String        @map("project_id")
     project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
     createdAt    DateTime      @default(now()) @map("created_at")
     updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at")
     datasetItems DatasetItem[]
     datasetRuns  DatasetRuns[]
 
+    @@id([id, projectId])
     @@unique([projectId, name])
     @@index([projectId], type: Hash)
     @@index([createdAt])
@@ -507,7 +508,8 @@ model Dataset {
 }
 
 model DatasetItem {
-    id                  String            @id @default(cuid())
+    id                  String            @default(cuid())
+    projectId           String            @map("project_id")
     status              DatasetStatus     @default(ACTIVE)
     input               Json?
     expectedOutput      Json?             @map("expected_output")
@@ -517,11 +519,12 @@ model DatasetItem {
     sourceObservationId String?           @map("source_observation_id")
     sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
     datasetId           String            @map("dataset_id")
-    dataset             Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+    dataset             Dataset           @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
     createdAt           DateTime          @default(now()) @map("created_at")
     updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
     datasetRunItems     DatasetRunItems[]
 
+    @@id([id, projectId])
     @@index([sourceTraceId], type: Hash)
     @@index([sourceObservationId], type: Hash)
     @@index([datasetId], type: Hash)
@@ -536,17 +539,19 @@ enum DatasetStatus {
 }
 
 model DatasetRuns {
-    id              String            @id @default(cuid())
+    id              String            @default(cuid())
+    projectId       String            @map("project_id")
     name            String
     description     String?
     metadata        Json?
     datasetId       String            @map("dataset_id")
-    dataset         Dataset           @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+    dataset         Dataset           @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
     createdAt       DateTime          @default(now()) @map("created_at")
     updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
     datasetRunItems DatasetRunItems[]
 
-    @@unique([datasetId, name])
+    @@id([id, projectId])
+    @@unique([datasetId, projectId, name])
     @@index([datasetId], type: Hash)
     @@index([createdAt])
     @@index([updatedAt])
@@ -554,16 +559,18 @@ model DatasetRuns {
 }
 
 model DatasetRunItems {
-    id            String      @id @default(cuid())
+    id            String      @default(cuid())
+    projectId     String      @map("project_id")
     datasetRunId  String      @map("dataset_run_id")
-    datasetRun    DatasetRuns @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
+    datasetRun    DatasetRuns @relation(fields: [datasetRunId, projectId], references: [id, projectId], onDelete: Cascade)
     datasetItemId String      @map("dataset_item_id")
-    datasetItem   DatasetItem @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
+    datasetItem   DatasetItem @relation(fields: [datasetItemId, projectId], references: [id, projectId], onDelete: Cascade)
     traceId       String      @map("trace_id")
     observationId String?     @map("observation_id")
     createdAt     DateTime    @default(now()) @map("created_at")
     updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
 
+    @@id([id, projectId])
     @@index([datasetRunId], type: Hash)
     @@index([datasetItemId], type: Hash)
     @@index([observationId], type: Hash)

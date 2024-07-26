@@ -19,6 +19,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
+import { PromptService, redis } from "@langfuse/shared/src/server";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -248,16 +249,18 @@ export const promptRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
+        const { projectId, promptName } = input;
+
         throwIfNoAccess({
           session: ctx.session,
-          projectId: input.projectId,
+          projectId,
           scope: "prompts:CUD",
         });
 
         // fetch prompts before deletion to enable audit logging
         const prompts = await ctx.prisma.prompt.findMany({
           where: {
-            projectId: input.projectId,
+            projectId,
             name: input.promptName,
           },
         });
@@ -275,14 +278,23 @@ export const promptRouter = createTRPCRouter({
           );
         }
 
+        // Lock and invalidate cache for _all_ versions and labels of the prompt
+        const promptService = new PromptService(ctx.prisma, redis);
+        await promptService.lockCache({ projectId, promptName });
+        await promptService.invalidateCache({ projectId, promptName });
+
+        // Delete all prompts with the given name
         await ctx.prisma.prompt.deleteMany({
           where: {
-            projectId: input.projectId,
+            projectId,
             id: {
               in: prompts.map((p) => p.id),
             },
           },
         });
+
+        // Unlock cache
+        await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
         console.log(e);
         throw e;
@@ -296,19 +308,22 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      const { projectId } = input;
+
       try {
         throwIfNoAccess({
           session: ctx.session,
-          projectId: input.projectId,
+          projectId,
           scope: "prompts:CUD",
         });
 
         const promptVersion = await ctx.prisma.prompt.findFirstOrThrow({
           where: {
             id: input.promptVersionId,
-            projectId: input.projectId,
+            projectId,
           },
         });
+        const { name: promptName } = promptVersion;
 
         await auditLog(
           {
@@ -325,7 +340,7 @@ export const promptRouter = createTRPCRouter({
           ctx.prisma.prompt.delete({
             where: {
               id: input.promptVersionId,
-              projectId: input.projectId,
+              projectId,
             },
           }),
         ];
@@ -334,8 +349,8 @@ export const promptRouter = createTRPCRouter({
         if (promptVersion.labels.includes(LATEST_PROMPT_LABEL)) {
           const newLatestPrompt = await ctx.prisma.prompt.findFirst({
             where: {
-              projectId: input.projectId,
-              name: promptVersion.name,
+              projectId,
+              name: promptName,
               id: { not: input.promptVersionId },
             },
             orderBy: [{ version: "desc" }],
@@ -358,7 +373,16 @@ export const promptRouter = createTRPCRouter({
           }
         }
 
+        // Lock and invalidate cache for _all_ versions and labels of the prompt
+        const promptService = new PromptService(ctx.prisma, redis);
+        await promptService.lockCache({ projectId, promptName });
+        await promptService.invalidateCache({ projectId, promptName });
+
+        // Execute transaction
         await ctx.prisma.$transaction(transaction);
+
+        // Unlock cache
+        await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
         console.log(e);
         throw e;
@@ -374,19 +398,22 @@ export const promptRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
+        const { projectId } = input;
+
         throwIfNoAccess({
           session: ctx.session,
-          projectId: input.projectId,
+          projectId,
           scope: "prompts:CUD",
         });
 
         const toBeLabeledPrompt = await ctx.prisma.prompt.findUniqueOrThrow({
           where: {
             id: input.promptId,
-            projectId: input.projectId,
+            projectId,
           },
         });
 
+        const { name: promptName } = toBeLabeledPrompt;
         const newLabels = [...new Set(input.labels)];
 
         await auditLog(
@@ -405,8 +432,8 @@ export const promptRouter = createTRPCRouter({
 
         const previousLabeledPrompts = await ctx.prisma.prompt.findMany({
           where: {
-            projectId: input.projectId,
-            name: toBeLabeledPrompt.name,
+            projectId,
+            name: promptName,
             labels: { hasSome: newLabels },
             id: { not: input.promptId },
           },
@@ -417,7 +444,7 @@ export const promptRouter = createTRPCRouter({
           ctx.prisma.prompt.update({
             where: {
               id: toBeLabeledPrompt.id,
-              projectId: input.projectId,
+              projectId,
             },
             data: {
               labels: newLabels,
@@ -431,7 +458,7 @@ export const promptRouter = createTRPCRouter({
             ctx.prisma.prompt.update({
               where: {
                 id: prevPrompt.id,
-                projectId: input.projectId,
+                projectId,
               },
               data: {
                 labels: prevPrompt.labels.filter((l) => !newLabels.includes(l)),
@@ -439,7 +466,17 @@ export const promptRouter = createTRPCRouter({
             }),
           );
         });
+
+        // Lock and invalidate cache for _all_ versions and labels of the prompt
+        const promptService = new PromptService(ctx.prisma, redis);
+        await promptService.lockCache({ projectId, promptName });
+        await promptService.invalidateCache({ projectId, promptName });
+
+        // Execute transaction
         await ctx.prisma.$transaction(toBeExecuted);
+
+        // Unlock cache
+        await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
         console.log(e);
         throw e;
@@ -472,23 +509,32 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      const { projectId, name: promptName } = input;
+
       throwIfNoAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId,
         scope: "objects:tag",
       });
+
       try {
         await auditLog({
           session: ctx.session,
           resourceType: "prompt",
-          resourceId: input.name,
+          resourceId: promptName,
           action: "updateTags",
           after: input.tags,
         });
+
+        // Lock and invalidate cache for _all_ versions and labels of the prompt
+        const promptService = new PromptService(ctx.prisma, redis);
+        await promptService.lockCache({ projectId, promptName });
+        await promptService.invalidateCache({ projectId, promptName });
+
         await ctx.prisma.prompt.updateMany({
           where: {
-            name: input.name,
-            projectId: input.projectId,
+            name: promptName,
+            projectId,
           },
           data: {
             tags: {
@@ -496,6 +542,9 @@ export const promptRouter = createTRPCRouter({
             },
           },
         });
+
+        // Unlock cache
+        await promptService.unlockCache({ projectId, promptName });
       } catch (error) {
         console.error(error);
       }

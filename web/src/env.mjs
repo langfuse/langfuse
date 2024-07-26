@@ -112,6 +112,29 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+    ADMIN_API_KEY: z.string().optional(),
+    ENCRYPTION_KEY: z
+      .string()
+      .length(
+        64,
+        "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
+      )
+      .optional(),
+    REDIS_HOST: z.string().nullish(),
+    REDIS_PORT: z.coerce
+      .number({
+        description:
+          ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+      })
+      .positive()
+      .max(65536, `options.port should be >= 0 and < 65536`)
+      .default(6379)
+      .nullable(),
+    REDIS_AUTH: z.string().nullish(),
+    REDIS_CONNECTION_STRING: z.string().nullish(),
+    // langfuse caching
+    LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_CACHE_API_KEY_TTL: z.number().default(120),
     // Blocked public api keys
     LANGFUSE_BLOCKED_PUBLIC_API_KEYS: z
       .string()
@@ -234,6 +257,15 @@ export const env = createEnv({
     ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
+    ADMIN_API_KEY: process.env.ADMIN_API_KEY,
+    ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    REDIS_HOST: process.env.REDIS_HOST,
+    REDIS_PORT: process.env.REDIS_PORT,
+    REDIS_AUTH: process.env.REDIS_AUTH,
+    REDIS_CONNECTION_STRING: process.env.REDIS_CONNECTION_STRING,
+    // langfuse caching
+    LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
+    LANGFUSE_CACHE_API_KEY_TTL: process.env.LANGFUSE_CACHE_API_KEY_TTL,
     // Blocked public api keys
     LANGFUSE_BLOCKED_PUBLIC_API_KEYS:
       process.env.LANGFUSE_BLOCKED_PUBLIC_API_KEYS,

@@ -718,7 +718,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=&toStartTime=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=&toStartTime=&version=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -772,6 +772,11 @@
                   "key": "toStartTime",
                   "value": "",
                   "description": "Retrieve only observations with a start_time before this datetime (ISO 8601)."
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Optional filter to only include observations with a certain version."
                 }
               ],
               "variable": []
@@ -1261,7 +1266,7 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get sessions.",
+            "description": "Get sessions",
             "url": {
               "raw": "{{baseUrl}}/api/public/sessions?page=&limit=&fromTimestamp=&toTimestamp=",
               "host": [
@@ -1378,9 +1383,9 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get list of traces.",
+            "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1434,6 +1439,16 @@
                   "key": "tags",
                   "value": "",
                   "description": "Only traces that include all of these tags will be returned."
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Optional filter to only include traces with a certain version."
+                },
+                {
+                  "key": "release",
+                  "value": "",
+                  "description": "Optional filter to only include traces with a certain release."
                 }
               ],
               "variable": []

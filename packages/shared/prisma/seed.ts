@@ -14,6 +14,7 @@ import { v4 } from "uuid";
 import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey } from "../src/server";
 import { encrypt } from "../src/encryption";
+import { redis } from "../src/server/redis/redis";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -286,6 +287,7 @@ async function main() {
             : undefined;
         const datasetItem = await prisma.datasetItem.create({
           data: {
+            projectId: project2.id,
             datasetId: dataset.id,
             sourceTraceId: sourceObservation?.traceId,
             sourceObservationId:
@@ -312,6 +314,7 @@ async function main() {
       for (let datasetRunNumber = 0; datasetRunNumber < 5; datasetRunNumber++) {
         const datasetRun = await prisma.datasetRuns.create({
           data: {
+            projectId: project2.id,
             name: `demo-dataset-run-${datasetRunNumber}`,
             description: Math.random() > 0.5 ? "Dataset run description" : "",
             datasetId: dataset.id,
@@ -336,6 +339,7 @@ async function main() {
 
           await prisma.datasetRunItems.create({
             data: {
+              projectId: project2.id,
               datasetItemId,
               traceId: observation.traceId as string,
               observationId: Math.random() > 0.5 ? observation.id : undefined,
@@ -351,10 +355,14 @@ async function main() {
 main()
   .then(async () => {
     await prisma.$disconnect();
+    redis?.disconnect();
+    console.log("Disconnected from postgres and redis");
   })
   .catch(async (e) => {
     console.error(e);
     await prisma.$disconnect();
+    redis?.disconnect();
+    console.log("Disconnected from postgres and redis");
     process.exit(1);
   });
 

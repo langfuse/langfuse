@@ -7,7 +7,7 @@ service:
   base-path: /api/public
   endpoints:
     list:
-      docs: Get sessions.
+      docs: Get sessions
       method: GET
       path: /sessions
       request:
