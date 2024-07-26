@@ -84,7 +84,7 @@ export class ApiAuthService {
         const { username: publicKey, password: secretKey } =
           this.extractBasicAuthCredentials(authHeader);
 
-      filterBlockedPublicKey(publicKey);
+        filterBlockedPublicKey(publicKey);
 
         const salt = env.SALT;
         const hashFromProvidedKey = createShaHash(secretKey, salt);
@@ -126,19 +126,19 @@ export class ApiAuthService {
           id: projectId,
         });
 
-      return {
-        validKey: true,
-        scope: {
-          projectId: projectId,
-          accessLevel: "all",
-        },
-      };
-    }
-    // Bearer auth, limited scope, only needs public key
-    if (authHeader.startsWith("Bearer ")) {
-      const publicKey = authHeader.replace("Bearer ", "");
+        return {
+          validKey: true,
+          scope: {
+            projectId: projectId,
+            accessLevel: "all",
+          },
+        };
+      }
+      // Bearer auth, limited scope, only needs public key
+      if (authHeader.startsWith("Bearer ")) {
+        const publicKey = authHeader.replace("Bearer ", "");
 
-      filterBlockedPublicKey(publicKey);
+        filterBlockedPublicKey(publicKey);
 
         const dbKey = await this.findDbKeyOrThrow(publicKey);
         Sentry.setUser({
@@ -160,27 +160,27 @@ export class ApiAuthService {
         throw error;
       }
 
+      return {
+        validKey: false,
+        error:
+          (error instanceof Error ? error.message : "Authorization error") +
+          ". Confirm that you've configured the correct host.",
+      };
+    }
     return {
       validKey: false,
-      error:
-        (error instanceof Error ? error.message : "Authorization error") +
-        ". Confirm that you've configured the correct host.",
+      error: "Invalid authorization header",
     };
   }
-  return {
-    validKey: false,
-    error: "Invalid authorization header",
-  };
-}
 
-function filterBlockedPublicKey(publicKey: string) {
-  const blocked = env.LANGFUSE_BLOCKED_PUBLIC_API_KEYS.includes(publicKey);
+  filterBlockedPublicKey(publicKey: string) {
+    const blocked = env.LANGFUSE_BLOCKED_PUBLIC_API_KEYS.includes(publicKey);
 
-  if (blocked) {
-    console.log("Blocked public key:", publicKey);
-    throw new Error("Invalid public key");
+    if (blocked) {
+      console.log("Blocked public key:", publicKey);
+      throw new Error("Invalid public key");
+    }
   }
-}
 
   extractBasicAuthCredentials(basicAuthHeader: string): {
     username: string;
