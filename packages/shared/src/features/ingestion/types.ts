@@ -180,12 +180,10 @@ export const ScoreBody = z.discriminatedUnion("dataType", [
   ),
   BaseScoreBody.merge(
     z.object({
-      value: z.string(),
-      dataType: z
-        .literal("CATEGORICAL")
-        .refine((value) => typeof value === "string", {
-          message: "Value must be a string for data type CATEGORICAL",
-        }),
+      value: z.string().refine((value) => typeof value === "string", {
+        message: "Value must be a string for data type CATEGORICAL",
+      }),
+      dataType: z.literal("CATEGORICAL"),
       configId: z.string().nullish(),
     })
   ),
@@ -193,7 +191,7 @@ export const ScoreBody = z.discriminatedUnion("dataType", [
     z.object({
       value: z.number().refine((value) => value === 0 || value === 1, {
         message:
-          "Value must a number equal to either 0 or 1 for data type BOOLEAN",
+          "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
       }),
       dataType: z.literal("BOOLEAN"),
       configId: z.string().nullish(),
