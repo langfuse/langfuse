@@ -70,7 +70,6 @@ import Header from "@/src/components/layouts/header";
 import { MultiSelectKeyValues } from "@/src/features/manual-scoring/components/multi-select-key-values";
 import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { isPresent } from "@/src/utils/typeChecks";
