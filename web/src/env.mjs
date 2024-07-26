@@ -134,7 +134,7 @@ export const env = createEnv({
     REDIS_CONNECTION_STRING: z.string().nullish(),
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
-    LANGFUSE_CACHE_API_KEY_TTL: z.number().default(60),
+    LANGFUSE_CACHE_API_KEY_TTL: z.number().default(120),
   },
 
   /**

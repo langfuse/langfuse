@@ -20,6 +20,7 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
 import { type APIScore } from "@/src/features/public-api/types/scores";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 export const TracePreview = ({
   trace,
@@ -34,6 +35,9 @@ export const TracePreview = ({
     "view",
     withDefault(StringParam, "preview"),
   );
+  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
+    string[]
+  >("emptySelectedConfigIds", []);
 
   const traceScores = scores.filter((s) => s.observationId === null);
   const traceScoresBySource = traceScores.reduce((acc, score) => {
@@ -100,6 +104,8 @@ export const TracePreview = ({
               projectId={trace.projectId}
               traceId={trace.id}
               scores={scores}
+              emptySelectedConfigIds={emptySelectedConfigIds}
+              setEmptySelectedConfigIds={setEmptySelectedConfigIds}
               key={"annotation-drawer" + trace.id}
             />
             <NewDatasetItemFromTrace
