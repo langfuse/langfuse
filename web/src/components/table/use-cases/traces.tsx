@@ -11,9 +11,7 @@ import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
-import {
-  formatIntervalSeconds,
-} from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
@@ -153,12 +151,11 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-  const timestampFilter = filterState.find((f) => f.column === "Timestamp");
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
       timestampFilter:
-        timestampFilter?.type === "datetime" ? timestampFilter : undefined,
+        dateRangeFilter[0].type === "datetime" ? dateRangeFilter[0] : undefined,
     },
     {
       trpc: {

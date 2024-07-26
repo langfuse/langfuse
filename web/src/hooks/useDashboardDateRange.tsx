@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import {
-  DASHBOARD_AGGREGATION_PLACEHOLDER,
-  findClosestDashboardIntervalToDate,
   dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
   isValidDashboardDateRangeAggregationOption,
@@ -20,21 +18,14 @@ export interface UseDashboardDateRangeOutput {
   ) => void;
 }
 
-export function useDashboardDateRange(
-  initialDate?: Date,
-): UseDashboardDateRangeOutput {
+export function useDashboardDateRange(): UseDashboardDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
     select: withDefault(StringParam, "Select a date range"),
     from: StringParam,
     to: StringParam,
   });
 
-  const closestInterval = initialDate
-    ? findClosestDashboardIntervalToDate(initialDate)
-    : "24 hours";
-
-  const initialRangeOption =
-    closestInterval ?? DASHBOARD_AGGREGATION_PLACEHOLDER;
+  const initialRangeOption = "24 hours";
 
   const initialRange: DashboardDateRange | undefined =
     queryParams.select !== "Select a date range" &&
@@ -44,7 +35,13 @@ export function useDashboardDateRange(
           from: new Date(queryParams.from),
           to: new Date(queryParams.to),
         }
-      : undefined;
+      : {
+          from: addMinutes(
+            new Date(),
+            -dashboardDateRangeAggregationSettings[initialRangeOption].minutes,
+          ),
+          to: new Date(),
+        };
 
   const validatedInitialRangeOption =
     isValidDashboardDateRangeAggregationOption(queryParams.select) ||
@@ -76,17 +73,6 @@ export function useDashboardDateRange(
     }
     setQueryParams(newParams);
   };
-
-  useEffect(() => {
-    if (selectedOption in dashboardDateRangeAggregationSettings) {
-      const { minutes } =
-        dashboardDateRangeAggregationSettings[
-          selectedOption as keyof typeof dashboardDateRangeAggregationSettings
-        ];
-      const fromDate = addMinutes(new Date(), -minutes);
-      setDateRange({ from: fromDate, to: new Date() });
-    }
-  }, [selectedOption]);
 
   return { selectedOption, dateRange, setDateRangeAndOption };
 }

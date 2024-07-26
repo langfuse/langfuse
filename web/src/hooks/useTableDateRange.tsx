@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { addMinutes } from "date-fns";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
@@ -34,8 +34,19 @@ export function useTableDateRange(
   const [selectedOption, setSelectedOption] = useState<TableDateRangeOptions>(
     validatedInitialRangeOption,
   );
-  const [dateRange, setDateRange] = useState<DashboardDateRange | undefined>();
+  const initialDateRange = {
+    from: addMinutes(
+      new Date(),
+      -tableDateRangeAggregationSettings[
+        validatedInitialRangeOption as keyof typeof tableDateRangeAggregationSettings
+      ],
+    ),
+    to: new Date(),
+  };
 
+  const [dateRange, setDateRange] = useState<DashboardDateRange | undefined>(
+    initialDateRange,
+  );
   const setDateRangeAndOption = (
     option: TableDateRangeOptions,
     range?: DashboardDateRange,
@@ -44,17 +55,6 @@ export function useTableDateRange(
     setDateRange(range);
     setQueryParams({ select: option });
   };
-
-  useEffect(() => {
-    if (selectedOption in tableDateRangeAggregationSettings) {
-      const minutes =
-        tableDateRangeAggregationSettings[
-          selectedOption as keyof typeof tableDateRangeAggregationSettings
-        ];
-      const fromDate = addMinutes(new Date(), -minutes);
-      setDateRange({ from: fromDate, to: new Date() });
-    }
-  }, [selectedOption]);
 
   return { selectedOption, dateRange, setDateRangeAndOption };
 }
