@@ -31,6 +31,8 @@ CREATE TABLE observations (
     `total_cost` Nullable(Decimal64(12)),
     `completion_start_time` Nullable(DateTime64(3)),
     `prompt_id` Nullable(String),
+    `prompt_name` Nullable(String),
+    `prompt_version` Nullable(UInt16),
     `created_at` DateTime64(3) DEFAULT now(),
     `updated_at` DateTime64(3) DEFAULT now(),
     INDEX idx_id id TYPE bloom_filter() GRANULARITY 1,

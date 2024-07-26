@@ -134,6 +134,9 @@ function convertObservations(jsonRecords: unknown[]): ObservationView[] {
       calculatedTotalCost: new Decimal(record.total_cost ?? 0) || null,
 
       promptId: record.prompt_id ?? null,
+      promptName: record.prompt_name ?? null,
+      promptVersion: record.prompt_version ?? null,
+
       modelId: record.internal_model_id ?? null,
       inputPrice: null,
       outputPrice: null,

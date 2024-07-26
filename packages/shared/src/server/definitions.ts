@@ -37,6 +37,8 @@ export const observationRecordBaseSchema = z.object({
   provided_output_cost: z.number().nullish(),
   provided_total_cost: z.number().nullish(),
   prompt_id: z.string().nullish(),
+  prompt_name: z.string().nullish(),
+  prompt_version: z.number().nullish(),
 });
 export type ObservationRecordBaseType = z.infer<
   typeof observationRecordBaseSchema

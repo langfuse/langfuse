@@ -35,9 +35,6 @@ export default withMiddlewares({
               id: traceId,
               projectId: auth.scope.projectId,
             },
-            include: {
-              scores: true,
-            },
           });
 
       if (!trace) {
@@ -61,6 +58,7 @@ export default withMiddlewares({
                 traceId: traceId,
                 projectId: auth.scope.projectId,
               },
+              orderBy: { startTime: "asc" },
             }),
       ]);
 

@@ -12,7 +12,9 @@ import {
   handleBatch,
   parseSingleTypedIngestionApiResponse,
 } from "@/src/pages/api/public/ingestion";
-import { type Trace, eventTypes } from "@langfuse/shared";
+import { type Trace } from "@langfuse/shared";
+import { eventTypes } from "@langfuse/shared/src/server";
+
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { tracesTableCols, orderByToPrismaSql } from "@langfuse/shared";

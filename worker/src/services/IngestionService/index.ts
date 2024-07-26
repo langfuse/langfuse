@@ -2,7 +2,7 @@ import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 
-import { Model, PrismaClient, QueueJobs } from "@langfuse/shared";
+import { Model, PrismaClient, Prompt, QueueJobs } from "@langfuse/shared";
 import {
   convertObservationReadToInsert,
   convertScoreReadToInsert,
@@ -294,13 +294,13 @@ export class IngestionService {
     const { projectId, entityId, observationEventList } = params;
     if (observationEventList.length === 0) return;
 
-    const promptId = await this.getPromptId(projectId, observationEventList);
+    const prompt = await this.getPrompt(projectId, observationEventList);
 
     const observationRecords = this.mapObservationEventsToRecords({
       observationEventList,
       projectId,
       entityId,
-      promptId,
+      prompt,
     });
 
     const finalObservationRecord = await this.mergeObservationRecords({
@@ -458,16 +458,16 @@ export class IngestionService {
     );
   }
 
-  private async getPromptId(
+  private async getPrompt(
     projectId: string,
     observationEventList: ObservationEvent[]
-  ): Promise<string | undefined> {
+  ): Promise<ObservationPrompt | null> {
     const lastObservationWithPromptInfo = observationEventList
       .slice()
       .reverse()
       .find(this.hasPromptInformation);
 
-    if (!lastObservationWithPromptInfo) return undefined;
+    if (!lastObservationWithPromptInfo) return null;
 
     const dbPrompt = await this.prisma.prompt.findFirst({
       where: {
@@ -477,10 +477,12 @@ export class IngestionService {
       },
       select: {
         id: true,
+        name: true,
+        version: true,
       },
     });
 
-    return dbPrompt?.id;
+    return dbPrompt;
   }
 
   private hasPromptInformation(
@@ -726,9 +728,9 @@ export class IngestionService {
     projectId: string;
     entityId: string;
     observationEventList: ObservationEvent[];
-    promptId?: string;
+    prompt: ObservationPrompt | null;
   }) {
-    const { projectId, entityId, observationEventList, promptId } = params;
+    const { projectId, entityId, observationEventList, prompt } = params;
 
     return observationEventList.map((obs) => {
       let observationType: "EVENT" | "SPAN" | "GENERATION";
@@ -815,7 +817,9 @@ export class IngestionService {
           "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
         provided_total_cost:
           "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
-        prompt_id: promptId,
+        prompt_id: prompt?.id,
+        prompt_name: prompt?.name,
+        prompt_version: prompt?.version,
         created_at: Date.now(),
         updated_at: Date.now(),
       };
@@ -828,3 +832,5 @@ export class IngestionService {
     return timestamp ? new Date(timestamp).getTime() * 1000 : Date.now() * 1000;
   }
 }
+
+type ObservationPrompt = Pick<Prompt, "id" | "name" | "version">;
