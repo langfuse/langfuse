@@ -34,9 +34,9 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
   const DB_MAX_WAIT = 2 * 1000; // 2 seconds
   const DB_TIMEOUT = 3 * 1000; // 3 seconds
 
-  const isCacheExpired = cachedSsoConfigs.failedToFetch
-    ? Date.now() - cachedSsoConfigs.timestamp > FAILEDTOFETCH_RETRY_AFTER
-    : Date.now() - cachedSsoConfigs.timestamp > CACHE_TTL;
+  const isCacheExpired =
+    Date.now() - cachedSsoConfigs.timestamp >
+    (cachedSsoConfigs.failedToFetch ? FAILEDTOFETCH_RETRY_AFTER : CACHE_TTL);
 
   if (isCacheExpired) {
     // findMany with custom timeout via $transaction
