@@ -32,6 +32,13 @@ export const ApiKeyZod = z.object({
   projectId: z.string(),
 });
 
+const API_KEY_NON_EXISTENT = "api-key-non-existent";
+
+export const CachedApiKey = z.union([
+  ApiKeyZod,
+  z.literal(API_KEY_NON_EXISTENT),
+]);
+
 export class ApiAuthService {
   prisma: PrismaClient;
   redis: Redis | null;
@@ -88,7 +95,7 @@ export class ApiAuthService {
         const hashFromProvidedKey = createShaHash(secretKey, salt);
 
         // fetches by redis if available, fallback to postgres
-        const apiKey = await this.fetchApiKeyByHash(hashFromProvidedKey);
+        const apiKey = await this.fetchApiKeyAndAddToRedis(hashFromProvidedKey);
 
         let projectId = apiKey?.projectId;
 
@@ -192,12 +199,12 @@ export class ApiAuthService {
     return dbKey;
   }
 
-  async fetchApiKeyByHash(hash: string) {
+  async fetchApiKeyAndAddToRedis(hash: string) {
     // first get the API key from redis, this does not throw
     const redisApiKey = await this.fetchApiKeyFromRedis(hash);
 
     // if we found something, return the object.
-    if (redisApiKey) {
+    if (redisApiKey && redisApiKey !== API_KEY_NON_EXISTENT) {
       Sentry.metrics.increment("api_key_cache_hit");
       console.log(
         `Found key with id ${redisApiKey.id} for project ${redisApiKey.projectId} in redis`,
@@ -218,11 +225,20 @@ export class ApiAuthService {
         `Add key with id ${apiKey.id} for project ${apiKey.projectId} to redis`,
       );
       await this.addApiKeyToRedis(hash, apiKey);
+    } else {
+      // Store a null placeholder in Redis to avoid repeated DB lookups
+      console.log(
+        `No key found for hash ${hash}, storing ${API_KEY_NON_EXISTENT} in redis`,
+      );
+      await this.addApiKeyToRedis(hash, API_KEY_NON_EXISTENT);
     }
     return apiKey;
   }
 
-  async addApiKeyToRedis(hash: string, apiKey: ApiKey) {
+  async addApiKeyToRedis(
+    hash: string,
+    apiKey: ApiKey | typeof API_KEY_NON_EXISTENT,
+  ) {
     if (!this.redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") {
       return;
     }
@@ -255,7 +271,7 @@ export class ApiAuthService {
         return null;
       }
 
-      const parsedApiKey = ApiKeyZod.safeParse(JSON.parse(redisApiKey));
+      const parsedApiKey = CachedApiKey.safeParse(JSON.parse(redisApiKey));
 
       if (parsedApiKey.success) {
         return parsedApiKey.data;
