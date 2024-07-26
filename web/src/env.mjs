@@ -134,7 +134,7 @@ export const env = createEnv({
     REDIS_CONNECTION_STRING: z.string().nullish(),
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
-    LANGFUSE_CACHE_API_KEY_TTL: z.number().default(120),
+    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
   },
 
   /**
@@ -260,7 +260,8 @@ export const env = createEnv({
     REDIS_CONNECTION_STRING: process.env.REDIS_CONNECTION_STRING,
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
-    LANGFUSE_CACHE_API_KEY_TTL: process.env.LANGFUSE_CACHE_API_KEY_TTL,
+    LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
+      process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
