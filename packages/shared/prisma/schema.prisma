@@ -376,7 +376,10 @@ view ObservationView {
     unit                String?
     completionStartTime DateTime? @map("completion_start_time")
 
-    promptId String? @map("prompt_id")
+    // prompts
+    promptId      String? @map("prompt_id")
+    promptName    String? @map("prompt_name")
+    promptVersion Int?    @map("prompt_version")
 
     // model fields
     modelId     String?  @map("model_id")

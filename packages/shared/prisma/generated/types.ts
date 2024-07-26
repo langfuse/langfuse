@@ -309,6 +309,8 @@ export type ObservationView = {
     unit: string | null;
     completion_start_time: Timestamp | null;
     prompt_id: string | null;
+    prompt_name: string | null;
+    prompt_version: number | null;
     model_id: string | null;
     input_price: string | null;
     output_price: string | null;
