@@ -5,7 +5,10 @@ import { enqueueBatchExportJobs } from "../features/batchExport/enqueueBatchExpo
 import { QueueJobs, QueueName } from "@langfuse/shared";
 
 export const repeatQueue = redis
-  ? new Queue(QueueName.RepeatQueue, { connection: redis })
+  ? new Queue(QueueName.RepeatQueue, {
+      connection: redis,
+      defaultJobOptions: { removeOnComplete: true, removeOnFail: true },
+    })
   : null;
 
 if (repeatQueue) {
