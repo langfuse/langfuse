@@ -192,18 +192,14 @@ export const validateDbScore = (score: Score): APIScore =>
 export const PostScoresBody = z.discriminatedUnion("dataType", [
   BaseScoreBody.merge(
     z.object({
-      value: z.number().refine((value) => typeof value === "number", {
-        message: "Value must be a number for data type NUMERIC",
-      }),
+      value: z.number(),
       dataType: z.literal("NUMERIC"),
       configId: z.string().nullish(),
     }),
   ),
   BaseScoreBody.merge(
     z.object({
-      value: z.string().refine((value) => typeof value === "string", {
-        message: "Value must be a string for data type CATEGORICAL",
-      }),
+      value: z.string(),
       dataType: z.literal("CATEGORICAL"),
       configId: z.string().nullish(),
     }),
