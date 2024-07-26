@@ -81,6 +81,8 @@ export default withMiddlewares({
             o."calculated_total_cost" as "calculatedTotalCost",
             o."latency",
             o."prompt_id" as "promptId",
+            o."prompt_name" as "promptName",
+            o."prompt_version" as "promptVersion",
             o."created_at" as "createdAt",
             o."updated_at" as "updatedAt",
             o."time_to_first_token" as "timeToFirstToken"
@@ -114,8 +116,6 @@ export default withMiddlewares({
         throw new InternalServerError("Unexpected totalItems result");
       }
       const totalItems = Number(countRes[0].count);
-
-      console.log(observations);
 
       return {
         data: observations.map(transformDbToApiObservation),

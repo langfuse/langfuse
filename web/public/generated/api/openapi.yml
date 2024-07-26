@@ -2181,6 +2181,12 @@ components:
       title: ObservationsView
       type: object
       properties:
+        promptName:
+          type: string
+          nullable: true
+        promptVersion:
+          type: integer
+          nullable: true
         modelId:
           type: string
           nullable: true
