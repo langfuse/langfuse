@@ -598,7 +598,7 @@ describe("/api/public/scores API Endpoint", () => {
         {
           code: "custom",
           message:
-            "Value must a number equal to either 0 or 1 for data type BOOLEAN",
+            "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
           path: ["value"],
         },
       ],
