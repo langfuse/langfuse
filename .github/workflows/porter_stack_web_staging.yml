@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - fix-env-cache-variables
+      - main
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
