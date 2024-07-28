@@ -27,7 +27,7 @@ const EnvSchema = z.object({
   CLICKHOUSE_USER: z.string().optional().default("clickhouse"),
   CLICKHOUSE_PASSWORD: z.string().optional().default("clickhouse"),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.number().default(60 * 60),
+  LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(60 * 60),
 });
 
 export const env = EnvSchema.parse(process.env);
