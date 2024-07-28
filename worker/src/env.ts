@@ -45,6 +45,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3000),
+  LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: z.coerce
+    .number()
+    .positive()
+    .default(3),
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .optional(),

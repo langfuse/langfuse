@@ -7,16 +7,11 @@ import {
 import { env } from "../../env";
 import logger from "../../logger";
 
-export enum TableName {
-  Traces = "traces",
-  Scores = "scores",
-  Observations = "observations",
-}
-
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
   batchSize: number;
   writeInterval: number;
+  maxAttempts: number;
   queue: ClickhouseQueue;
 
   isIntervalFlushInProgress: boolean;
@@ -25,13 +20,15 @@ export class ClickhouseWriter {
   private constructor() {
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
+    this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
+
+    this.isIntervalFlushInProgress = false;
+
     this.queue = {
       [TableName.Traces]: [],
       [TableName.Scores]: [],
       [TableName.Observations]: [],
     };
-
-    this.isIntervalFlushInProgress = false;
 
     this.start();
   }
@@ -85,23 +82,42 @@ export class ClickhouseWriter {
     });
   }
 
-  private async flush(tableName: TableName, fullQueue = false) {
+  private async flush<T extends TableName>(tableName: T, fullQueue = false) {
     const entityQueue = this.queue[tableName];
     if (entityQueue.length === 0) return;
 
-    const records = entityQueue.splice(
+    const queueItems = entityQueue.splice(
       0,
       fullQueue ? entityQueue.length : this.batchSize
     );
 
-    await this.writeToClickhouse({
-      table: tableName,
-      records: records as any,
-    });
+    try {
+      await this.writeToClickhouse({
+        table: tableName,
+        records: queueItems.map((item) => item.data),
+      });
 
-    logger.debug(
-      `Flushed ${records.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`
-    );
+      logger.debug(
+        `Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`
+      );
+    } catch (err) {
+      logger.error(`ClickhouseWriter.flush ${tableName}`, err);
+
+      // Re-add the records to the queue with incremented attempts
+      queueItems.forEach((item) => {
+        if (item.attempts < this.maxAttempts) {
+          entityQueue.push({
+            ...item,
+            attempts: item.attempts + 1,
+          });
+        } else {
+          // TODO - Add to a dead letter queue in Redis rather than dropping
+          logger.error(
+            `Max attempts reached for ${tableName} record. Dropping record ${item.data}.`
+          );
+        }
+      });
+    }
   }
 
   public addToQueue<T extends TableName>(
@@ -109,7 +125,11 @@ export class ClickhouseWriter {
     data: RecordInsertType<T>
   ) {
     const entityQueue = this.queue[tableName];
-    entityQueue.push(data as any);
+    entityQueue.push({
+      createdAt: Date.now(),
+      attempts: 1,
+      data,
+    });
 
     if (entityQueue.length >= this.batchSize) {
       logger.debug(`Queue is full. Flushing ${tableName}...`);
@@ -142,6 +162,12 @@ export class ClickhouseWriter {
   }
 }
 
+export enum TableName {
+  Traces = "traces",
+  Scores = "scores",
+  Observations = "observations",
+}
+
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
   ? ScoreRecordInsertType
   : T extends TableName.Observations
@@ -151,7 +177,11 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
       : never;
 
 type ClickhouseQueue = {
-  [TableName.Traces]: TraceRecordInsertType[];
-  [TableName.Scores]: ScoreRecordInsertType[];
-  [TableName.Observations]: ObservationRecordInsertType[];
+  [T in TableName]: ClickhouseWriterQueueItem<T>[];
+};
+
+type ClickhouseWriterQueueItem<T extends TableName> = {
+  createdAt: number;
+  attempts: number;
+  data: RecordInsertType<T>;
 };

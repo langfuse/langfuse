@@ -11,6 +11,6 @@ export const clickhouseClient = createClient({
   database: "default",
   clickhouse_settings: {
     async_insert: 1,
-    wait_for_async_insert: 1, // if disabled, we wont get errors from clickhouse
+    wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
   },
 });

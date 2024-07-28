@@ -22,7 +22,7 @@ export default withMiddlewares({
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const shouldServeFromClickhouse =
-        env.POSTGRES_TRACING_DATASTORE_ENABLED === "true";
+        env.SERVE_FROM_CLICKHOUSE_ENABLED === "true";
       const { traceId } = query;
 
       const trace = shouldServeFromClickhouse
