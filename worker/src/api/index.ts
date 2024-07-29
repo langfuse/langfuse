@@ -44,7 +44,7 @@ router
         });
 
         logger.info(
-          `Clickhouse health check response: ${JSON.stringify(response)}`
+          `Clickhouse health check response: ${JSON.stringify(await response.text())}`
         );
 
         res.json({ status: "success" });
