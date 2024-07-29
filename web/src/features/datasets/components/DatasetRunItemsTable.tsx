@@ -84,7 +84,7 @@ export function DatasetRunItemsTable(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runItems.isSuccess, runItems.data]);
 
-  const individualScoreColumns = api.scores.scoreNames.useQuery({
+  const scoreNamesList = api.scores.getNamesList.useQuery({
     projectId: props.projectId,
   });
 
@@ -221,7 +221,7 @@ export function DatasetRunItemsTable(
     item: RouterOutput["datasets"]["runitemsByRunIdOrItemId"]["runItems"][number],
   ): DatasetRunItemRowData => {
     const detailColumns = getDetailColumns(
-      individualScoreColumns.data?.scoreColumns,
+      scoreNamesList.data?.names,
       item.scores,
     );
 
@@ -259,9 +259,9 @@ export function DatasetRunItemsTable(
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunItemRowData>(
       `datasetRunsItemsColumnVisibility-${props.projectId}`,
-      individualScoreColumns.isLoading
+      scoreNamesList.isLoading
         ? []
-        : extendColumns(columns, individualScoreColumns.data?.scoreColumns),
+        : extendColumns(columns, scoreNamesList.data?.names),
     );
 
   return (
@@ -269,7 +269,7 @@ export function DatasetRunItemsTable(
       <DataTableToolbar
         columns={columns}
         detailColumns={constructDetailColumns<DatasetRunItemRowData>(
-          individualScoreColumns.data?.scoreColumns ?? [],
+          scoreNamesList.data?.names ?? [],
         )}
         detailColumnHeader="Individual Scores"
         columnVisibility={columnVisibility}
@@ -280,7 +280,7 @@ export function DatasetRunItemsTable(
       <DataTable
         columns={columns}
         detailColumns={constructDetailColumns<DatasetRunItemRowData>(
-          individualScoreColumns.data?.scoreColumns ?? [],
+          scoreNamesList.data?.names ?? [],
         )}
         data={
           runItems.isLoading
@@ -294,7 +294,7 @@ export function DatasetRunItemsTable(
               : {
                   isLoading: false,
                   isError: false,
-                  data: !individualScoreColumns.isLoading
+                  data: !scoreNamesList.isLoading
                     ? runItems.data.runItems.map((t) => convertToTableRow(t))
                     : [],
                 }

@@ -293,7 +293,7 @@ export const scoresRouter = createTRPCRouter({
         },
       });
     }),
-  scoreNames: protectedProjectProcedure
+  getNamesList: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -314,7 +314,7 @@ export const scoresRouter = createTRPCRouter({
       });
 
       return {
-        scoreColumns: scores.map(
+        names: scores.map(
           ({ name, source, dataType }) => `${name}.${source}.${dataType}`,
         ),
       };

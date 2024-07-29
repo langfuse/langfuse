@@ -192,7 +192,7 @@ export default function GenerationsTable({
     },
   );
 
-  const individualScoreColumns = api.scores.scoreNames.useQuery({
+  const scoreNamesList = api.scores.getNamesList.useQuery({
     projectId,
   });
 
@@ -658,16 +658,16 @@ export default function GenerationsTable({
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(
       `generationsColumnVisibility-${projectId}`,
-      individualScoreColumns.isLoading
+      scoreNamesList.isLoading
         ? []
-        : extendColumns(columns, individualScoreColumns.data?.scoreColumns),
+        : extendColumns(columns, scoreNamesList.data?.names),
     );
 
   const rows: GenerationsTableRow[] =
-    generations.isSuccess && !individualScoreColumns.isLoading
+    generations.isSuccess && !scoreNamesList.isLoading
       ? generations.data.generations.map((generation) => {
           const detailColumns = getDetailColumns(
-            individualScoreColumns.data?.scoreColumns,
+            scoreNamesList.data?.names,
             generation.scores,
           );
 
@@ -706,7 +706,7 @@ export default function GenerationsTable({
       <DataTableToolbar
         columns={columns}
         detailColumns={constructDetailColumns<GenerationsTableRow>(
-          individualScoreColumns.data?.scoreColumns ?? [],
+          scoreNamesList.data?.names ?? [],
         )}
         detailColumnHeader="Individual Scores"
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
@@ -759,7 +759,7 @@ export default function GenerationsTable({
       <DataTable
         columns={columns}
         detailColumns={constructDetailColumns<GenerationsTableRow>(
-          individualScoreColumns.data?.scoreColumns ?? [],
+          scoreNamesList.data?.names ?? [],
         )}
         data={
           generations.isLoading

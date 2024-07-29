@@ -175,7 +175,7 @@ export default function TracesTable({
     },
   );
 
-  const individualScoreColumns = api.scores.scoreNames.useQuery({
+  const scoreNamesList = api.scores.getNamesList.useQuery({
     projectId,
   });
 
@@ -191,7 +191,7 @@ export default function TracesTable({
     trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {
     const detailColumns = getDetailColumns(
-      individualScoreColumns.data?.scoreColumns,
+      scoreNamesList.data?.names,
       trace.scores,
     );
 
@@ -654,9 +654,9 @@ export default function TracesTable({
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
       `tracesColumnVisibility-${projectId}`,
-      individualScoreColumns.isLoading
+      scoreNamesList.isLoading
         ? []
-        : extendColumns(columns, individualScoreColumns.data?.scoreColumns),
+        : extendColumns(columns, scoreNamesList.data?.names),
     );
 
   return (
@@ -664,7 +664,7 @@ export default function TracesTable({
       <DataTableToolbar
         columns={columns}
         detailColumns={constructDetailColumns<TracesTableRow>(
-          individualScoreColumns.data?.scoreColumns ?? [],
+          scoreNamesList.data?.names ?? [],
         )}
         detailColumnHeader="Individual Scores"
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
@@ -701,7 +701,7 @@ export default function TracesTable({
       <DataTable
         columns={columns}
         detailColumns={constructDetailColumns<TracesTableRow>(
-          individualScoreColumns.data?.scoreColumns ?? [],
+          scoreNamesList.data?.names ?? [],
         )}
         data={
           traces.isLoading
@@ -715,7 +715,7 @@ export default function TracesTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: !individualScoreColumns.isLoading
+                  data: !scoreNamesList.isLoading
                     ? traces.data.traces.map((t) => convertToTableRow(t))
                     : [],
                 }

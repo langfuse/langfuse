@@ -173,7 +173,7 @@ export function DatasetRunsTable(props: {
     },
   ];
 
-  const individualScoreColumns = api.scores.scoreNames.useQuery({
+  const scoreNamesList = api.scores.getNamesList.useQuery({
     projectId: props.projectId,
   });
 
@@ -181,7 +181,7 @@ export function DatasetRunsTable(props: {
     item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
   ): DatasetRunRowData => {
     const detailColumns = getDetailMetricsColumns(
-      individualScoreColumns.data?.scoreColumns,
+      scoreNamesList.data?.names,
       item.avgNumericScores,
       item.qualitativeScoreDistribution,
     );
@@ -217,9 +217,9 @@ export function DatasetRunsTable(props: {
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunRowData>(
       `datasetRunsColumnVisibility-${props.projectId}`,
-      individualScoreColumns.isLoading
+      scoreNamesList.isLoading
         ? []
-        : extendColumns(columns, individualScoreColumns.data?.scoreColumns),
+        : extendColumns(columns, scoreNamesList.data?.names),
     );
 
   return (
@@ -227,7 +227,7 @@ export function DatasetRunsTable(props: {
       <DataTableToolbar
         columns={columns}
         detailColumns={constructDetailMetricsColumns<DatasetRunRowData>(
-          individualScoreColumns.data?.scoreColumns ?? [],
+          scoreNamesList.data?.names ?? [],
         )}
         detailColumnHeader="Individual Score Metrics"
         columnVisibility={columnVisibility}
@@ -239,7 +239,7 @@ export function DatasetRunsTable(props: {
       <DataTable
         columns={columns}
         detailColumns={constructDetailMetricsColumns<DatasetRunRowData>(
-          individualScoreColumns.data?.scoreColumns ?? [],
+          scoreNamesList.data?.names ?? [],
         )}
         data={
           runs.isLoading
@@ -253,7 +253,7 @@ export function DatasetRunsTable(props: {
               : {
                   isLoading: false,
                   isError: false,
-                  data: !individualScoreColumns.isLoading
+                  data: !scoreNamesList.isLoading
                     ? runs.data.runs.map((t) => convertToTableRow(t))
                     : [],
                 }
