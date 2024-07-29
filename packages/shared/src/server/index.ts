@@ -10,3 +10,4 @@ export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./redis/redis";
 export * from "./redis/trace-upsert";
+export * from "./clickhouse";
