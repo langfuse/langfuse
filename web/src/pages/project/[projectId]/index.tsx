@@ -1,5 +1,4 @@
 import Header from "@/src/components/layouts/header";
-import { findClosestInterval } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useRouter } from "next/router";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
@@ -9,19 +8,7 @@ import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
-import {
-  type AvailableDateRangeSelections,
-  DEFAULT_DATE_RANGE_SELECTION,
-  DatePickerWithRange,
-} from "@/src/components/date-picker";
-import { addDays } from "date-fns";
-import {
-  NumberParam,
-  StringParam,
-  useQueryParams,
-  withDefault,
-} from "use-query-params";
-import { isValidOption } from "@/src/utils/types";
+import { DatePickerWithRange } from "@/src/components/date-picker";
 import { api } from "@/src/utils/api";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { BarChart2 } from "lucide-react";
@@ -33,17 +20,14 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-
-export type DashboardDateRange = {
-  from: Date;
-  to: Date;
-};
+import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
+import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 
 export default function Start() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const capture = usePostHogClientCapture();
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useDashboardDateRange();
 
   const session = useSession();
   const disableExpensiveDashboardComponents =
@@ -52,38 +36,6 @@ export default function Start() {
   const project = session.data?.user?.projects.find(
     (project) => project.id === projectId,
   );
-
-  const memoizedDate = useMemo(() => new Date(), []);
-
-  const [urlParams, setUrlParams] = useQueryParams({
-    from: withDefault(NumberParam, addDays(memoizedDate, -1).getTime()),
-    to: withDefault(NumberParam, memoizedDate.getTime()),
-    select: withDefault(StringParam, "Select a date range"),
-  });
-
-  const dateRange = useMemo(
-    () =>
-      urlParams.from && urlParams.to
-        ? { from: new Date(urlParams.from), to: new Date(urlParams.to) }
-        : undefined,
-    [urlParams.from, urlParams.to],
-  );
-
-  const selectedOption = isValidOption(urlParams.select)
-    ? urlParams.select
-    : DEFAULT_DATE_RANGE_SELECTION;
-
-  const setDateRangeAndOption = (
-    option?: AvailableDateRangeSelections,
-    dateRange?: DashboardDateRange,
-  ) => {
-    capture("dashboard:date_range_changed");
-    setUrlParams({
-      select: option ? option.toString() : urlParams.select,
-      from: dateRange ? dateRange.from.getTime() : urlParams.from,
-      to: dateRange ? dateRange.to.getTime() : urlParams.to,
-    });
-  };
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
@@ -123,7 +75,10 @@ export default function Start() {
   );
 
   const agg = useMemo(
-    () => (dateRange ? findClosestInterval(dateRange) ?? "7 days" : "7 days"),
+    () =>
+      dateRange
+        ? findClosestDashboardInterval(dateRange) ?? "7 days"
+        : "7 days",
     [dateRange],
   );
 
@@ -142,7 +97,20 @@ export default function Start() {
           value: dateRange.to,
         },
       ]
-    : [];
+    : [
+        {
+          type: "datetime" as const,
+          column: "startTime",
+          operator: ">" as const,
+          value: new Date(new Date().getTime() - 1000),
+        },
+        {
+          type: "datetime" as const,
+          column: "startTime",
+          operator: "<" as const,
+          value: new Date(),
+        },
+      ];
 
   const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
 

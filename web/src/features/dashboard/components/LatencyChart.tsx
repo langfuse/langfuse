@@ -1,8 +1,4 @@
 import { api } from "@/src/utils/api";
-import {
-  dateTimeAggregationSettings,
-  type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@langfuse/shared";
 import {
   getAllModels,
@@ -15,6 +11,10 @@ import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTim
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { latencyFormatter } from "@/src/utils/numbers";
 import { NoData } from "@/src/features/dashboard/components/NoData";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 export const GenerationLatencyChart = ({
   className,
@@ -25,7 +25,7 @@ export const GenerationLatencyChart = ({
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
-  agg: DateTimeAggregationOption;
+  agg: DashboardDateRangeAggregationOption;
 }) => {
   const latencies = api.dashboard.chart.useQuery(
     {
@@ -52,7 +52,7 @@ export const GenerationLatencyChart = ({
         {
           type: "datetime",
           column: "startTime",
-          temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
         },
         { type: "string", column: "model" },
       ],

@@ -1,10 +1,6 @@
 import { type Observation } from "@langfuse/shared/src/db";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "@/src/server/api/root";
-import {
-  type DateTimeAggregationOption,
-  dateTimeAggregationOptions,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { type TiktokenModel } from "js-tiktoken";
 
@@ -44,15 +40,6 @@ export const isUndefinedOrNull = <T>(val?: T | null): val is undefined | null =>
 export const isNotNullOrUndefined = <T>(
   val?: T | null,
 ): val is Exclude<T, null | undefined> => !isUndefinedOrNull(val);
-
-export function isValidOption(
-  value: unknown,
-): value is DateTimeAggregationOption {
-  return (
-    typeof value === "string" &&
-    dateTimeAggregationOptions.includes(value as DateTimeAggregationOption)
-  );
-}
 
 const chatModels = [
   "gpt-4",

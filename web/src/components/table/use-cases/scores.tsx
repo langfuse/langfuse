@@ -9,13 +9,12 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
   type ScoreOptions,
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { localtimeDateOffsetByDays } from "@/src/utils/dates";
 import { isPresent } from "@/src/utils/typeChecks";
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
 import type { FilterState, ScoreDataType } from "@langfuse/shared";
@@ -84,20 +83,27 @@ export default function ScoresTable({
   });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange();
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Timestamp",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "scores",
   );
 
-  const filterState = createFilterState(userFilterState, [
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const combinedFilter = userFilterState.concat(dateRangeFilter);
+  const filterState = createFilterState(combinedFilter, [
     ...(userId ? [{ key: "User ID", value: userId }] : []),
     ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
     ...(observationId ? [{ key: "Observation ID", value: observationId }] : []),
@@ -358,6 +364,8 @@ export default function ScoresTable({
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
         columns={columns}
