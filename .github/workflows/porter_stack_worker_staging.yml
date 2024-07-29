@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - add-clickhouse-health-endpoint
+      - main
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
