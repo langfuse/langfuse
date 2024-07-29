@@ -11,12 +11,11 @@ export class PromptService {
     private redis: Redis | null,
     private metricIncrementer?: // used for Sentry metrics
     (name: string, value?: number) => void,
-    cacheEnabled: boolean = true // used for testing
+    cacheEnabled?: boolean // used for testing
   ) {
     this.cacheEnabled =
       Boolean(redis) &&
-      cacheEnabled &&
-      env.LANGFUSE_CACHE_PROMPT_ENABLED === "true";
+      (cacheEnabled || env.LANGFUSE_CACHE_PROMPT_ENABLED === "true");
 
     this.ttlSeconds = env.LANGFUSE_CACHE_PROMPT_TTL_SECONDS;
 
