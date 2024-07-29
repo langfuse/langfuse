@@ -10,6 +10,7 @@ import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
 import { checkContainerHealth } from "../features/health";
+import { createClient } from "@clickhouse/client";
 
 const router = express.Router();
 
@@ -27,6 +28,26 @@ router.get<{}, { status: string }>("/health", async (_req, res) => {
     });
   }
 });
+
+router
+  .use(basicAuth({ users: { admin: env.LANGFUSE_WORKER_PASSWORD } }))
+  .get<{}, EventsResponse>("/clickhouse", async (req, res) => {
+    // check if clickhouse is healthy
+    try {
+      const client = createClient({
+        url: env.CLICKHOUSE_URL,
+      });
+      await client.query({
+        query: "SELECT 1",
+        format: "CSV",
+      });
+
+      res.json({ status: "success" });
+    } catch (e) {
+      logger.error(e, "Clickhouse health check failed");
+      res.status(500).json({ status: "error" });
+    }
+  });
 
 router
   .use(
