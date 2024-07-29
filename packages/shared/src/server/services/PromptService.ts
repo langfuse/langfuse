@@ -163,7 +163,13 @@ export class PromptService {
     const cacheKeyPrefix = this.getCacheKeyPrefix(params);
 
     try {
+      const startTime = Date.now();
+      this.logInfo("Invalidating cache for prefix", cacheKeyPrefix);
       await this.deleteKeysByPrefix(cacheKeyPrefix);
+
+      this.logInfo(
+        `Cache invalidated for prefix ${cacheKeyPrefix} in ${Date.now() - startTime}ms`
+      );
     } catch (e) {
       this.logError("Error deleting keys for prefix", cacheKeyPrefix, e);
 
@@ -204,6 +210,10 @@ export class PromptService {
 
   private logError(message: string, ...args: any[]) {
     console.error(`[PromptService] ${message}`, ...args);
+  }
+
+  private logInfo(message: string, ...args: any[]) {
+    console.log(`[PromptService] ${message}`, ...args);
   }
 
   private incrementMetric(name: Metrics, value: number = 1) {
