@@ -5,27 +5,27 @@ export const DASHBOARD_AGGREGATION_PLACEHOLDER = "Date range" as const;
 export const DEFAULT_AGGREGATION_SELECTION = "All time" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
-  "1 year",
-  "3 months",
-  "1 month",
-  "7 days",
-  "24 hours",
-  "3 hours",
-  "1 hour",
-  "30 min",
   "5 min",
+  "30 min",
+  "1 hour",
+  "3 hours",
+  "24 hours",
+  "7 days",
+  "1 month",
+  "3 months",
+  "1 year",
 ] as const;
 
 export const TABLE_AGGREGATION_OPTIONS = [
-  "3 months",
-  "1 month",
-  "14 days",
-  "7 days",
-  "3 days",
-  "24 hours",
-  "6 hours",
-  "1 hour",
   "30 min",
+  "1 hour",
+  "6 hours",
+  "24 hours",
+  "3 days",
+  "7 days",
+  "14 days",
+  "1 month",
+  "3 months",
 ] as const;
 
 export type DashboardDateRangeAggregationOption =

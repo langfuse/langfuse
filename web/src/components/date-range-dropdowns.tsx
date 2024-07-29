@@ -19,6 +19,7 @@ import {
   DASHBOARD_AGGREGATION_OPTIONS,
   TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
+import { Clock } from "lucide-react";
 
 type BaseDateRangeDropdownProps<T> = {
   selectedOption: T;
@@ -33,11 +34,12 @@ const BaseDateRangeDropdown = <T extends string>({
 }: BaseDateRangeDropdownProps<T>) => {
   return (
     <Select value={selectedOption} onValueChange={onSelectionChange}>
-      <SelectTrigger className="w-[115px] hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
+      <SelectTrigger className="w-[130px] hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
+        <Clock className="h-4 w-4" />
         <SelectValue placeholder="Select" />
       </SelectTrigger>
       <SelectContent position="popper" defaultValue={60}>
-        {options.reverse().map((item) => (
+        {options.map((item) => (
           <SelectItem key={item} value={item}>
             {item}
           </SelectItem>
@@ -115,7 +117,7 @@ export const TableDateRangeDropdown: React.FC<TableDateRangeDropdownProps> = ({
   return (
     <BaseDateRangeDropdown
       selectedOption={selectedOption}
-      options={[DEFAULT_AGGREGATION_SELECTION, ...TABLE_AGGREGATION_OPTIONS]}
+      options={[...TABLE_AGGREGATION_OPTIONS, DEFAULT_AGGREGATION_SELECTION]}
       onSelectionChange={onDropDownSelection}
     />
   );
