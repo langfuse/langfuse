@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { Prisma } from "@langfuse/shared/src/db";
+import { timeFilterToPrismaSql } from "@/src/server/api/routers/generations/db/timeFilterToPrismaSql";
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(
@@ -14,18 +15,7 @@ export const filterOptionsQuery = protectedProjectProcedure
   )
   .query(async ({ input, ctx }) => {
     const { startTimeFilter } = input;
-    const prismaStartTimeFilter =
-      startTimeFilter?.type === "datetime"
-        ? startTimeFilter?.operator === ">="
-          ? { gte: startTimeFilter.value }
-          : startTimeFilter?.operator === ">"
-            ? { gt: startTimeFilter.value }
-            : startTimeFilter?.operator === "<="
-              ? { lte: startTimeFilter.value }
-              : startTimeFilter?.operator === "<"
-                ? { lt: startTimeFilter.value }
-                : {}
-        : {};
+    const prismaStartTimeFilter = timeFilterToPrismaSql(startTimeFilter);
 
     const queryFilter = {
       projectId: input.projectId,

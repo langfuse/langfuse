@@ -1,3 +1,4 @@
+import { timeFilterToPrismaSql } from "@/src/server/api/routers/generations/db/timeFilterToPrismaSql";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { timeFilter } from "@langfuse/shared";
 import { z } from "zod";
@@ -8,18 +9,7 @@ export const getScoreNamesQuery = protectedProjectProcedure
   )
   .query(async ({ input, ctx }) => {
     const { startTimeFilter } = input;
-    const prismaStartTimeFilter =
-      startTimeFilter?.type === "datetime"
-        ? startTimeFilter?.operator === ">="
-          ? { gte: startTimeFilter.value }
-          : startTimeFilter?.operator === ">"
-            ? { gt: startTimeFilter.value }
-            : startTimeFilter?.operator === "<="
-              ? { lte: startTimeFilter.value }
-              : startTimeFilter?.operator === "<"
-                ? { lt: startTimeFilter.value }
-                : {}
-        : {};
+    const prismaStartTimeFilter = timeFilterToPrismaSql(startTimeFilter);
 
     // Score names
     const scores = await ctx.prisma.score.groupBy({
