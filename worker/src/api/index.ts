@@ -133,7 +133,7 @@ router
         ingestionFlushQueue,
         ClickhouseWriter.getInstance(),
         clickhouseClient,
-        60 * 60 // TODO: Make this configurable,
+        env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS // TODO: Make this configurable,
       ).addBatch(batch, projectId);
 
       return res.status(200).send();
