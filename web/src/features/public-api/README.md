@@ -2,7 +2,7 @@
 
 ### Cache Structure
 
-The cache for API keys is managed using Redis. The cache key looks like the following: `api-key:<secret-key>:`. The hash is the `fastHashedSecretKey` from postgres. Hence, we can easily fint the key in Redis.
+The cache for API keys is managed using Redis. The cache key looks like the following: `api-key:<secret-key>:`. The hash is the `fastHashedSecretKey` from postgres. Hence, we can easily find the key in Redis.
 
 ### Creation and updates of API keys
 
