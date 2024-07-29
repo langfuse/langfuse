@@ -43,10 +43,12 @@ router
           username: env.CLICKHOUSE_USER,
           password: env.CLICKHOUSE_PASSWORD,
         });
-        await client.query({
+        const response = await client.query({
           query: "SELECT 1",
           format: "CSV",
         });
+
+        console.log(response);
 
         res.json({ status: "success" });
       } catch (e) {
