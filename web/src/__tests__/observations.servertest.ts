@@ -110,6 +110,10 @@ describe("/api/public/observations API Endpoint", () => {
       fetchedObservations.body.data[0]?.calculatedTotalCost,
     ).toBeGreaterThan(0);
     expect(fetchedObservations.body.data[0]?.promptId).toBe(prompt.id);
+    expect(fetchedObservations.body.data[0]?.promptName).toBe(prompt.name);
+    expect(fetchedObservations.body.data[0]?.promptVersion).toBe(
+      prompt.version,
+    );
   });
   it("should fetch all observations, filtered by generations", async () => {
     await pruneDatabase();

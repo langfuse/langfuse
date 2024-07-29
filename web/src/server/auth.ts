@@ -38,8 +38,6 @@ import {
 export const cloudConfigSchema = z.object({
   plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
   monthlyObservationLimit: z.number().int().positive().optional(),
-  // used for table and dashboard queries
-  defaultLookBackDays: z.number().int().positive().optional(),
 });
 
 const staticProviders: Provider[] = [
@@ -317,8 +315,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
             disableExpensivePostgresQueries:
               env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
-            defaultTableDateTimeOffset:
-              env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
             // Enables features that are only available under an enterprise license when self-hosting Langfuse
             // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
             eeEnabled: env.LANGFUSE_EE_LICENSE_KEY !== undefined,
@@ -333,18 +329,19 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                   image: dbUser.image,
                   admin: dbUser.admin,
                   emailVerified: dbUser.emailVerified?.toISOString(),
-                  projects: dbUser.projectMemberships.map((membership) => ({
-                    id: membership.project.id,
-                    name: membership.project.name,
-                    role: membership.role,
-                    cloudConfig: {
-                      defaultLookBackDays:
-                        cloudConfigSchema
-                          .nullish()
-                          .parse(membership.project.cloudConfig)
-                          ?.defaultLookBackDays ?? null,
-                    },
-                  })),
+                  projects: dbUser.projectMemberships.map((membership) => {
+                    const cloudConfig = cloudConfigSchema.safeParse(
+                      membership.project.cloudConfig,
+                    );
+                    return {
+                      id: membership.project.id,
+                      name: membership.project.name,
+                      role: membership.role,
+                      cloudConfig: cloudConfig.success
+                        ? cloudConfig.data
+                        : null,
+                    };
+                  }),
                   featureFlags: parseFlags(dbUser.featureFlags),
                 }
               : null,

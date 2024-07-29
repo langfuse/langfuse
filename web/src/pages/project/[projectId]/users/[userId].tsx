@@ -41,6 +41,15 @@ export default function UserPage() {
     }
   };
 
+  const handleTabChange = async (tab: string) => {
+    if (router.query.filter) {
+      const newQuery = { ...router.query };
+      delete newQuery.filter;
+      await router.replace({ query: newQuery });
+    }
+    setCurrentTab(tab);
+  };
+
   return (
     <div>
       <Header
@@ -70,7 +79,7 @@ export default function UserPage() {
             name="tabs"
             className="block w-full rounded-md border-border py-2 pl-3 pr-10 text-base focus:outline-none sm:text-sm"
             defaultValue={currentTab}
-            onChange={(e) => setCurrentTab(e.currentTarget.value)}
+            onChange={(e) => handleTabChange(e.currentTarget.value)}
           >
             {tabs.map((tab) => (
               <option key={tab}>{tab}</option>
@@ -90,7 +99,7 @@ export default function UserPage() {
                     "whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium",
                   )}
                   aria-current={tab === currentTab ? "page" : undefined}
-                  onClick={() => setCurrentTab(tab)}
+                  onClick={() => handleTabChange(tab)}
                 >
                   {tab}
                 </button>

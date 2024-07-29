@@ -13,6 +13,11 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { Search } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { TableDateRangeDropdown } from "@/src/components/date-range-dropdowns";
+import {
+  type TableDateRange,
+  type TableDateRangeOptions,
+} from "@/src/utils/date-range-utils";
 
 interface SearchConfig {
   placeholder: string;
@@ -34,6 +39,11 @@ interface DataTableToolbarProps<TData, TValue> {
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
   columnsWithCustomSelect?: string[];
+  selectedOption?: TableDateRangeOptions;
+  setDateRangeAndOption?: (
+    option: TableDateRangeOptions,
+    date?: TableDateRange,
+  ) => void;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -50,6 +60,8 @@ export function DataTableToolbar<TData, TValue>({
   rowHeight,
   setRowHeight,
   columnsWithCustomSelect,
+  selectedOption,
+  setDateRangeAndOption,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -91,6 +103,12 @@ export function DataTableToolbar<TData, TValue>({
           filterState={filterState}
           onChange={setFilterState}
           columnsWithCustomSelect={columnsWithCustomSelect}
+        />
+      )}
+      {selectedOption && setDateRangeAndOption && (
+        <TableDateRangeDropdown
+          selectedOption={selectedOption}
+          setDateRangeAndOption={setDateRangeAndOption}
         />
       )}
       <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">

@@ -16,15 +16,14 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
 import {
   formatIntervalSeconds,
-  localtimeDateOffsetByDays,
 } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type SessionTableRow = {
   id: string;
@@ -53,16 +52,11 @@ export default function SessionsTable({
   omittedFilter = [],
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange();
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Created At",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "sessions",
   );
 
@@ -77,7 +71,18 @@ export default function SessionsTable({
       ]
     : [];
 
-  const filterState = userFilterState.concat(userIdFilter);
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "createdAt",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -360,6 +365,8 @@ export default function SessionsTable({
             key="batchExport"
           />,
         ]}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
         columnsWithCustomSelect={["userIds"]}
       />
       <DataTable
