@@ -34,6 +34,7 @@ import { useState } from "react";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
+  detailColumns?: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   pagination?: {
     pageCount: number;
@@ -63,6 +64,7 @@ export interface AsyncTableData<T> {
 
 export function DataTable<TData extends object, TValue>({
   columns,
+  detailColumns,
   data,
   pagination,
   rowSelection,
@@ -80,10 +82,13 @@ export function DataTable<TData extends object, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
+  const baseAndDetailColumns = detailColumns
+    ? [...columns, ...detailColumns]
+    : columns;
 
   const table = useReactTable({
     data: data.data ?? [],
-    columns,
+    columns: baseAndDetailColumns,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
@@ -208,7 +213,7 @@ export function DataTable<TData extends object, TValue>({
               {data.isLoading || !data.data ? (
                 <TableRow className="h-svh">
                   <TableCell
-                    colSpan={columns.length}
+                    colSpan={baseAndDetailColumns.length}
                     className="content-start border-b text-center"
                   >
                     Loading...
@@ -235,7 +240,7 @@ export function DataTable<TData extends object, TValue>({
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={columns.length}
+                    colSpan={baseAndDetailColumns.length}
                     className="h-24 text-center"
                   >
                     <div>

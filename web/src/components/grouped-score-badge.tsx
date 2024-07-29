@@ -43,9 +43,11 @@ const ScoresOfGroup = (props: {
 export const GroupedScoreBadges = ({
   scores,
   variant = "badge",
+  showScoreNameHeading = true,
 }: {
   scores: ScoreSimplified[];
   variant?: "badge" | "headings";
+  showScoreNameHeading?: boolean;
 }) => {
   const groupedScores = scores.reduce<Record<string, ScoreSimplified[]>>(
     (acc, score) => {
@@ -66,7 +68,9 @@ export const GroupedScoreBadges = ({
           .sort(([a], [b]) => (a < b ? -1 : 1))
           .map(([name, scores]) => (
             <div key={name}>
-              <div className="text-xs text-muted-foreground">{name}</div>
+              {showScoreNameHeading && (
+                <div className="text-xs text-muted-foreground">{name}</div>
+              )}
               <ScoresOfGroup scores={scores} />
             </div>
           ))}
