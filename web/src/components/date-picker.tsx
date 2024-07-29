@@ -14,13 +14,13 @@ import { type DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { useMediaQuery } from "react-responsive";
-import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";
 import { DashboardDateRangeDropdown } from "@/src/components/date-range-dropdowns";
 import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DashboardDateRangeOptions,
+  type DashboardDateRange,
 } from "@/src/utils/date-range-utils";
 import { combineDateAndTime } from "@/src/components/ui/time-picker-utils";
 

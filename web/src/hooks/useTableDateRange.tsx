@@ -6,11 +6,8 @@ import {
   tableDateRangeAggregationSettings,
   isValidTableDateRangeAggregationOption,
   type TableDateRangeAggregationOption,
+  type TableDateRange,
 } from "@/src/utils/date-range-utils";
-
-export type TableDateRange = {
-  from: Date;
-};
 
 export interface UseTableDateRangeOutput {
   selectedOption: TableDateRangeOptions;

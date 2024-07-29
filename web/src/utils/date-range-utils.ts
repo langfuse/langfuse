@@ -31,8 +31,17 @@ export const TABLE_AGGREGATION_OPTIONS = [
 export type DashboardDateRangeAggregationOption =
   (typeof DASHBOARD_AGGREGATION_OPTIONS)[number];
 
+export type TableDateRange = {
+  from: Date;
+};
+
 export type TableDateRangeAggregationOption =
   (typeof TABLE_AGGREGATION_OPTIONS)[number];
+
+export type DashboardDateRange = {
+  from: Date;
+  to: Date;
+};
 
 export type DateRangeAggregationOption =
   | DashboardDateRangeAggregationOption

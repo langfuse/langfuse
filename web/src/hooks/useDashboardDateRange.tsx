@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
-import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import {
   dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
   isValidDashboardDateRangeAggregationOption,
   type DashboardDateRangeOptions,
   DASHBOARD_AGGREGATION_PLACEHOLDER,
+  type DashboardDateRange,
 } from "@/src/utils/date-range-utils";
 import { addMinutes } from "date-fns";
 

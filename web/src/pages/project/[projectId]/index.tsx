@@ -23,11 +23,6 @@ import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 
-export type DashboardDateRange = {
-  from: Date;
-  to: Date;
-};
-
 export default function Start() {
   const router = useRouter();
   const projectId = router.query.projectId as string;

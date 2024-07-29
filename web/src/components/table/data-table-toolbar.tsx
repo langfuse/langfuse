@@ -14,8 +14,10 @@ import {
 import { Search } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TableDateRangeDropdown } from "@/src/components/date-range-dropdowns";
-import { type TableDateRangeOptions } from "@/src/utils/date-range-utils";
-import { type TableDateRange } from "@/src/hooks/useTableDateRange";
+import {
+  type TableDateRange,
+  type TableDateRangeOptions,
+} from "@/src/utils/date-range-utils";
 
 interface SearchConfig {
   placeholder: string;

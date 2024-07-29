@@ -7,7 +7,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 
 import {
   DEFAULT_AGGREGATION_SELECTION,
@@ -18,6 +17,7 @@ import {
   type TableDateRangeOptions,
   DASHBOARD_AGGREGATION_OPTIONS,
   TABLE_AGGREGATION_OPTIONS,
+  type DashboardDateRange,
 } from "@/src/utils/date-range-utils";
 import { Clock } from "lucide-react";
 
