@@ -3,7 +3,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   DropdownMenu,
@@ -291,374 +291,371 @@ export default function GenerationsTable({
     }
   };
 
-  const columns: LangfuseColumnDef<GenerationsTableRow>[] = useMemo(
-    () => [
-      {
-        accessorKey: "id",
-        id: "id",
-        header: "ID",
-        cell: ({ row }) => {
-          const observationId = row.getValue("id");
-          const traceId = row.getValue("traceId");
-          return typeof observationId === "string" &&
-            typeof traceId === "string" ? (
-            <TableLink
-              path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
-              value={observationId}
-            />
-          ) : null;
-        },
-        enableSorting: true,
+  const columns: LangfuseColumnDef<GenerationsTableRow>[] = [
+    {
+      accessorKey: "id",
+      id: "id",
+      header: "ID",
+      cell: ({ row }) => {
+        const observationId = row.getValue("id");
+        const traceId = row.getValue("traceId");
+        return typeof observationId === "string" &&
+          typeof traceId === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
+            value={observationId}
+          />
+        ) : null;
       },
-      {
-        accessorKey: "name",
-        id: "name",
-        header: "Name",
-        enableSorting: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "name",
+      id: "name",
+      header: "Name",
+      enableSorting: true,
+    },
+    {
+      accessorKey: "traceId",
+      id: "traceId",
+      header: "Trace ID",
+      cell: ({ row }) => {
+        const value = row.getValue("traceId");
+        return typeof value === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${value}`}
+            value={value}
+          />
+        ) : undefined;
       },
-      {
-        accessorKey: "traceId",
-        id: "traceId",
-        header: "Trace ID",
-        cell: ({ row }) => {
-          const value = row.getValue("traceId");
-          return typeof value === "string" ? (
+      enableSorting: true,
+    },
+    {
+      accessorKey: "traceName",
+      id: "traceName",
+      header: "Trace Name",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "startTime",
+      id: "startTime",
+      header: "Start Time",
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: Date = row.getValue("startTime");
+        return value.toLocaleString();
+      },
+    },
+    {
+      accessorKey: "endTime",
+      id: "endTime",
+      header: "End Time",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "timeToFirstToken",
+      id: "timeToFirstToken",
+      header: "Time to First Token",
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const timeToFirstToken: number | undefined =
+          row.getValue("timeToFirstToken");
+
+        return (
+          <span>
+            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "scores",
+      id: "scores",
+      header: "Scores",
+      cell: ({ row }) => {
+        const values: ScoreSimplified[] | undefined = row.getValue("scores");
+        return (
+          values && <GroupedScoreBadges scores={values} variant="headings" />
+        );
+      },
+      enableHiding: true,
+    },
+    {
+      accessorKey: "latency",
+      id: "latency",
+      header: "Latency",
+      cell: ({ row }) => {
+        const latency: number | undefined = row.getValue("latency");
+        return latency !== undefined ? (
+          <span>{formatIntervalSeconds(latency)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "timePerOutputToken",
+      id: "timePerOutputToken",
+      header: "Time per Output Token",
+      cell: ({ row }) => {
+        const latency: number | undefined = row.getValue("latency");
+        const usage: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return latency !== undefined &&
+          (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
+          <span>
+            {usage.completionTokens
+              ? formatIntervalSeconds(latency / usage.completionTokens)
+              : formatIntervalSeconds(latency / usage.totalTokens)}
+          </span>
+        ) : undefined;
+      },
+      defaultHidden: true,
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "inputCost",
+      id: "inputCost",
+      header: "Input Cost",
+      cell: ({ row }) => {
+        const value: Decimal | undefined = row.getValue("inputCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value.toNumber())}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "outputCost",
+      id: "outputCost",
+      header: "Output Cost",
+      cell: ({ row }) => {
+        const value: Decimal | undefined = row.getValue("outputCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value.toNumber())}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      defaultHidden: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "totalCost",
+      header: "Total Cost",
+      id: "totalCost",
+      cell: ({ row }) => {
+        const value: Decimal | undefined = row.getValue("totalCost");
+
+        return value !== undefined ? (
+          <span>{usdFormatter(value.toNumber())}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "level",
+      id: "level",
+      header: "Level",
+      enableHiding: true,
+      cell({ row }) {
+        const value: ObservationLevel | undefined = row.getValue("level");
+        return value ? (
+          <span
+            className={cn(
+              "rounded-sm p-0.5 text-xs",
+              LevelColors[value].bg,
+              LevelColors[value].text,
+            )}
+          >
+            {value}
+          </span>
+        ) : undefined;
+      },
+      enableSorting: true,
+    },
+    {
+      accessorKey: "statusMessage",
+      header: "Status Message",
+      id: "statusMessage",
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "model",
+      id: "model",
+      header: "Model",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "inputTokens",
+      id: "inputTokens",
+      header: "Input Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{numberFormatter(value.promptTokens, 0)}</span>;
+      },
+    },
+    {
+      accessorKey: "outputTokens",
+      id: "outputTokens",
+      header: "Output Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{numberFormatter(value.completionTokens, 0)}</span>;
+      },
+    },
+    {
+      accessorKey: "totalTokens",
+      id: "totalTokens",
+      header: "Total Tokens",
+      enableHiding: true,
+      defaultHidden: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return <span>{numberFormatter(value.totalTokens, 0)}</span>;
+      },
+    },
+    {
+      accessorKey: "usage",
+      header: "Usage",
+      id: "usage",
+      cell: ({ row }) => {
+        const value: {
+          promptTokens: number;
+          completionTokens: number;
+          totalTokens: number;
+        } = row.getValue("usage");
+        return (
+          <TokenUsageBadge
+            promptTokens={value.promptTokens}
+            completionTokens={value.completionTokens}
+            totalTokens={value.totalTokens}
+            inline
+          />
+        );
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "input",
+      header: "Input",
+      id: "input",
+      cell: ({ row }) => {
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <GenerationsDynamicCell
+            observationId={observationId}
+            traceId={traceId}
+            col="input"
+            singleLine={rowHeight === "s"}
+          />
+        );
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "output",
+      id: "output",
+      header: "Output",
+      cell: ({ row }) => {
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <GenerationsDynamicCell
+            observationId={observationId}
+            traceId={traceId}
+            col="output"
+            singleLine={rowHeight === "s"}
+          />
+        );
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      cell: ({ row }) => {
+        const observationId: string = row.getValue("id");
+        const traceId: string = row.getValue("traceId");
+        return (
+          <GenerationsDynamicCell
+            observationId={observationId}
+            traceId={traceId}
+            col="metadata"
+            singleLine={rowHeight === "s"}
+          />
+        );
+      },
+      enableHiding: true,
+      defaultHidden: true,
+    },
+    {
+      accessorKey: "version",
+      id: "version",
+      header: "Version",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "promptName",
+      id: "promptName",
+      header: "Prompt",
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const promptName = row.original.promptName;
+        const promptVersion = row.original.promptVersion;
+        const value = `${promptName} (v${promptVersion})`;
+        return (
+          promptName &&
+          promptVersion && (
             <TableLink
-              path={`/project/${projectId}/traces/${value}`}
+              path={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}?version=${promptVersion}`}
               value={value}
+              truncateAt={40}
             />
-          ) : undefined;
-        },
-        enableSorting: true,
+          )
+        );
       },
-      {
-        accessorKey: "traceName",
-        id: "traceName",
-        header: "Trace Name",
-        enableHiding: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "startTime",
-        id: "startTime",
-        header: "Start Time",
-        enableHiding: true,
-        enableSorting: true,
-        cell: ({ row }) => {
-          const value: Date = row.getValue("startTime");
-          return value.toLocaleString();
-        },
-      },
-      {
-        accessorKey: "endTime",
-        id: "endTime",
-        header: "End Time",
-        enableHiding: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "timeToFirstToken",
-        id: "timeToFirstToken",
-        header: "Time to First Token",
-        enableHiding: true,
-        enableSorting: true,
-        cell: ({ row }) => {
-          const timeToFirstToken: number | undefined =
-            row.getValue("timeToFirstToken");
-
-          return (
-            <span>
-              {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
-            </span>
-          );
-        },
-      },
-      {
-        accessorKey: "scores",
-        id: "scores",
-        header: "Scores",
-        cell: ({ row }) => {
-          const values: ScoreSimplified[] | undefined = row.getValue("scores");
-          return (
-            values && <GroupedScoreBadges scores={values} variant="headings" />
-          );
-        },
-        enableHiding: true,
-      },
-      {
-        accessorKey: "latency",
-        id: "latency",
-        header: "Latency",
-        cell: ({ row }) => {
-          const latency: number | undefined = row.getValue("latency");
-          return latency !== undefined ? (
-            <span>{formatIntervalSeconds(latency)}</span>
-          ) : undefined;
-        },
-        enableHiding: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "timePerOutputToken",
-        id: "timePerOutputToken",
-        header: "Time per Output Token",
-        cell: ({ row }) => {
-          const latency: number | undefined = row.getValue("latency");
-          const usage: {
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-          } = row.getValue("usage");
-          return latency !== undefined &&
-            (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
-            <span>
-              {usage.completionTokens
-                ? formatIntervalSeconds(latency / usage.completionTokens)
-                : formatIntervalSeconds(latency / usage.totalTokens)}
-            </span>
-          ) : undefined;
-        },
-        defaultHidden: true,
-        enableHiding: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "inputCost",
-        id: "inputCost",
-        header: "Input Cost",
-        cell: ({ row }) => {
-          const value: Decimal | undefined = row.getValue("inputCost");
-
-          return value !== undefined ? (
-            <span>{usdFormatter(value.toNumber())}</span>
-          ) : undefined;
-        },
-        enableHiding: true,
-        defaultHidden: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "outputCost",
-        id: "outputCost",
-        header: "Output Cost",
-        cell: ({ row }) => {
-          const value: Decimal | undefined = row.getValue("outputCost");
-
-          return value !== undefined ? (
-            <span>{usdFormatter(value.toNumber())}</span>
-          ) : undefined;
-        },
-        enableHiding: true,
-        defaultHidden: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "totalCost",
-        header: "Total Cost",
-        id: "totalCost",
-        cell: ({ row }) => {
-          const value: Decimal | undefined = row.getValue("totalCost");
-
-          return value !== undefined ? (
-            <span>{usdFormatter(value.toNumber())}</span>
-          ) : undefined;
-        },
-        enableHiding: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "level",
-        id: "level",
-        header: "Level",
-        enableHiding: true,
-        cell({ row }) {
-          const value: ObservationLevel | undefined = row.getValue("level");
-          return value ? (
-            <span
-              className={cn(
-                "rounded-sm p-0.5 text-xs",
-                LevelColors[value].bg,
-                LevelColors[value].text,
-              )}
-            >
-              {value}
-            </span>
-          ) : undefined;
-        },
-        enableSorting: true,
-      },
-      {
-        accessorKey: "statusMessage",
-        header: "Status Message",
-        id: "statusMessage",
-        enableHiding: true,
-        defaultHidden: true,
-      },
-      {
-        accessorKey: "model",
-        id: "model",
-        header: "Model",
-        enableHiding: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "inputTokens",
-        id: "inputTokens",
-        header: "Input Tokens",
-        enableHiding: true,
-        defaultHidden: true,
-        enableSorting: true,
-        cell: ({ row }) => {
-          const value: {
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-          } = row.getValue("usage");
-          return <span>{numberFormatter(value.promptTokens, 0)}</span>;
-        },
-      },
-      {
-        accessorKey: "outputTokens",
-        id: "outputTokens",
-        header: "Output Tokens",
-        enableHiding: true,
-        defaultHidden: true,
-        enableSorting: true,
-        cell: ({ row }) => {
-          const value: {
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-          } = row.getValue("usage");
-          return <span>{numberFormatter(value.completionTokens, 0)}</span>;
-        },
-      },
-      {
-        accessorKey: "totalTokens",
-        id: "totalTokens",
-        header: "Total Tokens",
-        enableHiding: true,
-        defaultHidden: true,
-        enableSorting: true,
-        cell: ({ row }) => {
-          const value: {
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-          } = row.getValue("usage");
-          return <span>{numberFormatter(value.totalTokens, 0)}</span>;
-        },
-      },
-      {
-        accessorKey: "usage",
-        header: "Usage",
-        id: "usage",
-        cell: ({ row }) => {
-          const value: {
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-          } = row.getValue("usage");
-          return (
-            <TokenUsageBadge
-              promptTokens={value.promptTokens}
-              completionTokens={value.completionTokens}
-              totalTokens={value.totalTokens}
-              inline
-            />
-          );
-        },
-        enableHiding: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "input",
-        header: "Input",
-        id: "input",
-        cell: ({ row }) => {
-          const observationId: string = row.getValue("id");
-          const traceId: string = row.getValue("traceId");
-          return (
-            <GenerationsDynamicCell
-              observationId={observationId}
-              traceId={traceId}
-              col="input"
-              singleLine={rowHeight === "s"}
-            />
-          );
-        },
-        enableHiding: true,
-        defaultHidden: true,
-      },
-      {
-        accessorKey: "output",
-        id: "output",
-        header: "Output",
-        cell: ({ row }) => {
-          const observationId: string = row.getValue("id");
-          const traceId: string = row.getValue("traceId");
-          return (
-            <GenerationsDynamicCell
-              observationId={observationId}
-              traceId={traceId}
-              col="output"
-              singleLine={rowHeight === "s"}
-            />
-          );
-        },
-        enableHiding: true,
-        defaultHidden: true,
-      },
-      {
-        accessorKey: "metadata",
-        header: "Metadata",
-        cell: ({ row }) => {
-          const observationId: string = row.getValue("id");
-          const traceId: string = row.getValue("traceId");
-          return (
-            <GenerationsDynamicCell
-              observationId={observationId}
-              traceId={traceId}
-              col="metadata"
-              singleLine={rowHeight === "s"}
-            />
-          );
-        },
-        enableHiding: true,
-        defaultHidden: true,
-      },
-      {
-        accessorKey: "version",
-        id: "version",
-        header: "Version",
-        enableHiding: true,
-        enableSorting: true,
-      },
-      {
-        accessorKey: "promptName",
-        id: "promptName",
-        header: "Prompt",
-        enableHiding: true,
-        enableSorting: true,
-        cell: ({ row }) => {
-          const promptName = row.original.promptName;
-          const promptVersion = row.original.promptVersion;
-          const value = `${promptName} (v${promptVersion})`;
-          return (
-            promptName &&
-            promptVersion && (
-              <TableLink
-                path={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}?version=${promptVersion}`}
-                value={value}
-                truncateAt={40}
-              />
-            )
-          );
-        },
-      },
-    ],
-    [projectId, rowHeight],
-  );
+    },
+  ];
 
   const extendColumns = (
     nativeColumns: LangfuseColumnDef<GenerationsTableRow>[],
