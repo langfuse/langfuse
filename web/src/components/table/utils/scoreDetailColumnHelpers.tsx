@@ -121,6 +121,7 @@ export const constructDetailColumns = <
               scores={values}
               variant="headings"
               showScoreNameHeading={false}
+              showColorCoding
             />
           )
         );

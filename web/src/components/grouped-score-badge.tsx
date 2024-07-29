@@ -14,13 +14,29 @@ import { truncate } from "@/src/utils/string";
 import { cn } from "@/src/utils/tailwind";
 import { MessageCircleMore } from "lucide-react";
 
+const colorCoding = (score: ScoreSimplified): string => {
+  if (isBooleanDataType(score.dataType)) {
+    if (score.stringValue === "True")
+      return "bg-light-green p-0.5 text-dark-green";
+    else return "bg-light-red p-0.5 text-dark-red";
+  }
+  return "";
+};
+
 const ScoresOfGroup = (props: {
   scores: ScoreSimplified[];
   className?: string;
+  showColorCoding?: boolean;
 }) => (
   <div className={cn("text-xs", props.className)}>
     {props.scores.map((s, i) => (
-      <span key={i} className="group/score ml-1 first:ml-0">
+      <span
+        key={i}
+        className={cn(
+          "group/score ml-1 rounded-sm first:ml-0",
+          props.showColorCoding && colorCoding(s),
+        )}
+      >
         {isCategoricalDataType(s.dataType) || isBooleanDataType(s.dataType)
           ? s.stringValue
           : s.value?.toFixed(2)}
@@ -44,10 +60,12 @@ export const GroupedScoreBadges = ({
   scores,
   variant = "badge",
   showScoreNameHeading = true,
+  showColorCoding = false,
 }: {
   scores: ScoreSimplified[];
   variant?: "badge" | "headings";
   showScoreNameHeading?: boolean;
+  showColorCoding?: boolean;
 }) => {
   const groupedScores = scores.reduce<Record<string, ScoreSimplified[]>>(
     (acc, score) => {
@@ -71,7 +89,10 @@ export const GroupedScoreBadges = ({
               {showScoreNameHeading && (
                 <div className="text-xs text-muted-foreground">{name}</div>
               )}
-              <ScoresOfGroup scores={scores} />
+              <ScoresOfGroup
+                scores={scores}
+                showColorCoding={showColorCoding}
+              />
             </div>
           ))}
       </div>
