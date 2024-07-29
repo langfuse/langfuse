@@ -6,6 +6,7 @@ import {
   type DashboardDateRangeAggregationOption,
   isValidDashboardDateRangeAggregationOption,
   type DashboardDateRangeOptions,
+  DASHBOARD_AGGREGATION_PLACEHOLDER,
 } from "@/src/utils/date-range-utils";
 import { addMinutes } from "date-fns";
 
@@ -20,7 +21,7 @@ export interface UseDashboardDateRangeOutput {
 
 export function useDashboardDateRange(): UseDashboardDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
-    select: withDefault(StringParam, "Select a date range"),
+    dateRange: withDefault(StringParam, "Select a date range"),
     from: StringParam,
     to: StringParam,
   });
@@ -28,7 +29,7 @@ export function useDashboardDateRange(): UseDashboardDateRangeOutput {
   const initialRangeOption = "24 hours";
 
   const initialRange: DashboardDateRange | undefined =
-    queryParams.select !== "Select a date range" &&
+    queryParams.dateRange !== "Select a date range" &&
     queryParams.from &&
     queryParams.to
       ? {
@@ -44,9 +45,9 @@ export function useDashboardDateRange(): UseDashboardDateRangeOutput {
         };
 
   const validatedInitialRangeOption =
-    isValidDashboardDateRangeAggregationOption(queryParams.select) ||
-    queryParams.select === "Date range"
-      ? (queryParams.select as DashboardDateRangeAggregationOption)
+    isValidDashboardDateRangeAggregationOption(queryParams.dateRange) ||
+    queryParams.dateRange === DASHBOARD_AGGREGATION_PLACEHOLDER
+      ? (queryParams.dateRange as DashboardDateRangeAggregationOption)
       : initialRangeOption;
 
   const [selectedOption, setSelectedOption] =
@@ -63,11 +64,11 @@ export function useDashboardDateRange(): UseDashboardDateRangeOutput {
     setDateRange(range);
 
     const newParams: typeof queryParams = {
-      select: option,
+      dateRange: option,
       from: undefined,
       to: undefined,
     };
-    if (option === "Date range" && range) {
+    if (option === DASHBOARD_AGGREGATION_PLACEHOLDER && range) {
       newParams.from = range.from.toISOString();
       newParams.to = range.to.toISOString();
     }

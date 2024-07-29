@@ -25,13 +25,13 @@ export function useTableDateRange(
   defaultDateRange: TableDateRangeOptions = "24 hours",
 ): UseTableDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
-    select: withDefault(StringParam, "Select a date range"),
+    dateRange: withDefault(StringParam, "Select a date range"),
   });
 
   const validatedInitialRangeOption = isValidTableDateRangeAggregationOption(
-    queryParams.select,
+    queryParams.dateRange,
   )
-    ? (queryParams.select as TableDateRangeAggregationOption)
+    ? (queryParams.dateRange as TableDateRangeAggregationOption)
     : defaultDateRange;
 
   const [selectedOption, setSelectedOption] = useState<TableDateRangeOptions>(
@@ -55,7 +55,7 @@ export function useTableDateRange(
   ) => {
     setSelectedOption(option);
     setDateRange(range);
-    setQueryParams({ select: option });
+    setQueryParams({ dateRange: option });
   };
 
   return { selectedOption, dateRange, setDateRangeAndOption };
