@@ -1,7 +1,6 @@
 import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { env } from "../../env";
-import { log } from "console";
 
 export class PromptService {
   private cacheEnabled: boolean;
