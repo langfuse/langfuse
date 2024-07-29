@@ -48,7 +48,9 @@ router
           format: "CSV",
         });
 
-        console.log(response);
+        logger.info(
+          `Clickhouse health check response: ${JSON.stringify(response)}`
+        );
 
         res.json({ status: "success" });
       } catch (e) {
