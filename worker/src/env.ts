@@ -40,6 +40,9 @@ const EnvSchema = z.object({
     .nullable(),
   REDIS_AUTH: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
+  CLICKHOUSE_URL: z.string().url().optional(),
+  CLICKHOUSE_USER: z.string().optional(),
+  CLICKHOUSE_PASSWORD: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);
