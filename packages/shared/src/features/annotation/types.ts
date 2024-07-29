@@ -14,7 +14,7 @@ const NumericData = z.object({
 });
 
 const CategoricalData = z.object({
-  value: z.number().optional().nullish(),
+  value: z.number().nullish(),
   stringValue: z.string(),
   dataType: z.literal("CATEGORICAL"),
 });
@@ -31,7 +31,7 @@ const CreateAnnotationScoreBase = z.object({
   traceId: z.string(),
   configId: z.string().optional(),
   observationId: z.string().optional(),
-  comment: z.string().optional().nullish(),
+  comment: z.string().nullish(),
 });
 
 const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({

@@ -18,6 +18,12 @@ export class PromptService {
       (cacheEnabled || env.LANGFUSE_CACHE_PROMPT_ENABLED === "true");
 
     this.ttlSeconds = env.LANGFUSE_CACHE_PROMPT_TTL_SECONDS;
+
+    if (this.cacheEnabled) {
+      this.logInfo("Prompt cache enabled with TTL seconds", this.ttlSeconds);
+    } else {
+      this.logInfo("Prompt cache disabled");
+    }
   }
 
   public async getPrompt(params: PromptParams): Promise<Prompt | null> {
@@ -28,14 +34,22 @@ export class PromptService {
         cachedPrompt ? Metrics.PromptCacheHit : Metrics.PromptCacheMiss
       );
 
-      if (cachedPrompt) return cachedPrompt;
+      if (cachedPrompt) {
+        this.logInfo("Returning cached prompt for params", params);
+
+        return cachedPrompt;
+      }
     }
 
     const dbPrompt = await this.getDbPrompt(params);
 
     if ((await this.shouldUseCache(params)) && dbPrompt) {
       await this.cachePrompt({ ...params, prompt: dbPrompt });
+
+      this.logInfo("Successfully cached prompt for params", params);
     }
+
+    this.logInfo("Returning DB prompt for params", params);
 
     return dbPrompt;
   }
@@ -74,6 +88,10 @@ export class PromptService {
     if (!this.cacheEnabled) return false;
 
     const isLocked = await this.isCacheLocked(params);
+
+    if (isLocked) {
+      this.logInfo("Cache is locked for params", params);
+    }
 
     return !isLocked;
   }
@@ -163,7 +181,13 @@ export class PromptService {
     const cacheKeyPrefix = this.getCacheKeyPrefix(params);
 
     try {
+      const startTime = Date.now();
+      this.logInfo("Invalidating cache for prefix", cacheKeyPrefix);
       await this.deleteKeysByPrefix(cacheKeyPrefix);
+
+      this.logInfo(
+        `Cache invalidated for prefix ${cacheKeyPrefix} in ${Date.now() - startTime}ms`
+      );
     } catch (e) {
       this.logError("Error deleting keys for prefix", cacheKeyPrefix, e);
 
@@ -204,6 +228,10 @@ export class PromptService {
 
   private logError(message: string, ...args: any[]) {
     console.error(`[PromptService] ${message}`, ...args);
+  }
+
+  private logInfo(message: string, ...args: any[]) {
+    console.log(`[PromptService] ${message}`, ...args);
   }
 
   private incrementMetric(name: Metrics, value: number = 1) {

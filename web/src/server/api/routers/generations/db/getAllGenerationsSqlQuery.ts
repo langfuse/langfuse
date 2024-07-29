@@ -52,7 +52,7 @@ export async function getAllGenerations({
 
   // to improve query performance, add timeseries filter to observation queries as well
   const startTimeFilter = input.filter.find(
-    (f) => f.column === "start_time" && f.type === "datetime",
+    (f) => f.column === "Start Time" && f.type === "datetime",
   );
   const datetimeFilter =
     startTimeFilter && startTimeFilter.type === "datetime"

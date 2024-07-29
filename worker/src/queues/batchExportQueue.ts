@@ -17,6 +17,11 @@ import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJ
 export const batchExportQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(QueueName.BatchExport, {
       connection: redis,
+      defaultJobOptions: {
+        removeOnComplete: true,
+        removeOnFail: 100,
+        attempts: 2,
+      },
     })
   : null;
 
