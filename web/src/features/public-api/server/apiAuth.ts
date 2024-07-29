@@ -217,13 +217,12 @@ export class ApiAuthService {
   }
 
   async fetchApiKeyAndAddToRedis(hash: string) {
-    console.log("fetchApiKeyAndAddToRedis");
     // first get the API key from redis, this does not throw
     const redisApiKey = await this.fetchApiKeyFromRedis(hash);
 
     if (redisApiKey === API_KEY_NON_EXISTENT) {
       Sentry.metrics.increment("api_key_cache_hit");
-      console.log(`Found nonexisting key in redis.`);
+      console.log(`Found flag for non existing key in redis.`);
       throw new Error("Invalid credentials");
     }
 
@@ -242,8 +241,6 @@ export class ApiAuthService {
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { fastHashedSecretKey: hash },
     });
-
-    console.log(`cache miss ${apiKey}, ${redis}`);
 
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.

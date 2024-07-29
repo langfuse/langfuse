@@ -193,7 +193,6 @@ describe("Authenticate API calls", () => {
       expect(verification.validKey).toBe(false);
 
       const redisKeys = await redis.keys(`api-key:*`);
-      console.log(redisKeys);
       expect(redisKeys.length).toBe(1);
       const redisValue = await redis.get(redisKeys[0]);
       expect(redisValue).toBe('"api-key-non-existent"');
