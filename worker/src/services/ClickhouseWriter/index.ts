@@ -188,6 +188,8 @@ export class ClickhouseWriter {
       })
       .catch((err) => {
         logger.error(`ClickhouseWriter.writeToClickhouse ${err}`);
+
+        throw err;
       });
 
     logger.debug(
