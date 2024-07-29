@@ -42,35 +42,15 @@ import {
 } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
-import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
-import { type Row } from "@tanstack/react-table";
-
-const parseColumnForProps = (col: string) => {
-  const [name, source, dataType] = col.split(".");
-  return { name, source, dataType };
-};
-
-const parseColumnForKey = (col: string) => {
-  const { name, source } = parseColumnForProps(col);
-  return `${name} (${source})`;
-};
-
-const parseDetailColumn = (
-  col: string,
-  parseKeyFct: (col: string) => string,
-): LangfuseColumnDef<GenerationsTableRow> => {
-  const key = parseKeyFct(col);
-  return {
-    header: key,
-    id: key,
-    accessorKey: key,
-    enableHiding: true,
-  };
-};
+import {
+  constructDefaultColumns,
+  getDetailColumns,
+} from "@/src/components/table/utils/scoreDetailColumnHelpers";
+import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export type GenerationsTableRow = {
   id: string;
@@ -92,7 +72,7 @@ export type GenerationsTableRow = {
   outputCost?: Decimal;
   totalCost?: Decimal;
   traceName?: string;
-  scores?: ScoreSimplified[];
+  scores?: APIScore[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -217,30 +197,6 @@ export default function GenerationsTable({
     return observationsTableColsWithOptions(filterOptions).filter(
       (col) => !omittedFilter?.includes(col.name),
     );
-  };
-  const constructDefaultColumns = (
-    detailColumnAccessors: string[],
-  ): LangfuseColumnDef<GenerationsTableRow>[] => {
-    return detailColumnAccessors.map((col) => {
-      const detailColumnProps = parseDetailColumn(col, parseColumnForKey);
-      return {
-        ...detailColumnProps,
-        cell: ({ row }: { row: Row<GenerationsTableRow> }) => {
-          const values: ScoreSimplified[] | undefined = row.getValue(
-            detailColumnProps.accessorKey,
-          );
-          return (
-            values && (
-              <GroupedScoreBadges
-                scores={values}
-                variant="headings"
-                showScoreNameHeading={false}
-              />
-            )
-          );
-        },
-      };
-    });
   };
 
   const handleExport = async (fileFormat: BatchExportFileFormat) => {
@@ -375,7 +331,7 @@ export default function GenerationsTable({
       id: "scores",
       header: "Scores",
       cell: ({ row }) => {
-        const values: ScoreSimplified[] | undefined = row.getValue("scores");
+        const values: APIScore[] | undefined = row.getValue("scores");
         return (
           values && <GroupedScoreBadges scores={values} variant="headings" />
         );
@@ -661,7 +617,9 @@ export default function GenerationsTable({
   ): LangfuseColumnDef<GenerationsTableRow>[] => {
     return [
       ...nativeColumns,
-      ...constructDefaultColumns(detailColumnAccessors ?? []),
+      ...constructDefaultColumns<GenerationsTableRow>(
+        detailColumnAccessors ?? [],
+      ),
     ];
   };
 
@@ -676,21 +634,10 @@ export default function GenerationsTable({
   const rows: GenerationsTableRow[] =
     generations.isSuccess && !individualScoreColumns.isLoading
       ? generations.data.generations.map((generation) => {
-          const detailColumns =
-            individualScoreColumns.data?.scoreColumns.reduce(
-              (acc, col) => {
-                const accessorKey = parseColumnForKey(col);
-                const { name, source, dataType } = parseColumnForProps(col);
-                acc[accessorKey] = generation.scores.filter(
-                  (score) =>
-                    score.name === name &&
-                    score.source === source &&
-                    score.dataType === dataType,
-                );
-                return acc;
-              },
-              {} as Record<string, ScoreSimplified[]>,
-            );
+          const detailColumns = getDetailColumns(
+            individualScoreColumns.data?.scoreColumns,
+            generation.scores,
+          );
 
           return {
             id: generation.id,
@@ -726,7 +673,7 @@ export default function GenerationsTable({
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDefaultColumns(
+        detailColumns={constructDefaultColumns<GenerationsTableRow>(
           individualScoreColumns.data?.scoreColumns ?? [],
         )}
         detailColumnHeader="Individual Scores"
@@ -777,7 +724,7 @@ export default function GenerationsTable({
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDefaultColumns(
+        detailColumns={constructDefaultColumns<GenerationsTableRow>(
           individualScoreColumns.data?.scoreColumns ?? [],
         )}
         data={

@@ -113,11 +113,13 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                   toggleColumn(column.accessorKey.toString())
                 }
               >
-                {column.header?.toString() ?? column.accessorKey.toString()}
+                {column.header && typeof column.header === "string"
+                  ? column.header.toString()
+                  : column.accessorKey.toString()}
               </DropdownMenuCheckboxItem>
             ),
         )}
-        {detailColumns && (
+        {detailColumns && Boolean(detailColumns.length) && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel>
@@ -135,7 +137,9 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                       toggleColumn(column.accessorKey.toString())
                     }
                   >
-                    {column.header?.toString() ?? column.accessorKey.toString()}
+                    {column.header && typeof column.header === "string"
+                      ? column.header.toString()
+                      : column.accessorKey.toString()}
                   </DropdownMenuCheckboxItem>
                 ),
             )}

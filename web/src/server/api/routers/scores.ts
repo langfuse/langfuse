@@ -300,7 +300,6 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      // Score names
       const scores = await ctx.prisma.score.groupBy({
         where: {
           projectId: input.projectId,
