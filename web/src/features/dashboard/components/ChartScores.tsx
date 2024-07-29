@@ -1,8 +1,5 @@
 import { api } from "@/src/utils/api";
-import {
-  dateTimeAggregationSettings,
-  type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
+
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { type FilterState } from "@langfuse/shared";
@@ -14,10 +11,14 @@ import {
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 export function ChartScores(props: {
   className?: string;
-  agg: DateTimeAggregationOption;
+  agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
   projectId: string;
 }) {
@@ -31,7 +32,8 @@ export function ChartScores(props: {
         {
           type: "datetime",
           column: "timestamp",
-          temporalUnit: dateTimeAggregationSettings[props.agg].date_trunc,
+          temporalUnit:
+            dashboardDateRangeAggregationSettings[props.agg].date_trunc,
         },
         {
           type: "string",

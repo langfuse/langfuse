@@ -53,8 +53,8 @@ export const Category = z.object({
 const Categories = z.array(Category);
 
 const NumericScoreConfig = z.object({
-  maxValue: z.number().optional().nullish(),
-  minValue: z.number().optional().nullish(),
+  maxValue: z.number().nullish(),
+  minValue: z.number().nullish(),
   dataType: z.literal("NUMERIC"),
   categories: z.undefined().nullish(),
 });
@@ -102,7 +102,7 @@ const ScoreConfigBase = z.object({
   id: z.string(),
   name: z.string().min(1).max(35),
   isArchived: z.boolean(),
-  description: z.string().optional().nullish(),
+  description: z.string().nullish(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   projectId: z.string(),
