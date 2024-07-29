@@ -20,11 +20,11 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { cn } from "@/src/utils/tailwind";
 import {
-  constructDefaultMetricsColumns,
+  constructDetailMetricsColumns,
   getDetailMetricsColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 
-export type DatasetRunItemRowData = {
+export type DatasetRunRowData = {
   key: {
     id: string;
     name: string;
@@ -73,13 +73,13 @@ export function DatasetRunsTable(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
-  const columns: LangfuseColumnDef<DatasetRunItemRowData>[] = [
+  const columns: LangfuseColumnDef<DatasetRunRowData>[] = [
     {
       accessorKey: "key",
       header: "Name",
       id: "key",
       cell: ({ row }) => {
-        const key: DatasetRunItemRowData["key"] = row.getValue("key");
+        const key: DatasetRunRowData["key"] = row.getValue("key");
         return (
           <TableLink
             path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${key.id}`}
@@ -107,7 +107,7 @@ export function DatasetRunsTable(props: {
       id: "avgLatency",
       enableHiding: true,
       cell: ({ row }) => {
-        const avgLatency: DatasetRunItemRowData["avgLatency"] =
+        const avgLatency: DatasetRunRowData["avgLatency"] =
           row.getValue("avgLatency");
         return <>{formatIntervalSeconds(avgLatency)}</>;
       },
@@ -118,7 +118,7 @@ export function DatasetRunsTable(props: {
       id: "avgTotalCost",
       enableHiding: true,
       cell: ({ row }) => {
-        const avgTotalCost: DatasetRunItemRowData["avgTotalCost"] =
+        const avgTotalCost: DatasetRunRowData["avgTotalCost"] =
           row.getValue("avgTotalCost");
         return <>{avgTotalCost}</>;
       },
@@ -129,7 +129,7 @@ export function DatasetRunsTable(props: {
       id: "scores",
       enableHiding: true,
       cell: ({ row }) => {
-        const scores: DatasetRunItemRowData["scores"] = row.getValue("scores");
+        const scores: DatasetRunRowData["scores"] = row.getValue("scores");
         const { numeric, qualitative } = scores;
 
         return (
@@ -164,7 +164,7 @@ export function DatasetRunsTable(props: {
       id: "metadata",
       enableHiding: true,
       cell: ({ row }) => {
-        const metadata: DatasetRunItemRowData["metadata"] =
+        const metadata: DatasetRunRowData["metadata"] =
           row.getValue("metadata");
         return !!metadata ? (
           <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
@@ -179,7 +179,7 @@ export function DatasetRunsTable(props: {
 
   const convertToTableRow = (
     item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
-  ): DatasetRunItemRowData => {
+  ): DatasetRunRowData => {
     const detailColumns = getDetailMetricsColumns(
       individualScoreColumns.data?.scoreColumns,
       item.avgNumericScores,
@@ -203,19 +203,19 @@ export function DatasetRunsTable(props: {
   };
 
   const extendColumns = (
-    nativeColumns: LangfuseColumnDef<DatasetRunItemRowData>[],
+    nativeColumns: LangfuseColumnDef<DatasetRunRowData>[],
     detailColumnAccessors?: string[],
-  ): LangfuseColumnDef<DatasetRunItemRowData>[] => {
+  ): LangfuseColumnDef<DatasetRunRowData>[] => {
     return [
       ...nativeColumns,
-      ...constructDefaultMetricsColumns<DatasetRunItemRowData>(
+      ...constructDetailMetricsColumns<DatasetRunRowData>(
         detailColumnAccessors ?? [],
       ),
     ];
   };
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<DatasetRunItemRowData>(
+    useColumnVisibility<DatasetRunRowData>(
       `datasetRunsColumnVisibility-${props.projectId}`,
       individualScoreColumns.isLoading
         ? []
@@ -226,7 +226,7 @@ export function DatasetRunsTable(props: {
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDefaultMetricsColumns<DatasetRunItemRowData>(
+        detailColumns={constructDetailMetricsColumns<DatasetRunRowData>(
           individualScoreColumns.data?.scoreColumns ?? [],
         )}
         detailColumnHeader="Individual Score Metrics"
@@ -238,7 +238,7 @@ export function DatasetRunsTable(props: {
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDefaultMetricsColumns<DatasetRunItemRowData>(
+        detailColumns={constructDetailMetricsColumns<DatasetRunRowData>(
           individualScoreColumns.data?.scoreColumns ?? [],
         )}
         data={
@@ -253,10 +253,9 @@ export function DatasetRunsTable(props: {
               : {
                   isLoading: false,
                   isError: false,
-                  data:
-                    runs.isSuccess && !individualScoreColumns.isLoading
-                      ? runs.data.runs.map((t) => convertToTableRow(t))
-                      : [],
+                  data: !individualScoreColumns.isLoading
+                    ? runs.data.runs.map((t) => convertToTableRow(t))
+                    : [],
                 }
         }
         pagination={{

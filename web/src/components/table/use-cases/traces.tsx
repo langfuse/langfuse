@@ -43,7 +43,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import {
-  constructDefaultColumns,
+  constructDetailColumns,
   getDetailColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 
@@ -614,7 +614,7 @@ export default function TracesTable({
   ): LangfuseColumnDef<TracesTableRow>[] => {
     return [
       ...nativeColumns,
-      ...constructDefaultColumns<TracesTableRow>(detailColumnAccessors ?? []),
+      ...constructDetailColumns<TracesTableRow>(detailColumnAccessors ?? []),
     ];
   };
 
@@ -630,7 +630,7 @@ export default function TracesTable({
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDefaultColumns<TracesTableRow>(
+        detailColumns={constructDetailColumns<TracesTableRow>(
           individualScoreColumns.data?.scoreColumns ?? [],
         )}
         detailColumnHeader="Individual Scores"
@@ -665,7 +665,7 @@ export default function TracesTable({
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDefaultColumns<TracesTableRow>(
+        detailColumns={constructDetailColumns<TracesTableRow>(
           individualScoreColumns.data?.scoreColumns ?? [],
         )}
         data={
@@ -680,10 +680,9 @@ export default function TracesTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data:
-                    traces.isSuccess && !individualScoreColumns.isLoading
-                      ? traces.data.traces.map((t) => convertToTableRow(t))
-                      : [],
+                  data: !individualScoreColumns.isLoading
+                    ? traces.data.traces.map((t) => convertToTableRow(t))
+                    : [],
                 }
         }
         pagination={{

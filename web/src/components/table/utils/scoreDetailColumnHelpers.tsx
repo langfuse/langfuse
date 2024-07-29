@@ -5,7 +5,8 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type GenerationsTableRow } from "@/src/components/table/use-cases/generations";
 import { type TracesTableRow } from "@/src/components/table/use-cases/traces";
-import { type DatasetRunItemRowData } from "@/src/features/datasets/components/DatasetRunsTable";
+import { type DatasetRunItemRowData } from "@/src/features/datasets/components/DatasetRunItemsTable";
+import { type DatasetRunRowData } from "@/src/features/datasets/components/DatasetRunsTable";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import { type Row } from "@tanstack/react-table";
 import { Binary, CaseUpper, Hash } from "lucide-react";
@@ -55,7 +56,11 @@ const parseColumnForKeyAndHeaderMetrics = (col: string) => {
 };
 
 const parseDetailColumn = <
-  T extends TracesTableRow | GenerationsTableRow | DatasetRunItemRowData,
+  T extends
+    | TracesTableRow
+    | GenerationsTableRow
+    | DatasetRunRowData
+    | DatasetRunItemRowData,
 >(
   col: string,
   parseColFct: (col: string) => {
@@ -94,8 +99,8 @@ export function getDetailColumns(
   );
 }
 
-export const constructDefaultColumns = <
-  T extends GenerationsTableRow | TracesTableRow,
+export const constructDetailColumns = <
+  T extends GenerationsTableRow | TracesTableRow | DatasetRunItemRowData,
 >(
   detailColumnAccessors: string[],
 ): LangfuseColumnDef<T>[] => {
@@ -126,8 +131,8 @@ export const constructDefaultColumns = <
 
 export const getDetailMetricsColumns = (
   scoreColumns: string[] | undefined,
-  avgNumericScores: DatasetRunItemRowData["scores"]["numeric"],
-  qualitativeScoreDistribution: DatasetRunItemRowData["scores"]["qualitative"],
+  avgNumericScores: DatasetRunRowData["scores"]["numeric"],
+  qualitativeScoreDistribution: DatasetRunRowData["scores"]["qualitative"],
 ) => {
   return (
     scoreColumns?.reduce(
@@ -142,13 +147,13 @@ export const getDetailMetricsColumns = (
         return acc;
       },
       {} as
-        | DatasetRunItemRowData["scores"]["numeric"]
-        | DatasetRunItemRowData["scores"]["qualitative"],
+        | DatasetRunRowData["scores"]["numeric"]
+        | DatasetRunRowData["scores"]["qualitative"],
     ) ?? {}
   );
 };
 
-export const constructDefaultMetricsColumns = <T extends DatasetRunItemRowData>(
+export const constructDetailMetricsColumns = <T extends DatasetRunRowData>(
   detailColumnAccessors: string[],
 ): LangfuseColumnDef<T>[] => {
   return detailColumnAccessors.map((col) => {
@@ -160,8 +165,8 @@ export const constructDefaultMetricsColumns = <T extends DatasetRunItemRowData>(
       ...detailColumnProps,
       cell: ({ row }: { row: Row<T> }) => {
         const record:
-          | DatasetRunItemRowData["scores"]["numeric"][number]
-          | DatasetRunItemRowData["scores"]["qualitative"][number]
+          | DatasetRunRowData["scores"]["numeric"][number]
+          | DatasetRunRowData["scores"]["qualitative"][number]
           | undefined = row.getValue(detailColumnProps.accessorKey);
 
         if (!record) {

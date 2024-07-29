@@ -2,11 +2,7 @@ import { type z } from "zod";
 
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared";
-import {
-  type ObservationView,
-  Prisma,
-  type ScoreDataType,
-} from "@langfuse/shared/src/db";
+import { Prisma, type ScoreDataType } from "@langfuse/shared/src/db";
 
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
@@ -24,14 +20,6 @@ export type ScoreSimplified = {
 };
 
 export type GetAllGenerationsInput = z.infer<typeof getAllGenerationsInput>;
-
-export type ObservationViewWithScores = ObservationView & {
-  traceId: string | null;
-  traceName: string | null;
-  promptName: string | null;
-  promptVersion: string | null;
-  scores: ScoreSimplified[] | null;
-};
 
 export const getAllQuery = protectedProjectProcedure
   .input(getAllGenerationsInput)

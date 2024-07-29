@@ -47,7 +47,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import {
-  constructDefaultColumns,
+  constructDetailColumns,
   getDetailColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { type APIScore } from "@/src/features/public-api/types/scores";
@@ -617,7 +617,7 @@ export default function GenerationsTable({
   ): LangfuseColumnDef<GenerationsTableRow>[] => {
     return [
       ...nativeColumns,
-      ...constructDefaultColumns<GenerationsTableRow>(
+      ...constructDetailColumns<GenerationsTableRow>(
         detailColumnAccessors ?? [],
       ),
     ];
@@ -673,7 +673,7 @@ export default function GenerationsTable({
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDefaultColumns<GenerationsTableRow>(
+        detailColumns={constructDetailColumns<GenerationsTableRow>(
           individualScoreColumns.data?.scoreColumns ?? [],
         )}
         detailColumnHeader="Individual Scores"
@@ -724,7 +724,7 @@ export default function GenerationsTable({
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDefaultColumns<GenerationsTableRow>(
+        detailColumns={constructDetailColumns<GenerationsTableRow>(
           individualScoreColumns.data?.scoreColumns ?? [],
         )}
         data={
