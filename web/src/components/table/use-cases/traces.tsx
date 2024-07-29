@@ -155,7 +155,9 @@ export default function TracesTable({
     {
       projectId,
       timestampFilter:
-        dateRangeFilter[0].type === "datetime" ? dateRangeFilter[0] : undefined,
+        dateRangeFilter[0]?.type === "datetime"
+          ? dateRangeFilter[0]
+          : undefined,
     },
     {
       trpc: {
