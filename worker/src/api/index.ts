@@ -10,7 +10,7 @@ import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
 import { checkContainerHealth } from "../features/health";
-import { createClient } from "@clickhouse/client";
+import { clickhouseClient } from "@langfuse/shared/src/server";
 
 const router = express.Router();
 
@@ -38,12 +38,7 @@ router
     try {
       // check if clickhouse is healthy
       try {
-        const client = createClient({
-          url: env.CLICKHOUSE_URL,
-          username: env.CLICKHOUSE_USER,
-          password: env.CLICKHOUSE_PASSWORD,
-        });
-        const response = await client.query({
+        const response = await clickhouseClient.query({
           query: "SELECT 1",
           format: "CSV",
         });

@@ -122,6 +122,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.554.0
         version: 3.554.0
+      '@clickhouse/client':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@langchain/anthropic':
         specifier: ^0.1.21
         version: 0.1.21
