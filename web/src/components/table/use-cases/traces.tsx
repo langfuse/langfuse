@@ -42,6 +42,10 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { type APIScore } from "@/src/features/public-api/types/scores";
+import {
+  constructDefaultColumns,
+  getDetailColumns,
+} from "@/src/components/table/utils/scoreDetailColumnHelpers";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -69,6 +73,9 @@ export type TracesTableRow = {
   inputCost?: Decimal;
   outputCost?: Decimal;
   totalCost?: Decimal;
+
+  // any number of additional detail columns for individual scores
+  [key: string]: any; // any of type APIScore[] for detail columns
 };
 
 export type TracesTableProps = {
@@ -164,6 +171,10 @@ export default function TracesTable({
     },
   );
 
+  const individualScoreColumns = api.scores.scoreNames.useQuery({
+    projectId,
+  });
+
   const transformFilterOptions = (
     traceFilterOptions: TraceOptions | undefined,
   ) => {
@@ -175,6 +186,11 @@ export default function TracesTable({
   const convertToTableRow = (
     trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {
+    const detailColumns = getDetailColumns(
+      individualScoreColumns.data?.scoreColumns,
+      trace.scores,
+    );
+
     return {
       bookmarked: trace.bookmarked,
       id: trace.id,
@@ -197,6 +213,7 @@ export default function TracesTable({
       inputCost: trace.calculatedInputCost ?? undefined,
       outputCost: trace.calculatedOutputCost ?? undefined,
       totalCost: trace.calculatedTotalCost ?? undefined,
+      ...detailColumns,
     };
   };
 
@@ -591,13 +608,32 @@ export default function TracesTable({
     },
   ];
 
+  const extendColumns = (
+    nativeColumns: LangfuseColumnDef<TracesTableRow>[],
+    detailColumnAccessors?: string[],
+  ): LangfuseColumnDef<TracesTableRow>[] => {
+    return [
+      ...nativeColumns,
+      ...constructDefaultColumns<TracesTableRow>(detailColumnAccessors ?? []),
+    ];
+  };
+
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
+    useColumnVisibility<TracesTableRow>(
+      `tracesColumnVisibility-${projectId}`,
+      individualScoreColumns.isLoading
+        ? []
+        : extendColumns(columns, individualScoreColumns.data?.scoreColumns),
+    );
 
   return (
     <>
       <DataTableToolbar
         columns={columns}
+        detailColumns={constructDefaultColumns<TracesTableRow>(
+          individualScoreColumns.data?.scoreColumns ?? [],
+        )}
+        detailColumnHeader="Individual Scores"
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
           placeholder: "Search by id, name, user id",
@@ -629,6 +665,9 @@ export default function TracesTable({
       />
       <DataTable
         columns={columns}
+        detailColumns={constructDefaultColumns<TracesTableRow>(
+          individualScoreColumns.data?.scoreColumns ?? [],
+        )}
         data={
           traces.isLoading
             ? { isLoading: true, isError: false }
@@ -641,7 +680,10 @@ export default function TracesTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: traces.data.traces.map((t) => convertToTableRow(t)),
+                  data:
+                    traces.isSuccess && !individualScoreColumns.isLoading
+                      ? traces.data.traces.map((t) => convertToTableRow(t))
+                      : [],
                 }
         }
         pagination={{
