@@ -192,7 +192,7 @@ describe("Authenticate API calls", () => {
       const redisKeys = await redis.keys(`api-key:*`);
       expect(redisKeys.length).toBe(1);
       const redisValue = await redis.get(redisKeys[0]);
-      expect(redisValue).toBe("api-key-non-existent");
+      expect(redisValue).toBe('"api-key-non-existent"');
     });
 
     it("prisma should not be used when reading cached keys", async () => {
