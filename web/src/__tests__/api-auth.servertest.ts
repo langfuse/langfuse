@@ -161,6 +161,11 @@ describe("Authenticate API calls", () => {
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
+      const cachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(cachedKey).toBeNull();
+
       // second will add the key to redis
       await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
