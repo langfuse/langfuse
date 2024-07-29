@@ -6,7 +6,6 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { HelpCircle, Info } from "lucide-react";
-import Link from "next/link";
 
 export type DocPopupProps = {
   description: React.ReactNode;
@@ -45,36 +44,26 @@ export default function DocPopup({
         className={cn("mx-1", href ? "cursor-pointer" : "cursor-default")}
         asChild
       >
-        {href ? (
-          <Link
-            href={href}
-            rel="noopener"
-            target="_blank"
-            className="inline-block whitespace-nowrap text-muted-foreground sm:pl-0"
-            onClick={() => {
-              capture("help_popup:href_clicked", {
-                href: href,
-                description: description,
-              });
-            }}
-          >
+        <div
+          className="inline-block whitespace-nowrap text-muted-foreground sm:pl-0"
+          onClick={(e) => {
+            if (!href) return;
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(href, "_blank");
+            capture("help_popup:href_clicked", {
+              href: href,
+              description: description,
+            });
+          }}
+        >
+          {
             {
-              {
-                question: <HelpCircle className={sizes[size]} />,
-                info: <Info className={sizes[size]} />,
-              }[style]
-            }
-          </Link>
-        ) : (
-          <div className="inline-block whitespace-nowrap text-muted-foreground sm:pl-0">
-            {
-              {
-                question: <HelpCircle className={sizes[size]} />,
-                info: <Info className={sizes[size]} />,
-              }[style]
-            }
-          </div>
-        )}
+              question: <HelpCircle className={sizes[size]} />,
+              info: <Info className={sizes[size]} />,
+            }[style]
+          }
+        </div>
       </HoverCardTrigger>
       <HoverCardContent>
         {typeof description === "string" ? (

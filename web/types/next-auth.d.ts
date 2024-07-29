@@ -5,6 +5,7 @@ import {
   type Project as PrismaProject,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
+import { type cloudConfigSchema } from "@/src/server/auth";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -19,7 +20,6 @@ declare module "next-auth" {
       // Run-time environment variables that need to be available client-side
       enableExperimentalFeatures: boolean;
       disableExpensivePostgresQueries: boolean;
-      defaultTableDateTimeOffset?: number;
       // Enables features that are only available under an enterprise license when self-hosting Langfuse
       eeEnabled: boolean;
     };
@@ -36,9 +36,7 @@ declare module "next-auth" {
       id: PrismaProject["id"];
       name: PrismaProject["name"];
       role: PrismaMembership["role"];
-      cloudConfig: {
-        defaultLookBackDays: number | null;
-      };
+      cloudConfig: z.infer<typeof cloudConfigSchema> | null;
     }[];
     featureFlags: Flags;
   }
