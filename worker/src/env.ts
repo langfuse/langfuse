@@ -31,7 +31,7 @@ const EnvSchema = z.object({
   LANGFUSE_INGESTION_BUFFER_TTL_SECONDS: z.coerce
     .number()
     .positive()
-    .default(60 * 60),
+    .default(60 * 10),
   LANGFUSE_INGESTION_FLUSH_DELAY_MS: z.coerce
     .number()
     .nonnegative()
