@@ -4,6 +4,8 @@ import {
   ScoreRecordInsertType,
   TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
+import * as Sentry from "@sentry/node";
+
 import { env } from "../../env";
 import logger from "../../logger";
 
@@ -91,14 +93,46 @@ export class ClickhouseWriter {
       fullQueue ? entityQueue.length : this.batchSize
     );
 
+    // Log wait time
+    queueItems.forEach((item) => {
+      const waitTime = Date.now() - item.createdAt;
+      Sentry.metrics.distribution(
+        "ingestion_clickhouse_insert_wait_time",
+        waitTime,
+        {
+          unit: "milliseconds",
+        }
+      );
+    });
+
     try {
+      const processingStartTime = Date.now();
+
       await this.writeToClickhouse({
         table: tableName,
         records: queueItems.map((item) => item.data),
       });
 
+      // Log processing time
+      Sentry.metrics.distribution(
+        "ingestion_clickhouse_insert_processing_time",
+        Date.now() - processingStartTime,
+        {
+          unit: "milliseconds",
+        }
+      );
+
       logger.debug(
         `Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`
+      );
+
+      Sentry.metrics.gauge(
+        "ingestion_clickhouse_insert_queue_length",
+        entityQueue.length,
+        {
+          unit: "records",
+          tags: { entityType: tableName },
+        }
       );
     } catch (err) {
       logger.error(`ClickhouseWriter.flush ${tableName}`, err);
