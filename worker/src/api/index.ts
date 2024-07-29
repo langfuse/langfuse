@@ -31,23 +31,31 @@ router.get<{}, { status: string }>("/health", async (_req, res) => {
 
 router
   .use(basicAuth({ users: { admin: env.LANGFUSE_WORKER_PASSWORD } }))
-  .get<{}, EventsResponse>("/clickhouse", async (req, res) => {
-    // check if clickhouse is healthy
+  .get<
+    {},
+    { status: "success" | "error"; message?: string }
+  >("/clickhouse", async (req, res) => {
     try {
-      const client = createClient({
-        url: env.CLICKHOUSE_URL,
-        username: env.CLICKHOUSE_USER,
-        password: env.CLICKHOUSE_PASSWORD,
-      });
-      await client.query({
-        query: "SELECT 1",
-        format: "CSV",
-      });
+      // check if clickhouse is healthy
+      try {
+        const client = createClient({
+          url: env.CLICKHOUSE_URL,
+          username: env.CLICKHOUSE_USER,
+          password: env.CLICKHOUSE_PASSWORD,
+        });
+        await client.query({
+          query: "SELECT 1",
+          format: "CSV",
+        });
 
-      res.json({ status: "success" });
+        res.json({ status: "success" });
+      } catch (e) {
+        logger.error(e, "Clickhouse health check failed");
+        res.status(500).json({ status: "error", message: JSON.stringify(e) });
+      }
     } catch (e) {
-      logger.error(e, "Clickhouse health check failed");
-      res.status(500).json({ status: "error" });
+      logger.error(e, "Unexpected error during Clickhouse health check");
+      res.status(500).json({ status: "error", message: JSON.stringify(e) });
     }
   });
 
