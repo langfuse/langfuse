@@ -19,6 +19,7 @@
   "author": "engineering@langfuse.com",
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
+    "@clickhouse/client": "^1.4.0",
     "@langfuse/shared": "workspace:*",
     "@sentry/node": "^8.13.0",
     "@sentry/profiling-node": "^8.13.0",

@@ -25,6 +25,9 @@ const EnvSchema = z.object({
     .optional(),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(60 * 60),
+  CLICKHOUSE_URL: z.string().url().optional(),
+  CLICKHOUSE_USER: z.string().optional(),
+  CLICKHOUSE_PASSWORD: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);
