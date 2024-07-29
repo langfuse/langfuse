@@ -139,8 +139,10 @@ const QualitativeScoreDetails = ({
 
 export const QualitativeScoreBadge = ({
   scores,
+  showScoreNameHeading = true,
 }: {
   scores: Record<string, QualitativeScoreDistribution[]>;
+  showScoreNameHeading?: boolean;
 }) => {
   const sortedScores = Object.entries(scores).map(([k, v]) => ({
     name: k,
@@ -154,9 +156,11 @@ export const QualitativeScoreBadge = ({
           {distribution.length > DETAIL_HOVER_AFTER ? (
             <HoverCard>
               <HoverCardTrigger>
-                <div className="text-xs text-muted-foreground group-hover:text-accent-dark-blue/55">
-                  {name}
-                </div>
+                {showScoreNameHeading && (
+                  <div className="text-xs text-muted-foreground group-hover:text-accent-dark-blue/55">
+                    {name}
+                  </div>
+                )}
                 <div className="flex cursor-pointer flex-col group-hover:text-accent-dark-blue/55">
                   {distribution
                     .slice(0, DETAIL_HOVER_AFTER)
@@ -176,7 +180,9 @@ export const QualitativeScoreBadge = ({
             </HoverCard>
           ) : (
             <>
-              <div className="text-xs text-muted-foreground">{name}</div>
+              {showScoreNameHeading && (
+                <div className="text-xs text-muted-foreground">{name}</div>
+              )}
               <div className="flex flex-col">
                 {distribution.map(({ value, count }) => (
                   <span
