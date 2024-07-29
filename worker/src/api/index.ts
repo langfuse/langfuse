@@ -36,6 +36,8 @@ router
     try {
       const client = createClient({
         url: env.CLICKHOUSE_URL,
+        username: env.CLICKHOUSE_USER,
+        password: env.CLICKHOUSE_PASSWORD,
       });
       await client.query({
         query: "SELECT 1",
