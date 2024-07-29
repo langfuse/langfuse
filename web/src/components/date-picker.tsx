@@ -17,7 +17,7 @@ import { useMediaQuery } from "react-responsive";
 import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";
-import DateRangeDropdown from "@/src/components/DateRangeDropdown";
+import { DashboardDateRangeDropdown } from "@/src/components/date-range-dropdowns";
 import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DashboardDateRangeOptions,
@@ -258,8 +258,7 @@ export function DatePickerWithRange({
           )}
         </PopoverContent>
       </Popover>
-      <DateRangeDropdown
-        type="dashboard"
+      <DashboardDateRangeDropdown
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
       />
