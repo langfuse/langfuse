@@ -6,7 +6,6 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { HelpCircle, Info } from "lucide-react";
-import Link from "next/link";
 
 export type DocPopupProps = {
   description: React.ReactNode;
