@@ -161,10 +161,7 @@ describe("Authenticate API calls", () => {
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
-      const cachedKey = await redis.get(
-        `api-key:${apiKey?.fastHashedSecretKey}`,
-      );
-      expect(cachedKey).toBeNull();
+      await redis.get(`api-key:${apiKey?.fastHashedSecretKey}`);
 
       // second will add the key to redis
       await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
@@ -183,6 +180,19 @@ describe("Authenticate API calls", () => {
         ...apiKey,
         createdAt: apiKey?.createdAt.toISOString(),
       });
+    });
+
+    it("non-existing key is stored in redis and causes error", async () => {
+      // key does not exist in database
+
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const redisKeys = await redis.keys(`api-key:*`);
+      expect(redisKeys.length).toBe(1);
+      const redisValue = await redis.get(redisKeys[0]);
+      expect(redisValue).toBe("api-key-non-existent");
     });
 
     it("prisma should not be used when reading cached keys", async () => {
