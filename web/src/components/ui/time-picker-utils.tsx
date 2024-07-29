@@ -201,3 +201,18 @@ export function display12HourValue(hours: number) {
   if (hours % 12 > 9) return `${hours}`;
   return `0${hours % 12}`;
 }
+
+export function combineDateAndTime(
+  date: Date | undefined,
+  time: Date | undefined,
+) {
+  if (!date || !time) return undefined;
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    time.getHours(),
+    time.getMinutes(),
+    time.getSeconds(),
+  );
+}

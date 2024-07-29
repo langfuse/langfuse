@@ -1,5 +1,4 @@
 import { api } from "@/src/utils/api";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -14,8 +13,8 @@ import {
   createTracesTimeFilter,
   totalCostDashboardFormatted,
 } from "@/src/features/dashboard/lib/dashboard-utils";
-
 import { env } from "@/src/env.mjs";
+import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 
 type BarChartDataPoint = {
   name: string;
@@ -30,7 +29,7 @@ export const UserChart = ({
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
-  agg: DateTimeAggregationOption;
+  agg: DashboardDateRangeAggregationOption;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const user = api.dashboard.chart.useQuery(

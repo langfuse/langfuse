@@ -21,10 +21,7 @@ import {
   withDefault,
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import {
-  formatIntervalSeconds,
-  localtimeDateOffsetByDays,
-} from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -46,7 +43,7 @@ import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAl
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type GenerationsTableRow = {
   id: string;
@@ -109,15 +106,11 @@ export default function GenerationsTable({
     "s",
   );
 
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange();
+
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Start Time",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "generations",
   );
 
@@ -148,7 +141,19 @@ export default function GenerationsTable({
       ]
     : [];
 
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Start Time",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
   const filterState = inputFilterState.concat([
+    ...dateRangeFilter,
     ...promptNameFilter,
     ...promptVersionFilter,
   ]);
@@ -679,6 +684,8 @@ export default function GenerationsTable({
         setColumnVisibility={setColumnVisibilityState}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
