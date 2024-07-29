@@ -108,7 +108,7 @@ export class ApiAuthService {
             console.error("No key found for public key", publicKey);
             if (this.redis) {
               console.log(
-                `No key found for hash ${hashFromProvidedKey}, storing ${API_KEY_NON_EXISTENT} in redis`,
+                `No key found, storing ${API_KEY_NON_EXISTENT} in redis`,
               );
               await this.addApiKeyToRedis(
                 hashFromProvidedKey,
