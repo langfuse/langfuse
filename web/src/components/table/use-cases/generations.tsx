@@ -319,6 +319,11 @@ export default function GenerationsTable({
       accessorKey: "scores",
       id: "scores",
       header: "Scores",
+      headerTooltip: {
+        description:
+          "Scores are used to evaluate the quality of the trace. They can be automated, based on user feedback, or manually annotated. See docs to learn more.",
+        href: "https://langfuse.com/docs/scores",
+      },
       cell: ({ row }) => {
         const values: ScoreSimplified[] | undefined = row.getValue("scores");
         return (
@@ -412,6 +417,11 @@ export default function GenerationsTable({
       accessorKey: "level",
       id: "level",
       header: "Level",
+      headerTooltip: {
+        description:
+          "Use You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
+        href: "https://langfuse.com/docs/tracing-features/log-levels",
+      },
       enableHiding: true,
       cell({ row }) {
         const value: ObservationLevel | undefined = row.getValue("level");
@@ -433,6 +443,11 @@ export default function GenerationsTable({
       accessorKey: "statusMessage",
       header: "Status Message",
       id: "statusMessage",
+      headerTooltip: {
+        description:
+          "Use a statusMessage to e.g. provide additional information on a status such as level=ERROR.",
+        href: "https://langfuse.com/docs/tracing-features/log-levels",
+      },
       enableHiding: true,
       defaultHidden: true,
     },
@@ -554,6 +569,10 @@ export default function GenerationsTable({
     {
       accessorKey: "metadata",
       header: "Metadata",
+      headerTooltip: {
+        description: "Add metadata to traces to track additional information.",
+        href: "https://langfuse.com/docs/tracing-features/metadata",
+      },
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -573,6 +592,10 @@ export default function GenerationsTable({
       accessorKey: "version",
       id: "version",
       header: "Version",
+      headerTooltip: {
+        description: "Track changes via the version tag.",
+        href: "https://langfuse.com/docs/experimentation",
+      },
       enableHiding: true,
       enableSorting: true,
     },
@@ -580,6 +603,10 @@ export default function GenerationsTable({
       accessorKey: "promptName",
       id: "promptName",
       header: "Prompt",
+      headerTooltip: {
+        description: "Link to prompt version in Langfuse prompt management.",
+        href: "https://langfuse.com/docs/prompts",
+      },
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
