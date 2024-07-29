@@ -207,10 +207,8 @@ export default function GenerationsTable({
     },
   );
 
-  const individualScoreColumns = api.generations.scoreNames.useQuery({
+  const individualScoreColumns = api.scores.scoreNames.useQuery({
     projectId,
-    startTimeFilter:
-      startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
   });
 
   const transformFilterOptions = (
@@ -676,7 +674,7 @@ export default function GenerationsTable({
     );
 
   const rows: GenerationsTableRow[] =
-    generations.isSuccess && individualScoreColumns.isSuccess
+    generations.isSuccess && !individualScoreColumns.isLoading
       ? generations.data.generations.map((generation) => {
           const detailColumns =
             individualScoreColumns.data?.scoreColumns.reduce(

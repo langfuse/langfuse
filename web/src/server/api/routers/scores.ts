@@ -293,6 +293,33 @@ export const scoresRouter = createTRPCRouter({
         },
       });
     }),
+  scoreNames: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      // Score names
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          projectId: input.projectId,
+        },
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
+        by: ["name", "source", "dataType"],
+      });
+
+      return {
+        scoreColumns: scores.map(
+          ({ name, source, dataType }) => `${name}.${source}.${dataType}`,
+        ),
+      };
+    }),
 });
 
 const generateScoresQuery = (
