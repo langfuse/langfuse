@@ -203,8 +203,14 @@ export class ApiAuthService {
     // first get the API key from redis, this does not throw
     const redisApiKey = await this.fetchApiKeyFromRedis(hash);
 
+    if (redisApiKey === API_KEY_NON_EXISTENT) {
+      Sentry.metrics.increment("api_key_cache_hit");
+      console.log(`Found nonexisting key in redis.`);
+      throw new Error("Invalid credentials");
+    }
+
     // if we found something, return the object.
-    if (redisApiKey && redisApiKey !== API_KEY_NON_EXISTENT) {
+    if (redisApiKey) {
       Sentry.metrics.increment("api_key_cache_hit");
       console.log(
         `Found key with id ${redisApiKey.id} for project ${redisApiKey.projectId} in redis`,
