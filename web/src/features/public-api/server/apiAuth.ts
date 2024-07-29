@@ -100,7 +100,24 @@ export class ApiAuthService {
         let projectId = apiKey?.projectId;
 
         if (!apiKey || !apiKey.fastHashedSecretKey) {
-          const dbKey = await this.findDbKeyOrThrow(publicKey);
+          const dbKey = await this.prisma.apiKey.findUnique({
+            where: { publicKey },
+          });
+
+          if (!dbKey) {
+            console.error("No key found for public key", publicKey);
+            if (this.redis) {
+              console.log(
+                `No key found for hash ${hashFromProvidedKey}, storing ${API_KEY_NON_EXISTENT} in redis`,
+              );
+              await this.addApiKeyToRedis(
+                hashFromProvidedKey,
+                API_KEY_NON_EXISTENT,
+              );
+            }
+            throw new Error("Invalid credentials");
+          }
+
           const isValid = await verifySecretKey(
             secretKey,
             dbKey.hashedSecretKey,
@@ -200,6 +217,7 @@ export class ApiAuthService {
   }
 
   async fetchApiKeyAndAddToRedis(hash: string) {
+    console.log("fetchApiKeyAndAddToRedis");
     // first get the API key from redis, this does not throw
     const redisApiKey = await this.fetchApiKeyFromRedis(hash);
 
@@ -219,10 +237,13 @@ export class ApiAuthService {
     }
 
     Sentry.metrics.increment("api_key_cache_miss");
+
     // if redis not available or object not found, try the database
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { fastHashedSecretKey: hash },
     });
+
+    console.log(`cache miss ${apiKey}, ${redis}`);
 
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.
@@ -231,12 +252,6 @@ export class ApiAuthService {
         `Add key with id ${apiKey.id} for project ${apiKey.projectId} to redis`,
       );
       await this.addApiKeyToRedis(hash, apiKey);
-    } else {
-      // Store a null placeholder in Redis to avoid repeated DB lookups
-      console.log(
-        `No key found for hash ${hash}, storing ${API_KEY_NON_EXISTENT} in redis`,
-      );
-      await this.addApiKeyToRedis(hash, API_KEY_NON_EXISTENT);
     }
     return apiKey;
   }

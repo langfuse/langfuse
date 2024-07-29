@@ -161,8 +161,6 @@ describe("Authenticate API calls", () => {
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
-      await redis.get(`api-key:${apiKey?.fastHashedSecretKey}`);
-
       // second will add the key to redis
       await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
@@ -182,17 +180,54 @@ describe("Authenticate API calls", () => {
       });
     });
 
-    it("non-existing key is stored in redis and causes error", async () => {
+    it("searching for non-existing key stores flag in redis and fails auth", async () => {
       // key does not exist in database
 
-      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+      const verification = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
       );
+
+      expect(verification.validKey).toBe(false);
+
+      const redisKeys = await redis.keys(`api-key:*`);
+      console.log(redisKeys);
+      expect(redisKeys.length).toBe(1);
+      const redisValue = await redis.get(redisKeys[0]);
+      expect(redisValue).toBe('"api-key-non-existent"');
+    });
+
+    it("searching for non-existing key again fails auth", async () => {
+      // key does not exist in database
+
+      const verification = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      expect(verification.validKey).toBe(false);
 
       const redisKeys = await redis.keys(`api-key:*`);
       expect(redisKeys.length).toBe(1);
       const redisValue = await redis.get(redisKeys[0]);
       expect(redisValue).toBe('"api-key-non-existent"');
+
+      const verification2 = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+      expect(verification2.validKey).toBe(false);
+
+      const redisKeys2 = await redis.keys(`api-key:*`);
+      expect(redisKeys2.length).toBe(1);
+      const redisValue2 = await redis.get(redisKeys[0]);
+      expect(redisValue2).toBe('"api-key-non-existent"');
     });
 
     it("prisma should not be used when reading cached keys", async () => {
