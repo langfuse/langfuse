@@ -1,4 +1,3 @@
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action";
@@ -37,7 +36,6 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { type APIScore } from "@/src/features/public-api/types/scores";
 import {
   constructDetailColumns,
   getDetailColumns,
@@ -60,7 +58,6 @@ export type TracesTableRow = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
-  scores: APIScore[];
   tags: string[];
   usage: {
     promptTokens: bigint;
@@ -191,7 +188,9 @@ export default function TracesTable({
     trace: RouterOutput["traces"]["all"]["traces"][0],
   ): TracesTableRow => {
     const detailColumns = getDetailColumns(
-      scoreNamesList.data?.names,
+      scoreNamesList.data?.names
+        ? new Set(scoreNamesList.data.names)
+        : undefined,
       trace.scores,
     );
 
@@ -205,7 +204,6 @@ export default function TracesTable({
       release: trace.release ?? undefined,
       version: trace.version ?? undefined,
       userId: trace.userId ?? "",
-      scores: trace.scores,
       sessionId: trace.sessionId ?? undefined,
       latency: trace.latency === null ? undefined : trace.latency,
       tags: trace.tags,
@@ -475,22 +473,6 @@ export default function TracesTable({
       enableSorting: true,
     },
     {
-      accessorKey: "scores",
-      id: "scores",
-      header: "Scores",
-      headerTooltip: {
-        description:
-          "Scores are used to evaluate the quality of the trace. They can be automated, based on user feedback, or manually annotated. See docs to learn more.",
-        href: "https://langfuse.com/docs/scores",
-      },
-      enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
-      cell: ({ row }) => {
-        const values: TracesTableRow["scores"] = row.getValue("scores");
-        return <GroupedScoreBadges scores={values} variant="headings" />;
-      },
-      enableHiding: true,
-    },
-    {
       accessorKey: "input",
       header: "Input",
       id: "input",
@@ -647,7 +629,9 @@ export default function TracesTable({
   ): LangfuseColumnDef<TracesTableRow>[] => {
     return [
       ...nativeColumns,
-      ...constructDetailColumns<TracesTableRow>(detailColumnAccessors ?? []),
+      ...constructDetailColumns<TracesTableRow>({
+        detailColumnAccessors: detailColumnAccessors ?? [],
+      }),
     ];
   };
 
@@ -663,9 +647,9 @@ export default function TracesTable({
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDetailColumns<TracesTableRow>(
-          scoreNamesList.data?.names ?? [],
-        )}
+        detailColumns={constructDetailColumns<TracesTableRow>({
+          detailColumnAccessors: scoreNamesList.data?.names ?? [],
+        })}
         detailColumnHeader="Individual Scores"
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
@@ -700,9 +684,9 @@ export default function TracesTable({
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDetailColumns<TracesTableRow>(
-          scoreNamesList.data?.names ?? [],
-        )}
+        detailColumns={constructDetailColumns<TracesTableRow>({
+          detailColumnAccessors: scoreNamesList.data?.names ?? [],
+        })}
         data={
           traces.isLoading
             ? { isLoading: true, isError: false }

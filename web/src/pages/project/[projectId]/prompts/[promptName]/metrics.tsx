@@ -13,16 +13,16 @@ import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import {
-  GroupedScoreBadges,
-  QualitativeScoreBadge,
-} from "@/src/components/grouped-score-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ScoreDataType } from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
+import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
+import {
+  constructDetailColumns,
+  getDetailColumns,
+} from "@/src/components/table/utils/scoreDetailColumnHelpers";
+import { useMemo } from "react";
 
-type PromptVersionTableRow = {
+export type PromptVersionTableRow = {
   version: number;
   labels: string[];
   medianLatency?: number | null;
@@ -30,10 +30,13 @@ type PromptVersionTableRow = {
   medianOutputTokens?: number | null;
   medianCost?: number | null;
   generationCount?: number | null;
-  observationScoreMetrics?: RouterOutput["prompts"]["versionMetrics"][number]["observationScores"];
-  traceScoreMetrics?: RouterOutput["prompts"]["versionMetrics"][number]["traceScores"];
+  observationScoreMetrics?: ScoreAggregate;
+  traceScoreMetrics?: ScoreAggregate;
   lastUsed?: string | null;
   firstUsed?: string | null;
+
+  // any number of additional detail columns for individual scores
+  [key: string]: any; // any of type SimplifiedScore[] for detail columns
 };
 
 type PromptCoreOutput = RouterOutput["prompts"]["allVersions"];
@@ -73,6 +76,24 @@ function joinPromptCoreAndMetricData(
 
   return { status: "success", combinedData };
 }
+
+const computeAccessorMetrics = (key: string) => {
+  const [type, name, source, dataType] = key.split(".");
+  return `${type}: ${name} (${source.toLowerCase()}, ${dataType.toLowerCase()})`;
+};
+
+const parseMetricsColumn = (col: string) => {
+  const [type, name, source, dataType] = col.split(".");
+  return {
+    key: `${type}: ${name} (${source.toLowerCase()}, ${dataType.toLowerCase()})`,
+    header: () => (
+      <div className="flex flex-row items-center gap-1">
+        <span>{`${type}: ${name} (${source.toLowerCase()})`}</span>
+        {/* <DataTypeIcon dataType={dataType} /> */}
+      </div>
+    ),
+  };
+};
 
 export default function PromptVersionTable() {
   const router = useRouter();
@@ -120,6 +141,19 @@ export default function PromptVersionTable() {
       },
     },
   );
+
+  const scoreNamesList = api.scores.getNamesList.useQuery({
+    projectId,
+  });
+
+  // I need to take scoreNamesList and construct a list that has each element twice, once prefixed with Generation and once with Trace
+  const prefixedNamesList = useMemo(() => {
+    if (!scoreNamesList.data) return [];
+    return scoreNamesList.data.names.flatMap((name) => [
+      `Generation.${name}`,
+      `Trace.${name}`,
+    ]);
+  }, [scoreNamesList.data]);
 
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
     {
@@ -236,77 +270,6 @@ export default function PromptVersionTable() {
       },
     },
     {
-      accessorKey: "observationScoreMetrics",
-      id: "observationScoreMetrics",
-      header: "Generation score metrics",
-      cell: ({ row }) => {
-        const scores: PromptVersionTableRow["observationScoreMetrics"] =
-          row.getValue("observationScoreMetrics");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-        if (!scores) return null;
-
-        const { numericScores, qualitativeScores } = scores;
-
-        return (
-          <div
-            className={cn(
-              "flex max-w-xl flex-row items-start gap-3 overflow-y-auto",
-              rowHeight === "s" && "h-8",
-            )}
-          >
-            <GroupedScoreBadges
-              scores={Object.entries(numericScores).map(([k, v]) => ({
-                name: k,
-                value: v,
-                dataType: ScoreDataType.NUMERIC,
-              }))}
-              variant="headings"
-            />
-            <QualitativeScoreBadge scores={qualitativeScores} />
-          </div>
-        );
-      },
-      enableHiding: true,
-    },
-    {
-      accessorKey: "traceScoreMetrics",
-      id: "traceScoreMetrics",
-      header: "Trace score metrics",
-      cell: ({ row }) => {
-        const scores: PromptVersionTableRow["traceScoreMetrics"] =
-          row.getValue("traceScoreMetrics");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-
-        if (!scores) return null;
-
-        const { numericScores, qualitativeScores } = scores;
-
-        return (
-          <div
-            className={cn(
-              "flex max-w-xl flex-row items-start gap-3 overflow-y-auto",
-              rowHeight === "s" && "h-8",
-            )}
-          >
-            <GroupedScoreBadges
-              scores={Object.entries(numericScores).map(([k, v]) => ({
-                name: k,
-                value: v,
-                dataType: ScoreDataType.NUMERIC,
-              }))}
-              variant="headings"
-            />
-            <QualitativeScoreBadge scores={qualitativeScores} />
-          </div>
-        );
-      },
-      enableHiding: true,
-    },
-    {
       accessorKey: "lastUsed",
       id: "lastUsed",
       header: "Last used",
@@ -344,10 +307,24 @@ export default function PromptVersionTable() {
     },
   ];
 
+  const extendColumns = (
+    nativeColumns: LangfuseColumnDef<PromptVersionTableRow>[],
+    detailColumnAccessors?: string[],
+  ): LangfuseColumnDef<PromptVersionTableRow>[] => {
+    return [
+      ...nativeColumns,
+      ...constructDetailColumns<PromptVersionTableRow>({
+        detailColumnAccessors: detailColumnAccessors ?? [],
+        parseColumn: parseMetricsColumn,
+        showAggregateViewOnly: true,
+      }),
+    ];
+  };
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<PromptVersionTableRow>(
-      "promptVersionsColumnVisibility",
-      columns,
+      `promptVersionsColumnVisibility-${projectId}`,
+      scoreNamesList.isLoading ? [] : extendColumns(columns, prefixedNamesList),
     );
 
   if (!promptVersions.data) {
@@ -362,22 +339,40 @@ export default function PromptVersionTable() {
   );
 
   const rows: PromptVersionTableRow[] =
-    promptVersions.isSuccess && !!combinedData
-      ? combinedData.map((prompt) => ({
-          version: prompt.version,
-          labels: prompt.labels,
-          medianLatency: prompt.medianLatency,
-          medianInputTokens: prompt.medianInputTokens,
-          medianOutputTokens: prompt.medianOutputTokens,
-          medianCost: prompt.medianTotalCost,
-          generationCount: prompt.observationCount,
-          observationScoreMetrics: prompt.observationScores,
-          traceScoreMetrics: prompt.traceScores,
-          lastUsed:
-            prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
-          firstUsed:
-            prompt.firstUsed?.toLocaleString() ?? "No linked generation yet",
-        }))
+    promptVersions.isSuccess && !!combinedData && !scoreNamesList.isLoading
+      ? combinedData.map((prompt) => {
+          const generationDetailColumns = getDetailColumns(
+            prefixedNamesList ? new Set(prefixedNamesList) : undefined,
+            prompt.observationScores ?? {},
+            computeAccessorMetrics,
+          );
+          const traceDetailColumns = getDetailColumns(
+            prefixedNamesList ? new Set(prefixedNamesList) : undefined,
+            prompt.traceScores ?? {},
+            computeAccessorMetrics,
+          );
+
+          console.log({
+            generationDetailColumns,
+            traceDetailColumns,
+            prefixedNamesList,
+          });
+
+          return {
+            version: prompt.version,
+            labels: prompt.labels,
+            medianLatency: prompt.medianLatency,
+            medianInputTokens: prompt.medianInputTokens,
+            medianOutputTokens: prompt.medianOutputTokens,
+            medianCost: prompt.medianTotalCost,
+            lastUsed:
+              prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
+            firstUsed:
+              prompt.firstUsed?.toLocaleString() ?? "No linked generation yet",
+            ...generationDetailColumns,
+            ...traceDetailColumns,
+          };
+        })
       : [];
 
   return (
@@ -420,6 +415,12 @@ export default function PromptVersionTable() {
       <div className="gap-3">
         <DataTableToolbar
           columns={columns}
+          detailColumns={constructDetailColumns<PromptVersionTableRow>({
+            detailColumnAccessors: prefixedNamesList ?? [],
+            parseColumn: parseMetricsColumn,
+            showAggregateViewOnly: true,
+          })}
+          detailColumnHeader="Trace and Generation Score Metrics"
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}
@@ -428,6 +429,11 @@ export default function PromptVersionTable() {
       </div>
       <DataTable
         columns={columns}
+        detailColumns={constructDetailColumns<PromptVersionTableRow>({
+          detailColumnAccessors: prefixedNamesList ?? [],
+          parseColumn: parseMetricsColumn,
+          showAggregateViewOnly: true,
+        })}
         data={
           promptVersions.isLoading
             ? { isLoading: true, isError: false }

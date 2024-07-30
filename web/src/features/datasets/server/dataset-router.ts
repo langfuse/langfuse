@@ -14,6 +14,11 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import { paginationZod } from "@langfuse/shared";
 import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
+import {
+  type QualitativeAggregate,
+  type QuantitativeAggregate,
+  aggregateScores,
+} from "@/src/features/manual-scoring/lib/aggregateScores";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -144,11 +149,8 @@ export const datasetRouter = createTRPCRouter({
         Array<
           DatasetRuns & {
             countRunItems: number;
-            avgNumericScores: Record<string, number>;
-            qualitativeScoreDistribution: Record<
-              string,
-              Array<{ value: string; count: number }>
-            >;
+            avgNumericScores: Record<string, QuantitativeAggregate>;
+            qualitativeScoreDistribution: Record<string, QualitativeAggregate>;
             avgLatency: number;
             avgTotalCost: Prisma.Decimal;
           }
@@ -171,11 +173,13 @@ export const datasetRouter = createTRPCRouter({
           JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
           LEFT JOIN LATERAL (
             SELECT
-              jsonb_object_agg(s.name, s.avg_value) AS scores
+              jsonb_object_agg(s.name || '.' || s.source || '.NUMERIC', jsonb_build_object ('average', s.avg_value, 'type', 'QUANTITATIVE', 'values', s.values)) AS scores
             FROM (
               SELECT
                 s.name,
-                AVG(s.value) AS avg_value
+                s.source,
+                AVG(s.value) AS avg_value,
+                array_agg(s.value) AS values
               FROM
                 dataset_run_items ri
                 JOIN scores s 
@@ -187,20 +191,26 @@ export const datasetRouter = createTRPCRouter({
                 ri.project_id = ${input.projectId}
                 AND s.data_type = 'NUMERIC'
                 AND ri.dataset_run_id = runs.id
-              GROUP BY s.name
+              GROUP BY s.name, s.source
             ) s
           ) avg_numeric_scores ON true
           LEFT JOIN LATERAL (
             SELECT
-              jsonb_object_agg(s.name, s.qualitative_scores) AS scores
+              jsonb_object_agg(s.name || '.' || s.source || '.' || s.data_type, jsonb_build_object ('distribution', s.qualitative_scores, 'type', 'QUALITATIVE', 'values', s.values)) AS scores
             FROM (
               SELECT
                 s.name,
+                s.values,
+                s.source,
+                s.data_type,
                 jsonb_agg(jsonb_build_object ('value', s.string_value, 'count', s.count)) AS qualitative_scores
               FROM (
                 SELECT
                   s.name,
                   s.string_value,
+                  s.source,
+                  s.data_type,
+                  array_agg(s.string_value) AS values,
                   COUNT(s.string_value) AS count
                 FROM
                   dataset_run_items ri
@@ -216,9 +226,11 @@ export const datasetRouter = createTRPCRouter({
                   AND ri.dataset_run_id = runs.id
                 GROUP BY
                   s.name,
-                  s.string_value
+                  s.string_value,
+                  s.data_type,
+                  s.source
                 ) s
-              GROUP BY s.name 
+              GROUP BY s.name, s.values, s.source, s.data_type
             ) s 
           ) qualitative_score_distribution ON TRUE
           LEFT JOIN LATERAL (
@@ -680,14 +692,14 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: ri.datasetItemId,
           observation: observations.find((o) => o.id === ri.observationId),
           trace: traces.find((t) => t.id === ri.traceId),
-          scores: [
+          scores: aggregateScores([
             ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
             ...validatedObservationScores.filter(
               (s) =>
                 s.observationId === ri.observationId &&
                 s.traceId === ri.traceId,
             ),
-          ],
+          ]),
         };
       });
 

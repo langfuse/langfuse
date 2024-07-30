@@ -23,6 +23,7 @@ import {
 import { orderBy } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { validateDbScore } from "@/src/features/public-api/types/scores";
+import { composeAggregateScoreKey } from "@/src/features/manual-scoring/lib/aggregateScores";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -314,8 +315,8 @@ export const scoresRouter = createTRPCRouter({
       });
 
       return {
-        names: scores.map(
-          ({ name, source, dataType }) => `${name}.${source}.${dataType}`,
+        names: scores.map(({ name, source, dataType }) =>
+          composeAggregateScoreKey({ name, source, dataType }),
         ),
       };
     }),

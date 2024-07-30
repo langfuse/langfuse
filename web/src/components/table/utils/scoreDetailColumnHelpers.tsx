@@ -1,20 +1,27 @@
-import {
-  GroupedScoreBadges,
-  QualitativeScoreBadge,
-} from "@/src/components/grouped-score-badge";
+import { ScoresAggregateCell } from "@/src/components/grouped-score-badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type GenerationsTableRow } from "@/src/components/table/use-cases/generations";
 import { type TracesTableRow } from "@/src/components/table/use-cases/traces";
 import { type DatasetRunItemRowData } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { type DatasetRunRowData } from "@/src/features/datasets/components/DatasetRunsTable";
-import { type APIScore } from "@/src/features/public-api/types/scores";
+import {
+  type QuantitativeAggregate,
+  type QualitativeAggregate,
+  type ScoreAggregate,
+} from "@/src/features/manual-scoring/lib/aggregateScores";
+import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/[promptName]/metrics";
+import { type ScoreDataType, type ScoreSource } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import { Binary, CaseUpper, Hash } from "lucide-react";
 import React from "react";
 
 const parseColumnForProps = (col: string) => {
   const [name, source, dataType] = col.split(".");
-  return { name, source, dataType };
+  return {
+    name,
+    source: source as ScoreSource,
+    dataType: dataType as ScoreDataType,
+  };
 };
 
 const DataTypeIcon = ({ dataType }: { dataType: string }) => {
@@ -29,26 +36,23 @@ const DataTypeIcon = ({ dataType }: { dataType: string }) => {
   }
 };
 
+const computeTableKey = ({
+  name,
+  source,
+  dataType,
+}: {
+  name: string;
+  source: ScoreSource;
+  dataType: ScoreDataType;
+}) => `${name} (${source.toLowerCase()}, ${dataType.toLowerCase()})`;
+
 const parseColumnForKeyAndHeader = (col: string) => {
   const { name, source, dataType } = parseColumnForProps(col);
   return {
-    key: `${name} (${source.toLowerCase()}, ${dataType.toLowerCase()})`,
+    key: computeTableKey({ name, source, dataType }),
     header: () => (
       <div className="flex flex-row items-center gap-1">
         <span>{`${name} (${source.toLowerCase()})`}</span>
-        <DataTypeIcon dataType={dataType} />
-      </div>
-    ),
-  };
-};
-
-const parseColumnForKeyAndHeaderMetrics = (col: string) => {
-  const { name, dataType } = parseColumnForProps(col);
-  return {
-    key: `${name} (${dataType.toLowerCase()})`,
-    header: () => (
-      <div className="flex flex-row items-center gap-1">
-        <span>{name}</span>
         <DataTypeIcon dataType={dataType} />
       </div>
     ),
@@ -60,7 +64,8 @@ const parseDetailColumn = <
     | TracesTableRow
     | GenerationsTableRow
     | DatasetRunRowData
-    | DatasetRunItemRowData,
+    | DatasetRunItemRowData
+    | PromptVersionTableRow,
 >(
   col: string,
   parseColFct: (col: string) => {
@@ -77,118 +82,63 @@ const parseDetailColumn = <
   };
 };
 
+const computeAccessorDefault = (key: string) => {
+  const { name, source, dataType } = parseColumnForProps(key);
+  return computeTableKey({ name, source, dataType });
+};
+
 export function getDetailColumns(
-  scoreColumns: string[] | undefined,
-  scores: APIScore[],
-): Record<string, APIScore[]> {
-  return (
-    scoreColumns?.reduce(
-      (acc, col) => {
-        const { key } = parseColumnForKeyAndHeader(col);
-        const { name, source, dataType } = parseColumnForProps(col);
-        acc[key] = scores.filter(
-          (score) =>
-            score.name === name &&
-            score.source === source &&
-            score.dataType === dataType,
-        );
-        return acc;
-      },
-      {} as Record<string, APIScore[]>,
-    ) ?? {}
-  );
+  scoreColumns: Set<string> | undefined,
+  scores: ScoreAggregate,
+  computeAccessor = computeAccessorDefault,
+): ScoreAggregate {
+  if (!scoreColumns) return {};
+  let filteredScores: ScoreAggregate = {};
+
+  for (const key in scores) {
+    if (scoreColumns.has(key)) {
+      const accessor = computeAccessor(key);
+      filteredScores[accessor] = scores[key];
+    }
+  }
+
+  return filteredScores;
 }
 
 export const constructDetailColumns = <
-  T extends GenerationsTableRow | TracesTableRow | DatasetRunItemRowData,
->(
-  detailColumnAccessors: string[],
-): LangfuseColumnDef<T>[] => {
+  T extends
+    | GenerationsTableRow
+    | TracesTableRow
+    | DatasetRunItemRowData
+    | DatasetRunRowData
+    | PromptVersionTableRow,
+>({
+  detailColumnAccessors,
+  showAggregateViewOnly = false,
+  parseColumn = parseColumnForKeyAndHeader,
+}: {
+  detailColumnAccessors: string[];
+  showAggregateViewOnly?: boolean;
+  parseColumn?: (col: string) => {
+    key: string;
+    header: () => JSX.Element;
+  };
+}): LangfuseColumnDef<T>[] => {
   return detailColumnAccessors.map((col) => {
-    const detailColumnProps = parseDetailColumn<T>(
-      col,
-      parseColumnForKeyAndHeader,
-    );
+    const detailColumnProps = parseDetailColumn<T>(col, parseColumn);
     return {
       ...detailColumnProps,
       cell: ({ row }: { row: Row<T> }) => {
-        const values: APIScore[] | undefined = row.getValue(
-          detailColumnProps.accessorKey,
-        );
+        const value: QualitativeAggregate | QuantitativeAggregate | undefined =
+          row.getValue(detailColumnProps.accessorKey);
+
+        if (!value) return null;
+        console.log({ value });
         return (
-          values && (
-            <GroupedScoreBadges
-              scores={values}
-              variant="headings"
-              showScoreNameHeading={false}
-              showColorCoding
-            />
-          )
-        );
-      },
-    };
-  });
-};
-
-export const getDetailMetricsColumns = (
-  scoreColumns: string[] | undefined,
-  avgNumericScores: DatasetRunRowData["scores"]["numeric"],
-  qualitativeScoreDistribution: DatasetRunRowData["scores"]["qualitative"],
-) => {
-  return (
-    scoreColumns?.reduce(
-      (acc, col) => {
-        const { key } = parseColumnForKeyAndHeaderMetrics(col);
-        const { name, dataType } = parseColumnForProps(col);
-        if (dataType === "NUMERIC") {
-          acc[key] = avgNumericScores[name];
-        } else {
-          acc[key] = qualitativeScoreDistribution[name];
-        }
-        return acc;
-      },
-      {} as
-        | DatasetRunRowData["scores"]["numeric"]
-        | DatasetRunRowData["scores"]["qualitative"],
-    ) ?? {}
-  );
-};
-
-export const constructDetailMetricsColumns = <T extends DatasetRunRowData>(
-  detailColumnAccessors: string[],
-): LangfuseColumnDef<T>[] => {
-  return detailColumnAccessors.map((col) => {
-    const detailColumnProps = parseDetailColumn<T>(
-      col,
-      parseColumnForKeyAndHeaderMetrics,
-    );
-    return {
-      ...detailColumnProps,
-      cell: ({ row }: { row: Row<T> }) => {
-        const record:
-          | DatasetRunRowData["scores"]["numeric"][number]
-          | DatasetRunRowData["scores"]["qualitative"][number]
-          | undefined = row.getValue(detailColumnProps.accessorKey);
-
-        if (!record) {
-          return null;
-        }
-
-        if (typeof record === "number") {
-          return (
-            <div className="flex max-w-xl flex-row items-start gap-3 overflow-y-auto">
-              {`Ø ${record.toFixed(2)}`}
-            </div>
-          );
-        }
-
-        return (
-          <div className="flex h-8 max-w-xl flex-row items-start gap-3 overflow-y-auto">
-            <QualitativeScoreBadge
-              scores={{ [detailColumnProps.accessorKey]: record }}
-              showScoreNameHeading={false}
-            />
-          </div>
+          <ScoresAggregateCell
+            aggregate={value}
+            showSingleValue={!showAggregateViewOnly}
+          />
         );
       },
     };

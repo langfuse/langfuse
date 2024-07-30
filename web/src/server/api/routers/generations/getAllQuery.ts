@@ -2,7 +2,7 @@ import { type z } from "zod";
 
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared";
-import { Prisma, type ScoreDataType } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/src/db";
 
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
@@ -10,14 +10,6 @@ import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAl
 const getAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
 });
-
-export type ScoreSimplified = {
-  name: string;
-  value?: number | null;
-  dataType: ScoreDataType;
-  stringValue?: string | null;
-  comment?: string | null;
-};
 
 export type GetAllGenerationsInput = z.infer<typeof getAllGenerationsInput>;
 

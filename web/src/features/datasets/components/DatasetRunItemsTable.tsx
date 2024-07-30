@@ -1,4 +1,3 @@
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -7,7 +6,6 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
-import { type APIScore } from "@/src/features/public-api/types/scores";
 import { usdFormatter } from "../../../utils/numbers";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -35,7 +33,6 @@ export type DatasetRunItemRowData = {
   output?: unknown;
   expectedOutput?: unknown;
 
-  scores: APIScore[];
   latency?: number;
   totalCost?: string;
 
@@ -154,16 +151,6 @@ export function DatasetRunItemsTable(
       },
     },
     {
-      accessorKey: "scores",
-      header: "Scores",
-      id: "scores",
-      enableHiding: true,
-      cell: ({ row }) => {
-        const scores: DatasetRunItemRowData["scores"] = row.getValue("scores");
-        return <GroupedScoreBadges scores={scores} variant="headings" />;
-      },
-    },
-    {
       accessorKey: "input",
       header: "Input",
       id: "input",
@@ -221,7 +208,9 @@ export function DatasetRunItemsTable(
     item: RouterOutput["datasets"]["runitemsByRunIdOrItemId"]["runItems"][number],
   ): DatasetRunItemRowData => {
     const detailColumns = getDetailColumns(
-      scoreNamesList.data?.names,
+      scoreNamesList.data?.names
+        ? new Set(scoreNamesList.data.names)
+        : undefined,
       item.scores,
     );
 
@@ -235,7 +224,6 @@ export function DatasetRunItemsTable(
             observationId: item.observation?.id,
           }
         : undefined,
-      scores: item.scores,
       totalCost: !!item.observation?.calculatedTotalCost
         ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
         : undefined,
@@ -250,9 +238,9 @@ export function DatasetRunItemsTable(
   ): LangfuseColumnDef<DatasetRunItemRowData>[] => {
     return [
       ...nativeColumns,
-      ...constructDetailColumns<DatasetRunItemRowData>(
-        detailColumnAccessors ?? [],
-      ),
+      ...constructDetailColumns<DatasetRunItemRowData>({
+        detailColumnAccessors: detailColumnAccessors ?? [],
+      }),
     ];
   };
 
@@ -268,9 +256,9 @@ export function DatasetRunItemsTable(
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDetailColumns<DatasetRunItemRowData>(
-          scoreNamesList.data?.names ?? [],
-        )}
+        detailColumns={constructDetailColumns<DatasetRunItemRowData>({
+          detailColumnAccessors: scoreNamesList.data?.names ?? [],
+        })}
         detailColumnHeader="Individual Scores"
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
@@ -279,9 +267,9 @@ export function DatasetRunItemsTable(
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDetailColumns<DatasetRunItemRowData>(
-          scoreNamesList.data?.names ?? [],
-        )}
+        detailColumns={constructDetailColumns<DatasetRunItemRowData>({
+          detailColumnAccessors: scoreNamesList.data?.names ?? [],
+        })}
         data={
           runItems.isLoading
             ? { isLoading: true, isError: false }

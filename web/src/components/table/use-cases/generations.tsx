@@ -1,5 +1,4 @@
 import { api, directApi } from "@/src/utils/api";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -46,7 +45,6 @@ import {
   constructDetailColumns,
   getDetailColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
-import { type APIScore } from "@/src/features/public-api/types/scores";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type GenerationsTableRow = {
@@ -69,7 +67,6 @@ export type GenerationsTableRow = {
   outputCost?: Decimal;
   totalCost?: Decimal;
   traceName?: string;
-  scores?: APIScore[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -80,7 +77,7 @@ export type GenerationsTableRow = {
   promptVersion?: string;
 
   // any number of additional detail columns for individual scores
-  [key: string]: any; // any of type ScoreSimplified[] for detail columns
+  [key: string]: any; // any of type APIScore[] for detail columns
 };
 
 export type GenerationsTableProps = {
@@ -330,23 +327,6 @@ export default function GenerationsTable({
           </span>
         );
       },
-    },
-    {
-      accessorKey: "scores",
-      id: "scores",
-      header: "Scores",
-      headerTooltip: {
-        description:
-          "Scores are used to evaluate the quality of the trace. They can be automated, based on user feedback, or manually annotated. See docs to learn more.",
-        href: "https://langfuse.com/docs/scores",
-      },
-      cell: ({ row }) => {
-        const values: APIScore[] | undefined = row.getValue("scores");
-        return (
-          values && <GroupedScoreBadges scores={values} variant="headings" />
-        );
-      },
-      enableHiding: true,
     },
     {
       accessorKey: "latency",
@@ -649,9 +629,9 @@ export default function GenerationsTable({
   ): LangfuseColumnDef<GenerationsTableRow>[] => {
     return [
       ...nativeColumns,
-      ...constructDetailColumns<GenerationsTableRow>(
-        detailColumnAccessors ?? [],
-      ),
+      ...constructDetailColumns<GenerationsTableRow>({
+        detailColumnAccessors: detailColumnAccessors ?? [],
+      }),
     ];
   };
 
@@ -667,7 +647,9 @@ export default function GenerationsTable({
     generations.isSuccess && !scoreNamesList.isLoading
       ? generations.data.generations.map((generation) => {
           const detailColumns = getDetailColumns(
-            scoreNamesList.data?.names,
+            scoreNamesList.data?.names
+              ? new Set(scoreNamesList.data.names)
+              : undefined,
             generation.scores,
           );
 
@@ -685,7 +667,6 @@ export default function GenerationsTable({
             name: generation.name ?? undefined,
             version: generation.version ?? "",
             model: generation.model ?? "",
-            scores: generation.scores,
             level: generation.level,
             statusMessage: generation.statusMessage ?? undefined,
             usage: {
@@ -705,9 +686,9 @@ export default function GenerationsTable({
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDetailColumns<GenerationsTableRow>(
-          scoreNamesList.data?.names ?? [],
-        )}
+        detailColumns={constructDetailColumns<GenerationsTableRow>({
+          detailColumnAccessors: scoreNamesList.data?.names ?? [],
+        })}
         detailColumnHeader="Individual Scores"
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={inputFilterState}
@@ -758,9 +739,9 @@ export default function GenerationsTable({
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDetailColumns<GenerationsTableRow>(
-          scoreNamesList.data?.names ?? [],
-        )}
+        detailColumns={constructDetailColumns<GenerationsTableRow>({
+          detailColumnAccessors: scoreNamesList.data?.names ?? [],
+        })}
         data={
           generations.isLoading
             ? { isLoading: true, isError: false }
