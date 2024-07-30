@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 
 function debounce(
   func: (...args: any[]) => void,
@@ -30,7 +30,7 @@ export function useDebounce(
   executeFirstCall: boolean = true,
 ) {
   const callbackRef = useRef(callback);
-  useEffect(() => {
+  useLayoutEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
   return useMemo(
