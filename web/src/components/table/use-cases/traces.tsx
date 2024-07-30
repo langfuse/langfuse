@@ -572,7 +572,7 @@ export default function TracesTable({
       accessorKey: "observationCount",
       id: "observationCount",
       header: "Observations",
-      size: 110,
+      size: 120,
       headerTooltip: {
         description: "The number of observations in the trace.",
       },
