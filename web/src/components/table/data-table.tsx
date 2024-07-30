@@ -1,5 +1,6 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
+import React, { useState, useMemo } from "react";
 
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
@@ -30,7 +31,6 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { useState } from "react";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -114,6 +114,20 @@ export function DataTable<TData extends object, TValue>({
     columnResizeMode: "onChange",
   });
 
+  // memo column sizes for performance
+  // https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
+  const columnSizeVars = useMemo(() => {
+    const headers = table.getFlatHeaders();
+    const colSizes: { [key: string]: number } = {};
+    for (let i = 0; i < headers.length; i++) {
+      const header = headers[i]!;
+      colSizes[`--header-${header.id}-size`] = header.getSize();
+      colSizes[`--col-${header.column.id}-size`] = header.column.getSize();
+    }
+    return colSizes;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.getState().columnSizingInfo, table.getState().columnSizing]);
+
   return (
     <>
       <div
@@ -127,6 +141,7 @@ export function DataTable<TData extends object, TValue>({
             "w-full overflow-auto",
             isBorderless ? "" : "rounded-md border",
           )}
+          style={{ ...columnSizeVars }}
         >
           <Table>
             <TableHeader>
@@ -149,11 +164,11 @@ export function DataTable<TData extends object, TValue>({
                           minWidth:
                             header.getSize() === Number.MIN_SAFE_INTEGER
                               ? "auto"
-                              : header.getSize(),
+                              : `calc(var(--header-${header.id}-size) * 1px)`,
                           width:
                             header.getSize() === Number.MIN_SAFE_INTEGER
                               ? "auto"
-                              : header.getSize(),
+                              : `calc(var(--header-${header.id}-size) * 1px)`,
                         }}
                         title={sortingEnabled ? "Sort by this column" : ""}
                         onClick={(event) => {
@@ -233,73 +248,23 @@ export function DataTable<TData extends object, TValue>({
                 </TableRow>
               ))}
             </TableHeader>
-            <TableBody>
-              {data.isLoading || !data.data ? (
-                <TableRow className="h-svh">
-                  <TableCell
-                    colSpan={columns.length}
-                    className="content-start border-b text-center"
-                  >
-                    Loading...
-                  </TableCell>
-                </TableRow>
-              ) : table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={cn(
-                          "overflow-hidden border-b p-1 text-xs first:pl-2",
-                          // for auto-sized cols and small rows, prevent wrapping
-                          (cell.column.getSize() === Number.MIN_SAFE_INTEGER ||
-                            rowHeight === "s") &&
-                            "whitespace-nowrap",
-                        )}
-                        style={{
-                          minWidth:
-                            cell.column.getSize() === Number.MIN_SAFE_INTEGER
-                              ? "auto"
-                              : cell.column.getSize(),
-                          width:
-                            cell.column.getSize() === Number.MIN_SAFE_INTEGER
-                              ? "auto"
-                              : cell.column.getSize(),
-                          maxWidth:
-                            cell.column.getSize() === Number.MIN_SAFE_INTEGER
-                              ? "auto"
-                              : cell.column.getSize(),
-                        }}
-                      >
-                        <div className={cn("flex items-center", rowheighttw)}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </div>
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center"
-                  >
-                    <div>
-                      No results.{" "}
-                      {help && (
-                        <DocPopup
-                          description={help.description}
-                          href={help.href}
-                        />
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
+            {table.getState().columnSizingInfo.isResizingColumn ? (
+              <MemoizedTableBody
+                table={table}
+                rowheighttw={rowheighttw}
+                columns={columns}
+                data={data}
+                help={help}
+              />
+            ) : (
+              <TableBodyComponent
+                table={table}
+                rowheighttw={rowheighttw}
+                columns={columns}
+                data={data}
+                help={help}
+              />
+            )}
           </Table>
         </div>
         <div className="grow"></div>
@@ -322,7 +287,90 @@ export function DataTable<TData extends object, TValue>({
 }
 
 function renderOrderingIndicator(orderBy?: OrderByState) {
-  if (!orderBy) return;
+  if (!orderBy) return null;
   if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
   else return <span className="ml-1">▼</span>;
 }
+
+interface TableBodyComponentProps<TData> {
+  table: ReturnType<typeof useReactTable<TData>>;
+  rowheighttw?: string;
+  columns: LangfuseColumnDef<TData, any>[];
+  data: AsyncTableData<TData[]>;
+  help?: { description: string; href: string };
+}
+
+function TableBodyComponent<TData>({
+  table,
+  rowheighttw,
+  columns,
+  data,
+  help,
+}: TableBodyComponentProps<TData>) {
+  return (
+    <TableBody>
+      {data.isLoading || !data.data ? (
+        <TableRow className="h-svh">
+          <TableCell
+            colSpan={columns.length}
+            className="content-start border-b text-center"
+          >
+            Loading...
+          </TableCell>
+        </TableRow>
+      ) : table.getRowModel().rows.length ? (
+        table.getRowModel().rows.map((row) => (
+          <TableRow key={row.id}>
+            {row.getVisibleCells().map((cell) => (
+              <TableCell
+                key={cell.id}
+                className={cn(
+                  "overflow-hidden border-b p-1 text-xs first:pl-2",
+                  // for auto-sized cols and small rows, prevent wrapping
+                  (cell.column.getSize() === Number.MIN_SAFE_INTEGER ||
+                    rowheighttw === "s") &&
+                    "whitespace-nowrap",
+                )}
+                style={{
+                  minWidth:
+                    cell.column.getSize() === Number.MIN_SAFE_INTEGER
+                      ? "auto"
+                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                  width:
+                    cell.column.getSize() === Number.MIN_SAFE_INTEGER
+                      ? "auto"
+                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                  maxWidth:
+                    cell.column.getSize() === Number.MIN_SAFE_INTEGER
+                      ? "auto"
+                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                }}
+              >
+                <div className={cn("flex items-center", rowheighttw)}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </div>
+              </TableCell>
+            ))}
+          </TableRow>
+        ))
+      ) : (
+        <TableRow>
+          <TableCell colSpan={columns.length} className="h-24 text-center">
+            <div>
+              No results.{" "}
+              {help && (
+                <DocPopup description={help.description} href={help.href} />
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </TableBody>
+  );
+}
+
+// memo tables for performance, should only re-render when data changes
+// https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
+const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
+  return prev.table.options.data === next.table.options.data;
+}) as typeof TableBodyComponent;
