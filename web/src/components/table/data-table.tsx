@@ -209,8 +209,7 @@ export function DataTable<TData extends object, TValue>({
                               )}
                               {orderBy?.column === columnDef.id
                                 ? renderOrderingIndicator(orderBy)
-                                : null}{" "}
-                              {header.getSize()}
+                                : null}
                               <div
                                 onClick={(e) => {
                                   e.preventDefault();
