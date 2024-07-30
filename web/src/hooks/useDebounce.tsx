@@ -1,24 +1,45 @@
 import { useEffect, useMemo, useRef } from "react";
 
-function debounce(func: (...args: any[]) => void, timeout: number = 250) {
+function debounce(
+  func: (...args: any[]) => void,
+  timeout: number,
+  executeFirstCall: boolean = false,
+) {
   let timer: NodeJS.Timeout | null = null;
+
   return (...args: any[]) => {
-    if (timer) clearTimeout(timer);
+    const callNow = executeFirstCall && !timer;
+
+    if (timer) {
+      clearTimeout(timer);
+    }
+
     timer = setTimeout(() => {
+      timer = null;
       func(...args);
     }, timeout);
+
+    if (callNow) {
+      func(...args);
+    }
   };
 }
 export function useDebounce(
   callback: (...args: any[]) => void,
-  delay: number = 250,
+  delay: number = 400,
+  executeFirstCall: boolean = true,
 ) {
   const callbackRef = useRef(callback);
   useEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
   return useMemo(
-    () => debounce((...args: any[]) => callbackRef.current(...args), delay),
-    [delay],
+    () =>
+      debounce(
+        (...args: any[]) => callbackRef.current(...args),
+        delay,
+        executeFirstCall,
+      ),
+    [delay, executeFirstCall],
   );
 }
