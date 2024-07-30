@@ -39,7 +39,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { useDynamicDebounce } from "@/src/hooks/useDynamicDebounce";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -92,13 +92,14 @@ export default function TracesTable({
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange();
-  const [userFilterState] = useQueryFilterState([], "traces");
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "traces",
+  );
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
     order: "DESC",
   });
-  const [debouncedValue, setDebouncedValue, { delay, isDebouncing }] =
-    useDynamicDebounce(userFilterState);
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
@@ -119,16 +120,13 @@ export default function TracesTable({
         },
       ]
     : [];
-  console.log("______________");
-  console.log(delay);
-  console.log(isDebouncing);
-  console.log("______________");
+
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const filterState = debouncedValue.concat(userIdFilter, dateRangeFilter);
+  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
   const tracesAllQueryFilter = {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
@@ -639,8 +637,8 @@ export default function TracesTable({
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
-        filterState={debouncedValue}
-        setFilterState={setDebouncedValue}
+        filterState={userFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         actionButtons={
           Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),
