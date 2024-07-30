@@ -77,6 +77,7 @@ export const env = createEnv({
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
+    AUTH_SESSION_MAX_AGE: z.coerce.number().int().gt(5, "AUTH_SESSION_MAX_AGE must be > 5 as session JWT tokens are refreshed every 5 minutes").optional().default(30 * 24 * 60), // default to 30 days
     // EMAIL
     EMAIL_FROM_ADDRESS: z
       .string()
@@ -216,6 +217,7 @@ export const env = createEnv({
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
     AUTH_DISABLE_SIGNUP: process.env.AUTH_DISABLE_SIGNUP,
+    AUTH_SESSION_MAX_AGE: process.env.AUTH_SESSION_MAX_AGE,
     // Email
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
