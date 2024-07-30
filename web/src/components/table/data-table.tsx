@@ -188,7 +188,6 @@ export function DataTable<TData extends object, TValue>({
                                     columnDef.headerTooltip.description
                                   }
                                   href={columnDef.headerTooltip.href}
-                                  size="xs"
                                 />
                               )}
 
@@ -244,7 +243,6 @@ export function DataTable<TData extends object, TValue>({
                         <DocPopup
                           description={help.description}
                           href={help.href}
-                          size="sm"
                         />
                       )}
                     </div>
