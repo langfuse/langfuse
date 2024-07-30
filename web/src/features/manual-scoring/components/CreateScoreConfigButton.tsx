@@ -287,8 +287,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                                     ? "category"
                                     : "boolean"
                                 } label is mapped to an integer value internally.`}
-                                size="xs"
-                              ></DocPopup>
+                              />
                             </FormLabel>
                             <FormLabel>Label</FormLabel>
                           </div>
