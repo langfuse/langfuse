@@ -134,6 +134,8 @@ const tracesObservationsColumns: ColumnDefinition[] = [
   traceName,
   observationName,
   traceTags,
+  release,
+  traceVersion,
 ];
 
 const tracesColumns = [
@@ -214,6 +216,7 @@ export const tableDefinitions: TableDefinitions = {
       scoreId,
       traceVersion,
       traceTimestamp,
+      release,
       scoreName,
       traceUser,
       tracesProjectId,
