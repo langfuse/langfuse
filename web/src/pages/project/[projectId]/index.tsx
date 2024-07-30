@@ -122,7 +122,7 @@ export default function Start() {
         <div className=" flex flex-col gap-2 lg:flex-row">
           <DatePickerWithRange
             dateRange={dateRange}
-            setDateRangeAndOption={setDateRangeAndOption}
+            setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
             selectedOption={selectedOption}
             className="my-0 max-w-full overflow-x-auto"
           />
