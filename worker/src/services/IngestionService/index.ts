@@ -241,7 +241,7 @@ export class IngestionService {
       (score) => ({
         id: entityId,
         project_id: projectId,
-        timestamp: this.getMicrosecondTimestamp(),
+        timestamp: this.getMillisecondTimestamp(),
         name: score.body.name,
         value: score.body.value,
         source: "API",
@@ -449,6 +449,8 @@ export class IngestionService {
       | ObservationRecordInsertType
     )[]
   ) {
+    // TODO: add sorting for create operations before update
+    // TODO: add microsecond timestamps from SDKs. Storing in DB at millisecond precision is enough though.
     return records.slice().sort((a, b) =>
       "timestamp" in a && "timestamp" in b
         ? a.timestamp - b.timestamp
@@ -699,7 +701,7 @@ export class IngestionService {
         id: entityId,
         // in the default implementation, we set timestamps server side if not provided.
         // we need to insert timestamps here and change the SDKs to send timestamps client side.
-        timestamp: this.getMicrosecondTimestamp(trace.body.timestamp),
+        timestamp: this.getMillisecondTimestamp(trace.body.timestamp),
         name: trace.body.name,
         user_id: trace.body.userId,
         metadata: trace.body.metadata
@@ -711,10 +713,8 @@ export class IngestionService {
         public: trace.body.public ?? false,
         bookmarked: false,
         tags: trace.body.tags ?? [],
-        input: trace.body.input ? JSON.stringify(trace.body.input) : undefined, // convert even json to string
-        output: trace.body.output
-          ? JSON.stringify(trace.body.output)
-          : undefined, // convert even json to string
+        input: this.stringify(trace.body.input),
+        output: this.stringify(trace.body.output), // convert even json to string
         session_id: trace.body.sessionId,
         created_at: Date.now(),
         updated_at: Date.now(),
@@ -767,12 +767,13 @@ export class IngestionService {
         "usage" in obs.body ? obs.body.usage?.output : undefined;
 
       const newTotalCount =
-        newInputCount !== undefined &&
+        ("usage" in obs.body ? obs.body.usage?.total : undefined) ||
+        (newInputCount !== undefined &&
         newOutputCount !== undefined &&
         newInputCount &&
         newOutputCount
           ? newInputCount + newOutputCount
-          : newInputCount ?? newOutputCount;
+          : newInputCount ?? newOutputCount);
 
       const newUnit = "usage" in obs.body ? obs.body.usage?.unit : undefined;
 
@@ -781,14 +782,14 @@ export class IngestionService {
         trace_id: obs.body.traceId ?? v4(),
         type: observationType,
         name: obs.body.name,
-        start_time: this.getMicrosecondTimestamp(obs.body.startTime),
+        start_time: this.getMillisecondTimestamp(obs.body.startTime),
         end_time:
           "endTime" in obs.body && obs.body.endTime
-            ? new Date(obs.body.endTime).getTime()
+            ? this.getMillisecondTimestamp(obs.body.endTime)
             : undefined,
         completion_start_time:
           "completionStartTime" in obs.body && obs.body.completionStartTime
-            ? new Date(obs.body.completionStartTime).getTime()
+            ? this.getMillisecondTimestamp(obs.body.completionStartTime)
             : undefined,
         metadata: obs.body.metadata
           ? convertJsonSchemaToRecord(obs.body.metadata)
@@ -800,8 +801,8 @@ export class IngestionService {
               ? JSON.stringify(obs.body.modelParameters)
               : undefined
             : undefined,
-        input: obs.body.input ? JSON.stringify(obs.body.input) : undefined, // convert even json to string
-        output: obs.body.output ? JSON.stringify(obs.body.output) : undefined, // convert even json to string
+        input: this.stringify(obs.body.input),
+        output: this.stringify(obs.body.output),
         provided_input_usage_units: newInputCount,
         provided_output_usage_units: newOutputCount,
         provided_total_usage_units: newTotalCount,
@@ -828,8 +829,16 @@ export class IngestionService {
     });
   }
 
-  private getMicrosecondTimestamp(timestamp?: string | null): number {
-    return timestamp ? new Date(timestamp).getTime() * 1000 : Date.now() * 1000;
+  private stringify(
+    obj: string | object | number | boolean | undefined | null
+  ): string | undefined {
+    if (obj == null) return; // return undefined on undefined or null
+
+    return typeof obj === "string" ? obj : JSON.stringify(obj);
+  }
+
+  private getMillisecondTimestamp(timestamp?: string | null): number {
+    return timestamp ? new Date(timestamp).getTime() : Date.now();
   }
 }
 

@@ -4,7 +4,7 @@ CREATE TABLE observations (
     `project_id` String,
     `type` LowCardinality(String),
     `parent_observation_id` Nullable(String),
-    `start_time` DateTime64(6),
+    `start_time` DateTime64(3),
     `end_time` Nullable(DateTime64(3)),
     `name` String,
     `metadata` Map(LowCardinality(String), String) CODEC(ZSTD(1)),

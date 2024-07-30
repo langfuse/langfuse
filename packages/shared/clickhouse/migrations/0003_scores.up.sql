@@ -1,6 +1,6 @@
 CREATE TABLE scores (
     `id` String,
-    `timestamp` DateTime64(6),
+    `timestamp` DateTime64(3),
     `project_id` String,
     `trace_id` String,
     `observation_id` Nullable(String),

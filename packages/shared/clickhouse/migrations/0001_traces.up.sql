@@ -1,6 +1,6 @@
 CREATE TABLE traces (
     `id` String,
-    `timestamp` DateTime64(6),
+    `timestamp` DateTime64(3),
     `name` String,
     `user_id` Nullable(String),
     `metadata` Map(String, String) CODEC(ZSTD(1)),
