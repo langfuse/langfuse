@@ -23,17 +23,14 @@ const colorCoding = (value: string): string => {
 const SingleScoreValue = ({
   value,
   comment,
-  key,
   showColorCoding = false,
 }: {
   value: string;
   comment?: string | null;
-  key?: number;
   showColorCoding?: boolean;
 }) => {
   return (
     <span
-      key={key}
       className={cn(
         "group/score ml-1 rounded-sm first:ml-0",
         showColorCoding && colorCoding(value),
