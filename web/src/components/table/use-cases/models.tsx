@@ -68,6 +68,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       id: "maintainer",
       enableColumnFilter: true,
       header: "Maintainer",
+      size: 100,
     },
     {
       accessorKey: "modelName",
@@ -76,6 +77,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.modelName,
       },
+      size: 150,
     },
     {
       accessorKey: "startDate",
@@ -84,6 +86,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.startDate,
       },
+      size: 100,
       cell: ({ row }) => {
         const value: Date | undefined = row.getValue("startDate");
 
@@ -101,6 +104,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.matchPattern,
       },
       header: "Match Pattern",
+      size: 200,
       cell: ({ row }) => {
         const value: string = row.getValue("matchPattern");
 
@@ -125,6 +129,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.inputPrice,
       },
+      size: 170,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("inputPrice");
 
@@ -151,6 +156,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           </>
         );
       },
+      size: 170,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("outputPrice");
 
@@ -177,6 +183,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.totalPrice,
       },
+      size: 170,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("totalPrice");
 
@@ -197,6 +204,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.unit,
       },
       enableHiding: true,
+      size: 110,
     },
     {
       accessorKey: "tokenizerId",
@@ -206,6 +214,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.tokenizerId,
       },
       enableHiding: true,
+      size: 110,
     },
     {
       accessorKey: "config",
@@ -215,6 +224,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.config,
       },
       enableHiding: true,
+      size: 200,
       cell: ({ row }) => {
         const value: Prisma.JsonValue | undefined = row.getValue("config");
 
@@ -228,6 +238,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "actions",
       header: "Actions",
+      size: 70,
       cell: ({ row }) => {
         return (
           <DeleteModelButton

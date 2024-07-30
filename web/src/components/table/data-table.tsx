@@ -106,6 +106,12 @@ export function DataTable<TData extends object, TValue>({
       rowSelection,
     },
     manualFiltering: true,
+    defaultColumn: {
+      minSize: 20,
+      size: 150, // used to auto-size columns: https://github.com/TanStack/table/discussions/3192#discussioncomment-6458134
+      maxSize: Number.MAX_SAFE_INTEGER,
+    },
+    columnResizeMode: "onChange",
   });
 
   return (
@@ -134,9 +140,21 @@ export function DataTable<TData extends object, TValue>({
                       <TableHead
                         key={header.id}
                         className={cn(
-                          sortingEnabled ? "cursor-pointer" : null,
-                          "whitespace-nowrap p-2",
+                          "group p-1 first:pl-2",
+                          sortingEnabled && "cursor-pointer",
+                          header.getSize() === Number.MIN_SAFE_INTEGER &&
+                            "whitespace-nowrap",
                         )}
+                        style={{
+                          minWidth:
+                            header.getSize() === Number.MIN_SAFE_INTEGER
+                              ? "auto"
+                              : header.getSize(),
+                          width:
+                            header.getSize() === Number.MIN_SAFE_INTEGER
+                              ? "auto"
+                              : header.getSize(),
+                        }}
                         title={sortingEnabled ? "Sort by this column" : ""}
                         onClick={(event) => {
                           event.preventDefault(); // Add this line
@@ -181,7 +199,6 @@ export function DataTable<TData extends object, TValue>({
                                 header.column.columnDef.header,
                                 header.getContext(),
                               )}
-
                               {columnDef.headerTooltip && (
                                 <DocPopup
                                   description={
@@ -190,10 +207,24 @@ export function DataTable<TData extends object, TValue>({
                                   href={columnDef.headerTooltip.href}
                                 />
                               )}
-
                               {orderBy?.column === columnDef.id
                                 ? renderOrderingIndicator(orderBy)
-                                : null}
+                                : null}{" "}
+                              {header.getSize()}
+                              <div
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                                onDoubleClick={() => header.column.resetSize()}
+                                onMouseDown={header.getResizeHandler()}
+                                onTouchStart={header.getResizeHandler()}
+                                className={cn(
+                                  "absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
+                                  header.column.getIsResizing() &&
+                                    "bg-blue-500 opacity-100",
+                                )}
+                              />
                             </div>
                           </>
                         )}
@@ -219,7 +250,27 @@ export function DataTable<TData extends object, TValue>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className="overflow-hidden whitespace-nowrap border-b px-2 py-1 text-xs first:pl-2"
+                        className={cn(
+                          "overflow-hidden border-b p-1 text-xs first:pl-2",
+                          // for auto-sized cols and small rows, prevent wrapping
+                          (cell.column.getSize() === Number.MIN_SAFE_INTEGER ||
+                            rowHeight === "s") &&
+                            "whitespace-nowrap",
+                        )}
+                        style={{
+                          minWidth:
+                            cell.column.getSize() === Number.MIN_SAFE_INTEGER
+                              ? "auto"
+                              : cell.column.getSize(),
+                          width:
+                            cell.column.getSize() === Number.MIN_SAFE_INTEGER
+                              ? "auto"
+                              : cell.column.getSize(),
+                          maxWidth:
+                            cell.column.getSize() === Number.MIN_SAFE_INTEGER
+                              ? "auto"
+                              : cell.column.getSize(),
+                        }}
                       >
                         <div className={cn("flex items-center", rowheighttw)}>
                           {flexRender(
