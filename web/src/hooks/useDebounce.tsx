@@ -1,13 +1,14 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 
-function debounce(
-  func: (...args: any[]) => void,
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
   timeout: number,
   executeFirstCall: boolean = false,
-) {
+): (...args: Parameters<T>) => ReturnType<T> | undefined {
   let timer: NodeJS.Timeout | null = null;
+  let result: ReturnType<T> | undefined;
 
-  return (...args: any[]) => {
+  return (...args: Parameters<T>): ReturnType<T> | undefined => {
     const callNow = executeFirstCall && !timer;
 
     if (timer) {
@@ -16,27 +17,31 @@ function debounce(
 
     timer = setTimeout(() => {
       timer = null;
-      func(...args);
+      result = func(...args);
     }, timeout);
 
     if (callNow) {
-      func(...args);
+      result = func(...args);
     }
+
+    return result;
   };
 }
-export function useDebounce(
-  callback: (...args: any[]) => void,
+
+export function useDebounce<T extends (...args: any[]) => any>(
+  callback: T,
   delay: number = 400,
   executeFirstCall: boolean = true,
-) {
+): (...args: Parameters<T>) => ReturnType<T> | undefined {
   const callbackRef = useRef(callback);
   useLayoutEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
+
   return useMemo(
     () =>
       debounce(
-        (...args: any[]) => callbackRef.current(...args),
+        (...args: Parameters<T>) => callbackRef.current(...args),
         delay,
         executeFirstCall,
       ),
