@@ -22,6 +22,7 @@ import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export default function Start() {
   const router = useRouter();
@@ -139,14 +140,14 @@ export default function Start() {
         <div className=" flex flex-col gap-2 lg:flex-row">
           <DatePickerWithRange
             dateRange={dateRange}
-            setDateRangeAndOption={setDateRangeAndOption}
+            setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
             selectedOption={selectedOption}
             className="my-0 max-w-full overflow-x-auto"
           />
           <PopoverFilterBuilder
             columns={filterColumns}
             filterState={userFilterState}
-            onChange={setUserFilterState}
+            onChange={useDebounce(setUserFilterState)}
           />
         </div>
         <FeedbackButtonWrapper
