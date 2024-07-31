@@ -23,9 +23,6 @@ const EnvSchema = z.object({
       "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32"
     )
     .optional(),
-  CLICKHOUSE_URL: z.string().optional().default("http://localhost:8123"),
-  CLICKHOUSE_USER: z.string().optional().default("clickhouse"),
-  CLICKHOUSE_PASSWORD: z.string().optional().default("clickhouse"),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(60 * 60),
   CLICKHOUSE_URL: z.string().url().optional(),
