@@ -122,6 +122,7 @@ export default function UsersPage() {
       accessorKey: "userId",
       enableColumnFilter: true,
       header: "User ID",
+      size: 150,
       cell: ({ row }) => {
         const value: RowData["userId"] = row.getValue("userId");
         return typeof value === "string" ? (
@@ -129,7 +130,6 @@ export default function UsersPage() {
             <TableLink
               path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -138,6 +138,7 @@ export default function UsersPage() {
     {
       accessorKey: "firstEvent",
       header: "First Event",
+      size: 150,
       cell: ({ row }) => {
         const value: RowData["firstEvent"] = row.getValue("firstEvent");
         if (!userMetrics.isSuccess) {
@@ -151,6 +152,7 @@ export default function UsersPage() {
     {
       accessorKey: "lastEvent",
       header: "Last Event",
+      size: 150,
       cell: ({ row }) => {
         const value: RowData["lastEvent"] = row.getValue("lastEvent");
         if (!userMetrics.isSuccess) {
@@ -164,6 +166,7 @@ export default function UsersPage() {
     {
       accessorKey: "totalEvents",
       header: "Total Events",
+      size: 120,
       cell: ({ row }) => {
         const value: RowData["totalEvents"] = row.getValue("totalEvents");
         if (!userMetrics.isSuccess) {
@@ -177,6 +180,7 @@ export default function UsersPage() {
     {
       accessorKey: "totalTokens",
       header: "Total Tokens",
+      size: 120,
       cell: ({ row }) => {
         const value: RowData["totalTokens"] = row.getValue("totalTokens");
         if (!userMetrics.isSuccess) {
@@ -190,6 +194,7 @@ export default function UsersPage() {
     {
       accessorKey: "totalCost",
       header: "Total Cost",
+      size: 120,
       cell: ({ row }) => {
         const value: RowData["totalCost"] = row.getValue("totalCost");
         if (!userMetrics.isSuccess) {
@@ -203,6 +208,7 @@ export default function UsersPage() {
     {
       accessorKey: "lastScore",
       header: "Last Score",
+      size: 200,
       cell: ({ row }) => {
         const value: RowData["lastScore"] = row.getValue("lastScore");
         if (!userMetrics.isSuccess) {

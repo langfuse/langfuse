@@ -142,8 +142,9 @@ export default function ScoresTable({
       accessorKey: "traceId",
       id: "traceId",
       enableColumnFilter: true,
-      header: "Trace ID",
+      header: "Trace",
       enableSorting: true,
+      size: 100,
       cell: ({ row }) => {
         const value = row.getValue("traceId");
         return typeof value === "string" ? (
@@ -159,8 +160,9 @@ export default function ScoresTable({
     {
       accessorKey: "observationId",
       id: "observationId",
-      header: "Observation ID",
+      header: "Observation",
       enableSorting: true,
+      size: 100,
       cell: ({ row }) => {
         const observationId = row.getValue(
           "observationId",
@@ -180,6 +182,7 @@ export default function ScoresTable({
       id: "traceName",
       enableHiding: true,
       enableSorting: true,
+      size: 150,
       cell: ({ row }) => {
         const value = row.getValue("traceName") as ScoresTableRow["traceName"];
         const filter = encodeURIComponent(
@@ -189,14 +192,13 @@ export default function ScoresTable({
           <TableLink
             path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
     },
     {
       accessorKey: "userId",
-      header: "Trace User ID",
+      header: "User",
       id: "userId",
       headerTooltip: {
         description: "The user ID associated with the trace.",
@@ -204,6 +206,7 @@ export default function ScoresTable({
       },
       enableHiding: true,
       enableSorting: true,
+      size: 100,
       cell: ({ row }) => {
         const value = row.getValue("userId");
         return typeof value === "string" ? (
@@ -211,7 +214,6 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/users/${value}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -223,6 +225,7 @@ export default function ScoresTable({
       id: "timestamp",
       enableHiding: true,
       enableSorting: true,
+      size: 150,
     },
     {
       accessorKey: "source",
@@ -230,6 +233,7 @@ export default function ScoresTable({
       id: "source",
       enableHiding: true,
       enableSorting: true,
+      size: 100,
     },
     {
       accessorKey: "name",
@@ -237,6 +241,7 @@ export default function ScoresTable({
       id: "name",
       enableHiding: true,
       enableSorting: true,
+      size: 150,
     },
     {
       accessorKey: "dataType",
@@ -244,6 +249,7 @@ export default function ScoresTable({
       id: "dataType",
       enableHiding: true,
       enableSorting: true,
+      size: 100,
     },
     {
       accessorKey: "value",
@@ -251,12 +257,27 @@ export default function ScoresTable({
       id: "value",
       enableHiding: true,
       enableSorting: true,
+      size: 100,
+    },
+    {
+      accessorKey: "comment",
+      header: "Comment",
+      id: "comment",
+      enableHiding: true,
+      size: 400,
+      cell: ({ row }) => {
+        const value = row.getValue("comment") as ScoresTableRow["comment"];
+        return (
+          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
+        );
+      },
     },
     {
       accessorKey: "author",
       id: "author",
       header: "Author",
       enableHiding: true,
+      size: 150,
       cell: ({ row }) => {
         const { name, image } = row.getValue(
           "author",
@@ -284,6 +305,7 @@ export default function ScoresTable({
       },
       enableHiding: true,
       enableSorting: true,
+      size: 150,
       cell: ({ row }) => {
         const value = row.getValue("jobConfigurationId");
         return typeof value === "string" ? (
@@ -291,22 +313,9 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/evals/configs/${value}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
-      },
-    },
-    {
-      accessorKey: "comment",
-      header: "Comment",
-      id: "comment",
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.getValue("comment") as ScoresTableRow["comment"];
-        return (
-          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        );
       },
     },
   ];

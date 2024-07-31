@@ -153,21 +153,22 @@ export function PromptTable() {
       header: "Name",
       id: "name",
       enableSorting: true,
+      size: 250,
       cell: (row) => {
         const name = row.getValue();
         return name ? (
           <TableLink
             path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
-            truncateAt={50}
           />
         ) : undefined;
       },
     }),
     columnHelper.accessor("version", {
-      header: "Latest Version",
+      header: "Versions",
       id: "version",
       enableSorting: true,
+      size: 70,
       cell: (row) => {
         return row.getValue();
       },
@@ -176,6 +177,7 @@ export function PromptTable() {
       header: "Type",
       id: "type",
       enableSorting: true,
+      size: 60,
       cell: (row) => {
         return row.getValue();
       },
@@ -184,6 +186,7 @@ export function PromptTable() {
       header: "Latest Version Created At",
       id: "createdAt",
       enableSorting: true,
+      size: 200,
       cell: (row) => {
         const createdAt = row.getValue();
         return createdAt.toLocaleString();
@@ -191,6 +194,7 @@ export function PromptTable() {
     }),
     columnHelper.accessor("numberOfObservations", {
       header: "Number of Generations",
+      size: 170,
       cell: (row) => {
         const numberOfObservations = row.getValue();
         const name = row.row.original.name;
@@ -212,6 +216,7 @@ export function PromptTable() {
       header: "Tags",
       id: "tags",
       enableSorting: true,
+      size: 120,
       cell: (row) => {
         const tags = row.getValue();
         const promptName: string = row.row.original.name;
@@ -235,6 +240,7 @@ export function PromptTable() {
     columnHelper.display({
       id: "actions",
       header: "Actions",
+      size: 70,
       cell: (row) => {
         const name = row.row.original.name;
         return <DeletePrompt promptName={name} />;

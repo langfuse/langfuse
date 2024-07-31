@@ -111,9 +111,11 @@ export class PromptService {
 
   private async cachePrompt(params: PromptParams & { prompt: Prompt }) {
     try {
+      const keyIndexKey = this.getKeyIndexKey(params);
       const key = this.getCacheKey(params);
       const value = JSON.stringify(params.prompt);
 
+      await this.redis?.sadd(keyIndexKey, key);
       await this.redis?.set(key, value, "EX", this.ttlSeconds);
     } catch (e) {
       this.logError("Error caching prompt", e);
@@ -183,7 +185,12 @@ export class PromptService {
     try {
       const startTime = Date.now();
       this.logInfo("Invalidating cache for prefix", cacheKeyPrefix);
-      await this.deleteKeysByPrefix(cacheKeyPrefix);
+
+      const keyIndexKey = this.getKeyIndexKey(params);
+      const keys = await this.redis?.smembers(keyIndexKey);
+
+      // Delete all keys for the prefix and the key index
+      await this.redis?.del([...(keys ?? []), keyIndexKey]);
 
       this.logInfo(
         `Cache invalidated for prefix ${cacheKeyPrefix} in ${Date.now() - startTime}ms`
@@ -207,23 +214,10 @@ export class PromptService {
     return `prompt:${params.projectId}:${params.promptName}`;
   }
 
-  private async deleteKeysByPrefix(prefix: string): Promise<void> {
-    const script = `
-      local cursor = "0"
-      repeat
-          local result = redis.call("SCAN", cursor, "MATCH", ARGV[1] .. "*", "COUNT", 100)
-
-          cursor = result[1]
-          local keys = result[2]
-
-          if #keys > 0 then
-              redis.call("DEL", unpack(keys))
-          end
-
-      until cursor == "0"
-    `;
-
-    await this.redis?.eval(script, 0, prefix);
+  private getKeyIndexKey(
+    params: Pick<PromptParams, "projectId" | "promptName">
+  ): string {
+    return `prompt_key_index:${params.projectId}:${params.promptName}`;
   }
 
   private logError(message: string, ...args: any[]) {
