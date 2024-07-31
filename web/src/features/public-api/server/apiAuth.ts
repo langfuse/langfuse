@@ -222,16 +222,12 @@ export class ApiAuthService {
 
     if (redisApiKey === API_KEY_NON_EXISTENT) {
       Sentry.metrics.increment("api_key_cache_hit");
-      console.log(`Found flag for non existing key in redis.`);
       throw new Error("Invalid credentials");
     }
 
     // if we found something, return the object.
     if (redisApiKey) {
       Sentry.metrics.increment("api_key_cache_hit");
-      console.log(
-        `Found key with id ${redisApiKey.id} for project ${redisApiKey.projectId} in redis`,
-      );
       return redisApiKey;
     }
 
