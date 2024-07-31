@@ -85,13 +85,13 @@ export function DatasetItemsTable({
       accessorKey: "id",
       header: "Item id",
       id: "id",
+      size: 90,
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         return (
           <TableLink
             path={`/project/${projectId}/datasets/${datasetId}/items/${id}`}
             value={id}
-            truncateAt={7}
           />
         );
       },
@@ -104,6 +104,7 @@ export function DatasetItemsTable({
           "Link to the source trace based on which this item was added",
       },
       id: "source",
+      size: 90,
       cell: ({ row }) => {
         const source: RowData["source"] = row.getValue("source");
         if (!source) return null;
@@ -126,6 +127,7 @@ export function DatasetItemsTable({
       accessorKey: "status",
       header: "Status",
       id: "status",
+      size: 80,
       cell: ({ row }) => {
         const status: DatasetStatus = row.getValue("status");
         return (
@@ -147,12 +149,14 @@ export function DatasetItemsTable({
       accessorKey: "createdAt",
       header: "Created At",
       id: "createdAt",
+      size: 150,
       enableHiding: true,
     },
     {
       accessorKey: "input",
       header: "Input",
       id: "input",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const input = row.getValue("input") as RowData["input"];
@@ -165,6 +169,7 @@ export function DatasetItemsTable({
       accessorKey: "expectedOutput",
       header: "Expected Output",
       id: "expectedOutput",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const expectedOutput = row.getValue(
@@ -183,6 +188,7 @@ export function DatasetItemsTable({
       accessorKey: "metadata",
       header: "Metadata",
       id: "metadata",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const metadata = row.getValue("metadata") as RowData["metadata"];
@@ -195,6 +201,7 @@ export function DatasetItemsTable({
       id: "actions",
       accessorKey: "actions",
       header: "Actions",
+      size: 70,
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         const status: DatasetStatus = row.getValue("status");

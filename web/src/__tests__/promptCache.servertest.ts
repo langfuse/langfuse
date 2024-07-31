@@ -47,6 +47,8 @@ describe("PromptService", () => {
       del: jest.fn(),
       exists: jest.fn(),
       eval: jest.fn(),
+      sadd: jest.fn(),
+      smembers: jest.fn(),
     } as unknown as jest.Mocked<Redis>;
 
     mockMetricIncrementer = jest.fn();
@@ -92,6 +94,18 @@ describe("PromptService", () => {
       expect(mockMetricIncrementer).toHaveBeenCalledWith(
         "prompt_cache_miss",
         1,
+      );
+
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        "prompt:project1:testPrompt:1",
+        JSON.stringify(mockPrompt),
+        "EX",
+        3600,
+      );
+
+      expect(mockRedis.sadd).toHaveBeenCalledWith(
+        "prompt_key_index:project1:testPrompt",
+        "prompt:project1:testPrompt:1",
       );
     });
 
@@ -147,10 +161,8 @@ describe("PromptService", () => {
         promptName: "testPrompt",
       });
 
-      expect(mockRedis.eval).toHaveBeenCalledWith(
-        expect.any(String),
-        0,
-        "prompt:project1:testPrompt",
+      expect(mockRedis.smembers).toHaveBeenCalledWith(
+        "prompt_key_index:project1:testPrompt",
       );
     });
   });
@@ -296,7 +308,7 @@ describe("PromptService", () => {
 
   describe("invalidateCache with Redis errors", () => {
     it("should throw an error if Redis.eval fails", async () => {
-      mockRedis.eval.mockRejectedValue(new Error("Redis error"));
+      mockRedis.smembers.mockRejectedValue(new Error("Redis error"));
 
       await expect(
         promptService.invalidateCache({

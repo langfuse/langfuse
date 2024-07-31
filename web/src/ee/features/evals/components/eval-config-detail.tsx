@@ -93,7 +93,6 @@ export const EvalConfigDetail = () => {
                 `${existingEvalConfig.evalTemplate.name} (v${existingEvalConfig.evalTemplate.version})` ??
                 ""
               }
-              truncateAt={40}
             />
           </div>
 
