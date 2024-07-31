@@ -22,6 +22,8 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { type FilterState } from "@langfuse/shared";
 
 type PromptTableRow = {
   name: string;
@@ -44,6 +46,9 @@ export function PromptTable() {
 
   const [filterState, setFilterState] = useQueryFilterState([], "prompts");
 
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange("All time");
+
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
     order: "DESC",
@@ -53,12 +58,24 @@ export function PromptTable() {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "createdAt",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const combinedFilterState = filterState.concat(dateRangeFilter);
   const prompts = api.prompts.all.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      filter: filterState,
+      filter: combinedFilterState,
       orderBy: orderByState,
     },
     {
@@ -135,21 +152,22 @@ export function PromptTable() {
       header: "Name",
       id: "name",
       enableSorting: true,
+      size: 250,
       cell: (row) => {
         const name = row.getValue();
         return name ? (
           <TableLink
             path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
-            truncateAt={50}
           />
         ) : undefined;
       },
     }),
     columnHelper.accessor("version", {
-      header: "Latest Version",
+      header: "Versions",
       id: "version",
       enableSorting: true,
+      size: 70,
       cell: (row) => {
         return row.getValue();
       },
@@ -158,6 +176,7 @@ export function PromptTable() {
       header: "Type",
       id: "type",
       enableSorting: true,
+      size: 60,
       cell: (row) => {
         return row.getValue();
       },
@@ -166,6 +185,7 @@ export function PromptTable() {
       header: "Latest Version Created At",
       id: "createdAt",
       enableSorting: true,
+      size: 200,
       cell: (row) => {
         const createdAt = row.getValue();
         return createdAt.toLocaleString();
@@ -173,6 +193,7 @@ export function PromptTable() {
     }),
     columnHelper.accessor("numberOfObservations", {
       header: "Number of Generations",
+      size: 170,
       cell: (row) => {
         const numberOfObservations = row.getValue();
         const name = row.row.original.name;
@@ -194,6 +215,7 @@ export function PromptTable() {
       header: "Tags",
       id: "tags",
       enableSorting: true,
+      size: 120,
       cell: (row) => {
         const tags = row.getValue();
         const promptName: string = row.row.original.name;
@@ -206,7 +228,7 @@ export function PromptTable() {
             promptsFilter={{
               ...filterOptionTags,
               projectId: projectId as string,
-              filter: filterState,
+              filter: combinedFilterState,
               orderBy: orderByState,
             }}
           />
@@ -217,6 +239,7 @@ export function PromptTable() {
     columnHelper.display({
       id: "actions",
       header: "Actions",
+      size: 70,
       cell: (row) => {
         const name = row.row.original.name;
         return <DeletePrompt promptName={name} />;
@@ -233,6 +256,8 @@ export function PromptTable() {
         )}
         filterState={filterState}
         setFilterState={setFilterState}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
           <Link href={`/project/${projectId}/prompts/new`}>
             <Button

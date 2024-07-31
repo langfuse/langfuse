@@ -124,10 +124,10 @@ importers:
         version: 3.614.0(@aws-sdk/client-s3@3.614.0)
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.554.0
-        version: 3.614.0
+        version: 3.554.0
       '@clickhouse/client':
-        specifier: ^1.0.1
-        version: 1.1.0
+        specifier: ^1.4.0
+        version: 1.4.0
       '@langchain/anthropic':
         specifier: ^0.1.21
         version: 0.1.21(langchain@0.2.9(@aws-sdk/client-s3@3.614.0)(@aws-sdk/credential-provider-node@3.614.0(@aws-sdk/client-sso-oidc@3.614.0(@aws-sdk/client-sts@3.614.0))(@aws-sdk/client-sts@3.614.0))(axios@1.6.8)(fast-xml-parser@4.3.6)(handlebars@4.7.8)(html-to-text@9.0.5)(ignore@5.3.1)(ioredis@5.4.1)(jsdom@20.0.3)(openai@4.52.0)(playwright@1.43.1)(puppeteer@19.11.1(typescript@5.4.5))(ws@8.16.0))(openai@4.52.0)
@@ -680,6 +680,9 @@ importers:
       '@anthropic-ai/tokenizer':
         specifier: ^0.0.4
         version: 0.0.4
+      '@clickhouse/client':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
@@ -1335,15 +1338,15 @@ packages:
   '@chevrotain/utils@10.5.0':
     resolution: {integrity: sha512-hBzuU5+JjB2cqNZyszkDHZgOSrUUT8V3dhgRl8Q9Gp6dAj/H5+KILGjbhDpc3Iy9qmqlm/akuOI2ut9VUtzJxQ==}
 
-  '@clickhouse/client-common@1.1.0':
-    resolution: {integrity: sha512-saD6vNg+gIZACT5OSCWn0evLBP+Cs5bBR2Ol24yOQc8AXcw94b1qcDjQEVxms1xzO6heFhZRuPf+YefMNrL3Ig==}
+  '@clickhouse/client-common@1.4.0':
+    resolution: {integrity: sha512-kglG8YyWnR1K24RckUf5ZdNTN0U0s+a1j/bpCO4ZjzjO87ICgWlXFVD22pZqSACW7/2IIi1IkzbwtxKI2s/MOw==}
 
-  '@clickhouse/client@1.1.0':
-    resolution: {integrity: sha512-fDG0dUU2nzcsE4XLDL3qUydbHJfuVCHnLuBTEmQfDrNQB9z6/qOtAUoGfAatZ07eEakZ4JAzKWMTU4MW4m0BJg==}
+  '@clickhouse/client@1.4.0':
+    resolution: {integrity: sha512-O4mbFPM/wQtFck01ghYI2mnNHv9jSFEiQBsTCH4t6MKeGHNAPkJGaFGv+KycLTv6zjnQNjiUGdXDMVRema5SyA==}
     engines: {node: '>=16'}
 
-  '@codemirror/autocomplete@6.16.2':
-    resolution: {integrity: sha512-MjfDrHy0gHKlPWsvSsikhO1+BOh+eBHNgfH1OXs1+DAf30IonQldgMM3kxLDTG9ktE7kDLaA1j/l7KMPA4KNfw==}
+  '@codemirror/autocomplete@6.17.0':
+    resolution: {integrity: sha512-fdfj6e6ZxZf8yrkMHUSJJir7OJkHkZKaOZGzLWIYp2PZ3jd+d+UjG8zVPqJF6d3bKxkhvXTPan/UZ1t7Bqm0gA==}
     peerDependencies:
       '@codemirror/language': ^6.0.0
       '@codemirror/state': ^6.0.0
@@ -11481,13 +11484,13 @@ snapshots:
 
   '@chevrotain/utils@10.5.0': {}
 
-  '@clickhouse/client-common@1.1.0': {}
+  '@clickhouse/client-common@1.4.0': {}
 
-  '@clickhouse/client@1.1.0':
+  '@clickhouse/client@1.4.0':
     dependencies:
-      '@clickhouse/client-common': 1.1.0
+      '@clickhouse/client-common': 1.4.0
 
-  '@codemirror/autocomplete@6.16.2(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.28.0)(@lezer/common@1.2.1)':
+  '@codemirror/autocomplete@6.17.0(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.28.4)(@lezer/common@1.2.1)':
     dependencies:
       '@codemirror/language': 6.10.2
       '@codemirror/state': 6.4.1
@@ -19859,6 +19862,23 @@ snapshots:
       cookie: 0.5.0
       jose: 4.15.5
       next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      oauth: 0.9.15
+      openid-client: 5.6.5
+      preact: 10.19.7
+      preact-render-to-string: 5.2.6(preact@10.19.7)
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      uuid: 8.3.2
+    optionalDependencies:
+      nodemailer: 6.9.13
+
+  next-auth@4.24.7(next@14.2.5(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
+    dependencies:
+      '@babel/runtime': 7.24.5
+      '@panva/hkdf': 1.1.1
+      cookie: 0.5.0
+      jose: 4.15.5
+      next: 14.2.5(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       oauth: 0.9.15
       openid-client: 5.6.5
       preact: 10.19.7

@@ -38,6 +38,35 @@ router.get<{}, { status: string }>("/health", async (_req, res) => {
 });
 
 router
+  .use(basicAuth({ users: { admin: env.LANGFUSE_WORKER_PASSWORD } }))
+  .get<
+    {},
+    { status: "success" | "error"; message?: string }
+  >("/clickhouse", async (req, res) => {
+    try {
+      // check if clickhouse is healthy
+      try {
+        const response = await clickhouseClient.query({
+          query: "SELECT 1",
+          format: "CSV",
+        });
+
+        logger.info(
+          `Clickhouse health check response: ${JSON.stringify(await response.text())}`
+        );
+
+        res.json({ status: "success" });
+      } catch (e) {
+        logger.error(e, "Clickhouse health check failed");
+        res.status(500).json({ status: "error", message: JSON.stringify(e) });
+      }
+    } catch (e) {
+      logger.error(e, "Unexpected error during Clickhouse health check");
+      res.status(500).json({ status: "error", message: JSON.stringify(e) });
+    }
+  });
+
+router
   .use(
     basicAuth({
       users: { admin: env.LANGFUSE_WORKER_PASSWORD },

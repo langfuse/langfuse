@@ -32,7 +32,7 @@ const NumericData = z.object({
 });
 
 const CategoricalData = z.object({
-  value: z.number().optional().nullish(),
+  value: z.number().nullish(),
   stringValue: z.string(),
   dataType: z.literal("CATEGORICAL"),
 });

@@ -37,13 +37,13 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("id", {
       header: "Id",
       id: "id",
+      size: 100,
       cell: (row) => {
         const id = row.getValue();
         return id ? (
           <TableLink
             path={`/project/${projectId}/evals/configs/${encodeURIComponent(id)}`}
             value={id}
-            truncateAt={50}
           />
         ) : undefined;
       },
@@ -51,6 +51,7 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("status", {
       header: "Status",
       id: "status",
+      size: 80,
       cell: (row) => {
         const status = row.getValue();
         return <StatusBadge type={status.toLowerCase()} />;
@@ -59,18 +60,22 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("createdAt", {
       id: "createdAt",
       header: "Created At",
+      size: 150,
     }),
     columnHelper.accessor("template", {
       id: "template",
       header: "Template",
+      size: 200,
     }),
     columnHelper.accessor("scoreName", {
       id: "scoreName",
       header: "Score Name",
+      size: 150,
     }),
     columnHelper.accessor("filter", {
       id: "filter",
       header: "Filter",
+      size: 200,
       cell: (row) => {
         const node = row.getValue();
         return <InlineFilterState filterState={node} />;
