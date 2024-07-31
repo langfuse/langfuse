@@ -145,6 +145,7 @@ jobs:
 
       - name: install dependencies
         run: |
+          apt-get golang-migrate
           pnpm install
 
       - name: Load default env
@@ -160,6 +161,7 @@ jobs:
 
       - name: Seed DB
         run: |
+          pnpm run ch:reset
           pnpm run db:migrate
           pnpm run db:seed
 
