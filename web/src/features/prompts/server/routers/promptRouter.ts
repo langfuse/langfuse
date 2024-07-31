@@ -554,7 +554,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: z.array(singleFilter).nullish(),
         ...optionalPaginationZod,
       }),
     )
@@ -626,7 +626,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         promptIds: z.array(z.string()),
-        filter: z.array(singleFilter).nullable(),
+        filter: z.array(singleFilter).nullish(),
       }),
     )
     .query(async ({ input, ctx }) => {
