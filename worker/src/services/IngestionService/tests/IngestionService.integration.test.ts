@@ -285,6 +285,7 @@ describe("Ingestion end-to-end tests", () => {
           timestamp: new Date().toISOString(),
           body: {
             id: scoreId,
+            dataType: "NUMERIC",
             name: "score-name",
             value: 100.5,
             traceId: traceId,
@@ -751,6 +752,7 @@ describe("Ingestion end-to-end tests", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: scoreId,
+          dataType: "NUMERIC",
           name: "score-name",
           traceId: traceId,
           value: 100.5,
