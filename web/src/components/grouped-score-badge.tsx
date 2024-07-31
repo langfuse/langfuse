@@ -12,6 +12,7 @@ import { type APIScore } from "@/src/features/public-api/types/scores";
 
 import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
+import { type Score } from "@langfuse/shared";
 import { MessageCircleMore } from "lucide-react";
 
 const colorCoding = (value: string): string => {
@@ -122,18 +123,19 @@ export const ScoresAggregateCell = ({
   return null;
 };
 
-export const GroupedScoreBadges = ({ scores }: { scores: APIScore[] }) => {
-  const groupedScores = scores.reduce<Record<string, APIScore[]>>(
-    (acc, score) => {
-      if (!acc[score.name] || !Array.isArray(acc[score.name])) {
-        acc[score.name] = [score];
-      } else {
-        (acc[score.name] as APIScore[]).push(score);
-      }
-      return acc;
-    },
-    {},
-  );
+export const GroupedScoreBadges = <T extends APIScore | Score>({
+  scores,
+}: {
+  scores: T[];
+}) => {
+  const groupedScores = scores.reduce<Record<string, T[]>>((acc, score) => {
+    if (!acc[score.name] || !Array.isArray(acc[score.name])) {
+      acc[score.name] = [score];
+    } else {
+      (acc[score.name] as T[]).push(score);
+    }
+    return acc;
+  }, {});
 
   return (
     <>
