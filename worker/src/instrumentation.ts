@@ -1,5 +1,5 @@
 import tracer from "dd-trace";
-import ot from "@opentelemetry/api";
+import ot, { SpanKind } from "@opentelemetry/api";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 
@@ -26,7 +26,7 @@ export async function instrumentAsync<T>(
 ): Promise<T> {
   return otelTracer.startActiveSpan(
     ctx.name,
-    { root: ctx.root },
+    { root: ctx.root, kind: SpanKind.CONSUMER },
     async (span) => {
       const result = callback();
       span.end();
