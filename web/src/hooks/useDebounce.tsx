@@ -5,7 +5,7 @@ function debounce<T extends (...args: any[]) => any>(
   timeout: number,
   executeFirstCall: boolean = false,
 ): (...args: Parameters<T>) => ReturnType<T> | undefined {
-  let timer: NodeJS.Timeout | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   let result: ReturnType<T> | undefined;
 
   return (...args: Parameters<T>): ReturnType<T> | undefined => {
