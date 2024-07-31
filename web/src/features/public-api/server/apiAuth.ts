@@ -32,6 +32,13 @@ export const ApiKeyZod = z.object({
   projectId: z.string(),
 });
 
+const API_KEY_NON_EXISTENT = "api-key-non-existent";
+
+export const CachedApiKey = z.union([
+  ApiKeyZod,
+  z.literal(API_KEY_NON_EXISTENT),
+]);
+
 export class ApiAuthService {
   prisma: PrismaClient;
   redis: Redis | null;
@@ -88,12 +95,29 @@ export class ApiAuthService {
         const hashFromProvidedKey = createShaHash(secretKey, salt);
 
         // fetches by redis if available, fallback to postgres
-        const apiKey = await this.fetchApiKeyByHash(hashFromProvidedKey);
+        const apiKey = await this.fetchApiKeyAndAddToRedis(hashFromProvidedKey);
 
         let projectId = apiKey?.projectId;
 
         if (!apiKey || !apiKey.fastHashedSecretKey) {
-          const dbKey = await this.findDbKeyOrThrow(publicKey);
+          const dbKey = await this.prisma.apiKey.findUnique({
+            where: { publicKey },
+          });
+
+          if (!dbKey) {
+            console.error("No key found for public key", publicKey);
+            if (this.redis) {
+              console.log(
+                `No key found, storing ${API_KEY_NON_EXISTENT} in redis`,
+              );
+              await this.addApiKeyToRedis(
+                hashFromProvidedKey,
+                API_KEY_NON_EXISTENT,
+              );
+            }
+            throw new Error("Invalid credentials");
+          }
+
           const isValid = await verifySecretKey(
             secretKey,
             dbKey.hashedSecretKey,
@@ -192,9 +216,15 @@ export class ApiAuthService {
     return dbKey;
   }
 
-  async fetchApiKeyByHash(hash: string) {
+  async fetchApiKeyAndAddToRedis(hash: string) {
     // first get the API key from redis, this does not throw
     const redisApiKey = await this.fetchApiKeyFromRedis(hash);
+
+    if (redisApiKey === API_KEY_NON_EXISTENT) {
+      Sentry.metrics.increment("api_key_cache_hit");
+      console.log(`Found flag for non existing key in redis.`);
+      throw new Error("Invalid credentials");
+    }
 
     // if we found something, return the object.
     if (redisApiKey) {
@@ -206,6 +236,7 @@ export class ApiAuthService {
     }
 
     Sentry.metrics.increment("api_key_cache_miss");
+
     // if redis not available or object not found, try the database
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { fastHashedSecretKey: hash },
@@ -222,7 +253,10 @@ export class ApiAuthService {
     return apiKey;
   }
 
-  async addApiKeyToRedis(hash: string, apiKey: ApiKey) {
+  async addApiKeyToRedis(
+    hash: string,
+    apiKey: ApiKey | typeof API_KEY_NON_EXISTENT,
+  ) {
     if (!this.redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") {
       return;
     }
@@ -255,7 +289,7 @@ export class ApiAuthService {
         return null;
       }
 
-      const parsedApiKey = ApiKeyZod.safeParse(JSON.parse(redisApiKey));
+      const parsedApiKey = CachedApiKey.safeParse(JSON.parse(redisApiKey));
 
       if (parsedApiKey.success) {
         return parsedApiKey.data;

@@ -1990,32 +1990,44 @@ components:
         timestamp:
           type: string
           format: date-time
+          description: The timestamp when the trace was created
         name:
           type: string
           nullable: true
+          description: The name of the trace
         input:
           nullable: true
+          description: The input data of the trace. Can be any JSON.
         output:
           nullable: true
+          description: The output data of the trace. Can be any JSON.
         sessionId:
           type: string
           nullable: true
+          description: The session identifier associated with the trace
         release:
           type: string
           nullable: true
+          description: The release version of the application when the trace was created
         version:
           type: string
           nullable: true
+          description: The version of the trace
         userId:
           type: string
           nullable: true
+          description: The user identifier associated with the trace
         metadata:
           nullable: true
+          description: The metadata associated with the trace. Can be any JSON.
         tags:
           type: array
           items:
             type: string
           nullable: true
+          description: >-
+            The tags associated with the trace. Can be an array of strings or
+            null.
         public:
           type: boolean
           nullable: true
@@ -2122,56 +2134,74 @@ components:
       properties:
         id:
           type: string
+          description: The unique identifier of the observation
         traceId:
           type: string
           nullable: true
+          description: The trace ID associated with the observation
         type:
           type: string
+          description: The type of the observation
         name:
           type: string
           nullable: true
+          description: The name of the observation
         startTime:
           type: string
           format: date-time
+          description: The start time of the observation
         endTime:
           type: string
           format: date-time
           nullable: true
+          description: The end time of the observation.
         completionStartTime:
           type: string
           format: date-time
           nullable: true
+          description: The completion start time of the observation
         model:
           type: string
           nullable: true
+          description: The model used for the observation
         modelParameters:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/MapValue'
           nullable: true
+          description: The parameters of the model used for the observation
         input:
           nullable: true
+          description: The input data of the observation
         version:
           type: string
           nullable: true
+          description: The version of the observation
         metadata:
           nullable: true
+          description: Additional metadata of the observation
         output:
           nullable: true
+          description: The output data of the observation
         usage:
           $ref: '#/components/schemas/Usage'
           nullable: true
+          description: The usage data of the observation
         level:
           $ref: '#/components/schemas/ObservationLevel'
+          description: The level of the observation
         statusMessage:
           type: string
           nullable: true
+          description: The status message of the observation
         parentObservationId:
           type: string
           nullable: true
+          description: The parent observation ID
         promptId:
           type: string
           nullable: true
+          description: The prompt ID associated with the observation
       required:
         - id
         - type
@@ -2184,44 +2214,55 @@ components:
         promptName:
           type: string
           nullable: true
+          description: The name of the prompt associated with the observation
         promptVersion:
           type: integer
           nullable: true
+          description: The version of the prompt associated with the observation
         modelId:
           type: string
           nullable: true
+          description: The unique identifier of the model
         inputPrice:
           type: number
           format: double
           nullable: true
+          description: The price of the input in USD
         outputPrice:
           type: number
           format: double
           nullable: true
+          description: The price of the output in USD.
         totalPrice:
           type: number
           format: double
           nullable: true
+          description: The total price in USD.
         calculatedInputCost:
           type: number
           format: double
           nullable: true
+          description: The calculated cost of the input in USD
         calculatedOutputCost:
           type: number
           format: double
           nullable: true
+          description: The calculated cost of the output in USD
         calculatedTotalCost:
           type: number
           format: double
           nullable: true
+          description: The calculated total cost in USD
         latency:
           type: number
           format: double
           nullable: true
+          description: The latency in seconds.
         timeToFirstToken:
           type: number
           format: double
           nullable: true
+          description: The time to the first token in seconds
       allOf:
         - $ref: '#/components/schemas/Observation'
     Usage:
@@ -2567,23 +2608,31 @@ components:
       properties:
         id:
           type: string
+          description: Unique identifier of the dataset run
         name:
           type: string
+          description: Name of the dataset run
         description:
           type: string
           nullable: true
+          description: Description of the run
         metadata:
           nullable: true
+          description: Metadata of the dataset run
         datasetId:
           type: string
+          description: Id of the associated dataset
         datasetName:
           type: string
+          description: Name of the associated dataset
         createdAt:
           type: string
           format: date-time
+          description: The date and time when the dataset run was created
         updatedAt:
           type: string
           format: date-time
+          description: The date and time when the dataset run was last updated
       required:
         - id
         - name

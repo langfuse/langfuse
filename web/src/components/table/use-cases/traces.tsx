@@ -11,10 +11,7 @@ import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
-import {
-  formatIntervalSeconds,
-  localtimeDateOffsetByDays,
-} from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
@@ -40,8 +37,8 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { type APIScore } from "@/src/features/public-api/types/scores";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -92,15 +89,10 @@ export default function TracesTable({
     withDefault(StringParam, null),
   );
 
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange();
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Timestamp",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "traces",
   );
   const [orderByState, setOrderByState] = useOrderByState({
@@ -108,6 +100,16 @@ export default function TracesTable({
     order: "DESC",
   });
 
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
   const userIdFilter: FilterState = userId
     ? [
         {
@@ -119,11 +121,12 @@ export default function TracesTable({
       ]
     : [];
 
-  const filterState = userFilterState.concat(userIdFilter);
+  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
   const tracesAllQueryFilter = {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
@@ -148,12 +151,13 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-  const timestampFilter = filterState.find((f) => f.column === "Timestamp");
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
       timestampFilter:
-        timestampFilter?.type === "datetime" ? timestampFilter : undefined,
+        dateRangeFilter[0]?.type === "datetime"
+          ? dateRangeFilter[0]
+          : undefined,
     },
     {
       trpc: {
@@ -655,6 +659,8 @@ export default function TracesTable({
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
         columns={columns}
