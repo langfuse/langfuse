@@ -236,8 +236,11 @@ export class IngestionService {
     const { projectId, entityId, scoreEventList } = params;
     if (scoreEventList.length === 0) return;
 
+    const timeSortedEvents =
+      IngestionService.toTimeSortedEventList(scoreEventList);
+
     // Convert the events to records
-    const scoreRecords: ScoreRecordInsertType[] = scoreEventList.map(
+    const scoreRecords: ScoreRecordInsertType[] = timeSortedEvents.map(
       (score) => ({
         id: entityId,
         project_id: projectId,
@@ -271,10 +274,13 @@ export class IngestionService {
     const { projectId, entityId, traceEventList } = params;
     if (traceEventList.length === 0) return;
 
+    const timeSortedEvents =
+      IngestionService.toTimeSortedEventList(traceEventList);
+
     const traceRecords = this.mapTraceEventsToRecords({
       projectId,
       entityId,
-      traceEventList,
+      traceEventList: timeSortedEvents,
     });
 
     const finalTraceRecord = await this.mergeTraceRecords({
@@ -295,9 +301,11 @@ export class IngestionService {
     if (observationEventList.length === 0) return;
 
     const prompt = await this.getPrompt(projectId, observationEventList);
+    const timeSortedEvents =
+      IngestionService.toTimeSortedEventList(observationEventList);
 
     const observationRecords = this.mapObservationEventsToRecords({
-      observationEventList,
+      observationEventList: timeSortedEvents,
       projectId,
       entityId,
       prompt,
@@ -426,38 +434,32 @@ export class IngestionService {
       throw new Error("No records to merge");
     }
 
-    const timestampAscendingRecords =
-      IngestionService.toTimeSortedRecords(records);
-
     let result: {
       id: string;
       project_id: string;
       [key: string]: any;
     } = { id: records[0].id, project_id: records[0].project_id };
 
-    for (const record of timestampAscendingRecords) {
+    for (const record of records) {
       result = overwriteObject(result, record, immutableEntityKeys);
     }
 
     return result;
   }
 
-  private static toTimeSortedRecords(
-    records: (
-      | TraceRecordInsertType
-      | ScoreRecordInsertType
-      | ObservationRecordInsertType
-    )[]
-  ) {
-    // TODO: add sorting for create operations before update
-    // TODO: add microsecond timestamps from SDKs. Storing in DB at millisecond precision is enough though.
-    return records.slice().sort((a, b) =>
-      "timestamp" in a && "timestamp" in b
-        ? a.timestamp - b.timestamp
-        : "start_time" in a && "start_time" in b // Generations have startTime instead of timestamp
-          ? a.start_time - b.start_time
-          : 0
-    );
+  private static toTimeSortedEventList<
+    T extends TraceEventType | ScoreEventType | ObservationEvent,
+  >(eventList: T[]): T[] {
+    return eventList.slice().sort((a, b) => {
+      const aTimestamp = new Date(a.timestamp).getTime();
+      const bTimestamp = new Date(b.timestamp).getTime();
+
+      if (aTimestamp === bTimestamp) {
+        return a.type.includes("create") ? -1 : 1; // create events should come first
+      }
+
+      return aTimestamp - bTimestamp;
+    });
   }
 
   private async getPrompt(

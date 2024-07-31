@@ -19,39 +19,18 @@ describe("IngestionService unit tests", () => {
     );
   });
 
-  it("correctly sorts records in ascending order by timestamp", async () => {
-    const firstTrace = { timestamp: 1 };
-    const secondTrace = { timestamp: 2 };
-    const thirdTrace = { timestamp: 3 };
+  it("correctly sorts events in ascending order by timestamp", async () => {
+    const firstTrace = { timestamp: 1, type: "observation-create" };
+    const secondTrace = { timestamp: 1, type: "observation-update" };
+    const thirdTrace = { timestamp: 3, type: "observation-update" };
 
-    const records = [thirdTrace, firstTrace, secondTrace];
+    const records = [thirdTrace, secondTrace, firstTrace];
 
-    const sortedRecords = (IngestionService as any).toTimeSortedRecords(
+    const sortedEventList = (IngestionService as any).toTimeSortedEventList(
       records
     );
 
-    expect(sortedRecords).toEqual([firstTrace, secondTrace, thirdTrace]);
-    expect(sortedRecords).not.toBe(records); // Ensure that the original array is not mutated
-
-    const firstObservation = { start_time: 1 };
-    const secondObservation = { start_time: 2 };
-    const thirdObservation = { start_time: 3 };
-
-    const observations = [
-      thirdObservation,
-      firstObservation,
-      secondObservation,
-    ];
-
-    const sortedObservations = (IngestionService as any).toTimeSortedRecords(
-      observations
-    );
-
-    expect(sortedObservations).toEqual([
-      firstObservation,
-      secondObservation,
-      thirdObservation,
-    ]);
-    expect(sortedObservations).not.toBe(observations);
+    expect(sortedEventList).toEqual([firstTrace, secondTrace, thirdTrace]);
+    expect(sortedEventList).not.toBe(records); // Ensure that the original array is not mutated
   });
 });

@@ -944,6 +944,62 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
+  it("should put observation updates after creates if timestamp is same", async () => {
+    const generationId = randomUUID();
+
+    const timestamp = new Date().toISOString();
+
+    const generationEventList: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "observation-update",
+        timestamp,
+        body: {
+          id: generationId,
+          type: "GENERATION",
+          output: { key: "this is a great gpt output" },
+        },
+      },
+      {
+        id: randomUUID(),
+        type: "observation-create",
+        timestamp,
+        body: {
+          id: generationId,
+          type: "GENERATION",
+          name: "generation-name",
+          input: { key: "value" },
+          output: "should be overwritten",
+          model: "gpt-3.5",
+        },
+      },
+    ];
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: generationId,
+      observationEventList: generationEventList,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId
+    );
+
+    expect(generation.output).toEqual(
+      JSON.stringify({
+        key: "this is a great gpt output",
+      })
+    );
+    expect(generation.input).toEqual(JSON.stringify({ key: "value" }));
+    expect(generation.provided_model_name).toEqual("gpt-3.5");
+    expect(generation.output).toEqual(
+      JSON.stringify({ key: "this is a great gpt output" })
+    );
+  });
+
   it("should update all token counts if update does not contain model name", async () => {
     const traceId = randomUUID();
     const generationId = randomUUID();
