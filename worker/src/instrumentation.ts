@@ -33,15 +33,7 @@ export async function instrumentAsync<T>(
   ctx: { name: string },
   callback: CallbackAsyncFn<T>
 ): Promise<T> {
-  return tracer.trace(ctx.name, async (span) => {
-    try {
-      const result = await callback();
-      span.finish();
-      return result;
-    } catch (error) {
-      span.setTag("error", true);
-      span.finish();
-      throw error;
-    }
+  return tracer.trace(ctx.name, async () => {
+    return callback();
   });
 }
