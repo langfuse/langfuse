@@ -128,6 +128,7 @@ export const constructDetailColumns = <
     const detailColumnProps = parseDetailColumn<T>(col, parseColumn);
     return {
       ...detailColumnProps,
+      size: 150,
       cell: ({ row }: { row: Row<T> }) => {
         const value: QualitativeAggregate | QuantitativeAggregate | undefined =
           row.getValue(detailColumnProps.accessorKey);
