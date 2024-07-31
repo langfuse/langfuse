@@ -167,7 +167,7 @@ jobs:
 
       - name: Seed DB
         run: |
-          pnpm run ch:reset
+          pnpm run --filter=shared ch:up
           pnpm run db:migrate
           pnpm run db:seed
 
