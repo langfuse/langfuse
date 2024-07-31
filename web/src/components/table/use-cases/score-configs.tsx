@@ -107,6 +107,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       accessorKey: "dataType",
       id: "dataType",
       header: "Data Type",
+      size: 80,
       enableHiding: true,
     },
     {
@@ -114,6 +115,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       id: "range",
       header: "Range",
       enableHiding: true,
+      size: 300,
       cell: ({ row }) => {
         const range = getConfigRange(row.original);
 
@@ -153,6 +155,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       accessorKey: "isArchived",
       id: "isArchived",
       header: "Status",
+      size: 80,
       enableHiding: true,
       cell: ({ row }) => {
         const { isArchived } = row.original;
@@ -162,6 +165,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "action",
       header: "Action",
+      size: 70,
       enableHiding: true,
       cell: ({ row }) => {
         const { id: configId, isArchived, name } = row.original;

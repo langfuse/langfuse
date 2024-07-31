@@ -281,6 +281,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
   const data: NextAuthOptions = {
     session: {
       strategy: "jwt",
+      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
     },
     callbacks: {
       async session({ session, token }): Promise<Session> {
@@ -321,9 +322,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
             disableExpensivePostgresQueries:
               env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
-            defaultTableDateTimeOffset:
-              env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
-
             // Enables features that are only available under an enterprise license when self-hosting Langfuse
             // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
             eeEnabled: env.LANGFUSE_EE_LICENSE_KEY !== undefined,

@@ -14,18 +14,6 @@ const EnvSchema = z.object({
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(3030),
-  REDIS_HOST: z.string().nullish(),
-  REDIS_PORT: z.coerce
-    .number({
-      description:
-        ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
-    })
-    .positive()
-    .max(65536, `options.port should be >= 0 and < 65536`)
-    .default(6379)
-    .nullable(),
-  REDIS_AUTH: z.string().nullish(),
-  REDIS_CONNECTION_STRING: z.string().nullish(),
   LANGFUSE_WORKER_PASSWORD: z.string(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
@@ -40,6 +28,21 @@ const EnvSchema = z.object({
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
+  REDIS_HOST: z.string().nullish(),
+  REDIS_PORT: z.coerce
+    .number({
+      description:
+        ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+    })
+    .positive()
+    .max(65536, `options.port should be >= 0 and < 65536`)
+    .default(6379)
+    .nullable(),
+  REDIS_AUTH: z.string().nullish(),
+  REDIS_CONNECTION_STRING: z.string().nullish(),
+  CLICKHOUSE_URL: z.string().url().optional(),
+  CLICKHOUSE_USER: z.string().optional(),
+  CLICKHOUSE_PASSWORD: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);

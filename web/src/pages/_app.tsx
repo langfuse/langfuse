@@ -91,7 +91,11 @@ const MyApp: AppType<{ session: Session | null }> = ({
     <QueryParamProvider adapter={NextAdapterPages}>
       <TooltipProvider>
         <PostHogProvider client={posthog}>
-          <SessionProvider session={session} refetchOnWindowFocus={true}>
+          <SessionProvider
+            session={session}
+            refetchOnWindowFocus={true}
+            refetchInterval={5 * 60} // 5 minutes
+          >
             <DetailPageListsProvider>
               <MarkdownContextProvider>
                 <ThemeProvider

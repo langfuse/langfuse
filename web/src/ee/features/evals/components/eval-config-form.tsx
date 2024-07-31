@@ -337,7 +337,6 @@ export const InnerEvalConfigForm = (props: {
                               href={
                                 "https://langfuse.com/docs/scores/model-based-evals"
                               }
-                              size="xs"
                             />
                           </div>
                           <FormField
@@ -569,7 +568,7 @@ function VariableMappingDescription(p: {
   return (
     <div className="flex w-1/2 items-center">
       <Label className="muted-foreground text-sm font-light">{p.title}</Label>
-      <DocPopup description={p.description} href={p.href} size="xs" />
+      <DocPopup description={p.description} href={p.href} />
     </div>
   );
 }

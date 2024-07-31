@@ -31,7 +31,7 @@ const NumericData = z.object({
 });
 
 const CategoricalData = z.object({
-  value: z.number().optional().nullish(),
+  value: z.number().nullish(),
   stringValue: z.string(),
   dataType: z.literal("CATEGORICAL"),
 });
@@ -189,63 +189,39 @@ export const validateDbScore = (score: Score): APIScore =>
 /**
  * PostScoresBody is copied for the ingestion API as `ScoreBody`. Please copy any changes here in `packages/shared/src/features/ingestion/types.ts`
  */
-export const PostScoresBody = z
-  .discriminatedUnion("dataType", [
-    BaseScoreBody.merge(
-      z.object({
-        value: z.number(),
-        dataType: z.literal("NUMERIC"),
-        configId: z.string().nullish(),
+export const PostScoresBody = z.discriminatedUnion("dataType", [
+  BaseScoreBody.merge(
+    z.object({
+      value: z.number(),
+      dataType: z.literal("NUMERIC"),
+      configId: z.string().nullish(),
+    }),
+  ),
+  BaseScoreBody.merge(
+    z.object({
+      value: z.string(),
+      dataType: z.literal("CATEGORICAL"),
+      configId: z.string().nullish(),
+    }),
+  ),
+  BaseScoreBody.merge(
+    z.object({
+      value: z.number().refine((value) => value === 0 || value === 1, {
+        message:
+          "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
       }),
-    ),
-    BaseScoreBody.merge(
-      z.object({
-        value: z.string(),
-        dataType: z.literal("CATEGORICAL"),
-        configId: z.string().nullish(),
-      }),
-    ),
-    BaseScoreBody.merge(
-      z.object({
-        value: z.number().refine((val) => val === 0 || val === 1, {
-          message: "Value must be either 0 or 1",
-        }),
-        dataType: z.literal("BOOLEAN"),
-        configId: z.string().nullish(),
-      }),
-    ),
-    BaseScoreBody.merge(
-      z.object({
-        value: z.union([z.string(), z.number()]),
-        dataType: z.undefined(),
-        configId: z.string().nullish(),
-      }),
-    ),
-  ])
-  .superRefine((data, ctx) => {
-    if (data.dataType) {
-      if (typeof data.value === "number") {
-        if (data.dataType === "CATEGORICAL") {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Value must be a string for data type ${data.dataType}`,
-          });
-        }
-      } else if (typeof data.value === "string") {
-        if (data.dataType === "NUMERIC") {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Value must be a number for data type ${data.dataType}`,
-          });
-        } else if (data.dataType === "BOOLEAN") {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Value must number equal to either 0 or 1 for data type ${data.dataType}`,
-          });
-        }
-      }
-    }
-  });
+      dataType: z.literal("BOOLEAN"),
+      configId: z.string().nullish(),
+    }),
+  ),
+  BaseScoreBody.merge(
+    z.object({
+      value: z.union([z.string(), z.number()]),
+      dataType: z.undefined(),
+      configId: z.string().nullish(),
+    }),
+  ),
+]);
 
 export const PostScoresResponse = z.object({ id: z.string() });
 

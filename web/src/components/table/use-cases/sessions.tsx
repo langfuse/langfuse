@@ -14,17 +14,14 @@ import {
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
-import {
-  formatIntervalSeconds,
-  localtimeDateOffsetByDays,
-} from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type SessionTableRow = {
   id: string;
@@ -53,16 +50,11 @@ export default function SessionsTable({
   omittedFilter = [],
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange();
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Created At",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useTableLookBackDays()),
-      },
-    ],
+    [],
     "sessions",
   );
 
@@ -77,7 +69,18 @@ export default function SessionsTable({
       ]
     : [];
 
-  const filterState = userFilterState.concat(userIdFilter);
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "createdAt",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -145,6 +148,7 @@ export default function SessionsTable({
       accessorKey: "bookmarked",
       id: "bookmarked",
       header: undefined,
+      size: 50,
       cell: ({ row }) => {
         const bookmarked = row.getValue("bookmarked");
         const sessionId = row.getValue("id");
@@ -165,6 +169,7 @@ export default function SessionsTable({
       accessorKey: "id",
       id: "id",
       header: "ID",
+      size: 200,
       cell: ({ row }) => {
         const value = row.getValue("id");
         return value && typeof value === "string" ? (
@@ -181,6 +186,7 @@ export default function SessionsTable({
       accessorKey: "createdAt",
       id: "createdAt",
       header: "Created At",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
     },
@@ -188,6 +194,7 @@ export default function SessionsTable({
       accessorKey: "sessionDuration",
       id: "sessionDuration",
       header: "Duration",
+      size: 130,
       enableHiding: true,
       cell: ({ row }) => {
         const value = row.getValue("sessionDuration");
@@ -202,6 +209,7 @@ export default function SessionsTable({
       enableColumnFilter: !omittedFilter.find((f) => f === "userIds"),
       id: "userIds",
       header: "User IDs",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const value = row.getValue("userIds");
@@ -213,6 +221,7 @@ export default function SessionsTable({
                 path={`/project/${projectId}/users/${encodeURIComponent(user)}`}
                 value={user}
                 truncateAt={40}
+                className="text-nowrap"
               />
             ))}
           </div>
@@ -222,7 +231,11 @@ export default function SessionsTable({
     {
       accessorKey: "countTraces",
       id: "countTraces",
-      header: "Traces Count",
+      header: "Traces",
+      size: 100,
+      headerTooltip: {
+        description: "The number of traces in the session.",
+      },
       enableHiding: true,
       enableSorting: true,
     },
@@ -230,6 +243,7 @@ export default function SessionsTable({
       accessorKey: "inputCost",
       id: "inputCost",
       header: "Input Cost",
+      size: 110,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -244,6 +258,7 @@ export default function SessionsTable({
       accessorKey: "outputCost",
       id: "outputCost",
       header: "Output Cost",
+      size: 110,
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
@@ -259,6 +274,7 @@ export default function SessionsTable({
       accessorKey: "totalCost",
       id: "totalCost",
       header: "Total Cost",
+      size: 110,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -273,6 +289,7 @@ export default function SessionsTable({
       accessorKey: "inputTokens",
       id: "inputTokens",
       header: "Input Tokens",
+      size: 110,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -288,6 +305,7 @@ export default function SessionsTable({
       accessorKey: "outputTokens",
       id: "outputTokens",
       header: "Output Tokens",
+      size: 110,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -303,6 +321,7 @@ export default function SessionsTable({
       accessorKey: "totalTokens",
       id: "totalTokens",
       header: "Total Tokens",
+      size: 110,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -317,6 +336,7 @@ export default function SessionsTable({
       accessorKey: "usage",
       id: "usage",
       header: "Usage",
+      size: 220,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -360,6 +380,8 @@ export default function SessionsTable({
             key="batchExport"
           />,
         ]}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
         columnsWithCustomSelect={["userIds"]}
       />
       <DataTable
