@@ -108,10 +108,10 @@ export const scoreRecordBaseSchema = z.object({
   value: z.union([z.number(), z.string()]).nullish(),
   source: z.string(),
   comment: z.string().nullish(),
-  authorUserId: z.string().nullish(),
-  configId: z.string().nullish(),
-  dataType: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
-  stringValue: z.string().nullish(),
+  author_user_id: z.string().nullish(),
+  config_id: z.string().nullish(),
+  data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
+  string_value: z.string().nullish(),
 });
 export type ScoreRecordBaseType = z.infer<typeof scoreRecordBaseSchema>;
 

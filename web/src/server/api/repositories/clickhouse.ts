@@ -108,7 +108,7 @@ function convertObservations(jsonRecords: unknown[]): ObservationView[] {
       unit: record.unit ?? null,
 
       createdAt: new Date(record.created_at),
-      updatedAt: new Date(record.created_at),
+      updatedAt: new Date(record.updated_at),
       startTime: new Date(record.start_time),
       endTime: record.end_time ? new Date(record.end_time) : null,
 
@@ -159,7 +159,7 @@ export const convertTraces = (traces: unknown[]): Trace[] => {
       id: record.id,
       timestamp: new Date(record.timestamp),
       createdAt: new Date(record.created_at),
-      updatedAt: new Date(record.created_at),
+      updatedAt: new Date(record.updated_at),
       name: record.name ?? null,
       release: record.release ?? null,
       version: record.version ?? null,

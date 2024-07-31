@@ -239,7 +239,6 @@ export class IngestionService {
     const timeSortedEvents =
       IngestionService.toTimeSortedEventList(scoreEventList);
 
-    // Convert the events to records
     const scoreRecords: ScoreRecordInsertType[] = timeSortedEvents.map(
       (score) => ({
         id: entityId,
@@ -249,7 +248,7 @@ export class IngestionService {
         value: score.body.value,
         source: "API",
         trace_id: score.body.traceId,
-        dataType: score.body.dataType,
+        data_type: score.body.dataType,
         observation_id: score.body.observationId ?? null,
         created_at: Date.now(),
         updated_at: Date.now(),
@@ -425,7 +424,6 @@ export class IngestionService {
     return { ...parsedObservationRecord, ...generationUsage };
   }
 
-  // TODO: check and test whether this works as intended. This is the core of the merge logic
   private mergeRecords<T extends InsertRecord>(
     records: T[],
     immutableEntityKeys: string[]
