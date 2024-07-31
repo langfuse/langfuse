@@ -243,9 +243,6 @@ export class ApiAuthService {
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.
     if (apiKey && apiKey.fastHashedSecretKey) {
-      console.log(
-        `Add key with id ${apiKey.id} for project ${apiKey.projectId} to redis`,
-      );
       await this.addApiKeyToRedis(hash, apiKey);
     }
     return apiKey;
