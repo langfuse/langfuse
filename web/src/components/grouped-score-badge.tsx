@@ -59,7 +59,7 @@ export const GroupedScoreBadges = ({
 
   if (variant === "headings")
     return (
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 text-nowrap">
         {Object.entries(groupedScores)
           .sort(([a], [b]) => (a < b ? -1 : 1))
           .map(([name, scores]) => (
