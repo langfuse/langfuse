@@ -158,6 +158,7 @@ jobs:
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
+          cp .env.dev.example worker/.env
 
       - name: Run + migrate
         run: |
