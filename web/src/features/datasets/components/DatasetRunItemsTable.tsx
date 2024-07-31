@@ -95,7 +95,6 @@ export function DatasetRunItemsTable(
           <TableLink
             path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${datasetItemId}`}
             value={datasetItemId}
-            truncateAt={7}
           />
         );
       },

@@ -92,7 +92,6 @@ export function DatasetItemsTable({
           <TableLink
             path={`/project/${projectId}/datasets/${datasetId}/items/${id}`}
             value={id}
-            truncateAt={7}
           />
         );
       },

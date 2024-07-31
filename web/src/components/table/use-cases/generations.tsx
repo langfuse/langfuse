@@ -649,7 +649,6 @@ export default function GenerationsTable({
             <TableLink
               path={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}?version=${promptVersion}`}
               value={value}
-              truncateAt={40}
             />
           )
         );

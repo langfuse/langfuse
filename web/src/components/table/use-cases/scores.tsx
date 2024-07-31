@@ -191,7 +191,6 @@ export default function ScoresTable({
           <TableLink
             path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
@@ -214,7 +213,6 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/users/${value}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -314,7 +312,6 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/evals/configs/${value}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;

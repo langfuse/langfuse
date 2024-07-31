@@ -44,7 +44,6 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
           <TableLink
             path={`/project/${projectId}/evals/configs/${encodeURIComponent(id)}`}
             value={id}
-            truncateAt={50}
           />
         ) : undefined;
       },
