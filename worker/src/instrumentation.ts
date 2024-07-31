@@ -1,5 +1,7 @@
 import tracer from "dd-trace";
 import ot from "@opentelemetry/api";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { PrismaInstrumentation } from "@prisma/instrumentation";
 
 const { TracerProvider } = tracer.init({
   profiling: false,
@@ -9,6 +11,10 @@ const { TracerProvider } = tracer.init({
 const provider = new TracerProvider();
 
 provider.register();
+
+registerInstrumentations({
+  instrumentations: [new PrismaInstrumentation()],
+});
 
 export const otelTracer = ot.trace.getTracer("worker");
 
