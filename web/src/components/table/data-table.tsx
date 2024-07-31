@@ -229,7 +229,7 @@ export function DataTable<TData extends object, TValue>({
                                 className={cn(
                                   "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
                                   header.column.getIsResizing() &&
-                                    "bg-accent opacity-100",
+                                    "bg-primary-accent opacity-100",
                                 )}
                               />
                             </div>
