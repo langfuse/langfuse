@@ -17,6 +17,9 @@ import Decimal from "decimal.js";
 import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 
 export type ModelTableRow = {
   modelId: string;
@@ -61,6 +64,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     projectId,
   });
   const totalCount = models.data?.totalCount ?? 0;
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "s");
 
   const columns: LangfuseColumnDef<ModelTableRow>[] = [
     {
@@ -108,11 +113,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       cell: ({ row }) => {
         const value: string = row.getValue("matchPattern");
 
-        return (
-          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-xs ">
-            {value}
-          </code>
-        );
+        return value ? (
+          <IOTableCell data={value} singleLine={rowHeight === "s"} />
+        ) : null;
       },
     },
     {
@@ -141,6 +144,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           <span className="text-xs">-</span>
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "outputPrice",
@@ -168,6 +172,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           <span className="text-xs">-</span>
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "totalPrice",
@@ -195,6 +200,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           <span className="text-xs">-</span>
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "unit",
@@ -229,10 +235,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         const value: Prisma.JsonValue | undefined = row.getValue("config");
 
         return value ? (
-          <span className="text-xs">{JSON.stringify(value)}</span>
-        ) : (
-          <span className="text-xs">-</span>
-        );
+          <IOTableCell data={value} singleLine={rowHeight === "s"} />
+        ) : null;
       },
     },
     {
@@ -252,7 +256,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   ];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ModelTableRow>("scoresColumnVisibility", columns);
+    useColumnVisibility<ModelTableRow>("modelsColumnVisibility", columns);
 
   const convertToTableRow = (model: Model): ModelTableRow => {
     return {
@@ -273,31 +277,41 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   };
 
   return (
-    <DataTable
-      columns={columns}
-      data={
-        models.isLoading
-          ? { isLoading: true, isError: false }
-          : models.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: models.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: models.data.models.map((t) => convertToTableRow(t)),
-              }
-      }
-      pagination={{
-        pageCount: Math.ceil(totalCount / paginationState.pageSize),
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-      columnVisibility={columnVisibility}
-      onColumnVisibilityChange={setColumnVisibility}
-    />
+    <>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+      />
+      <DataTable
+        columns={columns}
+        data={
+          models.isLoading
+            ? { isLoading: true, isError: false }
+            : models.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: models.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: models.data.models.map((t) => convertToTableRow(t)),
+                }
+        }
+        pagination={{
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
+      />
+    </>
   );
 }
 
