@@ -23,7 +23,6 @@ export type JobExecutionRow = {
   error?: string;
 };
 
-
 export default function EvalLogTable({
   projectId,
   jobConfigurationId,
@@ -116,7 +115,6 @@ export default function EvalLogTable({
           <TableLink
             path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}`}
             value={traceId}
-            truncateAt={10}
           />
         ) : undefined;
       },
@@ -130,7 +128,6 @@ export default function EvalLogTable({
           <TableLink
             path={`/project/${projectId}/evals/templates/${encodeURIComponent(templateId)}`}
             value={templateId}
-            truncateAt={10}
           />
         ) : undefined;
       },
@@ -148,7 +145,6 @@ export default function EvalLogTable({
             <TableLink
               path={`/project/${projectId}/evals/configs/${encodeURIComponent(configId)}`}
               value={configId}
-              truncateAt={10}
             />
           ) : undefined;
         },

@@ -150,7 +150,7 @@ export const GroupedScoreBadges = <T extends APIScore | Score>({
             <p className="truncate" title={name}>
               {name}:
             </p>
-            <div className="text-xs">
+            <div className="flex items-center gap-3 text-nowrap">
               {scores.map((s, i) => (
                 <SingleScoreValue
                   key={i}

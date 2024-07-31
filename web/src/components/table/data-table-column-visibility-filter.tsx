@@ -17,6 +17,7 @@ import { type VisibilityState } from "@tanstack/react-table";
 import { ChevronDown, Columns } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   baseColumns: LangfuseColumnDef<TData, TValue>[];
@@ -107,15 +108,20 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             column.enableHiding && (
               <DropdownMenuCheckboxItem
                 key={index}
-                className="capitalize"
                 checked={columnVisibility[column.accessorKey]}
-                onCheckedChange={() =>
-                  toggleColumn(column.accessorKey.toString())
-                }
+                onCheckedChange={() => toggleColumn(column.accessorKey)}
               >
-                {column.header && typeof column.header === "string"
-                  ? column.header.toString()
-                  : column.accessorKey.toString()}
+                <span className="capitalize">
+                  {column.header && typeof column.header === "string"
+                    ? column.header
+                    : column.accessorKey}
+                </span>
+                {column.headerTooltip && (
+                  <DocPopup
+                    description={column.headerTooltip.description}
+                    href={column.headerTooltip.href}
+                  />
+                )}
               </DropdownMenuCheckboxItem>
             ),
         )}
@@ -137,9 +143,17 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                       toggleColumn(column.accessorKey.toString())
                     }
                   >
-                    {column.header && typeof column.header === "string"
-                      ? column.header.toString()
-                      : column.accessorKey.toString()}
+                    <span className="capitalize">
+                      {column.header && typeof column.header === "string"
+                        ? column.header
+                        : column.accessorKey}
+                    </span>
+                    {column.headerTooltip && (
+                      <DocPopup
+                        description={column.headerTooltip.description}
+                        href={column.headerTooltip.href}
+                      />
+                    )}
                   </DropdownMenuCheckboxItem>
                 ),
             )}

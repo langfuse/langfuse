@@ -106,7 +106,6 @@ export default function Header({
               <DocPopup
                 description={props.help.description}
                 href={props.help.href}
-                size="sm"
               />
             ) : null}
             {props.featureBetaURL ? (

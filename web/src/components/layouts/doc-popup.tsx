@@ -5,27 +5,14 @@ import {
 } from "@/src/components/ui/hover-card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { HelpCircle, Info } from "lucide-react";
+import { Info } from "lucide-react";
 
 export type DocPopupProps = {
   description: React.ReactNode;
   href?: string;
-  style?: "question" | "info";
-  size?: "xs" | "sm" | "md" | "lg";
 };
 
-export default function DocPopup({
-  description,
-  href,
-  style = "info",
-  size = "sm",
-}: DocPopupProps) {
-  const sizes = {
-    xs: "w-3 h-3",
-    sm: "w-4 h-4",
-    md: "w-6 h-6",
-    lg: "w-8 h-8",
-  };
+export default function DocPopup({ description, href }: DocPopupProps) {
   const capture = usePostHogClientCapture();
 
   return (
@@ -57,12 +44,7 @@ export default function DocPopup({
             });
           }}
         >
-          {
-            {
-              question: <HelpCircle className={sizes[size]} />,
-              info: <Info className={sizes[size]} />,
-            }[style]
-          }
+          <Info className={"h-3 w-3"} />
         </div>
       </HoverCardTrigger>
       <HoverCardContent>

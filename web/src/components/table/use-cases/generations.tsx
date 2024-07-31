@@ -252,6 +252,7 @@ export default function GenerationsTable({
       accessorKey: "id",
       id: "id",
       header: "ID",
+      size: 100,
       cell: ({ row }) => {
         const observationId = row.getValue("id");
         const traceId = row.getValue("traceId");
@@ -269,12 +270,14 @@ export default function GenerationsTable({
       accessorKey: "name",
       id: "name",
       header: "Name",
+      size: 150,
       enableSorting: true,
     },
     {
       accessorKey: "traceId",
       id: "traceId",
       header: "Trace ID",
+      size: 100,
       cell: ({ row }) => {
         const value = row.getValue("traceId");
         return typeof value === "string" ? (
@@ -290,6 +293,7 @@ export default function GenerationsTable({
       accessorKey: "traceName",
       id: "traceName",
       header: "Trace Name",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
     },
@@ -297,6 +301,7 @@ export default function GenerationsTable({
       accessorKey: "startTime",
       id: "startTime",
       header: "Start Time",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -308,6 +313,7 @@ export default function GenerationsTable({
       accessorKey: "endTime",
       id: "endTime",
       header: "End Time",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
     },
@@ -315,6 +321,7 @@ export default function GenerationsTable({
       accessorKey: "timeToFirstToken",
       id: "timeToFirstToken",
       header: "Time to First Token",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -332,6 +339,7 @@ export default function GenerationsTable({
       accessorKey: "latency",
       id: "latency",
       header: "Latency",
+      size: 100,
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
         return latency !== undefined ? (
@@ -345,6 +353,7 @@ export default function GenerationsTable({
       accessorKey: "timePerOutputToken",
       id: "timePerOutputToken",
       header: "Time per Output Token",
+      size: 200,
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
         const usage: {
@@ -369,6 +378,7 @@ export default function GenerationsTable({
       accessorKey: "inputCost",
       id: "inputCost",
       header: "Input Cost",
+      size: 120,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("inputCost");
 
@@ -384,6 +394,7 @@ export default function GenerationsTable({
       accessorKey: "outputCost",
       id: "outputCost",
       header: "Output Cost",
+      size: 120,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("outputCost");
 
@@ -399,6 +410,7 @@ export default function GenerationsTable({
       accessorKey: "totalCost",
       header: "Total Cost",
       id: "totalCost",
+      size: 120,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("totalCost");
 
@@ -413,6 +425,7 @@ export default function GenerationsTable({
       accessorKey: "level",
       id: "level",
       header: "Level",
+      size: 100,
       headerTooltip: {
         description:
           "Use You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
@@ -439,6 +452,7 @@ export default function GenerationsTable({
       accessorKey: "statusMessage",
       header: "Status Message",
       id: "statusMessage",
+      size: 150,
       headerTooltip: {
         description:
           "Use a statusMessage to e.g. provide additional information on a status such as level=ERROR.",
@@ -451,6 +465,7 @@ export default function GenerationsTable({
       accessorKey: "model",
       id: "model",
       header: "Model",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
     },
@@ -458,6 +473,7 @@ export default function GenerationsTable({
       accessorKey: "inputTokens",
       id: "inputTokens",
       header: "Input Tokens",
+      size: 100,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -474,6 +490,7 @@ export default function GenerationsTable({
       accessorKey: "outputTokens",
       id: "outputTokens",
       header: "Output Tokens",
+      size: 100,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -490,6 +507,7 @@ export default function GenerationsTable({
       accessorKey: "totalTokens",
       id: "totalTokens",
       header: "Total Tokens",
+      size: 100,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -506,6 +524,7 @@ export default function GenerationsTable({
       accessorKey: "usage",
       header: "Usage",
       id: "usage",
+      size: 150,
       cell: ({ row }) => {
         const value: {
           promptTokens: number;
@@ -528,6 +547,7 @@ export default function GenerationsTable({
       accessorKey: "input",
       header: "Input",
       id: "input",
+      size: 300,
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -547,6 +567,7 @@ export default function GenerationsTable({
       accessorKey: "output",
       id: "output",
       header: "Output",
+      size: 300,
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -565,6 +586,7 @@ export default function GenerationsTable({
     {
       accessorKey: "metadata",
       header: "Metadata",
+      size: 300,
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
         href: "https://langfuse.com/docs/tracing-features/metadata",
@@ -588,6 +610,7 @@ export default function GenerationsTable({
       accessorKey: "version",
       id: "version",
       header: "Version",
+      size: 100,
       headerTooltip: {
         description: "Track changes via the version tag.",
         href: "https://langfuse.com/docs/experimentation",
@@ -603,6 +626,7 @@ export default function GenerationsTable({
         description: "Link to prompt version in Langfuse prompt management.",
         href: "https://langfuse.com/docs/prompts",
       },
+      size: 200,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -615,7 +639,6 @@ export default function GenerationsTable({
             <TableLink
               path={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}?version=${promptVersion}`}
               value={value}
-              truncateAt={40}
             />
           )
         );

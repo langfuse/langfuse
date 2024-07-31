@@ -89,18 +89,19 @@ export function DatasetRunItemsTable(
       accessorKey: "runAt",
       header: "Run At",
       id: "runAt",
+      size: 150,
     },
     {
       accessorKey: "datasetItemId",
       header: "Dataset Item",
       id: "datasetItemId",
+      size: 110,
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
         return (
           <TableLink
             path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${datasetItemId}`}
             value={datasetItemId}
-            truncateAt={7}
           />
         );
       },
@@ -109,6 +110,7 @@ export function DatasetRunItemsTable(
       accessorKey: "trace",
       header: "Trace",
       id: "trace",
+      size: 60,
       cell: ({ row }) => {
         const trace: DatasetRunItemRowData["trace"] = row.getValue("trace");
         if (!trace) return null;
@@ -131,6 +133,7 @@ export function DatasetRunItemsTable(
       accessorKey: "latency",
       header: "Latency",
       id: "latency",
+      size: 70,
       enableHiding: true,
       cell: ({ row }) => {
         const latency: DatasetRunItemRowData["latency"] =
@@ -140,8 +143,9 @@ export function DatasetRunItemsTable(
     },
     {
       accessorKey: "totalCost",
-      header: "Total Cost",
+      header: "Cost",
       id: "totalCost",
+      size: 60,
       enableHiding: true,
       cell: ({ row }) => {
         const totalCost: DatasetRunItemRowData["totalCost"] =
@@ -153,6 +157,7 @@ export function DatasetRunItemsTable(
       accessorKey: "input",
       header: "Input",
       id: "input",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const trace: DatasetRunItemRowData["trace"] = row.getValue("trace");
@@ -170,6 +175,7 @@ export function DatasetRunItemsTable(
       accessorKey: "output",
       header: "Output",
       id: "output",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const trace: DatasetRunItemRowData["trace"] = row.getValue("trace");
@@ -187,6 +193,7 @@ export function DatasetRunItemsTable(
       accessorKey: "expectedOutput",
       header: "Expected Output",
       id: "expectedOutput",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
@@ -227,7 +234,7 @@ export function DatasetRunItemsTable(
 
           return {
             id: item.id,
-            runAt: item.createdAt.toISOString(),
+            runAt: item.createdAt.toLocaleString(),
             datasetItemId: item.datasetItemId,
             trace: !!item.trace?.id
               ? {

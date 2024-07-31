@@ -69,13 +69,13 @@ export function DatasetRunsTable(props: {
       accessorKey: "key",
       header: "Name",
       id: "key",
+      size: 150,
       cell: ({ row }) => {
         const key: DatasetRunRowData["key"] = row.getValue("key");
         return (
           <TableLink
             path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${key.id}`}
             value={key.name}
-            truncateAt={50}
           />
         );
       },
@@ -84,18 +84,21 @@ export function DatasetRunsTable(props: {
       accessorKey: "description",
       header: "Description",
       id: "description",
+      size: 300,
       enableHiding: true,
     },
     {
       accessorKey: "countRunItems",
       header: "Run Items",
       id: "countRunItems",
+      size: 90,
       enableHiding: true,
     },
     {
       accessorKey: "avgLatency",
       header: "Latency (avg)",
       id: "avgLatency",
+      size: 120,
       enableHiding: true,
       cell: ({ row }) => {
         const avgLatency: DatasetRunRowData["avgLatency"] =
@@ -107,6 +110,7 @@ export function DatasetRunsTable(props: {
       accessorKey: "avgTotalCost",
       header: "Total Cost (avg)",
       id: "avgTotalCost",
+      size: 130,
       enableHiding: true,
       cell: ({ row }) => {
         const avgTotalCost: DatasetRunRowData["avgTotalCost"] =
@@ -118,12 +122,14 @@ export function DatasetRunsTable(props: {
       accessorKey: "createdAt",
       header: "Created",
       id: "createdAt",
+      size: 150,
       enableHiding: true,
     },
     {
       accessorKey: "metadata",
       header: "Metadata",
       id: "metadata",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const metadata: DatasetRunRowData["metadata"] =
