@@ -18,7 +18,6 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type FilterState, ScoreDataType } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { Spinner } from "@/src/components/layouts/spinner";
 
 type PromptVersionTableRow = {
   version: number;
@@ -40,13 +39,13 @@ type PromptMetric = PromptMetricsOutput[number];
 type PromptCoreData = PromptCoreOutput["promptVersions"][number];
 
 function joinPromptCoreAndMetricData(
-  promptCoreData: PromptCoreOutput,
+  promptCoreData?: PromptCoreOutput,
   promptMetricsData?: PromptMetricsOutput,
 ): {
   status: "loading" | "error" | "success";
   combinedData: (PromptCoreData & Partial<PromptMetric>)[] | undefined;
 } {
-  if (!promptCoreData) return { status: "error", combinedData: undefined }; // defensive should never happen
+  if (!promptCoreData) return { status: "loading", combinedData: undefined };
 
   const { promptVersions } = promptCoreData;
 
@@ -90,12 +89,12 @@ export default function PromptVersionTable() {
     "s",
   );
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange("All time");
+    useTableDateRange("7 days");
 
   const dateRangeFilter: FilterState | null = dateRange?.from
     ? [
         {
-          column: "createdAt",
+          column: "Start Time",
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
@@ -108,7 +107,6 @@ export default function PromptVersionTable() {
       name: promptName,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
-      filter: dateRangeFilter,
     },
     { enabled: Boolean(projectId) },
   );
@@ -355,10 +353,6 @@ export default function PromptVersionTable() {
       "promptVersionsColumnVisibility",
       columns,
     );
-
-  if (!promptVersions.data) {
-    return <Spinner message="Loading" />;
-  }
 
   const totalCount = promptVersions?.data?.totalCount ?? 0;
 
