@@ -174,7 +174,9 @@ export class ApiAuthService {
         };
       }
     } catch (error: unknown) {
-      console.error("Error verifying auth header: ", error);
+      console.error(
+        `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
+      );
 
       if (isPrismaException(error)) {
         throw error;
