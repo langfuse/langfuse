@@ -95,5 +95,11 @@ export function overwriteObject(
         ? a.metadata
         : mergeRecords(a.metadata, b.metadata) ?? {};
 
+  if ("tags" in result) {
+    result.tags = Array.from(
+      new Set([...(a.tags || []), ...(b.tags || [])])
+    ).sort();
+  }
+
   return result;
 }

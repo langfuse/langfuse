@@ -8,6 +8,7 @@ describe("overwriteObject", () => {
     name: "Object A",
     value: 10,
     metadata: { key1: "value1", key2: "value2" },
+    tags: ["tag4", "tag2"],
   };
 
   const objB = {
@@ -16,6 +17,7 @@ describe("overwriteObject", () => {
     name: "Object B",
     value: 20,
     metadata: { key2: "newValue2", key3: "value3" },
+    tags: ["tag1", "tag2", "tag3"],
   };
 
   it("should overwrite properties of object A with object B", () => {
@@ -37,6 +39,11 @@ describe("overwriteObject", () => {
       key2: '"newValue2"',
       key3: '"value3"',
     });
+  });
+
+  it("should merge tags correctly", () => {
+    const result = overwriteObject(objA, objB, []);
+    expect(result.tags).toEqual(["tag1", "tag2", "tag3", "tag4"]);
   });
 
   it("should handle cases where metadata is missing in one object", () => {
