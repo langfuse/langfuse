@@ -3,8 +3,9 @@ import { env } from "./env";
 import * as Sentry from "@sentry/node";
 
 require("dd-trace").init({
-  profiling: true,
+  profiling: false,
   runtimeMetrics: true,
+  logInjection: true,
 });
 
 Sentry.init({
