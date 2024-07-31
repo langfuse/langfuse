@@ -9,8 +9,6 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
   });
 
   const provider = new TracerProvider();
-  registerOTel({
-    // instrumentations: [new PrismaInstrumentation()],
-  });
+  registerOTel();
   provider.register();
 }
