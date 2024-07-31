@@ -30,7 +30,7 @@ function debounce<T extends (...args: any[]) => any>(
 
 export function useDebounce<T extends (...args: any[]) => any>(
   callback: T,
-  delay: number = 400,
+  delay: number = 600,
   executeFirstCall: boolean = true,
 ): (...args: Parameters<T>) => ReturnType<T> | undefined {
   const callbackRef = useRef(callback);
