@@ -75,13 +75,14 @@ export const DashboardDateRangeDropdown: React.FC<
     });
   };
 
+  const options =
+    selectedOption === DASHBOARD_AGGREGATION_PLACEHOLDER
+      ? [...DASHBOARD_AGGREGATION_OPTIONS, DASHBOARD_AGGREGATION_PLACEHOLDER]
+      : [...DASHBOARD_AGGREGATION_OPTIONS];
   return (
     <BaseDateRangeDropdown
       selectedOption={selectedOption}
-      options={[
-        ...DASHBOARD_AGGREGATION_OPTIONS,
-        DASHBOARD_AGGREGATION_PLACEHOLDER,
-      ]}
+      options={options}
       onSelectionChange={onDropDownSelection}
     />
   );

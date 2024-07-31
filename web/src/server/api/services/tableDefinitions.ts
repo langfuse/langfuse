@@ -31,7 +31,7 @@ export const traceId = {
   internal: 't."id"',
 } as const;
 export const traceVersion = {
-  name: "version",
+  name: "Version",
   id: "version",
   type: "string",
   internal: 't."version"',
@@ -56,7 +56,7 @@ export const duration = {
     'EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time")',
 } as const;
 export const release = {
-  name: "release",
+  name: "Release",
   id: "release",
   type: "string",
   internal: 't."release"',
@@ -98,7 +98,7 @@ export const model = {
   internal: 'o."model"',
 } as const;
 export const traceUser = {
-  name: "user",
+  name: "User",
   id: "user",
   type: "string",
   internal: 't."user_id"',
@@ -134,6 +134,8 @@ const tracesObservationsColumns: ColumnDefinition[] = [
   traceName,
   observationName,
   traceTags,
+  release,
+  traceVersion,
 ];
 
 const tracesColumns = [
@@ -214,6 +216,7 @@ export const tableDefinitions: TableDefinitions = {
       scoreId,
       traceVersion,
       traceTimestamp,
+      release,
       scoreName,
       traceUser,
       tracesProjectId,
