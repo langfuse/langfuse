@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared/src/db";
-import { eventTypes, ingestionBatchEvent } from "@langfuse/shared";
+import { eventTypes, ingestionBatchEvent } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import {
   handleBatch,

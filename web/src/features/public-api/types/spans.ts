@@ -4,7 +4,7 @@ import {
   LegacySpanPostSchema,
   eventTypes,
   type ingestionApiSchema,
-} from "@langfuse/shared";
+} from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
 /**

@@ -7,15 +7,17 @@ import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
-  type ingestionApiSchema,
-  eventTypes,
-  ingestionEvent,
   type TraceUpsertEventType,
   type EventBodyType,
   EventName,
   LangfuseNotFoundError,
   InternalServerError,
 } from "@langfuse/shared";
+import {
+  type ingestionApiSchema,
+  eventTypes,
+  ingestionEvent,
+} from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";
@@ -43,6 +45,7 @@ import {
 import { redis } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
+import { WorkerClient } from "@/src/server/api/services/WorkerClient";
 
 export const config = {
   api: {
@@ -241,8 +244,22 @@ export const handleBatch = async (
       console.error("Error handling event:", error);
       // Decide how to handle the error: rethrow, continue, or push an error object to results
       // For example, push an error object:
-      errors.push({ error: error, id: singleEvent.id, type: singleEvent.type });
+      errors.push({
+        error: error,
+        id: singleEvent.id,
+        type: singleEvent.type,
+      });
     }
+  }
+
+  if (env.CLICKHOUSE_URL) {
+    await new WorkerClient()
+      .sendIngestionBatch({
+        batch: events,
+        metadata,
+        projectId: authCheck.scope.projectId,
+      })
+      .catch(); // Ignore errors while testing the ingestion via worker
   }
 
   return { results, errors };
