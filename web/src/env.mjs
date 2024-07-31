@@ -114,8 +114,6 @@ export const env = createEnv({
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
     CLICKHOUSE_PASSWORD: z.string().optional(),
-    SERVE_FROM_CLICKHOUSE_ENABLED: z.enum(["true", "false"]).optional(),
-    POSTGRES_TRACING_DATASTORE_ENABLED: z.enum(["true", "false"]).optional(),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
     ADMIN_API_KEY: z.string().optional(),
@@ -260,9 +258,6 @@ export const env = createEnv({
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
-    SERVE_FROM_CLICKHOUSE_ENABLED: process.env.SERVE_FROM_CLICKHOUSE_ENABLED,
-    POSTGRES_TRACING_DATASTORE_ENABLED:
-      process.env.POSTGRES_TRACING_DATASTORE_ENABLED,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,

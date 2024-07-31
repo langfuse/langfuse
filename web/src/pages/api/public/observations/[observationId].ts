@@ -7,8 +7,6 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
-import { getObservation } from "@/src/server/api/repositories/clickhouse";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -16,18 +14,13 @@ export default withMiddlewares({
     querySchema: GetObservationV1Query,
     responseSchema: GetObservationV1Response,
     fn: async ({ query, auth }) => {
-      const shouldServeFromClickhouse =
-        env.SERVE_FROM_CLICKHOUSE_ENABLED === "true";
       const { observationId } = query;
-
-      const observation = shouldServeFromClickhouse
-        ? await getObservation(observationId, auth.scope.projectId)
-        : await prisma.observationView.findFirst({
-            where: {
-              id: observationId,
-              projectId: auth.scope.projectId,
-            },
-          });
+      const observation = await prisma.observationView.findFirst({
+        where: {
+          id: observationId,
+          projectId: auth.scope.projectId,
+        },
+      });
       if (!observation) {
         throw new LangfuseNotFoundError(
           "Observation not found within authorized project",

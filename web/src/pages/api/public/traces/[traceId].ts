@@ -1,19 +1,13 @@
-import { env } from "@/src/env.mjs";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
-import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   GetTraceV1Query,
   GetTraceV1Response,
 } from "@/src/features/public-api/types/traces";
-import {
-  getTraceObservations,
-  getScores,
-  getTrace,
-} from "@/src/server/api/repositories/clickhouse";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
+import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -21,21 +15,14 @@ export default withMiddlewares({
     querySchema: GetTraceV1Query,
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
-      const shouldServeFromClickhouse =
-        env.SERVE_FROM_CLICKHOUSE_ENABLED === "true";
       const { traceId } = query;
 
-      const trace = shouldServeFromClickhouse
-        ? await queryTracesAndScoresFromClickhouse(
-            traceId,
-            auth.scope.projectId,
-          )
-        : await prisma.trace.findFirst({
-            where: {
-              id: traceId,
-              projectId: auth.scope.projectId,
-            },
-          });
+      const trace = await prisma.traceView.findFirst({
+        where: {
+          id: traceId,
+          projectId: auth.scope.projectId,
+        },
+      });
 
       if (!trace) {
         throw new LangfuseNotFoundError(
@@ -51,15 +38,13 @@ export default withMiddlewares({
           },
           orderBy: { timestamp: "desc" },
         }),
-        shouldServeFromClickhouse
-          ? await getTraceObservations(traceId, auth.scope.projectId)
-          : await prisma.observationView.findMany({
-              where: {
-                traceId: traceId,
-                projectId: auth.scope.projectId,
-              },
-              orderBy: { startTime: "asc" },
-            }),
+        prisma.observationView.findMany({
+          where: {
+            traceId: traceId,
+            projectId: auth.scope.projectId,
+          },
+          orderBy: { startTime: "asc" },
+        }),
       ]);
 
       const outObservations = observations.map(transformDbToApiObservation);
@@ -81,16 +66,3 @@ export default withMiddlewares({
     },
   }),
 });
-
-const queryTracesAndScoresFromClickhouse = async (
-  traceId: string,
-  projectId: string,
-): Promise<any> => {
-  const trace = await getTrace(traceId, projectId);
-  const scores = await getScores(traceId, projectId);
-
-  return {
-    ...trace,
-    scores,
-  };
-};
