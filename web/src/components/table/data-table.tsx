@@ -108,7 +108,7 @@ export function DataTable<TData extends object, TValue>({
     manualFiltering: true,
     defaultColumn: {
       minSize: 20,
-      size: 150, // used to auto-size columns: https://github.com/TanStack/table/discussions/3192#discussioncomment-6458134
+      size: 150,
       maxSize: Number.MAX_SAFE_INTEGER,
     },
     columnResizeMode: "onChange",
@@ -161,14 +161,7 @@ export function DataTable<TData extends object, TValue>({
                             "whitespace-nowrap",
                         )}
                         style={{
-                          minWidth:
-                            header.getSize() === Number.MIN_SAFE_INTEGER
-                              ? "auto"
-                              : `calc(var(--header-${header.id}-size) * 1px)`,
-                          width:
-                            header.getSize() === Number.MIN_SAFE_INTEGER
-                              ? "auto"
-                              : `calc(var(--header-${header.id}-size) * 1px)`,
+                          width: `calc(var(--header-${header.id}-size) * 1px)`,
                         }}
                         title={sortingEnabled ? "Sort by this column" : ""}
                         onClick={(event) => {
@@ -234,9 +227,9 @@ export function DataTable<TData extends object, TValue>({
                                 onMouseDown={header.getResizeHandler()}
                                 onTouchStart={header.getResizeHandler()}
                                 className={cn(
-                                  "absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
+                                  "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
                                   header.column.getIsResizing() &&
-                                    "bg-blue-500 opacity-100",
+                                    "bg-accent opacity-100",
                                 )}
                               />
                             </div>
@@ -332,18 +325,7 @@ function TableBodyComponent<TData>({
                     "whitespace-nowrap",
                 )}
                 style={{
-                  minWidth:
-                    cell.column.getSize() === Number.MIN_SAFE_INTEGER
-                      ? "auto"
-                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
-                  width:
-                    cell.column.getSize() === Number.MIN_SAFE_INTEGER
-                      ? "auto"
-                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
-                  maxWidth:
-                    cell.column.getSize() === Number.MIN_SAFE_INTEGER
-                      ? "auto"
-                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                  width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
                 }}
               >
                 <div className={cn("flex items-center", rowheighttw)}>
