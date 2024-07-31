@@ -24,7 +24,13 @@ export async function instrumentAsync<T>(
   ctx: { name: string; root: boolean },
   callback: CallbackAsyncFn<T>
 ): Promise<T> {
-  return otelTracer.startActiveSpan(ctx.name, { root: ctx.root }, async () => {
-    return callback();
-  });
+  return otelTracer.startActiveSpan(
+    ctx.name,
+    { root: ctx.root },
+    async (span) => {
+      const result = callback();
+      span.end();
+      return result;
+    }
+  );
 }
