@@ -44,6 +44,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export type GenerationsTableRow = {
   id: string;
@@ -698,7 +699,7 @@ export default function GenerationsTable({
         columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={inputFilterState}
-        setFilterState={setInputFilterState}
+        setFilterState={useDebounce(setInputFilterState)}
         searchConfig={{
           placeholder: "Search by id, name, traceName, model",
           updateQuery: setSearchQuery,

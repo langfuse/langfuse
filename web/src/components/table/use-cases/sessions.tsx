@@ -22,6 +22,7 @@ import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export type SessionTableRow = {
   id: string;
@@ -366,7 +367,7 @@ export default function SessionsTable({
       <DataTableToolbar
         filterColumnDefinition={transformFilterOptions()}
         filterState={userFilterState}
-        setFilterState={setUserFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
