@@ -68,7 +68,8 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
   // step 2: for each group, determine if the score is qualitative or quantitative & compute aggregate for group
   return Object.entries(groupedScores).reduce((acc, [key, scores]) => {
     if (scores[0].dataType === "NUMERIC") {
-      const values = scores.map((score) => score.value as number);
+      const values = scores.map((score) => score.value ?? 0);
+      if (!Boolean(values.length)) return acc;
       const average = values.reduce((a, b) => a + b, 0) / values.length;
       acc[key] = {
         type: "QUANTITATIVE",
@@ -77,7 +78,8 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
         comment: values.length === 1 ? scores[0].comment : undefined,
       };
     } else {
-      const values = scores.map((score) => score.stringValue as string);
+      const values = scores.map((score) => score.stringValue ?? "n/a");
+      if (!Boolean(values.length)) return acc;
       const distribution = values.reduce(
         (acc, value) => {
           acc[value] = (acc[value] || 0) + 1;
