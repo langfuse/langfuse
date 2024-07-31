@@ -129,7 +129,6 @@ export default function UsersPage() {
             <TableLink
               path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;

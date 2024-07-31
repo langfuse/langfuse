@@ -159,7 +159,6 @@ export function PromptTable() {
           <TableLink
             path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
-            truncateAt={50}
           />
         ) : undefined;
       },
