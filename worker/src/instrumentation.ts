@@ -2,11 +2,17 @@ import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { env } from "./env";
 import * as Sentry from "@sentry/node";
 import tracer from "dd-trace";
+import ot from "@opentelemetry/api";
 
-tracer.init({
+const { TracerProvider } = tracer.init({
   profiling: false,
   runtimeMetrics: true,
 });
+
+const provider = new TracerProvider();
+provider.register();
+
+export const otelTracer = ot.trace.getTracer("worker");
 
 Sentry.init({
   dsn: String(env.SENTRY_DSN),
@@ -33,7 +39,7 @@ export async function instrumentAsync<T>(
   ctx: { name: string },
   callback: CallbackAsyncFn<T>
 ): Promise<T> {
-  return tracer.trace(ctx.name, async () => {
+  return otelTracer.startActiveSpan(ctx.name, async () => {
     return callback();
   });
 }
