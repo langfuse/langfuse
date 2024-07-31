@@ -92,7 +92,7 @@ export function getDetailColumns(
   scores: ScoreAggregate,
   computeAccessor = computeAccessorDefault,
 ): ScoreAggregate {
-  if (!scoreColumns) return {};
+  if (!Boolean(scoreColumns.length)) return {};
   let filteredScores: ScoreAggregate = {};
 
   for (const key in scores) {
