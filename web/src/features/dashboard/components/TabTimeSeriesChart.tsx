@@ -3,13 +3,12 @@ import {
   type TimeSeriesChartDataPoint,
 } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
+import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { Tab, TabList, TabGroup, TabPanel, TabPanels } from "@tremor/react";
-
 import { type ReactNode, useState } from "react";
 
 export type BaseTabTimeseriesChartProps = {
-  agg: DateTimeAggregationOption;
+  agg: DashboardDateRangeAggregationOption;
   showLegend?: boolean;
   connectNulls?: boolean;
   data: {

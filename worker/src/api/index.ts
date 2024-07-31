@@ -1,32 +1,18 @@
-import { Queue } from "bullmq";
-import { randomUUID } from "crypto";
 import express from "express";
 import basicAuth from "express-basic-auth";
 import * as Sentry from "@sentry/node";
-
+import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import {
-  EventBodySchema,
-  EventName,
-  QueueJobs,
-  QueueName,
-  TQueueJobTypes,
-  TraceUpsertEventType,
-} from "@langfuse/shared";
-
+  convertTraceUpsertEventsToRedisEvents,
+  getTraceUpsertQueue,
+} from "@langfuse/shared/src/server";
 import { env } from "../env";
 import logger from "../logger";
 import { batchExportQueue } from "../queues/batchExportQueue";
-import { redis } from "../redis";
-import emojis from "./emojis";
 import { checkContainerHealth } from "../features/health";
+import { clickhouseClient } from "@langfuse/shared/src/server";
 
 const router = express.Router();
-
-export const evalQueue = redis
-  ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
-      connection: redis,
-    })
-  : null;
 
 type EventsResponse = {
   status: "success" | "error";
@@ -42,6 +28,35 @@ router.get<{}, { status: string }>("/health", async (_req, res) => {
     });
   }
 });
+
+router
+  .use(basicAuth({ users: { admin: env.LANGFUSE_WORKER_PASSWORD } }))
+  .get<
+    {},
+    { status: "success" | "error"; message?: string }
+  >("/clickhouse", async (req, res) => {
+    try {
+      // check if clickhouse is healthy
+      try {
+        const response = await clickhouseClient.query({
+          query: "SELECT 1",
+          format: "CSV",
+        });
+
+        logger.info(
+          `Clickhouse health check response: ${JSON.stringify(await response.text())}`
+        );
+
+        res.json({ status: "success" });
+      } catch (e) {
+        logger.error(e, "Clickhouse health check failed");
+        res.status(500).json({ status: "error", message: JSON.stringify(e) });
+      }
+    } catch (e) {
+      logger.error(e, "Unexpected error during Clickhouse health check");
+      res.status(500).json({ status: "error", message: JSON.stringify(e) });
+    }
+  });
 
 router
   .use(
@@ -66,8 +81,17 @@ router
       if (event.data.name === EventName.TraceUpsert) {
         // Find set of traces per project. There might be two events for the same trace in one API call.
         // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
-        const jobs = createRedisEvents(event.data.payload);
-        await evalQueue?.addBulk(jobs); // add all jobs as bulk
+        const jobs = convertTraceUpsertEventsToRedisEvents(event.data.payload);
+        const traceUpsertQueue = getTraceUpsertQueue();
+
+        await traceUpsertQueue?.addBulk(jobs); // add all jobs as bulk
+
+        if (traceUpsertQueue) {
+          logger.info(
+            `Added ${jobs.length} trace upsert jobs to the queue`,
+            jobs
+          );
+        }
 
         return res.json({
           status: "success",
@@ -97,45 +121,4 @@ router
     }
   });
 
-router.use("/emojis", emojis);
-
 export default router;
-
-export function createRedisEvents(events: TraceUpsertEventType[]) {
-  const uniqueTracesPerProject = events.reduce((acc, event) => {
-    if (!acc.get(event.projectId)) {
-      acc.set(event.projectId, new Set());
-    }
-    acc.get(event.projectId)?.add(event.traceId);
-    return acc;
-  }, new Map<string, Set<string>>());
-
-  const jobs = [...uniqueTracesPerProject.entries()]
-    .map((tracesPerProject) => {
-      const [projectId, traceIds] = tracesPerProject;
-
-      return [...traceIds].map((traceId) => ({
-        name: QueueJobs.TraceUpsert,
-        data: {
-          payload: {
-            projectId,
-            traceId,
-          },
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.TraceUpsert as const,
-        },
-        opts: {
-          removeOnFail: 10000,
-          removeOnComplete: true,
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
-        },
-      }));
-    })
-    .flat();
-  return jobs;
-}

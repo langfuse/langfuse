@@ -15,8 +15,11 @@ import * as Sentry from "@sentry/node";
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
   data: SsoProviderSchema[];
+  failedToFetch: boolean;
   timestamp: number;
-} | null = null;
+} =
+  // initialize with empty cache
+  { data: [], failedToFetch: false, timestamp: 0 };
 
 /**
  * Get all SSO configurations from the database or from local cache and parse them into SsoProviderSchema objects.
@@ -25,17 +28,20 @@ let cachedSsoConfigs: {
  */
 async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
   if (!isEeEnabled) return [];
-  const CACHE_TTL = 60 * 1000; // 1 minute
-  const DB_MAX_WAIT = 2000; // 2 seconds
-  const DB_TIMEOUT = 3000; // 3 seconds
 
-  // Set/refresh the cache if it's empty or expired
-  if (
-    cachedSsoConfigs === null ||
-    Date.now() - cachedSsoConfigs.timestamp > CACHE_TTL
-  ) {
+  const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+  const FAILEDTOFETCH_RETRY_AFTER = 60 * 1000; // 1 minute
+  const DB_MAX_WAIT = 2 * 1000; // 2 seconds
+  const DB_TIMEOUT = 3 * 1000; // 3 seconds
+
+  const isCacheExpired =
+    Date.now() - cachedSsoConfigs.timestamp >
+    (cachedSsoConfigs.failedToFetch ? FAILEDTOFETCH_RETRY_AFTER : CACHE_TTL);
+
+  if (isCacheExpired) {
     // findMany with custom timeout via $transaction
     let dbConfigs: SsoConfig[] = [];
+    let failedToFetch = false;
     try {
       dbConfigs = await prisma.$transaction(
         async (prisma) => prisma.ssoConfig.findMany(),
@@ -45,9 +51,11 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
         },
       );
     } catch (e) {
-      // empty array will be cached to prevent repeated DB queries
       console.error("Failed to load SSO configs from the database", e);
       Sentry.captureException(e);
+
+      // empty array will be cached to prevent repeated DB queries
+      failedToFetch = true;
     }
 
     // transform into zod object
@@ -65,11 +73,12 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
           return null;
         }
       })
-      .filter((parsed) => parsed !== null) as SsoProviderSchema[];
+      .filter((parsed): parsed is SsoProviderSchema => parsed !== null);
 
     cachedSsoConfigs = {
       data: parsedSsoConfigs,
       timestamp: Date.now(),
+      failedToFetch,
     };
   }
 

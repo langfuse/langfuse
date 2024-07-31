@@ -6,6 +6,7 @@ import logger from "./logger";
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
 import { setSigtermReceived } from "./features/health";
+import { redis } from "@langfuse/shared/src/server";
 
 const server = app.listen(env.PORT, () => {
   logger.info(`Listening: http://localhost:${env.PORT}`);
@@ -26,6 +27,7 @@ async function onShutdown() {
     evalJobExecutor?.close(),
     batchExportJobExecutor?.close(),
   ]);
+  redis?.disconnect();
   logger.info("Http server and Redis jobs have been closed.");
 }
 

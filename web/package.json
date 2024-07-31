@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.65.1",
+  "version": "2.66.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -14,7 +14,7 @@
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
-    "test": "dotenv -e ../.env -- jest --runInBand",
+    "test": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
@@ -79,6 +79,7 @@
     "@vercel/otel": "^1.9.1",
     "ai": "^3.0.23",
     "bcryptjs": "^2.4.3",
+    "bullmq": "^5.4.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -90,6 +91,7 @@
     "dompurify": "^3.1.5",
     "exponential-backoff": "^3.1.1",
     "graphql": "^16.9.0",
+    "ioredis": "^5.4.1",
     "ip-address": "^9.0.5",
     "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",

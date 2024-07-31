@@ -15,11 +15,10 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type Score } from "@langfuse/shared";
-import { localtimeDateOffsetByDays } from "@/src/utils/dates";
+import { type FilterState, type Score } from "@langfuse/shared";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -38,14 +37,7 @@ export default function UsersPage() {
   const projectId = router.query.projectId as string;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "timestamp",
-        type: "datetime",
-        operator: ">",
-        value: localtimeDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "users",
   );
 
@@ -56,8 +48,23 @@ export default function UsersPage() {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange();
+
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const filterState = userFilterState.concat(dateRangeFilter);
   const users = api.users.all.useQuery({
-    filter: userFilterState,
+    filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
@@ -114,6 +121,7 @@ export default function UsersPage() {
       accessorKey: "userId",
       enableColumnFilter: true,
       header: "User ID",
+      size: 150,
       cell: ({ row }) => {
         const value: RowData["userId"] = row.getValue("userId");
         return typeof value === "string" ? (
@@ -130,6 +138,7 @@ export default function UsersPage() {
     {
       accessorKey: "firstEvent",
       header: "First Event",
+      size: 150,
       cell: ({ row }) => {
         const value: RowData["firstEvent"] = row.getValue("firstEvent");
         if (!userMetrics.isSuccess) {
@@ -143,6 +152,7 @@ export default function UsersPage() {
     {
       accessorKey: "lastEvent",
       header: "Last Event",
+      size: 150,
       cell: ({ row }) => {
         const value: RowData["lastEvent"] = row.getValue("lastEvent");
         if (!userMetrics.isSuccess) {
@@ -156,6 +166,7 @@ export default function UsersPage() {
     {
       accessorKey: "totalEvents",
       header: "Total Events",
+      size: 120,
       cell: ({ row }) => {
         const value: RowData["totalEvents"] = row.getValue("totalEvents");
         if (!userMetrics.isSuccess) {
@@ -169,6 +180,7 @@ export default function UsersPage() {
     {
       accessorKey: "totalTokens",
       header: "Total Tokens",
+      size: 120,
       cell: ({ row }) => {
         const value: RowData["totalTokens"] = row.getValue("totalTokens");
         if (!userMetrics.isSuccess) {
@@ -182,6 +194,7 @@ export default function UsersPage() {
     {
       accessorKey: "totalCost",
       header: "Total Cost",
+      size: 120,
       cell: ({ row }) => {
         const value: RowData["totalCost"] = row.getValue("totalCost");
         if (!userMetrics.isSuccess) {
@@ -195,6 +208,7 @@ export default function UsersPage() {
     {
       accessorKey: "lastScore",
       header: "Last Score",
+      size: 200,
       cell: ({ row }) => {
         const value: RowData["lastScore"] = row.getValue("lastScore");
         if (!userMetrics.isSuccess) {
@@ -237,6 +251,8 @@ export default function UsersPage() {
         filterState={userFilterState}
         setFilterState={setUserFilterState}
         columns={columns}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
         columns={columns}

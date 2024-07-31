@@ -191,11 +191,11 @@ export const IOTableCell = ({
   return (
     <>
       {isLoading ? (
-        <JsonSkeleton className="h-full w-[400px] overflow-hidden px-2 py-1" />
+        <JsonSkeleton className="h-full w-full overflow-hidden px-2 py-1" />
       ) : singleLine ? (
         <div
           className={cn(
-            "h-full w-[400px] self-stretch overflow-hidden overflow-y-auto truncate rounded-sm border px-2 py-0.5",
+            "h-full w-full self-stretch overflow-hidden overflow-y-auto truncate rounded-sm border px-2 py-0.5",
             className,
           )}
         >
@@ -205,7 +205,7 @@ export const IOTableCell = ({
         <JSONView
           json={stringifyJsonNode(data)}
           className={cn(
-            "h-full w-[400px] self-stretch overflow-y-auto rounded-sm ",
+            "h-full w-full self-stretch overflow-y-auto rounded-sm ",
             className,
           )}
           codeClassName="py-1 px-2"
