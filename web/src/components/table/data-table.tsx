@@ -157,8 +157,6 @@ export function DataTable<TData extends object, TValue>({
                         className={cn(
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
-                          header.getSize() === Number.MIN_SAFE_INTEGER &&
-                            "whitespace-nowrap",
                         )}
                         style={{
                           width: `calc(var(--header-${header.id}-size) * 1px)`,
@@ -319,10 +317,7 @@ function TableBodyComponent<TData>({
                 key={cell.id}
                 className={cn(
                   "overflow-hidden border-b p-1 text-xs first:pl-2",
-                  // for auto-sized cols and small rows, prevent wrapping
-                  (cell.column.getSize() === Number.MIN_SAFE_INTEGER ||
-                    rowheighttw === "s") &&
-                    "whitespace-nowrap",
+                  rowheighttw === "s" && "whitespace-nowrap",
                 )}
                 style={{
                   width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
