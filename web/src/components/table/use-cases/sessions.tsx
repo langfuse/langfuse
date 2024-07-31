@@ -176,7 +176,6 @@ export default function SessionsTable({
           <TableLink
             path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
@@ -220,8 +219,6 @@ export default function SessionsTable({
                 key={user}
                 path={`/project/${projectId}/users/${encodeURIComponent(user)}`}
                 value={user}
-                truncateAt={40}
-                className="text-nowrap"
               />
             ))}
           </div>

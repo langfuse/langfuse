@@ -308,7 +308,6 @@ export default function TracesTable({
           <TableLink
             path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
@@ -331,7 +330,6 @@ export default function TracesTable({
           <TableLink
             path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
