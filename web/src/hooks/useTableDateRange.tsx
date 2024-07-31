@@ -34,15 +34,17 @@ export function useTableDateRange(
   const [selectedOption, setSelectedOption] = useState<TableDateRangeOptions>(
     validatedInitialRangeOption,
   );
-  const initialDateRange = {
-    from: addMinutes(
-      new Date(),
-      -tableDateRangeAggregationSettings[
-        validatedInitialRangeOption as keyof typeof tableDateRangeAggregationSettings
-      ],
-    ),
-  };
-
+  const initialDateRange =
+    selectedOption !== "All time"
+      ? {
+          from: addMinutes(
+            new Date(),
+            -tableDateRangeAggregationSettings[
+              validatedInitialRangeOption as keyof typeof tableDateRangeAggregationSettings
+            ],
+          ),
+        }
+      : undefined;
   const [dateRange, setDateRange] = useState<TableDateRange | undefined>(
     initialDateRange,
   );
