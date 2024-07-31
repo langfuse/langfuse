@@ -2,7 +2,7 @@ import { api, directApi } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   DropdownMenu,
@@ -77,7 +77,7 @@ export type GenerationsTableRow = {
   promptVersion?: string;
 
   // any number of additional detail columns for individual scores
-  [key: string]: any; // any of type APIScore[] for detail columns
+  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export type GenerationsTableProps = {
@@ -623,33 +623,25 @@ export default function GenerationsTable({
     },
   ];
 
-  const extendColumns = (
-    nativeColumns: LangfuseColumnDef<GenerationsTableRow>[],
-    detailColumnAccessors?: string[],
-  ): LangfuseColumnDef<GenerationsTableRow>[] => {
-    return [
-      ...nativeColumns,
-      ...constructDetailColumns<GenerationsTableRow>({
-        detailColumnAccessors: detailColumnAccessors ?? [],
+  const detailColumns = useMemo(
+    () =>
+      constructDetailColumns<GenerationsTableRow>({
+        detailColumnAccessors: scoreNamesList.data?.names ?? [],
       }),
-    ];
-  };
+    [scoreNamesList.data?.names],
+  );
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(
       `generationsColumnVisibility-${projectId}`,
-      scoreNamesList.isLoading
-        ? []
-        : extendColumns(columns, scoreNamesList.data?.names),
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
-  const rows: GenerationsTableRow[] =
-    generations.isSuccess && !scoreNamesList.isLoading
+  const rows: GenerationsTableRow[] = useMemo(() => {
+    return generations.isSuccess && !scoreNamesList.isLoading
       ? generations.data.generations.map((generation) => {
           const detailColumns = getDetailColumns(
-            scoreNamesList.data?.names
-              ? new Set(scoreNamesList.data.names)
-              : undefined,
+            scoreNamesList.data?.names ?? [],
             generation.scores,
           );
 
@@ -681,14 +673,13 @@ export default function GenerationsTable({
           };
         })
       : [];
+  }, [generations, scoreNamesList]);
 
   return (
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDetailColumns<GenerationsTableRow>({
-          detailColumnAccessors: scoreNamesList.data?.names ?? [],
-        })}
+        detailColumns={detailColumns}
         detailColumnHeader="Individual Scores"
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={inputFilterState}
@@ -739,9 +730,7 @@ export default function GenerationsTable({
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDetailColumns<GenerationsTableRow>({
-          detailColumnAccessors: scoreNamesList.data?.names ?? [],
-        })}
+        detailColumns={detailColumns}
         data={
           generations.isLoading
             ? { isLoading: true, isError: false }

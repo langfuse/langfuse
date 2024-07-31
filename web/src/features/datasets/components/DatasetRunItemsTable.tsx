@@ -3,14 +3,13 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { type RouterOutput } from "@/src/utils/types";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { usdFormatter } from "../../../utils/numbers";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -37,7 +36,7 @@ export type DatasetRunItemRowData = {
   totalCost?: string;
 
   // any number of additional detail columns for individual scores
-  [key: string]: any; // any of type APIScore[] for detail columns
+  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export function DatasetRunItemsTable(
@@ -204,61 +203,54 @@ export function DatasetRunItemsTable(
     },
   ];
 
-  const convertToTableRow = (
-    item: RouterOutput["datasets"]["runitemsByRunIdOrItemId"]["runItems"][number],
-  ): DatasetRunItemRowData => {
-    const detailColumns = getDetailColumns(
-      scoreNamesList.data?.names
-        ? new Set(scoreNamesList.data.names)
-        : undefined,
-      item.scores,
-    );
-
-    return {
-      id: item.id,
-      runAt: item.createdAt.toISOString(),
-      datasetItemId: item.datasetItemId,
-      trace: !!item.trace?.id
-        ? {
-            traceId: item.trace.id,
-            observationId: item.observation?.id,
-          }
-        : undefined,
-      totalCost: !!item.observation?.calculatedTotalCost
-        ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-        : undefined,
-      latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
-      ...detailColumns,
-    };
-  };
-
-  const extendColumns = (
-    nativeColumns: LangfuseColumnDef<DatasetRunItemRowData>[],
-    detailColumnAccessors?: string[],
-  ): LangfuseColumnDef<DatasetRunItemRowData>[] => {
-    return [
-      ...nativeColumns,
-      ...constructDetailColumns<DatasetRunItemRowData>({
-        detailColumnAccessors: detailColumnAccessors ?? [],
+  const detailColumns = useMemo(
+    () =>
+      constructDetailColumns<DatasetRunItemRowData>({
+        detailColumnAccessors: scoreNamesList.data?.names ?? [],
       }),
-    ];
-  };
+    [scoreNamesList.data?.names],
+  );
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunItemRowData>(
       `datasetRunsItemsColumnVisibility-${props.projectId}`,
-      scoreNamesList.isLoading
-        ? []
-        : extendColumns(columns, scoreNamesList.data?.names),
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
+
+  const rows = useMemo(() => {
+    return runItems.isSuccess && !scoreNamesList.isLoading
+      ? runItems.data.runItems.map((item) => {
+          const detailColumns = getDetailColumns(
+            scoreNamesList.data?.names ?? [],
+            item.scores,
+          );
+
+          return {
+            id: item.id,
+            runAt: item.createdAt.toISOString(),
+            datasetItemId: item.datasetItemId,
+            trace: !!item.trace?.id
+              ? {
+                  traceId: item.trace.id,
+                  observationId: item.observation?.id,
+                }
+              : undefined,
+            totalCost: !!item.observation?.calculatedTotalCost
+              ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
+              : undefined,
+            latency:
+              item.observation?.latency ?? item.trace?.duration ?? undefined,
+            ...detailColumns,
+          };
+        })
+      : [];
+  }, [runItems, scoreNamesList]);
 
   return (
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDetailColumns<DatasetRunItemRowData>({
-          detailColumnAccessors: scoreNamesList.data?.names ?? [],
-        })}
+        detailColumns={detailColumns}
         detailColumnHeader="Individual Scores"
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
@@ -267,9 +259,7 @@ export function DatasetRunItemsTable(
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDetailColumns<DatasetRunItemRowData>({
-          detailColumnAccessors: scoreNamesList.data?.names ?? [],
-        })}
+        detailColumns={detailColumns}
         data={
           runItems.isLoading
             ? { isLoading: true, isError: false }
@@ -282,9 +272,7 @@ export function DatasetRunItemsTable(
               : {
                   isLoading: false,
                   isError: false,
-                  data: !scoreNamesList.isLoading
-                    ? runItems.data.runItems.map((t) => convertToTableRow(t))
-                    : [],
+                  data: rows,
                 }
         }
         pagination={{

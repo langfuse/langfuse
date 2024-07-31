@@ -88,7 +88,7 @@ const computeAccessorDefault = (key: string) => {
 };
 
 export function getDetailColumns(
-  scoreColumns: Set<string> | undefined,
+  scoreColumns: string[],
   scores: ScoreAggregate,
   computeAccessor = computeAccessorDefault,
 ): ScoreAggregate {
@@ -96,7 +96,7 @@ export function getDetailColumns(
   let filteredScores: ScoreAggregate = {};
 
   for (const key in scores) {
-    if (scoreColumns.has(key)) {
+    if (scoreColumns.includes(key)) {
       const accessor = computeAccessor(key);
       filteredScores[accessor] = scores[key];
     }
@@ -133,7 +133,6 @@ export const constructDetailColumns = <
           row.getValue(detailColumnProps.accessorKey);
 
         if (!value) return null;
-        console.log({ value });
         return (
           <ScoresAggregateCell
             aggregate={value}

@@ -7,7 +7,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { type RouterOutput } from "@/src/utils/types";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { usdFormatter } from "../../../utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -32,7 +32,7 @@ export type DatasetRunRowData = {
   metadata: Prisma.JsonValue;
 
   // any number of additional detail columns for individual scores
-  [key: string]: any; // any of type scores["numeric"] or scores["qualitative"] for detail columns
+  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export function DatasetRunsTable(props: {
@@ -142,15 +142,10 @@ export function DatasetRunsTable(props: {
   const convertToTableRow = (
     item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
   ): DatasetRunRowData => {
-    const detailColumns = getDetailColumns(
-      scoreNamesList.data?.names
-        ? new Set(scoreNamesList.data.names)
-        : undefined,
-      {
-        ...item.avgNumericScores,
-        ...item.qualitativeScoreDistribution,
-      },
-    );
+    const detailColumns = getDetailColumns(scoreNamesList.data?.names ?? [], {
+      ...item.avgNumericScores,
+      ...item.qualitativeScoreDistribution,
+    });
 
     return {
       key: { id: item.id, name: item.name },
@@ -164,35 +159,26 @@ export function DatasetRunsTable(props: {
     };
   };
 
-  const extendColumns = (
-    nativeColumns: LangfuseColumnDef<DatasetRunRowData>[],
-    detailColumnAccessors?: string[],
-  ): LangfuseColumnDef<DatasetRunRowData>[] => {
-    return [
-      ...nativeColumns,
-      ...constructDetailColumns<DatasetRunRowData>({
-        detailColumnAccessors: detailColumnAccessors ?? [],
+  const detailColumns = useMemo(
+    () =>
+      constructDetailColumns<DatasetRunRowData>({
+        detailColumnAccessors: scoreNamesList.data?.names ?? [],
         showAggregateViewOnly: true,
       }),
-    ];
-  };
+    [scoreNamesList.data?.names],
+  );
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunRowData>(
       `datasetRunsColumnVisibility-${props.projectId}`,
-      scoreNamesList.isLoading
-        ? []
-        : extendColumns(columns, scoreNamesList.data?.names),
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
   return (
     <>
       <DataTableToolbar
         columns={columns}
-        detailColumns={constructDetailColumns<DatasetRunRowData>({
-          detailColumnAccessors: scoreNamesList.data?.names ?? [],
-          showAggregateViewOnly: true,
-        })}
+        detailColumns={detailColumns}
         detailColumnHeader="Individual Score Metrics"
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
@@ -202,10 +188,7 @@ export function DatasetRunsTable(props: {
       />
       <DataTable
         columns={columns}
-        detailColumns={constructDetailColumns<DatasetRunRowData>({
-          detailColumnAccessors: scoreNamesList.data?.names ?? [],
-          showAggregateViewOnly: true,
-        })}
+        detailColumns={detailColumns}
         data={
           runs.isLoading
             ? { isLoading: true, isError: false }

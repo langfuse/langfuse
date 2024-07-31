@@ -36,7 +36,7 @@ export type PromptVersionTableRow = {
   firstUsed?: string | null;
 
   // any number of additional detail columns for individual scores
-  [key: string]: any; // any of type SimplifiedScore[] for detail columns
+  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 type PromptCoreOutput = RouterOutput["prompts"]["allVersions"];
@@ -307,24 +307,20 @@ export default function PromptVersionTable() {
     },
   ];
 
-  const extendColumns = (
-    nativeColumns: LangfuseColumnDef<PromptVersionTableRow>[],
-    detailColumnAccessors?: string[],
-  ): LangfuseColumnDef<PromptVersionTableRow>[] => {
-    return [
-      ...nativeColumns,
-      ...constructDetailColumns<PromptVersionTableRow>({
-        detailColumnAccessors: detailColumnAccessors ?? [],
+  const detailColumns = useMemo(
+    () =>
+      constructDetailColumns<PromptVersionTableRow>({
+        detailColumnAccessors: prefixedNamesList ?? [],
         parseColumn: parseMetricsColumn,
         showAggregateViewOnly: true,
       }),
-    ];
-  };
+    [prefixedNamesList],
+  );
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<PromptVersionTableRow>(
       `promptVersionsColumnVisibility-${projectId}`,
-      scoreNamesList.isLoading ? [] : extendColumns(columns, prefixedNamesList),
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
   if (!promptVersions.data) {
@@ -342,21 +338,15 @@ export default function PromptVersionTable() {
     promptVersions.isSuccess && !!combinedData && !scoreNamesList.isLoading
       ? combinedData.map((prompt) => {
           const generationDetailColumns = getDetailColumns(
-            prefixedNamesList ? new Set(prefixedNamesList) : undefined,
+            prefixedNamesList ?? [],
             prompt.observationScores ?? {},
             computeAccessorMetrics,
           );
           const traceDetailColumns = getDetailColumns(
-            prefixedNamesList ? new Set(prefixedNamesList) : undefined,
+            prefixedNamesList ?? [],
             prompt.traceScores ?? {},
             computeAccessorMetrics,
           );
-
-          console.log({
-            generationDetailColumns,
-            traceDetailColumns,
-            prefixedNamesList,
-          });
 
           return {
             version: prompt.version,
@@ -415,11 +405,7 @@ export default function PromptVersionTable() {
       <div className="gap-3">
         <DataTableToolbar
           columns={columns}
-          detailColumns={constructDetailColumns<PromptVersionTableRow>({
-            detailColumnAccessors: prefixedNamesList ?? [],
-            parseColumn: parseMetricsColumn,
-            showAggregateViewOnly: true,
-          })}
+          detailColumns={detailColumns}
           detailColumnHeader="Trace and Generation Score Metrics"
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
@@ -429,11 +415,7 @@ export default function PromptVersionTable() {
       </div>
       <DataTable
         columns={columns}
-        detailColumns={constructDetailColumns<PromptVersionTableRow>({
-          detailColumnAccessors: prefixedNamesList ?? [],
-          parseColumn: parseMetricsColumn,
-          showAggregateViewOnly: true,
-        })}
+        detailColumns={detailColumns}
         data={
           promptVersions.isLoading
             ? { isLoading: true, isError: false }
