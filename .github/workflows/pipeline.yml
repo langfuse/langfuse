@@ -145,8 +145,10 @@ jobs:
 
       - name: install dependencies
         run: |
-          apt-get golang-migrate
           pnpm install
+
+      - name: Install golang-migrate for Clickhouse migrations
+        uses: golang-migrate/migrate/v4@v4.16.2
 
       - name: Load default env
         run: |
