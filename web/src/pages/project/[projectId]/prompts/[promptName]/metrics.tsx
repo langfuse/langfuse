@@ -16,7 +16,9 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ScoreDataType } from "@langfuse/shared";
+import { type FilterState, ScoreDataType } from "@langfuse/shared";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { Spinner } from "@/src/components/layouts/spinner";
 
 type PromptVersionTableRow = {
   version: number;
@@ -87,13 +89,26 @@ export default function PromptVersionTable() {
     "promptVersion",
     "s",
   );
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange("All time");
 
+  const dateRangeFilter: FilterState | null = dateRange?.from
+    ? [
+        {
+          column: "createdAt",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : null;
   const promptVersions = api.prompts.allVersions.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       name: promptName,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
+      filter: dateRangeFilter,
     },
     { enabled: Boolean(projectId) },
   );
@@ -106,6 +121,7 @@ export default function PromptVersionTable() {
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
+      filter: dateRangeFilter,
     },
     {
       enabled: Boolean(projectId) && promptVersions.isSuccess,
@@ -330,7 +346,7 @@ export default function PromptVersionTable() {
     );
 
   if (!promptVersions.data) {
-    return <div>Loading...</div>;
+    return <Spinner message="Loading" />;
   }
 
   const totalCount = promptVersions?.data?.totalCount ?? 0;
@@ -403,6 +419,8 @@ export default function PromptVersionTable() {
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibilityState}
+          selectedOption={selectedOption}
+          setDateRangeAndOption={setDateRangeAndOption}
         />
       </div>
       <DataTable
