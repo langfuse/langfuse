@@ -27,7 +27,7 @@ Sentry.init({
   profilesSampleRate: 0.1,
 });
 
-type CallbackAsyncFn<T> = (span?: Sentry.Span) => Promise<T>;
+type CallbackAsyncFn<T> = () => Promise<T>;
 
 export async function instrumentAsync<T>(
   ctx: { name: string },
