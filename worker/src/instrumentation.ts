@@ -19,7 +19,7 @@ Sentry.init({
 
   // Add Tracing by setting tracesSampleRate
   // We recommend adjusting this value in production
-  tracesSampleRate: 0.5,
+  tracesSampleRate: env.LANGFUSE_TRACING_SAMPLE_RATE,
 
   // Set sampling rate for profiling
   // This is relative to tracesSampleRate
