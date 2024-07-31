@@ -11,7 +11,6 @@ import logger from "../logger";
 import { sql } from "kysely";
 import { redis } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "../instrumentation";
-import * as Sentry from "@sentry/node";
 
 export const evalQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
@@ -37,7 +36,6 @@ export const evalJobCreator = redis
                 e,
                 `Failed job Evaluation for traceId ${job.data.payload.traceId} ${e}`
               );
-              Sentry.captureException(e);
               throw e;
             }
           }
@@ -93,7 +91,6 @@ export const evalJobExecutor = redis
                   e,
                   `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`
                 );
-                Sentry.captureException(e);
               }
 
               throw e;

@@ -1,6 +1,5 @@
 import express from "express";
 import basicAuth from "express-basic-auth";
-import * as Sentry from "@sentry/node";
 import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import {
   convertTraceUpsertEventsToRedisEvents,
@@ -114,7 +113,7 @@ router
       return res.status(400);
     } catch (e) {
       logger.error(e, "Error processing events");
-      Sentry.captureException(e);
+
       return res.status(500).json({
         status: "error",
       });

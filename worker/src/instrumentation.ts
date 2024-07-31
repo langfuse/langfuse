@@ -10,11 +10,6 @@ const provider = new TracerProvider();
 
 provider.register();
 
-// registerInstrumentations({
-//   tracerProvider: provider,
-//   instrumentations: [new PrismaInstrumentation()],
-// });
-
 export const otelTracer = ot.trace.getTracer("worker");
 
 type CallbackAsyncFn<T> = () => Promise<T>;

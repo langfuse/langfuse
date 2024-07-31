@@ -7,7 +7,6 @@ import {
   TQueueJobTypes,
 } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
 
 import { instrumentAsync } from "../instrumentation";
 import logger from "../logger";
@@ -58,7 +57,6 @@ export const batchExportJobExecutor = redis
                 e,
                 `Failed Batch Export job for id ${job.data.payload.batchExportId} ${e}`
               );
-              Sentry.captureException(e);
 
               throw e;
             }

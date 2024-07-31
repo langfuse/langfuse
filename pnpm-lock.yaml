@@ -687,11 +687,11 @@ importers:
         specifier: workspace:*
         version: link:../packages/shared
       '@opentelemetry/api':
-        specifier: ^1.9.0
-        version: 1.9.0
+        specifier: ^1.4.1
+        version: 1.4.1
       '@opentelemetry/instrumentation':
         specifier: ^0.52.1
-        version: 0.52.1(@opentelemetry/api@1.9.0)
+        version: 0.52.1(@opentelemetry/api@1.4.1)
       '@prisma/instrumentation':
         specifier: ^5.17.0
         version: 5.17.0
@@ -12938,6 +12938,18 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
     optional: true
+
+  '@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.4.1)':
+    dependencies:
+      '@opentelemetry/api': 1.4.1
+      '@opentelemetry/api-logs': 0.52.1
+      '@types/shimmer': 1.0.5
+      import-in-the-middle: 1.8.1
+      require-in-the-middle: 7.3.0
+      semver: 7.6.2
+      shimmer: 1.2.1
+    transitivePeerDependencies:
+      - supports-color
 
   '@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.9.0)':
     dependencies:
