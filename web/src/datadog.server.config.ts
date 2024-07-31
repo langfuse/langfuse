@@ -7,6 +7,7 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     profiling: false,
     logInjection: true,
   });
+
   const provider = new TracerProvider();
   registerOTel({
     // instrumentations: [new PrismaInstrumentation()],
