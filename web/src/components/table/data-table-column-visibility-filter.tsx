@@ -10,6 +10,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { type VisibilityState } from "@tanstack/react-table";
 import { ChevronDown, Columns } from "lucide-react";
@@ -17,15 +19,19 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
-  columns: LangfuseColumnDef<TData, TValue>[];
+  baseColumns: LangfuseColumnDef<TData, TValue>[];
+  detailColumns?: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
+  detailColumnHeader?: string;
 }
 
 export function DataTableColumnVisibilityFilter<TData, TValue>({
-  columns,
+  baseColumns,
+  detailColumns,
   columnVisibility,
   setColumnVisibility,
+  detailColumnHeader,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
@@ -48,6 +54,9 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [setColumnVisibility],
   );
+  const columns = detailColumns
+    ? [...baseColumns, ...detailColumns]
+    : baseColumns;
 
   const calculateColumnCounts = (
     columns: LangfuseColumnDef<TData, TValue>[],
@@ -92,7 +101,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         onPointerDownOutside={() => setIsOpen(false)}
         className="max-h-96 overflow-y-auto"
       >
-        {columns.map(
+        {baseColumns.map(
           (column, index) =>
             "accessorKey" in column &&
             column.enableHiding && (
@@ -104,9 +113,37 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                   toggleColumn(column.accessorKey.toString())
                 }
               >
-                {column.header?.toString() ?? column.accessorKey.toString()}
+                {column.header && typeof column.header === "string"
+                  ? column.header.toString()
+                  : column.accessorKey.toString()}
               </DropdownMenuCheckboxItem>
             ),
+        )}
+        {detailColumns && Boolean(detailColumns.length) && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>
+              {detailColumnHeader ?? "Detail columns"}
+            </DropdownMenuLabel>
+            {detailColumns.map(
+              (column, index) =>
+                "accessorKey" in column &&
+                column.enableHiding && (
+                  <DropdownMenuCheckboxItem
+                    key={index}
+                    className="capitalize"
+                    checked={columnVisibility[column.accessorKey]}
+                    onCheckedChange={() =>
+                      toggleColumn(column.accessorKey.toString())
+                    }
+                  >
+                    {column.header && typeof column.header === "string"
+                      ? column.header.toString()
+                      : column.accessorKey.toString()}
+                  </DropdownMenuCheckboxItem>
+                ),
+            )}
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

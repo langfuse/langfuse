@@ -1,7 +1,3 @@
-import {
-  GroupedScoreBadges,
-  QualitativeScoreBadge,
-} from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -11,16 +7,19 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { type RouterOutput } from "@/src/utils/types";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { usdFormatter } from "../../../utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { ScoreDataType, type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { cn } from "@/src/utils/tailwind";
+import {
+  constructDetailColumns,
+  getDetailColumns,
+} from "@/src/components/table/utils/scoreDetailColumnHelpers";
 
-type RowData = {
+export type DatasetRunRowData = {
   key: {
     id: string;
     name: string;
@@ -29,12 +28,11 @@ type RowData = {
   countRunItems: string;
   avgLatency: number;
   avgTotalCost: string;
-  scores: {
-    numeric: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["avgNumericScores"];
-    qualitative: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number]["qualitativeScoreDistribution"];
-  };
   description: string;
   metadata: Prisma.JsonValue;
+
+  // any number of additional detail columns for individual scores
+  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export function DatasetRunsTable(props: {
@@ -66,13 +64,13 @@ export function DatasetRunsTable(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
-  const columns: LangfuseColumnDef<RowData>[] = [
+  const columns: LangfuseColumnDef<DatasetRunRowData>[] = [
     {
       accessorKey: "key",
       header: "Name",
       id: "key",
       cell: ({ row }) => {
-        const key: RowData["key"] = row.getValue("key");
+        const key: DatasetRunRowData["key"] = row.getValue("key");
         return (
           <TableLink
             path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${key.id}`}
@@ -100,7 +98,8 @@ export function DatasetRunsTable(props: {
       id: "avgLatency",
       enableHiding: true,
       cell: ({ row }) => {
-        const avgLatency: RowData["avgLatency"] = row.getValue("avgLatency");
+        const avgLatency: DatasetRunRowData["avgLatency"] =
+          row.getValue("avgLatency");
         return <>{formatIntervalSeconds(avgLatency)}</>;
       },
     },
@@ -110,38 +109,9 @@ export function DatasetRunsTable(props: {
       id: "avgTotalCost",
       enableHiding: true,
       cell: ({ row }) => {
-        const avgTotalCost: RowData["avgTotalCost"] =
+        const avgTotalCost: DatasetRunRowData["avgTotalCost"] =
           row.getValue("avgTotalCost");
         return <>{avgTotalCost}</>;
-      },
-    },
-    {
-      accessorKey: "scores",
-      header: "Score Metrics",
-      id: "scores",
-      enableHiding: true,
-      cell: ({ row }) => {
-        const scores: RowData["scores"] = row.getValue("scores");
-        const { numeric, qualitative } = scores;
-
-        return (
-          <div
-            className={cn(
-              "flex max-w-xl flex-row items-start gap-3 overflow-y-auto",
-              rowHeight === "s" && "h-8",
-            )}
-          >
-            <GroupedScoreBadges
-              scores={Object.entries(numeric).map(([k, v]) => ({
-                name: k,
-                value: v,
-                dataType: ScoreDataType.NUMERIC,
-              }))}
-              variant="headings"
-            />
-            <QualitativeScoreBadge scores={qualitative} />
-          </div>
-        );
       },
     },
     {
@@ -156,7 +126,8 @@ export function DatasetRunsTable(props: {
       id: "metadata",
       enableHiding: true,
       cell: ({ row }) => {
-        const metadata: RowData["metadata"] = row.getValue("metadata");
+        const metadata: DatasetRunRowData["metadata"] =
+          row.getValue("metadata");
         return !!metadata ? (
           <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
         ) : null;
@@ -164,33 +135,51 @@ export function DatasetRunsTable(props: {
     },
   ];
 
+  const scoreNamesList = api.scores.getNamesList.useQuery({
+    projectId: props.projectId,
+  });
+
   const convertToTableRow = (
     item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
-  ): RowData => {
+  ): DatasetRunRowData => {
+    const detailColumns = getDetailColumns(scoreNamesList.data?.names ?? [], {
+      ...item.avgNumericScores,
+      ...item.qualitativeScoreDistribution,
+    });
+
     return {
       key: { id: item.id, name: item.name },
       createdAt: item.createdAt.toLocaleString(),
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
       avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
-      scores: {
-        numeric: item.avgNumericScores,
-        qualitative: item.qualitativeScoreDistribution,
-      },
       description: item.description ?? "",
       metadata: item.metadata,
+      ...detailColumns,
     };
   };
 
-  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
-    "datasetRunsColumnVisibility",
-    columns,
+  const detailColumns = useMemo(
+    () =>
+      constructDetailColumns<DatasetRunRowData>({
+        detailColumnAccessors: scoreNamesList.data?.names ?? [],
+        showAggregateViewOnly: true,
+      }),
+    [scoreNamesList.data?.names],
   );
+
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<DatasetRunRowData>(
+      `datasetRunsColumnVisibility-${props.projectId}`,
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+    );
 
   return (
     <>
       <DataTableToolbar
         columns={columns}
+        detailColumns={detailColumns}
+        detailColumnHeader="Individual Score Metrics"
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
@@ -199,6 +188,7 @@ export function DatasetRunsTable(props: {
       />
       <DataTable
         columns={columns}
+        detailColumns={detailColumns}
         data={
           runs.isLoading
             ? { isLoading: true, isError: false }
@@ -211,7 +201,9 @@ export function DatasetRunsTable(props: {
               : {
                   isLoading: false,
                   isError: false,
-                  data: runs.data.runs.map((t) => convertToTableRow(t)),
+                  data: !scoreNamesList.isLoading
+                    ? runs.data.runs.map((t) => convertToTableRow(t))
+                    : [],
                 }
         }
         pagination={{

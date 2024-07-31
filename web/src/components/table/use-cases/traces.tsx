@@ -1,4 +1,3 @@
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action";
@@ -12,9 +11,9 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { type RouterInput, type RouterOutput } from "@/src/utils/types";
+import { type RouterInput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   NumberParam,
   StringParam,
@@ -37,7 +36,10 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { type APIScore } from "@/src/features/public-api/types/scores";
+import {
+  constructDetailColumns,
+  getDetailColumns,
+} from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type TracesTableRow = {
@@ -56,7 +58,6 @@ export type TracesTableRow = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
-  scores: APIScore[];
   tags: string[];
   usage: {
     promptTokens: bigint;
@@ -66,6 +67,9 @@ export type TracesTableRow = {
   inputCost?: Decimal;
   outputCost?: Decimal;
   totalCost?: Decimal;
+
+  // any number of additional detail columns for individual scores
+  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export type TracesTableProps = {
@@ -168,40 +172,16 @@ export default function TracesTable({
     },
   );
 
+  const scoreNamesList = api.scores.getNamesList.useQuery({
+    projectId,
+  });
+
   const transformFilterOptions = (
     traceFilterOptions: TraceOptions | undefined,
   ) => {
     return tracesTableColsWithOptions(traceFilterOptions).filter(
       (c) => !omittedFilter?.includes(c.name),
     );
-  };
-
-  const convertToTableRow = (
-    trace: RouterOutput["traces"]["all"]["traces"][0],
-  ): TracesTableRow => {
-    return {
-      bookmarked: trace.bookmarked,
-      id: trace.id,
-      timestamp: trace.timestamp.toLocaleString(),
-      name: trace.name ?? "",
-      level: trace.level,
-      observationCount: trace.observationCount,
-      release: trace.release ?? undefined,
-      version: trace.version ?? undefined,
-      userId: trace.userId ?? "",
-      scores: trace.scores,
-      sessionId: trace.sessionId ?? undefined,
-      latency: trace.latency === null ? undefined : trace.latency,
-      tags: trace.tags,
-      usage: {
-        promptTokens: trace.promptTokens,
-        completionTokens: trace.completionTokens,
-        totalTokens: trace.totalTokens,
-      },
-      inputCost: trace.calculatedInputCost ?? undefined,
-      outputCost: trace.calculatedOutputCost ?? undefined,
-      totalCost: trace.calculatedTotalCost ?? undefined,
-    };
   };
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
@@ -458,22 +438,6 @@ export default function TracesTable({
       enableSorting: true,
     },
     {
-      accessorKey: "scores",
-      id: "scores",
-      header: "Scores",
-      headerTooltip: {
-        description:
-          "Scores are used to evaluate the quality of the trace. They can be automated, based on user feedback, or manually annotated. See docs to learn more.",
-        href: "https://langfuse.com/docs/scores",
-      },
-      enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
-      cell: ({ row }) => {
-        const values: TracesTableRow["scores"] = row.getValue("scores");
-        return <GroupedScoreBadges scores={values} variant="headings" />;
-      },
-      enableHiding: true,
-    },
-    {
       accessorKey: "input",
       header: "Input",
       id: "input",
@@ -624,13 +588,61 @@ export default function TracesTable({
     },
   ];
 
+  const detailColumns = useMemo(
+    () =>
+      constructDetailColumns<TracesTableRow>({
+        detailColumnAccessors: scoreNamesList.data?.names ?? [],
+      }),
+    [scoreNamesList.data?.names],
+  );
+
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
+    useColumnVisibility<TracesTableRow>(
+      `tracesColumnVisibility-${projectId}`,
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+    );
+
+  const rows = useMemo(() => {
+    return traces.isSuccess && !scoreNamesList.isLoading
+      ? traces.data.traces.map((trace) => {
+          const detailColumns = getDetailColumns(
+            scoreNamesList.data?.names ?? [],
+            trace.scores,
+          );
+
+          return {
+            bookmarked: trace.bookmarked,
+            id: trace.id,
+            timestamp: trace.timestamp.toLocaleString(),
+            name: trace.name ?? "",
+            level: trace.level,
+            observationCount: trace.observationCount,
+            release: trace.release ?? undefined,
+            version: trace.version ?? undefined,
+            userId: trace.userId ?? "",
+            sessionId: trace.sessionId ?? undefined,
+            latency: trace.latency === null ? undefined : trace.latency,
+            tags: trace.tags,
+            usage: {
+              promptTokens: trace.promptTokens,
+              completionTokens: trace.completionTokens,
+              totalTokens: trace.totalTokens,
+            },
+            inputCost: trace.calculatedInputCost ?? undefined,
+            outputCost: trace.calculatedOutputCost ?? undefined,
+            totalCost: trace.calculatedTotalCost ?? undefined,
+            ...detailColumns,
+          };
+        })
+      : [];
+  }, [traces, scoreNamesList]);
 
   return (
     <>
       <DataTableToolbar
         columns={columns}
+        detailColumns={detailColumns}
+        detailColumnHeader="Individual Scores"
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
           placeholder: "Search by id, name, user id",
@@ -664,6 +676,7 @@ export default function TracesTable({
       />
       <DataTable
         columns={columns}
+        detailColumns={detailColumns}
         data={
           traces.isLoading
             ? { isLoading: true, isError: false }
@@ -676,7 +689,7 @@ export default function TracesTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: traces.data.traces.map((t) => convertToTableRow(t)),
+                  data: rows,
                 }
         }
         pagination={{

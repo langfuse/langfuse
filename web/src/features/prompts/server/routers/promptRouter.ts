@@ -20,6 +20,10 @@ import {
 } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { PromptService, redis } from "@langfuse/shared/src/server";
+import {
+  type ScoreSimplified,
+  aggregateScores,
+} from "@/src/features/manual-scoring/lib/aggregateScores";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -666,171 +670,86 @@ export const promptRouter = createTRPCRouter({
     `,
       );
 
-      const generationScoreMetrics = await ctx.prisma.$queryRaw<
+      const generationScores = await ctx.prisma.$queryRaw<
         Array<{
           promptId: string;
-          numericScores: Record<string, number>;
-          qualitativeScores: Record<
-            string,
-            Array<{ value: string; count: number }>
-          >;
-        }>
-      >(
-        Prisma.sql`
-        SELECT
-          p.id AS "promptId",
-          COALESCE(avgs.scores, '{}') AS "numericScores",
-          COALESCE(qs.scores, '{}') AS "qualitativeScores"
-        FROM
-          prompts p
-          LEFT JOIN LATERAL (
-            SELECT
-              p.id AS "prompt_id",
-              jsonb_object_agg(a.name, a.average_score_value) AS scores
-            FROM (
-              SELECT
-                s.name,
-                AVG(s.value) AS average_score_value
-              FROM
-                observations AS o
-                LEFT JOIN scores s ON o.trace_id = s.trace_id
-                  AND s.observation_id = o.id
-                  AND s.project_id = ${input.projectId}
-              WHERE
-                o.type = 'GENERATION'
-                AND s.data_type = 'NUMERIC'
-                AND o.prompt_id = p.id
-                AND o.project_id = ${input.projectId}
-              GROUP BY
-                o.prompt_id,
-                s.name) a
-            GROUP BY
-              prompt_id) avgs ON TRUE
-          LEFT JOIN LATERAL (
-            SELECT
-              p.id AS "prompt_id",
-              jsonb_object_agg(s.score_name, s.qualitative_scores) AS scores
-            FROM (
-              SELECT
-                s.name AS score_name,
-                jsonb_agg(jsonb_build_object ('value', s.string_value, 'count', s.count)) AS qualitative_scores
-              FROM (
-                SELECT
-                  s.name,
-                  s.string_value,
-                  COUNT(s.string_value) AS count
-                FROM
-                  observations AS o
-                  LEFT JOIN scores s ON o.trace_id = s.trace_id
-                    AND s.observation_id = o.id
-                    AND s.project_id = ${input.projectId}
-                WHERE
-                  o.type = 'GENERATION'
-                  AND s.data_type IN('CATEGORICAL', 'BOOLEAN')
-                  AND o.prompt_id = p.id
-                  AND o.project_id = ${input.projectId}
-                GROUP BY
-                  s.string_value,
-                  s.name) s
-              GROUP BY
-                s.name) s) qs ON TRUE
-        WHERE
-          p.project_id = ${input.projectId}
-          AND p.id IN (${Prisma.join(input.promptIds)})
-        GROUP BY
-          p.id,
-          avgs.scores,
-          qs.scores
-        `,
-      );
-
-      const traceScoreMetrics = await ctx.prisma.$queryRaw<
-        Array<{
-          promptId: string;
-          numericScores: Record<string, number>;
-          qualitativeScores: Record<
-            string,
-            Array<{ value: string; count: number }>
-          >;
+          scores: Array<ScoreSimplified>;
         }>
       >(Prisma.sql`
       SELECT
         p.id AS "promptId",
-        COALESCE(average_scores.scores, '{}') AS "numericScores",
-        COALESCE(qualitative_score_distribution.scores, '{}') AS "qualitativeScores"
+        array_agg(s.score) AS "scores"
       FROM
         prompts p
-      LEFT JOIN LATERAL (
-        SELECT
-          jsonb_object_agg(score_name, average_score_value) AS scores
-        FROM (
-          SELECT 
-            s.name AS score_name,
-            AVG(s.value) AS average_score_value
-          FROM
-            scores s
-          WHERE
-            s.trace_id IN (
-              SELECT o.trace_id
-              FROM observations o
-              WHERE
-                o.prompt_id = p.id
-                AND o.type = 'GENERATION'
-                AND o.project_id = ${input.projectId}
-            )
-            AND s.observation_id IS NULL
-            AND s.project_id = ${input.projectId}
-            AND s.data_type = 'NUMERIC'
-          GROUP BY s.name
-        ) AS average_scores_by_trace
-        WHERE 
-          score_name IS NOT NULL 
-          AND average_score_value IS NOT NULL
-      ) AS average_scores ON TRUE
-      LEFT JOIN LATERAL (
-        SELECT 
-          jsonb_object_agg(s.score_name, s.qualitative_scores) AS scores 
-        FROM (
+        LEFT JOIN LATERAL (
           SELECT
-          score_counts.name AS score_name,
-          jsonb_agg(jsonb_build_object ('value', score_counts.string_value, 'count', score_counts.count)) AS qualitative_scores
-        FROM (
-          SELECT 
-            s.name,
-            s.string_value,
-            COUNT(s.string_value) AS count 
+            jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
           FROM
-            scores s
+            observations AS o
+            LEFT JOIN scores s ON o.trace_id = s.trace_id
+              AND s.observation_id = o.id
+              AND s.project_id = ${input.projectId}
           WHERE
-            s.trace_id IN (
-              SELECT o.trace_id
-              FROM observations o
-              WHERE
-                o.prompt_id = p.id
-                AND o.type = 'GENERATION'
-                AND o.project_id = ${input.projectId}
-            )
-            AND s.observation_id IS NULL
-            AND s.project_id = ${input.projectId}
-            AND s.data_type IN('BOOLEAN', 'CATEGORICAL')
-          GROUP BY s.name, s.string_value
-        ) AS score_counts
-        GROUP BY 
-          score_counts.name
-          ) s  
-      ) AS qualitative_score_distribution ON TRUE
+            o.type = 'GENERATION'
+            AND o.prompt_id = p.id
+            AND o.project_id = ${input.projectId}
+            AND s.name IS NOT NULL
+          ) s ON TRUE
       WHERE
         p.project_id = ${input.projectId}
+        AND s.score IS NOT NULL
         AND p.id IN (${Prisma.join(input.promptIds)})
+        GROUP BY
+          p.id
+      `);
+
+      const traceScores = await ctx.prisma.$queryRaw<
+        Array<{
+          promptId: string;
+          scores: Array<ScoreSimplified>;
+        }>
+      >(Prisma.sql`
+        SELECT
+          p.id AS "promptId",
+          array_agg(s.score) AS "scores"
+        FROM
+          prompts p
+          LEFT JOIN LATERAL (
+            SELECT
+              jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
+              FROM
+              scores s
+            WHERE
+              s.trace_id IN (
+                SELECT o.trace_id
+                FROM observations o
+                WHERE
+                  o.prompt_id = p.id
+                  AND o.type = 'GENERATION'
+                  AND o.project_id = ${input.projectId}
+              )
+              AND s.observation_id IS NULL
+              AND s.project_id = ${input.projectId}
+            ) s ON TRUE
+        WHERE
+          p.project_id = ${input.projectId}
+          AND s.score IS NOT NULL
+          AND p.id IN (${Prisma.join(input.promptIds)})
+          GROUP BY
+            p.id
       `);
 
       return metrics.map((metric) => ({
         ...metric,
-        observationScores: generationScoreMetrics.find(
-          (score) => score.promptId === metric.id,
+        observationScores: aggregateScores(
+          generationScores.find((score) => score.promptId === metric.id)
+            ?.scores ?? [],
+          "Generation",
         ),
-        traceScores: traceScoreMetrics.find(
-          (score) => score.promptId === metric.id,
+        traceScores: aggregateScores(
+          traceScores.find((score) => score.promptId === metric.id)?.scores ??
+            [],
+          "Trace",
         ),
       }));
     }),

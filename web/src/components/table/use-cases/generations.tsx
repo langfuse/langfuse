@@ -1,9 +1,8 @@
 import { api, directApi } from "@/src/utils/api";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   DropdownMenu,
@@ -39,10 +38,13 @@ import {
 } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
-import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  constructDetailColumns,
+  getDetailColumns,
+} from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type GenerationsTableRow = {
@@ -65,7 +67,6 @@ export type GenerationsTableRow = {
   outputCost?: Decimal;
   totalCost?: Decimal;
   traceName?: string;
-  scores?: ScoreSimplified[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -74,6 +75,9 @@ export type GenerationsTableRow = {
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
+
+  // any number of additional detail columns for individual scores
+  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export type GenerationsTableProps = {
@@ -184,6 +188,10 @@ export default function GenerationsTable({
       },
     },
   );
+
+  const scoreNamesList = api.scores.getNamesList.useQuery({
+    projectId,
+  });
 
   const transformFilterOptions = (
     filterOptions: ObservationOptions | undefined,
@@ -319,23 +327,6 @@ export default function GenerationsTable({
           </span>
         );
       },
-    },
-    {
-      accessorKey: "scores",
-      id: "scores",
-      header: "Scores",
-      headerTooltip: {
-        description:
-          "Scores are used to evaluate the quality of the trace. They can be automated, based on user feedback, or manually annotated. See docs to learn more.",
-        href: "https://langfuse.com/docs/scores",
-      },
-      cell: ({ row }) => {
-        const values: ScoreSimplified[] | undefined = row.getValue("scores");
-        return (
-          values && <GroupedScoreBadges scores={values} variant="headings" />
-        );
-      },
-      enableHiding: true,
     },
     {
       accessorKey: "latency",
@@ -631,47 +622,65 @@ export default function GenerationsTable({
       },
     },
   ];
+
+  const detailColumns = useMemo(
+    () =>
+      constructDetailColumns<GenerationsTableRow>({
+        detailColumnAccessors: scoreNamesList.data?.names ?? [],
+      }),
+    [scoreNamesList.data?.names],
+  );
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(
-      "generationsColumnVisibility",
-      columns,
+      `generationsColumnVisibility-${projectId}`,
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
-  const rows: GenerationsTableRow[] = generations.isSuccess
-    ? generations.data.generations.map((generation) => {
-        return {
-          id: generation.id,
-          traceId: generation.traceId ?? undefined,
-          traceName: generation.traceName ?? "",
-          startTime: generation.startTime,
-          endTime: generation.endTime?.toLocaleString() ?? undefined,
-          timeToFirstToken: generation.timeToFirstToken ?? undefined,
-          latency: generation.latency ?? undefined,
-          totalCost: generation.calculatedTotalCost ?? undefined,
-          inputCost: generation.calculatedInputCost ?? undefined,
-          outputCost: generation.calculatedOutputCost ?? undefined,
-          name: generation.name ?? undefined,
-          version: generation.version ?? "",
-          model: generation.model ?? "",
-          scores: generation.scores,
-          level: generation.level,
-          statusMessage: generation.statusMessage ?? undefined,
-          usage: {
-            promptTokens: generation.promptTokens,
-            completionTokens: generation.completionTokens,
-            totalTokens: generation.totalTokens,
-          },
-          promptId: generation.promptId ?? undefined,
-          promptName: generation.promptName ?? undefined,
-          promptVersion: generation.promptVersion ?? undefined,
-        };
-      })
-    : [];
+  const rows: GenerationsTableRow[] = useMemo(() => {
+    return generations.isSuccess && !scoreNamesList.isLoading
+      ? generations.data.generations.map((generation) => {
+          const detailColumns = getDetailColumns(
+            scoreNamesList.data?.names ?? [],
+            generation.scores,
+          );
+
+          return {
+            id: generation.id,
+            traceId: generation.traceId ?? undefined,
+            traceName: generation.traceName ?? "",
+            startTime: generation.startTime,
+            endTime: generation.endTime?.toLocaleString() ?? undefined,
+            timeToFirstToken: generation.timeToFirstToken ?? undefined,
+            latency: generation.latency ?? undefined,
+            totalCost: generation.calculatedTotalCost ?? undefined,
+            inputCost: generation.calculatedInputCost ?? undefined,
+            outputCost: generation.calculatedOutputCost ?? undefined,
+            name: generation.name ?? undefined,
+            version: generation.version ?? "",
+            model: generation.model ?? "",
+            level: generation.level,
+            statusMessage: generation.statusMessage ?? undefined,
+            usage: {
+              promptTokens: generation.promptTokens,
+              completionTokens: generation.completionTokens,
+              totalTokens: generation.totalTokens,
+            },
+            promptId: generation.promptId ?? undefined,
+            promptName: generation.promptName ?? undefined,
+            promptVersion: generation.promptVersion ?? undefined,
+            ...detailColumns,
+          };
+        })
+      : [];
+  }, [generations, scoreNamesList]);
 
   return (
     <>
       <DataTableToolbar
         columns={columns}
+        detailColumns={detailColumns}
+        detailColumnHeader="Individual Scores"
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={inputFilterState}
         setFilterState={setInputFilterState}
@@ -721,6 +730,7 @@ export default function GenerationsTable({
       />
       <DataTable
         columns={columns}
+        detailColumns={detailColumns}
         data={
           generations.isLoading
             ? { isLoading: true, isError: false }

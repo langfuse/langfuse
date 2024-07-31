@@ -27,6 +27,8 @@ interface SearchConfig {
 
 interface DataTableToolbarProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
+  detailColumns?: LangfuseColumnDef<TData, TValue>[];
+  detailColumnHeader?: string;
   filterColumnDefinition?: ColumnDefinition[];
   searchConfig?: SearchConfig;
   actionButtons?: React.ReactNode;
@@ -46,6 +48,8 @@ interface DataTableToolbarProps<TData, TValue> {
 
 export function DataTableToolbar<TData, TValue>({
   columns,
+  detailColumns,
+  detailColumnHeader,
   filterColumnDefinition,
   searchConfig,
   actionButtons,
@@ -110,9 +114,11 @@ export function DataTableToolbar<TData, TValue>({
       <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
         {!!columnVisibility && !!setColumnVisibility && (
           <DataTableColumnVisibilityFilter
-            columns={columns}
+            baseColumns={columns}
+            detailColumns={detailColumns}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibility}
+            detailColumnHeader={detailColumnHeader}
           />
         )}
         {!!rowHeight && !!setRowHeight && (

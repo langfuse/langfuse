@@ -23,6 +23,7 @@ import {
 import { orderBy } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { validateDbScore } from "@/src/features/public-api/types/scores";
+import { composeAggregateScoreKey } from "@/src/features/manual-scoring/lib/aggregateScores";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -292,6 +293,32 @@ export const scoresRouter = createTRPCRouter({
           projectId: input.projectId,
         },
       });
+    }),
+  getNamesList: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          projectId: input.projectId,
+        },
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
+        by: ["name", "source", "dataType"],
+      });
+
+      return {
+        names: scores.map(({ name, source, dataType }) =>
+          composeAggregateScoreKey({ name, source, dataType }),
+        ),
+      };
     }),
 });
 
