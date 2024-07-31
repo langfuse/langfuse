@@ -1,11 +1,11 @@
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { env } from "./env";
 import * as Sentry from "@sentry/node";
+import tracer from "dd-trace";
 
-require("dd-trace").init({
+tracer.init({
   profiling: false,
   runtimeMetrics: true,
-  logInjection: true,
 });
 
 Sentry.init({
@@ -28,15 +28,12 @@ Sentry.init({
 });
 
 type CallbackAsyncFn<T> = (span?: Sentry.Span) => Promise<T>;
+
 export async function instrumentAsync<T>(
   ctx: { name: string },
   callback: CallbackAsyncFn<T>
 ): Promise<T> {
-  if (env.SENTRY_DSN) {
-    return Sentry.startSpan(ctx, async (span) => {
-      return callback(span);
-    });
-  } else {
+  return tracer.trace(ctx.name, () => {
     return callback();
-  }
+  });
 }
