@@ -67,6 +67,24 @@ export default function Start() {
       options: tagsOptions,
       internal: "internalValue",
     },
+    {
+      name: "User",
+      id: "user",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Release",
+      id: "release",
+      type: "string",
+      internal: "internalValue",
+    },
+    {
+      name: "Version",
+      id: "version",
+      type: "string",
+      internal: "internalValue",
+    },
   ];
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
