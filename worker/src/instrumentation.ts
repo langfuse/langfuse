@@ -20,10 +20,10 @@ export const otelTracer = ot.trace.getTracer("worker");
 type CallbackAsyncFn<T> = () => Promise<T>;
 
 export async function instrumentAsync<T>(
-  ctx: { name: string },
+  ctx: { name: string; root: boolean },
   callback: CallbackAsyncFn<T>
 ): Promise<T> {
-  return otelTracer.startActiveSpan(ctx.name, async () => {
+  return otelTracer.startActiveSpan(ctx.name, { root: ctx.root }, async () => {
     return callback();
   });
 }
