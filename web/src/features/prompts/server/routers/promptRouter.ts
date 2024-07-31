@@ -554,6 +554,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string(),
+        filter: z.array(singleFilter).nullable(),
         ...optionalPaginationZod,
       }),
     )
@@ -563,10 +564,15 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
+      const dateRange = input.filter?.length
+        ? (input.filter[0].value as Date)
+        : undefined;
+
       const prompts = await ctx.prisma.prompt.findMany({
         where: {
           projectId: input.projectId,
           name: input.name,
+          ...(dateRange && { createdAt: { gte: dateRange } }),
         },
         ...(input.limit !== undefined && input.page !== undefined
           ? { take: input.limit, skip: input.page * input.limit }
@@ -578,6 +584,7 @@ export const promptRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           name: input.name,
+          ...(dateRange && { createdAt: { gte: dateRange } }),
         },
       });
 
@@ -619,6 +626,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         promptIds: z.array(z.string()),
+        filter: z.array(singleFilter).nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -629,7 +637,11 @@ export const promptRouter = createTRPCRouter({
       });
 
       if (input.promptIds.length === 0) return [];
-
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter ?? [],
+        promptsTableCols,
+        "prompts",
+      );
       const metrics = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
@@ -662,6 +674,7 @@ export const promptRouter = createTRPCRouter({
         ) AS observation_metrics ON true
         WHERE "project_id" = ${input.projectId}
         AND p.id in (${Prisma.join(input.promptIds)})
+        ${filterCondition}
         ORDER BY version DESC
     `,
       );
@@ -679,7 +692,7 @@ export const promptRouter = createTRPCRouter({
               s.name AS score_name,
               AVG(s.value) AS average_score_value
           FROM observations AS o
-          JOIN prompts AS p ON o.prompt_id = p.id AND p.project_id = ${input.projectId}
+          JOIN prompts AS p ON o.prompt_id = p.id AND p.project_id = ${input.projectId} ${filterCondition}
           LEFT JOIN scores s ON o.trace_id = s.trace_id AND s.observation_id = o.id AND s.project_id = ${input.projectId}
           WHERE
               o.type = 'GENERATION'
@@ -738,7 +751,7 @@ export const promptRouter = createTRPCRouter({
               s.value AS score_value
           FROM
             traces_by_prompt_id tp
-          JOIN prompts AS p ON tp.prompt_id = p.id AND p.project_id = ${input.projectId}
+          JOIN prompts AS p ON tp.prompt_id = p.id AND p.project_id = ${input.projectId} ${filterCondition}
           LEFT JOIN scores s ON tp.trace_id = s.trace_id AND s.observation_id IS NULL AND s.project_id = ${input.projectId}
           WHERE 
               s.data_type != 'CATEGORICAL'
