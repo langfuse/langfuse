@@ -310,6 +310,16 @@ export const SdkLogEvent = z.object({
 
 // definitions for the ingestion API
 
+export const observationTypes = [
+  "observation-create",
+  "observation-update",
+  "generation-create",
+  "generation-update",
+  "span-create",
+  "span-update",
+  "event-create",
+];
+
 export const eventTypes = {
   TRACE_CREATE: "trace-create",
   SCORE_CREATE: "score-create",
@@ -319,7 +329,6 @@ export const eventTypes = {
   GENERATION_CREATE: "generation-create",
   GENERATION_UPDATE: "generation-update",
   SDK_LOG: "sdk-log",
-
   // LEGACY, only required for backwards compatibility
   OBSERVATION_CREATE: "observation-create",
   OBSERVATION_UPDATE: "observation-update",
@@ -334,6 +343,7 @@ export const traceEvent = base.extend({
   type: z.literal(eventTypes.TRACE_CREATE),
   body: TraceBody,
 });
+export type TraceEventType = z.infer<typeof traceEvent>;
 
 export const eventCreateEvent = base.extend({
   type: z.literal(eventTypes.EVENT_CREATE),
@@ -359,6 +369,7 @@ export const scoreEvent = base.extend({
   type: z.literal(eventTypes.SCORE_CREATE),
   body: ScoreBody,
 });
+export type ScoreEventType = z.infer<typeof scoreEvent>;
 export const sdkLogEvent = base.extend({
   type: z.literal(eventTypes.SDK_LOG),
   body: SdkLogEvent,
@@ -385,10 +396,35 @@ export const ingestionEvent = z.discriminatedUnion("type", [
   legacyObservationCreateEvent,
   legacyObservationUpdateEvent,
 ]);
+export type IngestionEventType = z.infer<typeof ingestionEvent>;
 
 export const ingestionBatchEvent = z.array(ingestionEvent);
+export type IngestionBatchEventType = z.infer<typeof ingestionBatchEvent>;
+
+export const ingestionEventWithProjectId = ingestionEvent.and(
+  z.object({ projectId: z.string() })
+);
+export type IngestionEventWithProjectIdType = z.infer<
+  typeof ingestionEventWithProjectId
+>;
 
 export const ingestionApiSchema = z.object({
   batch: ingestionBatchEvent,
   metadata: jsonSchema.nullish(),
 });
+
+export const ingestionApiSchemaWithProjectId = ingestionApiSchema.extend({
+  projectId: z.string(),
+});
+export type IngestionApiSchemaWithProjectId = z.infer<
+  typeof ingestionApiSchemaWithProjectId
+>;
+
+export type ObservationEvent =
+  | z.infer<typeof legacyObservationCreateEvent>
+  | z.infer<typeof legacyObservationUpdateEvent>
+  | z.infer<typeof eventCreateEvent>
+  | z.infer<typeof spanCreateEvent>
+  | z.infer<typeof spanUpdateEvent>
+  | z.infer<typeof generationCreateEvent>
+  | z.infer<typeof generationUpdateEvent>;

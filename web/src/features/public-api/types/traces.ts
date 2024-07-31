@@ -3,10 +3,9 @@ import { APIScore } from "@/src/features/public-api/types/scores";
 import {
   paginationZod,
   paginationMetaResponseZod,
-  stringDateTime,
   orderBy,
-  TraceBody,
 } from "@langfuse/shared";
+import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 /**
