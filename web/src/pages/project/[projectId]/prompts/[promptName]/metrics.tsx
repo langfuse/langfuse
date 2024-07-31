@@ -138,6 +138,7 @@ export default function PromptVersionTable() {
       accessorKey: "version",
       id: "version",
       header: "Version",
+      size: 80,
       cell: ({ row }) => {
         const version = row.getValue("version");
         return typeof version === "number" ? (
@@ -152,6 +153,7 @@ export default function PromptVersionTable() {
       accessorKey: "labels",
       id: "labels",
       header: "Labels",
+      size: 160,
       cell: ({ row }) => {
         const values: string[] = row.getValue("labels");
         return (
@@ -175,6 +177,7 @@ export default function PromptVersionTable() {
       accessorKey: "medianLatency",
       id: "medianLatency",
       header: "Median latency",
+      size: 140,
       cell: ({ row }) => {
         const latency: number | undefined | null =
           row.getValue("medianLatency");
@@ -192,6 +195,7 @@ export default function PromptVersionTable() {
       accessorKey: "medianInputTokens",
       id: "medianInputTokens",
       header: "Median input tokens",
+      size: 160,
       enableHiding: true,
       cell: ({ row }) => {
         const value: number | undefined | null =
@@ -207,6 +211,7 @@ export default function PromptVersionTable() {
       accessorKey: "medianOutputTokens",
       id: "medianOutputTokens",
       header: "Median output tokens",
+      size: 170,
       enableHiding: true,
       cell: ({ row }) => {
         const value: number | undefined | null =
@@ -221,6 +226,7 @@ export default function PromptVersionTable() {
       accessorKey: "medianCost",
       id: "medianCost",
       header: "Median cost",
+      size: 120,
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("medianCost");
         if (!promptMetrics.isSuccess) {
@@ -235,6 +241,7 @@ export default function PromptVersionTable() {
       accessorKey: "generationCount",
       id: "generationCount",
       header: "Generations count",
+      size: 150,
       enableHiding: true,
       cell: ({ row }) => {
         const value: number | undefined | null =
@@ -251,6 +258,7 @@ export default function PromptVersionTable() {
       accessorKey: "averageObservationScores",
       id: "averageObservationScores",
       header: "Average observation scores",
+      size: 250,
       cell: ({ row }) => {
         const scores: PromptVersionTableRow["averageObservationScores"] =
           row.getValue("averageObservationScores");
@@ -278,6 +286,7 @@ export default function PromptVersionTable() {
       accessorKey: "averageTraceScores",
       id: "averageTraceScores",
       header: "Average trace scores",
+      size: 250,
       cell: ({ row }) => {
         const scores: PromptVersionTableRow["averageTraceScores"] =
           row.getValue("averageTraceScores");
@@ -306,6 +315,7 @@ export default function PromptVersionTable() {
       id: "lastUsed",
       header: "Last used",
       enableHiding: true,
+      size: 150,
       headerTooltip: {
         description:
           "The last time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
@@ -323,6 +333,7 @@ export default function PromptVersionTable() {
       accessorKey: "firstUsed",
       id: "firstUsed",
       header: "First used",
+      size: 150,
       enableHiding: true,
       headerTooltip: {
         description:
