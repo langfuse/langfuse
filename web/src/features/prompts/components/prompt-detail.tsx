@@ -42,6 +42,7 @@ export const PromptDetail = () => {
     {
       name: promptName,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+      filter: null,
     },
     { enabled: Boolean(projectId) },
   );
