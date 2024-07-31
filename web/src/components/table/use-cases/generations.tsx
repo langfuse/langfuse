@@ -46,6 +46,7 @@ import {
   getDetailColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export type GenerationsTableRow = {
   id: string;
@@ -706,7 +707,7 @@ export default function GenerationsTable({
         detailColumnHeader="Individual Scores"
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={inputFilterState}
-        setFilterState={setInputFilterState}
+        setFilterState={useDebounce(setInputFilterState)}
         searchConfig={{
           placeholder: "Search by id, name, traceName, model",
           updateQuery: setSearchQuery,

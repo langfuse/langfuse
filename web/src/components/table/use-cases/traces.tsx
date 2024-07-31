@@ -41,6 +41,7 @@ import {
   getDetailColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -675,7 +676,7 @@ export default function TracesTable({
           currentQuery: searchQuery ?? undefined,
         }}
         filterState={userFilterState}
-        setFilterState={setUserFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         actionButtons={
           Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),
