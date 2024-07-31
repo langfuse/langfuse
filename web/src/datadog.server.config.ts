@@ -10,5 +10,6 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   const provider = new TracerProvider();
   registerOTel();
+
   provider.register();
 }
