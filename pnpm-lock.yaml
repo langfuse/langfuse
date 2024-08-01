@@ -68,7 +68,7 @@ importers:
         version: 17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.4.0(eslint@8.57.0))(eslint@8.57.0)
       eslint-plugin-prettier:
         specifier: ^5.1.3
-        version: 5.1.3(@types/eslint@8.56.7)(eslint-config-prettier@9.1.0(eslint@8.57.0))(eslint@8.57.0)(prettier@3.2.5)
+        version: 5.1.3(@types/eslint@8.56.11)(eslint-config-prettier@9.1.0(eslint@8.57.0))(eslint@8.57.0)(prettier@3.2.5)
       prettier:
         specifier: ^3.2.5
         version: 3.2.5
@@ -230,7 +230,7 @@ importers:
         version: 17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.4.0(eslint@8.57.0))(eslint@8.57.0)
       eslint-plugin-prettier:
         specifier: ^5.1.3
-        version: 5.1.3(@types/eslint@8.56.7)(eslint-config-prettier@9.1.0(eslint@8.57.0))(eslint@8.57.0)(prettier@3.2.5)
+        version: 5.1.3(@types/eslint@8.56.11)(eslint-config-prettier@9.1.0(eslint@8.57.0))(eslint@8.57.0)(prettier@3.2.5)
       kysely-codegen:
         specifier: ^0.11.0
         version: 0.11.0(kysely@0.27.3)(pg@8.11.5)
@@ -260,7 +260,7 @@ importers:
         version: 5.4.5
       vitest:
         specifier: ^1.5.3
-        version: 1.5.3(@types/node@20.11.29)(jsdom@20.0.3)(terser@5.31.2)
+        version: 1.5.3(@types/node@20.11.29)(jsdom@20.0.3)(terser@5.31.3)
 
   web:
     dependencies:
@@ -472,8 +472,8 @@ importers:
         specifier: ^3.3.1
         version: 3.6.0
       dd-trace:
-        specifier: ^5.17.0
-        version: 5.17.0
+        specifier: ^5.19.0
+        version: 5.19.0
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
@@ -827,7 +827,7 @@ importers:
         version: 17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.4.0(eslint@8.57.0))(eslint@8.57.0)
       eslint-plugin-prettier:
         specifier: ^5.1.3
-        version: 5.1.3(@types/eslint@8.56.7)(eslint-config-prettier@9.1.0(eslint@8.57.0))(eslint@8.57.0)(prettier@3.2.5)
+        version: 5.1.3(@types/eslint@8.56.11)(eslint-config-prettier@9.1.0(eslint@8.57.0))(eslint@8.57.0)(prettier@3.2.5)
       kysely-codegen:
         specifier: ^0.11.0
         version: 0.11.0(kysely@0.27.3)(pg@8.11.5)
@@ -851,10 +851,10 @@ importers:
         version: 5.4.5
       vite:
         specifier: ^5.2.13
-        version: 5.2.13(@types/node@20.11.29)(terser@5.31.2)
+        version: 5.2.13(@types/node@20.11.29)(terser@5.31.3)
       vitest:
         specifier: ^1.5.3
-        version: 1.5.3(@types/node@20.11.29)(jsdom@20.0.3)(terser@5.31.2)
+        version: 1.5.3(@types/node@20.11.29)(jsdom@20.0.3)(terser@5.31.3)
 
 packages:
 
@@ -1449,6 +1449,9 @@ packages:
 
   '@datadog/native-iast-taint-tracking@2.1.0':
     resolution: {integrity: sha512-DjZ6itJcjLrTdKk2vP96hak2xS0ABd0NIB8poZG3OBQU5efkzu8JOQoxbIKMklG/0P2zh7EquvGP88PdVXT9aA==}
+
+  '@datadog/native-iast-taint-tracking@3.0.0':
+    resolution: {integrity: sha512-V+25+edlNCQSNRUvL45IajN+CFEjii9NbjfSMG6HRHbH/zeLL9FCNE+GU88dwB1bqXKNpBdrIxsfgTN65Yq9tA==}
 
   '@datadog/native-metrics@2.0.0':
     resolution: {integrity: sha512-YklGVwUtmKGYqFf1MNZuOHvTYdKuR4+Af1XkWcMD8BwOAjxmd9Z+97328rCOY8TFUJzlGUPaXzB8j2qgG/BMwA==}
@@ -4989,6 +4992,11 @@ packages:
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
 
+  browserslist@4.23.3:
+    resolution: {integrity: sha512-btwCFJVjI4YWDNfau8RhZ+B1Q/VLoUITrm3RlP6y1tYGWIOa+InuYiRGXUBXo8nA1qKmHMyLB/iVQg5TT4eFoA==}
+    engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
+    hasBin: true
+
   bser@2.1.1:
     resolution: {integrity: sha512-gQxTNE/GAfIIrmHLUE3oJyp5FO6HRBfhjnw4/wMmA63ZGDJnWBmgY/lyQBpnDUkGmAhbSe39tx2d/iTOAfglwQ==}
 
@@ -5070,6 +5078,9 @@ packages:
 
   caniuse-lite@1.0.30001632:
     resolution: {integrity: sha512-udx3o7yHJfUxMLkGohMlVHCvFvWmirKh9JAH/d7WOLPetlH+LTL5cocMZ0t7oZx/mdlOWXti97xLZWc8uURRHg==}
+
+  caniuse-lite@1.0.30001646:
+    resolution: {integrity: sha512-dRg00gudiBDDTmUhClSdv3hqRfpbOnU28IpI1T6PBTLWa+kOj0681C8uML3PifYfREuBrVjDGhL3adYpBT6spw==}
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -5518,6 +5529,10 @@ packages:
     resolution: {integrity: sha512-XirOYj5pJFYnm9NHvN5RFcvDyN/XMDS72wqTTnJgTPMbE4Dc28oQIdM2XWNxDtAcxqLnZq0/4DtFebGYzBAIYw==}
     engines: {node: '>=18'}
 
+  dd-trace@5.19.0:
+    resolution: {integrity: sha512-2NdnW1cU5gD27R2TeTmO339UUeyk3aPISL6E63Lenh95hBp9wAuwDjmjMetdu6LbmuxUTNN55Q2yo9gnRoSnlg==}
+    engines: {node: '>=18'}
+
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
     peerDependencies:
@@ -5785,6 +5800,9 @@ packages:
 
   electron-to-chromium@1.4.798:
     resolution: {integrity: sha512-by9J2CiM9KPGj9qfp5U4FcPSbXJG7FNzqnYaY4WLzX+v2PHieVGmnsA4dxfpGE3QEC7JofpPZmn7Vn1B9NR2+Q==}
+
+  electron-to-chromium@1.5.4:
+    resolution: {integrity: sha512-orzA81VqLyIGUEA77YkVA1D+N+nNfl2isJVjjmOyrlxuooZ19ynb+dOlaDTqd/idKRS9lDCSBmtzM+kyCsMnkA==}
 
   emittery@0.13.1:
     resolution: {integrity: sha512-DeWwawk6r5yR9jFgnDKYt4sLS0LmHJJi3ZOnb5/JdbYwj3nW+FxQnHIjhBKz8YLC7oRNPVM9NQ47I3CVx34eqQ==}
@@ -8274,6 +8292,9 @@ packages:
   node-releases@2.0.14:
     resolution: {integrity: sha512-y10wOWt8yZpqXmOgRo77WaHEmhYQYGNA6y421PKsKYWEK8aW+cqAphborZDhqfyKrbZEN92CN1X2KbafY2s7Yw==}
 
+  node-releases@2.0.18:
+    resolution: {integrity: sha512-d9VeXT4SJ7ZeOqGX6R5EM022wpL+eWPooLI+5UpWn2jCT1aosUQEhQP214x33Wkwx3JQMvIm+tIoVOdodFS40g==}
+
   nodemailer@6.9.13:
     resolution: {integrity: sha512-7o38Yogx6krdoBf3jCAqnIN4oSQFx+fMa0I7dK1D+me9kBxx12D+/33wSb+fhOCtIxvYJ+4x4IMEhmhCKfAiOA==}
     engines: {node: '>=6.0.0'}
@@ -9933,11 +9954,6 @@ packages:
       uglify-js:
         optional: true
 
-  terser@5.31.2:
-    resolution: {integrity: sha512-LGyRZVFm/QElZHy/CPr/O4eNZOZIzsrQ92y4v9UJe/pFJjypje2yI3C2FmPtvUEnhadlSbmG2nXtdcjHOjCfxw==}
-    engines: {node: '>=10'}
-    hasBin: true
-
   terser@5.31.3:
     resolution: {integrity: sha512-pAfYn3NIZLyZpa83ZKigvj6Rn9c/vd5KfYGX7cN1mnzqgDcxWvrU5ZtAfIKhEXz9nRecw4z3LXkjaq96/qZqAA==}
     engines: {node: '>=10'}
@@ -10275,6 +10291,12 @@ packages:
 
   update-browserslist-db@1.0.16:
     resolution: {integrity: sha512-KVbTxlBYlckhF5wgfyZXTWnMn7MMZjMu9XG8bPlliUOP9ThaF4QnhP8qrjrH7DRzHfSk0oQv1wToW+iA5GajEQ==}
+    hasBin: true
+    peerDependencies:
+      browserslist: '>= 4.21.0'
+
+  update-browserslist-db@1.1.0:
+    resolution: {integrity: sha512-EdRAaAyk2cUE1wOf2DkEhzxqOQvFOoRJFNS6NeyJ01Gp2beMRpBAINjM2iDXE3KCuKhwnvHIQCJm6ThL2Z+HzQ==}
     hasBin: true
     peerDependencies:
       browserslist: '>= 4.21.0'
@@ -11778,6 +11800,10 @@ snapshots:
       node-gyp-build: 4.8.1
 
   '@datadog/native-iast-taint-tracking@2.1.0':
+    dependencies:
+      node-gyp-build: 3.9.0
+
+  '@datadog/native-iast-taint-tracking@3.0.0':
     dependencies:
       node-gyp-build: 3.9.0
 
@@ -16262,6 +16288,13 @@ snapshots:
       node-releases: 2.0.14
       update-browserslist-db: 1.0.16(browserslist@4.23.1)
 
+  browserslist@4.23.3:
+    dependencies:
+      caniuse-lite: 1.0.30001646
+      electron-to-chromium: 1.5.4
+      node-releases: 2.0.18
+      update-browserslist-db: 1.1.0(browserslist@4.23.3)
+
   bser@2.1.1:
     dependencies:
       node-int64: 0.4.0
@@ -16348,6 +16381,8 @@ snapshots:
   caniuse-lite@1.0.30001599: {}
 
   caniuse-lite@1.0.30001632: {}
+
+  caniuse-lite@1.0.30001646: {}
 
   ccount@2.0.1: {}
 
@@ -16840,6 +16875,38 @@ snapshots:
       shell-quote: 1.8.1
       tlhunter-sorted-set: 0.1.0
 
+  dd-trace@5.19.0:
+    dependencies:
+      '@datadog/native-appsec': 8.0.1
+      '@datadog/native-iast-rewriter': 2.3.1
+      '@datadog/native-iast-taint-tracking': 3.0.0
+      '@datadog/native-metrics': 2.0.0
+      '@datadog/pprof': 5.3.0
+      '@datadog/sketches-js': 2.1.1
+      '@opentelemetry/api': 1.4.1
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.4.1)
+      crypto-randomuuid: 1.0.0
+      dc-polyfill: 0.1.6
+      ignore: 5.3.1
+      import-in-the-middle: 1.8.1
+      int64-buffer: 0.1.10
+      istanbul-lib-coverage: 3.2.0
+      jest-docblock: 29.7.0
+      koalas: 1.0.2
+      limiter: 1.1.5
+      lodash.sortby: 4.7.0
+      lru-cache: 7.18.3
+      module-details-from-path: 1.0.3
+      msgpack-lite: 0.1.26
+      opentracing: 0.14.7
+      path-to-regexp: 0.1.7
+      pprof-format: 2.1.0
+      protobufjs: 7.3.2
+      retry: 0.13.1
+      semver: 7.6.2
+      shell-quote: 1.8.1
+      tlhunter-sorted-set: 0.1.0
+
   debug@2.6.9:
     dependencies:
       ms: 2.0.0
@@ -17052,6 +17119,8 @@ snapshots:
   electron-to-chromium@1.4.710: {}
 
   electron-to-chromium@1.4.798: {}
+
+  electron-to-chromium@1.5.4: {}
 
   emittery@0.13.1: {}
 
@@ -17469,14 +17538,14 @@ snapshots:
     optionalDependencies:
       eslint-plugin-jest: 27.9.0(@typescript-eslint/eslint-plugin@7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(jest@29.7.0)(typescript@5.4.5)
 
-  eslint-plugin-prettier@5.1.3(@types/eslint@8.56.7)(eslint-config-prettier@9.1.0(eslint@8.57.0))(eslint@8.57.0)(prettier@3.2.5):
+  eslint-plugin-prettier@5.1.3(@types/eslint@8.56.11)(eslint-config-prettier@9.1.0(eslint@8.57.0))(eslint@8.57.0)(prettier@3.2.5):
     dependencies:
       eslint: 8.57.0
       prettier: 3.2.5
       prettier-linter-helpers: 1.0.0
       synckit: 0.8.8
     optionalDependencies:
-      '@types/eslint': 8.56.7
+      '@types/eslint': 8.56.11
       eslint-config-prettier: 9.1.0(eslint@8.57.0)
 
   eslint-plugin-promise@6.4.0(eslint@8.57.0):
@@ -17555,7 +17624,7 @@ snapshots:
       eslint: 8.57.0
     optionalDependencies:
       '@typescript-eslint/eslint-plugin': 7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
-      vitest: 1.5.3(@types/node@20.11.29)(jsdom@20.0.3)(terser@5.31.2)
+      vitest: 1.5.3(@types/node@20.11.29)(jsdom@20.0.3)(terser@5.31.3)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -20305,6 +20374,8 @@ snapshots:
 
   node-releases@2.0.14: {}
 
+  node-releases@2.0.18: {}
+
   nodemailer@6.9.13: {}
 
   nodemon@3.1.3:
@@ -22195,14 +22266,6 @@ snapshots:
       terser: 5.31.3
       webpack: 5.91.0
 
-  terser@5.31.2:
-    dependencies:
-      '@jridgewell/source-map': 0.3.6
-      acorn: 8.12.1
-      commander: 2.20.3
-      source-map-support: 0.5.21
-    optional: true
-
   terser@5.31.3:
     dependencies:
       '@jridgewell/source-map': 0.3.6
@@ -22560,6 +22623,12 @@ snapshots:
       escalade: 3.1.2
       picocolors: 1.0.1
 
+  update-browserslist-db@1.1.0(browserslist@4.23.3):
+    dependencies:
+      browserslist: 4.23.3
+      escalade: 3.1.2
+      picocolors: 1.0.1
+
   update-notifier@7.0.0:
     dependencies:
       boxen: 7.1.1
@@ -22693,13 +22762,13 @@ snapshots:
       - terser
     optional: true
 
-  vite-node@1.5.3(@types/node@20.11.29)(terser@5.31.2):
+  vite-node@1.5.3(@types/node@20.11.29)(terser@5.31.3):
     dependencies:
       cac: 6.7.14
       debug: 4.3.5(supports-color@5.5.0)
       pathe: 1.1.2
       picocolors: 1.0.1
-      vite: 5.2.13(@types/node@20.11.29)(terser@5.31.2)
+      vite: 5.2.13(@types/node@20.11.29)(terser@5.31.3)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -22720,7 +22789,7 @@ snapshots:
       fsevents: 2.3.3
     optional: true
 
-  vite@5.2.11(@types/node@20.11.29)(terser@5.31.2):
+  vite@5.2.11(@types/node@20.11.29)(terser@5.31.3):
     dependencies:
       esbuild: 0.20.2
       postcss: 8.4.38
@@ -22728,7 +22797,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.11.29
       fsevents: 2.3.3
-      terser: 5.31.2
+      terser: 5.31.3
 
   vite@5.2.13(@types/node@20.10.5):
     dependencies:
@@ -22740,7 +22809,7 @@ snapshots:
       fsevents: 2.3.3
     optional: true
 
-  vite@5.2.13(@types/node@20.11.29)(terser@5.31.2):
+  vite@5.2.13(@types/node@20.11.29)(terser@5.31.3):
     dependencies:
       esbuild: 0.20.2
       postcss: 8.4.38
@@ -22748,7 +22817,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.11.29
       fsevents: 2.3.3
-      terser: 5.31.2
+      terser: 5.31.3
 
   vitest@1.5.3(@types/node@20.10.5)(jsdom@20.0.3):
     dependencies:
@@ -22785,7 +22854,7 @@ snapshots:
       - terser
     optional: true
 
-  vitest@1.5.3(@types/node@20.11.29)(jsdom@20.0.3)(terser@5.31.2):
+  vitest@1.5.3(@types/node@20.11.29)(jsdom@20.0.3)(terser@5.31.3):
     dependencies:
       '@vitest/expect': 1.5.3
       '@vitest/runner': 1.5.3
@@ -22804,8 +22873,8 @@ snapshots:
       strip-literal: 2.0.0
       tinybench: 2.6.0
       tinypool: 0.8.4
-      vite: 5.2.11(@types/node@20.11.29)(terser@5.31.2)
-      vite-node: 1.5.3(@types/node@20.11.29)(terser@5.31.2)
+      vite: 5.2.11(@types/node@20.11.29)(terser@5.31.3)
+      vite-node: 1.5.3(@types/node@20.11.29)(terser@5.31.3)
       why-is-node-running: 2.2.2
     optionalDependencies:
       '@types/node': 20.11.29
@@ -22869,7 +22938,7 @@ snapshots:
       '@webassemblyjs/wasm-parser': 1.12.1
       acorn: 8.12.1
       acorn-import-assertions: 1.9.0(acorn@8.12.1)
-      browserslist: 4.23.1
+      browserslist: 4.23.3
       chrome-trace-event: 1.0.4
       enhanced-resolve: 5.17.1
       es-module-lexer: 1.5.4
