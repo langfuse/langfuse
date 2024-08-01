@@ -8,6 +8,7 @@ import {
   type QuantitativeAggregate,
   type QualitativeAggregate,
   type ScoreAggregate,
+  composeAggregateScoreKey,
 } from "@/src/features/manual-scoring/lib/aggregateScores";
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/[promptName]/metrics";
 import { type ScoreDataType, type ScoreSource } from "@langfuse/shared";
@@ -15,7 +16,7 @@ import { type Row } from "@tanstack/react-table";
 import React from "react";
 
 const parseColumnForProps = (col: string) => {
-  const [name, source, dataType] = col.split(".");
+  const [name, source, dataType] = col.split("-");
   return {
     name,
     source: source as ScoreSource,
@@ -35,20 +36,10 @@ export const getDataTypeIcon = (dataType: string): string => {
   }
 };
 
-const computeTableKey = ({
-  name,
-  source,
-  dataType,
-}: {
-  name: string;
-  source: ScoreSource;
-  dataType: ScoreDataType;
-}) => `${name}-${source.toLowerCase()}-${dataType.toLowerCase()}`;
-
 const parseColumnForKeyAndHeader = (col: string) => {
   const { name, source, dataType } = parseColumnForProps(col);
   return {
-    key: computeTableKey({ name, source, dataType }),
+    key: composeAggregateScoreKey({ name, source, dataType }),
     header: `${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
   };
 };
@@ -79,7 +70,7 @@ const parseDetailColumn = <
 
 const computeAccessorDefault = (key: string) => {
   const { name, source, dataType } = parseColumnForProps(key);
-  return computeTableKey({ name, source, dataType });
+  return composeAggregateScoreKey({ name, source, dataType });
 };
 
 export function getDetailColumns(
@@ -162,11 +153,35 @@ export const constructDetailColumns = <
     groupedColumns: [
       {
         accessorKey: "scores",
-        header: "Score Details",
+        header: "Individual Scores",
         columns,
         maxSize: 150,
       },
     ],
     ungroupedColumns: columns,
+  };
+};
+
+// specific to prompt metrics table as it has both generation and trace scores
+export const computeAccessorMetrics = (col: string) => {
+  const [type, name, source, dataType] = col.split("-");
+  return composeAggregateScoreKey({
+    keyPrefix: type,
+    name,
+    source: source as ScoreSource,
+    dataType: dataType as ScoreDataType,
+  });
+};
+
+export const parseMetricsColumn = (col: string) => {
+  const [type, name, source, dataType] = col.split("-");
+  return {
+    key: composeAggregateScoreKey({
+      keyPrefix: type,
+      name,
+      source: source as ScoreSource,
+      dataType: dataType as ScoreDataType,
+    }),
+    header: `${type}: ${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
   };
 };

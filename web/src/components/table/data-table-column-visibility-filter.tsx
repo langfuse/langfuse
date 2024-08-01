@@ -160,6 +160,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             );
           }
 
+          if (!Boolean(columns.length)) return null;
           return (
             <div key={index}>
               <DropdownMenuSeparator />

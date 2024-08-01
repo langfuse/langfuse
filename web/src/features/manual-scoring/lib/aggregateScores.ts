@@ -41,8 +41,8 @@ export const composeAggregateScoreKey = ({
   keyPrefix?: string;
 }): string =>
   keyPrefix
-    ? `${keyPrefix}.${name}.${source}.${dataType}`
-    : `${name}.${source}.${dataType}`;
+    ? `${keyPrefix}-${name}-${source}-${dataType}`
+    : `${name}-${source}-${dataType}`;
 
 export const aggregateScores = <T extends APIScore | ScoreSimplified>(
   scores: T[],

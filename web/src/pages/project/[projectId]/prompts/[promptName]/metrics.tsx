@@ -17,9 +17,10 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
 import {
+  computeAccessorMetrics,
   constructDetailColumns,
-  getDataTypeIcon,
   getDetailColumns,
+  parseMetricsColumn,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
@@ -79,31 +80,6 @@ function joinPromptCoreAndMetricData(
 
   return { status: "success", combinedData };
 }
-
-const computeMetricsTableKey = ({
-  type,
-  name,
-  source,
-  dataType,
-}: {
-  type: string;
-  name: string;
-  source: string;
-  dataType: string;
-}) => `${type}-${name}-${source.toLowerCase()}-${dataType.toLowerCase()}`;
-
-const computeAccessorMetrics = (key: string) => {
-  const [type, name, source, dataType] = key.split(".");
-  return computeMetricsTableKey({ type, name, source, dataType });
-};
-
-const parseMetricsColumn = (col: string) => {
-  const [type, name, source, dataType] = col.split(".");
-  return {
-    key: computeMetricsTableKey({ type, name, source, dataType }),
-    header: `${type}: ${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-  };
-};
 
 export default function PromptVersionTable() {
   const router = useRouter();
