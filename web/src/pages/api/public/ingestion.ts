@@ -546,7 +546,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      console.log("Sending events to worker via HTTP", traceEvents);
+      console.log(`Sending ${traceEvents.length} events to worker via HTTP`);
       const body: EventBodyType = {
         name: EventName.TraceUpsert,
         payload: traceEvents,
@@ -579,8 +579,6 @@ const gaugePrismaStats = async () => {
     return;
   }
   const metrics = await prisma.$metrics.json();
-
-  console.log("prisma_gauges", metrics.gauges);
 
   metrics.gauges.forEach((gauge) => {
     Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
