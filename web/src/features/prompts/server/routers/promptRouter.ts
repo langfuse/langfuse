@@ -743,7 +743,7 @@ export const promptRouter = createTRPCRouter({
           AND s.score IS NOT NULL
           AND p.id IN (${Prisma.join(input.promptIds)})
           ${filterCondition}
-          GROUP BY
+        GROUP BY
             p.id
       `);
 

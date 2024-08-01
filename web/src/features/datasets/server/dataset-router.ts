@@ -18,6 +18,7 @@ import {
   type QualitativeAggregate,
   type QuantitativeAggregate,
   aggregateScores,
+  type ScoreSimplified,
 } from "@/src/features/manual-scoring/lib/aggregateScores";
 
 export const datasetRouter = createTRPCRouter({
@@ -145,6 +146,38 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      const scoresByRunId = await ctx.prisma.$queryRaw<
+        Array<{ scores: Array<ScoreSimplified>; runId: string }>
+      >(Prisma.sql`
+        SELECT
+          runs.id "runId",
+          array_agg(s.score) AS "scores"
+        FROM
+          dataset_runs runs
+          JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
+          LEFT JOIN LATERAL (
+              SELECT
+              jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
+              FROM
+                dataset_run_items ri
+                JOIN scores s 
+                  ON s.trace_id = ri.trace_id 
+                  AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id)
+                  AND s.project_id = ${input.projectId}
+                JOIN traces t ON t.id = s.trace_id AND t.project_id = ${input.projectId}
+              WHERE 
+                ri.project_id = ${input.projectId}
+                AND ri.dataset_run_id = runs.id
+          ) s ON true
+          WHERE 
+          runs.dataset_id = ${input.datasetId}
+          AND runs.project_id = ${input.projectId}
+        GROUP BY
+          runs.id
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `);
+
       const runs = await ctx.prisma.$queryRaw<
         Array<
           DatasetRuns & {
@@ -163,76 +196,12 @@ export const datasetRouter = createTRPCRouter({
           runs.metadata,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
-          COALESCE(avg_numeric_scores.scores, '{}') "avgNumericScores",
-          COALESCE(qualitative_score_distribution.scores, '{}') "qualitativeScoreDistribution",
           COALESCE(latency_and_total_cost."avgLatency", 0) "avgLatency",
           COALESCE(latency_and_total_cost."avgTotalCost", 0) "avgTotalCost",  
           COALESCE(run_items_count.count, 0)::int "countRunItems"
         FROM
           dataset_runs runs
           JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
-          LEFT JOIN LATERAL (
-            SELECT
-              jsonb_object_agg(s.name || '.' || s.source || '.NUMERIC', jsonb_build_object ('average', s.avg_value, 'type', 'QUANTITATIVE', 'values', s.values)) AS scores
-            FROM (
-              SELECT
-                s.name,
-                s.source,
-                AVG(s.value) AS avg_value,
-                array_agg(s.value) AS values
-              FROM
-                dataset_run_items ri
-                JOIN scores s 
-                  ON s.trace_id = ri.trace_id 
-                  AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id)
-                  AND s.project_id = ${input.projectId}
-                JOIN traces t ON t.id = s.trace_id AND t.project_id = ${input.projectId}
-              WHERE 
-                ri.project_id = ${input.projectId}
-                AND s.data_type = 'NUMERIC'
-                AND ri.dataset_run_id = runs.id
-              GROUP BY s.name, s.source
-            ) s
-          ) avg_numeric_scores ON true
-          LEFT JOIN LATERAL (
-            SELECT
-              jsonb_object_agg(s.name || '.' || s.source || '.' || s.data_type, jsonb_build_object ('distribution', s.qualitative_scores, 'type', 'QUALITATIVE', 'values', s.values)) AS scores
-            FROM (
-              SELECT
-                s.name,
-                s.values,
-                s.source,
-                s.data_type,
-                jsonb_agg(jsonb_build_object ('value', s.string_value, 'count', s.count)) AS qualitative_scores
-              FROM (
-                SELECT
-                  s.name,
-                  s.string_value,
-                  s.source,
-                  s.data_type,
-                  array_agg(s.string_value) AS values,
-                  COUNT(s.string_value) AS count
-                FROM
-                  dataset_run_items ri
-                  JOIN scores s 
-                    ON s.trace_id = ri.trace_id
-                    AND(ri.observation_id IS NULL
-                    OR s.observation_id = ri.observation_id)
-                    AND s.project_id = ${input.projectId}
-                  JOIN traces t ON t.id = s.trace_id
-                WHERE
-                  t.project_id = ${input.projectId}
-                  AND s.data_type IN('CATEGORICAL', 'BOOLEAN')
-                  AND ri.dataset_run_id = runs.id
-                GROUP BY
-                  s.name,
-                  s.string_value,
-                  s.data_type,
-                  s.source
-                ) s
-              GROUP BY s.name, s.values, s.source, s.data_type
-            ) s 
-          ) qualitative_score_distribution ON TRUE
           LEFT JOIN LATERAL (
             SELECT
               AVG(o.latency) AS "avgLatency",
@@ -268,7 +237,12 @@ export const datasetRouter = createTRPCRouter({
 
       return {
         totalRuns,
-        runs,
+        runs: runs.map((run) => ({
+          ...run,
+          scores: aggregateScores(
+            scoresByRunId.flatMap((s) => (s.runId === run.id ? s.scores : [])),
+          ),
+        })),
       };
     }),
   itemById: protectedProjectProcedure

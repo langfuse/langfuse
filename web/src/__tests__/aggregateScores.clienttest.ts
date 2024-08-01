@@ -18,7 +18,7 @@ describe("aggregateScores", () => {
       },
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
-      "test.API.NUMERIC": {
+      "test-API-NUMERIC": {
         type: "QUANTITATIVE",
         values: [5],
         average: 5,
@@ -38,7 +38,7 @@ describe("aggregateScores", () => {
       },
     ] as APIScore[];
     expect(aggregateScores(scores, "pre")).toEqual({
-      "pre.test.API.NUMERIC": {
+      "pre-test-API-NUMERIC": {
         type: "QUANTITATIVE",
         values: [5],
         average: 5,
@@ -65,7 +65,7 @@ describe("aggregateScores", () => {
       },
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
-      "test.API.NUMERIC": {
+      "test-API-NUMERIC": {
         type: "QUANTITATIVE",
         values: [5, 7],
         average: 6,
@@ -92,13 +92,13 @@ describe("aggregateScores", () => {
       },
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
-      "test1.API.NUMERIC": {
+      "test1-API-NUMERIC": {
         type: "QUANTITATIVE",
         values: [5],
         average: 5,
         comment: "test comment",
       },
-      "test1.ANNOTATION.NUMERIC": {
+      "test1-ANNOTATION-NUMERIC": {
         type: "QUANTITATIVE",
         values: [7],
         average: 7,
@@ -118,7 +118,7 @@ describe("aggregateScores", () => {
       },
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
-      "test.ANNOTATION.CATEGORICAL": {
+      "test-ANNOTATION-CATEGORICAL": {
         type: "QUALITATIVE",
         values: ["good"],
         distribution: [{ value: "good", count: 1 }],
@@ -145,7 +145,7 @@ describe("aggregateScores", () => {
       },
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
-      "test.API.BOOLEAN": {
+      "test-API-BOOLEAN": {
         type: "QUALITATIVE",
         values: ["True", "False"],
         distribution: [
@@ -189,13 +189,13 @@ describe("aggregateScores", () => {
       },
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
-      "test.API.NUMERIC": {
+      "test-API-NUMERIC": {
         type: "QUANTITATIVE",
         values: [5],
         average: 5,
         comment: "test comment",
       },
-      "test.ANNOTATION.CATEGORICAL": {
+      "test-ANNOTATION-CATEGORICAL": {
         type: "QUALITATIVE",
         values: ["good", "bad", "good"],
         distribution: [

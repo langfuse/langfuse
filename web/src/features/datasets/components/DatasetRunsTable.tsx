@@ -148,10 +148,10 @@ export function DatasetRunsTable(props: {
   const convertToTableRow = (
     item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
   ): DatasetRunRowData => {
-    const detailColumns = getDetailColumns(scoreNamesList.data?.names ?? [], {
-      ...item.avgNumericScores,
-      ...item.qualitativeScoreDistribution,
-    });
+    const detailColumns = getDetailColumns(
+      scoreNamesList.data?.names ?? [],
+      item.scores,
+    );
 
     return {
       key: { id: item.id, name: item.name },
