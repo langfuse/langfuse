@@ -7,6 +7,7 @@ import { env } from "../env";
 import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
+import { otelMetrics } from "../instrumentation";
 
 export type IngestionFlushQueue = Queue<null>;
 
@@ -37,9 +38,10 @@ export const flushIngestionQueueExecutor = redis
           logger.debug(
             `Received flush request after ${waitTime} ms for ${projectEntityId}`
           );
-          Sentry.metrics.distribution("ingestion_flush_wait_time", waitTime, {
-            unit: "milliseconds",
-          });
+
+          otelMetrics
+            .createHistogram("ingestion_flush_wait_time")
+            .record(waitTime, { metric: "milliseconds" });
 
           // Check dependencies
           if (!redis) throw new Error("Redis not available");
@@ -64,20 +66,22 @@ export const flushIngestionQueueExecutor = redis
           logger.debug(
             `Prepared and scheduled CH-write in ${processingTime} ms for ${projectEntityId}`
           );
-          Sentry.metrics.distribution(
-            "ingestion_flush_processing_time",
-            processingTime,
-            { unit: "milliseconds" }
-          );
+
+          otelMetrics
+            .createHistogram("ingestion_flush_processing_time")
+            .record(processingTime, { metric: "milliseconds" });
 
           // Log queue size
           await ingestionFlushQueue
             .count()
             .then((count) => {
               logger.debug(`Ingestion flush queue length: ${count}`);
-              Sentry.metrics.gauge("ingestion_flush_queue_length", count, {
-                unit: "records",
-              });
+              otelMetrics
+                .createCounter("ingestion_flush_queue_length", {
+                  unit: "records",
+                })
+                .add(count);
+
               return count;
             })
             .catch();

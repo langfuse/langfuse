@@ -95,13 +95,13 @@ export class ClickhouseWriter {
     // Log wait time
     queueItems.forEach((item) => {
       const waitTime = Date.now() - item.createdAt;
-      Sentry.metrics.distribution(
-        "ingestion_clickhouse_insert_wait_time",
-        waitTime,
-        {
-          unit: "milliseconds",
-        }
-      );
+      // Sentry.metrics.distribution(
+      //   "ingestion_clickhouse_insert_wait_time",
+      //   waitTime,
+      //   {
+      //     unit: "milliseconds",
+      //   }
+      // );
     });
 
     try {
@@ -113,26 +113,26 @@ export class ClickhouseWriter {
       });
 
       // Log processing time
-      Sentry.metrics.distribution(
-        "ingestion_clickhouse_insert_processing_time",
-        Date.now() - processingStartTime,
-        {
-          unit: "milliseconds",
-        }
-      );
+      // Sentry.metrics.distribution(
+      //   "ingestion_clickhouse_insert_processing_time",
+      //   Date.now() - processingStartTime,
+      //   {
+      //     unit: "milliseconds",
+      //   }
+      // );
 
       logger.debug(
         `Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`
       );
 
-      Sentry.metrics.gauge(
-        "ingestion_clickhouse_insert_queue_length",
-        entityQueue.length,
-        {
-          unit: "records",
-          tags: { entityType: tableName },
-        }
-      );
+      // Sentry.metrics.gauge(
+      //   "ingestion_clickhouse_insert_queue_length",
+      //   entityQueue.length,
+      //   {
+      //     unit: "records",
+      //     tags: { entityType: tableName },
+      //   }
+      // );
     } catch (err) {
       logger.error(`ClickhouseWriter.flush ${tableName}`, err);
 

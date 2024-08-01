@@ -23,6 +23,7 @@ registerInstrumentations({
 });
 
 export const otelTracer = ot.trace.getTracer("worker");
+export const otelMetrics = ot.metrics.getMeter("worker");
 
 type CallbackAsyncFn<T> = () => Promise<T>;
 
