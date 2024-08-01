@@ -1,11 +1,17 @@
 import pino from "pino";
 import { env } from "./env";
 
-export const getLogger = (env: "development" | "production" | "test") => {
+export const getLogger = (
+  env: "development" | "production" | "test",
+  minLevel = "info"
+) => {
   if (env === "production") {
-    return pino();
+    return pino({
+      level: minLevel,
+    });
   }
   return pino({
+    level: minLevel,
     transport: {
       target: "pino-pretty",
       options: {
@@ -16,6 +22,6 @@ export const getLogger = (env: "development" | "production" | "test") => {
   });
 };
 
-const logger = getLogger(env.NODE_ENV);
+const logger = getLogger(env.NODE_ENV, env.LANGFUSE_LOG_LEVEL);
 
 export default logger;

@@ -4,8 +4,9 @@ import {
   paginationMetaResponseZod,
   NonEmptyString,
   type Score,
-  stringDateTime,
 } from "@langfuse/shared";
+import { stringDateTime } from "@langfuse/shared/src/server";
+
 import { z } from "zod";
 import { isPresent } from "@/src/utils/typeChecks";
 import { Category as ConfigCategory } from "./score-configs";

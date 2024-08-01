@@ -72,7 +72,6 @@ export function DatasetsTable(props: { projectId: string }) {
           <TableLink
             path={`/project/${props.projectId}/datasets/${key.id}`}
             value={key.name}
-            truncateAt={50}
           />
         );
       },

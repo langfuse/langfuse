@@ -112,6 +112,9 @@ const tableCols = {
   dashboard: [
     { id: "traceName", name: "Trace Name" },
     { id: "tags", name: "Tags" },
+    { id: "release", name: "Release" },
+    { id: "user", name: "User" },
+    { id: "version", name: "Version" },
   ],
 };
 

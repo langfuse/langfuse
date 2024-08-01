@@ -126,7 +126,13 @@ export function DataTable<TData extends object, TValue>({
     }
     return colSizes;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getState().columnSizingInfo, table.getState().columnSizing]);
+  }, [
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    table.getState().columnSizingInfo,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    table.getState().columnSizing,
+    columnVisibility,
+  ]);
 
   return (
     <>

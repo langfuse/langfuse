@@ -19,6 +19,7 @@ import { type FilterState, type Score } from "@langfuse/shared";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -129,7 +130,6 @@ export default function UsersPage() {
             <TableLink
               path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -249,7 +249,7 @@ export default function UsersPage() {
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
-        setFilterState={setUserFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}

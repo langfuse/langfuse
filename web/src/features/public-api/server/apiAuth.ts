@@ -174,7 +174,9 @@ export class ApiAuthService {
         };
       }
     } catch (error: unknown) {
-      console.error("Error verifying auth header: ", error);
+      console.error(
+        `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
+      );
 
       if (isPrismaException(error)) {
         throw error;
@@ -222,16 +224,12 @@ export class ApiAuthService {
 
     if (redisApiKey === API_KEY_NON_EXISTENT) {
       Sentry.metrics.increment("api_key_cache_hit");
-      console.log(`Found flag for non existing key in redis.`);
       throw new Error("Invalid credentials");
     }
 
     // if we found something, return the object.
     if (redisApiKey) {
       Sentry.metrics.increment("api_key_cache_hit");
-      console.log(
-        `Found key with id ${redisApiKey.id} for project ${redisApiKey.projectId} in redis`,
-      );
       return redisApiKey;
     }
 
@@ -245,9 +243,6 @@ export class ApiAuthService {
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.
     if (apiKey && apiKey.fastHashedSecretKey) {
-      console.log(
-        `Add key with id ${apiKey.id} for project ${apiKey.projectId} to redis`,
-      );
       await this.addApiKeyToRedis(hash, apiKey);
     }
     return apiKey;

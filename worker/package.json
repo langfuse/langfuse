@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.66.0",
+  "version": "2.67.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -8,7 +8,7 @@
     "node": "20"
   },
   "scripts": {
-    "test": "dotenv -e ../.env -- vitest run --reporter=basic --pool=forks",
+    "test": "dotenv -e ../.env -- vitest run --reporter=basic --pool=forks --poolOptions.forks.singleFork=true",
     "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
@@ -57,6 +57,7 @@
     "@types/lodash": "^4.17.5",
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.6",
+    "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",

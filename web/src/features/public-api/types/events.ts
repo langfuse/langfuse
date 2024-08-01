@@ -3,7 +3,7 @@ import {
   CreateEventEvent,
   eventTypes,
   type ingestionApiSchema,
-} from "@langfuse/shared";
+} from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
 
 /**
