@@ -11,6 +11,7 @@ import logger from "../logger";
 import { sql } from "kysely";
 import { redis } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "../instrumentation";
+import { SpanKind } from "@opentelemetry/api";
 
 export const evalQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
@@ -26,7 +27,7 @@ export const evalJobCreator = redis
       QueueName.TraceUpsert,
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         return instrumentAsync(
-          { name: "evalJobCreator", root: true },
+          { name: "evalJobCreator", root: true, kind: SpanKind.CONSUMER },
           async () => {
             try {
               await createEvalJobs({ event: job.data.payload });
@@ -58,7 +59,7 @@ export const evalJobExecutor = redis
       QueueName.EvaluationExecution,
       async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
         return instrumentAsync(
-          { name: "evalJobExecutor", root: true },
+          { name: "evalJobExecutor", root: true, kind: SpanKind.CONSUMER },
           async () => {
             try {
               logger.info("Executing Evaluation Execution Job", job.data);

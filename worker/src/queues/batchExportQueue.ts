@@ -12,6 +12,7 @@ import { instrumentAsync } from "../instrumentation";
 import logger from "../logger";
 import { redis } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
+import { SpanKind } from "@opentelemetry/api";
 
 export const batchExportQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(QueueName.BatchExport, {
@@ -29,7 +30,11 @@ export const batchExportJobExecutor = redis
       QueueName.BatchExport,
       async (job: Job<TQueueJobTypes[QueueName.BatchExport]>) => {
         return instrumentAsync(
-          { name: "batchExportJobExecutor", root: true },
+          {
+            name: "batchExportJobExecutor",
+            root: true,
+            kind: SpanKind.CONSUMER,
+          },
           async () => {
             try {
               logger.info("Executing Batch Export Job", job.data.payload);

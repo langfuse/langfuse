@@ -2,7 +2,6 @@ import { Queue, Worker } from "bullmq";
 
 import { QueueJobs, QueueName } from "@langfuse/shared";
 import { clickhouseClient, redis } from "@langfuse/shared/src/server";
-import * as Sentry from "@sentry/node";
 
 import { env } from "../env";
 import logger from "../logger";

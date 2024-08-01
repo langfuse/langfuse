@@ -4,7 +4,6 @@ import {
   ScoreRecordInsertType,
   TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
-import * as Sentry from "@sentry/node";
 
 import { env } from "../../env";
 import logger from "../../logger";
