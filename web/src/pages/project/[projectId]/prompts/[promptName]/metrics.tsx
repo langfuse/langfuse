@@ -324,8 +324,8 @@ export default function PromptVersionTable() {
   ];
 
   const {
-    groupedColumnsForToolbar: groupedColumns,
-    ungroupedColumnsForTable: nativeColumns,
+    groupedColumnsForToolbar: groupedDetailColumns,
+    ungroupedColumnsForTable: detailColumns,
   } = useMemo(
     () =>
       constructDetailColumns<PromptVersionTableRow>({
@@ -339,7 +339,7 @@ export default function PromptVersionTable() {
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<PromptVersionTableRow>(
       `promptVersionsColumnVisibility-${projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...nativeColumns],
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
   if (!promptVersions.data) {
@@ -423,7 +423,7 @@ export default function PromptVersionTable() {
       />
       <div className="gap-3">
         <DataTableToolbar
-          columns={[...columns, ...groupedColumns]}
+          columns={[...columns, ...groupedDetailColumns]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}
@@ -431,7 +431,7 @@ export default function PromptVersionTable() {
         />
       </div>
       <DataTable
-        columns={[...columns, ...nativeColumns]}
+        columns={[...columns, ...detailColumns]}
         data={
           promptVersions.isLoading
             ? { isLoading: true, isError: false }

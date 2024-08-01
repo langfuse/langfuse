@@ -648,8 +648,8 @@ export default function GenerationsTable({
   ];
 
   const {
-    groupedColumnsForToolbar: groupedColumns,
-    ungroupedColumnsForTable: nativeColumns,
+    groupedColumnsForToolbar: groupedDetailColumns,
+    ungroupedColumnsForTable: detailColumns,
   } = useMemo(
     () =>
       constructDetailColumns<GenerationsTableRow>({
@@ -661,7 +661,7 @@ export default function GenerationsTable({
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(
       `generationsColumnVisibility-${projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...nativeColumns],
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
   const rows: GenerationsTableRow[] = useMemo(() => {
@@ -705,7 +705,7 @@ export default function GenerationsTable({
   return (
     <>
       <DataTableToolbar
-        columns={[...columns, ...groupedColumns]}
+        columns={[...columns, ...groupedDetailColumns]}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={inputFilterState}
         setFilterState={useDebounce(setInputFilterState)}
@@ -754,7 +754,7 @@ export default function GenerationsTable({
         }
       />
       <DataTable
-        columns={[...columns, ...nativeColumns]}
+        columns={[...columns, ...detailColumns]}
         data={
           generations.isLoading
             ? { isLoading: true, isError: false }

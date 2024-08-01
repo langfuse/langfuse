@@ -211,8 +211,8 @@ export function DatasetRunItemsTable(
   ];
 
   const {
-    groupedColumnsForToolbar: groupedColumns,
-    ungroupedColumnsForTable: nativeColumns,
+    groupedColumnsForToolbar: groupedDetailColumns,
+    ungroupedColumnsForTable: detailColumns,
   } = useMemo(
     () =>
       constructDetailColumns<DatasetRunItemRowData>({
@@ -224,7 +224,7 @@ export function DatasetRunItemsTable(
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunItemRowData>(
       `datasetRunsItemsColumnVisibility-${props.projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...nativeColumns],
+      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
   const rows = useMemo(() => {
@@ -259,14 +259,14 @@ export function DatasetRunItemsTable(
   return (
     <>
       <DataTableToolbar
-        columns={[...columns, ...groupedColumns]}
+        columns={[...columns, ...groupedDetailColumns]}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
       <DataTable
-        columns={[...columns, ...nativeColumns]}
+        columns={[...columns, ...detailColumns]}
         data={
           runItems.isLoading
             ? { isLoading: true, isError: false }
