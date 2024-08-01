@@ -1,5 +1,9 @@
 import tracer from "dd-trace";
 import ot, { SpanKind } from "@opentelemetry/api";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
+import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
+import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
 
 const { TracerProvider } = tracer.init({
   profiling: false,
@@ -10,9 +14,13 @@ const provider = new TracerProvider();
 
 provider.register();
 
-// registerInstrumentations({
-//   instrumentations: [new PrismaInstrumentation()],
-// });
+registerInstrumentations({
+  instrumentations: [
+    new IORedisInstrumentation(),
+    new HttpInstrumentation(),
+    new ExpressInstrumentation(),
+  ],
+});
 
 export const otelTracer = ot.trace.getTracer("worker");
 
