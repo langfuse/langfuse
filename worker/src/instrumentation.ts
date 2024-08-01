@@ -4,6 +4,7 @@ import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
+import { PrismaInstrumentation } from "@prisma/instrumentation";
 
 const { TracerProvider } = tracer.init({
   profiling: false,
@@ -19,6 +20,7 @@ registerInstrumentations({
     new IORedisInstrumentation(),
     new HttpInstrumentation(),
     new ExpressInstrumentation(),
+    new PrismaInstrumentation(),
   ],
 });
 
