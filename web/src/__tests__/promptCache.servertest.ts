@@ -3,16 +3,6 @@ import { PromptService, type redis } from "@langfuse/shared/src/server"; // Adju
 
 type Redis = NonNullable<typeof redis>;
 
-// Mocks
-jest.mock("@prisma/client");
-jest.mock("ioredis");
-jest.mock("@langfuse/shared", () => ({
-  env: {
-    LANGFUSE_CACHE_PROMPT_ENABLED: "true",
-    LANGFUSE_CACHE_PROMPT_TTL_SECONDS: 300,
-  },
-}));
-
 describe("PromptService", () => {
   let promptService: PromptService;
   let mockPrisma: jest.Mocked<PrismaClient>;

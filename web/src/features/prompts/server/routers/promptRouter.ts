@@ -10,7 +10,7 @@ import {
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 
 import { createPrompt } from "../actions/createPrompt";
-import { orderByToPrismaSql } from "@langfuse/shared";
+import { observationsTableCols, orderByToPrismaSql } from "@langfuse/shared";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
 import {
@@ -623,6 +623,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         promptIds: z.array(z.string()),
+        filter: z.array(singleFilter).nullish(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -633,7 +634,11 @@ export const promptRouter = createTRPCRouter({
       });
 
       if (input.promptIds.length === 0) return [];
-
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter ?? [],
+        observationsTableCols,
+        "prompts",
+      );
       const metrics = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
@@ -651,18 +656,19 @@ export const promptRouter = createTRPCRouter({
         LEFT JOIN LATERAL (
           SELECT
             count(*) AS "observationCount",
-            MIN(ov.start_time) AS "firstUsed",
-            MAX(ov.start_time) AS "lastUsed",
-            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.completion_tokens) AS "medianOutputTokens",
-            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.prompt_tokens) AS "medianInputTokens",
-            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.calculated_total_cost) AS "medianTotalCost",
-            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY ov.latency) AS "medianLatency"
+            MIN(o.start_time) AS "firstUsed",
+            MAX(o.start_time) AS "lastUsed",
+            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY o.completion_tokens) AS "medianOutputTokens",
+            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY o.prompt_tokens) AS "medianInputTokens",
+            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY o.calculated_total_cost) AS "medianTotalCost",
+            PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY o.latency) AS "medianLatency"
           FROM
-            "observations_view" ov
+            "observations_view" o
           WHERE
-            ov.prompt_id = p.id
+            o.prompt_id = p.id
             AND "type" = 'GENERATION'
             AND "project_id" = ${input.projectId}
+            ${filterCondition}
         ) AS observation_metrics ON true
         WHERE "project_id" = ${input.projectId}
         AND p.id in (${Prisma.join(input.promptIds)})
@@ -699,6 +705,7 @@ export const promptRouter = createTRPCRouter({
         p.project_id = ${input.projectId}
         AND s.score IS NOT NULL
         AND p.id IN (${Prisma.join(input.promptIds)})
+        ${filterCondition}
         GROUP BY
           p.id
       `);
@@ -735,6 +742,7 @@ export const promptRouter = createTRPCRouter({
           p.project_id = ${input.projectId}
           AND s.score IS NOT NULL
           AND p.id IN (${Prisma.join(input.promptIds)})
+          ${filterCondition}
           GROUP BY
             p.id
       `);

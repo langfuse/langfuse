@@ -22,6 +22,8 @@ import {
   getDetailColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useMemo } from "react";
+import { type FilterState } from "@langfuse/shared";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -46,13 +48,13 @@ type PromptMetric = PromptMetricsOutput[number];
 type PromptCoreData = PromptCoreOutput["promptVersions"][number];
 
 function joinPromptCoreAndMetricData(
-  promptCoreData: PromptCoreOutput,
+  promptCoreData?: PromptCoreOutput,
   promptMetricsData?: PromptMetricsOutput,
 ): {
   status: "loading" | "error" | "success";
   combinedData: (PromptCoreData & Partial<PromptMetric>)[] | undefined;
 } {
-  if (!promptCoreData) return { status: "error", combinedData: undefined }; // defensive should never happen
+  if (!promptCoreData) return { status: "loading", combinedData: undefined };
 
   const { promptVersions } = promptCoreData;
 
@@ -120,7 +122,19 @@ export default function PromptVersionTable() {
     "promptVersion",
     "s",
   );
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange("7 days");
 
+  const dateRangeFilter: FilterState | null = dateRange?.from
+    ? [
+        {
+          column: "Start Time",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : null;
   const promptVersions = api.prompts.allVersions.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
@@ -139,6 +153,7 @@ export default function PromptVersionTable() {
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
+      filter: dateRangeFilter,
     },
     {
       enabled: Boolean(projectId) && promptVersions.isSuccess,
@@ -343,10 +358,6 @@ export default function PromptVersionTable() {
       scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
-  if (!promptVersions.data) {
-    return <div>Loading...</div>;
-  }
-
   const totalCount = promptVersions?.data?.totalCount ?? 0;
 
   const { combinedData } = joinPromptCoreAndMetricData(
@@ -429,6 +440,8 @@ export default function PromptVersionTable() {
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibilityState}
+          selectedOption={selectedOption}
+          setDateRangeAndOption={setDateRangeAndOption}
         />
       </div>
       <DataTable

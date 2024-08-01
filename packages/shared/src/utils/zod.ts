@@ -17,11 +17,11 @@ const nestedLiteralSchema = z.union([
 type Root = z.infer<typeof rootLiteralSchema>;
 type Literal = z.infer<typeof nestedLiteralSchema>;
 
-type JsonNested = Literal | { [key: string]: JsonNested } | JsonNested[];
+export type JsonNested = Literal | { [key: string]: JsonNested } | JsonNested[];
 type Json = Root | { [key: string]: JsonNested } | JsonNested[];
 
 // Here, you define the schema recursively
-const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
+export const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
   z.union([
     nestedLiteralSchema,
     z.array(jsonSchemaNullable),
