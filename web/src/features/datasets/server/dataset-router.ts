@@ -181,11 +181,9 @@ export const datasetRouter = createTRPCRouter({
       const runs = await ctx.prisma.$queryRaw<
         Array<
           DatasetRuns & {
-            countRunItems: number;
-            avgNumericScores: Record<string, QuantitativeAggregate>;
-            qualitativeScoreDistribution: Record<string, QualitativeAggregate>;
             avgLatency: number;
             avgTotalCost: Prisma.Decimal;
+            countRunItems: number;
           }
         >
       >(Prisma.sql`
