@@ -18,6 +18,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
 import {
   constructDetailColumns,
+  getDataTypeIcon,
   getDetailColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useMemo } from "react";
@@ -98,7 +99,7 @@ const parseMetricsColumn = (col: string) => {
   const [type, name, source, dataType] = col.split(".");
   return {
     key: computeMetricsTableKey({ type, name, source, dataType }),
-    header: `${type}: ${name} (${source.toLowerCase()})`,
+    header: `${type}: ${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
   };
 };
 
@@ -324,8 +325,8 @@ export default function PromptVersionTable() {
   ];
 
   const {
-    groupedColumnsForToolbar: groupedDetailColumns,
-    ungroupedColumnsForTable: detailColumns,
+    groupedColumns: groupedDetailColumns,
+    ungroupedColumns: detailColumns,
   } = useMemo(
     () =>
       constructDetailColumns<PromptVersionTableRow>({

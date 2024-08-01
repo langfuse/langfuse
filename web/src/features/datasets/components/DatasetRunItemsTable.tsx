@@ -211,8 +211,8 @@ export function DatasetRunItemsTable(
   ];
 
   const {
-    groupedColumnsForToolbar: groupedDetailColumns,
-    ungroupedColumnsForTable: detailColumns,
+    groupedColumns: groupedDetailColumns,
+    ungroupedColumns: detailColumns,
   } = useMemo(
     () =>
       constructDetailColumns<DatasetRunItemRowData>({

@@ -615,8 +615,8 @@ export default function TracesTable({
   ];
 
   const {
-    groupedColumnsForToolbar: groupedDetailColumns,
-    ungroupedColumnsForTable: detailColumns,
+    groupedColumns: groupedDetailColumns,
+    ungroupedColumns: detailColumns,
   } = useMemo(
     () =>
       constructDetailColumns<TracesTableRow>({

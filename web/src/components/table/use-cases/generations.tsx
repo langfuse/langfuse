@@ -648,8 +648,8 @@ export default function GenerationsTable({
   ];
 
   const {
-    groupedColumnsForToolbar: groupedDetailColumns,
-    ungroupedColumnsForTable: detailColumns,
+    groupedColumns: groupedDetailColumns,
+    ungroupedColumns: detailColumns,
   } = useMemo(
     () =>
       constructDetailColumns<GenerationsTableRow>({

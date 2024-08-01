@@ -3,6 +3,7 @@ import React, {
   type Dispatch,
   type SetStateAction,
   useState,
+  useMemo,
 } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -104,7 +105,10 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     [setColumnVisibility],
   );
 
-  const columnsByGroup = partitionColumnsByGroup(columns);
+  const columnsByGroup = useMemo(
+    () => partitionColumnsByGroup(columns),
+    [columns],
+  );
 
   const { count, total } = calculateColumnCounts(
     columnsByGroup,
@@ -173,7 +177,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                         toggleColumn(column.accessorKey.toString())
                       }
                     >
-                      <span className="capitalize">
+                      <span className="capitalize" title={column.accessorKey}>
                         {column.header && typeof column.header === "string"
                           ? column.header
                           : column.accessorKey}

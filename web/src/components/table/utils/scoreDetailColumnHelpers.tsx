@@ -23,7 +23,7 @@ const parseColumnForProps = (col: string) => {
   };
 };
 
-const getDataTypeIcon = ({ dataType }: { dataType: string }): string => {
+export const getDataTypeIcon = (dataType: string): string => {
   switch (dataType) {
     case "NUMERIC":
     default:
@@ -49,7 +49,7 @@ const parseColumnForKeyAndHeader = (col: string) => {
   const { name, source, dataType } = parseColumnForProps(col);
   return {
     key: computeTableKey({ name, source, dataType }),
-    header: `${getDataTypeIcon({ dataType })} ${name} (${source.toLowerCase()})`,
+    header: `${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
   };
 };
 
@@ -101,14 +101,14 @@ export function getDetailColumns(
 }
 
 /**
- * Constructs columns for a table that display scores as individual columns.
+ * Constructs columns for a table to display scores as individual columns.
  *
  * @param {string[]} params.detailColumnAccessors - The accessors for the detail columns.
  * @param {boolean} [params.showAggregateViewOnly=false] - Whether to only show the aggregate view.
- * @param {Function} [params.parseColumn=parseColumnForKeyAndHeader] - The function to parse the column.
+ * @param {Function} [params.parseColumn=parseColumnForKeyAndHeader] - The function to parse the column for key and header.
  *
- * @returns {Object} The constructed detail columns, including grouped columns for the toolbar and ungrouped columns for the table.
- * `groupedColumnsForToolbar` could be displayed in table but cause unwanted subheadings
+ * @returns {Object} The constructed detail columns.
+ * If subheadings in table/toolbar are desired, use grouped columns in table/toolbar. Otherwise, use ungrouped columns.
  */
 export const constructDetailColumns = <
   T extends
@@ -129,8 +129,8 @@ export const constructDetailColumns = <
     header: string;
   };
 }): {
-  groupedColumnsForToolbar: LangfuseColumnDef<T>[];
-  ungroupedColumnsForTable: LangfuseColumnDef<T>[];
+  groupedColumns: LangfuseColumnDef<T>[];
+  ungroupedColumns: LangfuseColumnDef<T>[];
 } => {
   const columns = detailColumnAccessors.map((col) => {
     const { accessorKey, header, size, enableHiding } = parseDetailColumn<T>(
@@ -159,7 +159,7 @@ export const constructDetailColumns = <
   });
 
   return {
-    groupedColumnsForToolbar: [
+    groupedColumns: [
       {
         accessorKey: "scores",
         header: "Score Details",
@@ -167,6 +167,6 @@ export const constructDetailColumns = <
         maxSize: 150,
       },
     ],
-    ungroupedColumnsForTable: columns,
+    ungroupedColumns: columns,
   };
 };

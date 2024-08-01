@@ -15,11 +15,10 @@ import { cn } from "@/src/utils/tailwind";
 import { type Score } from "@langfuse/shared";
 import { MessageCircleMore } from "lucide-react";
 
-const colorCoding = (value: string): string => {
-  if (value === "True") return "bg-light-green p-0.5 text-dark-green";
-  else if (value === "False") return "bg-light-red p-0.5 text-dark-red";
-  return "";
-};
+const COLOR_MAP = new Map([
+  ["True", "bg-light-green p-0.5 text-dark-green"],
+  ["False", "bg-light-red p-0.5 text-dark-red"],
+]);
 
 const SingleScoreValue = ({
   value,
@@ -34,7 +33,7 @@ const SingleScoreValue = ({
     <span
       className={cn(
         "group/score ml-1 rounded-sm first:ml-0",
-        showColorCoding && colorCoding(value),
+        showColorCoding && COLOR_MAP.get(value),
       )}
     >
       {value}
