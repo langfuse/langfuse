@@ -66,7 +66,6 @@ export const flushIngestionQueueExecutor = redis
           logger.debug(
             `Prepared and scheduled CH-write in ${processingTime} ms for ${projectEntityId}`
           );
-
           otelMetrics
             .createHistogram("ingestion_flush_processing_time")
             .record(processingTime, { metric: "milliseconds" });
