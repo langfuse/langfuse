@@ -26,7 +26,7 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
 }
 
-const DEFAULT_HEADER = "default";
+const UNGROUPED = "ungrouped";
 
 const calculateColumnCounts = <TData, TValue>(
   groups: { title: string; columns: LangfuseColumnDef<TData, TValue>[] }[],
@@ -63,13 +63,11 @@ const partitionColumnsByGroup = <TData, TValue>(
           columns: col.columns,
         });
       } else {
-        const defaultGroup = acc.find(
-          (group) => group.title === DEFAULT_HEADER,
-        );
-        if (defaultGroup) {
-          defaultGroup.columns.push(col);
+        const ungrouped = acc.find((group) => group.title === UNGROUPED);
+        if (ungrouped) {
+          ungrouped.columns.push(col);
         } else {
-          acc.push({ title: DEFAULT_HEADER, columns: [col] });
+          acc.push({ title: UNGROUPED, columns: [col] });
         }
       }
       return acc;
@@ -136,7 +134,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         className="max-h-96 overflow-y-auto"
       >
         {columnsByGroup.map(({ title, columns }, index) => {
-          if (title === DEFAULT_HEADER) {
+          if (title === UNGROUPED) {
             return columns.map(
               (column) =>
                 "accessorKey" in column &&
