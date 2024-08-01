@@ -1,7 +1,5 @@
 import tracer from "dd-trace";
 import ot, { SpanKind } from "@opentelemetry/api";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import { PrismaInstrumentation } from "@prisma/instrumentation";
 
 const { TracerProvider } = tracer.init({
   profiling: false,
