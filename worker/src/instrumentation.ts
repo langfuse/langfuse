@@ -12,9 +12,9 @@ const provider = new TracerProvider();
 
 provider.register();
 
-registerInstrumentations({
-  instrumentations: [new PrismaInstrumentation()],
-});
+// registerInstrumentations({
+//   instrumentations: [new PrismaInstrumentation()],
+// });
 
 export const otelTracer = ot.trace.getTracer("worker");
 

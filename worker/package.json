@@ -23,7 +23,6 @@
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": "^1.4.1",
     "@opentelemetry/instrumentation": "^0.52.1",
-    "@prisma/instrumentation": "^5.17.0",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
