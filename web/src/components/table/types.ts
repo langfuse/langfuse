@@ -6,6 +6,7 @@ export type TableRowOptions = {
   options: { label: string; value: number; icon?: LucideIcon }[];
 };
 
+// extend tanstack ColumnDef to include additional properties
 type ExtendedColumnDef<TData extends RowData, TValue = unknown> = ColumnDef<
   TData,
   TValue
@@ -17,12 +18,13 @@ type ExtendedColumnDef<TData extends RowData, TValue = unknown> = ColumnDef<
   };
 };
 
+// limit types of defined tanstack ColumnDef properties to specific subset of tanstack union
 export type LangfuseColumnDef<
   TData extends RowData,
   TValue = unknown,
 > = ExtendedColumnDef<TData, TValue> & {
-  // Enforce columns to be of type 'AccessorKeyColumnDefBase' with 'accessorKey' property of type string
+  // Enforce langfuse columns to be of type 'AccessorKeyColumnDefBase' with 'accessorKey' property of type string
   accessorKey: string;
-  // Enforce columns to be of type 'StringHeaderIdentifier' with 'header' property of type string
+  // Enforce langfuse group columns to have children of type 'LangfuseColumnDef'
   columns?: LangfuseColumnDef<TData, TValue>[];
 };

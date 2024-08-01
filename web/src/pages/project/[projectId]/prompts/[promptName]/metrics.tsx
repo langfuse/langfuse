@@ -149,8 +149,8 @@ export default function PromptVersionTable() {
   const prefixedNamesList = useMemo(() => {
     if (!scoreNamesList.data) return [];
     return scoreNamesList.data.names.flatMap((name) => [
-      `Generation.${name}`,
-      `Trace.${name}`,
+      `Generation-${name}`,
+      `Trace-${name}`,
     ]);
   }, [scoreNamesList.data]);
 

@@ -15,8 +15,6 @@ import { DB } from "@/src/server/db";
 import { paginationZod } from "@langfuse/shared";
 import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 import {
-  type QualitativeAggregate,
-  type QuantitativeAggregate,
   aggregateScores,
   type ScoreSimplified,
 } from "@/src/features/manual-scoring/lib/aggregateScores";

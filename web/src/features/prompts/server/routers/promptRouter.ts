@@ -696,16 +696,17 @@ export const promptRouter = createTRPCRouter({
               AND s.observation_id = o.id
               AND s.project_id = ${input.projectId}
           WHERE
-            o.type = 'GENERATION'
+            o.prompt_id IS NOT NULL
+            AND o.type = 'GENERATION'
             AND o.prompt_id = p.id
             AND o.project_id = ${input.projectId}
             AND s.name IS NOT NULL
+            AND p.id IN (${Prisma.join(input.promptIds)})
+            ${filterCondition}
           ) s ON TRUE
       WHERE
         p.project_id = ${input.projectId}
         AND s.score IS NOT NULL
-        AND p.id IN (${Prisma.join(input.promptIds)})
-        ${filterCondition}
         GROUP BY
           p.id
       `);
@@ -731,9 +732,12 @@ export const promptRouter = createTRPCRouter({
                 SELECT o.trace_id
                 FROM observations o
                 WHERE
-                  o.prompt_id = p.id
+                  o.prompt_id IS NOT NULL
+                  AND o.prompt_id = p.id
                   AND o.type = 'GENERATION'
                   AND o.project_id = ${input.projectId}
+                  AND o.prompt_id IN (${Prisma.join(input.promptIds)})
+                  ${filterCondition}
               )
               AND s.observation_id IS NULL
               AND s.project_id = ${input.projectId}
@@ -741,8 +745,6 @@ export const promptRouter = createTRPCRouter({
         WHERE
           p.project_id = ${input.projectId}
           AND s.score IS NOT NULL
-          AND p.id IN (${Prisma.join(input.promptIds)})
-          ${filterCondition}
         GROUP BY
             p.id
       `);
