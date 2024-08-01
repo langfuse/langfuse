@@ -614,7 +614,10 @@ export default function TracesTable({
     },
   ];
 
-  const detailColumns = useMemo(
+  const {
+    groupedColumnsForToolbar: groupedColumns,
+    ungroupedColumnsForTable: nativeColumns,
+  } = useMemo(
     () =>
       constructDetailColumns<TracesTableRow>({
         detailColumnAccessors: scoreNamesList.data?.names ?? [],
@@ -625,7 +628,7 @@ export default function TracesTable({
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
       `tracesColumnVisibility-${projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+      scoreNamesList.isLoading ? [] : [...columns, ...nativeColumns],
     );
 
   const rows = useMemo(() => {
@@ -666,9 +669,7 @@ export default function TracesTable({
   return (
     <>
       <DataTableToolbar
-        columns={columns}
-        detailColumns={detailColumns}
-        detailColumnHeader="Individual Scores"
+        columns={[...columns, ...groupedColumns]}
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
           placeholder: "Search by id, name, user id",
@@ -701,8 +702,7 @@ export default function TracesTable({
         setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
-        columns={columns}
-        detailColumns={detailColumns}
+        columns={[...columns, ...nativeColumns]}
         data={
           traces.isLoading
             ? { isLoading: true, isError: false }

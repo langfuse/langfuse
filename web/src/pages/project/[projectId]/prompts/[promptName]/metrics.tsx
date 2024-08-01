@@ -77,21 +77,28 @@ function joinPromptCoreAndMetricData(
   return { status: "success", combinedData };
 }
 
+const computeMetricsTableKey = ({
+  type,
+  name,
+  source,
+  dataType,
+}: {
+  type: string;
+  name: string;
+  source: string;
+  dataType: string;
+}) => `${type}-${name}-${source.toLowerCase()}-${dataType.toLowerCase()}`;
+
 const computeAccessorMetrics = (key: string) => {
   const [type, name, source, dataType] = key.split(".");
-  return `${type}: ${name} (${source.toLowerCase()}, ${dataType.toLowerCase()})`;
+  return computeMetricsTableKey({ type, name, source, dataType });
 };
 
 const parseMetricsColumn = (col: string) => {
   const [type, name, source, dataType] = col.split(".");
   return {
-    key: `${type}: ${name} (${source.toLowerCase()}, ${dataType.toLowerCase()})`,
-    header: () => (
-      <div className="flex flex-row items-center gap-1">
-        <span>{`${type}: ${name} (${source.toLowerCase()})`}</span>
-        {/* <DataTypeIcon dataType={dataType} /> */}
-      </div>
-    ),
+    key: computeMetricsTableKey({ type, name, source, dataType }),
+    header: `${type}: ${name} (${source.toLowerCase()})`,
   };
 };
 
@@ -316,7 +323,10 @@ export default function PromptVersionTable() {
     },
   ];
 
-  const detailColumns = useMemo(
+  const {
+    groupedColumnsForToolbar: groupedColumns,
+    ungroupedColumnsForTable: nativeColumns,
+  } = useMemo(
     () =>
       constructDetailColumns<PromptVersionTableRow>({
         detailColumnAccessors: prefixedNamesList ?? [],
@@ -329,7 +339,7 @@ export default function PromptVersionTable() {
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<PromptVersionTableRow>(
       `promptVersionsColumnVisibility-${projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+      scoreNamesList.isLoading ? [] : [...columns, ...nativeColumns],
     );
 
   if (!promptVersions.data) {
@@ -413,9 +423,7 @@ export default function PromptVersionTable() {
       />
       <div className="gap-3">
         <DataTableToolbar
-          columns={columns}
-          detailColumns={detailColumns}
-          detailColumnHeader="Trace and Generation Score Metrics"
+          columns={[...columns, ...groupedColumns]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}
@@ -423,8 +431,7 @@ export default function PromptVersionTable() {
         />
       </div>
       <DataTable
-        columns={columns}
-        detailColumns={detailColumns}
+        columns={[...columns, ...nativeColumns]}
         data={
           promptVersions.isLoading
             ? { isLoading: true, isError: false }

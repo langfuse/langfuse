@@ -165,7 +165,10 @@ export function DatasetRunsTable(props: {
     };
   };
 
-  const detailColumns = useMemo(
+  const {
+    groupedColumnsForToolbar: groupedColumns,
+    ungroupedColumnsForTable: nativeColumns,
+  } = useMemo(
     () =>
       constructDetailColumns<DatasetRunRowData>({
         detailColumnAccessors: scoreNamesList.data?.names ?? [],
@@ -177,15 +180,13 @@ export function DatasetRunsTable(props: {
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunRowData>(
       `datasetRunsColumnVisibility-${props.projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+      scoreNamesList.isLoading ? [] : [...columns, ...nativeColumns],
     );
 
   return (
     <>
       <DataTableToolbar
-        columns={columns}
-        detailColumns={detailColumns}
-        detailColumnHeader="Individual Score Metrics"
+        columns={[...columns, ...groupedColumns]}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
@@ -193,8 +194,7 @@ export function DatasetRunsTable(props: {
         actionButtons={props.menuItems}
       />
       <DataTable
-        columns={columns}
-        detailColumns={detailColumns}
+        columns={[...columns, ...nativeColumns]}
         data={
           runs.isLoading
             ? { isLoading: true, isError: false }

@@ -34,7 +34,6 @@ import {
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
-  detailColumns?: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   pagination?: {
     pageCount: number;
@@ -64,7 +63,6 @@ export interface AsyncTableData<T> {
 
 export function DataTable<TData extends object, TValue>({
   columns,
-  detailColumns,
   data,
   pagination,
   rowSelection,
@@ -82,13 +80,10 @@ export function DataTable<TData extends object, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
-  const baseAndDetailColumns = detailColumns
-    ? [...columns, ...detailColumns]
-    : columns;
 
   const table = useReactTable({
     data: data.data ?? [],
-    columns: baseAndDetailColumns,
+    columns,
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
@@ -136,6 +131,8 @@ export function DataTable<TData extends object, TValue>({
     table.getState().columnSizingInfo,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     table.getState().columnSizing,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    table.getFlatHeaders(),
     columnVisibility,
   ]);
 
@@ -254,7 +251,7 @@ export function DataTable<TData extends object, TValue>({
               <MemoizedTableBody
                 table={table}
                 rowheighttw={rowheighttw}
-                columns={baseAndDetailColumns}
+                columns={columns}
                 data={data}
                 help={help}
               />
@@ -262,7 +259,7 @@ export function DataTable<TData extends object, TValue>({
               <TableBodyComponent
                 table={table}
                 rowheighttw={rowheighttw}
-                columns={baseAndDetailColumns}
+                columns={columns}
                 data={data}
                 help={help}
               />

@@ -12,7 +12,6 @@ import {
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/[promptName]/metrics";
 import { type ScoreDataType, type ScoreSource } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
-import { Binary, CaseUpper, Hash } from "lucide-react";
 import React from "react";
 
 const parseColumnForProps = (col: string) => {
@@ -24,15 +23,15 @@ const parseColumnForProps = (col: string) => {
   };
 };
 
-const DataTypeIcon = ({ dataType }: { dataType: string }) => {
+const getDataTypeIcon = ({ dataType }: { dataType: string }): string => {
   switch (dataType) {
     case "NUMERIC":
     default:
-      return <Hash className="h-3 w-3"></Hash>;
+      return "#";
     case "CATEGORICAL":
-      return <CaseUpper className="h-3 w-3"></CaseUpper>;
+      return "Ⓒ";
     case "BOOLEAN":
-      return <Binary className="h-3 w-3"></Binary>;
+      return "Ⓑ";
   }
 };
 
@@ -44,18 +43,13 @@ const computeTableKey = ({
   name: string;
   source: ScoreSource;
   dataType: ScoreDataType;
-}) => `${name} (${source.toLowerCase()}, ${dataType.toLowerCase()})`;
+}) => `${name}-${source.toLowerCase()}-${dataType.toLowerCase()}`;
 
 const parseColumnForKeyAndHeader = (col: string) => {
   const { name, source, dataType } = parseColumnForProps(col);
   return {
     key: computeTableKey({ name, source, dataType }),
-    header: () => (
-      <div className="flex flex-row items-center gap-1">
-        <span>{`${name} (${source.toLowerCase()})`}</span>
-        <DataTypeIcon dataType={dataType} />
-      </div>
-    ),
+    header: `${getDataTypeIcon({ dataType })} ${name} (${source.toLowerCase()})`,
   };
 };
 
@@ -70,15 +64,16 @@ const parseDetailColumn = <
   col: string,
   parseColFct: (col: string) => {
     key: string;
-    header: () => JSX.Element;
+    header: string;
   },
 ): LangfuseColumnDef<T> => {
   const { key, header } = parseColFct(col);
   return {
     header,
-    id: key,
     accessorKey: key,
+    id: key,
     enableHiding: true,
+    size: 150,
   };
 };
 
@@ -105,6 +100,16 @@ export function getDetailColumns(
   return filteredScores;
 }
 
+/**
+ * Constructs columns for a table that display scores as individual columns.
+ *
+ * @param {string[]} params.detailColumnAccessors - The accessors for the detail columns.
+ * @param {boolean} [params.showAggregateViewOnly=false] - Whether to only show the aggregate view.
+ * @param {Function} [params.parseColumn=parseColumnForKeyAndHeader] - The function to parse the column.
+ *
+ * @returns {Object} The constructed detail columns, including grouped columns for the toolbar and ungrouped columns for the table.
+ * `groupedColumnsForToolbar` could be displayed in table but cause unwanted subheadings
+ */
 export const constructDetailColumns = <
   T extends
     | GenerationsTableRow
@@ -121,17 +126,26 @@ export const constructDetailColumns = <
   showAggregateViewOnly?: boolean;
   parseColumn?: (col: string) => {
     key: string;
-    header: () => JSX.Element;
+    header: string;
   };
-}): LangfuseColumnDef<T>[] => {
-  return detailColumnAccessors.map((col) => {
-    const detailColumnProps = parseDetailColumn<T>(col, parseColumn);
+}): {
+  groupedColumnsForToolbar: LangfuseColumnDef<T>[];
+  ungroupedColumnsForTable: LangfuseColumnDef<T>[];
+} => {
+  const columns = detailColumnAccessors.map((col) => {
+    const { accessorKey, header, size, enableHiding } = parseDetailColumn<T>(
+      col,
+      parseColumn,
+    );
+
     return {
-      ...detailColumnProps,
-      size: 150,
+      accessorKey,
+      header,
+      size,
+      enableHiding,
       cell: ({ row }: { row: Row<T> }) => {
         const value: QualitativeAggregate | QuantitativeAggregate | undefined =
-          row.getValue(detailColumnProps.accessorKey);
+          row.getValue(accessorKey);
 
         if (!value) return null;
         return (
@@ -143,4 +157,16 @@ export const constructDetailColumns = <
       },
     };
   });
+
+  return {
+    groupedColumnsForToolbar: [
+      {
+        accessorKey: "scores",
+        header: "Score Details",
+        columns,
+        maxSize: 150,
+      },
+    ],
+    ungroupedColumnsForTable: columns,
+  };
 };
