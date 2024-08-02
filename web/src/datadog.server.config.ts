@@ -32,9 +32,7 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
   // });
   // provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 
-  provider.register();
-
-  registerInstrumentations({
+  registerOTel({
     instrumentations: [
       getNodeAutoInstrumentations(),
       new HttpInstrumentation(),
@@ -42,4 +40,5 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new IORedisInstrumentation(),
     ],
   });
+  provider.register();
 }
