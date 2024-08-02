@@ -160,8 +160,6 @@ function UserTracking() {
         posthog.reset();
         posthog.resetGroups();
       }
-      // Sentry
-      setUser(null);
     }
   }, [session]);
   return null;
