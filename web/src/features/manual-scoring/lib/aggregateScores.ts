@@ -39,10 +39,12 @@ export const composeAggregateScoreKey = ({
   source: ScoreSource;
   dataType: ScoreDataType;
   keyPrefix?: string;
-}): string =>
-  keyPrefix
-    ? `${keyPrefix}-${name}-${source}-${dataType}`
-    : `${name}-${source}-${dataType}`;
+}): string => {
+  const formattedName = name.replace(/-/g, "_"); // "-" reserved for splitting in namespace
+  return keyPrefix
+    ? `${keyPrefix}-${formattedName}-${source}-${dataType}`
+    : `${formattedName}-${source}-${dataType}`;
+};
 
 export const aggregateScores = <T extends APIScore | ScoreSimplified>(
   scores: T[],
