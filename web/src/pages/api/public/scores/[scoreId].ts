@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import * as Sentry from "@sentry/node";
 import {
   DeleteScoreQuery,
   DeleteScoreResponse,
@@ -32,7 +31,6 @@ export default withMiddlewares({
       const parsedScore = GetScoreResponse.safeParse(score);
 
       if (!parsedScore.success) {
-        Sentry.captureException(parsedScore.error);
         throw new InternalServerError("Requested score is corrupted");
       }
 

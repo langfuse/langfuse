@@ -19,7 +19,6 @@ import { type Session } from "next-auth";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
 import * as z from "zod";
 
 type CreateContextOptions = {
@@ -55,12 +54,6 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 
   // Get the session from the server using the getServerSession wrapper function
   const session = await getServerAuthSession({ req, res });
-
-  Sentry.setUser({
-    id: session?.user?.id,
-    email: session?.user?.email ?? undefined,
-    username: session?.user?.name ?? undefined,
-  });
 
   return createInnerTRPCContext({
     session,
@@ -112,11 +105,7 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
 export const createTRPCRouter = t.router;
 
 // sentry setup
-const sentryMiddleware = t.middleware(
-  Sentry.trpcMiddleware({
-    attachRpcInput: true,
-  }),
-);
+const sentryMiddleware = t.middleware(({ next }) => next());
 const withSentryProcedure = t.procedure.use(sentryMiddleware);
 /**
  * Public (unauthenticated) procedure

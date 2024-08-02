@@ -2,7 +2,6 @@ import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { InvalidRequestError, type Prompt } from "@langfuse/shared";
 import { PromptService, redis } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/nextjs";
 
 type GetPromptByNameParams = {
   promptName: string;
@@ -18,7 +17,7 @@ export const getPromptByName = async (
   const promptService = new PromptService(
     prisma,
     redis,
-    Sentry.metrics.increment,
+    // Sentry.metrics.increment,
   );
 
   if (version && label)

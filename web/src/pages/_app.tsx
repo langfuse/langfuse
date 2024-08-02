@@ -1,7 +1,6 @@
 import { type AppType } from "next/app";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
-import { setUser } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 
@@ -141,11 +140,6 @@ function UserTracking() {
           domain: emailDomain,
         });
 
-      // Sentry
-      setUser({
-        email: session.data.user?.email ?? undefined,
-        id: session.data.user?.id ?? undefined,
-      });
       // Chat
       chatSetUser({
         name: session.data.user?.name ?? "undefined",

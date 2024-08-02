@@ -3,7 +3,6 @@
  * for Docker builds.
  */
 await import("./src/env.mjs");
-import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 
 /**
@@ -80,22 +79,22 @@ const nextConfig = {
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
-          {
-            source: "/api/auth/session",
-            headers: [
-              {
-                key: "Access-Control-Allow-Origin",
-                value: "https://langfuse.com",
-              },
-              { key: "Access-Control-Allow-Credentials", value: "true" },
-              { key: "Access-Control-Allow-Methods", value: "GET,POST" },
-              {
-                key: "Access-Control-Allow-Headers",
-                value: "Content-Type, Authorization",
-              },
-            ],
-          },
-        ]
+            {
+              source: "/api/auth/session",
+              headers: [
+                {
+                  key: "Access-Control-Allow-Origin",
+                  value: "https://langfuse.com",
+                },
+                { key: "Access-Control-Allow-Credentials", value: "true" },
+                { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+                {
+                  key: "Access-Control-Allow-Headers",
+                  value: "Content-Type, Authorization",
+                },
+              ],
+            },
+          ]
         : []),
       // all files in /public/generated are public and can be accessed from any origin, e.g. to render an API reference based on our openapi schema
       {
@@ -125,36 +124,4 @@ const nextConfig = {
   },
 };
 
-const sentryOptions = {
-  // Additional config options for the Sentry Webpack plugin. Keep in mind that
-  // the following options are set automatically, and overriding them is not
-  // recommended:
-  //   release, url, authToken, configFile, stripPrefix,
-  //   urlPrefix, include, ignore
-
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-
-  silent: true, // Suppresses all logs
-
-  // For all available options, see:
-  // https://github.com/getsentry/sentry-webpack-plugin#options.
-
-  // See the sections below for information on the following options:
-  //   'Configure Source Maps':
-  //     - disableServerWebpackPlugin
-  //     - disableClientWebpackPlugin
-  //     - hideSourceMaps
-  hideSourceMaps: true,
-  //     - widenClientFileUpload
-  //   'Configure Legacy Browser Support':
-  //     - transpileClientSDK
-  //   'Configure Serverside Auto-instrumentation':
-  //     - autoInstrumentServerFunctions
-  //     - excludeServerRoutes
-  //   'Configure Tunneling':
-  //     - tunnelRoute
-  tunnelRoute: "/api/monitoring-tunnel",
-};
-
-export default withSentryConfig(nextConfig, sentryOptions);
+export default nextConfig;

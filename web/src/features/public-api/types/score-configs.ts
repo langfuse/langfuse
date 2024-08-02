@@ -6,7 +6,6 @@ import {
   type ScoreConfig as ScoreConfigDbType,
 } from "@langfuse/shared";
 import { z } from "zod";
-import * as Sentry from "@sentry/node";
 
 /**
  * Types to use across codebase
@@ -155,7 +154,11 @@ export const filterAndValidateDbScoreConfigList = (
     if (result.success) {
       acc.push(result.data);
     } else {
-      Sentry.captureException(result.error);
+      console.error(
+        "Failed to validate score config:",
+        result.error.errors,
+        ts,
+      );
     }
     return acc;
   }, [] as ValidatedScoreConfig[]);

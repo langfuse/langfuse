@@ -32,7 +32,6 @@ import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
-import * as Sentry from "@sentry/nextjs";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { env } from "@/src/env.mjs";
 import {
@@ -85,10 +84,10 @@ export default async function handler(
 
     const parsedSchema = batchType.safeParse(req.body);
 
-    Sentry.metrics.increment(
-      "ingestion_event",
-      parsedSchema.success ? parsedSchema.data.batch.length : 0,
-    );
+    // Sentry.metrics.increment(
+    //   "ingestion_event",
+    //   parsedSchema.success ? parsedSchema.data.batch.length : 0,
+    // );
 
     await gaugePrismaStats();
 
@@ -147,7 +146,6 @@ export default async function handler(
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       console.error("error_handling_ingestion_event", error);
-      Sentry.captureException(error);
     }
 
     if (error instanceof BaseError) {
@@ -403,9 +401,6 @@ export const handleBatchResult = (
         error: error.error.message,
       });
     } else {
-      if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-        Sentry.captureException(error.error);
-      }
       returnedErrors.push({
         id: error.id,
         status: 500,
@@ -497,7 +492,6 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   const parsedObj = object.safeParse(results[0].result);
   if (!parsedObj.success) {
     console.error("Error parsing response", parsedObj.error);
-    Sentry.captureException(parsedObj.error);
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;
@@ -581,6 +575,6 @@ const gaugePrismaStats = async () => {
   const metrics = await prisma.$metrics.json();
 
   metrics.gauges.forEach((gauge) => {
-    Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
+    // Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
   });
 };

@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/node";
 import {
   paginationZod,
   paginationMetaResponseZod,
@@ -167,7 +166,6 @@ export const filterAndValidateDbScoreList = (scores: Score[]): APIScore[] =>
       acc.push(result.data);
     } else {
       console.error("Score parsing error: ", result.error);
-      Sentry.captureException(result.error);
     }
     return acc;
   }, [] as APIScore[]);
@@ -271,7 +269,6 @@ export const legacyFilterAndValidateV1GetScoreList = (
         acc.push(result.data);
       } else {
         console.error("Score parsing error: ", result.error);
-        Sentry.captureException(result.error);
       }
       return acc;
     },
