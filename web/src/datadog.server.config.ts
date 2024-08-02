@@ -14,9 +14,10 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
 import { registerOTel } from "@vercel/otel";
 
 if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-  const contextManager = new AsyncHooksContextManager().enable();
+  // const contextManager = new AsyncHooksContextManager().enable();
 
-  context.setGlobalContextManager(contextManager);
+  // context.setGlobalContextManager(contextManager);
+
   const { TracerProvider } = (await import("dd-trace")).default.init({
     runtimeMetrics: true,
     profiling: false,
