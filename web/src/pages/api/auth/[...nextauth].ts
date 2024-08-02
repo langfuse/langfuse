@@ -8,6 +8,11 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself
   // disable caching for anything auth related
-  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate",
+  );
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   return await NextAuth(req, res, authOptions);
 }
