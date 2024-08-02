@@ -37,7 +37,7 @@ importers:
         version: link:../packages/shared
       next:
         specifier: ^14.2.3
-        version: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 14.2.3(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       next-auth:
         specifier: ^4.24.7
         version: 4.24.7(next@14.2.3(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -308,19 +308,19 @@ importers:
         version: 7.6.2(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0))(@mui/material@5.15.19(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@next-auth/prisma-adapter':
         specifier: ^1.0.7
-        version: 1.0.7(@prisma/client@5.16.2(prisma@5.13.0))(next-auth@4.24.7(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
+        version: 1.0.7(@prisma/client@5.16.2(prisma@5.13.0))(next-auth@4.24.7(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
       '@opentelemetry/api':
-        specifier: ^1.9.0
-        version: 1.9.0
+        specifier: ^1.8.0
+        version: 1.8.0
       '@opentelemetry/instrumentation':
         specifier: ^0.52.1
-        version: 0.52.1(@opentelemetry/api@1.9.0)
+        version: 0.52.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/instrumentation-http':
         specifier: ^0.52.1
-        version: 0.52.1(@opentelemetry/api@1.9.0)
+        version: 0.52.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/instrumentation-ioredis':
         specifier: ^0.42.0
-        version: 0.42.0(@opentelemetry/api@1.9.0)
+        version: 0.42.0(@opentelemetry/api@1.8.0)
       '@prisma/instrumentation':
         specifier: ^5.17.0
         version: 5.17.0
@@ -398,7 +398,7 @@ importers:
         version: link:../packages/config-typescript
       '@sentry/nextjs':
         specifier: 8.13.0
-        version: 8.13.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.25.1)(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(webpack@5.91.0)
+        version: 8.13.0(@opentelemetry/api@1.8.0)(@opentelemetry/core@1.25.1(@opentelemetry/api@1.8.0))(@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.8.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.8.0))(@opentelemetry/semantic-conventions@1.25.1)(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(webpack@5.91.0)
       '@sentry/node':
         specifier: 8.13.0
         version: 8.13.0
@@ -425,7 +425,7 @@ importers:
         version: 10.45.2(@trpc/server@10.45.2)
       '@trpc/next':
         specifier: ^10.45.0
-        version: 10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/react-query@10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/server@10.45.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/server@10.45.2)(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/react-query@10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/server@10.45.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/server@10.45.2)(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@trpc/react-query':
         specifier: ^10.45.0
         version: 10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/server@10.45.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -506,13 +506,13 @@ importers:
         version: 0.364.0(react@18.2.0)
       next:
         specifier: ^14.2.3
-        version: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       next-auth:
         specifier: ^4.24.7
-        version: 4.24.7(next@14.2.3(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 4.24.7(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       next-query-params:
         specifier: ^5.0.0
-        version: 5.0.0(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(use-query-params@2.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
+        version: 5.0.0(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(use-query-params@2.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
       next-themes:
         specifier: ^0.3.0
         version: 0.3.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -705,20 +705,20 @@ importers:
         specifier: workspace:*
         version: link:../packages/shared
       '@opentelemetry/api':
-        specifier: ^1.4.1
-        version: 1.4.1
+        specifier: ^1.8.0
+        version: 1.8.0
       '@opentelemetry/instrumentation':
         specifier: ^0.52.1
-        version: 0.52.1(@opentelemetry/api@1.4.1)
+        version: 0.52.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/instrumentation-express':
         specifier: ^0.41.1
-        version: 0.41.1(@opentelemetry/api@1.4.1)
+        version: 0.41.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/instrumentation-http':
         specifier: ^0.52.1
-        version: 0.52.1(@opentelemetry/api@1.4.1)
+        version: 0.52.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/instrumentation-ioredis':
         specifier: ^0.42.0
-        version: 0.42.0(@opentelemetry/api@1.4.1)
+        version: 0.42.0(@opentelemetry/api@1.8.0)
       '@prisma/instrumentation':
         specifier: ^5.17.0
         version: 5.17.0
@@ -2436,6 +2436,10 @@ packages:
 
   '@opentelemetry/api@1.4.1':
     resolution: {integrity: sha512-O2yRJce1GOc6PAy3QxFM4NzFiWzvScDC1/5ihYBL6BUEVdq0XMWN01sppE+H6bBXbaFYipjwFLEWLg5PaSOThA==}
+    engines: {node: '>=8.0.0'}
+
+  '@opentelemetry/api@1.8.0':
+    resolution: {integrity: sha512-I/s6F7yKUDdtMsoBWXJe8Qz40Tui5vsuKCWJEWVL+5q9sSWRzzx6v2KeNsOBEwd94j0eWkpWCH4yB6rZg9Mf0w==}
     engines: {node: '>=8.0.0'}
 
   '@opentelemetry/api@1.9.0':
@@ -12840,10 +12844,10 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  '@next-auth/prisma-adapter@1.0.7(@prisma/client@5.16.2(prisma@5.13.0))(next-auth@4.24.7(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
+  '@next-auth/prisma-adapter@1.0.7(@prisma/client@5.16.2(prisma@5.13.0))(next-auth@4.24.7(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
     dependencies:
       '@prisma/client': 5.16.2(prisma@5.13.0)
-      next-auth: 4.24.7(next@14.2.3(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      next-auth: 4.24.7(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
 
   '@next/env@14.2.3': {}
 
@@ -12970,9 +12974,11 @@ snapshots:
 
   '@opentelemetry/api-logs@0.52.1':
     dependencies:
-      '@opentelemetry/api': 1.4.1
+      '@opentelemetry/api': 1.9.0
 
   '@opentelemetry/api@1.4.1': {}
+
+  '@opentelemetry/api@1.8.0': {}
 
   '@opentelemetry/api@1.9.0': {}
 
@@ -12980,9 +12986,9 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.0
 
-  '@opentelemetry/core@1.25.1(@opentelemetry/api@1.4.1)':
+  '@opentelemetry/core@1.25.1(@opentelemetry/api@1.8.0)':
     dependencies:
-      '@opentelemetry/api': 1.4.1
+      '@opentelemetry/api': 1.8.0
       '@opentelemetry/semantic-conventions': 1.25.1
 
   '@opentelemetry/core@1.25.1(@opentelemetry/api@1.9.0)':
@@ -13009,11 +13015,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@opentelemetry/instrumentation-express@0.41.1(@opentelemetry/api@1.4.1)':
+  '@opentelemetry/instrumentation-express@0.41.1(@opentelemetry/api@1.8.0)':
     dependencies:
-      '@opentelemetry/api': 1.4.1
-      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.4.1)
-      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.4.1)
+      '@opentelemetry/api': 1.8.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.8.0)
+      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/semantic-conventions': 1.25.1
     transitivePeerDependencies:
       - supports-color
@@ -13043,11 +13049,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@opentelemetry/instrumentation-http@0.52.1(@opentelemetry/api@1.4.1)':
+  '@opentelemetry/instrumentation-http@0.52.1(@opentelemetry/api@1.8.0)':
     dependencies:
-      '@opentelemetry/api': 1.4.1
-      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.4.1)
-      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.4.1)
+      '@opentelemetry/api': 1.8.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.8.0)
+      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/semantic-conventions': 1.25.1
       semver: 7.6.2
     transitivePeerDependencies:
@@ -13072,19 +13078,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@opentelemetry/instrumentation-ioredis@0.42.0(@opentelemetry/api@1.4.1)':
+  '@opentelemetry/instrumentation-ioredis@0.42.0(@opentelemetry/api@1.8.0)':
     dependencies:
-      '@opentelemetry/api': 1.4.1
-      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.4.1)
-      '@opentelemetry/redis-common': 0.36.2
-      '@opentelemetry/semantic-conventions': 1.25.1
-    transitivePeerDependencies:
-      - supports-color
-
-  '@opentelemetry/instrumentation-ioredis@0.42.0(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@opentelemetry/api': 1.9.0
-      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/api': 1.8.0
+      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/redis-common': 0.36.2
       '@opentelemetry/semantic-conventions': 1.25.1
     transitivePeerDependencies:
@@ -13177,9 +13174,9 @@ snapshots:
       - supports-color
     optional: true
 
-  '@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.4.1)':
+  '@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.8.0)':
     dependencies:
-      '@opentelemetry/api': 1.4.1
+      '@opentelemetry/api': 1.8.0
       '@opentelemetry/api-logs': 0.52.1
       '@types/shimmer': 1.0.5
       import-in-the-middle: 1.8.1
@@ -13203,6 +13200,12 @@ snapshots:
 
   '@opentelemetry/redis-common@0.36.2': {}
 
+  '@opentelemetry/resources@1.25.1(@opentelemetry/api@1.8.0)':
+    dependencies:
+      '@opentelemetry/api': 1.8.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.8.0)
+      '@opentelemetry/semantic-conventions': 1.25.1
+
   '@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.0)':
     dependencies:
       '@opentelemetry/api': 1.9.0
@@ -13215,6 +13218,13 @@ snapshots:
       '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.25.1(@opentelemetry/api@1.9.0)
       lodash.merge: 4.6.2
+
+  '@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.8.0)':
+    dependencies:
+      '@opentelemetry/api': 1.8.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.8.0)
+      '@opentelemetry/resources': 1.25.1(@opentelemetry/api@1.8.0)
+      '@opentelemetry/semantic-conventions': 1.25.1
 
   '@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -14335,20 +14345,20 @@ snapshots:
       '@sentry/types': 8.13.0
       '@sentry/utils': 8.13.0
 
-  '@sentry/nextjs@8.13.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.25.1)(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(webpack@5.91.0)':
+  '@sentry/nextjs@8.13.0(@opentelemetry/api@1.8.0)(@opentelemetry/core@1.25.1(@opentelemetry/api@1.8.0))(@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.8.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.8.0))(@opentelemetry/semantic-conventions@1.25.1)(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(webpack@5.91.0)':
     dependencies:
-      '@opentelemetry/instrumentation-http': 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/instrumentation-http': 0.52.1(@opentelemetry/api@1.8.0)
       '@rollup/plugin-commonjs': 26.0.1(rollup@3.29.4)
       '@sentry/core': 8.13.0
       '@sentry/node': 8.13.0
-      '@sentry/opentelemetry': 8.13.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.25.1)
+      '@sentry/opentelemetry': 8.13.0(@opentelemetry/api@1.8.0)(@opentelemetry/core@1.25.1(@opentelemetry/api@1.8.0))(@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.8.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.8.0))(@opentelemetry/semantic-conventions@1.25.1)
       '@sentry/react': 8.13.0(react@18.2.0)
       '@sentry/types': 8.13.0
       '@sentry/utils': 8.13.0
       '@sentry/vercel-edge': 8.13.0
       '@sentry/webpack-plugin': 2.20.1(webpack@5.91.0)
       chalk: 3.0.0
-      next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       resolve: 1.22.8
       rollup: 3.29.4
       stacktrace-parser: 0.1.10
@@ -14397,6 +14407,17 @@ snapshots:
       opentelemetry-instrumentation-fetch-node: 1.2.0
     transitivePeerDependencies:
       - supports-color
+
+  '@sentry/opentelemetry@8.13.0(@opentelemetry/api@1.8.0)(@opentelemetry/core@1.25.1(@opentelemetry/api@1.8.0))(@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.8.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.8.0))(@opentelemetry/semantic-conventions@1.25.1)':
+    dependencies:
+      '@opentelemetry/api': 1.8.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.8.0)
+      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.8.0)
+      '@opentelemetry/sdk-trace-base': 1.25.1(@opentelemetry/api@1.8.0)
+      '@opentelemetry/semantic-conventions': 1.25.1
+      '@sentry/core': 8.13.0
+      '@sentry/types': 8.13.0
+      '@sentry/utils': 8.13.0
 
   '@sentry/opentelemetry@8.13.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.25.1)':
     dependencies:
@@ -14912,13 +14933,13 @@ snapshots:
     dependencies:
       '@trpc/server': 10.45.2
 
-  '@trpc/next@10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/react-query@10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/server@10.45.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/server@10.45.2)(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@trpc/next@10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/react-query@10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/server@10.45.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/server@10.45.2)(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@tanstack/react-query': 4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@trpc/client': 10.45.2(@trpc/server@10.45.2)
       '@trpc/react-query': 10.45.2(@tanstack/react-query@4.36.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@trpc/client@10.45.2(@trpc/server@10.45.2))(@trpc/server@10.45.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@trpc/server': 10.45.2
-      next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
@@ -15610,7 +15631,7 @@ snapshots:
       '@typescript-eslint/eslint-plugin': 7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
       '@typescript-eslint/parser': 7.12.0(eslint@8.57.0)(typescript@5.4.5)
       eslint-config-prettier: 9.1.0(eslint@8.57.0)
-      eslint-import-resolver-alias: 1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))
+      eslint-import-resolver-alias: 1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0))
       eslint-import-resolver-typescript: 3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0)
       eslint-plugin-eslint-comments: 3.2.0(eslint@8.57.0)
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
@@ -16820,8 +16841,8 @@ snapshots:
       '@datadog/native-metrics': 2.0.0
       '@datadog/pprof': 5.3.0
       '@datadog/sketches-js': 2.1.1
-      '@opentelemetry/api': 1.4.1
-      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.4.1)
+      '@opentelemetry/api': 1.8.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.8.0)
       crypto-randomuuid: 1.0.0
       dc-polyfill: 0.1.6
       ignore: 5.3.1
@@ -17312,7 +17333,7 @@ snapshots:
       eslint: 8.57.0
       eslint-plugin-turbo: 1.13.4(eslint@8.57.0)
 
-  eslint-import-resolver-alias@1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)):
+  eslint-import-resolver-alias@1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)):
     dependencies:
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
 
@@ -20197,13 +20218,13 @@ snapshots:
     dependencies:
       type-fest: 2.19.0
 
-  next-auth@4.24.7(next@14.2.3(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
+  next-auth@4.24.7(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       '@babel/runtime': 7.24.5
       '@panva/hkdf': 1.1.1
       cookie: 0.5.0
       jose: 4.15.5
-      next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       oauth: 0.9.15
       openid-client: 5.6.5
       preact: 10.19.7
@@ -20214,9 +20235,26 @@ snapshots:
     optionalDependencies:
       nodemailer: 6.9.13
 
-  next-query-params@5.0.0(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(use-query-params@2.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)):
+  next-auth@4.24.7(next@14.2.3(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
-      next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@babel/runtime': 7.24.5
+      '@panva/hkdf': 1.1.1
+      cookie: 0.5.0
+      jose: 4.15.5
+      next: 14.2.3(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      oauth: 0.9.15
+      openid-client: 5.6.5
+      preact: 10.19.7
+      preact-render-to-string: 5.2.6(preact@10.19.7)
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      uuid: 8.3.2
+    optionalDependencies:
+      nodemailer: 6.9.13
+
+  next-query-params@5.0.0(next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(use-query-params@2.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)):
+    dependencies:
+      next: 14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react: 18.2.0
       tslib: 2.6.2
       use-query-params: 2.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -20226,7 +20264,34 @@ snapshots:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
-  next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
+  next@14.2.3(@babel/core@7.24.7)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
+    dependencies:
+      '@next/env': 14.2.3
+      '@swc/helpers': 0.5.5
+      busboy: 1.6.0
+      caniuse-lite: 1.0.30001599
+      graceful-fs: 4.2.11
+      postcss: 8.4.31
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      styled-jsx: 5.1.1(@babel/core@7.24.7)(babel-plugin-macros@3.1.0)(react@18.2.0)
+    optionalDependencies:
+      '@next/swc-darwin-arm64': 14.2.3
+      '@next/swc-darwin-x64': 14.2.3
+      '@next/swc-linux-arm64-gnu': 14.2.3
+      '@next/swc-linux-arm64-musl': 14.2.3
+      '@next/swc-linux-x64-gnu': 14.2.3
+      '@next/swc-linux-x64-musl': 14.2.3
+      '@next/swc-win32-arm64-msvc': 14.2.3
+      '@next/swc-win32-ia32-msvc': 14.2.3
+      '@next/swc-win32-x64-msvc': 14.2.3
+      '@opentelemetry/api': 1.8.0
+      '@playwright/test': 1.43.1
+    transitivePeerDependencies:
+      - '@babel/core'
+      - babel-plugin-macros
+
+  next@14.2.3(@opentelemetry/api@1.9.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       '@next/env': 14.2.3
       '@swc/helpers': 0.5.5

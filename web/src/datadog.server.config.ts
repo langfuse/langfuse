@@ -14,16 +14,6 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   provider.register();
 
-  // registerOTel({
-  //   serviceName: "next-app",
-  //   instrumentations: [
-  //     new IORedisInstrumentation(),
-  //     new HttpInstrumentation(),
-  //     new PrismaInstrumentation(),
-  //   ],
-  //   pr
-  // });
-
   registerInstrumentations({
     instrumentations: [
       new IORedisInstrumentation(),
