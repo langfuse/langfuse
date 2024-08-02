@@ -35,14 +35,16 @@ export const shutdown = async (signal: PrexitSignal) => {
         if (typeof window === "undefined") {
           const { redis } = await import("@langfuse/shared/src/server");
           console.log(`Redis status ${redis?.status}`);
-          if (!redis) {
-            return;
-          }
-          if (redis.status === "end") {
+
+          if (redis && redis.status === "end") {
             console.log("Redis connection already closed");
             return;
           }
-          redis?.disconnect();
+          if (redis) {
+            console.log("Closing redis connection");
+            redis?.disconnect();
+          }
+          process.exit(0);
         }
         console.log("Shutdown complete");
         resolve();
