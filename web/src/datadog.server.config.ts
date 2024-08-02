@@ -34,8 +34,7 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   provider.register();
 
-  registerOTel({
-    contextManager,
+  registerInstrumentations({
     instrumentations: [
       getNodeAutoInstrumentations(),
       new HttpInstrumentation(),
