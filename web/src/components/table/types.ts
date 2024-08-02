@@ -6,7 +6,7 @@ export type TableRowOptions = {
   options: { label: string; value: number; icon?: LucideIcon }[];
 };
 
-// extend tanstack ColumnDef to include additional properties
+// extends tanstack ColumnDef to include additional properties
 type ExtendedColumnDef<TData extends RowData, TValue = unknown> = ColumnDef<
   TData,
   TValue
@@ -18,7 +18,7 @@ type ExtendedColumnDef<TData extends RowData, TValue = unknown> = ColumnDef<
   };
 };
 
-// limit types of defined tanstack ColumnDef properties to specific subset of tanstack union
+// limits types of defined tanstack ColumnDef properties to specific subset of tanstack type union
 export type LangfuseColumnDef<
   TData extends RowData,
   TValue = unknown,

@@ -134,6 +134,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         className="max-h-96 overflow-y-auto"
       >
         {columnsByGroup.map(({ title, columns }, index) => {
+          if (!Boolean(columns.length)) return null;
           if (title === UNGROUPED) {
             return columns.map(
               (column) =>
@@ -160,7 +161,6 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             );
           }
 
-          if (!Boolean(columns.length)) return null;
           return (
             <div key={index}>
               <DropdownMenuSeparator />

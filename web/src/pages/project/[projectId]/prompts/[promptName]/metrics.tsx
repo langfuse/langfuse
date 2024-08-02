@@ -15,7 +15,6 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
 import {
   computeAccessorMetrics,
   constructDetailColumns,
@@ -34,8 +33,6 @@ export type PromptVersionTableRow = {
   medianOutputTokens?: number | null;
   medianCost?: number | null;
   generationCount?: number | null;
-  observationScoreMetrics?: ScoreAggregate;
-  traceScoreMetrics?: ScoreAggregate;
   lastUsed?: string | null;
   firstUsed?: string | null;
 
@@ -145,7 +142,6 @@ export default function PromptVersionTable() {
     projectId,
   });
 
-  // I need to take scoreNamesList and construct a list that has each element twice, once prefixed with Generation and once with Trace
   const prefixedNamesList = useMemo(() => {
     if (!scoreNamesList.data) return [];
     return scoreNamesList.data.names.flatMap((name) => [

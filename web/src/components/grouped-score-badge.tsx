@@ -131,7 +131,7 @@ export const GroupedScoreBadges = <T extends APIScore | Score>({
     if (!acc[score.name] || !Array.isArray(acc[score.name])) {
       acc[score.name] = [score];
     } else {
-      (acc[score.name] as T[]).push(score);
+      acc[score.name].push(score);
     }
     return acc;
   }, {});
