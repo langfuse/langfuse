@@ -315,9 +315,12 @@ export const scoresRouter = createTRPCRouter({
       });
 
       return {
-        names: scores.map(({ name, source, dataType }) =>
-          composeAggregateScoreKey({ name, source, dataType }),
-        ),
+        names: scores.map(({ name, source, dataType }) => ({
+          key: composeAggregateScoreKey({ name, source, dataType }),
+          name: name,
+          source: source,
+          dataType: dataType,
+        })),
       };
     }),
 });

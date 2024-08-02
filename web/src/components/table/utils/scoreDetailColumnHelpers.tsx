@@ -8,20 +8,17 @@ import {
   type QuantitativeAggregate,
   type QualitativeAggregate,
   type ScoreAggregate,
-  composeAggregateScoreKey,
 } from "@/src/features/manual-scoring/lib/aggregateScores";
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/[promptName]/metrics";
 import { type ScoreDataType, type ScoreSource } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
 
-const parseColumnForProps = (col: string) => {
-  const [name, source, dataType] = col.split("-");
-  return {
-    name,
-    source: source as ScoreSource,
-    dataType: dataType as ScoreDataType,
-  };
+type ScoreDetailColumnProps = {
+  key: string;
+  name: string;
+  dataType: ScoreDataType;
+  source: ScoreSource;
 };
 
 export const getDataTypeIcon = (dataType: string): string => {
@@ -36,11 +33,20 @@ export const getDataTypeIcon = (dataType: string): string => {
   }
 };
 
-const parseColumnForKeyAndHeader = (col: string) => {
-  const { name, source, dataType } = parseColumnForProps(col);
+const parseColumnForKeyAndHeader = (col: ScoreDetailColumnProps) => {
+  const { key, name, source, dataType } = col;
   return {
-    key: composeAggregateScoreKey({ name, source, dataType }),
+    key,
     header: `${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+  };
+};
+
+// specific to prompt metrics table as it uses prefix to distinguish Generation and Trace metrics
+export const parseMetricsColumn = (col: ScoreDetailColumnProps) => {
+  const [prefix, _] = col.key.split("-");
+  return {
+    key: col.key,
+    header: `${prefix}: ${getDataTypeIcon(col.dataType)} ${col.name} (${col.source.toLowerCase()})`,
   };
 };
 
@@ -52,8 +58,8 @@ const parseDetailColumn = <
     | DatasetRunItemRowData
     | PromptVersionTableRow,
 >(
-  col: string,
-  parseColFct: (col: string) => {
+  col: ScoreDetailColumnProps,
+  parseColFct: (col: ScoreDetailColumnProps) => {
     key: string;
     header: string;
   },
@@ -68,23 +74,16 @@ const parseDetailColumn = <
   };
 };
 
-const computeAccessorDefault = (key: string) => {
-  const { name, source, dataType } = parseColumnForProps(key);
-  return composeAggregateScoreKey({ name, source, dataType });
-};
-
 export function getDetailColumns(
-  scoreColumns: string[],
+  scoreColumns: ScoreDetailColumnProps[],
   scores: ScoreAggregate,
-  computeAccessor = computeAccessorDefault,
 ): ScoreAggregate {
   if (!Boolean(scoreColumns.length)) return {};
   let filteredScores: ScoreAggregate = {};
 
   for (const key in scores) {
-    if (scoreColumns.includes(key)) {
-      const accessor = computeAccessor(key);
-      filteredScores[accessor] = scores[key];
+    if (scoreColumns.some((column) => column.key === key)) {
+      filteredScores[key] = scores[key];
     }
   }
 
@@ -113,9 +112,9 @@ export const constructDetailColumns = <
   showAggregateViewOnly = false,
   parseColumn = parseColumnForKeyAndHeader,
 }: {
-  detailColumnAccessors: string[];
+  detailColumnAccessors: ScoreDetailColumnProps[];
   showAggregateViewOnly?: boolean;
-  parseColumn?: (col: string) => {
+  parseColumn?: (col: ScoreDetailColumnProps) => {
     key: string;
     header: string;
   };
@@ -159,29 +158,5 @@ export const constructDetailColumns = <
       },
     ],
     ungroupedColumns: columns,
-  };
-};
-
-// specific to prompt metrics table as it has both generation and trace scores
-export const computeAccessorMetrics = (col: string) => {
-  const [type, name, source, dataType] = col.split("-");
-  return composeAggregateScoreKey({
-    keyPrefix: type,
-    name,
-    source: source as ScoreSource,
-    dataType: dataType as ScoreDataType,
-  });
-};
-
-export const parseMetricsColumn = (col: string) => {
-  const [type, name, source, dataType] = col.split("-");
-  return {
-    key: composeAggregateScoreKey({
-      keyPrefix: type,
-      name,
-      source: source as ScoreSource,
-      dataType: dataType as ScoreDataType,
-    }),
-    header: `${type}: ${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
   };
 };

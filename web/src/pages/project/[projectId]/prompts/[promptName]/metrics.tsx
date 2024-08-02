@@ -16,7 +16,6 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
-  computeAccessorMetrics,
   constructDetailColumns,
   getDetailColumns,
   parseMetricsColumn,
@@ -144,9 +143,9 @@ export default function PromptVersionTable() {
 
   const prefixedNamesList = useMemo(() => {
     if (!scoreNamesList.data) return [];
-    return scoreNamesList.data.names.flatMap((name) => [
-      `Generation-${name}`,
-      `Trace-${name}`,
+    return scoreNamesList.data.names.flatMap((score) => [
+      { ...score, key: `Generation-${score.key}` },
+      { ...score, key: `Trace-${score.key}` },
     ]);
   }, [scoreNamesList.data]);
 
@@ -343,12 +342,10 @@ export default function PromptVersionTable() {
           const generationDetailColumns = getDetailColumns(
             prefixedNamesList ?? [],
             prompt.observationScores ?? {},
-            computeAccessorMetrics,
           );
           const traceDetailColumns = getDetailColumns(
             prefixedNamesList ?? [],
             prompt.traceScores ?? {},
-            computeAccessorMetrics,
           );
 
           return {
