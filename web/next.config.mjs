@@ -114,7 +114,11 @@ const nextConfig = {
   },
 
   // webassembly support for @dqbd/tiktoken
-  webpack(config) {
+  webpack(config, { isServer }) {
+    if (isServer) {
+      // https://github.com/open-telemetry/opentelemetry-js/issues/4173
+      config.ignoreWarnings = [{ module: /opentelemetry/ }];
+    }
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,

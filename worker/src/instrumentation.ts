@@ -21,7 +21,7 @@ registerInstrumentations({
     new IORedisInstrumentation(),
     new HttpInstrumentation(),
     new ExpressInstrumentation(),
-    new PrismaInstrumentation(),
+    // new PrismaInstrumentation(),
     // getNodeAutoInstrumentations(),
   ],
 });
