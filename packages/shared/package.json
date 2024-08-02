@@ -58,6 +58,7 @@
     "@langchain/core": "^0.1.61",
     "@langchain/openai": "^0.0.33",
     "@prisma/client": "^5.13.0",
+    "@prisma/instrumentation": "^5.17.0",
     "@react-email/components": "^0.0.19",
     "@react-email/render": "^0.0.15",
     "@types/bcryptjs": "^2.4.6",
