@@ -7,6 +7,7 @@ import { repeatQueueExecutor } from "../queues/repeatQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
+import { redis } from "@langfuse/shared/src/server";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
@@ -36,4 +37,5 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info("Redis connection has been closed.");
 
   logger.info("Shutdown complete, exiting process...");
+  process.exit(0);
 };
