@@ -16,6 +16,7 @@
  */
 import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
+import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma } from "@langfuse/shared/src/db";
@@ -104,9 +105,10 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
  */
 export const createTRPCRouter = t.router;
 
-// sentry setup
-const sentryMiddleware = t.middleware(({ next }) => next());
-const withSentryProcedure = t.procedure.use(sentryMiddleware);
+// otel setup
+const withOtelTracingProcedure = t.procedure.use(
+  tracing({ collectInput: true }),
+);
 /**
  * Public (unauthenticated) procedure
  *
@@ -115,7 +117,7 @@ const withSentryProcedure = t.procedure.use(sentryMiddleware);
  * are logged in.
  */
 
-export const publicProcedure = withSentryProcedure;
+export const publicProcedure = withOtelTracingProcedure;
 
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
@@ -138,7 +140,8 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
  *
  * @see https://trpc.io/docs/procedures
  */
-export const protectedProcedure = withSentryProcedure.use(enforceUserIsAuthed);
+export const protectedProcedure =
+  withOtelTracingProcedure.use(enforceUserIsAuthed);
 
 const inputProjectSchema = z.object({
   projectId: z.string(),
@@ -188,7 +191,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
   },
 );
 
-export const protectedProjectProcedure = withSentryProcedure.use(
+export const protectedProjectProcedure = withOtelTracingProcedure.use(
   enforceUserIsAuthedAndProjectMember,
 );
 
@@ -255,7 +258,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
 });
 
 export const protectedGetTraceProcedure =
-  withSentryProcedure.use(enforceTraceAccess);
+  withOtelTracingProcedure.use(enforceTraceAccess);
 
 /*
  * Protect session-level getter routes.
@@ -323,4 +326,4 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
 });
 
 export const protectedGetSessionProcedure =
-  withSentryProcedure.use(enforceSessionAccess);
+  withOtelTracingProcedure.use(enforceSessionAccess);

@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
+    "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
     "@codemirror/lang-json": "^6.0.1",
     "@codemirror/lint": "^6.8.0",
     "@headlessui/react": "1.7.18",
