@@ -43,7 +43,7 @@ const parseColumnForKeyAndHeader = (col: ScoreDetailColumnProps) => {
 
 // specific to prompt metrics table as it uses prefix to distinguish Generation and Trace metrics
 export const parseMetricsColumn = (col: ScoreDetailColumnProps) => {
-  const [prefix, _] = col.key.split("-");
+  const [prefix] = col.key.split("-");
   return {
     key: col.key,
     header: `${prefix}: ${getDataTypeIcon(col.dataType)} ${col.name} (${col.source.toLowerCase()})`,
