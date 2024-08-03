@@ -107,7 +107,7 @@ export const createTRPCRouter = t.router;
 
 // otel setup
 const withOtelTracingProcedure = t.procedure.use(
-  tracing({ collectInput: true }),
+  tracing({ collectInput: true, collectResult: true }),
 );
 /**
  * Public (unauthenticated) procedure
