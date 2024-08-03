@@ -53,7 +53,7 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     instrumentations: [
       new IORedisInstrumentation(),
       new HttpInstrumentation(),
-      new PrismaInstrumentation({ middleware: true }),
+      new PrismaInstrumentation(),
       getNodeAutoInstrumentations(),
     ],
   });
