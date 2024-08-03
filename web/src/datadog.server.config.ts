@@ -33,8 +33,7 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
             const url = new URL(urlString, "http://localhost");
             const path = url.pathname + url.search;
             const resourceGroup = (() => {
-              const segments = url.pathname.split("/").filter(Boolean);
-              return segments.length > 0 ? `/${segments[0]}` : "/";
+              return url.pathname;
             })();
             const method = req.method;
 
@@ -49,12 +48,12 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     },
   });
 
-  registerOTel({
+  registerInstrumentations({
     instrumentations: [
       new IORedisInstrumentation(),
       new HttpInstrumentation(),
       new PrismaInstrumentation(),
-      // getNodeAutoInstrumentations(),
+      getNodeAutoInstrumentations(),
     ],
   });
 
