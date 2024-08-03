@@ -4,7 +4,6 @@ import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import dd from "dd-trace";
-import { registerOTel } from "@vercel/otel";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import ot from "@opentelemetry/api";
@@ -59,3 +58,6 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   provider.register();
 }
+
+export const otelTracer = ot.trace.getTracer("web");
+export const otelMetrics = ot.metrics.getMeter("web");

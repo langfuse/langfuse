@@ -9,7 +9,7 @@ export class PromptService {
   constructor(
     private prisma: PrismaClient,
     private redis: Redis | null,
-    private metricIncrementer?: // used for Sentry metrics
+    private metricIncrementer?: // used for otel metrics
     (name: string, value?: number) => void,
     cacheEnabled?: boolean // used for testing
   ) {
