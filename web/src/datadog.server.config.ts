@@ -5,6 +5,7 @@ import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import dd from "dd-trace";
 import { registerOTel } from "@vercel/otel";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 
 if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
   // const contextManager = new AsyncHooksContextManager().enable();
@@ -51,7 +52,7 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new IORedisInstrumentation(),
       new HttpInstrumentation(),
       new PrismaInstrumentation({ middleware: true }),
-      // getNodeAutoInstrumentations(),
+      getNodeAutoInstrumentations(),
     ],
   });
 
