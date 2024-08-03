@@ -6,11 +6,13 @@ import { PrismaInstrumentation } from "@prisma/instrumentation";
 import dd from "dd-trace";
 import { registerOTel } from "@vercel/otel";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
+import ot from "@opentelemetry/api";
 
 if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-  // const contextManager = new AsyncHooksContextManager().enable();
+  const contextManager = new AsyncHooksContextManager().enable();
 
-  // context.setGlobalContextManager(contextManager);
+  ot.context.setGlobalContextManager(contextManager);
 
   const tracer = dd.init({
     profiling: false,

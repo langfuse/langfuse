@@ -330,6 +330,9 @@ importers:
       '@opentelemetry/auto-instrumentations-node':
         specifier: ^0.44.0
         version: 0.44.0(@opentelemetry/api@1.8.0)
+      '@opentelemetry/context-async-hooks':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/core':
         specifier: ^1.14.0
         version: 1.25.1(@opentelemetry/api@1.8.0)
@@ -13428,6 +13431,10 @@ snapshots:
       - supports-color
 
   '@opentelemetry/context-async-hooks@1.23.0(@opentelemetry/api@1.8.0)':
+    dependencies:
+      '@opentelemetry/api': 1.8.0
+
+  '@opentelemetry/context-async-hooks@1.25.1(@opentelemetry/api@1.8.0)':
     dependencies:
       '@opentelemetry/api': 1.8.0
 
