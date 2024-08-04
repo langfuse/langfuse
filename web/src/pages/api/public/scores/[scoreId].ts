@@ -8,6 +8,7 @@ import {
   GetScoreResponse,
 } from "@/src/features/public-api/types/scores";
 import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
+import { addExceptionToSpan } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -31,6 +32,7 @@ export default withMiddlewares({
       const parsedScore = GetScoreResponse.safeParse(score);
 
       if (!parsedScore.success) {
+        addExceptionToSpan(parsedScore.error);
         throw new InternalServerError("Requested score is corrupted");
       }
 

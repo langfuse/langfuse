@@ -4,7 +4,10 @@ import {
   NonEmptyString,
   type Score,
 } from "@langfuse/shared";
-import { stringDateTime } from "@langfuse/shared/src/server";
+import {
+  addExceptionToSpan,
+  stringDateTime,
+} from "@langfuse/shared/src/server";
 
 import { z } from "zod";
 import { isPresent } from "@/src/utils/typeChecks";
@@ -166,6 +169,7 @@ export const filterAndValidateDbScoreList = (scores: Score[]): APIScore[] =>
       acc.push(result.data);
     } else {
       console.error("Score parsing error: ", result.error);
+      addExceptionToSpan(result.error);
     }
     return acc;
   }, [] as APIScore[]);
@@ -269,6 +273,7 @@ export const legacyFilterAndValidateV1GetScoreList = (
         acc.push(result.data);
       } else {
         console.error("Score parsing error: ", result.error);
+        addExceptionToSpan(result.error);
       }
       return acc;
     },

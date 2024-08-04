@@ -17,6 +17,7 @@ import {
   type ingestionApiSchema,
   eventTypes,
   ingestionEvent,
+  addExceptionToSpan,
 } from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
@@ -410,6 +411,7 @@ export const handleBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
+    addExceptionToSpan(errors);
     console.log("Error processing events", returnedErrors);
   }
 
@@ -492,6 +494,7 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   const parsedObj = object.safeParse(results[0].result);
   if (!parsedObj.success) {
     console.error("Error parsing response", parsedObj.error);
+    addExceptionToSpan(parsedObj.error);
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;

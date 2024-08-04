@@ -17,7 +17,12 @@ import {
   ForbiddenError,
   type Prompt,
 } from "@langfuse/shared";
-import { PromptService, redis, recordCount } from "@langfuse/shared/src/server";
+import {
+  PromptService,
+  redis,
+  recordCount,
+  addExceptionToSpan,
+} from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 
 export default async function handler(
@@ -97,6 +102,7 @@ export default async function handler(
     throw new MethodNotAllowedError();
   } catch (error: unknown) {
     console.error(error);
+    addExceptionToSpan(error);
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({

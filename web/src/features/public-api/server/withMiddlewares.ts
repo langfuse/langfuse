@@ -3,6 +3,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { BaseError, MethodNotAllowedError } from "@langfuse/shared";
+import { addExceptionToSpan } from "@langfuse/shared/src/server";
 
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
@@ -41,6 +42,9 @@ export function withMiddlewares(handlers: Handlers) {
       console.error(error);
 
       if (error instanceof BaseError) {
+        if (error.httpCode >= 500 && error.httpCode < 600) {
+          addExceptionToSpan(error);
+        }
         return res.status(error.httpCode).json({
           message: error.message,
           error: error.name,
@@ -48,6 +52,7 @@ export function withMiddlewares(handlers: Handlers) {
       }
 
       if (isPrismaException(error)) {
+        addExceptionToSpan(error);
         return res.status(500).json({
           message: "Internal Server Error",
           error: "An unknown error occurred",
@@ -61,6 +66,7 @@ export function withMiddlewares(handlers: Handlers) {
         });
       }
 
+      addExceptionToSpan(error);
       return res.status(500).json({
         message: "Internal Server Error",
         error:

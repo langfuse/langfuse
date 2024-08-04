@@ -5,6 +5,7 @@ import {
   paginationZod,
   type ScoreConfig as ScoreConfigDbType,
 } from "@langfuse/shared";
+import { addExceptionToSpan } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 /**
@@ -154,11 +155,8 @@ export const filterAndValidateDbScoreConfigList = (
     if (result.success) {
       acc.push(result.data);
     } else {
-      console.error(
-        "Failed to validate score config:",
-        result.error.errors,
-        ts,
-      );
+      console.error("Failed to validate score config:", result.error.errors);
+      addExceptionToSpan(result.error);
     }
     return acc;
   }, [] as ValidatedScoreConfig[]);
