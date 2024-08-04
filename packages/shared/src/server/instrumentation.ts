@@ -59,7 +59,7 @@ export const addExceptionToSpan = (ex: ot.Exception, span?: ot.Span) => {
 };
 
 export const addUserToSpan = (
-  attibutes: { userId?: string; project_id?: string; email?: string },
+  attibutes: { userId?: string; projectId?: string; email?: string },
   span?: ot.Span
 ) => {
   const activeSpan = span ?? getCurrentSpan();
@@ -70,14 +70,14 @@ export const addUserToSpan = (
 
   attibutes.userId && activeSpan.setAttribute("user.id", attibutes.userId);
   attibutes.email && activeSpan.setAttribute("user.email", attibutes.email);
-  attibutes.project_id &&
-    activeSpan.setAttribute("project.id", attibutes.project_id);
+  attibutes.projectId &&
+    activeSpan.setAttribute("project.id", attibutes.projectId);
 
   attibutes.userId &&
     dd.setUser({
       id: attibutes.userId,
       email: attibutes.email,
-      scope: attibutes.project_id,
+      scope: attibutes.projectId,
     });
 };
 

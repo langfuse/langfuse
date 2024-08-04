@@ -1,5 +1,9 @@
 import { env } from "@/src/env.mjs";
-import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
+import {
+  addUserToSpan,
+  createShaHash,
+  verifySecretKey,
+} from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { type PrismaClient, type ApiKey } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
@@ -143,6 +147,8 @@ export class ApiAuthService {
           console.log("No project id found for key", publicKey);
           throw new Error("Invalid credentials");
         }
+
+        addUserToSpan({ projectId });
 
         return {
           validKey: true,

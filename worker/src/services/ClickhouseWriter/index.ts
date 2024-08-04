@@ -128,7 +128,7 @@ export class ClickhouseWriter {
         entityQueue.length,
         {
           unit: "records",
-          tags: { entityType: tableName },
+          entityType: tableName,
         }
       );
     } catch (err) {
