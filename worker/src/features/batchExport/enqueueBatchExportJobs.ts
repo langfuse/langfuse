@@ -3,6 +3,8 @@ import { kyselyPrisma } from "@langfuse/shared/src/db";
 
 import logger from "../../logger";
 import { batchExportQueue } from "../../queues/batchExportQueue";
+import { add } from "lodash";
+import { addExceptionToSpan } from "@langfuse/shared/src/server";
 
 /**
  * Enqueues batch export jobs from the database to the job queue.
@@ -42,5 +44,6 @@ export async function enqueueBatchExportJobs() {
       "Error while checking for QUEUED batch export jobs in postgres",
       error
     );
+    addExceptionToSpan(error);
   }
 }

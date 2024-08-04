@@ -3,6 +3,7 @@ import basicAuth from "express-basic-auth";
 import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  addExceptionToSpan,
   clickhouseClient,
   convertTraceUpsertEventsToRedisEvents,
   getTraceUpsertQueue,
@@ -17,6 +18,7 @@ import { batchExportQueue } from "../queues/batchExportQueue";
 import { ingestionFlushQueue } from "../queues/ingestionFlushQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
+import { add } from "lodash";
 
 const router = express.Router();
 
@@ -120,7 +122,7 @@ router
       return res.status(400).send();
     } catch (e) {
       logger.error(e, "Error processing events");
-
+      addExceptionToSpan(e);
       return res.status(500).json({
         status: "error",
       });

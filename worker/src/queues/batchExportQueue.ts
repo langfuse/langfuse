@@ -8,7 +8,10 @@ import {
 } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import {
+  addExceptionToSpan,
+  instrumentAsync,
+} from "@langfuse/shared/src/server";
 import logger from "../logger";
 import { redis } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
@@ -63,7 +66,7 @@ export const batchExportJobExecutor = redis
                 e,
                 `Failed Batch Export job for id ${job.data.payload.batchExportId} ${e}`
               );
-
+              addExceptionToSpan(e);
               throw e;
             }
           }

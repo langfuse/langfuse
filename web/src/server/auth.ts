@@ -31,8 +31,10 @@ import {
 import { z } from "zod";
 import {
   CustomSSOProvider,
+  addExceptionToSpan,
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
+import { add } from "lodash";
 
 export const cloudConfigSchema = z.object({
   plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
@@ -276,6 +278,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     dynamicSsoProviders = await loadSsoProviders();
   } catch (e) {
     console.error("Error loading dynamic SSO providers", e);
+    addExceptionToSpan(e);
   }
   const providers = [...staticProviders, ...dynamicSsoProviders];
 
