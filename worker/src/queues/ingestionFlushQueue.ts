@@ -7,7 +7,7 @@ import { env } from "../env";
 import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
-import { otelMetrics } from "../instrumentation";
+// import { otelMetrics } from "../instrumentation";
 
 export type IngestionFlushQueue = Queue<null>;
 
@@ -39,9 +39,9 @@ export const flushIngestionQueueExecutor = redis
             `Received flush request after ${waitTime} ms for ${projectEntityId}`
           );
 
-          otelMetrics
-            .createHistogram("ingestion_flush_wait_time")
-            .record(waitTime, { metric: "milliseconds" });
+          // otelMetrics
+          //   .createHistogram("ingestion_flush_wait_time")
+          //   .record(waitTime, { metric: "milliseconds" });
 
           // Check dependencies
           if (!redis) throw new Error("Redis not available");
@@ -66,20 +66,20 @@ export const flushIngestionQueueExecutor = redis
           logger.debug(
             `Prepared and scheduled CH-write in ${processingTime} ms for ${projectEntityId}`
           );
-          otelMetrics
-            .createHistogram("ingestion_flush_processing_time")
-            .record(processingTime, { metric: "milliseconds" });
+          // otelMetrics
+          //   .createHistogram("ingestion_flush_processing_time")
+          //   .record(processingTime, { metric: "milliseconds" });
 
           // Log queue size
           await ingestionFlushQueue
             .count()
             .then((count) => {
               logger.debug(`Ingestion flush queue length: ${count}`);
-              otelMetrics
-                .createCounter("ingestion_flush_queue_length", {
-                  unit: "records",
-                })
-                .add(count);
+              // otelMetrics
+              //   .createCounter("ingestion_flush_queue_length", {
+              //     unit: "records",
+              //   })
+              //   .add(count);
 
               return count;
             })

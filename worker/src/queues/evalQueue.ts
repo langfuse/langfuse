@@ -10,7 +10,7 @@ import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";
 import { redis } from "@langfuse/shared/src/server";
-import { instrumentAsync } from "../instrumentation";
+import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
 
 export const evalQueue = redis
@@ -27,7 +27,12 @@ export const evalJobCreator = redis
       QueueName.TraceUpsert,
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         return instrumentAsync(
-          { name: "evalJobCreator", root: true, kind: SpanKind.CONSUMER },
+          {
+            name: "evalJobCreator",
+            traceScope: "eval-job-creator",
+            rootSpan: true,
+            spanKind: SpanKind.CONSUMER,
+          },
           async () => {
             try {
               await createEvalJobs({ event: job.data.payload });
@@ -59,7 +64,12 @@ export const evalJobExecutor = redis
       QueueName.EvaluationExecution,
       async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
         return instrumentAsync(
-          { name: "evalJobExecutor", root: true, kind: SpanKind.CONSUMER },
+          {
+            name: "evalJobExecutor",
+            rootSpan: true,
+            spanKind: SpanKind.CONSUMER,
+            traceScope: "eval-execution",
+          },
           async () => {
             try {
               logger.info("Executing Evaluation Execution Job", job.data);

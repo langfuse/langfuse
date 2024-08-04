@@ -18,7 +18,7 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     runtimeMetrics: true,
   });
 
-  const { TracerProvider } = tracer.init({});
+  const { TracerProvider } = tracer.init();
 
   const provider = new TracerProvider();
 
@@ -58,6 +58,3 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   provider.register();
 }
-
-export const otelTracer = ot.trace.getTracer("web");
-export const otelMetrics = ot.metrics.getMeter("web");

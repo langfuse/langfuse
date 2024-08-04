@@ -22,7 +22,7 @@ import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@langfuse/shared";
-import { instrumentAsync } from "@/src/utils/instrumentation";
+import { instrumentAsync } from "@langfuse/shared/src/server";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
@@ -105,7 +105,7 @@ export const traceRouter = createTRPCRouter({
       );
 
       const traces = await instrumentAsync(
-        { name: "get-all-traces" },
+        { name: "get-all-traces", traceScope: "trace-router" },
         async () =>
           await ctx.prisma.$queryRaw<
             Array<

@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { type EventBodyType } from "@langfuse/shared";
 import { type IngestionApiSchemaWithProjectId } from "@langfuse/shared/src/server";
-import { instrumentAsync } from "@/src/utils/instrumentation";
+import { instrumentAsync } from "@langfuse/shared/src/server";
 
 export class WorkerClient {
   readonly enabled: boolean;
@@ -29,15 +29,18 @@ export class WorkerClient {
   }
 
   async sendIngestionBatch(params: IngestionApiSchemaWithProjectId) {
-    await instrumentAsync({ name: "insert-clickhouse" }, async () => {
-      await this.sendWorkerRequest({
-        method: "POST",
-        route: "/api/ingestion",
-        body: params,
-      }).catch((error) => {
-        console.error("Error sending events to worker", error);
-      });
-    });
+    await instrumentAsync(
+      { name: "insert-clickhouse", traceScope: "ingestion-pipeline" },
+      async () => {
+        await this.sendWorkerRequest({
+          method: "POST",
+          route: "/api/ingestion",
+          body: params,
+        }).catch((error) => {
+          console.error("Error sending events to worker", error);
+        });
+      },
+    );
   }
 
   private async sendWorkerRequest(params: {

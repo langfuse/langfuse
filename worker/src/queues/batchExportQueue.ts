@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
-import { instrumentAsync } from "../instrumentation";
+import { instrumentAsync } from "@langfuse/shared/src/server";
 import logger from "../logger";
 import { redis } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
@@ -32,8 +32,9 @@ export const batchExportJobExecutor = redis
         return instrumentAsync(
           {
             name: "batchExportJobExecutor",
-            root: true,
-            kind: SpanKind.CONSUMER,
+            traceScope: "batch-export",
+            rootSpan: true,
+            spanKind: SpanKind.CONSUMER,
           },
           async () => {
             try {
