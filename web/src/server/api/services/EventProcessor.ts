@@ -8,6 +8,7 @@ import {
   type generationCreateEvent,
   type sdkLogEvent,
   type traceEvent,
+  instrument,
 } from "@langfuse/shared/src/server";
 import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
 import { type ObservationEvent, findModel } from "@langfuse/shared/src/server";
@@ -24,7 +25,6 @@ import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@langfuse/shared";
 import { ForbiddenError } from "@langfuse/shared";
-import { instrument } from "@/src/utils/instrumentation";
 import Decimal from "decimal.js";
 import {
   ScoreBodyWithoutConfig,
@@ -316,31 +316,34 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation,
   ) {
-    return instrument({ name: "calculate-tokens" }, () => {
-      const newPromptTokens =
-        body.usage?.input ??
-        ((body.input || existingObservation?.input) &&
-        model &&
-        model.tokenizerId
-          ? tokenCount({
-              model: model,
-              text: body.input ?? existingObservation?.input,
-            })
-          : undefined);
+    return instrument(
+      { name: "calculate-tokens", traceScope: "token-calculation" },
+      () => {
+        const newPromptTokens =
+          body.usage?.input ??
+          ((body.input || existingObservation?.input) &&
+          model &&
+          model.tokenizerId
+            ? tokenCount({
+                model: model,
+                text: body.input ?? existingObservation?.input,
+              })
+            : undefined);
 
-      const newCompletionTokens =
-        body.usage?.output ??
-        ((body.output || existingObservation?.output) &&
-        model &&
-        model.tokenizerId
-          ? tokenCount({
-              model: model,
-              text: body.output ?? existingObservation?.output,
-            })
-          : undefined);
+        const newCompletionTokens =
+          body.usage?.output ??
+          ((body.output || existingObservation?.output) &&
+          model &&
+          model.tokenizerId
+            ? tokenCount({
+                model: model,
+                text: body.output ?? existingObservation?.output,
+              })
+            : undefined);
 
-      return [newPromptTokens, newCompletionTokens];
-    });
+        return [newPromptTokens, newCompletionTokens];
+      },
+    );
   }
 
   static calculateTokenCosts(
