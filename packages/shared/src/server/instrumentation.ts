@@ -83,3 +83,31 @@ export const addUserToSpan = (
 
 export const getTracer = (name: string) => ot.trace.getTracer(name);
 export const getMeter = (name: string) => ot.metrics.getMeter(name);
+
+export const recordGauge = (
+  stat: string,
+  value?: number | undefined,
+  tags?:
+    | {
+        [tag: string]: string | number;
+      }
+    | undefined
+) => {
+  dd.dogstatsd.gauge(stat, value, tags);
+};
+
+export const recordCount = (
+  stat: string,
+  value?: number | undefined,
+  tags?: { [tag: string]: string | number } | undefined
+) => {
+  dd.dogstatsd.increment(stat, value, tags);
+};
+
+export const recordHistogram = (
+  stat: string,
+  value?: number | undefined,
+  tags?: { [tag: string]: string | number } | undefined
+) => {
+  dd.dogstatsd.histogram(stat, value, tags);
+};

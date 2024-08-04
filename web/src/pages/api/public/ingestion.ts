@@ -41,7 +41,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { redis } from "@langfuse/shared/src/server";
+import { redis, recordCount, recordGauge } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
@@ -84,10 +84,10 @@ export default async function handler(
 
     const parsedSchema = batchType.safeParse(req.body);
 
-    // Sentry.metrics.increment(
-    //   "ingestion_event",
-    //   parsedSchema.success ? parsedSchema.data.batch.length : 0,
-    // );
+    recordCount(
+      "ingestion_event",
+      parsedSchema.success ? parsedSchema.data.batch.length : 0,
+    );
 
     await gaugePrismaStats();
 
@@ -575,6 +575,6 @@ const gaugePrismaStats = async () => {
   const metrics = await prisma.$metrics.json();
 
   metrics.gauges.forEach((gauge) => {
-    // Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
+    recordGauge(gauge.key, gauge.value, gauge.labels);
   });
 };

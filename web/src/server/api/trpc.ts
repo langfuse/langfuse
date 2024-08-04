@@ -56,6 +56,11 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
   // Get the session from the server using the getServerSession wrapper function
   const session = await getServerAuthSession({ req, res });
 
+  addUserToSpan({
+    userId: session?.user?.id,
+    email: session?.user?.email ?? undefined,
+  });
+
   return createInnerTRPCContext({
     session,
   });
@@ -74,6 +79,7 @@ import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { addUserToSpan } from "@langfuse/shared/src/server";
 
 setUpSuperjson();
 

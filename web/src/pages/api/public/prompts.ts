@@ -17,7 +17,7 @@ import {
   ForbiddenError,
   type Prompt,
 } from "@langfuse/shared";
-import { PromptService, redis } from "@langfuse/shared/src/server";
+import { PromptService, redis, recordCount } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 
 export default async function handler(
@@ -46,11 +46,7 @@ export default async function handler(
       const promptName = searchParams.name;
       const version = searchParams.version ?? undefined;
 
-      const promptService = new PromptService(
-        prisma,
-        redis,
-        // Sentry.metrics.increment,
-      );
+      const promptService = new PromptService(prisma, redis, recordCount);
 
       let prompt: Prompt | null = null;
 
