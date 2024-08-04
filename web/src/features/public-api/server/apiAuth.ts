@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   addUserToSpan,
   createShaHash,
+  recordCount,
   verifySecretKey,
 } from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
@@ -9,7 +10,6 @@ import { type PrismaClient, type ApiKey } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis } from "ioredis";
 import { z } from "zod";
-import { otelMetrics } from "@/src/datadog.server.config";
 
 export type AuthHeaderVerificationResult =
   | AuthHeaderValidVerificationResult
@@ -164,6 +164,8 @@ export class ApiAuthService {
 
         const dbKey = await this.findDbKeyOrThrow(publicKey);
 
+        addUserToSpan({ projectId: dbKey.projectId });
+
         return {
           validKey: true,
           scope: {
@@ -222,17 +224,17 @@ export class ApiAuthService {
     const redisApiKey = await this.fetchApiKeyFromRedis(hash);
 
     if (redisApiKey === API_KEY_NON_EXISTENT) {
-      otelMetrics.createCounter("api_key_cache_hit").add(1);
+      recordCount("api_key_cache_hit", 1);
       throw new Error("Invalid credentials");
     }
 
     // if we found something, return the object.
     if (redisApiKey) {
-      otelMetrics.createCounter("api_key_cache_hit").add(1);
+      recordCount("api_key_cache_hit", 1);
       return redisApiKey;
     }
 
-    otelMetrics.createCounter("api_key_cache_miss").add(1);
+    recordCount("api_key_cache_miss", 1);
 
     // if redis not available or object not found, try the database
     const apiKey = await this.prisma.apiKey.findUnique({
