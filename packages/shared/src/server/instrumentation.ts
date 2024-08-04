@@ -73,12 +73,7 @@ export const addUserToSpan = (
   attibutes.projectId &&
     activeSpan.setAttribute("project.id", attibutes.projectId);
 
-  attibutes.userId &&
-    dd.setUser({
-      id: attibutes.userId,
-      email: attibutes.email,
-      scope: attibutes.projectId,
-    });
+  console.log("attibutes.userId", attibutes.userId);
 };
 
 export const getTracer = (name: string) => ot.trace.getTracer(name);
