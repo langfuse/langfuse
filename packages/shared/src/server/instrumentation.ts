@@ -47,14 +47,14 @@ export async function instrumentAsync<T>(
 
 export const getCurrentSpan = () => ot.trace.getActiveSpan();
 
-export const addExceptionToSpan = (ex: ot.Exception, span?: ot.Span) => {
+export const addExceptionToSpan = (ex: unknown, span?: ot.Span) => {
   const activeSpan = span ?? getCurrentSpan();
 
   if (!activeSpan) {
     return;
   }
 
-  activeSpan.recordException(ex);
+  activeSpan.recordException(ex as ot.Exception);
   activeSpan.setStatus({ code: ot.SpanStatusCode.ERROR });
 };
 

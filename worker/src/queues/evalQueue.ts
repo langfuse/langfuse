@@ -9,7 +9,7 @@ import { evaluate, createEvalJobs } from "../features/evaluation/eval-service";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";
-import { redis } from "@langfuse/shared/src/server";
+import { addExceptionToSpan, redis } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
 
@@ -42,6 +42,7 @@ export const evalJobCreator = redis
                 e,
                 `Failed job Evaluation for traceId ${job.data.payload.traceId} ${e}`
               );
+              addExceptionToSpan(e);
               throw e;
             }
           }
@@ -103,7 +104,7 @@ export const evalJobExecutor = redis
                   `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`
                 );
               }
-
+              addExceptionToSpan(e);
               throw e;
             }
           }
