@@ -18,7 +18,6 @@ import { batchExportQueue } from "../queues/batchExportQueue";
 import { ingestionFlushQueue } from "../queues/ingestionFlushQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
-import { add } from "lodash";
 
 const router = express.Router();
 

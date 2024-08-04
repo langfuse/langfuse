@@ -34,7 +34,6 @@ import {
   addExceptionToSpan,
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
-import { add } from "lodash";
 
 export const cloudConfigSchema = z.object({
   plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
