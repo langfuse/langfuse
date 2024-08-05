@@ -1,4 +1,4 @@
-import { ScoresAggregateCell } from "@/src/components/grouped-score-badge";
+import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type GenerationsTableRow } from "@/src/components/table/use-cases/generations";
 import { type TracesTableRow } from "@/src/components/table/use-cases/traces";
@@ -139,7 +139,7 @@ export const constructIndividualScoreColumns = <
 
         if (!value) return null;
         return (
-          <ScoresAggregateCell
+          <ScoresTableCell
             aggregate={value}
             showSingleValue={!showAggregateViewOnly}
           />

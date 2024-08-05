@@ -4,123 +4,10 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import {
-  type NumericAggregate,
-  type CategoricalAggregate,
-} from "@/src/features/manual-scoring/lib/aggregateScores";
-import { type APIScore } from "@/src/features/public-api/types/scores";
-
-import { numberFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
-import { type Score } from "@langfuse/shared";
 import { MessageCircleMore } from "lucide-react";
 
-const COLOR_MAP = new Map([
-  ["True", "bg-light-green p-0.5 text-dark-green"],
-  ["False", "bg-light-red p-0.5 text-dark-red"],
-]);
-
-const SingleScoreValue = ({
-  value,
-  comment,
-  showColorCoding = false,
-}: {
-  value: string;
-  comment?: string | null;
-  showColorCoding?: boolean;
-}) => {
-  return (
-    <span
-      className={cn(
-        "group/score ml-1 rounded-sm first:ml-0",
-        showColorCoding && COLOR_MAP.get(value),
-      )}
-    >
-      {value}
-      {comment && (
-        <HoverCard>
-          <HoverCardTrigger className="ml-1 inline-block cursor-pointer">
-            <MessageCircleMore size={12} />
-          </HoverCardTrigger>
-          <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
-            <p>{comment}</p>
-          </HoverCardContent>
-        </HoverCard>
-      )}
-      <span className="group-last/score:hidden">,</span>
-    </span>
-  );
-};
-
-const DETAIL_HOVER_AFTER = 2;
-
-export const ScoresAggregateCell = ({
-  aggregate,
-  showSingleValue = false,
-}: {
-  aggregate: CategoricalAggregate | NumericAggregate;
-  showSingleValue?: boolean;
-}) => {
-  if (showSingleValue && aggregate.values.length === 1) {
-    return (
-      <SingleScoreValue
-        value={
-          aggregate.type === "CATEGORICAL"
-            ? aggregate.values[0]
-            : aggregate.average.toFixed(2)
-        }
-        comment={aggregate.comment}
-        showColorCoding
-      />
-    );
-  }
-
-  if (aggregate.type === "NUMERIC") {
-    return (
-      <SingleScoreValue
-        value={`Ø ${aggregate.average.toFixed(2)}`}
-        showColorCoding
-      />
-    );
-  } else if (aggregate.type === "CATEGORICAL") {
-    return (
-      <div className="group">
-        {aggregate.valueCounts.length > DETAIL_HOVER_AFTER ? (
-          <HoverCard>
-            <HoverCardTrigger>
-              <div className="flex cursor-pointer flex-col group-hover:text-accent-dark-blue/55">
-                {aggregate.valueCounts
-                  .slice(0, DETAIL_HOVER_AFTER)
-                  .map(({ value, count }) => (
-                    <span key={value} className="truncate">
-                      {`${value}: ${numberFormatter(count, 0)}`}
-                    </span>
-                  ))}
-              </div>
-            </HoverCardTrigger>
-            <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto whitespace-normal break-normal">
-              {aggregate.valueCounts.map(({ value, count }) => (
-                <div className="truncate" key={value}>
-                  {value}: {numberFormatter(count, 0)}
-                </div>
-              ))}
-            </HoverCardContent>
-          </HoverCard>
-        ) : (
-          <div className="flex flex-col">
-            {aggregate.valueCounts.map(({ value, count }) => (
-              <span key={value} className="truncate">
-                {`${value}: ${numberFormatter(count, 0)}`}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return null;
-};
+import { type APIScore } from "@/src/features/public-api/types/scores";
+import { type Score } from "@langfuse/shared";
 
 export const GroupedScoreBadges = <T extends APIScore | Score>({
   scores,
@@ -151,11 +38,23 @@ export const GroupedScoreBadges = <T extends APIScore | Score>({
             </p>
             <div className="flex items-center gap-3 text-nowrap">
               {scores.map((s, i) => (
-                <SingleScoreValue
+                <span
                   key={i}
-                  value={s.stringValue ?? s.value?.toFixed(2) ?? ""}
-                  comment={s.comment}
-                />
+                  className="group/score ml-1 rounded-sm first:ml-0"
+                >
+                  {s.stringValue ?? s.value?.toFixed(2) ?? ""}
+                  {s.comment && (
+                    <HoverCard>
+                      <HoverCardTrigger className="ml-1 inline-block cursor-pointer">
+                        <MessageCircleMore size={12} />
+                      </HoverCardTrigger>
+                      <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
+                        <p>{s.comment}</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  )}
+                  <span className="group-last/score:hidden">,</span>
+                </span>
               ))}
             </div>
           </Badge>
