@@ -39,6 +39,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -308,7 +309,6 @@ export default function TracesTable({
           <TableLink
             path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
@@ -331,7 +331,6 @@ export default function TracesTable({
           <TableLink
             path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
@@ -666,7 +665,7 @@ export default function TracesTable({
           currentQuery: searchQuery ?? undefined,
         }}
         filterState={userFilterState}
-        setFilterState={setUserFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         actionButtons={
           Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),

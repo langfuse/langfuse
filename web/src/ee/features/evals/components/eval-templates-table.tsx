@@ -48,7 +48,6 @@ export default function EvalsTemplateTable({
           <TableLink
             path={`/project/${projectId}/evals/templates/${encodeURIComponent(id)}`}
             value={name}
-            truncateAt={50}
           />
         ) : undefined;
       },

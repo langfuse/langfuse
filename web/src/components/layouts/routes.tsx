@@ -23,7 +23,7 @@ export type Route = {
   name: string;
   featureFlag?: Flag;
   label?: string | ReactNode;
-  rbacScope?: Scope;
+  projectRbacScope?: Scope;
   icon?: LucideIcon | typeof LangfuseIcon; // ignored for nested routes
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
@@ -86,19 +86,19 @@ export const ROUTES: Route[] = [
         name: "Templates",
         pathname: `/project/[projectId]/evals/templates`,
         entitlement: "model-based-evaluations",
-        rbacScope: "evalTemplate:read",
+        projectRbacScope: "evalTemplate:read",
       },
       {
         name: "Configs",
         pathname: `/project/[projectId]/evals/configs`,
         entitlement: "model-based-evaluations",
-        rbacScope: "evalJob:read",
+        projectRbacScope: "evalJob:read",
       },
       {
         name: "Log",
         pathname: `/project/[projectId]/evals/log`,
         entitlement: "model-based-evaluations",
-        rbacScope: "evalJobExecution:read",
+        projectRbacScope: "evalJobExecution:read",
       },
     ],
   },
@@ -111,14 +111,13 @@ export const ROUTES: Route[] = [
     name: "Prompts",
     pathname: "/project/[projectId]/prompts",
     icon: PenSquareIcon,
-    rbacScope: "prompts:read",
+    projectRbacScope: "prompts:read",
   },
   {
     name: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
     entitlement: "playground",
-    label: "Beta",
   },
   {
     name: "Datasets",

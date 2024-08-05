@@ -24,6 +24,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { type FilterState } from "@langfuse/shared";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 type PromptTableRow = {
   name: string;
@@ -159,7 +160,6 @@ export function PromptTable() {
           <TableLink
             path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
-            truncateAt={50}
           />
         ) : undefined;
       },
@@ -256,7 +256,7 @@ export function PromptTable() {
           promptFilterOptions.data,
         )}
         filterState={filterState}
-        setFilterState={setFilterState}
+        setFilterState={useDebounce(setFilterState)}
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={

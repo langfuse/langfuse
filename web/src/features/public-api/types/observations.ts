@@ -2,8 +2,9 @@ import {
   type ObservationView,
   paginationMetaResponseZod,
   paginationZod,
-  stringDateTime,
 } from "@langfuse/shared";
+
+import { stringDateTime } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 /**

@@ -9,6 +9,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useDebounce } from "@/src/hooks/useDebounce";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
   type ScoreOptions,
@@ -191,7 +192,6 @@ export default function ScoresTable({
           <TableLink
             path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
@@ -214,7 +214,6 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/users/${value}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -314,7 +313,6 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/evals/configs/${value}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -371,7 +369,7 @@ export default function ScoresTable({
         columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={userFilterState}
-        setFilterState={setUserFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}

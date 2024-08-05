@@ -28,6 +28,34 @@ const EnvSchema = z.object({
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
+  LANGFUSE_INGESTION_BUFFER_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(60 * 10),
+  LANGFUSE_INGESTION_FLUSH_DELAY_MS: z.coerce
+    .number()
+    .nonnegative()
+    .default(10000),
+  LANGFUSE_INGESTION_FLUSH_ATTEMPTS: z.coerce.number().positive().default(3),
+  LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(100),
+  LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(1000),
+  LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(3000),
+  LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: z.coerce
+    .number()
+    .positive()
+    .default(3),
+  LANGFUSE_LOG_LEVEL: z
+    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
+    .optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number({

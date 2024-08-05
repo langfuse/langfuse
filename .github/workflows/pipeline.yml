@@ -147,10 +147,17 @@ jobs:
         run: |
           pnpm install
 
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
+
       - name: Load default env
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
+          cp .env.dev.example worker/.env
 
       - name: Run + migrate
         run: |
@@ -160,6 +167,7 @@ jobs:
 
       - name: Seed DB
         run: |
+          pnpm run --filter=shared ch:up
           pnpm run db:migrate
           pnpm run db:seed
 

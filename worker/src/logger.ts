@@ -12,7 +12,10 @@ const levelToSeverity = {
   fatal: "CRITICAL",
 };
 
-export const getLogger = (env: "development" | "production" | "test") => {
+export const getLogger = (
+  env: "development" | "production" | "test",
+  minLevel = "info"
+) => {
   if (env === "production") {
     return pino({
       base: { serviceContext: { service: "langfuse-worker" } },
@@ -47,6 +50,7 @@ export const getLogger = (env: "development" | "production" | "test") => {
     });
   }
   return pino({
+    level: minLevel,
     transport: {
       target: "pino-pretty",
       options: {
@@ -57,6 +61,6 @@ export const getLogger = (env: "development" | "production" | "test") => {
   });
 };
 
-const logger = getLogger(env.NODE_ENV);
+const logger = getLogger(env.NODE_ENV, env.LANGFUSE_LOG_LEVEL);
 
 export default logger;
