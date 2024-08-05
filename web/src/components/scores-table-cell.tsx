@@ -4,9 +4,9 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import {
-  type NumericAggregate,
   type CategoricalAggregate,
-} from "@/src/features/manual-scoring/lib/aggregateScores";
+  type NumericAggregate,
+} from "@/src/features/manual-scoring/lib/types";
 
 import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";

@@ -1,33 +1,9 @@
+import {
+  type ScoreAggregate,
+  type ScoreSimplified,
+} from "@/src/features/manual-scoring/lib/types";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import { type ScoreSource, type ScoreDataType } from "@langfuse/shared";
-
-export type CategoricalAggregate = {
-  type: "CATEGORICAL";
-  values: string[];
-  valueCounts: { value: string; count: number }[];
-  comment?: string | null;
-};
-
-export type NumericAggregate = {
-  type: "NUMERIC";
-  values: number[];
-  average: number;
-  comment?: string | null;
-};
-
-export type ScoreAggregate = Record<
-  string,
-  CategoricalAggregate | NumericAggregate
->;
-
-export type ScoreSimplified = {
-  name: string;
-  value?: number | null;
-  stringValue: string | null;
-  source: ScoreSource;
-  dataType: ScoreDataType;
-  comment?: string | null;
-};
 
 export const composeAggregateScoreKey = ({
   name,

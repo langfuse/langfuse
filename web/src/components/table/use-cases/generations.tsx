@@ -48,7 +48,7 @@ import {
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
+import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/types";
 
 export type GenerationsTableRow = {
   id: string;

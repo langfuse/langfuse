@@ -19,7 +19,7 @@ import {
   constructIndividualScoreColumns,
   verifyScoreDataAgainstKeys,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
-import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
+import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/types";
 
 export type DatasetRunRowData = {
   key: {
