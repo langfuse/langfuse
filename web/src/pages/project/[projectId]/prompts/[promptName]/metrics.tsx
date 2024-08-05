@@ -23,7 +23,7 @@ import {
 import { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { useColumnOrder } from "@/src/features/column-visibility/hooks/useDetailColumnOrder";
+import { useColumnOrderWithDetailColumns } from "@/src/features/column-visibility/hooks/useColumnOrderWithDetailColumns";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -330,7 +330,11 @@ export default function PromptVersionTable() {
       scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
-  const columnOrder = useColumnOrder(columns, detailColumns, "end");
+  const columnOrder = useColumnOrderWithDetailColumns(
+    columns,
+    detailColumns,
+    "end",
+  );
 
   const totalCount = promptVersions?.data?.totalCount ?? 0;
 

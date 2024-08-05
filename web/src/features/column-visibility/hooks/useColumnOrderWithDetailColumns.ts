@@ -15,7 +15,7 @@ const computeInsertionPoint = (
   }
 };
 
-export const useColumnOrder = <TData>(
+export const useColumnOrderWithDetailColumns = <TData>(
   columns: LangfuseColumnDef<TData>[],
   detailColumns: LangfuseColumnDef<TData>[],
   insertDetailColumnsAt: "start" | "middle" | "end" = "middle",

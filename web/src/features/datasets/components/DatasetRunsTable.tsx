@@ -18,7 +18,7 @@ import {
   constructDetailColumns,
   getDetailColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
-import { useColumnOrder } from "@/src/features/column-visibility/hooks/useDetailColumnOrder";
+import { useColumnOrderWithDetailColumns } from "@/src/features/column-visibility/hooks/useColumnOrderWithDetailColumns";
 
 export type DatasetRunRowData = {
   key: {
@@ -184,7 +184,7 @@ export function DatasetRunsTable(props: {
       scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
-  const columnOrder = useColumnOrder(columns, detailColumns);
+  const columnOrder = useColumnOrderWithDetailColumns(columns, detailColumns);
 
   return (
     <>

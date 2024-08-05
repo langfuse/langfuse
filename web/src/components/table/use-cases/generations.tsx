@@ -47,7 +47,7 @@ import {
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useColumnOrder } from "@/src/features/column-visibility/hooks/useDetailColumnOrder";
+import { useColumnOrderWithDetailColumns } from "@/src/features/column-visibility/hooks/useColumnOrderWithDetailColumns";
 
 export type GenerationsTableRow = {
   id: string;
@@ -665,7 +665,7 @@ export default function GenerationsTable({
       scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
-  const columnOrder = useColumnOrder(columns, detailColumns);
+  const columnOrder = useColumnOrderWithDetailColumns(columns, detailColumns);
 
   const rows: GenerationsTableRow[] = useMemo(() => {
     return generations.isSuccess && !scoreNamesList.isLoading
