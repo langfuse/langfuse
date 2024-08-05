@@ -30,6 +30,7 @@ import {
   type PaginationState,
   type RowSelectionState,
   type VisibilityState,
+  type ColumnOrderState,
 } from "@tanstack/react-table";
 
 interface DataTableProps<TData, TValue> {
@@ -47,6 +48,7 @@ interface DataTableProps<TData, TValue> {
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
+  columnOrder?: ColumnOrderState;
   help?: { description: string; href: string };
   rowHeight?: RowHeight;
   className?: string;
@@ -72,6 +74,7 @@ export function DataTable<TData extends object, TValue>({
   help,
   orderBy,
   setOrderBy,
+  columnOrder,
   rowHeight,
   className,
   paginationClassName,
@@ -104,6 +107,7 @@ export function DataTable<TData extends object, TValue>({
       pagination: pagination?.state,
       columnVisibility,
       rowSelection,
+      columnOrder,
     },
     manualFiltering: true,
     defaultColumn: {

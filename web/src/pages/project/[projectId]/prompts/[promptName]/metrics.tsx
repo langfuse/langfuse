@@ -23,6 +23,7 @@ import {
 import { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useColumnOrder } from "@/src/features/column-visibility/hooks/useDetailColumnOrder";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -329,6 +330,8 @@ export default function PromptVersionTable() {
       scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
+  const columnOrder = useColumnOrder(columns, detailColumns, "end");
+
   const totalCount = promptVersions?.data?.totalCount ?? 0;
 
   const { combinedData } = joinPromptCoreAndMetricData(
@@ -435,6 +438,7 @@ export default function PromptVersionTable() {
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnOrder={columnOrder}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         columnVisibility={columnVisibility}

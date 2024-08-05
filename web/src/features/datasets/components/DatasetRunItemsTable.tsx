@@ -18,6 +18,7 @@ import {
   constructDetailColumns,
   getDetailColumns,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
+import { useColumnOrder } from "@/src/features/column-visibility/hooks/useDetailColumnOrder";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -227,6 +228,8 @@ export function DatasetRunItemsTable(
       scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
+  const columnOrder = useColumnOrder(columns, detailColumns);
+
   const rows = useMemo(() => {
     return runItems.isSuccess && !scoreNamesList.isLoading
       ? runItems.data.runItems.map((item) => {
@@ -289,6 +292,7 @@ export function DatasetRunItemsTable(
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnOrder={columnOrder}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}

@@ -42,6 +42,7 @@ import {
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { useColumnOrder } from "@/src/features/column-visibility/hooks/useDetailColumnOrder";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -631,6 +632,8 @@ export default function TracesTable({
       scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
     );
 
+  const columnOrder = useColumnOrder(columns, detailColumns);
+
   const rows = useMemo(() => {
     return traces.isSuccess && !scoreNamesList.isLoading
       ? traces.data.traces.map((trace) => {
@@ -723,6 +726,7 @@ export default function TracesTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        columnOrder={columnOrder}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         rowSelection={selectedRows}
