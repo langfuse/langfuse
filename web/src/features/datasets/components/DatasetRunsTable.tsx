@@ -15,10 +15,11 @@ import { type Prisma } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
-  constructDetailColumns,
-  getDetailColumns,
+  SCORE_GROUP_COLUMN_PROPS,
+  constructIndividualScoreColumns,
+  verifyScoreDataAgainstKeys,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
-import { useColumnOrderWithDetailColumns } from "@/src/features/column-visibility/hooks/useColumnOrderWithDetailColumns";
+import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
 
 export type DatasetRunRowData = {
   key: {
@@ -29,11 +30,10 @@ export type DatasetRunRowData = {
   countRunItems: string;
   avgLatency: number;
   avgTotalCost: string;
+  // scores holds grouped column with individual scores
+  scores?: ScoreAggregate;
   description: string;
   metadata: Prisma.JsonValue;
-
-  // any number of additional detail columns for individual scores
-  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export function DatasetRunsTable(props: {
@@ -65,6 +65,29 @@ export function DatasetRunsTable(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
+
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId: props.projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+
+  const scoreColumns = useMemo(() => {
+    return constructIndividualScoreColumns<DatasetRunRowData>({
+      scoreColumnProps: scoreKeysAndProps.data ?? [],
+      scoreColumnKey: "scores",
+      showAggregateViewOnly: true,
+    });
+  }, [scoreKeysAndProps.data]);
+
   const columns: LangfuseColumnDef<DatasetRunRowData>[] = [
     {
       accessorKey: "key",
@@ -119,6 +142,7 @@ export function DatasetRunsTable(props: {
         return <>{avgTotalCost}</>;
       },
     },
+    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
     {
       accessorKey: "createdAt",
       header: "Created",
@@ -142,54 +166,34 @@ export function DatasetRunsTable(props: {
     },
   ];
 
-  const scoreNamesList = api.scores.getNamesList.useQuery({
-    projectId: props.projectId,
-  });
-
   const convertToTableRow = (
     item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
   ): DatasetRunRowData => {
-    const detailColumns = getDetailColumns(
-      scoreNamesList.data?.names ?? [],
-      item.scores,
-    );
-
     return {
       key: { id: item.id, name: item.name },
       createdAt: item.createdAt.toLocaleString(),
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
       avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
+      scores: verifyScoreDataAgainstKeys(
+        scoreKeysAndProps.data ?? [],
+        item.scores,
+      ),
       description: item.description ?? "",
       metadata: item.metadata,
-      ...detailColumns,
     };
   };
-
-  const {
-    groupedColumns: groupedDetailColumns,
-    ungroupedColumns: detailColumns,
-  } = useMemo(
-    () =>
-      constructDetailColumns<DatasetRunRowData>({
-        detailColumnAccessors: scoreNamesList.data?.names ?? [],
-        showAggregateViewOnly: true,
-      }),
-    [scoreNamesList.data?.names],
-  );
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunRowData>(
       `datasetRunsColumnVisibility-${props.projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+      columns,
     );
-
-  const columnOrder = useColumnOrderWithDetailColumns(columns, detailColumns);
 
   return (
     <>
       <DataTableToolbar
-        columns={[...columns, ...groupedDetailColumns]}
+        columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
@@ -197,7 +201,7 @@ export function DatasetRunsTable(props: {
         actionButtons={props.menuItems}
       />
       <DataTable
-        columns={[...columns, ...detailColumns]}
+        columns={columns}
         data={
           runs.isLoading
             ? { isLoading: true, isError: false }
@@ -210,9 +214,7 @@ export function DatasetRunsTable(props: {
               : {
                   isLoading: false,
                   isError: false,
-                  data: !scoreNamesList.isLoading
-                    ? runs.data.runs.map((t) => convertToTableRow(t))
-                    : [],
+                  data: runs.data.runs.map((t) => convertToTableRow(t)),
                 }
         }
         pagination={{
@@ -222,7 +224,6 @@ export function DatasetRunsTable(props: {
           onChange: setPaginationState,
           state: paginationState,
         }}
-        columnOrder={columnOrder}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}

@@ -2,11 +2,12 @@ import { ScoresAggregateCell } from "@/src/components/grouped-score-badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type GenerationsTableRow } from "@/src/components/table/use-cases/generations";
 import { type TracesTableRow } from "@/src/components/table/use-cases/traces";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { type DatasetRunItemRowData } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { type DatasetRunRowData } from "@/src/features/datasets/components/DatasetRunsTable";
 import {
-  type QuantitativeAggregate,
-  type QualitativeAggregate,
+  type NumericAggregate,
+  type CategoricalAggregate,
   type ScoreAggregate,
 } from "@/src/features/manual-scoring/lib/aggregateScores";
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/[promptName]/metrics";
@@ -21,7 +22,10 @@ type ScoreDetailColumnProps = {
   source: ScoreSource;
 };
 
-export const getDataTypeIcon = (dataType: string): string => {
+const prefixKey = (key: string, prefix: "Trace" | "Generation"): string =>
+  `${prefix}-${key}`;
+
+export const getDataTypeIcon = (dataType: ScoreDataType): string => {
   switch (dataType) {
     case "NUMERIC":
     default:
@@ -33,24 +37,7 @@ export const getDataTypeIcon = (dataType: string): string => {
   }
 };
 
-const parseColumnForKeyAndHeader = (col: ScoreDetailColumnProps) => {
-  const { key, name, source, dataType } = col;
-  return {
-    key,
-    header: `${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-  };
-};
-
-// specific to prompt metrics table as it uses prefix to distinguish Generation and Trace metrics
-export const parseMetricsColumn = (col: ScoreDetailColumnProps) => {
-  const [prefix] = col.key.split("-");
-  return {
-    key: col.key,
-    header: `${prefix}: ${getDataTypeIcon(col.dataType)} ${col.name} (${col.source.toLowerCase()})`,
-  };
-};
-
-const parseDetailColumn = <
+const parseScoreColumn = <
   T extends
     | TracesTableRow
     | GenerationsTableRow
@@ -59,14 +46,22 @@ const parseDetailColumn = <
     | PromptVersionTableRow,
 >(
   col: ScoreDetailColumnProps,
-  parseColFct: (col: ScoreDetailColumnProps) => {
-    key: string;
-    header: string;
-  },
+  prefix?: "Trace" | "Generation",
 ): LangfuseColumnDef<T> => {
-  const { key, header } = parseColFct(col);
+  const { key, name, source, dataType } = col;
+
+  if (!!prefix) {
+    return {
+      header: `${prefix}: ${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+      accessorKey: prefixKey(key, prefix),
+      id: prefixKey(key, prefix),
+      enableHiding: true,
+      size: 150,
+    };
+  }
+
   return {
-    header,
+    header: `${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
     accessorKey: key,
     id: key,
     enableHiding: true,
@@ -74,33 +69,37 @@ const parseDetailColumn = <
   };
 };
 
-export function getDetailColumns(
-  scoreColumns: ScoreDetailColumnProps[],
-  scores: ScoreAggregate,
+export function verifyScoreDataAgainstKeys(
+  scoreKeys: ScoreDetailColumnProps[],
+  scoreData: ScoreAggregate,
 ): ScoreAggregate {
-  if (!Boolean(scoreColumns.length)) return {};
+  if (!Boolean(scoreKeys.length)) return {};
   let filteredScores: ScoreAggregate = {};
 
-  for (const key in scores) {
-    if (scoreColumns.some((column) => column.key === key)) {
-      filteredScores[key] = scores[key];
+  for (const key in scoreData) {
+    if (scoreKeys.some((column) => column.key === key)) {
+      filteredScores[key] = scoreData[key];
     }
   }
 
   return filteredScores;
 }
 
-/**
- * Constructs columns for a table to display scores as individual columns.
- *
- * @param {string[]} params.detailColumnAccessors - The accessors for the detail columns.
- * @param {boolean} [params.showAggregateViewOnly=false] - Whether to only show the aggregate view.
- * @param {Function} [params.parseColumn=parseColumnForKeyAndHeader] - The function to parse the column for key and header.
- *
- * @returns {Object} The constructed detail columns.
- * If subheadings in table/toolbar are desired, use grouped columns in table/toolbar. Otherwise, use ungrouped columns.
- */
-export const constructDetailColumns = <
+export function prefixScoreData(
+  scoreData: ScoreAggregate,
+  prefix: "Trace" | "Generation",
+): ScoreAggregate {
+  if (!Boolean(Object.keys(scoreData).length)) return {};
+  let prefixedScores: ScoreAggregate = {};
+
+  for (const key in scoreData) {
+    prefixedScores[prefixKey(key, prefix)] = scoreData[key];
+  }
+
+  return prefixedScores;
+}
+
+export const constructIndividualScoreColumns = <
   T extends
     | GenerationsTableRow
     | TracesTableRow
@@ -108,24 +107,20 @@ export const constructDetailColumns = <
     | DatasetRunRowData
     | PromptVersionTableRow,
 >({
-  detailColumnAccessors,
+  scoreColumnProps,
+  scoreColumnKey,
   showAggregateViewOnly = false,
-  parseColumn = parseColumnForKeyAndHeader,
+  scoreColumnPrefix,
 }: {
-  detailColumnAccessors: ScoreDetailColumnProps[];
+  scoreColumnProps: ScoreDetailColumnProps[];
+  scoreColumnKey: keyof T & string;
   showAggregateViewOnly?: boolean;
-  parseColumn?: (col: ScoreDetailColumnProps) => {
-    key: string;
-    header: string;
-  };
-}): {
-  groupedColumns: LangfuseColumnDef<T>[];
-  ungroupedColumns: LangfuseColumnDef<T>[];
-} => {
-  const columns = detailColumnAccessors.map((col) => {
-    const { accessorKey, header, size, enableHiding } = parseDetailColumn<T>(
+  scoreColumnPrefix?: "Trace" | "Generation";
+}): LangfuseColumnDef<T>[] => {
+  return scoreColumnProps.map((col) => {
+    const { accessorKey, header, size, enableHiding } = parseScoreColumn<T>(
       col,
-      parseColumn,
+      scoreColumnPrefix,
     );
 
     return {
@@ -134,8 +129,13 @@ export const constructDetailColumns = <
       size,
       enableHiding,
       cell: ({ row }: { row: Row<T> }) => {
-        const value: QualitativeAggregate | QuantitativeAggregate | undefined =
-          row.getValue(accessorKey);
+        const scoresData: ScoreAggregate = row.getValue(scoreColumnKey) ?? {};
+
+        if (!Boolean(Object.keys(scoresData).length)) return null;
+        if (!scoresData.hasOwnProperty(accessorKey)) return null;
+
+        const value: CategoricalAggregate | NumericAggregate | undefined =
+          scoresData[accessorKey];
 
         if (!value) return null;
         return (
@@ -147,16 +147,13 @@ export const constructDetailColumns = <
       },
     };
   });
+};
 
-  return {
-    groupedColumns: [
-      {
-        accessorKey: "scores",
-        header: "Individual Scores",
-        columns,
-        maxSize: 150,
-      },
-    ],
-    ungroupedColumns: columns,
-  };
+export const SCORE_GROUP_COLUMN_PROPS = {
+  accessorKey: "scores",
+  header: "Individual Scores",
+  id: "scores",
+  cell: () => {
+    return <Skeleton className="h-3 w-1/2"></Skeleton>;
+  },
 };

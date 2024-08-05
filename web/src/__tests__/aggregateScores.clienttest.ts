@@ -19,27 +19,7 @@ describe("aggregateScores", () => {
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
       "test-API-NUMERIC": {
-        type: "QUANTITATIVE",
-        values: [5],
-        average: 5,
-        comment: "test comment",
-      },
-    });
-  });
-
-  it("should correctly aggregate a single numeric score with prefix", () => {
-    const scores = [
-      {
-        name: "test",
-        source: "API",
-        dataType: "NUMERIC",
-        value: 5,
-        comment: "test comment",
-      },
-    ] as APIScore[];
-    expect(aggregateScores(scores, "pre")).toEqual({
-      "pre-test-API-NUMERIC": {
-        type: "QUANTITATIVE",
+        type: "NUMERIC",
         values: [5],
         average: 5,
         comment: "test comment",
@@ -66,7 +46,7 @@ describe("aggregateScores", () => {
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
       "test-API-NUMERIC": {
-        type: "QUANTITATIVE",
+        type: "NUMERIC",
         values: [5, 7],
         average: 6,
         comment: undefined,
@@ -93,13 +73,13 @@ describe("aggregateScores", () => {
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
       "test1-API-NUMERIC": {
-        type: "QUANTITATIVE",
+        type: "NUMERIC",
         values: [5],
         average: 5,
         comment: "test comment",
       },
       "test1-ANNOTATION-NUMERIC": {
-        type: "QUANTITATIVE",
+        type: "NUMERIC",
         values: [7],
         average: 7,
         comment: "another comment",
@@ -107,7 +87,7 @@ describe("aggregateScores", () => {
     });
   });
 
-  it("should correctly aggregate a single qualitative score", () => {
+  it("should correctly aggregate a single Categorical score", () => {
     const scores = [
       {
         name: "test",
@@ -119,7 +99,7 @@ describe("aggregateScores", () => {
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
       "test-ANNOTATION-CATEGORICAL": {
-        type: "QUALITATIVE",
+        type: "CATEGORICAL",
         values: ["good"],
         distribution: [{ value: "good", count: 1 }],
         comment: "test comment",
@@ -127,7 +107,7 @@ describe("aggregateScores", () => {
     });
   });
 
-  it("should correctly aggregate multiple qualitative scores with the same key", () => {
+  it("should correctly aggregate multiple Categorical scores with the same key", () => {
     const scores = [
       {
         name: "test",
@@ -146,7 +126,7 @@ describe("aggregateScores", () => {
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
       "test-API-BOOLEAN": {
-        type: "QUALITATIVE",
+        type: "CATEGORICAL",
         values: ["True", "False"],
         distribution: [
           { value: "True", count: 1 },
@@ -190,13 +170,13 @@ describe("aggregateScores", () => {
     ] as APIScore[];
     expect(aggregateScores(scores)).toEqual({
       "test-API-NUMERIC": {
-        type: "QUANTITATIVE",
+        type: "NUMERIC",
         values: [5],
         average: 5,
         comment: "test comment",
       },
       "test-ANNOTATION-CATEGORICAL": {
-        type: "QUALITATIVE",
+        type: "CATEGORICAL",
         values: ["good", "bad", "good"],
         distribution: [
           { value: "good", count: 2 },

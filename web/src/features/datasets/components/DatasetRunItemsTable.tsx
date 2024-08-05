@@ -15,10 +15,11 @@ import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { ListTree } from "lucide-react";
 import {
-  constructDetailColumns,
-  getDetailColumns,
+  SCORE_GROUP_COLUMN_PROPS,
+  constructIndividualScoreColumns,
+  verifyScoreDataAgainstKeys,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
-import { useColumnOrderWithDetailColumns } from "@/src/features/column-visibility/hooks/useColumnOrderWithDetailColumns";
+import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -33,11 +34,10 @@ export type DatasetRunItemRowData = {
   output?: unknown;
   expectedOutput?: unknown;
 
+  // scores holds grouped column with individual scores
+  scores?: ScoreAggregate;
   latency?: number;
   totalCost?: string;
-
-  // any number of additional detail columns for individual scores
-  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export function DatasetRunItemsTable(
@@ -81,9 +81,26 @@ export function DatasetRunItemsTable(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runItems.isSuccess, runItems.data]);
 
-  const scoreNamesList = api.scores.getNamesList.useQuery({
-    projectId: props.projectId,
-  });
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId: props.projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+
+  const scoreColumns = useMemo(() => {
+    return constructIndividualScoreColumns<DatasetRunItemRowData>({
+      scoreColumnProps: scoreKeysAndProps.data ?? [],
+      scoreColumnKey: "scores",
+    });
+  }, [scoreKeysAndProps.data]);
 
   const columns: LangfuseColumnDef<DatasetRunItemRowData>[] = [
     {
@@ -154,6 +171,7 @@ export function DatasetRunItemsTable(
         return <>{totalCost}</>;
       },
     },
+    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
     {
       accessorKey: "input",
       header: "Input",
@@ -211,33 +229,15 @@ export function DatasetRunItemsTable(
     },
   ];
 
-  const {
-    groupedColumns: groupedDetailColumns,
-    ungroupedColumns: detailColumns,
-  } = useMemo(
-    () =>
-      constructDetailColumns<DatasetRunItemRowData>({
-        detailColumnAccessors: scoreNamesList.data?.names ?? [],
-      }),
-    [scoreNamesList.data?.names],
-  );
-
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunItemRowData>(
       `datasetRunsItemsColumnVisibility-${props.projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+      columns,
     );
 
-  const columnOrder = useColumnOrderWithDetailColumns(columns, detailColumns);
-
   const rows = useMemo(() => {
-    return runItems.isSuccess && !scoreNamesList.isLoading
+    return runItems.isSuccess
       ? runItems.data.runItems.map((item) => {
-          const detailColumns = getDetailColumns(
-            scoreNamesList.data?.names ?? [],
-            item.scores,
-          );
-
           return {
             id: item.id,
             runAt: item.createdAt.toLocaleString(),
@@ -248,28 +248,31 @@ export function DatasetRunItemsTable(
                   observationId: item.observation?.id,
                 }
               : undefined,
+            scores: verifyScoreDataAgainstKeys(
+              scoreKeysAndProps.data ?? [],
+              item.scores,
+            ),
             totalCost: !!item.observation?.calculatedTotalCost
               ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
               : undefined,
             latency:
               item.observation?.latency ?? item.trace?.duration ?? undefined,
-            ...detailColumns,
           };
         })
       : [];
-  }, [runItems, scoreNamesList]);
+  }, [runItems, scoreKeysAndProps]);
 
   return (
     <>
       <DataTableToolbar
-        columns={[...columns, ...groupedDetailColumns]}
+        columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
       <DataTable
-        columns={[...columns, ...detailColumns]}
+        columns={columns}
         data={
           runItems.isLoading
             ? { isLoading: true, isError: false }
@@ -292,7 +295,6 @@ export function DatasetRunItemsTable(
           onChange: setPaginationState,
           state: paginationState,
         }}
-        columnOrder={columnOrder}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         rowHeight={rowHeight}

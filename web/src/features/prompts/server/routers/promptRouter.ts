@@ -754,12 +754,10 @@ export const promptRouter = createTRPCRouter({
         observationScores: aggregateScores(
           generationScores.find((score) => score.promptId === metric.id)
             ?.scores ?? [],
-          "Generation",
         ),
         traceScores: aggregateScores(
           traceScores.find((score) => score.promptId === metric.id)?.scores ??
             [],
-          "Trace",
         ),
       }));
     }),

@@ -294,7 +294,7 @@ export const scoresRouter = createTRPCRouter({
         },
       });
     }),
-  getNamesList: protectedProjectProcedure
+  getScoreKeysAndProps: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -314,14 +314,12 @@ export const scoresRouter = createTRPCRouter({
         by: ["name", "source", "dataType"],
       });
 
-      return {
-        names: scores.map(({ name, source, dataType }) => ({
-          key: composeAggregateScoreKey({ name, source, dataType }),
-          name: name,
-          source: source,
-          dataType: dataType,
-        })),
-      };
+      return scores.map(({ name, source, dataType }) => ({
+        key: composeAggregateScoreKey({ name, source, dataType }),
+        name: name,
+        source: source,
+        dataType: dataType,
+      }));
     }),
 });
 

@@ -37,12 +37,13 @@ import {
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
-  constructDetailColumns,
-  getDetailColumns,
+  SCORE_GROUP_COLUMN_PROPS,
+  constructIndividualScoreColumns,
+  verifyScoreDataAgainstKeys,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useColumnOrderWithDetailColumns } from "@/src/features/column-visibility/hooks/useColumnOrderWithDetailColumns";
+import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -52,6 +53,8 @@ export type TracesTableRow = {
   userId: string;
   level: ObservationLevel;
   observationCount: number;
+  // scores holds grouped column with individual scores
+  scores?: ScoreAggregate;
   latency?: number;
   release?: string;
   version?: string;
@@ -69,9 +72,6 @@ export type TracesTableRow = {
   inputCost?: Decimal;
   outputCost?: Decimal;
   totalCost?: Decimal;
-
-  // any number of additional detail columns for individual scores
-  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export type TracesTableProps = {
@@ -174,9 +174,19 @@ export default function TracesTable({
     },
   );
 
-  const scoreNamesList = api.scores.getNamesList.useQuery({
-    projectId,
-  });
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
 
   const transformFilterOptions = (
     traceFilterOptions: TraceOptions | undefined,
@@ -187,6 +197,13 @@ export default function TracesTable({
   };
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
+
+  const scoreColumns = useMemo(() => {
+    return constructIndividualScoreColumns<TracesTableRow>({
+      scoreColumnProps: scoreKeysAndProps.data ?? [],
+      scoreColumnKey: "scores",
+    });
+  }, [scoreKeysAndProps.data]);
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
@@ -389,6 +406,7 @@ export default function TracesTable({
       enableSorting: true,
       enableHiding: true,
     },
+    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
     {
       accessorKey: "inputCost",
       id: "inputCost",
@@ -615,33 +633,15 @@ export default function TracesTable({
     },
   ];
 
-  const {
-    groupedColumns: groupedDetailColumns,
-    ungroupedColumns: detailColumns,
-  } = useMemo(
-    () =>
-      constructDetailColumns<TracesTableRow>({
-        detailColumnAccessors: scoreNamesList.data?.names ?? [],
-      }),
-    [scoreNamesList.data?.names],
-  );
-
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
       `tracesColumnVisibility-${projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+      columns,
     );
 
-  const columnOrder = useColumnOrderWithDetailColumns(columns, detailColumns);
-
   const rows = useMemo(() => {
-    return traces.isSuccess && !scoreNamesList.isLoading
+    return traces.isSuccess
       ? traces.data.traces.map((trace) => {
-          const detailColumns = getDetailColumns(
-            scoreNamesList.data?.names ?? [],
-            trace.scores,
-          );
-
           return {
             bookmarked: trace.bookmarked,
             id: trace.id,
@@ -660,19 +660,22 @@ export default function TracesTable({
               completionTokens: trace.completionTokens,
               totalTokens: trace.totalTokens,
             },
+            scores: verifyScoreDataAgainstKeys(
+              scoreKeysAndProps.data ?? [],
+              trace.scores,
+            ),
             inputCost: trace.calculatedInputCost ?? undefined,
             outputCost: trace.calculatedOutputCost ?? undefined,
             totalCost: trace.calculatedTotalCost ?? undefined,
-            ...detailColumns,
           };
         })
       : [];
-  }, [traces, scoreNamesList]);
+  }, [traces, scoreKeysAndProps.data]);
 
   return (
     <>
       <DataTableToolbar
-        columns={[...columns, ...groupedDetailColumns]}
+        columns={columns}
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
           placeholder: "Search by id, name, user id",
@@ -705,7 +708,7 @@ export default function TracesTable({
         setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
-        columns={[...columns, ...detailColumns]}
+        columns={columns}
         data={
           traces.isLoading
             ? { isLoading: true, isError: false }
@@ -726,7 +729,6 @@ export default function TracesTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-        columnOrder={columnOrder}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         rowSelection={selectedRows}

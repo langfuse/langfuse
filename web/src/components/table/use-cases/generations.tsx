@@ -42,12 +42,13 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  constructDetailColumns,
-  getDetailColumns,
+  SCORE_GROUP_COLUMN_PROPS,
+  constructIndividualScoreColumns,
+  verifyScoreDataAgainstKeys,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useColumnOrderWithDetailColumns } from "@/src/features/column-visibility/hooks/useColumnOrderWithDetailColumns";
+import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
 
 export type GenerationsTableRow = {
   id: string;
@@ -59,6 +60,8 @@ export type GenerationsTableRow = {
   completionStartTime?: Date;
   latency?: number;
   timeToFirstToken?: number;
+  // scores holds grouped column with individual scores
+  scores: ScoreAggregate;
   name?: string;
   model?: string;
   // i/o and metadata not set explicitly, but fetched from the server from the cell
@@ -77,9 +80,6 @@ export type GenerationsTableRow = {
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
-
-  // any number of additional detail columns for individual scores
-  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 export type GenerationsTableProps = {
@@ -191,9 +191,26 @@ export default function GenerationsTable({
     },
   );
 
-  const scoreNamesList = api.scores.getNamesList.useQuery({
-    projectId,
-  });
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+
+  const scoreColumns = useMemo(() => {
+    return constructIndividualScoreColumns<GenerationsTableRow>({
+      scoreColumnProps: scoreKeysAndProps.data ?? [],
+      scoreColumnKey: "scores",
+    });
+  }, [scoreKeysAndProps.data]);
 
   const transformFilterOptions = (
     filterOptions: ObservationOptions | undefined,
@@ -337,6 +354,7 @@ export default function GenerationsTable({
         );
       },
     },
+    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
     {
       accessorKey: "latency",
       id: "latency",
@@ -648,33 +666,15 @@ export default function GenerationsTable({
     },
   ];
 
-  const {
-    groupedColumns: groupedDetailColumns,
-    ungroupedColumns: detailColumns,
-  } = useMemo(
-    () =>
-      constructDetailColumns<GenerationsTableRow>({
-        detailColumnAccessors: scoreNamesList.data?.names ?? [],
-      }),
-    [scoreNamesList.data?.names],
-  );
-
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(
       `generationsColumnVisibility-${projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+      columns,
     );
 
-  const columnOrder = useColumnOrderWithDetailColumns(columns, detailColumns);
-
   const rows: GenerationsTableRow[] = useMemo(() => {
-    return generations.isSuccess && !scoreNamesList.isLoading
+    return generations.isSuccess
       ? generations.data.generations.map((generation) => {
-          const detailColumns = getDetailColumns(
-            scoreNamesList.data?.names ?? [],
-            generation.scores,
-          );
-
           return {
             id: generation.id,
             traceId: generation.traceId ?? undefined,
@@ -682,6 +682,10 @@ export default function GenerationsTable({
             startTime: generation.startTime,
             endTime: generation.endTime?.toLocaleString() ?? undefined,
             timeToFirstToken: generation.timeToFirstToken ?? undefined,
+            scores: verifyScoreDataAgainstKeys(
+              scoreKeysAndProps.data ?? [],
+              generation.scores,
+            ),
             latency: generation.latency ?? undefined,
             totalCost: generation.calculatedTotalCost ?? undefined,
             inputCost: generation.calculatedInputCost ?? undefined,
@@ -699,16 +703,15 @@ export default function GenerationsTable({
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,
             promptVersion: generation.promptVersion ?? undefined,
-            ...detailColumns,
           };
         })
       : [];
-  }, [generations, scoreNamesList]);
+  }, [generations, scoreKeysAndProps]);
 
   return (
     <>
       <DataTableToolbar
-        columns={[...columns, ...groupedDetailColumns]}
+        columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={inputFilterState}
         setFilterState={useDebounce(setInputFilterState)}
@@ -757,7 +760,7 @@ export default function GenerationsTable({
         }
       />
       <DataTable
-        columns={[...columns, ...detailColumns]}
+        columns={columns}
         data={
           generations.isLoading
             ? { isLoading: true, isError: false }
@@ -778,7 +781,6 @@ export default function GenerationsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-        columnOrder={columnOrder}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         columnVisibility={columnVisibility}

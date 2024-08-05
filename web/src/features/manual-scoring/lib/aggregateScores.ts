@@ -1,15 +1,15 @@
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import { type ScoreSource, type ScoreDataType } from "@langfuse/shared";
 
-export type QualitativeAggregate = {
-  type: "QUALITATIVE";
+export type CategoricalAggregate = {
+  type: "CATEGORICAL";
   values: string[];
-  distribution: { value: string; count: number }[];
+  valueCounts: { value: string; count: number }[];
   comment?: string | null;
 };
 
-export type QuantitativeAggregate = {
-  type: "QUANTITATIVE";
+export type NumericAggregate = {
+  type: "NUMERIC";
   values: number[];
   average: number;
   comment?: string | null;
@@ -17,7 +17,7 @@ export type QuantitativeAggregate = {
 
 export type ScoreAggregate = Record<
   string,
-  QualitativeAggregate | QuantitativeAggregate
+  CategoricalAggregate | NumericAggregate
 >;
 
 export type ScoreSimplified = {
@@ -33,22 +33,18 @@ export const composeAggregateScoreKey = ({
   name,
   source,
   dataType,
-  keyPrefix,
 }: {
   name: string;
   source: ScoreSource;
   dataType: ScoreDataType;
   keyPrefix?: string;
 }): string => {
-  const formattedName = name.replace(/-/g, "_"); // "-" reserved for splitting in namespace
-  return keyPrefix
-    ? `${keyPrefix}-${formattedName}-${source}-${dataType}`
-    : `${formattedName}-${source}-${dataType}`;
+  const formattedName = name.replaceAll(/-/g, "_"); // "-" reserved for splitting in namespace
+  return `${formattedName}-${source}-${dataType}`;
 };
 
 export const aggregateScores = <T extends APIScore | ScoreSimplified>(
   scores: T[],
-  keyPrefix?: string,
 ): ScoreAggregate => {
   const groupedScores: Record<string, T[]> = scores.reduce(
     (acc, score) => {
@@ -56,7 +52,6 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
         name: score.name,
         source: score.source,
         dataType: score.dataType,
-        keyPrefix,
       });
       if (!acc[key]) {
         acc[key] = [];
@@ -67,14 +62,14 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
     {} as Record<string, T[]>,
   );
 
-  // step 2: for each group, determine if the score is qualitative or quantitative & compute aggregate for group
+  // step 2: for each group, determine if the score is categorical or numeric & compute aggregate for group
   return Object.entries(groupedScores).reduce((acc, [key, scores]) => {
     if (scores[0].dataType === "NUMERIC") {
       const values = scores.map((score) => score.value ?? 0);
       if (!Boolean(values.length)) return acc;
       const average = values.reduce((a, b) => a + b, 0) / values.length;
       acc[key] = {
-        type: "QUANTITATIVE",
+        type: "NUMERIC",
         values,
         average,
         comment: values.length === 1 ? scores[0].comment : undefined,
@@ -82,7 +77,7 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
     } else {
       const values = scores.map((score) => score.stringValue ?? "n/a");
       if (!Boolean(values.length)) return acc;
-      const distribution = values.reduce(
+      const valueCounts = values.reduce(
         (acc, value) => {
           acc[value] = (acc[value] || 0) + 1;
           return acc;
@@ -90,9 +85,9 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
         {} as Record<string, number>,
       );
       acc[key] = {
-        type: "QUALITATIVE",
+        type: "CATEGORICAL",
         values,
-        distribution: Object.entries(distribution).map(([value, count]) => ({
+        valueCounts: Object.entries(valueCounts).map(([value, count]) => ({
           value,
           count,
         })),

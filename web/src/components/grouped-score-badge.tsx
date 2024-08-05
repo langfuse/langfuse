@@ -5,8 +5,8 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import {
-  type QuantitativeAggregate,
-  type QualitativeAggregate,
+  type NumericAggregate,
+  type CategoricalAggregate,
 } from "@/src/features/manual-scoring/lib/aggregateScores";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 
@@ -58,14 +58,14 @@ export const ScoresAggregateCell = ({
   aggregate,
   showSingleValue = false,
 }: {
-  aggregate: QualitativeAggregate | QuantitativeAggregate;
+  aggregate: CategoricalAggregate | NumericAggregate;
   showSingleValue?: boolean;
 }) => {
   if (showSingleValue && aggregate.values.length === 1) {
     return (
       <SingleScoreValue
         value={
-          aggregate.type === "QUALITATIVE"
+          aggregate.type === "CATEGORICAL"
             ? aggregate.values[0]
             : aggregate.average.toFixed(2)
         }
@@ -75,21 +75,21 @@ export const ScoresAggregateCell = ({
     );
   }
 
-  if (aggregate.type === "QUANTITATIVE") {
+  if (aggregate.type === "NUMERIC") {
     return (
       <SingleScoreValue
         value={`Ø ${aggregate.average.toFixed(2)}`}
         showColorCoding
       />
     );
-  } else if (aggregate.type === "QUALITATIVE") {
+  } else if (aggregate.type === "CATEGORICAL") {
     return (
       <div className="group">
-        {aggregate.distribution.length > DETAIL_HOVER_AFTER ? (
+        {aggregate.valueCounts.length > DETAIL_HOVER_AFTER ? (
           <HoverCard>
             <HoverCardTrigger>
               <div className="flex cursor-pointer flex-col group-hover:text-accent-dark-blue/55">
-                {aggregate.distribution
+                {aggregate.valueCounts
                   .slice(0, DETAIL_HOVER_AFTER)
                   .map(({ value, count }) => (
                     <span key={value} className="truncate">
@@ -99,7 +99,7 @@ export const ScoresAggregateCell = ({
               </div>
             </HoverCardTrigger>
             <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto whitespace-normal break-normal">
-              {aggregate.distribution.map(({ value, count }) => (
+              {aggregate.valueCounts.map(({ value, count }) => (
                 <div className="truncate" key={value}>
                   {value}: {numberFormatter(count, 0)}
                 </div>
@@ -108,7 +108,7 @@ export const ScoresAggregateCell = ({
           </HoverCard>
         ) : (
           <div className="flex flex-col">
-            {aggregate.distribution.map(({ value, count }) => (
+            {aggregate.valueCounts.map(({ value, count }) => (
               <span key={value} className="truncate">
                 {`${value}: ${numberFormatter(count, 0)}`}
               </span>

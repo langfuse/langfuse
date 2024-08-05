@@ -16,14 +16,14 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
-  constructDetailColumns,
-  getDetailColumns,
-  parseMetricsColumn,
+  constructIndividualScoreColumns,
+  prefixScoreData,
+  verifyScoreDataAgainstKeys,
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { useColumnOrderWithDetailColumns } from "@/src/features/column-visibility/hooks/useColumnOrderWithDetailColumns";
+import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/aggregateScores";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -33,11 +33,10 @@ export type PromptVersionTableRow = {
   medianOutputTokens?: number | null;
   medianCost?: number | null;
   generationCount?: number | null;
+  traceScores?: ScoreAggregate;
+  generationScores?: ScoreAggregate;
   lastUsed?: string | null;
   firstUsed?: string | null;
-
-  // any number of additional detail columns for individual scores
-  [key: string]: unknown; // unknown of type QualitativeAggregate | QuantitativeAggregate for score columns
 };
 
 type PromptCoreOutput = RouterOutput["prompts"]["allVersions"];
@@ -138,17 +137,39 @@ export default function PromptVersionTable() {
     },
   );
 
-  const scoreNamesList = api.scores.getNamesList.useQuery({
-    projectId,
-  });
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
 
-  const prefixedNamesList = useMemo(() => {
-    if (!scoreNamesList.data) return [];
-    return scoreNamesList.data.names.flatMap((score) => [
-      { ...score, key: `Generation-${score.key}` },
-      { ...score, key: `Trace-${score.key}` },
-    ]);
-  }, [scoreNamesList.data]);
+  const { traceScoreColumns, generationScoreColumns } = useMemo(() => {
+    return {
+      traceScoreColumns: constructIndividualScoreColumns<PromptVersionTableRow>(
+        {
+          scoreColumnProps: scoreKeysAndProps.data ?? [],
+          showAggregateViewOnly: true,
+          scoreColumnPrefix: "Trace",
+          scoreColumnKey: "traceScores",
+        },
+      ),
+      generationScoreColumns:
+        constructIndividualScoreColumns<PromptVersionTableRow>({
+          scoreColumnProps: scoreKeysAndProps.data ?? [],
+          showAggregateViewOnly: true,
+          scoreColumnPrefix: "Generation",
+          scoreColumnKey: "generationScores",
+        }),
+    };
+  }, [scoreKeysAndProps.data]);
 
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
     {
@@ -272,6 +293,24 @@ export default function PromptVersionTable() {
       },
     },
     {
+      accessorKey: "traceScores",
+      header: "Individual Trace Scores",
+      id: "traceScores",
+      columns: traceScoreColumns,
+      cell: () => {
+        return <Skeleton className="h-3 w-1/2"></Skeleton>;
+      },
+    },
+    {
+      accessorKey: "generationScores",
+      header: "Individual Generation Scores",
+      id: "generationScores",
+      columns: generationScoreColumns,
+      cell: () => {
+        return <Skeleton className="h-3 w-1/2"></Skeleton>;
+      },
+    },
+    {
       accessorKey: "lastUsed",
       id: "lastUsed",
       header: "Last used",
@@ -311,30 +350,11 @@ export default function PromptVersionTable() {
     },
   ];
 
-  const {
-    groupedColumns: groupedDetailColumns,
-    ungroupedColumns: detailColumns,
-  } = useMemo(
-    () =>
-      constructDetailColumns<PromptVersionTableRow>({
-        detailColumnAccessors: prefixedNamesList ?? [],
-        parseColumn: parseMetricsColumn,
-        showAggregateViewOnly: true,
-      }),
-    [prefixedNamesList],
-  );
-
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<PromptVersionTableRow>(
       `promptVersionsColumnVisibility-${projectId}`,
-      scoreNamesList.isLoading ? [] : [...columns, ...detailColumns],
+      columns,
     );
-
-  const columnOrder = useColumnOrderWithDetailColumns(
-    columns,
-    detailColumns,
-    "end",
-  );
 
   const totalCount = promptVersions?.data?.totalCount ?? 0;
 
@@ -344,17 +364,8 @@ export default function PromptVersionTable() {
   );
 
   const rows: PromptVersionTableRow[] =
-    promptVersions.isSuccess && !!combinedData && !scoreNamesList.isLoading
+    promptVersions.isSuccess && !!combinedData
       ? combinedData.map((prompt) => {
-          const generationDetailColumns = getDetailColumns(
-            prefixedNamesList ?? [],
-            prompt.observationScores ?? {},
-          );
-          const traceDetailColumns = getDetailColumns(
-            prefixedNamesList ?? [],
-            prompt.traceScores ?? {},
-          );
-
           return {
             version: prompt.version,
             labels: prompt.labels,
@@ -362,12 +373,24 @@ export default function PromptVersionTable() {
             medianInputTokens: prompt.medianInputTokens,
             medianOutputTokens: prompt.medianOutputTokens,
             medianCost: prompt.medianTotalCost,
+            traceScores: prefixScoreData(
+              verifyScoreDataAgainstKeys(
+                scoreKeysAndProps.data ?? [],
+                prompt.traceScores ?? {},
+              ),
+              "Trace",
+            ),
+            observationScores: prefixScoreData(
+              verifyScoreDataAgainstKeys(
+                scoreKeysAndProps.data ?? [],
+                prompt.observationScores ?? {},
+              ),
+              "Generation",
+            ),
             lastUsed:
               prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
             firstUsed:
               prompt.firstUsed?.toLocaleString() ?? "No linked generation yet",
-            ...generationDetailColumns,
-            ...traceDetailColumns,
           };
         })
       : [];
@@ -411,7 +434,7 @@ export default function PromptVersionTable() {
       />
       <div className="gap-3">
         <DataTableToolbar
-          columns={[...columns, ...groupedDetailColumns]}
+          columns={columns}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}
@@ -421,7 +444,7 @@ export default function PromptVersionTable() {
         />
       </div>
       <DataTable
-        columns={[...columns, ...detailColumns]}
+        columns={columns}
         data={
           promptVersions.isLoading
             ? { isLoading: true, isError: false }
@@ -442,7 +465,6 @@ export default function PromptVersionTable() {
           onChange: setPaginationState,
           state: paginationState,
         }}
-        columnOrder={columnOrder}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         columnVisibility={columnVisibility}
