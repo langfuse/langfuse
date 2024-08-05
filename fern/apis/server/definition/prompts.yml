@@ -64,6 +64,9 @@ types:
       labels: list<string>
       tags: list<string>
       lastUpdatedAt: datetime
+      lastConfig:
+        type: unknown
+        docs: Config object of the most recent prompt version that matches the filters (if any are provided)
 
   CreatePromptRequest:
     union:

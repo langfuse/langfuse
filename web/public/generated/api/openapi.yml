@@ -3690,12 +3690,17 @@ components:
         lastUpdatedAt:
           type: string
           format: date-time
+        lastConfig:
+          description: >-
+            Config object of the most recent prompt version that matches the
+            filters (if any are provided)
       required:
         - name
         - versions
         - labels
         - tags
         - lastUpdatedAt
+        - lastConfig
     CreatePromptRequest:
       title: CreatePromptRequest
       oneOf:
