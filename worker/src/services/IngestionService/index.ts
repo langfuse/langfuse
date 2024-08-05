@@ -158,11 +158,12 @@ export class IngestionService {
           observationEventList: eventList as ObservationEvent[],
         });
       case EntityType.Score: {
-        return await this.processScoreEventList({
-          projectId,
-          entityId,
-          scoreEventList: eventList as ScoreEventType[],
-        });
+        return; // TODO: refactor score validations and enable processing again
+        // return await this.processScoreEventList({
+        //   projectId,
+        //   entityId,
+        //   scoreEventList: eventList as ScoreEventType[],
+        // });
       }
     }
   }
