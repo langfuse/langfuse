@@ -40,7 +40,7 @@ const EnvSchema = z.object({
   LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
-    .default(50),
+    .default(100),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
