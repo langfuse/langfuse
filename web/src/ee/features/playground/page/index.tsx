@@ -17,7 +17,6 @@ export default function PlaygroundPage() {
             description: "A sandbox to test and iterate your prompts",
             href: "https://langfuse.com/docs/playground",
           }}
-          featureBetaURL="https://github.com/orgs/langfuse/discussions/1170"
           actionButtons={
             <>
               <SaveToPromptButton />

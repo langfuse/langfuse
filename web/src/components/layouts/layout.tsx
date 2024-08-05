@@ -390,7 +390,7 @@ export default function Layout(props: PropsWithChildren) {
               >
                 <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
                   <span
-                    className="block max-w-44 overflow-hidden text-ellipsis border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
+                    className="block max-w-56 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
                     title={session.data?.user?.email ?? undefined}
                   >
                     {session.data?.user?.email}
@@ -458,7 +458,7 @@ export default function Layout(props: PropsWithChildren) {
             >
               <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-background py-2 pb-1 shadow-lg ring-1 ring-border focus:outline-none">
                 <span
-                  className="mb-1 block max-w-44 overflow-hidden text-ellipsis border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
+                  className="mb-1 block max-w-56 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
                   title={session.data?.user?.email ?? undefined}
                 >
                   {session.data?.user?.email}

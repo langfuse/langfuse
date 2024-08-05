@@ -81,7 +81,7 @@ export function overwriteObject(
   nonOverwritableKeys: string[]
 ) {
   const result = _.mergeWith({}, a, b, (objValue, srcValue, key) => {
-    if (nonOverwritableKeys.includes(key)) {
+    if (nonOverwritableKeys.includes(key) || srcValue == null) {
       return objValue;
     } else {
       return srcValue;

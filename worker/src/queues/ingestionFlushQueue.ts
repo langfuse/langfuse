@@ -1,6 +1,7 @@
 import { Queue, Worker } from "bullmq";
 
 import { QueueJobs, QueueName } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { clickhouseClient, redis } from "@langfuse/shared/src/server";
 import * as Sentry from "@sentry/node";
 

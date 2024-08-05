@@ -84,7 +84,7 @@ export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregatio
       minutes: 3 * 28 * 24 * 60,
     },
     "1 month": {
-      date_trunc: "month",
+      date_trunc: "day",
       minutes: 28 * 24 * 60,
     },
     "7 days": {
@@ -100,7 +100,7 @@ export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregatio
       minutes: 3 * 60,
     },
     "1 hour": {
-      date_trunc: "hour",
+      date_trunc: "minute",
       minutes: 60,
     },
     "30 min": {
