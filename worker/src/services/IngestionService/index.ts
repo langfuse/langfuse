@@ -102,10 +102,11 @@ export class IngestionService {
         eventType: this.getEventType(event),
         projectId,
       });
+      const bufferKey = this.getBufferKey(projectEntityKey);
       const serializedEventData = JSON.stringify({ ...event, projectId });
 
-      await this.redis.lpush(projectEntityKey, serializedEventData);
-      await this.redis.expire(projectEntityKey, this.bufferTtlSeconds);
+      await this.redis.lpush(bufferKey, serializedEventData);
+      await this.redis.expire(bufferKey, this.bufferTtlSeconds);
       await this.ingestionFlushQueue.add(QueueJobs.FlushIngestionEntity, null, {
         jobId: projectEntityKey,
       });
@@ -115,7 +116,8 @@ export class IngestionService {
   }
 
   public async flush(projectEntityKey: string): Promise<void> {
-    const eventList = (await this.redis.lrange(projectEntityKey, 0, -1))
+    const bufferKey = this.getBufferKey(projectEntityKey);
+    const eventList = (await this.redis.lrange(bufferKey, 0, -1))
       .map((serializedEventData) => {
         const parsed = ingestionEventWithProjectId.safeParse(
           JSON.parse(serializedEventData)
@@ -156,11 +158,12 @@ export class IngestionService {
           observationEventList: eventList as ObservationEvent[],
         });
       case EntityType.Score: {
-        return await this.processScoreEventList({
-          projectId,
-          entityId,
-          scoreEventList: eventList as ScoreEventType[],
-        });
+        return; // TODO: refactor score validations and enable processing again
+        // return await this.processScoreEventList({
+        //   projectId,
+        //   entityId,
+        //   scoreEventList: eventList as ScoreEventType[],
+        // });
       }
     }
   }
@@ -193,25 +196,26 @@ export class IngestionService {
       params.entityId
     );
 
-    return `ingestionBuffer_${params.projectId}_${params.eventType}_${sanitizedEntityId}`;
+    return `${params.projectId}_${params.eventType}_${sanitizedEntityId}`;
   }
 
   private parseProjectEntityKey(projectEntityKey: string) {
     const split = projectEntityKey.split("_");
 
-    if (split.length !== 4) {
+    if (split.length !== 3) {
       throw new Error(
-        `Invalid project entity key format ${projectEntityKey}, expected 4 parts`
+        `Invalid project entity key format ${projectEntityKey}, expected 3 parts`
       );
     }
 
-    const projectId = split[1];
-    const eventType = split[2] as EntityType;
-    const escapedEntityId = split[3];
-
+    const [projectId, eventType, escapedEntityId] = split;
     const entityId = IngestionService.unescapeReservedChars(escapedEntityId);
 
     return { projectId, eventType, entityId };
+  }
+
+  private getBufferKey(projectEntityKey: string): string {
+    return "ingestionBuffer:" + projectEntityKey;
   }
 
   private static escapeReservedChars(string: string): string {
