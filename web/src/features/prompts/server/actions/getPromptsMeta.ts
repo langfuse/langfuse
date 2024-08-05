@@ -16,7 +16,8 @@ export const getPromptsMeta = async (
   const promptsMeta = (await prisma.$queryRaw`
     SELECT
         p.name AS name,
-        p.tags AS tags,
+        MAX(p.tags) AS tags,  -- use max to get tags, they are the same for all versions of a prompt
+        MAX(p.updated_at) as "lastUpdatedAt",
         array_agg(DISTINCT p.version) AS versions,
         COALESCE(array_agg(DISTINCT label) FILTER (WHERE label IS NOT NULL), '{}'::text[]) AS labels --- COALESCE is necessary to return an empty array if there are no labels and remove NULLs
     FROM
@@ -26,7 +27,7 @@ export const getPromptsMeta = async (
         p."project_id" = ${projectId} 
         ${getPromptsFilterCondition(params)}
     GROUP BY
-        p.name, p.tags --- tags are the same for all versions of a prompt
+        p.name
     ORDER BY
         p.name --- necessary for consistent pagination
     LIMIT
@@ -60,6 +61,7 @@ type PromptsMeta = {
   versions: number[];
   labels: string[];
   tags: string[];
+  lastUpdatedAt: Date;
 };
 
 export type PromptsMetaResponse = {

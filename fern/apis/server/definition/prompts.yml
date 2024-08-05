@@ -63,6 +63,7 @@ types:
       versions: list<integer>
       labels: list<string>
       tags: list<string>
+      lastUpdatedAt: datetime
 
   CreatePromptRequest:
     union:
