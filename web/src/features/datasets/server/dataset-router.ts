@@ -167,9 +167,10 @@ export const datasetRouter = createTRPCRouter({
                 ri.project_id = ${input.projectId}
                 AND ri.dataset_run_id = runs.id
           ) s ON true
-          WHERE 
+        WHERE 
           runs.dataset_id = ${input.datasetId}
           AND runs.project_id = ${input.projectId}
+          AND s.score IS NOT NULL
         GROUP BY
           runs.id
         LIMIT ${input.limit}

@@ -101,7 +101,7 @@ describe("aggregateScores", () => {
       "test-ANNOTATION-CATEGORICAL": {
         type: "CATEGORICAL",
         values: ["good"],
-        distribution: [{ value: "good", count: 1 }],
+        valueCounts: [{ value: "good", count: 1 }],
         comment: "test comment",
       },
     });
@@ -128,7 +128,7 @@ describe("aggregateScores", () => {
       "test-API-BOOLEAN": {
         type: "CATEGORICAL",
         values: ["True", "False"],
-        distribution: [
+        valueCounts: [
           { value: "True", count: 1 },
           { value: "False", count: 1 },
         ],
@@ -178,7 +178,7 @@ describe("aggregateScores", () => {
       "test-ANNOTATION-CATEGORICAL": {
         type: "CATEGORICAL",
         values: ["good", "bad", "good"],
-        distribution: [
+        valueCounts: [
           { value: "good", count: 2 },
           { value: "bad", count: 1 },
         ],

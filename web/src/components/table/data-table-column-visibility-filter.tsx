@@ -3,7 +3,6 @@ import React, {
   type Dispatch,
   type SetStateAction,
   useState,
-  useMemo,
 } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -26,55 +25,65 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
 }
 
-const UNGROUPED = "ungrouped";
-
 const calculateColumnCounts = <TData, TValue>(
-  groups: { title: string; columns: LangfuseColumnDef<TData, TValue>[] }[],
+  columns: LangfuseColumnDef<TData, TValue>[],
   columnVisibility: VisibilityState,
 ) => {
-  return groups.reduce(
-    (acc, group) => {
-      group.columns.forEach((column) => {
-        if (column.enableHiding) {
-          acc.total++;
-          if (
-            "accessorKey" in column &&
-            column.accessorKey in columnVisibility &&
-            columnVisibility[column.accessorKey]
-          ) {
-            acc.count++;
-          }
+  return columns.reduce(
+    (acc, column) => {
+      if (column.columns) {
+        const groupCounts = calculateColumnCounts(
+          column.columns,
+          columnVisibility,
+        );
+        acc.count += groupCounts.count;
+        acc.total += groupCounts.total;
+      } else if (column.enableHiding) {
+        acc.total++;
+        if (
+          column.accessorKey in columnVisibility &&
+          columnVisibility[column.accessorKey]
+        ) {
+          acc.count++;
         }
-      });
+      }
       return acc;
     },
     { count: 0, total: 0 },
   );
 };
 
-const partitionColumnsByGroup = <TData, TValue>(
-  columns: LangfuseColumnDef<TData, TValue>[],
-) => {
-  return columns.reduce(
-    (acc, col) => {
-      if ("columns" in col && !!col.columns) {
-        acc.push({
-          title: typeof col.header === "string" ? col.header : col.accessorKey,
-          columns: col.columns,
-        });
-      } else {
-        const ungrouped = acc.find((group) => group.title === UNGROUPED);
-        if (ungrouped) {
-          ungrouped.columns.push(col);
-        } else {
-          acc.push({ title: UNGROUPED, columns: [col] });
-        }
-      }
-      return acc;
-    },
-    [] as { title: string; columns: LangfuseColumnDef<TData, TValue>[] }[],
-  );
-};
+function ColumnVisibilityDropdownItem<TData, TValue>({
+  column,
+  toggleColumn,
+  columnVisibility,
+}: {
+  column: LangfuseColumnDef<TData, TValue>;
+  toggleColumn: (columnId: string) => void;
+  columnVisibility: VisibilityState;
+}) {
+  if (column.enableHiding) {
+    return (
+      <DropdownMenuCheckboxItem
+        className="capitalize"
+        checked={columnVisibility[column.accessorKey]}
+        onCheckedChange={() => toggleColumn(column.accessorKey.toString())}
+      >
+        <span className="capitalize">
+          {column.header && typeof column.header === "string"
+            ? column.header
+            : column.accessorKey}
+        </span>
+        {column.headerTooltip && (
+          <DocPopup
+            description={column.headerTooltip.description}
+            href={column.headerTooltip.href}
+          />
+        )}
+      </DropdownMenuCheckboxItem>
+    );
+  }
+}
 
 export function DataTableColumnVisibilityFilter<TData, TValue>({
   columns,
@@ -103,15 +112,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     [setColumnVisibility],
   );
 
-  const columnsByGroup = useMemo(
-    () => partitionColumnsByGroup(columns),
-    [columns],
-  );
-
-  const { count, total } = calculateColumnCounts(
-    columnsByGroup,
-    columnVisibility,
-  );
+  const { count, total } = calculateColumnCounts(columns, columnVisibility);
 
   return (
     <DropdownMenu open={isOpen}>
@@ -133,66 +134,37 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         onPointerDownOutside={() => setIsOpen(false)}
         className="max-h-96 overflow-y-auto"
       >
-        {columnsByGroup.map(({ title, columns }, index) => {
-          if (!Boolean(columns.length)) return null;
-          if (title === UNGROUPED) {
-            return columns.map(
-              (column) =>
-                "accessorKey" in column &&
-                column.enableHiding && (
-                  <DropdownMenuCheckboxItem
+        {columns.map((column, index) => {
+          if (!!column.columns) {
+            const isFollowingGroup = "columns" in (columns[index - 1] ?? {});
+            return (
+              <div key={index}>
+                {!isFollowingGroup && <DropdownMenuSeparator />}
+                <DropdownMenuLabel>
+                  {column.header && typeof column.header === "string"
+                    ? column.header
+                    : column.accessorKey}
+                </DropdownMenuLabel>
+                {column.columns.map((column) => (
+                  <ColumnVisibilityDropdownItem
                     key={column.accessorKey}
-                    checked={columnVisibility[column.accessorKey]}
-                    onCheckedChange={() => toggleColumn(column.accessorKey)}
-                  >
-                    <span className="capitalize">
-                      {column.header && typeof column.header === "string"
-                        ? column.header
-                        : column.accessorKey}
-                    </span>
-                    {column.headerTooltip && (
-                      <DocPopup
-                        description={column.headerTooltip.description}
-                        href={column.headerTooltip.href}
-                      />
-                    )}
-                  </DropdownMenuCheckboxItem>
-                ),
+                    column={column}
+                    columnVisibility={columnVisibility}
+                    toggleColumn={toggleColumn}
+                  />
+                ))}
+                <DropdownMenuSeparator />
+              </div>
             );
-          }
-
-          return (
-            <div key={index}>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>{title}</DropdownMenuLabel>
-              {columns.map((column) => {
-                if ("accessorKey" in column && column.enableHiding) {
-                  return (
-                    <DropdownMenuCheckboxItem
-                      key={column.accessorKey}
-                      className="capitalize"
-                      checked={columnVisibility[column.accessorKey]}
-                      onCheckedChange={() =>
-                        toggleColumn(column.accessorKey.toString())
-                      }
-                    >
-                      <span className="capitalize" title={column.accessorKey}>
-                        {column.header && typeof column.header === "string"
-                          ? column.header
-                          : column.accessorKey}
-                      </span>
-                      {column.headerTooltip && (
-                        <DocPopup
-                          description={column.headerTooltip.description}
-                          href={column.headerTooltip.href}
-                        />
-                      )}
-                    </DropdownMenuCheckboxItem>
-                  );
-                }
-              })}
-            </div>
-          );
+          } else
+            return (
+              <ColumnVisibilityDropdownItem
+                key={column.accessorKey}
+                column={column}
+                columnVisibility={columnVisibility}
+                toggleColumn={toggleColumn}
+              />
+            );
         })}
       </DropdownMenuContent>
     </DropdownMenu>

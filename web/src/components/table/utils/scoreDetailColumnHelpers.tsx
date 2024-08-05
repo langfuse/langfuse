@@ -22,10 +22,12 @@ type ScoreDetailColumnProps = {
   source: ScoreSource;
 };
 
-const prefixKey = (key: string, prefix: "Trace" | "Generation"): string =>
-  `${prefix}-${key}`;
+const prefixScoreColKey = (
+  key: string,
+  prefix: "Trace" | "Generation",
+): string => `${prefix}-${key}`;
 
-export const getDataTypeIcon = (dataType: ScoreDataType): string => {
+const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
   switch (dataType) {
     case "NUMERIC":
     default:
@@ -52,16 +54,16 @@ const parseScoreColumn = <
 
   if (!!prefix) {
     return {
-      header: `${prefix}: ${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-      accessorKey: prefixKey(key, prefix),
-      id: prefixKey(key, prefix),
+      header: `${prefix}: ${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+      accessorKey: prefixScoreColKey(key, prefix),
+      id: prefixScoreColKey(key, prefix),
       enableHiding: true,
       size: 150,
     };
   }
 
   return {
-    header: `${getDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+    header: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
     accessorKey: key,
     id: key,
     enableHiding: true,
@@ -93,7 +95,7 @@ export function prefixScoreData(
   let prefixedScores: ScoreAggregate = {};
 
   for (const key in scoreData) {
-    prefixedScores[prefixKey(key, prefix)] = scoreData[key];
+    prefixedScores[prefixScoreColKey(key, prefix)] = scoreData[key];
   }
 
   return prefixedScores;
