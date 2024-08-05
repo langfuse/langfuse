@@ -3687,11 +3687,15 @@ components:
           type: array
           items:
             type: string
+        lastUpdatedAt:
+          type: string
+          format: date-time
       required:
         - name
         - versions
         - labels
         - tags
+        - lastUpdatedAt
     CreatePromptRequest:
       title: CreatePromptRequest
       oneOf:
