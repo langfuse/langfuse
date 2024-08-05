@@ -1,5 +1,7 @@
 import logger from "../logger";
 
+import { redis } from "@langfuse/shared/src/server";
+
 import { evalJobCreator, evalJobExecutor } from "../queues/evalQueue";
 import { batchExportJobExecutor } from "../queues/batchExportQueue";
 import { flushIngestionQueueExecutor } from "../queues/ingestionFlushQueue";
