@@ -75,7 +75,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const projectId = uuidv4();
       const response = await makeAPICall(
         "GET",
-        `/api/public/v2/prompts`,
+        baseURI,
         undefined,
         `Bearer ${projectId}`,
       );
@@ -835,18 +835,21 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(promptMeta1.versions).toEqual([1, 2, 4]);
       expect(promptMeta1.labels).toEqual(["production"]);
       expect(promptMeta1.tags).toEqual([]);
+      expect(promptMeta1.lastUpdatedAt).toBeDefined();
 
       // Validate prompt-2 meta
       expect(promptMeta2.name).toBe("prompt-2");
       expect(promptMeta2.versions).toEqual([1, 2, 3]);
       expect(promptMeta2.labels).toEqual(["dev", "production", "staging"]);
       expect(promptMeta2.tags).toEqual([]);
+      expect(promptMeta2.lastUpdatedAt).toBeDefined();
 
       // Validate prompt-3 meta
       expect(promptMeta3.name).toBe("prompt-3");
       expect(promptMeta3.versions).toEqual([1]);
       expect(promptMeta3.labels).toEqual(["production"]);
       expect(promptMeta3.tags).toEqual(["tag-1"]);
+      expect(promptMeta3.lastUpdatedAt).toBeDefined();
 
       // Validate pagination
       expect(body.meta.page).toBe(1);
