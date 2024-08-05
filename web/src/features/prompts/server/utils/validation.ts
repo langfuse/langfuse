@@ -15,7 +15,7 @@ export enum PromptType {
 export const PromptLabelSchema = z
   .string()
   .min(1)
-  .max(20)
+  .max(36)
   .regex(
     /^[a-z0-9_\-.]+$/,
     "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
