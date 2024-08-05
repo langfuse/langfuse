@@ -21,9 +21,17 @@ export type ScoreAggregate = Record<
 
 export type ScoreSimplified = {
   name: string;
-  value?: number | null;
-  stringValue: string | null;
-  source: ScoreSource;
   dataType: ScoreDataType;
+  source: ScoreSource;
+  value?: number | null;
   comment?: string | null;
+  stringValue?: string | null;
+};
+
+export type LastUserScore = ScoreSimplified & {
+  timestamp: string;
+  traceId: string;
+  observationId?: string;
+
+  userId: string;
 };

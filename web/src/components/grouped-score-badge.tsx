@@ -7,9 +7,9 @@ import {
 import { MessageCircleMore } from "lucide-react";
 
 import { type APIScore } from "@/src/features/public-api/types/scores";
-import { type Score } from "@langfuse/shared";
+import { type LastUserScore } from "@/src/features/manual-scoring/lib/types";
 
-export const GroupedScoreBadges = <T extends APIScore | Score>({
+export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
   scores,
 }: {
   scores: T[];
