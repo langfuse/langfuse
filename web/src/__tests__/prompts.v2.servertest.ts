@@ -833,7 +833,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       // Validate prompt-1 meta
       expect(promptMeta1.name).toBe("prompt-1");
       expect(promptMeta1.versions).toEqual([1, 2, 4]);
-      expect(promptMeta1.labels).toEqual(["production"]);
+      expect(promptMeta1.labels).toEqual(["production", "version2"]);
       expect(promptMeta1.tags).toEqual([]);
       expect(promptMeta1.lastUpdatedAt).toBeDefined();
 
@@ -873,7 +873,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.data).toHaveLength(1);
       expect(body.data[0].name).toBe("prompt-1");
       expect(body.data[0].versions).toEqual([1, 2, 4]);
-      expect(body.data[0].labels).toEqual(["production"]);
+      expect(body.data[0].labels).toEqual(["production", "version2"]);
       expect(body.data[0].tags).toEqual([]);
 
       // Validate pagination
@@ -994,6 +994,55 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     expect(body.meta.totalPages).toBe(3);
     expect(body.meta.totalItems).toBe(3);
   });
+
+  it("should fetch lastConfig correctly for a prompt with multiple versions", async () => {
+    // no filters
+    const response = await makeAPICall("GET", `${baseURI}`);
+    expect(response.status).toBe(200);
+    const body = response.body as unknown as PromptsMetaResponse;
+
+    expect(body.data).toHaveLength(3);
+    expect(body.data.some((promptMeta) => promptMeta.name === "prompt-1")).toBe(
+      true,
+    );
+    expect(body.data.some((promptMeta) => promptMeta.name === "prompt-2")).toBe(
+      true,
+    );
+    expect(body.data.some((promptMeta) => promptMeta.name === "prompt-3")).toBe(
+      true,
+    );
+    const prompt1 = body.data.find(
+      (promptMeta) => promptMeta.name === "prompt-1",
+    );
+    expect(prompt1).toBeDefined();
+    expect(prompt1?.lastConfig).toEqual({ version: 4 });
+
+    const prompt2 = body.data.find(
+      (promptMeta) => promptMeta.name === "prompt-2",
+    );
+    expect(prompt2).toBeDefined();
+    expect(prompt2?.lastConfig).toEqual({});
+
+    // validate with label filter
+    const response2 = await makeAPICall("GET", `${baseURI}?label=version2`);
+    expect(response2.status).toBe(200);
+    const body2 = response2.body as unknown as PromptsMetaResponse;
+
+    expect(body2.data).toHaveLength(1);
+    expect(body2.data[0].name).toBe("prompt-1");
+    expect(body2.data[0].lastConfig).toEqual({ version: 2 });
+
+    // validate with version filter
+    const response3 = await makeAPICall("GET", `${baseURI}?version=1`);
+    expect(response3.status).toBe(200);
+    const body3 = response3.body as unknown as PromptsMetaResponse;
+
+    expect(body3.data).toHaveLength(3);
+    const prompt1v1 = body3.data.find(
+      (promptMeta) => promptMeta.name === "prompt-1",
+    );
+    expect(prompt1v1?.lastConfig).toEqual({ version: 1 });
+  });
 });
 
 const isPrompt = (x: unknown): x is Prompt => {
@@ -1032,16 +1081,16 @@ const mockPrompts = [
     prompt: "prompt-1",
     createdBy: "user-test",
     projectId,
-    config: {},
+    config: { version: 1 },
     version: 1,
   },
   {
     name: "prompt-1",
-    labels: ["production"],
+    labels: ["production", "version2"],
     prompt: "prompt-1",
     createdBy: "user-test",
     projectId,
-    config: {},
+    config: { version: 2 },
     version: 2,
   },
   {
@@ -1050,7 +1099,7 @@ const mockPrompts = [
     prompt: "prompt-1",
     createdBy: "user-test",
     projectId,
-    config: {},
+    config: { version: 4 },
     version: 4,
   },
 
