@@ -122,6 +122,7 @@ ALTER TABLE "membership_invitations" RENAME COLUMN "role" TO "project_role";
 ALTER TABLE "membership_invitations" ADD COLUMN "org_id" TEXT;
 ALTER TABLE "membership_invitations" ADD COLUMN "org_role" "OrganizationRole";
 ALTER TABLE "membership_invitations" ALTER COLUMN "project_id" DROP NOT NULL;
+ALTER TABLE "membership_invitations" ALTER COLUMN "project_role" DROP NOT NULL;
 -- Backfill org id
 UPDATE "membership_invitations"
 SET "org_id" = "projects"."org_id"
@@ -131,7 +132,7 @@ WHERE "membership_invitations"."project_id" = "projects"."id";
 ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 -- Backfill org role with value from project role
 UPDATE "membership_invitations"
-SET "org_role" = "project_role"::"OrganizationRole";
+SET "org_role" = "project_role"::text::"OrganizationRole";
 -- Set project-level cols to null, as it's now org level for all existing invitations and role enum will change below
 UPDATE "membership_invitations"
 SET "project_role" = NULL, "project_id" = NULL;
