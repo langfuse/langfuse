@@ -31,7 +31,7 @@ export type ScoreSimplified = {
 export type LastUserScore = ScoreSimplified & {
   timestamp: string;
   traceId: string;
-  observationId?: string;
+  observationId?: string | null;
 
   userId: string;
 };
