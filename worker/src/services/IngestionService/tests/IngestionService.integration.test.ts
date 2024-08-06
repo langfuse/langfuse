@@ -1195,12 +1195,13 @@ describe("Ingestion end-to-end tests", () => {
 
   it("null does not override set values", async () => {
     const traceId = randomUUID();
+    const timestamp = Date.now();
 
     const traceEventList: TraceEventType[] = [
       {
         id: randomUUID(),
         type: "trace-create",
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(timestamp).toISOString(),
         body: {
           id: traceId,
           name: "trace-name",
@@ -1213,7 +1214,7 @@ describe("Ingestion end-to-end tests", () => {
       {
         id: randomUUID(),
         type: "trace-create",
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(timestamp + 1).toISOString(),
         body: {
           id: traceId,
           name: "trace-name",
