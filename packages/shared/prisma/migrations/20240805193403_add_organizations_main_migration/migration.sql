@@ -11,12 +11,9 @@
   - Added the required column `org_id` to the `projects` table without a default value. This is not possible if the table is not empty.
 
 */
--- OrganizationRole
--- Create OrganizationRole
-CREATE TYPE "OrganizationRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER', 'NONE');
 
 
-
+-- Table ORGANIZATIONS
 -- Create empty table ORGANIZATIONS
 CREATE TABLE "organizations" (
     "id" TEXT NOT NULL,
@@ -27,20 +24,32 @@ CREATE TABLE "organizations" (
 
     CONSTRAINT "organizations_pkey" PRIMARY KEY ("id")
 );
-
-
--- Add org_id to projects
-ALTER TABLE "projects" ADD COLUMN "org_id";
-
-
--- Backfill: create a new organization for each project, move cloudConfig, and set the org_id on the project
+-- Backfill table ORGANIZATIONS: create a new organization for each project, move cloudConfig, and set the org_id on the project to project_id prefixed with 'o'
 INSERT INTO "organizations" ("id", "name", "cloud_config")
-SELECT CONCAT('', "id"), "name", "cloud_config"
+SELECT
+  CONCAT('o', "id") as "id", -- This mapping is used in other migration steps as well, keep it consistent
+  "name",
+  "cloud_config"
 FROM "projects";
+-- Drop column cloud_config from projects as it's now on organization level
+ALTER TABLE "projects" DROP COLUMN "cloud_config";
+
+
+-- PROJECT.ORG_ID
+-- Add org_id to projects
+ALTER TABLE "projects" ADD COLUMN "org_id" TEXT;
+-- Backfill: org_id on projects, set it to project_id prefixed with 'o'
+UPDATE "projects"
+SET "org_id" = CONCAT('o', "id");
+-- Set not null after backfill
+ALTER TABLE "projects" ALTER COLUMN "org_id" SET NOT NULL;
 
 
 
--- Create empty table ORGANIZATION MEMBERSHIPS
+-- ORGANIZATION MEMBERSHIPS
+-- Create OrganizationRole ENUM
+CREATE TYPE "OrganizationRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER', 'NONE');
+-- Create empty table
 CREATE TABLE "organization_memberships" (
     "id" TEXT NOT NULL,
     "org_id" TEXT NOT NULL,
@@ -62,7 +71,19 @@ ALTER TABLE "organization_memberships" ADD CONSTRAINT "organization_memberships_
 
 
 
+-- Migrate project memberships to organization memberships
+INSERT INTO "organization_memberships" ("id", "org_id", "user_id", "role", "created_at", "updated_at")
+SELECT
+  md5(random()::text || clock_timestamp()::text || s.project_id::text)::uuid AS "id",
+  CONCAT('o', "project_id") as "org_id",
+  "user_id",
+  "role"::"OrganizationRole" as "role",
+  "created_at",
+  "updated_at"
+FROM "project_memberships";
 
+-- Delete all project memberships after migration to organization memberships
+DELETE FROM "project_memberships";
 
 
 
@@ -84,6 +105,9 @@ WHERE "audit_logs"."project_id" = "projects"."id";
 -- Backfill user_org_role with value from user_project_role
 UPDATE "audit_logs"
 SET "user_org_role" = "user_project_role"::"OrganizationRole";
+-- Set user project role to null, as it's now org level for all existing logs and role enum will change below
+UPDATE "audit_logs"
+SET "user_project_role" = NULL;
 -- Add not null on org level cols
 ALTER TABLE "audit_logs" ALTER COLUMN "org_id" SET NOT NULL;
 ALTER TABLE "audit_logs" ALTER COLUMN "user_org_role" SET NOT NULL;
@@ -96,15 +120,29 @@ CREATE INDEX "audit_logs_org_id_idx" ON "audit_logs"("org_id");
 -- DropForeignKey
 ALTER TABLE "membership_invitations" DROP CONSTRAINT "membership_invitations_project_id_fkey";
 -- AlterTable
-ALTER TABLE "membership_invitations" DROP COLUMN "role",
-ADD COLUMN     "org_id" TEXT NOT NULL,
-ADD COLUMN     "org_role" "OrganizationRole" NOT NULL,
-ADD COLUMN     "project_role" "ProjectRole",
+ALTER TABLE "membership_invitations"
+RENAME COLUMN "role" TO "project_role",
+ADD COLUMN     "org_id" TEXT,
+ADD COLUMN     "org_role" "OrganizationRole",
 ALTER COLUMN "project_id" DROP NOT NULL;
+-- Backfill org id
+UPDATE "membership_invitations"
+SET "org_id" = "projects"."org_id"
+FROM "projects"
+WHERE "membership_invitations"."project_id" = "projects"."id";
+-- Backfill org role with value from project role
+UPDATE "membership_invitations"
+SET "org_role" = "project_role"::"OrganizationRole";
+-- Set project-level cols to null, as it's now org level for all existing invitations and role enum will change below
+UPDATE "membership_invitations"
+SET "project_role" = NULL, "project_id" = NULL;
+
+-- Add not null on org level cols after backfill
+ALTER TABLE "membership_invitations"
+ALTER COLUMN "org_id" SET NOT NULL,
+ALTER COLUMN "org_role" SET NOT NULL;
 -- CreateIndex
 CREATE INDEX "membership_invitations_org_id_idx" ON "membership_invitations"("org_id");
-
-
 
 
 
@@ -115,8 +153,7 @@ ALTER TABLE "project_memberships" ADD COLUMN     "org_membership_id" TEXT NOT NU
 
 
 
-ALTER TABLE "projects" DROP COLUMN "cloud_config",
-ADD COLUMN     "org_id" TEXT NOT NULL;
+
 
 
 
@@ -146,7 +183,10 @@ ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_org_
 -- AddForeignKey
 ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- Remove OWNER from ProjectRoles
+
+
+
+-- Remove OWNER from ProjectRoles ENUM
 BEGIN;
 CREATE TYPE "ProjectRole_new" AS ENUM ('ADMIN', 'MEMBER', 'VIEWER');
 ALTER TABLE "project_memberships" ALTER COLUMN "role" TYPE "ProjectRole_new" USING ("role"::text::"ProjectRole_new");
