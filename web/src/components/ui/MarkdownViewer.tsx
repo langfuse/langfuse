@@ -318,7 +318,7 @@ export function MarkdownView({
           },
           table({ children }) {
             return (
-              <div className="overflow-hidden rounded border">
+              <div className="overflow-x-auto rounded border text-xs">
                 <table className="min-w-full divide-y">{children}</table>
               </div>
             );
