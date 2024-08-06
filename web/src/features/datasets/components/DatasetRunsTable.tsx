@@ -7,7 +7,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 import { type RouterOutput } from "@/src/utils/types";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { usdFormatter } from "../../../utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -16,10 +16,10 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   SCORE_GROUP_COLUMN_PROPS,
-  constructIndividualScoreColumns,
   verifyScoreDataAgainstKeys,
-} from "@/src/components/table/utils/scoreDetailColumnHelpers";
+} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
 export type DatasetRunRowData = {
   key: {
@@ -66,27 +66,12 @@ export function DatasetRunsTable(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
-    {
+  const { scoreColumns, scoreKeysAndProps } =
+    useIndividualScoreColumns<DatasetRunRowData>({
       projectId: props.projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
-    },
-  );
-
-  const scoreColumns = useMemo(() => {
-    return constructIndividualScoreColumns<DatasetRunRowData>({
-      scoreColumnProps: scoreKeysAndProps.data ?? [],
       scoreColumnKey: "scores",
       showAggregateViewOnly: true,
     });
-  }, [scoreKeysAndProps.data]);
 
   const columns: LangfuseColumnDef<DatasetRunRowData>[] = [
     {
@@ -175,10 +160,7 @@ export function DatasetRunsTable(props: {
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
       avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
-      scores: verifyScoreDataAgainstKeys(
-        scoreKeysAndProps.data ?? [],
-        item.scores,
-      ),
+      scores: verifyScoreDataAgainstKeys(scoreKeysAndProps, item.scores),
       description: item.description ?? "",
       metadata: item.metadata,
     };

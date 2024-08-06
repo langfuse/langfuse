@@ -16,14 +16,13 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
-  constructIndividualScoreColumns,
   prefixScoreData,
   verifyScoreDataAgainstKeys,
-} from "@/src/components/table/utils/scoreDetailColumnHelpers";
-import { useMemo } from "react";
+} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -137,39 +136,21 @@ export default function PromptVersionTable() {
     },
   );
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
-    {
+  const { scoreColumns: traceScoreColumns, scoreKeysAndProps } =
+    useIndividualScoreColumns<PromptVersionTableRow>({
       projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
-    },
-  );
+      scoreColumnPrefix: "Trace",
+      scoreColumnKey: "traceScores",
+      showAggregateViewOnly: true,
+    });
 
-  const { traceScoreColumns, generationScoreColumns } = useMemo(() => {
-    return {
-      traceScoreColumns: constructIndividualScoreColumns<PromptVersionTableRow>(
-        {
-          scoreColumnProps: scoreKeysAndProps.data ?? [],
-          showAggregateViewOnly: true,
-          scoreColumnPrefix: "Trace",
-          scoreColumnKey: "traceScores",
-        },
-      ),
-      generationScoreColumns:
-        constructIndividualScoreColumns<PromptVersionTableRow>({
-          scoreColumnProps: scoreKeysAndProps.data ?? [],
-          showAggregateViewOnly: true,
-          scoreColumnPrefix: "Generation",
-          scoreColumnKey: "generationScores",
-        }),
-    };
-  }, [scoreKeysAndProps.data]);
+  const { scoreColumns: generationScoreColumns } =
+    useIndividualScoreColumns<PromptVersionTableRow>({
+      projectId,
+      scoreColumnPrefix: "Generation",
+      scoreColumnKey: "generationScores",
+      showAggregateViewOnly: true,
+    });
 
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
     {
@@ -375,14 +356,14 @@ export default function PromptVersionTable() {
             medianCost: prompt.medianTotalCost,
             traceScores: prefixScoreData(
               verifyScoreDataAgainstKeys(
-                scoreKeysAndProps.data ?? [],
+                scoreKeysAndProps,
                 prompt.traceScores ?? {},
               ),
               "Trace",
             ),
             observationScores: prefixScoreData(
               verifyScoreDataAgainstKeys(
-                scoreKeysAndProps.data ?? [],
+                scoreKeysAndProps,
                 prompt.observationScores ?? {},
               ),
               "Generation",

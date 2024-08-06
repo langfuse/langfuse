@@ -38,12 +38,12 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   SCORE_GROUP_COLUMN_PROPS,
-  constructIndividualScoreColumns,
   verifyScoreDataAgainstKeys,
-} from "@/src/components/table/utils/scoreDetailColumnHelpers";
+} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -174,20 +174,6 @@ export default function TracesTable({
     },
   );
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
-    {
-      projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
-    },
-  );
-
   const transformFilterOptions = (
     traceFilterOptions: TraceOptions | undefined,
   ) => {
@@ -197,13 +183,11 @@ export default function TracesTable({
   };
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
-
-  const scoreColumns = useMemo(() => {
-    return constructIndividualScoreColumns<TracesTableRow>({
-      scoreColumnProps: scoreKeysAndProps.data ?? [],
+  const { scoreColumns, scoreKeysAndProps } =
+    useIndividualScoreColumns<TracesTableRow>({
+      projectId,
       scoreColumnKey: "scores",
     });
-  }, [scoreKeysAndProps.data]);
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
@@ -660,17 +644,14 @@ export default function TracesTable({
               completionTokens: trace.completionTokens,
               totalTokens: trace.totalTokens,
             },
-            scores: verifyScoreDataAgainstKeys(
-              scoreKeysAndProps.data ?? [],
-              trace.scores,
-            ),
+            scores: verifyScoreDataAgainstKeys(scoreKeysAndProps, trace.scores),
             inputCost: trace.calculatedInputCost ?? undefined,
             outputCost: trace.calculatedOutputCost ?? undefined,
             totalCost: trace.calculatedTotalCost ?? undefined,
           };
         })
       : [];
-  }, [traces, scoreKeysAndProps.data]);
+  }, [traces, scoreKeysAndProps]);
 
   return (
     <>

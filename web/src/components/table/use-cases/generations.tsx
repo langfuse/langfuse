@@ -43,12 +43,12 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   SCORE_GROUP_COLUMN_PROPS,
-  constructIndividualScoreColumns,
   verifyScoreDataAgainstKeys,
-} from "@/src/components/table/utils/scoreDetailColumnHelpers";
+} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
 export type GenerationsTableRow = {
   id: string;
@@ -191,26 +191,11 @@ export default function GenerationsTable({
     },
   );
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
-    {
+  const { scoreColumns, scoreKeysAndProps } =
+    useIndividualScoreColumns<GenerationsTableRow>({
       projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
-    },
-  );
-
-  const scoreColumns = useMemo(() => {
-    return constructIndividualScoreColumns<GenerationsTableRow>({
-      scoreColumnProps: scoreKeysAndProps.data ?? [],
       scoreColumnKey: "scores",
     });
-  }, [scoreKeysAndProps.data]);
 
   const transformFilterOptions = (
     filterOptions: ObservationOptions | undefined,
@@ -683,7 +668,7 @@ export default function GenerationsTable({
             endTime: generation.endTime?.toLocaleString() ?? undefined,
             timeToFirstToken: generation.timeToFirstToken ?? undefined,
             scores: verifyScoreDataAgainstKeys(
-              scoreKeysAndProps.data ?? [],
+              scoreKeysAndProps,
               generation.scores,
             ),
             latency: generation.latency ?? undefined,
@@ -706,7 +691,7 @@ export default function GenerationsTable({
           };
         })
       : [];
-  }, [generations, scoreKeysAndProps.data]);
+  }, [generations, scoreKeysAndProps]);
 
   return (
     <>

@@ -5,15 +5,16 @@ import { type TracesTableRow } from "@/src/components/table/use-cases/traces";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type DatasetRunItemRowData } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { type DatasetRunRowData } from "@/src/features/datasets/components/DatasetRunsTable";
+import {
+  type ScoreAggregate,
+  type TableRowTypesWithIndividualScoreColumns,
+  type CategoricalAggregate,
+  type NumericAggregate,
+} from "@/src/features/scores/lib/types";
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/[promptName]/metrics";
 import { type ScoreDataType, type ScoreSource } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
-import {
-  type ScoreAggregate,
-  type CategoricalAggregate,
-  type NumericAggregate,
-} from "@/src/features/scores/lib/types";
 
 type ScoreDetailColumnProps = {
   key: string;
@@ -102,12 +103,7 @@ export function prefixScoreData(
 }
 
 export const constructIndividualScoreColumns = <
-  T extends
-    | GenerationsTableRow
-    | TracesTableRow
-    | DatasetRunItemRowData
-    | DatasetRunRowData
-    | PromptVersionTableRow,
+  T extends TableRowTypesWithIndividualScoreColumns,
 >({
   scoreColumnProps,
   scoreColumnKey,

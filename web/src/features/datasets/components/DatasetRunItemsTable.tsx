@@ -16,10 +16,10 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { ListTree } from "lucide-react";
 import {
   SCORE_GROUP_COLUMN_PROPS,
-  constructIndividualScoreColumns,
   verifyScoreDataAgainstKeys,
-} from "@/src/components/table/utils/scoreDetailColumnHelpers";
+} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -81,26 +81,11 @@ export function DatasetRunItemsTable(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runItems.isSuccess, runItems.data]);
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
-    {
+  const { scoreColumns, scoreKeysAndProps } =
+    useIndividualScoreColumns<DatasetRunItemRowData>({
       projectId: props.projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
-    },
-  );
-
-  const scoreColumns = useMemo(() => {
-    return constructIndividualScoreColumns<DatasetRunItemRowData>({
-      scoreColumnProps: scoreKeysAndProps.data ?? [],
       scoreColumnKey: "scores",
     });
-  }, [scoreKeysAndProps.data]);
 
   const columns: LangfuseColumnDef<DatasetRunItemRowData>[] = [
     {
@@ -248,10 +233,7 @@ export function DatasetRunItemsTable(
                   observationId: item.observation?.id,
                 }
               : undefined,
-            scores: verifyScoreDataAgainstKeys(
-              scoreKeysAndProps.data ?? [],
-              item.scores,
-            ),
+            scores: verifyScoreDataAgainstKeys(scoreKeysAndProps, item.scores),
             totalCost: !!item.observation?.calculatedTotalCost
               ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
               : undefined,
