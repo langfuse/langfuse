@@ -13,7 +13,6 @@ export const OrganizationRole = {
 } as const;
 export type OrganizationRole = (typeof OrganizationRole)[keyof typeof OrganizationRole];
 export const ProjectRole = {
-    OWNER: "OWNER",
     ADMIN: "ADMIN",
     MEMBER: "MEMBER",
     VIEWER: "VIEWER"
@@ -99,7 +98,7 @@ export type AuditLog = {
     updated_at: Generated<Timestamp>;
     user_id: string;
     org_id: string;
-    user_org_role: Generated<OrganizationRole>;
+    user_org_role: OrganizationRole;
     project_id: string | null;
     user_project_role: ProjectRole | null;
     resource_type: string;
@@ -239,7 +238,7 @@ export type LlmApiKeys = {
 export type MembershipInvitation = {
     id: string;
     email: string;
-    org_id: string | null;
+    org_id: string;
     org_role: OrganizationRole;
     project_id: string | null;
     project_role: ProjectRole | null;
@@ -358,14 +357,13 @@ export type PosthogIntegration = {
 };
 export type Project = {
     id: string;
-    org_id: string | null;
+    org_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     name: string;
-    cloud_config: unknown | null;
 };
 export type ProjectMembership = {
-    org_membership_id: string | null;
+    org_membership_id: string;
     project_id: string;
     user_id: string;
     role: ProjectRole;
