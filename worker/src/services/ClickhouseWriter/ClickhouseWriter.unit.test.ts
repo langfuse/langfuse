@@ -13,6 +13,7 @@ vi.mock("@sentry/node", () => ({
     distribution: vi.fn(),
     gauge: vi.fn(),
   },
+  init: vi.fn(),
 }));
 
 vi.mock("../../env", () => ({
