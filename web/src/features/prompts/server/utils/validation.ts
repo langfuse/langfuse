@@ -67,6 +67,8 @@ export const GetPromptsMetaSchema = z.object({
   tag: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
+  fromUpdatedAt: z.string().datetime({ offset: true }).nullish(),
+  toUpdatedAt: z.string().datetime({ offset: true }).nullish(),
 });
 
 export type GetPromptsMetaType = z.infer<typeof GetPromptsMetaSchema>;
