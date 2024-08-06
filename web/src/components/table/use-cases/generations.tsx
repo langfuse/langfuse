@@ -706,7 +706,7 @@ export default function GenerationsTable({
           };
         })
       : [];
-  }, [generations, scoreKeysAndProps]);
+  }, [generations, scoreKeysAndProps.data]);
 
   return (
     <>

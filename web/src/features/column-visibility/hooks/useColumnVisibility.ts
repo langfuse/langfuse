@@ -4,6 +4,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { useEffect } from "react";
 import { isEqual } from "lodash";
 
+// returns deep copy of local storage object
 const readStoredVisibilityState = (
   localStorageKey: string,
 ): VisibilityState => {
@@ -19,39 +20,45 @@ const readStoredVisibilityState = (
   }
 };
 
+// garbage collection in case of virtual columns
+function getColumnKeys<TData>(columns: LangfuseColumnDef<TData>[]): string[] {
+  return columns.some((c) => !!c.columns && Boolean(c.columns.length))
+    ? columns
+        .map(
+          (column) =>
+            column.columns?.map((c) => c.accessorKey) || column.accessorKey,
+        )
+        .flat()
+    : [];
+}
+
 function setVisibility<TData>(
   visibilityState: VisibilityState,
   column: LangfuseColumnDef<TData>,
-  storedVisibilityState: VisibilityState,
 ) {
   if (column.columns) {
     column.columns.forEach((groupColumn) => {
-      setVisibility(visibilityState, groupColumn, storedVisibilityState);
+      setVisibility(visibilityState, groupColumn);
     });
   } else {
-    visibilityState[column.accessorKey] = storedVisibilityState.hasOwnProperty(
-      column.accessorKey,
-    )
-      ? storedVisibilityState[column.accessorKey]
-      : !(column.defaultHidden === true);
+    if (
+      column.enableHiding &&
+      !visibilityState.hasOwnProperty(column.accessorKey)
+    ) {
+      visibilityState[column.accessorKey] = !(column.defaultHidden === true);
+    }
   }
 }
 
-// need to add garbage collection
 function useColumnVisibility<TData>(
   localStorageKey: string,
   columns: LangfuseColumnDef<TData>[],
 ) {
   const initialVisibilityState = () => {
     const storedVisibilityState = readStoredVisibilityState(localStorageKey);
-
-    const visibilityState: VisibilityState = Boolean(
-      Object.keys(storedVisibilityState).length,
-    )
-      ? storedVisibilityState
-      : {};
+    const visibilityState: VisibilityState = storedVisibilityState;
     columns.forEach((column) => {
-      setVisibility(visibilityState, column, storedVisibilityState);
+      setVisibility(visibilityState, column);
     });
     return visibilityState;
   };
@@ -61,9 +68,15 @@ function useColumnVisibility<TData>(
 
   useEffect(() => {
     const initialColumnVisibility = initialVisibilityState();
+    const columnKeys = getColumnKeys(columns);
     Object.keys(initialColumnVisibility).forEach((key) => {
       if (Object.hasOwn(columnVisibility, key)) {
         initialColumnVisibility[key] = columnVisibility[key];
+      }
+      if (Boolean(columnKeys.length)) {
+        if (!columnKeys.includes(key)) {
+          delete initialColumnVisibility[key];
+        }
       }
     });
 
