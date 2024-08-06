@@ -24,6 +24,12 @@ export const promptsTableCols: ColumnDefinition[] = [
     internal: 'p."created_at"',
   },
   {
+    name: "Updated At",
+    id: "updatedAt",
+    type: "datetime",
+    internal: 'p."updated_at"',
+  },
+  {
     name: "Type",
     id: "type",
     type: "stringOptions",
