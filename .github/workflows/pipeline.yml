@@ -43,7 +43,7 @@ jobs:
       - name: Build and run both images from compose
         run: |
           docker compose -f docker-compose.build.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
+          sleep 15 # Wait for PostgreSQL to accept connections
 
       - name: Check server health
         run: |
