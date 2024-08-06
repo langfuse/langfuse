@@ -1,4 +1,4 @@
-import { aggregateScores } from "@/src/features/manual-scoring/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 
 describe("aggregateScores", () => {

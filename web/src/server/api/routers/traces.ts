@@ -26,7 +26,7 @@ import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
-import { aggregateScores } from "@/src/features/manual-scoring/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure

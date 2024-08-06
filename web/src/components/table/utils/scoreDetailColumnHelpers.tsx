@@ -13,7 +13,7 @@ import {
   type ScoreAggregate,
   type CategoricalAggregate,
   type NumericAggregate,
-} from "@/src/features/manual-scoring/lib/types";
+} from "@/src/features/scores/lib/types";
 
 type ScoreDetailColumnProps = {
   key: string;

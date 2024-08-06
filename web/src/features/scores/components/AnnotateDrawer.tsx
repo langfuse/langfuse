@@ -59,15 +59,15 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
-import { ScoreConfigDetails } from "@/src/features/manual-scoring/components/ScoreConfigDetails";
+import { ScoreConfigDetails } from "@/src/features/scores/components/ScoreConfigDetails";
 import {
   isNumericDataType,
   isScoreUnsaved,
-} from "@/src/features/manual-scoring/lib/helpers";
-import { getDefaultScoreData } from "@/src/features/manual-scoring/lib/getDefaultScoreData";
+} from "@/src/features/scores/lib/helpers";
+import { getDefaultScoreData } from "@/src/features/scores/lib/getDefaultScoreData";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import Header from "@/src/components/layouts/header";
-import { MultiSelectKeyValues } from "@/src/features/manual-scoring/components/multi-select-key-values";
+import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

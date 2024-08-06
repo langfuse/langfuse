@@ -1,7 +1,7 @@
 import {
   type ScoreAggregate,
   type ScoreSimplified,
-} from "@/src/features/manual-scoring/lib/types";
+} from "@/src/features/scores/lib/types";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import { type ScoreSource, type ScoreDataType } from "@langfuse/shared";
 

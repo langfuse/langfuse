@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
-import { type LastUserScore } from "@/src/features/manual-scoring/lib/types";
+import { type LastUserScore } from "@/src/features/scores/lib/types";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure

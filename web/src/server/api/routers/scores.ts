@@ -23,7 +23,7 @@ import {
 import { orderBy } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { validateDbScore } from "@/src/features/public-api/types/scores";
-import { composeAggregateScoreKey } from "@/src/features/manual-scoring/lib/aggregateScores";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure

@@ -43,7 +43,7 @@ import {
 } from "@/src/components/table/utils/scoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/types";
+import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 
 export type TracesTableRow = {
   bookmarked: boolean;

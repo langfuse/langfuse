@@ -20,7 +20,7 @@ import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { type LastUserScore } from "@/src/features/manual-scoring/lib/types";
+import { type LastUserScore } from "@/src/features/scores/lib/types";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 

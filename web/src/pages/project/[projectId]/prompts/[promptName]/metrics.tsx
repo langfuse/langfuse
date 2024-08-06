@@ -23,7 +23,7 @@ import {
 import { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { type ScoreAggregate } from "@/src/features/manual-scoring/lib/types";
+import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 
 export type PromptVersionTableRow = {
   version: number;

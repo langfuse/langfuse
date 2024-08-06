@@ -20,8 +20,8 @@ import {
 } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { PromptService, redis } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/manual-scoring/lib/aggregateScores";
-import { type ScoreSimplified } from "@/src/features/manual-scoring/lib/types";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
