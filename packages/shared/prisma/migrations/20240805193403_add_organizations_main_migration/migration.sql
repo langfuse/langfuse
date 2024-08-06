@@ -1,18 +1,3 @@
-/*
-  Warnings:
-
-  - The values [OWNER] on the enum `ProjectRole` will be removed. If these variants are still used in the database, this will fail.
-  - You are about to drop the column `role` on the `membership_invitations` table. All the data in the column will be lost.
-  - You are about to drop the column `cloud_config` on the `projects` table. All the data in the column will be lost.
-  - Added the required column `org_id` to the `audit_logs` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `org_id` to the `membership_invitations` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `org_role` to the `membership_invitations` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `org_membership_id` to the `project_memberships` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `org_id` to the `projects` table without a default value. This is not possible if the table is not empty.
-
-*/
-
-
 -- Table ORGANIZATIONS
 -- Create empty table ORGANIZATIONS
 CREATE TABLE "organizations" (
@@ -43,6 +28,8 @@ UPDATE "projects"
 SET "org_id" = CONCAT('o', "id");
 -- Set not null after backfill
 ALTER TABLE "projects" ALTER COLUMN "org_id" SET NOT NULL;
+-- AddForeignKey
+ALTER TABLE "projects" ADD CONSTRAINT "projects_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 
 
@@ -82,11 +69,15 @@ SELECT
   "updated_at"
 FROM "project_memberships";
 
+
+
 -- Delete all project memberships after migration to organization memberships
 DELETE FROM "project_memberships";
 
 -- Add org_membership_id to project_memberships, ok to be not null as it's a new column on a now empty table
 ALTER TABLE "project_memberships" ADD COLUMN     "org_membership_id" TEXT NOT NULL;
+-- AddForeignKey
+ALTER TABLE "project_memberships" ADD CONSTRAINT "project_memberships_org_membership_id_fkey" FOREIGN KEY ("org_membership_id") REFERENCES "organization_memberships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 -- CreateIndex
 CREATE INDEX "project_memberships_project_id_idx" ON "project_memberships"("project_id");
 -- CreateIndex
@@ -137,12 +128,18 @@ UPDATE "membership_invitations"
 SET "org_id" = "projects"."org_id"
 FROM "projects"
 WHERE "membership_invitations"."project_id" = "projects"."id";
+-- AddForeignKey
+ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 -- Backfill org role with value from project role
 UPDATE "membership_invitations"
 SET "org_role" = "project_role"::"OrganizationRole";
 -- Set project-level cols to null, as it's now org level for all existing invitations and role enum will change below
 UPDATE "membership_invitations"
 SET "project_role" = NULL, "project_id" = NULL;
+-- AddForeignKey
+ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "projects_org_id_idx" ON "projects"("org_id");
 
 -- Add not null on org level cols after backfill
 ALTER TABLE "membership_invitations"
@@ -150,34 +147,6 @@ ALTER COLUMN "org_id" SET NOT NULL,
 ALTER COLUMN "org_role" SET NOT NULL;
 -- CreateIndex
 CREATE INDEX "membership_invitations_org_id_idx" ON "membership_invitations"("org_id");
-
-
-
-
-
-
-
-
-
-
-
-
-
--- CreateIndex
-CREATE INDEX "projects_org_id_idx" ON "projects"("org_id");
-
--- AddForeignKey
-ALTER TABLE "projects" ADD CONSTRAINT "projects_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "project_memberships" ADD CONSTRAINT "project_memberships_org_membership_id_fkey" FOREIGN KEY ("org_membership_id") REFERENCES "organization_memberships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
 
 
 
