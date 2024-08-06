@@ -24,9 +24,9 @@ const ScoreValueCounts = ({
   valueCounts: CategoricalAggregate["valueCounts"];
 }) => {
   return valueCounts.map(({ value, count }) => (
-    <div key={value} className="flex flex-row gap-1">
-      <span className="truncate">{`${value}:`}</span>
-      <span>{numberFormatter(count, 0)}</span>
+    <div key={value} className="flex flex-row">
+      <span className="truncate">{value}</span>
+      <span>{`: ${numberFormatter(count, 0)}`}</span>
     </div>
   ));
 };
