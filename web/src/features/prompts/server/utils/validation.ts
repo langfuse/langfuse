@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { jsonSchema } from "@langfuse/shared";
 import type { Prompt } from "@langfuse/shared";
+import { stringDateTime } from "@langfuse/shared/src/server";
 
 export const ChatMessageSchema = z.object({
   role: z.string(),
@@ -67,6 +68,8 @@ export const GetPromptsMetaSchema = z.object({
   tag: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
+  fromUpdatedAt: stringDateTime.nullish(),
+  toUpdatedAt: stringDateTime.nullish(),
 });
 
 export type GetPromptsMetaType = z.infer<typeof GetPromptsMetaSchema>;

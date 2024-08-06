@@ -23,11 +23,13 @@ type CreatePromptInDBParams = {
   prompt: string;
   labels: string[];
   version: number;
-  config: Record<string, object | number | string>;
+  config: any;
   projectId: string;
   createdBy: string;
   type?: PromptType;
   tags?: string[];
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 const createPromptInDB = async (params: CreatePromptInDBParams) => {
   return await prisma.prompt.create({
@@ -44,6 +46,8 @@ const createPromptInDB = async (params: CreatePromptInDBParams) => {
       createdBy: params.createdBy,
       type: params.type,
       tags: params.tags,
+      createdAt: params.createdAt,
+      updatedAt: params.updatedAt,
     },
   });
 };
@@ -1043,6 +1047,63 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     );
     expect(prompt1v1?.lastConfig).toEqual({ version: 1 });
   });
+
+  it("should respect the fromUpdatedAt and toUpdatedAt filters on GET /prompts", async () => {
+    // to and from
+    const from = new Date("2024-01-02T00:00:00.000Z");
+    const to = new Date("2024-01-04T00:00:00.000Z");
+    const response = await makeAPICall(
+      "GET",
+      `${baseURI}?fromUpdatedAt=${from.toISOString()}&toUpdatedAt=${to.toISOString()}`,
+    );
+    expect(response.status).toBe(200);
+    const body = response.body as unknown as PromptsMetaResponse;
+
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].name).toBe("prompt-1");
+    expect(body.data[0].lastUpdatedAt).toBe("2024-01-02T00:00:00.000Z");
+    expect(body.data[0].versions.length).toBe(1);
+
+    expect(body.meta.totalItems).toBe(1);
+
+    // only from
+    const response2 = await makeAPICall(
+      "GET",
+      `${baseURI}?fromUpdatedAt=${from.toISOString()}`,
+    );
+    expect(response2.status).toBe(200);
+    const body2 = response2.body as unknown as PromptsMetaResponse;
+
+    expect(body2.data).toHaveLength(1);
+    expect(body2.data[0].name).toBe("prompt-1");
+    expect(body2.data[0].lastUpdatedAt).toBe("2024-01-04T00:00:00.000Z");
+    expect(body2.data[0].versions.length).toBe(2);
+
+    expect(body2.meta.totalItems).toBe(1);
+
+    // only to
+    const response3 = await makeAPICall(
+      "GET",
+      `${baseURI}?toUpdatedAt=${to.toISOString()}`,
+    );
+    expect(response3.status).toBe(200);
+    const body3 = response3.body as unknown as PromptsMetaResponse;
+
+    expect(body3.data).toHaveLength(3);
+    expect(body3.data[0].name).toBe("prompt-1");
+    expect(body3.data[0].lastUpdatedAt).toBe("2024-01-02T00:00:00.000Z");
+    expect(body3.data[0].versions.length).toBe(2);
+
+    expect(body3.data[1].name).toBe("prompt-2");
+    expect(body3.data[1].lastUpdatedAt).toBe("2000-03-01T00:00:00.000Z");
+    expect(body3.data[1].versions.length).toBe(3);
+
+    expect(body3.data[2].name).toBe("prompt-3");
+    expect(body3.data[2].lastUpdatedAt).toBe("2000-01-01T00:00:00.000Z");
+    expect(body3.data[2].versions.length).toBe(1);
+
+    expect(body3.meta.totalItems).toBe(3);
+  });
 });
 
 const isPrompt = (x: unknown): x is Prompt => {
@@ -1083,6 +1144,7 @@ const mockPrompts = [
     projectId,
     config: { version: 1 },
     version: 1,
+    updatedAt: new Date("2024-01-01T00:00:00.000Z"),
   },
   {
     name: "prompt-1",
@@ -1092,6 +1154,7 @@ const mockPrompts = [
     projectId,
     config: { version: 2 },
     version: 2,
+    updatedAt: new Date("2024-01-02T00:00:00.000Z"),
   },
   {
     name: "prompt-1",
@@ -1101,6 +1164,7 @@ const mockPrompts = [
     projectId,
     config: { version: 4 },
     version: 4,
+    updatedAt: new Date("2024-01-04T00:00:00.000Z"),
   },
 
   // Prompt with different labels
@@ -1112,6 +1176,7 @@ const mockPrompts = [
     projectId,
     config: {},
     version: 1,
+    updatedAt: new Date("2000-01-01T00:00:00.000Z"),
   },
   {
     name: "prompt-2",
@@ -1121,6 +1186,7 @@ const mockPrompts = [
     projectId,
     config: {},
     version: 2,
+    updatedAt: new Date("2000-03-01T00:00:00.000Z"),
   },
   {
     name: "prompt-2",
@@ -1130,6 +1196,7 @@ const mockPrompts = [
     projectId,
     config: {},
     version: 3,
+    updatedAt: new Date("2000-02-01T00:00:00.000Z"),
   },
 
   // Prompt with different labels
@@ -1142,6 +1209,7 @@ const mockPrompts = [
     config: {},
     tags: ["tag-1"],
     version: 1,
+    updatedAt: new Date("2000-01-01T00:00:00.000Z"),
   },
 
   // Prompt in different project
@@ -1153,5 +1221,6 @@ const mockPrompts = [
     projectId: "239ad00f-562f-411d-af14-831c75ddd875",
     config: {},
     version: 1,
+    updatedAt: new Date("2000-01-01T00:00:00.000Z"),
   },
 ];

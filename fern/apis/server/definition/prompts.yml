@@ -41,6 +41,12 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          fromUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated on or after a certain datetime (ISO 8601)
+          toUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated before a certain datetime (ISO 8601)
 
       response: PromptMetaListResponse
 

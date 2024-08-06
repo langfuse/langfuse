@@ -113,7 +113,7 @@ export type PromptsMetaResponse = {
 };
 
 const getPromptsFilterCondition = (params: GetPromptsMetaType) => {
-  const { name, version, label, tag } = params;
+  const { name, version, label, tag, fromUpdatedAt, toUpdatedAt } = params;
   const filters: FilterState = [];
 
   if (name) {
@@ -149,6 +149,24 @@ const getPromptsFilterCondition = (params: GetPromptsMetaType) => {
       type: "arrayOptions",
       operator: "any of",
       value: [tag],
+    });
+  }
+
+  if (fromUpdatedAt) {
+    filters.push({
+      column: "updatedAt",
+      type: "datetime",
+      operator: ">=",
+      value: new Date(fromUpdatedAt),
+    });
+  }
+
+  if (toUpdatedAt) {
+    filters.push({
+      column: "updatedAt",
+      type: "datetime",
+      operator: "<",
+      value: new Date(toUpdatedAt),
     });
   }
 
