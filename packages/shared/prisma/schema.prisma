@@ -705,7 +705,7 @@ model AuditLog {
     updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at")
     userId          String           @map("user_id")
     orgId           String           @map("org_id")
-    userOrgRole     OrganizationRole @default(OWNER) @map("user_org_role")
+    userOrgRole     OrganizationRole @map("user_org_role")
     projectId       String?          @map("project_id")
     userProjectRole ProjectRole?     @map("user_project_role")
     resourceType    String           @map("resource_type")
