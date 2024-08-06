@@ -61,10 +61,10 @@ ALTER TABLE "organization_memberships" ADD CONSTRAINT "organization_memberships_
 -- Migrate project memberships to organization memberships
 INSERT INTO "organization_memberships" ("id", "org_id", "user_id", "role", "created_at", "updated_at")
 SELECT
-  md5(random()::text || clock_timestamp()::text || s.project_id::text)::uuid AS "id",
+  md5(random()::text || clock_timestamp()::text || project_id::text || user_id::text)::uuid AS "id",
   CONCAT('o', "project_id") as "org_id",
   "user_id",
-  "role"::"OrganizationRole" as "role",
+  "role"::text::"OrganizationRole" as "role",
   "created_at",
   "updated_at"
 FROM "project_memberships";
@@ -102,7 +102,7 @@ FROM "projects"
 WHERE "audit_logs"."project_id" = "projects"."id";
 -- Backfill user_org_role with value from user_project_role
 UPDATE "audit_logs"
-SET "user_org_role" = "user_project_role"::"OrganizationRole";
+SET "user_org_role" = "user_project_role"::text::"OrganizationRole";
 -- Set user project role to null, as it's now org level for all existing logs and role enum will change below
 UPDATE "audit_logs"
 SET "user_project_role" = NULL;
@@ -118,11 +118,10 @@ CREATE INDEX "audit_logs_org_id_idx" ON "audit_logs"("org_id");
 -- DropForeignKey
 ALTER TABLE "membership_invitations" DROP CONSTRAINT "membership_invitations_project_id_fkey";
 -- AlterTable
-ALTER TABLE "membership_invitations"
-RENAME COLUMN "role" TO "project_role",
-ADD COLUMN     "org_id" TEXT,
-ADD COLUMN     "org_role" "OrganizationRole",
-ALTER COLUMN "project_id" DROP NOT NULL;
+ALTER TABLE "membership_invitations" RENAME COLUMN "role" TO "project_role";
+ALTER TABLE "membership_invitations" ADD COLUMN "org_id" TEXT;
+ALTER TABLE "membership_invitations" ADD COLUMN "org_role" "OrganizationRole";
+ALTER TABLE "membership_invitations" ALTER COLUMN "project_id" DROP NOT NULL;
 -- Backfill org id
 UPDATE "membership_invitations"
 SET "org_id" = "projects"."org_id"
