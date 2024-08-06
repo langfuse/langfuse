@@ -295,9 +295,9 @@ export function TracePage({ traceId }: { traceId: string }) {
           </Badge>
         ) : undefined}
       </div>
-      <div className="mt-4 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
-        <div className="flex flex-row items-center gap-3 p-2.5">
-          Tags
+      <div className="mt-3 rounded-lg border bg-card font-semibold text-card-foreground">
+        <div className="flex flex-row items-center gap-3 px-3 py-1">
+          <span className="text-sm">Tags</span>
           <TagTraceDetailsPopover
             tags={trace.data.tags}
             availableTags={allTags}
