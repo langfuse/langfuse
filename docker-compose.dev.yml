@@ -9,14 +9,13 @@ services:
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
     volumes:
-      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/config.d/config.xml:/etc/clickhouse-server/config.d/config.xml
-      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/users.d/users.xml:/etc/clickhouse-server/users.d/users.xml
-      - ${PWD}/fs/volumes/clickhouse/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
       - "8123:8123"
       - "9000:9000"
     depends_on:
-      - db
+      - postgres
 
   redis:
     image: redis:7.2.4
@@ -26,7 +25,7 @@ services:
     ports:
       - 6379:6379
 
-  db:
+  postgres:
     image: postgres:${POSTGRES_VERSION:-latest}
     restart: always
     command: ["postgres", "-c", "log_statement=all"]
@@ -37,8 +36,12 @@ services:
     ports:
       - 5432:5432
     volumes:
-      - database_data:/var/lib/postgresql/data
+      - langfuse_postgres_data:/var/lib/postgresql/data
 
 volumes:
-  database_data:
+  langfuse_postgres_data:
+    driver: local
+  langfuse_clickhouse_data:
+    driver: local
+  langfuse_clickhouse_logs:
     driver: local
