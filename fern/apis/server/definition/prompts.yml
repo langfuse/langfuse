@@ -41,6 +41,12 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          fromUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated on or after a certain datetime (ISO 8601)
+          toUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated before a certain datetime (ISO 8601)
 
       response: PromptMetaListResponse
 
@@ -64,6 +70,9 @@ types:
       labels: list<string>
       tags: list<string>
       lastUpdatedAt: datetime
+      lastConfig:
+        type: unknown
+        docs: Config object of the most recent prompt version that matches the filters (if any are provided)
 
   CreatePromptRequest:
     union:

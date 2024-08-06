@@ -1188,6 +1188,26 @@ paths:
           schema:
             type: integer
             nullable: true
+        - name: fromUpdatedAt
+          in: query
+          description: >-
+            Optional filter to only include prompt versions created/updated on
+            or after a certain datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toUpdatedAt
+          in: query
+          description: >-
+            Optional filter to only include prompt versions created/updated
+            before a certain datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -3690,12 +3710,17 @@ components:
         lastUpdatedAt:
           type: string
           format: date-time
+        lastConfig:
+          description: >-
+            Config object of the most recent prompt version that matches the
+            filters (if any are provided)
       required:
         - name
         - versions
         - labels
         - tags
         - lastUpdatedAt
+        - lastConfig
     CreatePromptRequest:
       title: CreatePromptRequest
       oneOf:

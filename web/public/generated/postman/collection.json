@@ -877,7 +877,7 @@
           "request": {
             "description": "Get a list of prompt names with versions and labels",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/prompts?name=&label=&tag=&page=&limit=",
+              "raw": "{{baseUrl}}/api/public/v2/prompts?name=&label=&tag=&page=&limit=&fromUpdatedAt=&toUpdatedAt=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -912,6 +912,16 @@
                   "key": "limit",
                   "value": "",
                   "description": "limit of items per page"
+                },
+                {
+                  "key": "fromUpdatedAt",
+                  "value": "",
+                  "description": "Optional filter to only include prompt versions created/updated on or after a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "toUpdatedAt",
+                  "value": "",
+                  "description": "Optional filter to only include prompt versions created/updated before a certain datetime (ISO 8601)"
                 }
               ],
               "variable": []
