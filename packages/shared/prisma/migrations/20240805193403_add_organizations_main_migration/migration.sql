@@ -85,6 +85,13 @@ FROM "project_memberships";
 -- Delete all project memberships after migration to organization memberships
 DELETE FROM "project_memberships";
 
+-- Add org_membership_id to project_memberships, ok to be not null as it's a new column on a now empty table
+ALTER TABLE "project_memberships" ADD COLUMN     "org_membership_id" TEXT NOT NULL;
+-- CreateIndex
+CREATE INDEX "project_memberships_project_id_idx" ON "project_memberships"("project_id");
+-- CreateIndex
+CREATE INDEX "project_memberships_org_membership_id_idx" ON "project_memberships"("org_membership_id");
+
 
 
 -- AUDIT LOGS
@@ -146,10 +153,6 @@ CREATE INDEX "membership_invitations_org_id_idx" ON "membership_invitations"("or
 
 
 
--- AlterTable
-ALTER TABLE "project_memberships" ADD COLUMN     "org_membership_id" TEXT NOT NULL;
-
--- AlterTable
 
 
 
@@ -159,14 +162,6 @@ ALTER TABLE "project_memberships" ADD COLUMN     "org_membership_id" TEXT NOT NU
 
 
 
-
-
-
--- CreateIndex
-CREATE INDEX "project_memberships_project_id_idx" ON "project_memberships"("project_id");
-
--- CreateIndex
-CREATE INDEX "project_memberships_org_membership_id_idx" ON "project_memberships"("org_membership_id");
 
 -- CreateIndex
 CREATE INDEX "projects_org_id_idx" ON "projects"("org_id");
