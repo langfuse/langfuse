@@ -361,7 +361,7 @@ export default function PromptVersionTable() {
               ),
               "Trace",
             ),
-            observationScores: prefixScoreData(
+            generationScores: prefixScoreData(
               verifyScoreDataAgainstKeys(
                 scoreKeysAndProps,
                 prompt.observationScores ?? {},
