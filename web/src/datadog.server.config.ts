@@ -18,6 +18,8 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     runtimeMetrics: true,
   });
 
+  tracer.use("next");
+
   const { TracerProvider } = tracer.init({
     startupLogs: true,
   });
