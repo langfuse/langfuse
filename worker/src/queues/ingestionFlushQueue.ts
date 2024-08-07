@@ -6,14 +6,16 @@ import {
   clickhouseClient,
   redis,
   instrumentAsync,
-  recordDistribution,
+  recordGauge,
+  recordHistogram,
+  recordCount,
 } from "@langfuse/shared/src/server";
-import * as Sentry from "@sentry/node";
 
 import { env } from "../env";
 import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
+import { SpanKind } from "@opentelemetry/api";
 
 export type IngestionFlushQueue = Queue<null>;
 
@@ -34,7 +36,12 @@ export const flushIngestionQueueExecutor = redis
       QueueName.IngestionFlushQueue,
       async (job) => {
         return instrumentAsync(
-          { name: "flush-ingestion-consumer" },
+          {
+            name: "flush-ingestion-consumer",
+            rootSpan: true,
+            traceScope: "flush-ingestion-queue",
+            spanKind: SpanKind.CONSUMER,
+          },
           async () => {
             if (job.name === QueueJobs.FlushIngestionEntity) {
               const projectEntityId = job.id;
@@ -42,15 +49,15 @@ export const flushIngestionQueueExecutor = redis
                 throw new Error("ProjectEntity ID not provided");
               }
 
-          // Log wait time
-          const waitTime = Date.now() - job.timestamp;
-          logger.debug(
-            `Received flush request after ${waitTime} ms for ${projectEntityId}`
-          );
+              // Log wait time
+              const waitTime = Date.now() - job.timestamp;
+              logger.debug(
+                `Received flush request after ${waitTime} ms for ${projectEntityId}`
+              );
 
-          recordGauge("ingestion_flush_wait_time", waitTime, {
-            metric: "milliseconds",
-          });
+              recordGauge("ingestion_flush_wait_time", waitTime, {
+                metric: "milliseconds",
+              });
 
               // Check dependencies
               if (!redis) throw new Error("Redis not available");
@@ -70,30 +77,36 @@ export const flushIngestionQueueExecutor = redis
                 env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS
               ).flush(projectEntityId);
 
-          // Log processing time
-          const processingTime = Date.now() - processingStartTime;
-          logger.debug(
-            `Prepared and scheduled CH-write in ${processingTime} ms for ${projectEntityId}`
-          );
+              // Log processing time
+              const processingTime = Date.now() - processingStartTime;
+              logger.debug(
+                `Prepared and scheduled CH-write in ${processingTime} ms for ${projectEntityId}`
+              );
 
-          recordHistogram("ingestion_flush_processing_time", processingTime, {
-            metric: "milliseconds",
-          });
+              recordHistogram(
+                "ingestion_flush_processing_time",
+                processingTime,
+                {
+                  metric: "milliseconds",
+                }
+              );
 
-          // Log queue size
-          await ingestionFlushQueue
-            .count()
-            .then((count) => {
-              logger.debug(`Ingestion flush queue length: ${count}`);
+              // Log queue size
+              await ingestionFlushQueue
+                .count()
+                .then((count) => {
+                  logger.debug(`Ingestion flush queue length: ${count}`);
 
-              recordCount("ingestion_flush_queue_length", count, {
-                unit: "records",
-              });
+                  recordCount("ingestion_flush_queue_length", count, {
+                    unit: "records",
+                  });
 
-              return count;
-            })
-            .catch();
-        }
+                  return count;
+                })
+                .catch();
+            }
+          }
+        );
       },
       {
         connection: redis,

@@ -9,7 +9,8 @@ import {
 
 import { env } from "../../env";
 import logger from "../../logger";
-import { instrumentAsync } from "../../instrumentation";
+import { instrumentAsync } from "@langfuse/shared/src/server";
+import { SpanKind } from "@opentelemetry/api";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -77,15 +78,23 @@ export class ClickhouseWriter {
   }
 
   private async flushAll(fullQueue = false) {
-    return instrumentAsync({ name: "write-to-clickhouse" }, async () => {
-      await Promise.all([
-        this.flush(TableName.Traces, fullQueue),
-        this.flush(TableName.Scores, fullQueue),
-        this.flush(TableName.Observations, fullQueue),
-      ]).catch((err) => {
-        logger.error("ClickhouseWriter.flushAll", err);
-      });
-    });
+    return instrumentAsync(
+      {
+        name: "write-to-clickhouse",
+        rootSpan: true,
+        traceScope: "write-to-clickhouse",
+        spanKind: SpanKind.CONSUMER,
+      },
+      async () => {
+        await Promise.all([
+          this.flush(TableName.Traces, fullQueue),
+          this.flush(TableName.Scores, fullQueue),
+          this.flush(TableName.Observations, fullQueue),
+        ]).catch((err) => {
+          logger.error("ClickhouseWriter.flushAll", err);
+        });
+      }
+    );
   }
 
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
