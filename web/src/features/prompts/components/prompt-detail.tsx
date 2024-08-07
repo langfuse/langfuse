@@ -155,9 +155,9 @@ export const PromptDetail = () => {
           />
         </div>
         <div className="col-span-3">
-          <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
-            <div className="flex flex-row items-center gap-3 p-2.5">
-              Tags
+          <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground">
+            <div className="flex flex-row items-center gap-3 px-3 py-1">
+              <span className="text-sm">Tags</span>
               <TagPromptDetailsPopover
                 key={prompt.id}
                 projectId={projectId as string}
