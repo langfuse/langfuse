@@ -45,7 +45,9 @@ export const ScoresTableCell = ({
         : aggregate.values[0];
 
     return (
-      <span className={cn("rounded-sm", COLOR_MAP.get(value))}>
+      <span
+        className={cn("flex flex-row gap-0.5 rounded-sm", COLOR_MAP.get(value))}
+      >
         {value}
         {aggregate.comment && (
           <HoverCard>
