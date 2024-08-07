@@ -22,6 +22,7 @@ import EmailProvider from "next-auth/providers/email";
 import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import KeycloakProvider from "next-auth/providers/keycloak";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
@@ -139,6 +140,11 @@ if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
   );
 }
 
+// Function to be used in the prismaAdapter to cleanup extra
+// fields in the Token of specific Providers. Default does
+// nothing.
+let cleanupToken = (token) => { return token; }
+
 if (
   env.AUTH_CUSTOM_CLIENT_ID &&
   env.AUTH_CUSTOM_CLIENT_SECRET &&
@@ -238,8 +244,32 @@ if (
     }),
   );
 
+if (
+  env.AUTH_KEYCLOAK_CLIENT_ID &&
+  env.AUTH_KEYCLOAK_CLIENT_SECRET &&
+  env.AUTH_KEYCLOAK_ISSUER
+) {
+  staticProviders.push(
+    KeycloakProvider({
+      clientId: env.AUTH_KEYCLOAK_CLIENT_ID,
+      clientSecret: env.AUTH_KEYCLOAK_CLIENT_SECRET,
+      issuer: env.AUTH_KEYCLOAK_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
+  cleanupToken = (token) => {
+    // Remove 'not-before-policy' and 'refresh_expires_in' from token to create account
+    const { 'not-before-policy': _, refresh_expires_in, ...cleaned } = token;
+    return cleaned;
+  }
+}
+
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
+const _linkAccount = prismaAdapter.linkAccount!;
+prismaAdapter.linkAccount = (token) => { return _linkAccount(cleanupToken(token)); }
 const extendedPrismaAdapter: Adapter = {
   ...prismaAdapter,
   async createUser(profile) {
