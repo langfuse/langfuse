@@ -138,7 +138,9 @@ export const env = createEnv({
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
-    LANGFUSE_EARLY_INGESTION_RETURN: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_ASYNC_INGESTION_PROCESSING: z
+      .enum(["true", "false"])
+      .default("false"),
   },
 
   /**
@@ -269,8 +271,8 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
-    LANGFUSE_EARLY_INGESTION_RETURN:
-      process.env.LANGFUSE_EARLY_INGESTION_RETURN,
+    LANGFUSE_ASYNC_INGESTION_PROCESSING:
+      process.env.LANGFUSE_ASYNC_INGESTION_PROCESSING,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

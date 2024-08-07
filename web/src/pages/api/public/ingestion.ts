@@ -127,7 +127,7 @@ export default async function handler(
 
     const sortedBatch = sortBatch(filteredBatch);
 
-    if (env.LANGFUSE_EARLY_INGESTION_RETURN === "true") {
+    if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true") {
       // this function MUST NOT return but send the HTTP response directly
       handleBatchResult(
         validationErrors, // we are not sending additional server errors to the client in case of early return
@@ -150,7 +150,7 @@ export default async function handler(
     );
 
     //  in case we did not return early, we return the result here
-    if (env.LANGFUSE_EARLY_INGESTION_RETURN === "false") {
+    if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "false") {
       handleBatchResult(
         [...validationErrors, ...result.errors],
         result.results,
