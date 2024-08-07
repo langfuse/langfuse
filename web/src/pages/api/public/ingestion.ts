@@ -128,7 +128,8 @@ export default async function handler(
     const sortedBatch = sortBatch(filteredBatch);
 
     if (env.LANGFUSE_EARLY_INGESTION_RETURN === "true") {
-      return handleBatchResult(
+      // this function MUST NOT return but send the HTTP response directly
+      handleBatchResult(
         validationErrors, // we are not sending additional server errors to the client in case of early return
         sortedBatch.map((event) => ({ id: event.id, result: event })),
         res,
