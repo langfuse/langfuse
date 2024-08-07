@@ -2,14 +2,14 @@ import {
   roleAccessRights,
   type Scope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
-import { type OrganizationRole } from "@langfuse/shared/src/db";
+import { type Role } from "@/src/features/rbac/constants/roles";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 
 type HasOrganizationAccessParams =
   | {
-      role: OrganizationRole;
+      role: Role;
       scope: Scope;
       admin?: boolean; // prop user.admin
     }
@@ -57,7 +57,7 @@ export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
   const isAdmin = "role" in p ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
 
-  const organizationRole: OrganizationRole | undefined =
+  const organizationRole: Role | undefined =
     "role" in p
       ? p.role
       : p.session?.user?.organizations.find(

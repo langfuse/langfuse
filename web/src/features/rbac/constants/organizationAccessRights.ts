@@ -1,4 +1,4 @@
-import { type OrganizationRole } from "@langfuse/shared";
+import { type Role } from "@/src/features/rbac/constants/roles";
 
 const scopes = [
   "projects:view",
@@ -15,7 +15,7 @@ const scopes = [
 // type string of all Resource:Action, e.g. "members:read"
 export type Scope = (typeof scopes)[number];
 
-export const roleAccessRights: Record<OrganizationRole, Scope[]> = {
+export const roleAccessRights: Record<Role, Scope[]> = {
   OWNER: [
     "projects:view",
     "projects:create",

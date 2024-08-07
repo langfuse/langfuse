@@ -341,13 +341,14 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       const parsedCloudConfig = CloudConfigSchema.safeParse(
                         orgMembership.organization.cloudConfig,
                       );
+                      const orgRole: Role = orgMembership.role;
                       return {
                         id: orgMembership.organization.id,
-                        role: orgMembership.role,
+                        role: orgRole,
                         cloudConfig: parsedCloudConfig.data,
                         projects: orgMembership.organization.projects
                           .map((project) => {
-                            const projectRole: Role | "NONE" =
+                            const projectRole: Role =
                               orgMembership.ProjectMemberships.find(
                                 (membership) =>
                                   membership.projectId === project.id,
