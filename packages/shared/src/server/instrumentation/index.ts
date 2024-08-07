@@ -1,4 +1,4 @@
-import * as ot from "@opentelemetry/api";
+import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 
 type CallbackFn<T> = () => T;
@@ -6,7 +6,7 @@ type CallbackFn<T> = () => T;
 export type SpanCtx = {
   name: string;
   traceScope: string;
-  spanKind?: ot.SpanKind; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind
+  spanKind?: opentelemetry.SpanKind; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind
   rootSpan?: boolean; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#traces
 };
 
@@ -18,7 +18,7 @@ export function instrument<T>(ctx: SpanCtx, callback: CallbackFn<T>): T {
       try {
         return callback();
       } catch (ex) {
-        addExceptionToSpan(ex as ot.Exception, span);
+        addExceptionToSpan(ex as opentelemetry.Exception, span);
         throw ex;
       }
     }
@@ -38,29 +38,29 @@ export async function instrumentAsync<T>(
       try {
         return await callback();
       } catch (ex) {
-        addExceptionToSpan(ex as ot.Exception, span);
+        addExceptionToSpan(ex as opentelemetry.Exception, span);
         throw ex;
       }
     }
   );
 }
 
-export const getCurrentSpan = () => ot.trace.getActiveSpan();
+export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
-export const addExceptionToSpan = (ex: unknown, span?: ot.Span) => {
+export const addExceptionToSpan = (ex: unknown, span?: opentelemetry.Span) => {
   const activeSpan = span ?? getCurrentSpan();
 
   if (!activeSpan) {
     return;
   }
 
-  activeSpan.recordException(ex as ot.Exception);
-  activeSpan.setStatus({ code: ot.SpanStatusCode.ERROR });
+  activeSpan.recordException(ex as opentelemetry.Exception);
+  activeSpan.setStatus({ code: opentelemetry.SpanStatusCode.ERROR });
 };
 
 export const addUserToSpan = (
   attibutes: { userId?: string; projectId?: string; email?: string },
-  span?: ot.Span
+  span?: opentelemetry.Span
 ) => {
   const activeSpan = span ?? getCurrentSpan();
 
@@ -76,8 +76,8 @@ export const addUserToSpan = (
   console.log("attibutes.userId", attibutes.userId);
 };
 
-export const getTracer = (name: string) => ot.trace.getTracer(name);
-export const getMeter = (name: string) => ot.metrics.getMeter(name);
+export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
+export const getMeter = (name: string) => opentelemetry.metrics.getMeter(name);
 
 export const recordGauge = (
   stat: string,
