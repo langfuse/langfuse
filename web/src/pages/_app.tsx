@@ -33,6 +33,7 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { shutdown } from "@/src/utils/shutdown";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+import DatadogInit from "@/src/components/rum";
 
 const setProjectInPosthog = () => {
   // project
@@ -95,6 +96,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
             refetchOnWindowFocus={true}
             refetchInterval={5 * 60} // 5 minutes
           >
+            <DatadogInit />
             <DetailPageListsProvider>
               <MarkdownContextProvider>
                 <ThemeProvider

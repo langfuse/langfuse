@@ -25,6 +25,7 @@
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
     "@codemirror/lang-json": "^6.0.1",
     "@codemirror/lint": "^6.8.0",
+    "@datadog/browser-rum": "^5.23.3",
     "@headlessui/react": "1.7.18",
     "@headlessui/tailwindcss": "0.2.1",
     "@heroicons/react": "^2.1.3",
