@@ -15,7 +15,7 @@ import { type Prisma } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
-  SCORE_GROUP_COLUMN_PROPS,
+  getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
@@ -66,7 +66,7 @@ export function DatasetRunsTable(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
 
-  const { scoreColumns, scoreKeysAndProps } =
+  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<DatasetRunRowData>({
       projectId: props.projectId,
       scoreColumnKey: "scores",
@@ -127,7 +127,7 @@ export function DatasetRunsTable(props: {
         return <>{avgTotalCost}</>;
       },
     },
-    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
+    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
     {
       accessorKey: "createdAt",
       header: "Created",

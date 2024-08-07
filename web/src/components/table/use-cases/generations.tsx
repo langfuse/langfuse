@@ -42,7 +42,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  SCORE_GROUP_COLUMN_PROPS,
+  getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -191,10 +191,11 @@ export default function GenerationsTable({
     },
   );
 
-  const { scoreColumns, scoreKeysAndProps } =
+  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<GenerationsTableRow>({
       projectId,
       scoreColumnKey: "scores",
+      selectedTimeOption: selectedOption,
     });
 
   const transformFilterOptions = (
@@ -339,7 +340,7 @@ export default function GenerationsTable({
         );
       },
     },
-    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
+    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
     {
       accessorKey: "latency",
       id: "latency",
