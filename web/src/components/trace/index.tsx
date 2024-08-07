@@ -24,7 +24,6 @@ import {
   ChevronsUpDown,
   ListTree,
   Network,
-  Terminal,
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
@@ -33,7 +32,6 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export function Trace(props: {
