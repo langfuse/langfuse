@@ -137,11 +137,11 @@ export const constructIndividualScoreColumns = <
   });
 };
 
-export const SCORE_GROUP_COLUMN_PROPS = {
+export const getScoreGroupColumnProps = (isLoading: boolean) => ({
   accessorKey: "scores",
   header: "Scores",
   id: "scores",
   cell: () => {
-    return null;
+    return isLoading ? <Skeleton className="h-3 w-1/2" /> : null;
   },
-};
+});

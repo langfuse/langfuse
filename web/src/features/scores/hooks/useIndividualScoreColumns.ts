@@ -48,5 +48,9 @@ export function useIndividualScoreColumns<
     scoreColumnPrefix,
   ]);
 
-  return { scoreColumns, scoreKeysAndProps: scoreKeysAndProps.data ?? [] };
+  return {
+    scoreColumns,
+    scoreKeysAndProps: scoreKeysAndProps.data ?? [],
+    isColumnLoading: scoreKeysAndProps.isLoading,
+  };
 }

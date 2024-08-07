@@ -133,23 +133,28 @@ export default function PromptVersionTable() {
     },
   );
 
-  const { scoreColumns: traceScoreColumns, scoreKeysAndProps } =
-    useIndividualScoreColumns<PromptVersionTableRow>({
-      projectId,
-      scoreColumnPrefix: "Trace",
-      scoreColumnKey: "traceScores",
-      showAggregateViewOnly: true,
-      selectedTimeOption: selectedOption,
-    });
+  const {
+    scoreColumns: traceScoreColumns,
+    scoreKeysAndProps,
+    isColumnLoading: isTraceColumnLoading,
+  } = useIndividualScoreColumns<PromptVersionTableRow>({
+    projectId,
+    scoreColumnPrefix: "Trace",
+    scoreColumnKey: "traceScores",
+    showAggregateViewOnly: true,
+    selectedTimeOption: selectedOption,
+  });
 
-  const { scoreColumns: generationScoreColumns } =
-    useIndividualScoreColumns<PromptVersionTableRow>({
-      projectId,
-      scoreColumnPrefix: "Generation",
-      scoreColumnKey: "generationScores",
-      showAggregateViewOnly: true,
-      selectedTimeOption: selectedOption,
-    });
+  const {
+    scoreColumns: generationScoreColumns,
+    isColumnLoading: isGenerationColumnLoading,
+  } = useIndividualScoreColumns<PromptVersionTableRow>({
+    projectId,
+    scoreColumnPrefix: "Generation",
+    scoreColumnKey: "generationScores",
+    showAggregateViewOnly: true,
+    selectedTimeOption: selectedOption,
+  });
 
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
     {
@@ -278,7 +283,9 @@ export default function PromptVersionTable() {
       id: "traceScores",
       columns: traceScoreColumns,
       cell: () => {
-        return <Skeleton className="h-3 w-1/2"></Skeleton>;
+        return isTraceColumnLoading ? (
+          <Skeleton className="h-3 w-1/2"></Skeleton>
+        ) : null;
       },
     },
     {
@@ -287,7 +294,9 @@ export default function PromptVersionTable() {
       id: "generationScores",
       columns: generationScoreColumns,
       cell: () => {
-        return <Skeleton className="h-3 w-1/2"></Skeleton>;
+        return isGenerationColumnLoading ? (
+          <Skeleton className="h-3 w-1/2"></Skeleton>
+        ) : null;
       },
     },
     {
