@@ -15,7 +15,7 @@ import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { ListTree } from "lucide-react";
 import {
-  SCORE_GROUP_COLUMN_PROPS,
+  getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
@@ -81,7 +81,7 @@ export function DatasetRunItemsTable(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runItems.isSuccess, runItems.data]);
 
-  const { scoreColumns, scoreKeysAndProps } =
+  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<DatasetRunItemRowData>({
       projectId: props.projectId,
       scoreColumnKey: "scores",
@@ -156,7 +156,7 @@ export function DatasetRunItemsTable(
         return <>{totalCost}</>;
       },
     },
-    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
+    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
     {
       accessorKey: "input",
       header: "Input",
