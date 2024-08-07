@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
-import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
+import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 import useLocalStorage from "@/src/components/useLocalStorage";
 

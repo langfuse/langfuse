@@ -55,55 +55,59 @@ export const flushIngestionQueueExecutor = redis
                 `Received flush request after ${waitTime} ms for ${projectEntityId}`
               );
 
-              recordGauge("ingestion_flush_wait_time", waitTime, {
-                metric: "milliseconds",
+              recordHistogram("ingestion_flush_wait_time", waitTime, {
+                unit: "milliseconds",
               });
 
-              // Check dependencies
-              if (!redis) throw new Error("Redis not available");
-              if (!prisma) throw new Error("Prisma not available");
-              if (!ingestionFlushQueue)
-                throw new Error("Ingestion flush queue not available");
+              try {
+                // Check dependencies
+                if (!redis) throw new Error("Redis not available");
+                if (!prisma) throw new Error("Prisma not available");
+                if (!ingestionFlushQueue)
+                  throw new Error("Ingestion flush queue not available");
 
-              // Flush ingestion buffer
-              const processingStartTime = Date.now();
+                // Flush ingestion buffer
+                const processingStartTime = Date.now();
 
-              await new IngestionService(
-                redis,
-                prisma,
-                ingestionFlushQueue,
-                ClickhouseWriter.getInstance(),
-                clickhouseClient,
-                env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS
-              ).flush(projectEntityId);
+                await new IngestionService(
+                  redis,
+                  prisma,
+                  ingestionFlushQueue,
+                  ClickhouseWriter.getInstance(),
+                  clickhouseClient,
+                  env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS
+                ).flush(projectEntityId);
 
-              // Log processing time
-              const processingTime = Date.now() - processingStartTime;
-              logger.debug(
-                `Prepared and scheduled CH-write in ${processingTime} ms for ${projectEntityId}`
-              );
+                // Log processing time
+                const processingTime = Date.now() - processingStartTime;
+                logger.debug(
+                  `Prepared and scheduled CH-write in ${processingTime} ms for ${projectEntityId}`
+                );
+                recordHistogram(
+                  "ingestion_flush_processing_time",
+                  processingTime,
+                  { unit: "milliseconds" }
+                );
 
-              recordHistogram(
-                "ingestion_flush_processing_time",
-                processingTime,
-                {
-                  metric: "milliseconds",
-                }
-              );
+                // Log queue size
+                await ingestionFlushQueue
+                  .count()
+                  .then((count) => {
+                    logger.debug(`Ingestion flush queue length: ${count}`);
+                    recordGauge("ingestion_flush_queue_length", count, {
+                      unit: "records",
+                    });
+                    return count;
+                  })
+                  .catch();
+              } catch (err) {
+                console.error(
+                  `Error processing flush request for ${projectEntityId}`,
+                  err
+                );
 
-              // Log queue size
-              await ingestionFlushQueue
-                .count()
-                .then((count) => {
-                  logger.debug(`Ingestion flush queue length: ${count}`);
-
-                  recordCount("ingestion_flush_queue_length", count, {
-                    unit: "records",
-                  });
-
-                  return count;
-                })
-                .catch();
+                throw err;
+              }
             }
           }
         );

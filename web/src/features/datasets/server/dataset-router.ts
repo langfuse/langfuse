@@ -14,6 +14,8 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import { paginationZod } from "@langfuse/shared";
 import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -140,13 +142,45 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      const scoresByRunId = await ctx.prisma.$queryRaw<
+        Array<{ scores: Array<ScoreSimplified>; runId: string }>
+      >(Prisma.sql`
+        SELECT
+          runs.id "runId",
+          array_agg(s.score) AS "scores"
+        FROM
+          dataset_runs runs
+          JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
+          LEFT JOIN LATERAL (
+              SELECT
+              jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
+              FROM
+                dataset_run_items ri
+                JOIN scores s 
+                  ON s.trace_id = ri.trace_id 
+                  AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id)
+                  AND s.project_id = ${input.projectId}
+                JOIN traces t ON t.id = s.trace_id AND t.project_id = ${input.projectId}
+              WHERE 
+                ri.project_id = ${input.projectId}
+                AND ri.dataset_run_id = runs.id
+          ) s ON true
+        WHERE 
+          runs.dataset_id = ${input.datasetId}
+          AND runs.project_id = ${input.projectId}
+          AND s.score IS NOT NULL
+        GROUP BY
+          runs.id
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `);
+
       const runs = await ctx.prisma.$queryRaw<
         Array<
           DatasetRuns & {
-            countRunItems: number;
-            scores: Record<string, number>;
             avgLatency: number;
             avgTotalCost: Prisma.Decimal;
+            countRunItems: number;
           }
         >
       >(Prisma.sql`
@@ -157,35 +191,12 @@ export const datasetRouter = createTRPCRouter({
           runs.metadata,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
-          COALESCE(avg_scores.scores, '{}') scores,
           COALESCE(latency_and_total_cost."avgLatency", 0) "avgLatency",
           COALESCE(latency_and_total_cost."avgTotalCost", 0) "avgTotalCost",  
           COALESCE(run_items_count.count, 0)::int "countRunItems"
         FROM
           dataset_runs runs
           JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
-          LEFT JOIN LATERAL (
-            SELECT
-              jsonb_object_agg(s.name, s.avg_value) AS scores
-            FROM (
-              SELECT
-                s.name,
-                AVG(s.value) AS avg_value
-              FROM
-                dataset_run_items ri
-                JOIN scores s 
-                  ON s.trace_id = ri.trace_id 
-                  AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id)
-                  AND s.project_id = ${input.projectId}
-                JOIN traces t ON t.id = s.trace_id AND t.project_id = ${input.projectId}
-              WHERE 
-                ri.project_id = ${input.projectId}
-                AND s.data_type != 'CATEGORICAL'
-                AND s.value IS NOT NULL
-                AND ri.dataset_run_id = runs.id
-              GROUP BY s.name
-            ) s
-          ) avg_scores ON true
           LEFT JOIN LATERAL (
             SELECT
               AVG(o.latency) AS "avgLatency",
@@ -221,7 +232,12 @@ export const datasetRouter = createTRPCRouter({
 
       return {
         totalRuns,
-        runs,
+        runs: runs.map((run) => ({
+          ...run,
+          scores: aggregateScores(
+            scoresByRunId.flatMap((s) => (s.runId === run.id ? s.scores : [])),
+          ),
+        })),
       };
     }),
   itemById: protectedProjectProcedure
@@ -645,14 +661,14 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: ri.datasetItemId,
           observation: observations.find((o) => o.id === ri.observationId),
           trace: traces.find((t) => t.id === ri.traceId),
-          scores: [
+          scores: aggregateScores([
             ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
             ...validatedObservationScores.filter(
               (s) =>
                 s.observationId === ri.observationId &&
                 s.traceId === ri.traceId,
             ),
-          ],
+          ]),
         };
       });
 

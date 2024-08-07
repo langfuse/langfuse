@@ -1,6 +1,6 @@
 import { type z } from "zod";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { isBooleanDataType } from "@/src/features/manual-scoring/lib/helpers";
+import { isBooleanDataType } from "@/src/features/scores/lib/helpers";
 import { v4 } from "uuid";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
