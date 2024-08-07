@@ -1,6 +1,6 @@
 import React from "react";
 import Header from "@/src/components/layouts/header";
-import { CreateScoreConfigButton } from "@/src/features/manual-scoring/components/CreateScoreConfigButton";
+import { CreateScoreConfigButton } from "@/src/features/scores/components/CreateScoreConfigButton";
 import { ScoreConfigsTable } from "@/src/components/table/use-cases/score-configs";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 

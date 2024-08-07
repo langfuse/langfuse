@@ -23,6 +23,9 @@ import {
 import { orderBy } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { validateDbScore } from "@/src/features/public-api/types/scores";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { tableDateRangeAggregationSettings } from "@/src/utils/date-range-utils";
+import { addMinutes } from "date-fns";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -289,6 +292,57 @@ export const scoresRouter = createTRPCRouter({
           projectId: input.projectId,
         },
       });
+    }),
+  getScoreKeysAndProps: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        selectedTimeOption: z
+          .union([
+            z.literal("7 days"),
+            z.literal("30 min"),
+            z.literal("1 hour"),
+            z.literal("6 hours"),
+            z.literal("24 hours"),
+            z.literal("3 days"),
+            z.literal("14 days"),
+            z.literal("1 month"),
+            z.literal("3 months"),
+            z.literal("All time"),
+          ])
+          .optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const date =
+        !!input.selectedTimeOption && input.selectedTimeOption !== "All time"
+          ? addMinutes(
+              new Date(),
+              -tableDateRangeAggregationSettings[input.selectedTimeOption],
+            )
+          : undefined;
+
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          projectId: input.projectId,
+          ...(date ? { timestamp: { gte: date } } : {}),
+        },
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
+        by: ["name", "source", "dataType"],
+      });
+
+      if (scores.length === 0) return [];
+      return scores.map(({ name, source, dataType }) => ({
+        key: composeAggregateScoreKey({ name, source, dataType }),
+        name: name,
+        source: source,
+        dataType: dataType,
+      }));
     }),
 });
 

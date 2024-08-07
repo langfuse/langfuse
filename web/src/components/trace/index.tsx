@@ -24,7 +24,6 @@ import {
   ChevronsUpDown,
   ListTree,
   Network,
-  Terminal,
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
@@ -33,7 +32,6 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { type APIScore } from "@/src/features/public-api/types/scores";
 
 export function Trace(props: {
@@ -295,9 +293,9 @@ export function TracePage({ traceId }: { traceId: string }) {
           </Badge>
         ) : undefined}
       </div>
-      <div className="mt-4 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
-        <div className="flex flex-row items-center gap-3 p-2.5">
-          Tags
+      <div className="mt-3 rounded-lg border bg-card font-semibold text-card-foreground">
+        <div className="flex flex-row items-center gap-3 px-3 py-1">
+          <span className="text-sm">Tags</span>
           <TagTraceDetailsPopover
             tags={trace.data.tags}
             availableTags={allTags}
@@ -329,7 +327,6 @@ export function TracePage({ traceId }: { traceId: string }) {
           >
             <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
-            <Badge className="pointer-events-none ml-2 px-1.5">Beta</Badge>
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -346,22 +343,6 @@ export function TracePage({ traceId }: { traceId: string }) {
       )}
       {selectedTab === "timeline" && (
         <div className="mt-5 flex-1 flex-col space-y-5 overflow-hidden">
-          <Alert>
-            <Terminal className="h-4 w-4" />
-            <AlertTitle>New Trace Timeline (beta)</AlertTitle>
-            <AlertDescription>
-              We value your feedback! Share your thoughts on{" "}
-              <a
-                href="https://github.com/orgs/langfuse/discussions/2195"
-                target="_blank"
-                className="underline"
-                rel="noopener noreferrer"
-              >
-                GitHub discussions
-              </a>
-              .
-            </AlertDescription>
-          </Alert>
           <TraceTimelineView
             key={trace.data.id}
             trace={trace.data}

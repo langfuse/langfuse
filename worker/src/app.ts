@@ -1,4 +1,4 @@
-import "./instrumentation"; // this is required to make instrumentation work
+import "./sentry"; // this is required to make instrumentation work
 import express from "express";
 import cors from "cors";
 import * as Sentry from "@sentry/node";

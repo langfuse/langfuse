@@ -20,6 +20,8 @@ import {
 } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { PromptService, redis } from "@langfuse/shared/src/server";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -672,121 +674,89 @@ export const promptRouter = createTRPCRouter({
     `,
       );
 
-      const averageObservationScores = await ctx.prisma.$queryRaw<
+      const generationScores = await ctx.prisma.$queryRaw<
         Array<{
-          prompt_id: string;
-          scores: Record<string, number>;
+          promptId: string;
+          scores: Array<ScoreSimplified>;
         }>
-      >(
-        Prisma.sql` 
-        WITH avg_scores_by_prompt AS (
+      >(Prisma.sql`
+      SELECT
+        p.id AS "promptId",
+        array_agg(s.score) AS "scores"
+      FROM
+        prompts p
+        LEFT JOIN LATERAL (
           SELECT
-              o.prompt_id AS prompt_id,
-              s.name AS score_name,
-              AVG(s.value) AS average_score_value
-          FROM observations AS o
-          JOIN prompts AS p ON o.prompt_id = p.id AND p.project_id = ${input.projectId}
-          LEFT JOIN scores s ON o.trace_id = s.trace_id AND s.observation_id = o.id AND s.project_id = ${input.projectId}
-          WHERE
-              o.type = 'GENERATION'
-              AND s.data_type != 'CATEGORICAL'
-              AND s.value IS NOT NULL
-              AND o.prompt_id IS NOT NULL
-              AND o.project_id = ${input.projectId}
-              AND p.id IN (${Prisma.join(input.promptIds)})
-              ${filterCondition}
-          GROUP BY 1,2
-          ORDER BY 1,2
-        ),
-        json_avg_scores_by_prompt_id AS (
-          SELECT
-            prompt_id,
-            jsonb_object_agg(score_name,
-            average_score_value) AS scores
+            jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
           FROM
-          avg_scores_by_prompt AS avgs
-          WHERE 
-            avgs.score_name IS NOT NULL 
-            AND avgs.average_score_value IS NOT NULL
-          GROUP BY prompt_id
-          ORDER BY prompt_id
-        )
-        SELECT * 
-        FROM json_avg_scores_by_prompt_id`,
-      );
-
-      const averageTraceScores = await ctx.prisma.$queryRaw<
-        Array<{
-          prompt_id: string;
-          scores: Record<string, number>;
-        }>
-      >(
-        Prisma.sql`
-        WITH traces_by_prompt_id AS (
-          SELECT
-            o.prompt_id,
-            o.trace_id
-          FROM
-            observations o
+            observations AS o
+            LEFT JOIN scores s ON o.trace_id = s.trace_id
+              AND s.observation_id = o.id
+              AND s.project_id = ${input.projectId}
           WHERE
             o.prompt_id IS NOT NULL
             AND o.type = 'GENERATION'
+            AND o.prompt_id = p.id
             AND o.project_id = ${input.projectId}
-            AND o.prompt_id IN (${Prisma.join(input.promptIds)})
+            AND s.name IS NOT NULL
+            AND p.id IN (${Prisma.join(input.promptIds)})
             ${filterCondition}
-          GROUP BY
-            o.prompt_id,
-            o.trace_id
-        ), scores_by_trace AS (
-          SELECT
-              tp.prompt_id,
-              tp.trace_id,
-              p.version,
-              s.name AS score_name,
-              s.value AS score_value
-          FROM
-            traces_by_prompt_id tp
-          JOIN prompts AS p ON tp.prompt_id = p.id AND p.project_id = ${input.projectId}
-          LEFT JOIN scores s ON tp.trace_id = s.trace_id AND s.observation_id IS NULL AND s.project_id = ${input.projectId}
-          WHERE 
-              s.data_type != 'CATEGORICAL'
-              AND s.value IS NOT NULL
-        ), average_scores_by_prompt AS (
-          SELECT 
-              prompt_id,
-              score_name,
-              AVG(score_value) AS average_score_value
-          FROM 
-              scores_by_trace
-          GROUP BY 1,2
-        ), json_avg_scores_by_prompt_id AS (
-          SELECT
-            prompt_id,
-            jsonb_object_agg(score_name,
-            average_score_value) AS scores
-          FROM
-            average_scores_by_prompt
-          WHERE 
-            score_name IS NOT NULL 
-            AND average_score_value IS NOT NULL
-          GROUP BY
-            prompt_id
-          ORDER BY
-            prompt_id
-        )
-        SELECT * 
-        FROM json_avg_scores_by_prompt_id
-        `,
-      );
+          ) s ON TRUE
+      WHERE
+        p.project_id = ${input.projectId}
+        AND s.score IS NOT NULL
+        GROUP BY
+          p.id
+      `);
+
+      const traceScores = await ctx.prisma.$queryRaw<
+        Array<{
+          promptId: string;
+          scores: Array<ScoreSimplified>;
+        }>
+      >(Prisma.sql`
+        SELECT
+          p.id AS "promptId",
+          array_agg(s.score) AS "scores"
+        FROM
+          prompts p
+          LEFT JOIN LATERAL (
+            SELECT
+              jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
+              FROM
+              scores s
+            WHERE
+              s.trace_id IN (
+                SELECT o.trace_id
+                FROM observations o
+                WHERE
+                  o.prompt_id IS NOT NULL
+                  AND o.prompt_id = p.id
+                  AND o.type = 'GENERATION'
+                  AND o.project_id = ${input.projectId}
+                  AND o.prompt_id IN (${Prisma.join(input.promptIds)})
+                  ${filterCondition}
+              )
+              AND s.observation_id IS NULL
+              AND s.project_id = ${input.projectId}
+            ) s ON TRUE
+        WHERE
+          p.project_id = ${input.projectId}
+          AND s.score IS NOT NULL
+        GROUP BY
+            p.id
+      `);
 
       return metrics.map((metric) => ({
         ...metric,
-        averageObservationScores: averageObservationScores.find(
-          (score) => score.prompt_id === metric.id,
-        )?.scores,
-        averageTraceScores: averageTraceScores.find(
-          (score) => score.prompt_id === metric.id,
-        )?.scores,
+        observationScores: aggregateScores(
+          generationScores.find((score) => score.promptId === metric.id)
+            ?.scores ?? [],
+        ),
+        traceScores: aggregateScores(
+          traceScores.find((score) => score.promptId === metric.id)?.scores ??
+            [],
+        ),
       }));
     }),
 });
