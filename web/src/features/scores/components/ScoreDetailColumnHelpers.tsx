@@ -142,6 +142,6 @@ export const SCORE_GROUP_COLUMN_PROPS = {
   header: "Scores",
   id: "scores",
   cell: () => {
-    return <Skeleton className="h-3 w-1/2"></Skeleton>;
+    return null;
   },
 };
