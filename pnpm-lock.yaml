@@ -285,9 +285,6 @@ importers:
       '@codemirror/lint':
         specifier: ^6.8.0
         version: 6.8.0
-      '@datadog/browser-rum':
-        specifier: ^5.23.3
-        version: 5.23.3
       '@headlessui/react':
         specifier: 1.7.18
         version: 1.7.18(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -1421,20 +1418,6 @@ packages:
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
-
-  '@datadog/browser-core@5.23.3':
-    resolution: {integrity: sha512-WaVJfTIHqU1m6voRlxVOEPXBBjHzr/ygE8tYTQRIVCWo7w/3yGOpc6dqlclHM/dpAHBVJ/L8/rQZLp0FoOAmOA==}
-
-  '@datadog/browser-rum-core@5.23.3':
-    resolution: {integrity: sha512-kJBbRCttzSwUe4T6Hz2swhnX1V9uhmmkxuRY7hE1JExsii8Ub9VSILIXQ9EkkwRm+Ax2/BxJAgsAscSzF+wqFQ==}
-
-  '@datadog/browser-rum@5.23.3':
-    resolution: {integrity: sha512-T8tt3M0muq3Wwm6RzAZFnOM1xoXo/fY4vJPMCexgyO/SSxl39p9UkkGn8K5Dq1Ry8XQQnf3XoO9IJvfcFVo7ew==}
-    peerDependencies:
-      '@datadog/browser-logs': 5.23.3
-    peerDependenciesMeta:
-      '@datadog/browser-logs':
-        optional: true
 
   '@datadog/native-appsec@8.0.1':
     resolution: {integrity: sha512-SpWkoo7K4+pwxFze1ogRF1qBaKm8sZjWfZKnQ8Ex67f6L5odLjWOoiiIAs5rp01sLKGXjxU8IJf+X9j4PvI2zQ==}
@@ -11758,17 +11741,6 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
-
-  '@datadog/browser-core@5.23.3': {}
-
-  '@datadog/browser-rum-core@5.23.3':
-    dependencies:
-      '@datadog/browser-core': 5.23.3
-
-  '@datadog/browser-rum@5.23.3':
-    dependencies:
-      '@datadog/browser-core': 5.23.3
-      '@datadog/browser-rum-core': 5.23.3
 
   '@datadog/native-appsec@8.0.1':
     dependencies:

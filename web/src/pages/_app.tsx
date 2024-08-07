@@ -33,7 +33,7 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { shutdown } from "@/src/utils/shutdown";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
-import DatadogInit from "@/src/components/rum";
+// import DatadogInit from "@/src/components/rum";
 
 const setProjectInPosthog = () => {
   // project
@@ -88,34 +88,36 @@ const MyApp: AppType<{ session: Session | null }> = ({
   }, []);
 
   return (
-    <QueryParamProvider adapter={NextAdapterPages}>
-      <TooltipProvider>
-        <PostHogProvider client={posthog}>
-          <SessionProvider
-            session={session}
-            refetchOnWindowFocus={true}
-            refetchInterval={5 * 60} // 5 minutes
-          >
-            <DatadogInit />
-            <DetailPageListsProvider>
-              <MarkdownContextProvider>
-                <ThemeProvider
-                  attribute="class"
-                  enableSystem
-                  disableTransitionOnChange
-                >
-                  <Layout>
-                    <Component {...pageProps} />
-                    <UserTracking />
-                  </Layout>
-                </ThemeProvider>
-              </MarkdownContextProvider>
-              <CrispWidget />
-            </DetailPageListsProvider>
-          </SessionProvider>
-        </PostHogProvider>
-      </TooltipProvider>
-    </QueryParamProvider>
+    <>
+      {/* <DatadogInit /> */}
+      <QueryParamProvider adapter={NextAdapterPages}>
+        <TooltipProvider>
+          <PostHogProvider client={posthog}>
+            <SessionProvider
+              session={session}
+              refetchOnWindowFocus={true}
+              refetchInterval={5 * 60} // 5 minutes
+            >
+              <DetailPageListsProvider>
+                <MarkdownContextProvider>
+                  <ThemeProvider
+                    attribute="class"
+                    enableSystem
+                    disableTransitionOnChange
+                  >
+                    <Layout>
+                      <Component {...pageProps} />
+                      <UserTracking />
+                    </Layout>
+                  </ThemeProvider>
+                </MarkdownContextProvider>
+                <CrispWidget />
+              </DetailPageListsProvider>
+            </SessionProvider>
+          </PostHogProvider>
+        </TooltipProvider>
+      </QueryParamProvider>
+    </>
   );
 };
 
