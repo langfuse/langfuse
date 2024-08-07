@@ -22,30 +22,30 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   const provider = new TracerProvider();
 
-  tracer.use("http", {
-    hooks: {
-      request(span, req) {
-        if (span && req) {
-          const urlString = "path" in req ? req.path : req.url;
+  // tracer.use("http", {
+  //   hooks: {
+  //     request(span, req) {
+  //       if (span && req) {
+  //         const urlString = "path" in req ? req.path : req.url;
 
-          if (urlString) {
-            const url = new URL(urlString, "http://localhost");
-            const path = url.pathname + url.search;
-            const resourceGroup = (() => {
-              return url.pathname;
-            })();
-            const method = req.method;
+  //         if (urlString) {
+  //           const url = new URL(urlString, "http://localhost");
+  //           const path = url.pathname + url.search;
+  //           const resourceGroup = (() => {
+  //             return url.pathname;
+  //           })();
+  //           const method = req.method;
 
-            span.setTag(
-              "resource.name",
-              method ? `${method} ${resourceGroup}` : resourceGroup,
-            );
-            span.setTag("http.route", method ? `${method} ${path}` : path);
-          }
-        }
-      },
-    },
-  });
+  //           span.setTag(
+  //             "resource.name",
+  //             method ? `${method} ${resourceGroup}` : resourceGroup,
+  //           );
+  //           span.setTag("http.route", method ? `${method} ${path}` : path);
+  //         }
+  //       }
+  //     },
+  //   },
+  // });
 
   registerInstrumentations({
     instrumentations: [
