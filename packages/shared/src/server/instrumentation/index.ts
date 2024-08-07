@@ -72,8 +72,6 @@ export const addUserToSpan = (
   attributes.email && activeSpan.setAttribute("user.email", attributes.email);
   attributes.projectId &&
     activeSpan.setAttribute("project.id", attributes.projectId);
-
-  console.log("attibutes.userId", attributes.userId);
 };
 
 export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);

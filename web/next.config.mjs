@@ -3,6 +3,7 @@
  * for Docker builds.
  */
 await import("./src/env.mjs");
+import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 
 /**
@@ -128,4 +129,36 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+const sentryOptions = {
+  // Additional config options for the Sentry Webpack plugin. Keep in mind that
+  // the following options are set automatically, and overriding them is not
+  // recommended:
+  //   release, url, authToken, configFile, stripPrefix,
+  //   urlPrefix, include, ignore
+
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  silent: true, // Suppresses all logs
+
+  // For all available options, see:
+  // https://github.com/getsentry/sentry-webpack-plugin#options.
+
+  // See the sections below for information on the following options:
+  //   'Configure Source Maps':
+  //     - disableServerWebpackPlugin
+  //     - disableClientWebpackPlugin
+  //     - hideSourceMaps
+  hideSourceMaps: true,
+  //     - widenClientFileUpload
+  //   'Configure Legacy Browser Support':
+  //     - transpileClientSDK
+  //   'Configure Serverside Auto-instrumentation':
+  //     - autoInstrumentServerFunctions
+  //     - excludeServerRoutes
+  //   'Configure Tunneling':
+  //     - tunnelRoute
+  tunnelRoute: "/api/monitoring-tunnel",
+};
+
+export default withSentryConfig(nextConfig, sentryOptions);

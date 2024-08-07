@@ -8,8 +8,8 @@ Sentry.init({
   // Set tracesSampleRate to 1.0 to capture 100%
   // of transactions for performance monitoring.
   // We recommend adjusting this value in production
-  tracesSampleRate: process.env.LANGFUSE_TRACING_SAMPLE_RATE
-    ? Number(process.env.LANGFUSE_TRACING_SAMPLE_RATE)
+  tracesSampleRate: process.env.NEXT_LANGFUSE_TRACING_SAMPLE_RATE
+    ? Number(process.env.NEXT_LANGFUSE_TRACING_SAMPLE_RATE)
     : 0.1,
 
   // Capture Replay for 100% of all sessions,
