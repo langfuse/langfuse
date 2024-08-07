@@ -13,6 +13,7 @@ import { env } from "../env";
 import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
+import { instrumentAsync } from "../instrumentation";
 
 export type IngestionFlushQueue = Queue<null>;
 
@@ -32,11 +33,14 @@ export const flushIngestionQueueExecutor = redis
   ? new Worker(
       QueueName.IngestionFlushQueue,
       async (job) => {
-        if (job.name === QueueJobs.FlushIngestionEntity) {
-          const projectEntityId = job.id;
-          if (!projectEntityId) {
-            throw new Error("ProjectEntity ID not provided");
-          }
+        return instrumentAsync(
+          { name: "flush-ingestion-consumer" },
+          async () => {
+            if (job.name === QueueJobs.FlushIngestionEntity) {
+              const projectEntityId = job.id;
+              if (!projectEntityId) {
+                throw new Error("ProjectEntity ID not provided");
+              }
 
           // Log wait time
           const waitTime = Date.now() - job.timestamp;
@@ -48,23 +52,23 @@ export const flushIngestionQueueExecutor = redis
             metric: "milliseconds",
           });
 
-          // Check dependencies
-          if (!redis) throw new Error("Redis not available");
-          if (!prisma) throw new Error("Prisma not available");
-          if (!ingestionFlushQueue)
-            throw new Error("Ingestion flush queue not available");
+              // Check dependencies
+              if (!redis) throw new Error("Redis not available");
+              if (!prisma) throw new Error("Prisma not available");
+              if (!ingestionFlushQueue)
+                throw new Error("Ingestion flush queue not available");
 
-          // Flush ingestion buffer
-          const processingStartTime = Date.now();
+              // Flush ingestion buffer
+              const processingStartTime = Date.now();
 
-          await new IngestionService(
-            redis,
-            prisma,
-            ingestionFlushQueue,
-            ClickhouseWriter.getInstance(),
-            clickhouseClient,
-            env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS
-          ).flush(projectEntityId);
+              await new IngestionService(
+                redis,
+                prisma,
+                ingestionFlushQueue,
+                ClickhouseWriter.getInstance(),
+                clickhouseClient,
+                env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS
+              ).flush(projectEntityId);
 
           // Log processing time
           const processingTime = Date.now() - processingStartTime;
