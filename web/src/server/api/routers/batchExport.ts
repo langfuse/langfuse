@@ -10,7 +10,9 @@ import {
   type EventBodyType,
   EventName,
   CreateBatchExportSchema,
+  QueueJobs,
 } from "@langfuse/shared";
+import { getBatchExportQueue } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 export const batchExportRouter = createTRPCRouter({
@@ -63,7 +65,12 @@ export const batchExportRouter = createTRPCRouter({
           },
         };
 
-        await new WorkerClient().sendEvent(event);
+        await getBatchExportQueue()?.add(event.name, {
+          id: event.payload.batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
+          name: QueueJobs.BatchExportJob,
+          timestamp: new Date(),
+          payload: event.payload,
+        });
 
         return;
       } catch (e) {
