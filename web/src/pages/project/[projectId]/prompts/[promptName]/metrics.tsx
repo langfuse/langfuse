@@ -13,13 +13,15 @@ import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type FilterState, ScoreDataType } from "@langfuse/shared";
+import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
-type PromptVersionTableRow = {
+export type PromptVersionTableRow = {
   version: number;
   labels: string[];
   medianLatency?: number | null;
@@ -27,8 +29,8 @@ type PromptVersionTableRow = {
   medianOutputTokens?: number | null;
   medianCost?: number | null;
   generationCount?: number | null;
-  averageObservationScores?: Record<string, number> | null;
-  averageTraceScores?: Record<string, number> | null;
+  traceScores?: ScoreAggregate;
+  generationScores?: ScoreAggregate;
   lastUsed?: string | null;
   firstUsed?: string | null;
 };
@@ -130,6 +132,22 @@ export default function PromptVersionTable() {
       },
     },
   );
+
+  const { scoreColumns: traceScoreColumns, scoreKeysAndProps } =
+    useIndividualScoreColumns<PromptVersionTableRow>({
+      projectId,
+      scoreColumnPrefix: "Trace",
+      scoreColumnKey: "traceScores",
+      showAggregateViewOnly: true,
+    });
+
+  const { scoreColumns: generationScoreColumns } =
+    useIndividualScoreColumns<PromptVersionTableRow>({
+      projectId,
+      scoreColumnPrefix: "Generation",
+      scoreColumnKey: "generationScores",
+      showAggregateViewOnly: true,
+    });
 
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
     {
@@ -253,60 +271,22 @@ export default function PromptVersionTable() {
       },
     },
     {
-      accessorKey: "averageObservationScores",
-      id: "averageObservationScores",
-      header: "Average observation scores",
-      size: 250,
-      cell: ({ row }) => {
-        const scores: PromptVersionTableRow["averageObservationScores"] =
-          row.getValue("averageObservationScores");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-
-        return (
-          (scores && (
-            <GroupedScoreBadges
-              scores={Object.entries(scores).map(([k, v]) => ({
-                name: k,
-                value: v,
-                dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
-              }))}
-              variant="headings"
-            />
-          )) ??
-          null
-        );
+      accessorKey: "traceScores",
+      header: "Individual Trace Scores",
+      id: "traceScores",
+      columns: traceScoreColumns,
+      cell: () => {
+        return <Skeleton className="h-3 w-1/2"></Skeleton>;
       },
-      enableHiding: true,
     },
     {
-      accessorKey: "averageTraceScores",
-      id: "averageTraceScores",
-      header: "Average trace scores",
-      size: 250,
-      cell: ({ row }) => {
-        const scores: PromptVersionTableRow["averageTraceScores"] =
-          row.getValue("averageTraceScores");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-
-        return (
-          (scores && (
-            <GroupedScoreBadges
-              scores={Object.entries(scores).map(([k, v]) => ({
-                name: k,
-                value: v,
-                dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
-              }))}
-              variant="headings"
-            />
-          )) ??
-          null
-        );
+      accessorKey: "generationScores",
+      header: "Individual Generation Scores",
+      id: "generationScores",
+      columns: generationScoreColumns,
+      cell: () => {
+        return <Skeleton className="h-3 w-1/2"></Skeleton>;
       },
-      enableHiding: true,
     },
     {
       accessorKey: "lastUsed",
@@ -350,7 +330,7 @@ export default function PromptVersionTable() {
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<PromptVersionTableRow>(
-      "promptVersionsColumnVisibility",
+      `promptVersionsColumnVisibility-${projectId}`,
       columns,
     );
 
@@ -363,21 +343,30 @@ export default function PromptVersionTable() {
 
   const rows: PromptVersionTableRow[] =
     promptVersions.isSuccess && !!combinedData
-      ? combinedData.map((prompt) => ({
-          version: prompt.version,
-          labels: prompt.labels,
-          medianLatency: prompt.medianLatency,
-          medianInputTokens: prompt.medianInputTokens,
-          medianOutputTokens: prompt.medianOutputTokens,
-          medianCost: prompt.medianTotalCost,
-          generationCount: prompt.observationCount,
-          averageObservationScores: prompt.averageObservationScores,
-          averageTraceScores: prompt.averageTraceScores,
-          lastUsed:
-            prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
-          firstUsed:
-            prompt.firstUsed?.toLocaleString() ?? "No linked generation yet",
-        }))
+      ? combinedData.map((prompt) => {
+          return {
+            version: prompt.version,
+            labels: prompt.labels,
+            medianLatency: prompt.medianLatency,
+            medianInputTokens: prompt.medianInputTokens,
+            medianOutputTokens: prompt.medianOutputTokens,
+            medianCost: prompt.medianTotalCost,
+            traceScores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              prompt.traceScores ?? {},
+              "Trace",
+            ),
+            generationScores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              prompt.observationScores ?? {},
+              "Generation",
+            ),
+            lastUsed:
+              prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
+            firstUsed:
+              prompt.firstUsed?.toLocaleString() ?? "No linked generation yet",
+          };
+        })
       : [];
 
   return (

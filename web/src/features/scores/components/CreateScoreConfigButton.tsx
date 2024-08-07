@@ -34,7 +34,7 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-} from "@/src/features/manual-scoring/lib/helpers";
+} from "@/src/features/scores/lib/helpers";
 import { isPresent } from "@/src/utils/typeChecks";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

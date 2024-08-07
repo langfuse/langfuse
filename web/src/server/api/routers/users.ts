@@ -9,8 +9,9 @@ import {
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
-import { Prisma, type Score } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/src/db";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
+import { type LastUserScore } from "@/src/features/scores/lib/types";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -153,11 +154,7 @@ export const userRouter = createTRPCRouter({
       }
 
       const lastScoresOfUsers = await ctx.prisma.$queryRaw<
-        Array<
-          Score & {
-            userId: string;
-          }
-        >
+        Array<LastUserScore>
       >`
         WITH ranked_scores AS (
           SELECT
@@ -182,7 +179,10 @@ export const userRouter = createTRPCRouter({
           "value",
           observation_id "observationId",
           trace_id "traceId",
-          "comment"
+          "comment",
+          "source",
+          data_type "dataType",
+          "string_value" "stringValue"
         FROM
           ranked_scores
         WHERE rn = 1
@@ -250,11 +250,7 @@ export const userRouter = createTRPCRouter({
       `;
 
       const lastScoresOfUsers = await ctx.prisma.$queryRaw<
-        Array<
-          Score & {
-            userId: string;
-          }
-        >
+        Array<LastUserScore>
       >`
         WITH ranked_scores AS (
           SELECT
@@ -279,7 +275,10 @@ export const userRouter = createTRPCRouter({
           "value",
           observation_id "observationId",
           trace_id "traceId",
-          "comment"
+          "comment",
+          "source",
+          data_type "dataType",
+          "string_value" "stringValue"
         FROM
           ranked_scores
         WHERE rn = 1

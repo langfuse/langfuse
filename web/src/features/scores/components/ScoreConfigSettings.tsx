@@ -1,7 +1,7 @@
 import React from "react";
 import Header from "@/src/components/layouts/header";
 import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { CreateScoreConfigButton } from "@/src/features/manual-scoring/components/CreateScoreConfigButton";
+import { CreateScoreConfigButton } from "@/src/features/scores/components/CreateScoreConfigButton";
 import { ScoreConfigsTable } from "@/src/components/table/use-cases/score-configs";
 
 export function ScoreConfigSettings({ projectId }: { projectId: string }) {
