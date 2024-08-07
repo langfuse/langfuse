@@ -328,7 +328,7 @@ export const scoresRouter = createTRPCRouter({
       const scores = await ctx.prisma.score.groupBy({
         where: {
           projectId: input.projectId,
-          ...(date ? { timestamp: date } : {}),
+          ...(date ? { updatedAt: { gte: date } } : {}),
         },
         take: 1000,
         orderBy: {
