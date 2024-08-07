@@ -139,7 +139,7 @@ export const constructIndividualScoreColumns = <
 
 export const SCORE_GROUP_COLUMN_PROPS = {
   accessorKey: "scores",
-  header: "Individual Scores",
+  header: "Scores",
   id: "scores",
   cell: () => {
     return <Skeleton className="h-3 w-1/2"></Skeleton>;

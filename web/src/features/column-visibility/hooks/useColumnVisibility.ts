@@ -20,15 +20,6 @@ const readStoredVisibilityState = (
   }
 };
 
-function getColumnKeys<TData>(columns: LangfuseColumnDef<TData>[]): string[] {
-  return columns
-    .map(
-      (column) =>
-        column.columns?.map((c) => c.accessorKey) || column.accessorKey,
-    )
-    .flat();
-}
-
 function setVisibility<TData>(
   visibilityState: VisibilityState,
   column: LangfuseColumnDef<TData>,
@@ -65,19 +56,9 @@ function useColumnVisibility<TData>(
 
   useEffect(() => {
     const initialColumnVisibility = initialVisibilityState();
-    const hasAllColumnsLoaded = columns.every(
-      (c) => (!!c.columns && Boolean(c.columns.length)) || !c.columns,
-    );
-    const columnKeys = hasAllColumnsLoaded ? getColumnKeys(columns) : [];
     Object.keys(initialColumnVisibility).forEach((key) => {
       if (Object.hasOwn(columnVisibility, key)) {
         initialColumnVisibility[key] = columnVisibility[key];
-      }
-      if (hasAllColumnsLoaded) {
-        // garbage collection in case columns are removed
-        if (!columnKeys.includes(key)) {
-          delete initialColumnVisibility[key];
-        }
       }
     });
 

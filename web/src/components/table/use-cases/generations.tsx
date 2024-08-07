@@ -195,6 +195,7 @@ export default function GenerationsTable({
     useIndividualScoreColumns<GenerationsTableRow>({
       projectId,
       scoreColumnKey: "scores",
+      selectedTimeOption: selectedOption,
     });
 
   const transformFilterOptions = (

@@ -187,6 +187,7 @@ export default function TracesTable({
     useIndividualScoreColumns<TracesTableRow>({
       projectId,
       scoreColumnKey: "scores",
+      selectedTimeOption: selectedOption,
     });
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
