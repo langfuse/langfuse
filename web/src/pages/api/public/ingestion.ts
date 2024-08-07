@@ -126,6 +126,15 @@ export default async function handler(
     await telemetry();
 
     const sortedBatch = sortBatch(filteredBatch);
+
+    if (env.LANGFUSE_EARLY_INGESTION_RETURN === "true") {
+      return handleBatchResult(
+        validationErrors, // we are not sending additional server errors to the client in case of early return
+        sortedBatch.map((event) => ({ id: event.id, result: event })),
+        res,
+      );
+    }
+
     const result = await handleBatch(
       sortedBatch,
       parsedSchema.data.metadata,
@@ -139,11 +148,14 @@ export default async function handler(
       authCheck.scope.projectId,
     );
 
-    handleBatchResult(
-      [...validationErrors, ...result.errors],
-      result.results,
-      res,
-    );
+    //  in case we did not return early, we return the result here
+    if (env.LANGFUSE_EARLY_INGESTION_RETURN === "false") {
+      handleBatchResult(
+        [...validationErrors, ...result.errors],
+        result.results,
+        res,
+      );
+    }
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       console.error("error_handling_ingestion_event", error);
