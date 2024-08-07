@@ -94,7 +94,7 @@ ALTER TABLE "audit_logs" ALTER COLUMN "project_id" DROP NOT NULL;
 ALTER TABLE "audit_logs" ALTER COLUMN "user_project_role" DROP NOT NULL;
 -- Add org-level cols
 ALTER TABLE "audit_logs" ADD COLUMN "org_id" TEXT;
-ALTER TABLE "audit_logs" ADD COLUMN "user_org_role" "OrganizationRole";
+ALTER TABLE "audit_logs" ADD COLUMN "user_org_role" TEXT;
 -- Backfill org_id
 UPDATE "audit_logs"
 SET "org_id" = "projects"."org_id"
@@ -103,9 +103,9 @@ WHERE "audit_logs"."project_id" = "projects"."id";
 -- Backfill user_org_role with value from user_project_role
 UPDATE "audit_logs"
 SET "user_org_role" = "user_project_role"::text::"OrganizationRole";
--- Set user project role to null, as it's now org level for all existing logs and role enum will change below
-UPDATE "audit_logs"
-SET "user_project_role" = NULL;
+-- Drop and recreate user_project_role column as text column going forward, empty for historical data as it's all on org level now
+ALTER TABLE "audit_logs" DROP COLUMN "user_project_role";
+ALTER TABLE "audit_logs" ADD COLUMN "user_project_role" TEXT; -- nullable
 -- Add not null on org level cols
 ALTER TABLE "audit_logs" ALTER COLUMN "org_id" SET NOT NULL;
 ALTER TABLE "audit_logs" ALTER COLUMN "user_org_role" SET NOT NULL;

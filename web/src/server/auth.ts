@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { type ProjectRole, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -36,6 +36,7 @@ import {
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
+import { type Role } from "@/src/features/rbac/constants/roles";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -346,7 +347,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                         cloudConfig: parsedCloudConfig.data,
                         projects: orgMembership.organization.projects
                           .map((project) => {
-                            const projectRole: ProjectRole | "NONE" =
+                            const projectRole: Role | "NONE" =
                               orgMembership.ProjectMemberships.find(
                                 (membership) =>
                                   membership.projectId === project.id,

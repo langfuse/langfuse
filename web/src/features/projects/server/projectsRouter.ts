@@ -24,9 +24,6 @@ export const projectsRouter = createTRPCRouter({
         where: {
           id: input.projectId,
         },
-        omit: {
-          cloudConfig: true, // deprecated
-        },
         include: {
           organization: true,
         },

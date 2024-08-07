@@ -1,5 +1,5 @@
+import { type Role } from "@/src/features/rbac/constants/roles";
 import { prisma as _prisma } from "@langfuse/shared/src/db";
-import { type OrganizationRole, type ProjectRole } from "@langfuse/shared";
 
 export type AuditableResource =
   | "organization"
@@ -33,9 +33,9 @@ type AuditLog = {
   | {
       userId: string;
       orgId: string;
-      orgRole: OrganizationRole;
+      orgRole: Role;
       projectId?: string;
-      projectRole?: ProjectRole;
+      projectRole?: Role;
     }
   | {
       session: {
@@ -43,9 +43,9 @@ type AuditLog = {
           id: string;
         };
         orgId: string;
-        orgRole: OrganizationRole;
+        orgRole: Role;
         projectId?: string;
-        projectRole?: ProjectRole;
+        projectRole?: Role;
       };
     }
 );

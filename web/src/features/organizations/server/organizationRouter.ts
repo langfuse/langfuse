@@ -20,11 +20,7 @@ export const organizationsRouter = createTRPCRouter({
         },
       },
       include: {
-        projects: {
-          omit: {
-            cloudConfig: true,
-          },
-        },
+        projects: true,
       },
     });
     const res = orgs.map(({ projects, ...org }) => ({
@@ -45,11 +41,7 @@ export const organizationsRouter = createTRPCRouter({
           id: input.orgId,
         },
         include: {
-          projects: {
-            omit: {
-              cloudConfig: true,
-            },
-          },
+          projects: true,
         },
       });
 

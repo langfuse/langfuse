@@ -1,4 +1,4 @@
-import { type ProjectRole } from "@langfuse/shared";
+import { type Role } from "@/src/features/rbac/constants/roles";
 
 const scopes = [
   "apiKeys:read",
@@ -42,7 +42,7 @@ const scopes = [
 // type string of all Resource:Action, e.g. "members:read"
 export type Scope = (typeof scopes)[number];
 
-export const roleAccessRights: Record<ProjectRole, Scope[]> = {
+export const roleAccessRights: Record<Role, Scope[]> = {
   OWNER: [
     "apiKeys:read",
     "apiKeys:create",
@@ -71,7 +71,6 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "batchExport:create",
   ],
   ADMIN: [
-    "project:update",
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
@@ -83,6 +82,7 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "scores:CUD",
     "scoreConfigs:CUD",
     "scoreConfigs:read",
+    "project:update",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
@@ -124,4 +124,5 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "evalJobExecution:read",
     "llmApiKeys:read",
   ],
+  NONE: [],
 };
