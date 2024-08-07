@@ -9,16 +9,18 @@ import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import opentelemetry from "@opentelemetry/api";
 
 if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-  const contextManager = new AsyncHooksContextManager().enable();
+  // const contextManager = new AsyncHooksContextManager().enable();
 
-  opentelemetry.context.setGlobalContextManager(contextManager);
+  // opentelemetry.context.setGlobalContextManager(contextManager);
 
   const tracer = dd.init({
     profiling: false,
     runtimeMetrics: true,
   });
 
-  const { TracerProvider } = tracer.init();
+  const { TracerProvider } = tracer.init({
+    startupLogs: true,
+  });
 
   const provider = new TracerProvider();
 
