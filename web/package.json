@@ -47,7 +47,6 @@
     "@opentelemetry/resources": "^1.25.1",
     "@opentelemetry/sdk-metrics": "1.23.0",
     "@opentelemetry/sdk-node": "^0.50.0",
-    "@opentelemetry/sdk-trace-base": "^1.24.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "@prisma/instrumentation": "^5.13.0",
     "@radix-ui/react-accordion": "^1.1.2",

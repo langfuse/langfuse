@@ -3,6 +3,7 @@ import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
+import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 
@@ -20,6 +21,7 @@ registerInstrumentations({
     new ExpressInstrumentation(),
     new PrismaInstrumentation(),
     getNodeAutoInstrumentations(),
+    new PinoInstrumentation(),
   ],
 });
 
