@@ -1,4 +1,3 @@
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action";
@@ -12,9 +11,9 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { type RouterInput, type RouterOutput } from "@/src/utils/types";
+import { type RouterInput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   NumberParam,
   StringParam,
@@ -37,9 +36,14 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { type APIScore } from "@/src/features/public-api/types/scores";
+import {
+  SCORE_GROUP_COLUMN_PROPS,
+  verifyAndPrefixScoreDataAgainstKeys,
+} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -49,6 +53,8 @@ export type TracesTableRow = {
   userId: string;
   level: ObservationLevel;
   observationCount: number;
+  // scores holds grouped column with individual scores
+  scores: ScoreAggregate;
   latency?: number;
   release?: string;
   version?: string;
@@ -57,7 +63,6 @@ export type TracesTableRow = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
-  scores: APIScore[];
   tags: string[];
   usage: {
     promptTokens: bigint;
@@ -177,35 +182,12 @@ export default function TracesTable({
     );
   };
 
-  const convertToTableRow = (
-    trace: RouterOutput["traces"]["all"]["traces"][0],
-  ): TracesTableRow => {
-    return {
-      bookmarked: trace.bookmarked,
-      id: trace.id,
-      timestamp: trace.timestamp.toLocaleString(),
-      name: trace.name ?? "",
-      level: trace.level,
-      observationCount: trace.observationCount,
-      release: trace.release ?? undefined,
-      version: trace.version ?? undefined,
-      userId: trace.userId ?? "",
-      scores: trace.scores,
-      sessionId: trace.sessionId ?? undefined,
-      latency: trace.latency === null ? undefined : trace.latency,
-      tags: trace.tags,
-      usage: {
-        promptTokens: trace.promptTokens,
-        completionTokens: trace.completionTokens,
-        totalTokens: trace.totalTokens,
-      },
-      inputCost: trace.calculatedInputCost ?? undefined,
-      outputCost: trace.calculatedOutputCost ?? undefined,
-      totalCost: trace.calculatedTotalCost ?? undefined,
-    };
-  };
-
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
+  const { scoreColumns, scoreKeysAndProps } =
+    useIndividualScoreColumns<TracesTableRow>({
+      projectId,
+      scoreColumnKey: "scores",
+    });
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
@@ -408,6 +390,7 @@ export default function TracesTable({
       enableSorting: true,
       enableHiding: true,
     },
+    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
     {
       accessorKey: "inputCost",
       id: "inputCost",
@@ -469,23 +452,6 @@ export default function TracesTable({
       },
       enableHiding: true,
       enableSorting: true,
-    },
-    {
-      accessorKey: "scores",
-      id: "scores",
-      header: "Scores",
-      size: 500,
-      headerTooltip: {
-        description:
-          "Scores are used to evaluate the quality of the trace. They can be automated, based on user feedback, or manually annotated. See docs to learn more.",
-        href: "https://langfuse.com/docs/scores",
-      },
-      enableColumnFilter: !omittedFilter.find((f) => f === "scores"),
-      cell: ({ row }) => {
-        const values: TracesTableRow["scores"] = row.getValue("scores");
-        return <GroupedScoreBadges scores={values} variant="headings" />;
-      },
-      enableHiding: true,
     },
     {
       accessorKey: "input",
@@ -652,7 +618,43 @@ export default function TracesTable({
   ];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<TracesTableRow>("tracesColumnVisibility", columns);
+    useColumnVisibility<TracesTableRow>(
+      `tracesColumnVisibility-${projectId}`,
+      columns,
+    );
+
+  const rows = useMemo(() => {
+    return traces.isSuccess
+      ? traces.data.traces.map((trace) => {
+          return {
+            bookmarked: trace.bookmarked,
+            id: trace.id,
+            timestamp: trace.timestamp.toLocaleString(),
+            name: trace.name ?? "",
+            level: trace.level,
+            observationCount: trace.observationCount,
+            release: trace.release ?? undefined,
+            version: trace.version ?? undefined,
+            userId: trace.userId ?? "",
+            sessionId: trace.sessionId ?? undefined,
+            latency: trace.latency === null ? undefined : trace.latency,
+            tags: trace.tags,
+            usage: {
+              promptTokens: trace.promptTokens,
+              completionTokens: trace.completionTokens,
+              totalTokens: trace.totalTokens,
+            },
+            scores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              trace.scores,
+            ),
+            inputCost: trace.calculatedInputCost ?? undefined,
+            outputCost: trace.calculatedOutputCost ?? undefined,
+            totalCost: trace.calculatedTotalCost ?? undefined,
+          };
+        })
+      : [];
+  }, [traces, scoreKeysAndProps]);
 
   return (
     <>
@@ -703,7 +705,7 @@ export default function TracesTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: traces.data.traces.map((t) => convertToTableRow(t)),
+                  data: rows,
                 }
         }
         pagination={{

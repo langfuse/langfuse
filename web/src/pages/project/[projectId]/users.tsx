@@ -15,11 +15,12 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type FilterState, type Score } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { type LastUserScore } from "@/src/features/scores/lib/types";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -28,7 +29,7 @@ type RowData = {
   firstEvent: string;
   lastEvent: string;
   totalEvents: string;
-  lastScore: Score | undefined;
+  lastScore: LastUserScore | undefined;
   totalTokens: string;
   totalCost: string;
 };
@@ -218,7 +219,7 @@ export default function UsersPage() {
         return (
           <>
             {value ? (
-              <div className="flex items-center gap-4">
+              <div className="grid grid-cols-[1fr,auto] items-center gap-4">
                 <TableLink
                   path={
                     value.observationId

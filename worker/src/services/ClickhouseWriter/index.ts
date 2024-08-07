@@ -8,6 +8,7 @@ import * as Sentry from "@sentry/node";
 
 import { env } from "../../env";
 import logger from "../../logger";
+import { instrumentAsync } from "../../instrumentation";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -75,12 +76,14 @@ export class ClickhouseWriter {
   }
 
   private async flushAll(fullQueue = false) {
-    await Promise.all([
-      this.flush(TableName.Traces, fullQueue),
-      this.flush(TableName.Scores, fullQueue),
-      this.flush(TableName.Observations, fullQueue),
-    ]).catch((err) => {
-      logger.error("ClickhouseWriter.flushAll", err);
+    return instrumentAsync({ name: "write-to-clickhouse" }, async () => {
+      await Promise.all([
+        this.flush(TableName.Traces, fullQueue),
+        this.flush(TableName.Scores, fullQueue),
+        this.flush(TableName.Observations, fullQueue),
+      ]).catch((err) => {
+        logger.error("ClickhouseWriter.flushAll", err);
+      });
     });
   }
 

@@ -247,7 +247,7 @@ export class IngestionService {
       (score) => ({
         id: entityId,
         project_id: projectId,
-        timestamp: this.getMillisecondTimestamp(),
+        timestamp: this.getMillisecondTimestamp(score.timestamp),
         name: score.body.name,
         value: score.body.value,
         source: "API",
@@ -705,7 +705,9 @@ export class IngestionService {
         id: entityId,
         // in the default implementation, we set timestamps server side if not provided.
         // we need to insert timestamps here and change the SDKs to send timestamps client side.
-        timestamp: this.getMillisecondTimestamp(trace.body.timestamp),
+        timestamp: this.getMillisecondTimestamp(
+          trace.body.timestamp ?? trace.timestamp
+        ),
         name: trace.body.name,
         user_id: trace.body.userId,
         metadata: trace.body.metadata
@@ -786,7 +788,9 @@ export class IngestionService {
         trace_id: obs.body.traceId ?? v4(),
         type: observationType,
         name: obs.body.name,
-        start_time: this.getMillisecondTimestamp(obs.body.startTime),
+        start_time: this.getMillisecondTimestamp(
+          obs.body.startTime ?? obs.timestamp
+        ),
         end_time:
           "endTime" in obs.body && obs.body.endTime
             ? this.getMillisecondTimestamp(obs.body.endTime)

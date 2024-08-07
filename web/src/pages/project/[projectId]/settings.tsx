@@ -16,7 +16,7 @@ import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
-import { ScoreConfigSettings } from "@/src/features/manual-scoring/components/ScoreConfigSettings";
+import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
 
 export default function SettingsPage() {
   const router = useRouter();
