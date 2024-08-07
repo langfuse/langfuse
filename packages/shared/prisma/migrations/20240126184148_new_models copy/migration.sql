@@ -24,7 +24,7 @@ VALUES
   ('clruwn3pc00010al7bl611c8o', NULL, 'text-embedding-3-small', '(?i)^(text-embedding-3-small)$', NULL, NULL, NULL, 0.00000002, 'TOKENS', 'openai', '{"tokenizerModel": "text-embedding-ada-002"}'),
   ('clruwn76700020al7gp8e4g4l', NULL, 'text-embedding-ada-002-v2', '(?i)^(text-embedding-3-large)$', NULL, NULL, NULL, 0.00000013, 'TOKENS', 'openai', '{"tokenizerModel": "text-embedding-ada-002"}'),
   
-  ('clruwnahl00030al7ab9rark7', NULL, 'gpt-3.5-turbo-0125', '(?i)^(gpt-)(35|3.5)(-turbo-0125)$', NULL, 0.0000005, 0.0000015, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1, "tokenizerModel": "gpt-3.5-turbo" }'),
+  ('clruwnahl00030al7ab9rark7', NULL, 'gpt-3.5-turbo-0125', '(?i)^(gpt-)(35|3.5)(-turbo-0125)$', NULL, 0.0000005, 0.0000015, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1, "tokenizerModel": "gpt-3.5-turbo-0125" }'),
   ('clruwnahl00040al78f1lb0at', NULL, 'gpt-3.5-turbo', '(?i)^(gpt-)(35|3.5)(-turbo)$', '2024-02-08', 0.0000005, 0.0000015, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1, "tokenizerModel": "gpt-3.5-turbo" }'),
 
   ('clruwnahl00050al796ck3p44', NULL, 'gpt-4-0125-preview', '(?i)^(gpt-4-0125-preview)$', NULL, 0.00001, 0.00003, NULL, 'TOKENS', 'openai', '{ "tokensPerMessage": 3, "tokensPerName": 1, "tokenizerModel": "gpt-4" }'),
