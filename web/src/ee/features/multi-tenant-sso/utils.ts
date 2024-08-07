@@ -3,6 +3,7 @@ import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import OktaProvider from "next-auth/providers/okta";
 import CognitoProvider from "next-auth/providers/cognito";
+import KeycloakProvider from "next-auth/providers/keycloak";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
@@ -174,6 +175,12 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     });
   else if (provider.authProvider === "cognito")
     return CognitoProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
+  else if (provider.authProvider === "keycloak")
+    return KeycloakProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),

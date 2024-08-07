@@ -22,6 +22,7 @@ import EmailProvider from "next-auth/providers/email";
 import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import KeycloakProvider from "next-auth/providers/keycloak";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
@@ -235,6 +236,21 @@ if (
       issuer: env.AUTH_COGNITO_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
+if (
+  env.AUTH_KEYCLOAK_CLIENT_ID &&
+  env.AUTH_KEYCLOAK_CLIENT_SECRET &&
+  env.AUTH_KEYCLOAK_ISSUER
+)
+  staticProviders.push(
+    KeycloakProvider({
+      clientId: env.AUTH_KEYCLOAK_CLIENT_ID,
+      clientSecret: env.AUTH_KEYCLOAK_CLIENT_SECRET,
+      issuer: env.AUTH_KEYCLOAK_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING === "true",
     }),
   );
 
