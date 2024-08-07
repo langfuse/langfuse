@@ -6,8 +6,8 @@ type CallbackFn<T> = () => T;
 export type SpanCtx = {
   name: string;
   traceScope: string;
-  spanKind?: ot.SpanKind;
-  rootSpan?: boolean;
+  spanKind?: ot.SpanKind; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind
+  rootSpan?: boolean; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#traces
 };
 
 export function instrument<T>(ctx: SpanCtx, callback: CallbackFn<T>): T {
