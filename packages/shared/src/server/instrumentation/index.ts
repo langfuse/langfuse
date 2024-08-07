@@ -59,7 +59,7 @@ export const addExceptionToSpan = (ex: unknown, span?: opentelemetry.Span) => {
 };
 
 export const addUserToSpan = (
-  attibutes: { userId?: string; projectId?: string; email?: string },
+  attributes: { userId?: string; projectId?: string; email?: string },
   span?: opentelemetry.Span
 ) => {
   const activeSpan = span ?? getCurrentSpan();
@@ -68,12 +68,12 @@ export const addUserToSpan = (
     return;
   }
 
-  attibutes.userId && activeSpan.setAttribute("user.id", attibutes.userId);
-  attibutes.email && activeSpan.setAttribute("user.email", attibutes.email);
-  attibutes.projectId &&
-    activeSpan.setAttribute("project.id", attibutes.projectId);
+  attributes.userId && activeSpan.setAttribute("user.id", attributes.userId);
+  attributes.email && activeSpan.setAttribute("user.email", attributes.email);
+  attributes.projectId &&
+    activeSpan.setAttribute("project.id", attributes.projectId);
 
-  console.log("attibutes.userId", attibutes.userId);
+  console.log("attibutes.userId", attributes.userId);
 };
 
 export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
