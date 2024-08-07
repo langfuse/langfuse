@@ -15,10 +15,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  prefixScoreData,
-  verifyScoreDataAgainstKeys,
-} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
@@ -354,18 +351,14 @@ export default function PromptVersionTable() {
             medianInputTokens: prompt.medianInputTokens,
             medianOutputTokens: prompt.medianOutputTokens,
             medianCost: prompt.medianTotalCost,
-            traceScores: prefixScoreData(
-              verifyScoreDataAgainstKeys(
-                scoreKeysAndProps,
-                prompt.traceScores ?? {},
-              ),
+            traceScores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              prompt.traceScores ?? {},
               "Trace",
             ),
-            generationScores: prefixScoreData(
-              verifyScoreDataAgainstKeys(
-                scoreKeysAndProps,
-                prompt.observationScores ?? {},
-              ),
+            generationScores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              prompt.observationScores ?? {},
               "Generation",
             ),
             lastUsed:

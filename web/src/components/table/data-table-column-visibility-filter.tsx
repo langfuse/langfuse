@@ -65,9 +65,8 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
   if (column.enableHiding) {
     return (
       <DropdownMenuCheckboxItem
-        className="capitalize"
         checked={columnVisibility[column.accessorKey]}
-        onCheckedChange={() => toggleColumn(column.accessorKey.toString())}
+        onCheckedChange={() => toggleColumn(column.accessorKey)}
       >
         <span className="capitalize">
           {column.header && typeof column.header === "string"

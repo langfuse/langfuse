@@ -16,7 +16,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { ListTree } from "lucide-react";
 import {
   SCORE_GROUP_COLUMN_PROPS,
-  verifyScoreDataAgainstKeys,
+  verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
@@ -35,7 +35,7 @@ export type DatasetRunItemRowData = {
   expectedOutput?: unknown;
 
   // scores holds grouped column with individual scores
-  scores?: ScoreAggregate;
+  scores: ScoreAggregate;
   latency?: number;
   totalCost?: string;
 };
@@ -233,7 +233,10 @@ export function DatasetRunItemsTable(
                   observationId: item.observation?.id,
                 }
               : undefined,
-            scores: verifyScoreDataAgainstKeys(scoreKeysAndProps, item.scores),
+            scores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              item.scores,
+            ),
             totalCost: !!item.observation?.calculatedTotalCost
               ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
               : undefined,

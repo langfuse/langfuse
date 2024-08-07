@@ -38,7 +38,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   SCORE_GROUP_COLUMN_PROPS,
-  verifyScoreDataAgainstKeys,
+  verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -54,7 +54,7 @@ export type TracesTableRow = {
   level: ObservationLevel;
   observationCount: number;
   // scores holds grouped column with individual scores
-  scores?: ScoreAggregate;
+  scores: ScoreAggregate;
   latency?: number;
   release?: string;
   version?: string;
@@ -644,7 +644,10 @@ export default function TracesTable({
               completionTokens: trace.completionTokens,
               totalTokens: trace.totalTokens,
             },
-            scores: verifyScoreDataAgainstKeys(scoreKeysAndProps, trace.scores),
+            scores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              trace.scores,
+            ),
             inputCost: trace.calculatedInputCost ?? undefined,
             outputCost: trace.calculatedOutputCost ?? undefined,
             totalCost: trace.calculatedTotalCost ?? undefined,

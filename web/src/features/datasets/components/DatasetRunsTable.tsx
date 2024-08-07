@@ -16,7 +16,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
   SCORE_GROUP_COLUMN_PROPS,
-  verifyScoreDataAgainstKeys,
+  verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
@@ -160,7 +160,10 @@ export function DatasetRunsTable(props: {
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
       avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
-      scores: verifyScoreDataAgainstKeys(scoreKeysAndProps, item.scores),
+      scores: verifyAndPrefixScoreDataAgainstKeys(
+        scoreKeysAndProps,
+        item.scores,
+      ),
       description: item.description ?? "",
       metadata: item.metadata,
     };

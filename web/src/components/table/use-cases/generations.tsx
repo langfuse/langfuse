@@ -43,7 +43,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   SCORE_GROUP_COLUMN_PROPS,
-  verifyScoreDataAgainstKeys,
+  verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -667,7 +667,7 @@ export default function GenerationsTable({
             startTime: generation.startTime,
             endTime: generation.endTime?.toLocaleString() ?? undefined,
             timeToFirstToken: generation.timeToFirstToken ?? undefined,
-            scores: verifyScoreDataAgainstKeys(
+            scores: verifyAndPrefixScoreDataAgainstKeys(
               scoreKeysAndProps,
               generation.scores,
             ),

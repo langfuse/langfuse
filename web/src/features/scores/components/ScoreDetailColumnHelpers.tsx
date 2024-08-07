@@ -72,34 +72,24 @@ const parseScoreColumn = <
   };
 };
 
-export function verifyScoreDataAgainstKeys(
+export function verifyAndPrefixScoreDataAgainstKeys(
   scoreKeys: ScoreDetailColumnProps[],
   scoreData: ScoreAggregate,
+  prefix?: "Trace" | "Generation",
 ): ScoreAggregate {
   if (!Boolean(scoreKeys.length)) return {};
   let filteredScores: ScoreAggregate = {};
 
+  const getScoreKey = (key: string) =>
+    !!prefix ? prefixScoreColKey(key, prefix) : key;
+
   for (const key in scoreData) {
     if (scoreKeys.some((column) => column.key === key)) {
-      filteredScores[key] = scoreData[key];
+      filteredScores[getScoreKey(key)] = scoreData[key];
     }
   }
 
   return filteredScores;
-}
-
-export function prefixScoreData(
-  scoreData: ScoreAggregate,
-  prefix: "Trace" | "Generation",
-): ScoreAggregate {
-  if (!Boolean(Object.keys(scoreData).length)) return {};
-  let prefixedScores: ScoreAggregate = {};
-
-  for (const key in scoreData) {
-    prefixedScores[prefixScoreColKey(key, prefix)] = scoreData[key];
-  }
-
-  return prefixedScores;
 }
 
 export const constructIndividualScoreColumns = <
