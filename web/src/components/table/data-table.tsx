@@ -52,6 +52,7 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   paginationClassName?: string;
   isBorderless?: boolean;
+  shouldRenderGroupHeaders?: boolean;
 }
 
 export interface AsyncTableData<T> {
@@ -76,6 +77,7 @@ export function DataTable<TData extends object, TValue>({
   className,
   paginationClassName,
   isBorderless = false,
+  shouldRenderGroupHeaders = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
@@ -131,8 +133,14 @@ export function DataTable<TData extends object, TValue>({
     table.getState().columnSizingInfo,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     table.getState().columnSizing,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    table.getFlatHeaders(),
     columnVisibility,
   ]);
+
+  const tableHeaders = shouldRenderGroupHeaders
+    ? table.getHeaderGroups()
+    : [table.getHeaderGroups().slice(-1)[0]];
 
   return (
     <>
@@ -151,7 +159,7 @@ export function DataTable<TData extends object, TValue>({
         >
           <Table>
             <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
+              {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     const columnDef = header.column

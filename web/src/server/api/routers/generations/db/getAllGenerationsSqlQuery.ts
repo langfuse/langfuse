@@ -7,6 +7,8 @@ import { orderByToPrismaSql } from "@langfuse/shared";
 import { type ObservationView, Prisma } from "@langfuse/shared/src/db";
 import { prisma } from "@langfuse/shared/src/db";
 import { type GetAllGenerationsInput } from "../getAllQuery";
+import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 type AdditionalObservationFields = {
   traceName: string | null;
@@ -79,7 +81,8 @@ export async function getAllGenerations({
           FROM
             scores
           WHERE
-            project_id = ${input.projectId}
+          project_id = ${input.projectId}
+          AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')
           GROUP BY
             1,
             2,
@@ -147,10 +150,11 @@ export async function getAllGenerations({
       },
     },
   });
+  const validatedScores = filterAndValidateDbScoreList(scores);
 
   const fullGenerations = generations.map((generation) => {
-    const filteredScores = scores.filter(
-      (s) => s.observationId === generation.id,
+    const filteredScores = aggregateScores(
+      validatedScores.filter((s) => s.observationId === generation.id),
     );
     return {
       ...generation,

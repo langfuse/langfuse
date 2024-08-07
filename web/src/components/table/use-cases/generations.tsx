@@ -1,9 +1,8 @@
 import { api, directApi } from "@/src/utils/api";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   DropdownMenu,
@@ -39,12 +38,17 @@ import {
 } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
-import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  SCORE_GROUP_COLUMN_PROPS,
+  verifyAndPrefixScoreDataAgainstKeys,
+} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
 export type GenerationsTableRow = {
   id: string;
@@ -56,6 +60,8 @@ export type GenerationsTableRow = {
   completionStartTime?: Date;
   latency?: number;
   timeToFirstToken?: number;
+  // scores holds grouped column with individual scores
+  scores: ScoreAggregate;
   name?: string;
   model?: string;
   // i/o and metadata not set explicitly, but fetched from the server from the cell
@@ -66,7 +72,6 @@ export type GenerationsTableRow = {
   outputCost?: Decimal;
   totalCost?: Decimal;
   traceName?: string;
-  scores?: ScoreSimplified[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -185,6 +190,12 @@ export default function GenerationsTable({
       },
     },
   );
+
+  const { scoreColumns, scoreKeysAndProps } =
+    useIndividualScoreColumns<GenerationsTableRow>({
+      projectId,
+      scoreColumnKey: "scores",
+    });
 
   const transformFilterOptions = (
     filterOptions: ObservationOptions | undefined,
@@ -328,24 +339,7 @@ export default function GenerationsTable({
         );
       },
     },
-    {
-      accessorKey: "scores",
-      id: "scores",
-      header: "Scores",
-      size: 200,
-      headerTooltip: {
-        description:
-          "Scores are used to evaluate the quality of the trace. They can be automated, based on user feedback, or manually annotated. See docs to learn more.",
-        href: "https://langfuse.com/docs/scores",
-      },
-      cell: ({ row }) => {
-        const values: ScoreSimplified[] | undefined = row.getValue("scores");
-        return (
-          values && <GroupedScoreBadges scores={values} variant="headings" />
-        );
-      },
-      enableHiding: true,
-    },
+    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
     {
       accessorKey: "latency",
       id: "latency",
@@ -656,42 +650,48 @@ export default function GenerationsTable({
       },
     },
   ];
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(
-      "generationsColumnVisibility",
+      `generationsColumnVisibility-${projectId}`,
       columns,
     );
 
-  const rows: GenerationsTableRow[] = generations.isSuccess
-    ? generations.data.generations.map((generation) => {
-        return {
-          id: generation.id,
-          traceId: generation.traceId ?? undefined,
-          traceName: generation.traceName ?? "",
-          startTime: generation.startTime,
-          endTime: generation.endTime?.toLocaleString() ?? undefined,
-          timeToFirstToken: generation.timeToFirstToken ?? undefined,
-          latency: generation.latency ?? undefined,
-          totalCost: generation.calculatedTotalCost ?? undefined,
-          inputCost: generation.calculatedInputCost ?? undefined,
-          outputCost: generation.calculatedOutputCost ?? undefined,
-          name: generation.name ?? undefined,
-          version: generation.version ?? "",
-          model: generation.model ?? "",
-          scores: generation.scores,
-          level: generation.level,
-          statusMessage: generation.statusMessage ?? undefined,
-          usage: {
-            promptTokens: generation.promptTokens,
-            completionTokens: generation.completionTokens,
-            totalTokens: generation.totalTokens,
-          },
-          promptId: generation.promptId ?? undefined,
-          promptName: generation.promptName ?? undefined,
-          promptVersion: generation.promptVersion ?? undefined,
-        };
-      })
-    : [];
+  const rows: GenerationsTableRow[] = useMemo(() => {
+    return generations.isSuccess
+      ? generations.data.generations.map((generation) => {
+          return {
+            id: generation.id,
+            traceId: generation.traceId ?? undefined,
+            traceName: generation.traceName ?? "",
+            startTime: generation.startTime,
+            endTime: generation.endTime?.toLocaleString() ?? undefined,
+            timeToFirstToken: generation.timeToFirstToken ?? undefined,
+            scores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              generation.scores,
+            ),
+            latency: generation.latency ?? undefined,
+            totalCost: generation.calculatedTotalCost ?? undefined,
+            inputCost: generation.calculatedInputCost ?? undefined,
+            outputCost: generation.calculatedOutputCost ?? undefined,
+            name: generation.name ?? undefined,
+            version: generation.version ?? "",
+            model: generation.model ?? "",
+            level: generation.level,
+            statusMessage: generation.statusMessage ?? undefined,
+            usage: {
+              promptTokens: generation.promptTokens,
+              completionTokens: generation.completionTokens,
+              totalTokens: generation.totalTokens,
+            },
+            promptId: generation.promptId ?? undefined,
+            promptName: generation.promptName ?? undefined,
+            promptVersion: generation.promptVersion ?? undefined,
+          };
+        })
+      : [];
+  }, [generations, scoreKeysAndProps]);
 
   return (
     <>

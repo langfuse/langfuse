@@ -37,6 +37,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       where: {
         projectId: input.projectId,
         timestamp: prismaStartTimeFilter,
+        dataType: { in: ["NUMERIC", "BOOLEAN"] },
       },
       take: 1000,
       orderBy: {

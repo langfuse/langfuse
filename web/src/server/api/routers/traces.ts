@@ -26,6 +26,7 @@ import { instrumentAsync } from "@/src/utils/instrumentation";
 import type Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -157,7 +158,9 @@ export const traceRouter = createTRPCRouter({
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           ({ input, output, metadata, ...trace }) => ({
             ...trace,
-            scores: validatedScores.filter((s) => s.traceId === trace.id),
+            scores: aggregateScores(
+              validatedScores.filter((s) => s.traceId === trace.id),
+            ),
           }),
         ),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
@@ -189,6 +192,7 @@ export const traceRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           timestamp: prismaTimestampFilter,
+          dataType: { in: ["NUMERIC", "BOOLEAN"] },
         },
         take: 1000,
         orderBy: {
@@ -577,6 +581,7 @@ function createTracesQuery(
             scores
         WHERE
             trace_id = t.id
+            AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')
         GROUP BY
             name
     ) tmp
