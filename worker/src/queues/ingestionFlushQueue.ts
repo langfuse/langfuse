@@ -1,19 +1,19 @@
 import { Queue, Worker } from "bullmq";
 
 import { QueueJobs, QueueName } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
-  recordGauge,
   redis,
-  recordCount,
-  recordHistogram,
+  instrumentAsync,
+  recordDistribution,
 } from "@langfuse/shared/src/server";
+import * as Sentry from "@sentry/node";
 
 import { env } from "../env";
 import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
-import { instrumentAsync } from "../instrumentation";
 
 export type IngestionFlushQueue = Queue<null>;
 
