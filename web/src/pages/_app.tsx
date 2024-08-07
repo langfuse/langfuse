@@ -1,6 +1,7 @@
 import { type AppType } from "next/app";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
+import { setUser } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 
@@ -33,7 +34,6 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { shutdown } from "@/src/utils/shutdown";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
-// import DatadogInit from "@/src/components/rum";
 
 const setProjectInPosthog = () => {
   // project
@@ -88,36 +88,33 @@ const MyApp: AppType<{ session: Session | null }> = ({
   }, []);
 
   return (
-    <>
-      {/* <DatadogInit /> */}
-      <QueryParamProvider adapter={NextAdapterPages}>
-        <TooltipProvider>
-          <PostHogProvider client={posthog}>
-            <SessionProvider
-              session={session}
-              refetchOnWindowFocus={true}
-              refetchInterval={5 * 60} // 5 minutes
-            >
-              <DetailPageListsProvider>
-                <MarkdownContextProvider>
-                  <ThemeProvider
-                    attribute="class"
-                    enableSystem
-                    disableTransitionOnChange
-                  >
-                    <Layout>
-                      <Component {...pageProps} />
-                      <UserTracking />
-                    </Layout>
-                  </ThemeProvider>
-                </MarkdownContextProvider>
-                <CrispWidget />
-              </DetailPageListsProvider>
-            </SessionProvider>
-          </PostHogProvider>
-        </TooltipProvider>
-      </QueryParamProvider>
-    </>
+    <QueryParamProvider adapter={NextAdapterPages}>
+      <TooltipProvider>
+        <PostHogProvider client={posthog}>
+          <SessionProvider
+            session={session}
+            refetchOnWindowFocus={true}
+            refetchInterval={5 * 60} // 5 minutes
+          >
+            <DetailPageListsProvider>
+              <MarkdownContextProvider>
+                <ThemeProvider
+                  attribute="class"
+                  enableSystem
+                  disableTransitionOnChange
+                >
+                  <Layout>
+                    <Component {...pageProps} />
+                    <UserTracking />
+                  </Layout>
+                </ThemeProvider>
+              </MarkdownContextProvider>
+              <CrispWidget />
+            </DetailPageListsProvider>
+          </SessionProvider>
+        </PostHogProvider>
+      </TooltipProvider>
+    </QueryParamProvider>
   );
 };
 
@@ -144,6 +141,12 @@ function UserTracking() {
           domain: emailDomain,
         });
 
+      // Sentry
+      setUser({
+        email: session.data.user?.email ?? undefined,
+        id: session.data.user?.id ?? undefined,
+      });
+
       // Chat
       chatSetUser({
         name: session.data.user?.name ?? "undefined",
@@ -164,6 +167,8 @@ function UserTracking() {
         posthog.reset();
         posthog.resetGroups();
       }
+      // Sentry
+      setUser(null);
     }
   }, [session]);
   return null;

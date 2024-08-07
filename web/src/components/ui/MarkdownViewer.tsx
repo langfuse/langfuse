@@ -24,6 +24,7 @@ import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { captureException } from "@sentry/nextjs";
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
@@ -112,6 +113,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
               className="h-full w-full object-contain"
               onError={(error) => {
                 setHasFetchError(true);
+                captureException(error);
               }}
             />
             <Button
