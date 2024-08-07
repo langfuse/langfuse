@@ -155,7 +155,6 @@ BEGIN;
 CREATE TYPE "ProjectRole_new" AS ENUM ('ADMIN', 'MEMBER', 'VIEWER');
 ALTER TABLE "project_memberships" ALTER COLUMN "role" TYPE "ProjectRole_new" USING ("role"::text::"ProjectRole_new");
 ALTER TABLE "membership_invitations" ALTER COLUMN "project_role" TYPE "ProjectRole_new" USING ("project_role"::text::"ProjectRole_new");
-ALTER TABLE "audit_logs" ALTER COLUMN "user_project_role" TYPE "ProjectRole_new" USING ("user_project_role"::text::"ProjectRole_new");
 ALTER TYPE "ProjectRole" RENAME TO "ProjectRole_old";
 ALTER TYPE "ProjectRole_new" RENAME TO "ProjectRole";
 DROP TYPE "ProjectRole_old";

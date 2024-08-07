@@ -98,9 +98,9 @@ export type AuditLog = {
     updated_at: Generated<Timestamp>;
     user_id: string;
     org_id: string;
-    user_org_role: OrganizationRole;
+    user_org_role: string;
     project_id: string | null;
-    user_project_role: ProjectRole | null;
+    user_project_role: string | null;
     resource_type: string;
     resource_id: string;
     action: string;
