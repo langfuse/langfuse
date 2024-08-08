@@ -11,7 +11,7 @@ import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsS
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { type Adapter } from "next-auth/adapters";
+import { AdapterAccount, type Adapter } from "next-auth/adapters";
 
 // Providers
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -141,9 +141,11 @@ if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
 }
 
 // Function to be used in the prismaAdapter to cleanup extra
-// fields in the Token of specific Providers. Default does
+// fields in the Account Object of specific Providers. Default does
 // nothing.
-let cleanupToken = (token) => { return token; }
+let cleanupAccount = (account: AdapterAccount) => {
+  return account;
+};
 
 if (
   env.AUTH_CUSTOM_CLIENT_ID &&
@@ -259,17 +261,19 @@ if (
     }),
   );
 
-  cleanupToken = (token) => {
+  cleanupAccount = (account) => {
     // Remove 'not-before-policy' and 'refresh_expires_in' from token to create account
-    const { 'not-before-policy': _, refresh_expires_in, ...cleaned } = token;
+    const { "not-before-policy": _, refresh_expires_in, ...cleaned } = account;
     return cleaned;
-  }
+  };
 }
 
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const _linkAccount = prismaAdapter.linkAccount!;
-prismaAdapter.linkAccount = (token) => { return _linkAccount(cleanupToken(token)); }
+prismaAdapter.linkAccount = (account) => {
+  return _linkAccount(cleanupToken(account));
+};
 const extendedPrismaAdapter: Adapter = {
   ...prismaAdapter,
   async createUser(profile) {
