@@ -11,7 +11,7 @@ import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsS
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { AdapterAccount, type Adapter } from "next-auth/adapters";
+import { type AdapterAccount, type Adapter } from "next-auth/adapters";
 
 // Providers
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -262,9 +262,10 @@ if (
   );
 
   cleanupAccount = (account) => {
-    // Remove 'not-before-policy' and 'refresh_expires_in' from token to create account
-    const { "not-before-policy": _, refresh_expires_in, ...cleaned } = account;
-    return cleaned;
+    // Remove 'not-before-policy' and 'refresh_expires_in' to avoid conflict with account schema
+    delete account['not-before-policy']
+    delete account['refresh_expires_in']
+    return account;
   };
 }
 
