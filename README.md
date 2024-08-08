@@ -1,4 +1,8 @@
-![Langfuse GitHub Banner](https://github.com/langfuse/langfuse/assets/121163007/6035f0f3-d691-4963-b5d0-10cf506e9d42)
+![langfuse_logo_1024](https://github.com/user-attachments/assets/f17d8fc1-8206-4afa-a5ec-774826be88a8)
+
+<div align="center"><h1> Langfuse: Open Source LLM Engineering Platform</h4></div>
+<div align="center"><h2> Debug and improve your LLM app</h4></div>
+<div align="center"><h3> LLM Observability, Prompt Management, LLM Evaluations, Datasets, LLM Metrics and Prompt Playground</h4></div>
 
 <div align="center">
    <div>
@@ -37,7 +41,7 @@
 </div>
 </br>
 
-## Overview
+## Langfuse Overview
 
 _Unmute video for voice-over_
 
@@ -45,18 +49,18 @@ https://github.com/langfuse/langfuse/assets/2834609/a94062e9-c782-4ee9-af59-dee6
 
 ### Develop
 
-- **Observability:** Instrument your app and start ingesting traces to Langfuse ([Quickstart](https://langfuse.com/docs/get-started), [Integrations](https://langfuse.com/docs/integrations) [Tracing](https://langfuse.com/docs/tracing))
+- **LLM Observability:** Instrument your app and start ingesting traces to Langfuse ([Quickstart](https://langfuse.com/docs/get-started), [Integrations](https://langfuse.com/docs/integrations) [Tracing](https://langfuse.com/docs/tracing))
 - **Langfuse UI:** Inspect and debug complex logs ([Demo](https://langfuse.com/docs/demo), [Tracing](https://langfuse.com/docs/tracing))
 - **Prompt Management:** Manage, version and deploy prompts from within Langfuse ([Prompt Management](https://langfuse.com/docs/prompts/get-started))
 - **Prompt Engineering:** Test and iterate on your prompts with the [LLM Playground](https://langfuse.com/docs/playground)
 
 ### Monitor
 
-- **Analytics:** Track metrics (cost, latency, quality) and gain insights from dashboards & data exports ([Analytics](https://langfuse.com/docs/analytics))
-- **Evals:** Collect and calculate scores for your LLM completions ([Scores & Evaluations](https://langfuse.com/docs/scores))
-  - Run model-based evaluations ([Model-based evaluations](https://langfuse.com/docs/scores/model-based-evals)) within Langfuse
+- **LLM Analytics:** Track metrics (cost, latency, quality) and gain insights from dashboards & data exports ([Analytics](https://langfuse.com/docs/analytics))
+- **LLM Evaluations:** Collect and calculate scores for your LLM completions ([Scores & Evaluations](https://langfuse.com/docs/scores))
+  - Run ([Model-based evaluations](https://langfuse.com/docs/scores/model-based-evals)) and LLM-as-a-Judge within Langfuse
   - Collect user feedback ([User Feedback](https://langfuse.com/docs/scores/user-feedback))
-  - Manually score observations in Langfuse ([Manual Scores](https://langfuse.com/docs/scores/manually))
+  - Manually score LLM outputs in Langfuse ([Manual Scores](https://langfuse.com/docs/scores/manually))
 
 ### Test
 
@@ -71,6 +75,8 @@ https://github.com/langfuse/langfuse/assets/2834609/a94062e9-c782-4ee9-af59-dee6
 Managed deployment by the Langfuse team, generous free-tier (hobby plan), no credit card required.
 
 **[» Langfuse Cloud](https://cloud.langfuse.com)**
+
+## Self-Hosting Open Source LLM Observability with Langfuse
 
 ### Localhost (docker)
 
@@ -98,7 +104,7 @@ Templated deployments: [Railway, GCP Cloud Run, AWS Fargate, Kubernetes and othe
 
 You need a Langfuse public and secret key to get started. Sign up [here](https://cloud.langfuse.com) and find them in your project settings.
 
-### Ingesting Data · Instrumenting Your Application
+### Ingesting Data · Instrumenting Your Application · LLM Observability with Langfuse
 
 Note: We recommend using our fully async, typed [SDKs](https://langfuse.com/docs/sdk) that allow you to instrument any LLM application with any underlying model. They are available in [Python (Decorators)](https://langfuse.com/docs/sdk/python) & [JS/TS](https://langfuse.com/docs/sdk/typescript). The SDKs will always be the most fully featured and stable way to ingest data into Langfuse.
 
@@ -106,7 +112,7 @@ You may want to use another integration to get started quickly or implement a us
 
 See the [→ Quickstart](https://langfuse.com/docs/get-started) to integrate Langfuse.
 
-### Integrations
+### LLM Observability Integrations
 
 | Integration                                              | Supports                   | Description                                                                                                                                      |
 | -------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -132,9 +138,9 @@ Packages that integrate with Langfuse:
 
 ### Ideas and roadmap
 
-- [GitHub Discussions](https://github.com/orgs/langfuse/discussions)
-- [Feature Requests](https://langfuse.com/idea)
 - [Roadmap](https://langfuse.com/roadmap)
+- [GitHub Discussions](https://github.com/orgs/langfuse/discussions)
+- [Feature Requests](https://langfuse.com/idea
 
 ### Support and feedback
 

@@ -816,6 +816,9 @@ importers:
       tsc-watch:
         specifier: ^6.2.0
         version: 6.2.0(typescript@5.4.5)
+      tsx:
+        specifier: ^4.7.2
+        version: 4.7.2
       typescript:
         specifier: ^5.4.5
         version: 5.4.5
@@ -22018,7 +22021,7 @@ snapshots:
   tsx@4.7.2:
     dependencies:
       esbuild: 0.19.12
-      get-tsconfig: 4.7.3
+      get-tsconfig: 4.7.5
     optionalDependencies:
       fsevents: 2.3.3
 
