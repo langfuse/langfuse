@@ -82,7 +82,7 @@ const ImageErrorDisplay = ({
 );
 
 const MarkdownImage: Components["img"] = ({ src, alt }) => {
-  const [isZoomedIn, setIsZoomedIn] = useState(false);
+  const [isZoomedIn, setIsZoomedIn] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
   const [isImageVisible, setIsImageVisible] = useState(false);
 
@@ -126,39 +126,39 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
                 }}
               />
             ) : (
-              <div className="grid max-h-[14rem] min-h-[9rem] items-center overflow-auto rounded border border-dashed p-2 text-center text-xs text-muted-foreground/60">{`Image hidden. Hover to display [${src}]`}</div>
-            )}
-            <div className="absolute right-0 top-0 mr-1 mt-1 grid grid-flow-col gap-2">
-              {isImageVisible && (
+              <div className="grid max-h-[14rem] min-h-[9rem] items-center justify-center rounded border border-dashed p-2 text-xs text-muted-foreground/60">
                 <Button
+                  title={`Render url: ${src}`}
                   type="button"
-                  className="h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
-                  variant="ghost"
                   size="icon"
-                  onClick={() => setIsZoomedIn(!isZoomedIn)}
+                  variant="secondary"
+                  className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-70"
+                  onClick={() => setIsImageVisible(!isImageVisible)}
                 >
-                  {isZoomedIn ? (
-                    <Maximize2 className="h-4 w-4"></Maximize2>
+                  {isImageVisible ? (
+                    <EyeOff className="h-4 w-4 text-foreground" />
                   ) : (
-                    <Minimize2 className="h-4 w-4"></Minimize2>
+                    <Eye className="h-4 w-4 text-foreground" />
                   )}
                 </Button>
-              )}
+                Image placeholder...
+              </div>
+            )}
+            {isImageVisible && (
               <Button
-                title={isImageVisible ? "Hide Image" : "Show Image"}
                 type="button"
+                className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 opacity-0 group-hover:!bg-accent/80 group-hover:opacity-100"
-                onClick={() => setIsImageVisible(!isImageVisible)}
+                onClick={() => setIsZoomedIn(!isZoomedIn)}
               >
-                {isImageVisible ? (
-                  <EyeOff className="h-4 w-4 text-foreground" />
+                {isZoomedIn ? (
+                  <Maximize2 className="h-4 w-4"></Maximize2>
                 ) : (
-                  <Eye className="h-4 w-4 text-foreground" />
+                  <Minimize2 className="h-4 w-4"></Minimize2>
                 )}
               </Button>
-            </div>
+            )}
           </div>
         )}
       </div>
