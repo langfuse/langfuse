@@ -541,7 +541,7 @@ export class IngestionService {
       ...tokenCounts,
       ...tokenCosts,
       internal_model_id: internalModel?.id,
-      unit: internalModel?.unit,
+      unit: observationRecord.unit ?? internalModel?.unit,
     };
   }
 
