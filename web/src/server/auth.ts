@@ -280,6 +280,22 @@ const extendedPrismaAdapter: Adapter = {
 
     return user;
   },
+
+  async linkAccount(data) {
+    if (!prismaAdapter.linkAccount)
+      throw new Error("linkAccount not implemented");
+
+    if (
+      env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
+      env.AUTH_DISABLE_SIGNUP === "true"
+    ) {
+      throw new Error("Sign up is disabled.");
+    }
+
+    delete data["refresh_expires_in"];
+    delete data["not-before-policy"];
+    await prismaAdapter.linkAccount(data);
+  },
 };
 
 /**
