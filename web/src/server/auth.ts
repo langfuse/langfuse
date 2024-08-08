@@ -285,13 +285,6 @@ const extendedPrismaAdapter: Adapter = {
     if (!prismaAdapter.linkAccount)
       throw new Error("linkAccount not implemented");
 
-    if (
-      env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
-      env.AUTH_DISABLE_SIGNUP === "true"
-    ) {
-      throw new Error("Sign up is disabled.");
-    }
-
     // Keycloak returns incompatible data with the nextjs-auth schema
     // (refresh_expires_in and not-before-policy in).
     // So, we need to remove this data from the payload before linking an account.
