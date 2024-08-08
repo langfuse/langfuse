@@ -292,7 +292,7 @@ const extendedPrismaAdapter: Adapter = {
       throw new Error("Sign up is disabled.");
     }
 
-    // Keycloak returns uncompatible data with the nextjs-auth schema
+    // Keycloak returns incompatible data with the nextjs-auth schema
     // (refresh_expires_in and not-before-policy in).
     // So, we need to remove this data from the payload before linking an account.
     // https://github.com/nextauthjs/next-auth/issues/7655
