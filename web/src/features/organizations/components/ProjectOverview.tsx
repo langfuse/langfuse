@@ -30,8 +30,8 @@ import { Fragment } from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { type RouterOutput } from "@/src/utils/types";
+import { useSession } from "next-auth/react";
 
-// SingleOrganizationProjectOverview.tsx
 export const SingleOrganizationProjectOverview = ({
   org,
   search,
@@ -49,11 +49,13 @@ export const SingleOrganizationProjectOverview = ({
     organizationId: org.id,
     scope: "members:read",
   });
+  const session = useSession();
 
   const isDemoOrg =
     env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
-    org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
-  // todo: render demo org only when user has None role in demo project
+    org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID) &&
+    session.data?.user?.organizations.find((o) => o.id === org.id)?.role ===
+      "NONE";
 
   if (isDemoOrg) {
     return (

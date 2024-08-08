@@ -20,7 +20,7 @@ export async function createProjectMembershipsOnSignup(user: {
       await prisma.organizationMembership.create({
         data: {
           userId: user.id,
-          orgId: demoProject.orgId as string, // TODO: drop the as string when we have orgId in all projects
+          orgId: demoProject.orgId,
           role: "NONE",
           ProjectMemberships: {
             create: {
@@ -44,7 +44,7 @@ export async function createProjectMembershipsOnSignup(user: {
     if (defaultProject !== undefined) {
       await prisma.organizationMembership.create({
         data: {
-          orgId: defaultProject.orgId as string, // TODO: drop the as string when we have orgId in all projects
+          orgId: defaultProject.orgId,
           userId: user.id,
           role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
         },
@@ -67,24 +67,22 @@ async function processMembershipInvitations(email: string, userId: string) {
   if (invitationsForUser.length === 0) return;
 
   // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
-  const createOrgMembershipData = invitationsForUser
-    //.filter((invitation) => invitation.orgId !== null) // TODO: drop this filter when we have orgId in all invitations
-    .map((invitation) => ({
-      userId: userId,
-      orgId: invitation.orgId as string, // TODO: drop the as string when we have orgId in all invitations
-      role: invitation.orgRole,
-      ...(invitation.projectId && invitation.projectRole
-        ? {
-            ProjectMemberships: {
-              create: {
-                userId: userId,
-                projectId: invitation.projectId,
-                role: invitation.projectRole,
-              },
+  const createOrgMembershipData = invitationsForUser.map((invitation) => ({
+    userId: userId,
+    orgId: invitation.orgId,
+    role: invitation.orgRole,
+    ...(invitation.projectId && invitation.projectRole
+      ? {
+          ProjectMemberships: {
+            create: {
+              userId: userId,
+              projectId: invitation.projectId,
+              role: invitation.projectRole,
             },
-          }
-        : {}),
-    }));
+          },
+        }
+      : {}),
+  }));
 
   console.log("createOrgMembershipData", createOrgMembershipData);
 
