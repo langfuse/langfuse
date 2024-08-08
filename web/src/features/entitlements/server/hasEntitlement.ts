@@ -13,6 +13,7 @@ export const hasEntitlement = (
     sessionUser: User;
   } & ({ projectId: string } | { orgId: string }),
 ): Boolean => {
+  if (p.sessionUser.admin) return true;
   const org =
     "projectId" in p
       ? p.sessionUser.organizations.find((org) =>

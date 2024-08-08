@@ -160,7 +160,7 @@ const inputProjectSchema = z.object({
  */
 
 const enforceUserIsAuthedAndProjectMember = t.middleware(
-  ({ ctx, rawInput, next }) => {
+  async ({ ctx, rawInput, next }) => {
     if (!ctx.session || !ctx.session.user) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
@@ -180,11 +180,43 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
       )
       .find((project) => project.id === projectId);
 
-    if (!sessionProject && !isProjectMemberOrAdmin(ctx.session.user, projectId))
+    if (!sessionProject) {
+      // admin
+      if (isProjectMemberOrAdmin(ctx.session.user, projectId)) {
+        const dbProject = await ctx.prisma.project.findFirst({
+          select: {
+            orgId: true,
+          },
+          where: {
+            id: projectId,
+          },
+        });
+        if (!dbProject) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Project not found",
+          });
+        }
+        return next({
+          ctx: {
+            // infers the `session` as non-nullable
+            session: {
+              ...ctx.session,
+              user: ctx.session.user,
+              orgId: dbProject.orgId,
+              orgRole: "ADMIN",
+              projectId: projectId,
+              projectRole: "ADMIN",
+            },
+          },
+        });
+      }
+      // not a member
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "User is not a member of this project",
       });
+    }
 
     return next({
       ctx: {
@@ -192,11 +224,10 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
         session: {
           ...ctx.session,
           user: ctx.session.user,
-          orgId: sessionProject!.organization.id,
-          orgRole: sessionProject!.organization.role,
-          projectRole:
-            ctx.session.user.admin === true ? "ADMIN" : sessionProject!.role,
+          orgId: sessionProject.organization.id,
+          orgRole: sessionProject.organization.role,
           projectId: projectId,
+          projectRole: sessionProject.role,
         },
       },
     });
