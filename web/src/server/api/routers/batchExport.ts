@@ -15,6 +15,7 @@ import {
 } from "@langfuse/shared";
 import { getBatchExportQueue } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { redis } from "@langfuse/shared/src/server";
 
 export const batchExportRouter = createTRPCRouter({
   create: protectedProjectProcedure
