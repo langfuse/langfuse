@@ -200,6 +200,7 @@ enum OrganizationRole {
     NONE
 }
 
+// Set a project-specific role for a user in an organization
 model ProjectMembership {
     orgMembershipId        String                 @map("org_membership_id")
     organizationMembership OrganizationMembership @relation(fields: [orgMembershipId], references: [id], onDelete: Cascade)
@@ -699,6 +700,7 @@ model Model {
     @@map("models")
 }
 
+// No FK constraints to preserve audit logs
 model AuditLog {
     id              String   @id @default(cuid())
     createdAt       DateTime @default(now()) @map("created_at")
