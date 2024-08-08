@@ -15,4 +15,5 @@ export * from "../server/ingestion/model-match";
 export * from "../server/ingestion/types";
 export * from "./redis/redis";
 export * from "./redis/trace-upsert";
+export * from "./redis/batch-export";
 export * from "./clickhouse";
