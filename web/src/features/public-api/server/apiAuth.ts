@@ -1,9 +1,13 @@
 import { env } from "@/src/env.mjs";
-import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
+import {
+  addUserToSpan,
+  createShaHash,
+  recordCount,
+  verifySecretKey,
+} from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { type PrismaClient, type ApiKey } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
-import * as Sentry from "@sentry/node";
 import { type Redis } from "ioredis";
 import { z } from "zod";
 
@@ -144,9 +148,7 @@ export class ApiAuthService {
           throw new Error("Invalid credentials");
         }
 
-        Sentry.setUser({
-          id: projectId,
-        });
+        addUserToSpan({ projectId });
 
         return {
           validKey: true,
@@ -161,9 +163,8 @@ export class ApiAuthService {
         const publicKey = authHeader.replace("Bearer ", "");
 
         const dbKey = await this.findDbKeyOrThrow(publicKey);
-        Sentry.setUser({
-          id: dbKey.projectId,
-        });
+
+        addUserToSpan({ projectId: dbKey.projectId });
 
         return {
           validKey: true,
@@ -223,17 +224,17 @@ export class ApiAuthService {
     const redisApiKey = await this.fetchApiKeyFromRedis(hash);
 
     if (redisApiKey === API_KEY_NON_EXISTENT) {
-      Sentry.metrics.increment("api_key_cache_hit");
+      recordCount("api_key_cache_hit", 1);
       throw new Error("Invalid credentials");
     }
 
     // if we found something, return the object.
     if (redisApiKey) {
-      Sentry.metrics.increment("api_key_cache_hit");
+      recordCount("api_key_cache_hit", 1);
       return redisApiKey;
     }
 
-    Sentry.metrics.increment("api_key_cache_miss");
+    recordCount("api_key_cache_miss", 1);
 
     // if redis not available or object not found, try the database
     const apiKey = await this.prisma.apiKey.findUnique({

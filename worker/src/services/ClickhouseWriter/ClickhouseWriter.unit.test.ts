@@ -5,7 +5,6 @@ import { clickhouseClient } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import logger from "../../logger";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
-import * as Sentry from "@sentry/node";
 
 // Mock Sentry
 vi.mock("@sentry/node", () => ({

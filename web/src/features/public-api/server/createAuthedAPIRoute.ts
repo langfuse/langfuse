@@ -1,6 +1,5 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
-import * as Sentry from "@sentry/node";
 import {
   ApiAuthService,
   type AuthHeaderValidVerificationResult,
@@ -80,7 +79,6 @@ export const createAuthedAPIRoute = <
       const parsingResult = routeConfig.responseSchema.safeParse(response);
       if (!parsingResult.success) {
         console.error("Response validation failed:", parsingResult.error);
-        Sentry.captureException(parsingResult.error);
       }
     }
 

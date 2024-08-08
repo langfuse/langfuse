@@ -17,6 +17,7 @@ import {
   type ingestionApiSchema,
   eventTypes,
   ingestionEvent,
+  addExceptionToSpan,
 } from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
@@ -32,7 +33,6 @@ import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
-import * as Sentry from "@sentry/nextjs";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { env } from "@/src/env.mjs";
 import {
@@ -42,7 +42,7 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { redis } from "@langfuse/shared/src/server";
+import { redis, recordCount, recordGauge } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
@@ -85,7 +85,7 @@ export default async function handler(
 
     const parsedSchema = batchType.safeParse(req.body);
 
-    Sentry.metrics.increment(
+    recordCount(
       "ingestion_event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
@@ -147,7 +147,6 @@ export default async function handler(
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       console.error("error_handling_ingestion_event", error);
-      Sentry.captureException(error);
     }
 
     if (error instanceof BaseError) {
@@ -403,9 +402,6 @@ export const handleBatchResult = (
         error: error.error.message,
       });
     } else {
-      if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-        Sentry.captureException(error.error);
-      }
       returnedErrors.push({
         id: error.id,
         status: 500,
@@ -415,6 +411,7 @@ export const handleBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
+    addExceptionToSpan(errors);
     console.log("Error processing events", returnedErrors);
   }
 
@@ -497,7 +494,7 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   const parsedObj = object.safeParse(results[0].result);
   if (!parsedObj.success) {
     console.error("Error parsing response", parsedObj.error);
-    Sentry.captureException(parsedObj.error);
+    addExceptionToSpan(parsedObj.error);
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;
@@ -581,6 +578,6 @@ const gaugePrismaStats = async () => {
   const metrics = await prisma.$metrics.json();
 
   metrics.gauges.forEach((gauge) => {
-    Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
+    recordGauge(gauge.key, gauge.value, gauge.labels);
   });
 };

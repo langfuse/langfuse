@@ -146,6 +146,7 @@ function UserTracking() {
         email: session.data.user?.email ?? undefined,
         id: session.data.user?.id ?? undefined,
       });
+
       // Chat
       chatSetUser({
         name: session.data.user?.name ?? "undefined",

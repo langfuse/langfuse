@@ -29,9 +29,9 @@ import {
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
 import { z } from "zod";
-import * as Sentry from "@sentry/nextjs";
 import {
   CustomSSOProvider,
+  addExceptionToSpan,
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
 
@@ -277,7 +277,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     dynamicSsoProviders = await loadSsoProviders();
   } catch (e) {
     console.error("Error loading dynamic SSO providers", e);
-    Sentry.captureException(e);
+    addExceptionToSpan(e);
   }
   const providers = [...staticProviders, ...dynamicSsoProviders];
 

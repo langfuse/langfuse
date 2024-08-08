@@ -25,7 +25,6 @@
     "**/*.tsx",
     "**/*.cjs",
     "**/*.mjs",
-    "src/features/navigate-detail-pages",
     "types/global.d.ts"
   ]
 }

@@ -2,14 +2,20 @@ import { Queue, Worker } from "bullmq";
 
 import { QueueJobs, QueueName } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { clickhouseClient, redis } from "@langfuse/shared/src/server";
-import * as Sentry from "@sentry/node";
+import {
+  clickhouseClient,
+  redis,
+  instrumentAsync,
+  recordGauge,
+  recordHistogram,
+  recordCount,
+} from "@langfuse/shared/src/server";
 
 import { env } from "../env";
 import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
-import { instrumentAsync } from "../instrumentation";
+import { SpanKind } from "@opentelemetry/api";
 
 export type IngestionFlushQueue = Queue<null>;
 
@@ -30,7 +36,12 @@ export const flushIngestionQueueExecutor = redis
       QueueName.IngestionFlushQueue,
       async (job) => {
         return instrumentAsync(
-          { name: "flush-ingestion-consumer" },
+          {
+            name: "flush-ingestion-consumer",
+            rootSpan: true,
+            traceScope: "flush-ingestion-queue",
+            spanKind: SpanKind.CONSUMER,
+          },
           async () => {
             if (job.name === QueueJobs.FlushIngestionEntity) {
               const projectEntityId = job.id;
@@ -43,13 +54,10 @@ export const flushIngestionQueueExecutor = redis
               logger.debug(
                 `Received flush request after ${waitTime} ms for ${projectEntityId}`
               );
-              Sentry.metrics.distribution(
-                "ingestion_flush_wait_time",
-                waitTime,
-                {
-                  unit: "milliseconds",
-                }
-              );
+
+              recordHistogram("ingestion_flush_wait_time", waitTime, {
+                unit: "milliseconds",
+              });
 
               try {
                 // Check dependencies
@@ -75,7 +83,7 @@ export const flushIngestionQueueExecutor = redis
                 logger.debug(
                   `Prepared and scheduled CH-write in ${processingTime} ms for ${projectEntityId}`
                 );
-                Sentry.metrics.distribution(
+                recordHistogram(
                   "ingestion_flush_processing_time",
                   processingTime,
                   { unit: "milliseconds" }
@@ -86,13 +94,9 @@ export const flushIngestionQueueExecutor = redis
                   .count()
                   .then((count) => {
                     logger.debug(`Ingestion flush queue length: ${count}`);
-                    Sentry.metrics.gauge(
-                      "ingestion_flush_queue_length",
-                      count,
-                      {
-                        unit: "records",
-                      }
-                    );
+                    recordGauge("ingestion_flush_queue_length", count, {
+                      unit: "records",
+                    });
                     return count;
                   })
                   .catch();

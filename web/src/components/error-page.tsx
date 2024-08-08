@@ -2,9 +2,9 @@ import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { captureException } from "@sentry/nextjs";
 import { useEffect } from "react";
 import Link from "next/link";
+import { captureException } from "@sentry/nextjs";
 
 export const ErrorPage = ({
   title = "Error",

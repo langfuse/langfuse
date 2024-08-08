@@ -1,16 +1,15 @@
 import express from "express";
 import basicAuth from "express-basic-auth";
-
 import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  addExceptionToSpan,
   clickhouseClient,
   convertTraceUpsertEventsToRedisEvents,
   getTraceUpsertQueue,
   ingestionApiSchemaWithProjectId,
   redis,
 } from "@langfuse/shared/src/server";
-import * as Sentry from "@sentry/node";
 
 import { env } from "../env";
 import { checkContainerHealth } from "../features/health";
@@ -122,7 +121,7 @@ router
       return res.status(400).send();
     } catch (e) {
       logger.error(e, "Error processing events");
-      Sentry.captureException(e);
+      addExceptionToSpan(e);
       return res.status(500).json({
         status: "error",
       });

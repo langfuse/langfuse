@@ -5,8 +5,8 @@ import {
   paginationZod,
   type ScoreConfig as ScoreConfigDbType,
 } from "@langfuse/shared";
+import { addExceptionToSpan } from "@langfuse/shared/src/server";
 import { z } from "zod";
-import * as Sentry from "@sentry/node";
 
 /**
  * Types to use across codebase
@@ -155,7 +155,8 @@ export const filterAndValidateDbScoreConfigList = (
     if (result.success) {
       acc.push(result.data);
     } else {
-      Sentry.captureException(result.error);
+      console.error("Failed to validate score config:", result.error.errors);
+      addExceptionToSpan(result.error);
     }
     return acc;
   }, [] as ValidatedScoreConfig[]);

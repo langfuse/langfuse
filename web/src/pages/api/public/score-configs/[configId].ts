@@ -6,7 +6,7 @@ import {
   GetScoreConfigQuery,
   GetScoreConfigResponse,
 } from "@/src/features/public-api/types/score-configs";
-import * as Sentry from "@sentry/node";
+import { addExceptionToSpan } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -29,7 +29,7 @@ export default withMiddlewares({
 
       const parsedConfig = GetScoreConfigResponse.safeParse(config);
       if (!parsedConfig.success) {
-        Sentry.captureException(parsedConfig.error);
+        addExceptionToSpan(parsedConfig.error);
         throw new InternalServerError("Requested score config is corrupted");
       }
 
