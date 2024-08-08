@@ -134,7 +134,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         className="max-h-96 overflow-y-auto"
       >
         {columns.map((column, index) => {
-          if (!!column.columns) {
+          if (!!column.columns && Boolean(column.columns.length)) {
             const isFollowingGroup = "columns" in (columns[index - 1] ?? {});
             return (
               <div key={index}>

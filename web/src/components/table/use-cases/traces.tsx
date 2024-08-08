@@ -37,7 +37,7 @@ import {
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
-  SCORE_GROUP_COLUMN_PROPS,
+  getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -183,10 +183,11 @@ export default function TracesTable({
   };
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "s");
-  const { scoreColumns, scoreKeysAndProps } =
+  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<TracesTableRow>({
       projectId,
       scoreColumnKey: "scores",
+      selectedTimeOption: selectedOption,
     });
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
@@ -390,7 +391,7 @@ export default function TracesTable({
       enableSorting: true,
       enableHiding: true,
     },
-    { ...SCORE_GROUP_COLUMN_PROPS, columns: scoreColumns },
+    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
     {
       accessorKey: "inputCost",
       id: "inputCost",
