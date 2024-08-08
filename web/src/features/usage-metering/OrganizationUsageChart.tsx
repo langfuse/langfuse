@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useQueryOrganization } from "@/src/features/organizations/hooks/useOrganization";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 

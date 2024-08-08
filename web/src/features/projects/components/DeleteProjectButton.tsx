@@ -21,7 +21,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useQueryProject } from "@/src/features/projects/utils/useProject";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 export function DeleteProjectButton() {
   const capture = usePostHogClientCapture();

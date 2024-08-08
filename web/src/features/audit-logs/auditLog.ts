@@ -5,7 +5,6 @@ export type AuditableResource =
   | "organization"
   | "orgMembership"
   | "projectMembership"
-  | "membership" // legacy
   | "membershipInvitation"
   | "datasetItem"
   | "dataset"
@@ -21,7 +20,9 @@ export type AuditableResource =
   | "job"
   | "posthogIntegration"
   | "llmApiKey"
-  | "batchExport";
+  | "batchExport"
+  // legacy resources
+  | "membership";
 
 type AuditLog = {
   resourceType: AuditableResource;

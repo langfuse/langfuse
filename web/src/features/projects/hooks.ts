@@ -1,4 +1,4 @@
-import { useQueryOrganization } from "@/src/features/organizations/hooks/useOrganization";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 

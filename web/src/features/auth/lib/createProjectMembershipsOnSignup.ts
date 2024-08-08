@@ -33,6 +33,8 @@ export async function createProjectMembershipsOnSignup(user: {
       });
     }
 
+    // TODO: add LANGFUSE_DEFAULT_ORG_ID flow
+
     // set default project access
     const defaultProject = env.LANGFUSE_DEFAULT_PROJECT_ID
       ? (await prisma.project.findUnique({
@@ -63,7 +65,6 @@ async function processMembershipInvitations(email: string, userId: string) {
       email: email.toLowerCase(),
     },
   });
-  console.log("invitationsForUser", invitationsForUser);
   if (invitationsForUser.length === 0) return;
 
   // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
@@ -83,8 +84,6 @@ async function processMembershipInvitations(email: string, userId: string) {
         }
       : {}),
   }));
-
-  console.log("createOrgMembershipData", createOrgMembershipData);
 
   const createOrgMembershipsPromises = createOrgMembershipData.map(
     (inviteData) => prisma.organizationMembership.create({ data: inviteData }),

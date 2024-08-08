@@ -30,7 +30,7 @@ import { Button } from "@/src/components/ui/button";
 import { createProjectRoute } from "@/src/components/setup";
 import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/utils/useProject";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useRouter } from "next/router";
 
 export default function Header({

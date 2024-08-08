@@ -12,7 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
-import { useQueryProject } from "@/src/features/projects/utils/useProject";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import MembersTable from "@/src/components/table/use-cases/members";
 import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";

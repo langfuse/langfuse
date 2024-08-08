@@ -31,7 +31,7 @@ import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { EnvLabel } from "@/src/components/EnvLabel";
 import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/utils/useProject";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 
 const signOutUser = async () => {

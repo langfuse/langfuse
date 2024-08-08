@@ -12,7 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { NewOrganizationForm } from "@/src/features/organizations/components/NewOrganizationForm";
 import { NewProjectForm } from "@/src/features/projects/components/NewProjectForm";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/utils/useProject";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 import { api } from "@/src/utils/api";

@@ -358,11 +358,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                               role: projectRole,
                             };
                           })
-                          // Hide all projects where the user has no role
+                          // Only include projects where the user has a role other than NONE
                           .filter((project) => project.role !== "NONE"),
 
                         // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting
-                        // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
+                        // If you edit this line, you risk executing code that is not MIT licensed (contained in /ee folders, see LICENSE)
                         plan: getOrganizationPlan(parsedCloudConfig.data),
                       };
                     },

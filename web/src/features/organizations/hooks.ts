@@ -1,6 +1,9 @@
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 
+/**
+ * Hook to get the organization of the current page.
+ */
 export const useQueryOrganization = () => {
   const router = useRouter();
   const organizationId = router.query.organizationId;

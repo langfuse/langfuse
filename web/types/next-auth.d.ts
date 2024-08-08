@@ -7,7 +7,6 @@ import {
 import { type Flags } from "@/src/features/feature-flags/types";
 import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
 import { type Plan } from "@/src/features/entitlements/constants/plans";
-import { type z } from "zod";
 import { type Role } from "@/src/features/rbac/constants/roles";
 
 /**
@@ -38,12 +37,12 @@ declare module "next-auth" {
     organizations: {
       id: PrismaOrganization["id"];
       role: Role;
-      cloudConfig: z.infer<typeof CloudConfigSchema> | undefined;
+      cloudConfig: CloudConfigSchema | undefined;
+      plan: Plan;
       projects: {
         id: PrismaProject["id"];
         role: Role;
       }[];
-      plan: Plan;
     }[];
     featureFlags: Flags;
   }

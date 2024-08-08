@@ -17,7 +17,7 @@ import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LockIcon } from "lucide-react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useQueryProject } from "@/src/features/projects/utils/useProject";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 export default function RenameProject() {
   const { project, organization } = useQueryProject();

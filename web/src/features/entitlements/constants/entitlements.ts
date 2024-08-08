@@ -4,7 +4,6 @@ const entitlements = [
   // features
   "playground",
   "model-based-evaluations",
-  // rbac
   "rbac-project-roles",
 ] as const;
 
