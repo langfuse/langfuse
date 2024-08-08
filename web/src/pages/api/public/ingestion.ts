@@ -15,7 +15,9 @@ import {
 } from "@langfuse/shared";
 import {
   type ingestionApiSchema,
+  convertTraceUpsertEventsToRedisEvents,
   eventTypes,
+  getTraceUpsertQueue,
   ingestionEvent,
 } from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
@@ -541,7 +543,17 @@ export const sendToWorkerIfEnvironmentConfigured = async (
     .filter(isNotNullOrUndefined);
 
   try {
-    if (
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && redis) {
+      console.log(`Sending ${traceEvents.length} events to worker via Redis`);
+
+      const queue = getTraceUpsertQueue();
+      if (!queue) {
+        console.error("TraceUpsertQueue not initialized");
+        return;
+      }
+
+      await queue.addBulk(convertTraceUpsertEventsToRedisEvents(traceEvents));
+    } else if (
       env.LANGFUSE_WORKER_HOST &&
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
