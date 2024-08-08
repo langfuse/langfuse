@@ -17,7 +17,15 @@ import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { Button } from "@/src/components/ui/button";
-import { Check, Copy, ImageOff, Maximize2, Minimize2 } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  ImageOff,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 import { api } from "@/src/utils/api";
 import { isPresent } from "@/src/utils/typeChecks";
 import { BsMarkdown } from "react-icons/bs";
@@ -25,6 +33,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { captureException } from "@sentry/nextjs";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
@@ -74,8 +83,9 @@ const ImageErrorDisplay = ({
 );
 
 const MarkdownImage: Components["img"] = ({ src, alt }) => {
-  const [isZoomedIn, setIsZoomedIn] = useState(true);
+  const [isZoomedIn, setIsZoomedIn] = useState(false);
   const [hasFetchError, setHasFetchError] = useState(false);
+  const [isImageVisible, setIsImageVisible] = useState(false);
 
   if (!isPresent(src)) return null;
 
@@ -88,8 +98,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
     );
   }
 
-  const errorDescription =
-    "Cannot load image. Http images are not rendered in Langfuse for security reasons";
+  const errorDescription = `Cannot load image. ${src.includes("http") ? "Http images are not rendered in Langfuse for security reasons" : "Invalid image URL"}`;
 
   if (isValidImage.data?.isValid) {
     return (
@@ -99,36 +108,61 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
         ) : (
           <div
             className={cn(
-              "group relative w-full overflow-hidden rounded border",
+              "group relative w-full overflow-hidden",
               isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full",
             )}
           >
-            <Image
-              loader={customLoader}
-              src={src}
-              alt={alt ?? `Markdown Image-${Math.random()}`}
-              loading="lazy"
-              width={0}
-              height={0}
-              className="h-full w-full object-contain"
-              onError={(error) => {
-                setHasFetchError(true);
-                captureException(error);
-              }}
-            />
-            <Button
-              type="button"
-              className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsZoomedIn(!isZoomedIn)}
-            >
-              {isZoomedIn ? (
-                <Maximize2 className="h-4 w-4"></Maximize2>
-              ) : (
-                <Minimize2 className="h-4 w-4"></Minimize2>
+            {isImageVisible ? (
+              <Image
+                loader={customLoader}
+                src={src}
+                alt={alt ?? `Markdown Image-${Math.random()}`}
+                loading="lazy"
+                width={0}
+                height={0}
+                className="h-full w-full rounded border object-contain"
+                onError={(error) => {
+                  setHasFetchError(true);
+                  captureException(error);
+                }}
+              />
+            ) : (
+              <NoData
+                noDataText={`Image hidden. Hover to display [${src}]`}
+                className="p-4"
+              ></NoData>
+            )}
+            <div className="absolute right-0 top-0 mr-1 mt-1 grid grid-flow-col gap-2">
+              {isImageVisible && (
+                <Button
+                  type="button"
+                  className="h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsZoomedIn(!isZoomedIn)}
+                >
+                  {isZoomedIn ? (
+                    <Maximize2 className="h-4 w-4"></Maximize2>
+                  ) : (
+                    <Minimize2 className="h-4 w-4"></Minimize2>
+                  )}
+                </Button>
               )}
-            </Button>
+              <Button
+                title={isImageVisible ? "Hide Image" : "Show Image"}
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:!bg-accent/80 group-hover:opacity-100"
+                onClick={() => setIsImageVisible(!isImageVisible)}
+              >
+                {isImageVisible ? (
+                  <EyeOff className="h-4 w-4 text-foreground" />
+                ) : (
+                  <Eye className="h-4 w-4 text-foreground" />
+                )}
+              </Button>
+            </div>
           </div>
         )}
       </div>
