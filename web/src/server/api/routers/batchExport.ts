@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
@@ -65,13 +66,16 @@ export const batchExportRouter = createTRPCRouter({
           },
         };
 
-        await getBatchExportQueue()?.add(event.name, {
-          id: event.payload.batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
-          name: QueueJobs.BatchExportJob,
-          timestamp: new Date(),
-          payload: event.payload,
-        });
-
+        if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          await getBatchExportQueue()?.add(event.name, {
+            id: event.payload.batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
+            name: QueueJobs.BatchExportJob,
+            timestamp: new Date(),
+            payload: event.payload,
+          });
+        } else {
+          await new WorkerClient().sendEvent(event);
+        }
         return;
       } catch (e) {
         console.error(e);
