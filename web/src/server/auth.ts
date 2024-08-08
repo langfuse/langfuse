@@ -272,7 +272,7 @@ if (
 const prismaAdapter = PrismaAdapter(prisma);
 const _linkAccount = prismaAdapter.linkAccount!;
 prismaAdapter.linkAccount = (account) => {
-  return _linkAccount(cleanupToken(account));
+  return _linkAccount(cleanupAccount(account));
 };
 const extendedPrismaAdapter: Adapter = {
   ...prismaAdapter,
