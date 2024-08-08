@@ -33,7 +33,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { captureException } from "@sentry/nextjs";
-import { NoData } from "@/src/features/dashboard/components/NoData";
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
@@ -127,10 +126,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
                 }}
               />
             ) : (
-              <NoData
-                noDataText={`Image hidden. Hover to display [${src}]`}
-                className="p-4"
-              ></NoData>
+              <div className="grid max-h-[14rem] min-h-[9rem] items-center overflow-auto rounded border border-dashed p-2 text-center text-xs text-muted-foreground/60">{`Image hidden. Hover to display [${src}]`}</div>
             )}
             <div className="absolute right-0 top-0 mr-1 mt-1 grid grid-flow-col gap-2">
               {isImageVisible && (
