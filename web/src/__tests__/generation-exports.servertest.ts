@@ -71,12 +71,19 @@ describe("observations.export RPC", () => {
     expires: "1",
     user: {
       id: "clgb17vnp000008jjere5g15i",
-      name: "John Doe",
-      projects: [
+      name: "Demo User",
+      organizations: [
         {
-          id: projectId,
-          role: "ADMIN",
-          name: "test",
+          id: "seed-org-id",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+            },
+          ],
         },
       ],
       featureFlags: {
