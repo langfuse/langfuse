@@ -190,7 +190,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
             parsedChMetadata,
             typeof parsedChMetadata === "string"
               ? undefined
-              : Object.keys(parsedChMetadata).sort()
+              : Object.keys(parsedChMetadata as any).sort()
           )
         ) {
           throw new Error(
