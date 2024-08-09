@@ -20,8 +20,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   Check,
   Copy,
-  Eye,
-  EyeOff,
+  Image as ImageIcon,
   ImageOff,
   Maximize2,
   Minimize2,
@@ -119,6 +118,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
                 loading="lazy"
                 width={0}
                 height={0}
+                title={src}
                 className="h-full w-full rounded border object-contain"
                 onError={(error) => {
                   setHasFetchError(true);
@@ -126,22 +126,28 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
                 }}
               />
             ) : (
-              <div className="grid max-h-[14rem] min-h-[9rem] items-center justify-center rounded border border-dashed p-2 text-xs text-muted-foreground/60">
+              <div className="grid h-14 w-full grid-cols-[auto,1fr] items-center gap-2 rounded border border-dashed bg-muted/30 p-2 text-xs text-muted-foreground/60">
                 <Button
-                  title={`Render url: ${src}`}
+                  title="Render image"
                   type="button"
                   size="icon"
-                  variant="secondary"
-                  className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-70"
+                  variant="ghost"
                   onClick={() => setIsImageVisible(!isImageVisible)}
                 >
-                  {isImageVisible ? (
-                    <EyeOff className="h-4 w-4 text-foreground" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-foreground" />
-                  )}
+                  <ImageIcon className="h-4 w-4" />
                 </Button>
-                Image placeholder...
+                <div className="flex items-center overflow-hidden">
+                  <Link
+                    href={src}
+                    title={src}
+                    className="overflow-hidden underline"
+                    target="_blank"
+                  >
+                    <div className="h-8 overflow-hidden overflow-ellipsis">
+                      {src}
+                    </div>
+                  </Link>
+                </div>
               </div>
             )}
             {isImageVisible && (
