@@ -7,7 +7,11 @@ export function instrument<T>(
   ctx: { name: string },
   callback: CallbackFn<T>,
 ): T {
-  return Sentry.startSpan(ctx, callback);
+  if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+    return Sentry.startSpan(ctx, callback);
+  } else {
+    return callback();
+  }
 }
 
 type CallbackAsyncFn<T> = (span?: Span) => Promise<T>;
@@ -16,7 +20,13 @@ export async function instrumentAsync<T>(
   ctx: { name: string },
   callback: CallbackAsyncFn<T>,
 ): Promise<T> {
-  return Sentry.startSpan({ ...ctx }, async (span) => {
-    return await callback(span);
-  });
+  if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+    return Sentry.startSpan(ctx, async (span) => {
+      const result = await callback(span);
+      span?.end();
+      return result;
+    });
+  } else {
+    return callback();
+  }
 }
