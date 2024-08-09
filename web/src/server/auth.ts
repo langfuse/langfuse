@@ -11,7 +11,7 @@ import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsS
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { type Adapter } from "next-auth/adapters";
+import { type AdapterAccount, type Adapter } from "next-auth/adapters";
 
 // Providers
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -22,6 +22,7 @@ import EmailProvider from "next-auth/providers/email";
 import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import KeycloakProvider from "next-auth/providers/keycloak";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
@@ -139,6 +140,13 @@ if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
   );
 }
 
+// Function to be used in the prismaAdapter to cleanup extra
+// fields in the Account Object of specific Providers. Default does
+// nothing.
+let cleanupAccount = (account: AdapterAccount) => {
+  return account;
+};
+
 if (
   env.AUTH_CUSTOM_CLIENT_ID &&
   env.AUTH_CUSTOM_CLIENT_SECRET &&
@@ -238,8 +246,35 @@ if (
     }),
   );
 
+if (
+  env.AUTH_KEYCLOAK_CLIENT_ID &&
+  env.AUTH_KEYCLOAK_CLIENT_SECRET &&
+  env.AUTH_KEYCLOAK_ISSUER
+) {
+  staticProviders.push(
+    KeycloakProvider({
+      clientId: env.AUTH_KEYCLOAK_CLIENT_ID,
+      clientSecret: env.AUTH_KEYCLOAK_CLIENT_SECRET,
+      issuer: env.AUTH_KEYCLOAK_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
+  cleanupAccount = (account) => {
+    // Remove 'not-before-policy' and 'refresh_expires_in' to avoid conflict with account schema
+    delete account['not-before-policy']
+    delete account['refresh_expires_in']
+    return account;
+  };
+}
+
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
+const _linkAccount = prismaAdapter.linkAccount!;
+prismaAdapter.linkAccount = (account) => {
+  return _linkAccount(cleanupAccount(account));
+};
 const extendedPrismaAdapter: Adapter = {
   ...prismaAdapter,
   async createUser(profile) {
