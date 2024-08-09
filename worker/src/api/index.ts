@@ -9,13 +9,13 @@ import {
   getTraceUpsertQueue,
   ingestionApiSchemaWithProjectId,
   redis,
+  getBatchExportQueue,
 } from "@langfuse/shared/src/server";
 import * as Sentry from "@sentry/node";
 
 import { env } from "../env";
 import { checkContainerHealth } from "../features/health";
 import logger from "../logger";
-import { batchExportQueue } from "../queues/batchExportQueue";
 import { ingestionFlushQueue } from "../queues/ingestionFlushQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
@@ -107,7 +107,7 @@ router
       }
 
       if (event.data.name === EventName.BatchExport) {
-        await batchExportQueue?.add(event.data.name, {
+        await getBatchExportQueue()?.add(event.data.name, {
           id: event.data.payload.batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
           name: QueueJobs.BatchExportJob,
           timestamp: new Date(),
