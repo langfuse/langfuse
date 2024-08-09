@@ -37,6 +37,7 @@ CREATE TABLE observations (
     `updated_at` DateTime64(3) DEFAULT now(),
     INDEX idx_id id TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_trace_id trace_id TYPE bloom_filter() GRANULARITY 1,
+    INDEX idx_project_id_id (project_id, id) TYPE bloom_filter() GRANULARITY 1
     INDEX idx_project_id project_id TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_res_metadata_key mapKeys(metadata) TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_res_metadata_value mapValues(metadata) TYPE bloom_filter() GRANULARITY 1
