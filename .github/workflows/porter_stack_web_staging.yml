@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - early-return-ingestion
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
