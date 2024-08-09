@@ -8,9 +8,11 @@ import {
 
 // Constants
 const LIMIT = 50;
-const ITERATIONS = 100;
-const DATE_CUTOFF = new Date("2024-08-09T08:20:00.000Z");
-const TABLE_SAMPLE_RATE = 10;
+const ITERATIONS = 10;
+const DATE_START = new Date("2024-08-09T08:20:00.000Z");
+const DATE_END = new Date(Date.now() - 1000 * 60 * 60); // 1 hour ago
+
+const TABLE_SAMPLE_RATE = 0.003;
 
 async function main() {
   const failedObservationList: string[] = [];
@@ -33,7 +35,8 @@ async function main() {
         FROM
           observations TABLESAMPLE SYSTEM(${TABLE_SAMPLE_RATE})
         WHERE
-          start_time > ${DATE_CUTOFF}::TIMESTAMP WITH time zone at time zone 'UTC'
+          start_time > ${DATE_START}::TIMESTAMP WITH time zone at time zone 'UTC'
+          AND start_time < ${DATE_END}::TIMESTAMP WITH time zone at time zone 'UTC'
         LIMIT ${LIMIT}
       `
     );
@@ -76,7 +79,8 @@ async function main() {
         SELECT * 
         FROM traces TABLESAMPLE SYSTEM(${TABLE_SAMPLE_RATE})
         WHERE
-          timestamp > ${DATE_CUTOFF}::TIMESTAMP WITH time zone at time zone 'UTC'
+          timestamp > ${DATE_START}::TIMESTAMP WITH time zone at time zone 'UTC'
+          AND timestamp < ${DATE_END}::TIMESTAMP WITH time zone at time zone 'UTC'
         LIMIT ${LIMIT}
       `
     );
@@ -319,13 +323,13 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "completion_tokens": {
         if (
           pgValue !== 0 &&
-          pgValue !== (clickhouseRecord as any)["provided_output_usage_units"]
+          pgValue !== (clickhouseRecord as any)["output_usage_units"]
         ) {
           throw new Error(
             getErrorMessage({
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["provided_output_usage_units"],
+              chValue: (clickhouseRecord as any)["output_usage_units"],
             })
           );
         }
@@ -336,13 +340,13 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "prompt_tokens": {
         if (
           pgValue !== 0 &&
-          pgValue !== (clickhouseRecord as any)["provided_input_usage_units"]
+          pgValue !== (clickhouseRecord as any)["input_usage_units"]
         ) {
           throw new Error(
             getErrorMessage({
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["provided_input_usage_units"],
+              chValue: (clickhouseRecord as any)["input_usage_units"],
             })
           );
         }
@@ -353,13 +357,13 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "total_tokens": {
         if (
           pgValue !== 0 &&
-          pgValue !== (clickhouseRecord as any)["provided_total_usage_units"]
+          pgValue !== (clickhouseRecord as any)["total_usage_units"]
         ) {
           throw new Error(
             getErrorMessage({
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["provided_total_usage_units"],
+              chValue: (clickhouseRecord as any)["total_usage_units"],
             })
           );
         }
