@@ -48,7 +48,6 @@ import { redis } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
-import { instrumentAsync } from "@/src/utils/instrumentation";
 
 export const config = {
   api: {
