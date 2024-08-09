@@ -17,3 +17,4 @@ export * from "./redis/redis";
 export * from "./redis/trace-upsert";
 export * from "./redis/batch-export";
 export * from "./clickhouse";
+export * from "./instrumentation/index";
