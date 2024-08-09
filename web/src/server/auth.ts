@@ -30,15 +30,13 @@ import {
 } from "@/src/ee/features/multi-tenant-sso/utils";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
+import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
 import {
   CustomSSOProvider,
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
-
-export const cloudConfigSchema = z.object({
-  plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
-  monthlyObservationLimit: z.number().int().positive().optional(),
-});
+import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
+import { type Role } from "@/src/features/rbac/constants/roles";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -120,7 +118,7 @@ const staticProviders: Provider[] = [
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
         featureFlags: parseFlags(dbUser.featureFlags),
-        projects: [],
+        organizations: [],
       };
 
       return userObj;
@@ -301,9 +299,18 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             emailVerified: true,
             featureFlags: true,
             admin: true,
-            projectMemberships: {
+            organizationMemberships: {
               include: {
-                project: true,
+                organization: {
+                  include: {
+                    projects: true,
+                  },
+                },
+                ProjectMemberships: {
+                  include: {
+                    project: true,
+                  },
+                },
               },
             },
           },
@@ -329,20 +336,38 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                   email: dbUser.email,
                   image: dbUser.image,
                   admin: dbUser.admin,
+                  organizations: dbUser.organizationMemberships.map(
+                    (orgMembership) => {
+                      const parsedCloudConfig = CloudConfigSchema.safeParse(
+                        orgMembership.organization.cloudConfig,
+                      );
+                      const orgRole: Role = orgMembership.role;
+                      return {
+                        id: orgMembership.organization.id,
+                        role: orgRole,
+                        cloudConfig: parsedCloudConfig.data,
+                        projects: orgMembership.organization.projects
+                          .map((project) => {
+                            const projectRole: Role =
+                              orgMembership.ProjectMemberships.find(
+                                (membership) =>
+                                  membership.projectId === project.id,
+                              )?.role ?? orgMembership.role;
+                            return {
+                              id: project.id,
+                              role: projectRole,
+                            };
+                          })
+                          // Only include projects where the user has a role other than NONE
+                          .filter((project) => project.role !== "NONE"),
+
+                        // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting
+                        // If you edit this line, you risk executing code that is not MIT licensed (contained in /ee folders, see LICENSE)
+                        plan: getOrganizationPlan(parsedCloudConfig.data),
+                      };
+                    },
+                  ),
                   emailVerified: dbUser.emailVerified?.toISOString(),
-                  projects: dbUser.projectMemberships.map((membership) => {
-                    const cloudConfig = cloudConfigSchema.safeParse(
-                      membership.project.cloudConfig,
-                    );
-                    return {
-                      id: membership.project.id,
-                      name: membership.project.name,
-                      role: membership.role,
-                      cloudConfig: cloudConfig.success
-                        ? cloudConfig.data
-                        : null,
-                    };
-                  }),
                   featureFlags: parseFlags(dbUser.featureFlags),
                 }
               : null,

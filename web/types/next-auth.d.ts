@@ -1,11 +1,13 @@
 import { type DefaultSession, type DefaultUser } from "next-auth";
 import {
   type User as PrismaUser,
-  type Membership as PrismaMembership,
   type Project as PrismaProject,
+  type Organization as PrismaOrganization,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
-import { type cloudConfigSchema } from "@/src/server/auth";
+import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
+import { type Plan } from "@/src/features/entitlements/constants/plans";
+import { type Role } from "@/src/features/rbac/constants/roles";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -32,11 +34,15 @@ declare module "next-auth" {
     image?: PrismaUser["image"];
     admin?: PrismaUser["admin"];
     emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
-    projects: {
-      id: PrismaProject["id"];
-      name: PrismaProject["name"];
-      role: PrismaMembership["role"];
-      cloudConfig: z.infer<typeof cloudConfigSchema> | null;
+    organizations: {
+      id: PrismaOrganization["id"];
+      role: Role;
+      cloudConfig: CloudConfigSchema | undefined;
+      plan: Plan;
+      projects: {
+        id: PrismaProject["id"];
+        role: Role;
+      }[];
     }[];
     featureFlags: Flags;
   }

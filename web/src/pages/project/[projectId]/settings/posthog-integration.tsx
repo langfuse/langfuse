@@ -1,3 +1,4 @@
+import { PostHogLogo } from "@/src/components/PosthogLogo";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -15,7 +16,7 @@ import { Switch } from "@/src/components/ui/switch";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,7 +30,10 @@ import { type z } from "zod";
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const hasAccess = useHasAccess({ projectId, scope: "integrations:CRUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "integrations:CRUD",
+  });
   const state = api.posthogIntegration.get.useQuery(
     { projectId },
     {
@@ -48,7 +52,7 @@ export default function PosthogIntegrationSettings() {
         actionButtons={
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/docs/analytics/posthog">
-              Integration Docs
+              Integration Docs ↗
             </Link>
           </Button>
         }
@@ -80,6 +84,7 @@ export default function PosthogIntegrationSettings() {
         <>
           <Header level="h3" title="Configuration" />
           <Card className="p-4">
+            <PostHogLogo className="mb-4 w-36 text-foreground" />
             <PostHogIntegrationSettings
               state={state.data}
               projectId={projectId}

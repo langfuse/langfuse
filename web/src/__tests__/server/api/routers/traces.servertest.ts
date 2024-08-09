@@ -14,12 +14,18 @@ describe("Traces TRPC Router", () => {
     user: {
       id: "clgb17vnp000008jjere5g15i",
       name: "John Doe",
-      projects: [
+      organizations: [
         {
-          id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          role: "ADMIN",
-          name: "test",
-          cloudConfig: { defaultLookBackDays: null },
+          id: "seed-org-id",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          projects: [
+            {
+              id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+              role: "ADMIN",
+            },
+          ],
         },
       ],
       featureFlags: {
@@ -27,6 +33,7 @@ describe("Traces TRPC Router", () => {
       },
       admin: true,
     },
+    environment: {} as any,
   };
 
   const ctx = createInnerTRPCContext({ session });

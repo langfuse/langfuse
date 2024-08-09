@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -14,7 +14,6 @@ import {
   supportedModels,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
-import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
 
 export function getDisplaySecretKey(secretKey: string) {
   return "..." + secretKey.slice(-4);
@@ -25,12 +24,7 @@ export const llmApiKeyRouter = createTRPCRouter({
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
       try {
-        if (!isEeEnabled) {
-          throw new Error(
-            "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
-          );
-        }
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "llmApiKeys:create",
@@ -68,12 +62,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      if (!isEeEnabled) {
-        throw new Error(
-          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
-        );
-      }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "llmApiKeys:delete",
@@ -100,13 +89,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (!isEeEnabled) {
-        throw new Error(
-          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
-        );
-      }
-
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "llmApiKeys:read",
@@ -150,12 +133,6 @@ export const llmApiKeyRouter = createTRPCRouter({
   test: protectedProjectProcedure
     .input(CreateLlmApiKey)
     .mutation(async ({ input }) => {
-      if (!isEeEnabled) {
-        throw new Error(
-          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
-        );
-      }
-
       try {
         const model = input.customModels?.length
           ? input.customModels[0]

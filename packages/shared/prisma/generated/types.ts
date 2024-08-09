@@ -4,8 +4,15 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
-export const ProjectRole = {
+export const OrganizationRole = {
     OWNER: "OWNER",
+    ADMIN: "ADMIN",
+    MEMBER: "MEMBER",
+    VIEWER: "VIEWER",
+    NONE: "NONE"
+} as const;
+export type OrganizationRole = (typeof OrganizationRole)[keyof typeof OrganizationRole];
+export const ProjectRole = {
     ADMIN: "ADMIN",
     MEMBER: "MEMBER",
     VIEWER: "VIEWER"
@@ -90,8 +97,10 @@ export type AuditLog = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     user_id: string;
-    project_id: string;
-    user_project_role: ProjectRole;
+    org_id: string;
+    user_org_role: string;
+    project_id: string | null;
+    user_project_role: string | null;
     resource_type: string;
     resource_id: string;
     action: string;
@@ -229,8 +238,10 @@ export type LlmApiKeys = {
 export type MembershipInvitation = {
     id: string;
     email: string;
-    role: ProjectRole;
-    project_id: string;
+    org_id: string;
+    org_role: OrganizationRole;
+    project_id: string | null;
+    project_role: ProjectRole | null;
     sender_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
@@ -321,6 +332,21 @@ export type ObservationView = {
     latency: number | null;
     time_to_first_token: number | null;
 };
+export type Organization = {
+    id: string;
+    name: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    cloud_config: unknown | null;
+};
+export type OrganizationMembership = {
+    id: string;
+    org_id: string;
+    user_id: string;
+    role: OrganizationRole;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type PosthogIntegration = {
     project_id: string;
     encrypted_posthog_api_key: string;
@@ -331,12 +357,13 @@ export type PosthogIntegration = {
 };
 export type Project = {
     id: string;
+    org_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     name: string;
-    cloud_config: unknown | null;
 };
 export type ProjectMembership = {
+    org_membership_id: string;
     project_id: string;
     user_id: string;
     role: ProjectRole;
@@ -484,6 +511,8 @@ export type DB = {
     models: Model;
     observations: Observation;
     observations_view: ObservationView;
+    organization_memberships: OrganizationMembership;
+    organizations: Organization;
     posthog_integrations: PosthogIntegration;
     project_memberships: ProjectMembership;
     projects: Project;

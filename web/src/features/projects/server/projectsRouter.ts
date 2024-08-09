@@ -1,33 +1,18 @@
 import {
   createTRPCRouter,
+  protectedOrganizationProcedure,
   protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { cloudConfigSchema } from "@/src/server/auth";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { parseDbOrg } from "@/src/features/organizations/utils/parseDbOrg";
 
 export const projectsRouter = createTRPCRouter({
-  all: protectedProcedure.query(async ({ ctx }) => {
-    const memberships = await ctx.prisma.projectMembership.findMany({
-      where: {
-        userId: ctx.session.user.id,
-      },
-      include: {
-        project: true,
-      },
-    });
-    const projects = memberships.map((membership) => ({
-      id: membership.project.id,
-      name: membership.project.name,
-      role: membership.role,
-    }));
-
-    return projects;
-  }),
   byId: protectedProcedure
     .input(
       z.object({
@@ -35,46 +20,47 @@ export const projectsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const project = await ctx.prisma.project.findUnique({
+      const data = await ctx.prisma.project.findUnique({
         where: {
           id: input.projectId,
         },
+        include: {
+          organization: true,
+        },
       });
-      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!data) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const cloudConfig = cloudConfigSchema.safeParse(project.cloudConfig);
+      const { organization, ...project } = data;
 
       return {
-        ...project,
-        cloudConfig: cloudConfig.success ? cloudConfig.data : null,
+        project,
+        organization: organization ? parseDbOrg(organization) : null, // todo: remove once org is mandatory on projects
       };
     }),
-
-  create: protectedProcedure
+  create: protectedOrganizationProcedure
     .input(
       z.object({
         name: z.string(),
+        orgId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "projects:create",
+      });
       const project = await ctx.prisma.project.create({
         data: {
           name: input.name,
-          projectMembers: {
-            create: {
-              userId: ctx.session.user.id,
-              role: "OWNER",
-            },
-          },
+          orgId: input.orgId,
         },
       });
       await auditLog({
+        session: ctx.session,
         resourceType: "project",
         resourceId: project.id,
         action: "create",
-        userId: ctx.session.user.id,
-        projectId: project.id,
-        userProjectRole: "OWNER",
         after: project,
       });
 
@@ -93,7 +79,7 @@ export const projectsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "project:update",
@@ -124,10 +110,10 @@ export const projectsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoOrganizationAccess({
         session: ctx.session,
-        projectId: input.projectId,
-        scope: "project:delete",
+        organizationId: ctx.session.orgId,
+        scope: "projects:delete",
       });
       await auditLog({
         session: ctx.session,
@@ -139,6 +125,7 @@ export const projectsRouter = createTRPCRouter({
       await ctx.prisma.project.delete({
         where: {
           id: input.projectId,
+          orgId: ctx.session.orgId,
         },
       });
 
@@ -149,62 +136,51 @@ export const projectsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        newOwnerEmail: z.string().email(),
+        targetOrgId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      // source org
+      throwIfNoOrganizationAccess({
         session: ctx.session,
-        projectId: input.projectId,
-        scope: "project:transfer",
+        organizationId: ctx.session.orgId,
+        scope: "projects:transfer_organization",
+      });
+      // destination org
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.targetOrgId,
+        scope: "projects:transfer_organization",
       });
 
-      // Check if new owner exists
-      const newOwner = await ctx.prisma.user.findUnique({
+      const project = await ctx.prisma.project.findUnique({
         where: {
-          email: input.newOwnerEmail.toLowerCase(),
+          id: input.projectId,
         },
       });
-      if (!newOwner) throw new Error("User not found");
-      if (newOwner.id === ctx.session.user.id)
-        throw new Error("You cannot transfer project to yourself");
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
 
       await auditLog({
         session: ctx.session,
         resourceType: "project",
         resourceId: input.projectId,
         action: "transfer",
-        after: { ownerId: newOwner.id },
+        before: { orgId: ctx.session.orgId },
+        after: { orgId: input.targetOrgId },
       });
-
-      return ctx.prisma.$transaction([
-        // Add new owner, upsert to update role if already exists
-        ctx.prisma.projectMembership.upsert({
+      await ctx.prisma.$transaction([
+        ctx.prisma.projectMembership.deleteMany({
           where: {
-            projectId_userId: {
-              projectId: input.projectId,
-              userId: newOwner.id,
-            },
-          },
-          update: {
-            role: "OWNER",
-          },
-          create: {
-            userId: newOwner.id,
             projectId: input.projectId,
-            role: "OWNER",
           },
         }),
-        // Update old owner to admin
-        ctx.prisma.projectMembership.update({
+        ctx.prisma.project.update({
           where: {
-            projectId_userId: {
-              projectId: input.projectId,
-              userId: ctx.session.user.id,
-            },
+            id: input.projectId,
+            orgId: ctx.session.orgId,
           },
           data: {
-            role: "ADMIN",
+            orgId: input.targetOrgId,
           },
         }),
       ]);

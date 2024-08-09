@@ -18,7 +18,7 @@ import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
 import { orderByToPrismaSql } from "@langfuse/shared";
@@ -44,6 +44,19 @@ export type ObservationReturnType = Omit<
 };
 
 export const traceRouter = createTRPCRouter({
+  hasAny: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const hasAny = await ctx.prisma.trace.findFirst({
+        where: {
+          projectId: input.projectId,
+        },
+        select: {
+          id: true,
+        },
+      });
+      return hasAny !== null;
+    }),
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
@@ -343,7 +356,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "traces:delete",
@@ -394,7 +407,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "objects:bookmark",
@@ -443,7 +456,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "objects:publish",
@@ -492,7 +505,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "objects:tag",

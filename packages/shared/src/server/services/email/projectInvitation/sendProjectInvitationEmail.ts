@@ -23,7 +23,7 @@ type SendProjectInvitationParams = {
   to: string;
   inviterName: string;
   inviterEmail: string;
-  projectName: string;
+  orgName: string;
 };
 
 export const sendProjectInvitationEmail = async ({
@@ -31,7 +31,7 @@ export const sendProjectInvitationEmail = async ({
   to,
   inviterName,
   inviterEmail,
-  projectName,
+  orgName,
 }: SendProjectInvitationParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     console.error(
@@ -62,7 +62,7 @@ export const sendProjectInvitationEmail = async ({
       ProjectInvitationTemplate({
         invitedByUsername: inviterName,
         invitedByUserEmail: inviterEmail,
-        projectName: projectName,
+        orgName: orgName,
         receiverEmail: to,
         inviteLink: authUrl,
         emailFromAddress: env.EMAIL_FROM_ADDRESS,
@@ -72,11 +72,8 @@ export const sendProjectInvitationEmail = async ({
 
     await mailer.sendMail({
       to,
-      from: {
-        address: env.EMAIL_FROM_ADDRESS,
-        name: "Langfuse",
-      },
-      subject: `${inviterName} invited you to join "${projectName}"`,
+      from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
+      subject: `${inviterName} invited you to join "${orgName}" organization on Langfuse`,
       html: htmlTemplate,
     });
   } catch (error) {

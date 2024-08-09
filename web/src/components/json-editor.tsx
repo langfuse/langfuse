@@ -7,8 +7,6 @@ import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 
-// todo: add json linting
-
 export function JsonEditor({
   defaultValue,
   onChange,
@@ -24,7 +22,7 @@ export function JsonEditor({
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? tokyoNight : githubLight;
-  
+
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!defaultValue && defaultValue !== "",

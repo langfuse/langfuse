@@ -3,42 +3,126 @@ import { RocketLaunchIcon } from "@heroicons/react/24/outline";
 import { SiOpenai } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { useRouter } from "next/router";
-import { Code, Bird, GraduationCap } from "lucide-react";
-import { ProjectMembersTable } from "@/src/features/rbac/components/ProjectMembersTable";
+import { Code, Bird, GraduationCap, LockIcon } from "lucide-react";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
-import { ProjectUsageChart } from "@/src/features/usage-metering/ProjectUsageChart";
-import { TransferOwnershipButton } from "@/src/features/projects/components/TransferOwnershipButton";
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { env } from "@/src/env.mjs";
-import { Card } from "@tremor/react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
+import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import MembersTable from "@/src/components/table/use-cases/members";
+import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { PostHogLogo } from "@/src/components/PosthogLogo";
+import { Card } from "@/src/components/ui/card";
 import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
+import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
 
 export default function SettingsPage() {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
+  const { project, organization } = useQueryProject();
+  if (!project || !organization) return null;
   return (
-    <div className="md:container">
-      <Header title="Settings" />
-      <div className="flex flex-col gap-10">
-        <HostNameProject />
-        <ApiKeyList projectId={projectId} />
-        <LlmApiKeyList projectId={projectId} />
-        <ProjectMembersTable projectId={projectId} />
-        <ProjectUsageChart projectId={projectId} />
-        <ScoreConfigSettings projectId={projectId} />
-        <Integrations projectId={projectId} />
-        <Instructions />
-        <RenameProject projectId={projectId} />
-        <div className="space-y-3">
-          <DeleteProjectButton projectId={projectId} />
-          <TransferOwnershipButton projectId={projectId} />
-        </div>
-      </div>
+    <div className="lg:container">
+      <Header title="Project Settings" />
+      <PagedSettingsContainer
+        pages={[
+          {
+            title: "General",
+            content: (
+              <div className="flex flex-col gap-10">
+                <HostNameProject />
+                <RenameProject />
+                <Instructions />
+                <div>
+                  <Header title="Debug Information" level="h3" />
+                  <JSONView
+                    title="Metadata"
+                    json={{
+                      project: { name: project.name, id: project.id },
+                      org: { name: organization.name, id: organization.id },
+                    }}
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Header title="Danger Zone" level="h3" />
+                  <div className="rounded border">
+                    {[
+                      {
+                        title: "Transfer ownership",
+                        description:
+                          "Transfer this project to another organization where you have the ability to create projects.",
+                        button: <TransferProjectButton />,
+                      },
+                      {
+                        title: "Delete this project",
+                        description:
+                          "Once you delete a project, there is no going back. Please be certain.",
+                        button: <DeleteProjectButton />,
+                      },
+                    ].map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between gap-4 border-b p-4 last:border-b-0"
+                      >
+                        <div>
+                          <h4 className="font-semibold">{item.title}</h4>
+                          <p className="text-sm">{item.description}</p>
+                        </div>
+                        {item.button}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ),
+          },
+          {
+            title: "API Keys",
+            content: (
+              <div className="flex flex-col gap-10">
+                <ApiKeyList projectId={project.id} />
+                <LlmApiKeyList projectId={project.id} />
+              </div>
+            ),
+          },
+          {
+            title: "Scores / Evaluation",
+            content: <ScoreConfigSettings projectId={project.id} />,
+          },
+          {
+            title: "Members",
+            content: (
+              <div>
+                <Header title="Project Members" level="h3" />
+                <div>
+                  <MembersTable
+                    orgId={organization.id}
+                    project={{ id: project.id, name: project.name }}
+                  />
+                </div>
+                <Header title="Membership Invites" level="h3" />
+                <div>
+                  <InvitesTable
+                    orgId={organization.id}
+                    projectId={project.id}
+                  />
+                </div>
+              </div>
+            ),
+          },
+          {
+            title: "Integrations",
+            content: <Integrations projectId={project.id} />,
+          },
+          {
+            title: "Organization Settings",
+            href: `/organization/${organization.id}/settings`,
+          },
+        ]}
+      />
     </div>
   );
 }
@@ -139,33 +223,36 @@ function Instructions() {
 }
 
 const Integrations = (props: { projectId: string }) => {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
+  const isAvailable = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined;
 
   return (
     <div>
       <Header title="Integrations" level="h3" />
-      <Card className="p-4 lg:w-1/2">
+      <Card className="p-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/images/posthog-logo.svg"
-          alt="Posthog Logo"
-          className="mb-4 w-32"
-        />
+        <PostHogLogo className="mb-4 w-40 text-foreground" />
         <p className="mb-4 text-sm text-primary">
           We have teamed up with PostHog (OSS product analytics) to make
           Langfuse Events/Metrics available in your Posthog Dashboards.
         </p>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" asChild>
-            <Link
-              href={`/project/${props.projectId}/settings/posthog-integration`}
-            >
-              Configure
-            </Link>
-          </Button>
+          {isAvailable ? (
+            <Button variant="secondary" asChild>
+              <Link
+                href={`/project/${props.projectId}/settings/posthog-integration`}
+              >
+                Configure
+              </Link>
+            </Button>
+          ) : (
+            <Button variant="secondary" disabled>
+              <LockIcon className="mr-2 h-4 w-4" />
+              Public-beta on Langfuse Cloud
+            </Button>
+          )}
           <Button asChild variant="ghost">
             <Link href="https://langfuse.com/docs/analytics/posthog">
-              Integration Docs
+              Integration Docs ↗
             </Link>
           </Button>
         </div>

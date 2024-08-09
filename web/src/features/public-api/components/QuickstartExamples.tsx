@@ -47,9 +47,8 @@ export const QuickstartExamples = ({
         </TabsList>
       </div>
       <TabsContent value="python">
-        <CodeView content="pip install langfuse" className="mb-2 bg-muted" />
+        <CodeView content="pip install langfuse" className="mb-2" />
         <CodeView
-          className="bg-muted"
           content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${secretKey}",\n  public_key="${publicKey}",\n  host="${host}"\n)`}
         />
         <p className="mt-3 text-xs text-muted-foreground">
@@ -75,9 +74,8 @@ export const QuickstartExamples = ({
         </p>
       </TabsContent>
       <TabsContent value="js">
-        <CodeView content="npm install langfuse" className="mb-2 bg-muted" />
+        <CodeView content="npm install langfuse" className="mb-2" />
         <CodeView
-          className="bg-muted"
           content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
         />
         <p className="mt-3 text-xs text-muted-foreground">
@@ -108,15 +106,15 @@ export const QuickstartExamples = ({
           changing the import, Langfuse will capture all LLM calls and send them
           to Langfuse asynchronously.
         </p>
-        <CodeView content="pip install langfuse" className="my-2 bg-muted" />
+        <CodeView content="pip install langfuse" className="my-2" />
         <CodeView
           title=".env"
           content={`LANGFUSE_SECRET_KEY=${secretKey}\nLANGFUSE_PUBLIC_KEY=${publicKey}\nLANGFUSE_HOST="${host}"`}
-          className="my-2 bg-muted"
+          className="my-2"
         />
         <CodeView
           content={`# remove: import openai\n\nfrom langfuse.openai import openai`}
-          className="my-2 bg-muted"
+          className="my-2"
         />
         <p className="mt-2 text-xs text-muted-foreground">
           Use the OpenAI SDK as you would normally. See the{" "}
@@ -136,10 +134,10 @@ export const QuickstartExamples = ({
           The integration uses the Langchain callback system to automatically
           capture detailed traces of your Langchain executions.
         </p>
-        <CodeView content="pip install langfuse" className="my-2 bg-muted" />
+        <CodeView content="pip install langfuse" className="my-2" />
         <CodeView
           content={LANGCHAIN_PYTHON_CODE({ publicKey, secretKey, host })}
-          className="my-2 bg-muted"
+          className="my-2"
         />
         <p className="mt-2 text-xs text-muted-foreground">
           See the{" "}
@@ -159,13 +157,10 @@ export const QuickstartExamples = ({
           The integration uses the Langchain callback system to automatically
           capture detailed traces of your Langchain executions.
         </p>
-        <CodeView
-          content="npm install langfuse-langchain"
-          className="my-2 bg-muted"
-        />
+        <CodeView content="npm install langfuse-langchain" className="my-2" />
         <CodeView
           content={LANGCHAIN_JS_CODE({ publicKey, secretKey, host })}
-          className="my-2 bg-muted"
+          className="my-2"
         />
         <p className="mt-2 text-xs text-muted-foreground">
           See the{" "}
@@ -185,13 +180,10 @@ export const QuickstartExamples = ({
           The integration uses the LlamaIndex callback system to automatically
           capture detailed traces of your LlamaIndex executions.
         </p>
-        <CodeView
-          content="pip install langfuse llama-index"
-          className="my-2 bg-muted"
-        />
+        <CodeView content="pip install langfuse llama-index" className="my-2" />
         <CodeView
           content={LLAMA_INDEX_CODE({ publicKey, secretKey, host })}
-          className="my-2 bg-muted"
+          className="my-2"
         />
         <p className="mt-2 text-xs text-muted-foreground">
           See the{" "}

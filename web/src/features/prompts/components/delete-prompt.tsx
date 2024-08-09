@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { Trash } from "lucide-react";
 import { useState } from "react";
@@ -14,7 +14,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
-  const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
 
   const mutDeletePrompt = api.prompts.delete.useMutation({
     onSuccess: () => {

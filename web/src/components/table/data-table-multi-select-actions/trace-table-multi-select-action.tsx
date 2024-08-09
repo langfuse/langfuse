@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
 import {
@@ -34,7 +34,10 @@ export function TraceTableMultiSelectAction({
   const [open, setOpen] = useState(false);
   const capture = usePostHogClientCapture();
 
-  const hasDeleteAccess = useHasAccess({ projectId, scope: "traces:delete" });
+  const hasDeleteAccess = useHasProjectAccess({
+    projectId,
+    scope: "traces:delete",
+  });
   const mutDeleteTraces = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       onDeleteSuccess();
