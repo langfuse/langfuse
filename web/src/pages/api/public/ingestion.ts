@@ -48,7 +48,6 @@ import { redis } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
-import { instrumentAsync } from "@/src/utils/instrumentation";
 
 export const config = {
   api: {
@@ -140,29 +139,27 @@ export default async function handler(
       );
     }
 
-    instrumentAsync({ name: "handleBatch" }, async () => {
-      const result = await handleBatch(
-        sortedBatch,
-        parsedSchema.data.metadata,
-        req,
-        authCheck,
-      );
+    const result = await handleBatch(
+      sortedBatch,
+      parsedSchema.data.metadata,
+      req,
+      authCheck,
+    );
 
-      // send out REST requests to worker for all trace types
-      await sendToWorkerIfEnvironmentConfigured(
+    // send out REST requests to worker for all trace types
+    await sendToWorkerIfEnvironmentConfigured(
+      result.results,
+      authCheck.scope.projectId,
+    );
+
+    //  in case we did not return early, we return the result here
+    if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "false") {
+      handleBatchResult(
+        [...validationErrors, ...result.errors],
         result.results,
-        authCheck.scope.projectId,
+        res,
       );
-
-      //  in case we did not return early, we return the result here
-      if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "false") {
-        handleBatchResult(
-          [...validationErrors, ...result.errors],
-          result.results,
-          res,
-        );
-      }
-    });
+    }
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       console.error("error_handling_ingestion_event", error);
