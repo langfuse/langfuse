@@ -23,6 +23,7 @@ import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { ScoreAnalytics } from "@/src/features/dashboard/components/ScoreAnalytics";
 
 export default function Start() {
   const router = useRouter();
@@ -231,6 +232,12 @@ export default function Start() {
             globalFilterState={mergedFilterState}
           />
         )}
+        <ScoreAnalytics
+          className="col-span-1 flex-auto justify-between lg:col-span-full"
+          agg={agg}
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+        />
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ const prefixScoreColKey = (
   prefix: "Trace" | "Generation",
 ): string => `${prefix}-${key}`;
 
-const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
+export const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
   switch (dataType) {
     case "NUMERIC":
     default:

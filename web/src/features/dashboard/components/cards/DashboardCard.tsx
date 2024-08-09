@@ -17,6 +17,7 @@ export type DashboardCardProps = {
   children?: ReactNode;
   headerChildren?: ReactNode;
   cardContentClassName?: string;
+  headerClassName?: string;
 };
 
 export const DashboardCard = ({
@@ -27,14 +28,17 @@ export const DashboardCard = ({
   children,
   headerChildren,
   cardContentClassName,
+  headerClassName,
 }: DashboardCardProps) => {
   return (
     <Card className={cn("flex flex-col", className)}>
-      <CardHeader className="relative">
-        <CardTitle>{title}</CardTitle>
-        {description ? (
-          <CardDescription>{description}</CardDescription>
-        ) : undefined}
+      <CardHeader className={cn("relative", headerClassName)}>
+        <div className="flex flex-col gap-1.5">
+          <CardTitle>{title}</CardTitle>
+          {description ? (
+            <CardDescription>{description}</CardDescription>
+          ) : undefined}
+        </div>
         {headerChildren ?? undefined}
         {isLoading ? (
           <div className="absolute right-5 top-5 ">

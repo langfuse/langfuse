@@ -42,6 +42,12 @@ export const traceTimestamp = {
   type: "string",
   internal: 't."timestamp"',
 } as const;
+const scoreTimestamp = {
+  name: "scoreTimestamp",
+  id: "scoreTimestamp",
+  type: "string",
+  internal: 's."timestamp"',
+} as const;
 export const scoreName = {
   name: "scoreName",
   id: "scoreName",
@@ -73,11 +79,41 @@ export const observationsProjectId = {
   type: "string",
   internal: 'o."project_id"',
 } as const;
-export const scoreId = {
+const scoreId = {
   name: "scoreId",
   id: "scoreId",
   type: "string",
   internal: 's."id"',
+} as const;
+const scoreSource = {
+  name: "scoreSource",
+  id: "scoreSource",
+  type: "string",
+  internal: 's."source"',
+} as const;
+const scoreDataType = {
+  name: "scoreDataType",
+  id: "scoreDataType",
+  type: "string",
+  internal: 's."data_type"',
+} as const;
+const castScoreSource = {
+  name: "castScoreSource",
+  id: "castScoreSource",
+  type: "string",
+  internal: 's."source"::text',
+} as const;
+const castScoreDataType = {
+  name: "castScoreDataType",
+  id: "castScoreDataType",
+  type: "string",
+  internal: 's."data_type"::text',
+} as const;
+const scoreStringValue = {
+  name: "stringValue",
+  id: "stringValue",
+  type: "string",
+  internal: 's."string_value"',
 } as const;
 export const traceName = {
   name: "Trace Name",
@@ -203,18 +239,18 @@ export const tableDefinitions: TableDefinitions = {
     ],
   },
   traces_scores: {
-    table: ` traces t JOIN scores s ON t.id = s.trace_id AND s.data_type != 'CATEGORICAL' AND t.project_id = s.project_id`,
+    table: ` traces t JOIN scores s ON t.id = s.trace_id AND t.project_id = s.project_id`,
     columns: [
       tracesProjectId,
       { name: "value", id: "value", type: "number", internal: 's."value"' },
-      {
-        name: "scoreName",
-        id: "scoreName",
-        type: "number",
-        internal: 's."name"',
-      },
+      scoreSource,
+      castScoreSource,
+      scoreDataType,
+      castScoreDataType,
+      scoreStringValue,
       scoreId,
       traceVersion,
+      scoreTimestamp,
       traceTimestamp,
       release,
       scoreName,
