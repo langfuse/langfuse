@@ -79,7 +79,6 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
-import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { Role } from "@/src/features/rbac/constants/roles";
 
 setUpSuperjson();
@@ -182,8 +181,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
       .find((project) => project.id === projectId);
 
     if (!sessionProject) {
-      // admin
-      if (isProjectMemberOrAdmin(ctx.session.user, projectId)) {
+      if (ctx.session.user.admin === true) {
         // fetch org as it is not available in the session for admins
         const dbProject = await ctx.prisma.project.findFirst({
           select: {
@@ -327,11 +325,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     .flatMap((org) => org.projects)
     .find(({ id }) => id === trace.projectId);
 
-  if (
-    !trace.public &&
-    !sessionProject &&
-    !isProjectMemberOrAdmin(ctx.session?.user, trace.projectId)
-  )
+  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true)
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message:
