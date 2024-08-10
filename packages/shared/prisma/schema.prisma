@@ -240,6 +240,7 @@ model MembershipInvitation {
 }
 
 enum ProjectRole {
+    OWNER
     ADMIN
     MEMBER
     VIEWER

@@ -146,15 +146,3 @@ ALTER COLUMN "org_id" SET NOT NULL,
 ALTER COLUMN "org_role" SET NOT NULL;
 -- CreateIndex
 CREATE INDEX "membership_invitations_org_id_idx" ON "membership_invitations"("org_id");
-
-
-
--- Remove OWNER from ProjectRoles ENUM
-BEGIN;
-CREATE TYPE "ProjectRole_new" AS ENUM ('ADMIN', 'MEMBER', 'VIEWER');
-ALTER TABLE "project_memberships" ALTER COLUMN "role" TYPE "ProjectRole_new" USING ("role"::text::"ProjectRole_new");
-ALTER TABLE "membership_invitations" ALTER COLUMN "project_role" TYPE "ProjectRole_new" USING ("project_role"::text::"ProjectRole_new");
-ALTER TYPE "ProjectRole" RENAME TO "ProjectRole_old";
-ALTER TYPE "ProjectRole_new" RENAME TO "ProjectRole";
-DROP TYPE "ProjectRole_old";
-COMMIT;

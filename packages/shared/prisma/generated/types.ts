@@ -13,6 +13,7 @@ export const OrganizationRole = {
 } as const;
 export type OrganizationRole = (typeof OrganizationRole)[keyof typeof OrganizationRole];
 export const ProjectRole = {
+    OWNER: "OWNER",
     ADMIN: "ADMIN",
     MEMBER: "MEMBER",
     VIEWER: "VIEWER"
