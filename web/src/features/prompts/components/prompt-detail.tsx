@@ -12,7 +12,6 @@ import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@/src/utils/string";
@@ -29,7 +28,6 @@ import {
 } from "@/src/components/ui/accordion";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
-import { type Prompt } from "@langfuse/shared";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 
 export const PromptDetail = () => {
@@ -244,38 +242,3 @@ export const PromptDetail = () => {
     </div>
   );
 };
-
-export function UpdatePrompt({
-  projectId,
-  prompt,
-  isLoading,
-}: {
-  projectId: string;
-  prompt: Prompt | undefined;
-  isLoading: boolean;
-}) {
-  const hasAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
-  const router = useRouter();
-
-  const handlePromptEdit = () => {
-    void router.push(
-      `/project/${projectId}/prompts/${prompt?.id}/edit`,
-      undefined,
-      {
-        shallow: true,
-      },
-    );
-  };
-
-  return (
-    <Button
-      variant="outline"
-      size="icon"
-      onClick={() => handlePromptEdit()}
-      disabled={!hasAccess}
-      loading={isLoading}
-    >
-      <Pencil className="h-5 w-5" />
-    </Button>
-  );
-}
