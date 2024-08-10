@@ -164,6 +164,8 @@ export const membersRouter = createTRPCRouter({
           email: input.email.toLowerCase(),
         },
       });
+
+      // security check if project is in org
       const project = input.projectId
         ? await ctx.prisma.project.findFirst({
             where: {
@@ -172,6 +174,7 @@ export const membersRouter = createTRPCRouter({
             },
           })
         : null;
+
       const org = await ctx.prisma.organization.findFirst({
         where: {
           id: input.orgId,
@@ -209,7 +212,7 @@ export const membersRouter = createTRPCRouter({
           action: "create",
           after: orgMembership,
         });
-        if (input.projectId && input.projectRole && project) {
+        if (project && input.projectRole) {
           const projectMembership = await ctx.prisma.projectMembership.create({
             data: {
               userId: user.id,
@@ -252,15 +255,6 @@ export const membersRouter = createTRPCRouter({
           action: "create",
           after: invitation,
         });
-
-        const project = await ctx.prisma.project.findFirst({
-          where: {
-            id: input.projectId,
-          },
-        });
-
-        if (!project) throw new Error("Project not found");
-
         await sendMembershipInvitationEmail({
           inviterEmail: ctx.session.user.email!,
           inviterName: ctx.session.user.name!,
@@ -377,6 +371,7 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      // TODO: constrain updating of roles depending on the user's own role
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
@@ -444,6 +439,20 @@ export const membersRouter = createTRPCRouter({
         scope: "organizationMembers:CUD",
       });
 
+      // check org membership id, can be trusted after this check
+      const orgMembership = await ctx.prisma.organizationMembership.findUnique({
+        where: {
+          id: input.orgMembershipId,
+          orgId: input.orgId,
+        },
+      });
+      if (!orgMembership) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization membership not found",
+        });
+      }
+
       const projectMembership = await ctx.prisma.projectMembership.findFirst({
         where: {
           projectId: input.projectId,
@@ -476,6 +485,7 @@ export const membersRouter = createTRPCRouter({
         return null;
       }
 
+      // Create/update
       const updatedProjectMembership =
         await ctx.prisma.projectMembership.upsert({
           where: {
