@@ -10,8 +10,9 @@ import {
   getSessionTableSQL,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { paginationZod } from "@langfuse/shared";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+
 import { TRPCError } from "@trpc/server";
 import { orderBy } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";

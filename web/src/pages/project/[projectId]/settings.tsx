@@ -7,7 +7,6 @@ import { Code, Bird, GraduationCap, LockIcon } from "lucide-react";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import RenameProject from "@/src/features/projects/components/RenameProject";
-import { env } from "@/src/env.mjs";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
@@ -20,6 +19,7 @@ import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
 import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -223,7 +223,7 @@ function Instructions() {
 }
 
 const Integrations = (props: { projectId: string }) => {
-  const isAvailable = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined;
+  const entitled = useHasOrgEntitlement("integration-posthog");
 
   return (
     <div>
@@ -236,7 +236,7 @@ const Integrations = (props: { projectId: string }) => {
           Langfuse Events/Metrics available in your Posthog Dashboards.
         </p>
         <div className="flex items-center gap-2">
-          {isAvailable ? (
+          {entitled ? (
             <Button variant="secondary" asChild>
               <Link
                 href={`/project/${props.projectId}/settings/posthog-integration`}

@@ -30,7 +30,6 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { EnvLabel } from "@/src/components/EnvLabel";
-import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 
@@ -118,18 +117,14 @@ export default function Layout(props: PropsWithChildren) {
 
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
-  const isEeEnabled = useIsEeEnabled();
 
   const mapNavigation = (route: Route): NavigationItem | null => {
     // Project-level routes
-    if (!router.query.projectId && route.pathname?.includes("[projectId]"))
+    if (!routerProjectId && route.pathname?.includes("[projectId]"))
       return null;
 
     // Organization-level routes
-    if (
-      !router.query.organizationId &&
-      route.pathname?.includes("[organizationId]")
-    )
+    if (!routerOrganizationId && route.pathname?.includes("[organizationId]"))
       return null;
 
     // Feature Flags
@@ -146,17 +141,6 @@ export default function Layout(props: PropsWithChildren) {
     if (
       route.entitlement !== undefined &&
       !entitlements.includes(route.entitlement)
-    )
-      return null;
-
-    // check ee or cloud requirements
-    if (
-      route.requires !== undefined &&
-      !(
-        (route.requires === "cloud" &&
-          Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)) ||
-        (route.requires === "cloud-or-ee" && isEeEnabled)
-      )
     )
       return null;
 
@@ -503,7 +487,7 @@ export default function Layout(props: PropsWithChildren) {
         </div>
         <div className="lg:pl-56">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          project?.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
           !session.data?.user?.email?.endsWith("@langfuse.com") ? (
             <div className="flex w-full items-center border-b border-dark-yellow  bg-light-yellow px-4 py-2 lg:sticky lg:top-0 lg:z-40">

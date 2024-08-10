@@ -52,9 +52,6 @@ export function SetupPage() {
       : orgStep === "create-project"
         ? 3
         : 2;
-  console.log("project", project);
-  console.log("organization", organization);
-  console.log("stepInt", stepInt);
 
   const hasAnyTrace =
     api.traces.hasAny.useQuery(

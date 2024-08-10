@@ -17,13 +17,13 @@ import {
 import { Archive } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ConfigCategory } from "@/src/features/public-api/types/score-configs";
 
 type ScoreConfigTableRow = {

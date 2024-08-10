@@ -25,7 +25,7 @@ export const organizationsRouter = createTRPCRouter({
     });
     const res = orgs.map(({ projects, ...org }) => ({
       ...parseDbOrg(org),
-      projects,
+      projects, // TODO: redact projects that the user does not have access to
     }));
     return res;
   }),
@@ -52,7 +52,7 @@ export const organizationsRouter = createTRPCRouter({
       const { projects, ...org } = organization;
       return {
         ...parseDbOrg(org),
-        projects,
+        projects, // TODO: redact projects that the user does not have access to
       };
     }),
   create: protectedProcedure

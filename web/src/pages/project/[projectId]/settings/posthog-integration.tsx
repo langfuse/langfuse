@@ -13,7 +13,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
-import { env } from "@/src/env.mjs";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -30,6 +30,7 @@ import { type z } from "zod";
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const entitled = useHasOrgEntitlement("integration-posthog");
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
@@ -37,10 +38,10 @@ export default function PosthogIntegrationSettings() {
   const state = api.posthogIntegration.get.useQuery(
     { projectId },
     {
-      enabled: hasAccess,
+      enabled: hasAccess && entitled,
     },
   );
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
+  if (!entitled) return null;
 
   return (
     <div className="md:container">

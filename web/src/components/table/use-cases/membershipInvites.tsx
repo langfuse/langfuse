@@ -151,9 +151,6 @@ export default function InvitesTable({
     },
   ];
 
-  // const [columnVisibility, setColumnVisibility] =
-  //   useColumnVisibility<InvitesTableRow>("invitesColumnVisibility", columns);
-
   const convertToTableRow = (
     invite: RouterOutput["members"]["allInvites"]["invitations"][0],
   ): InvitesTableRow => {
@@ -214,8 +211,6 @@ export default function InvitesTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
-        // columnVisibility={columnVisibility}
-        // onColumnVisibilityChange={setColumnVisibility}
       />
     </>
   );

@@ -1,7 +1,6 @@
 // Langfuse Cloud only
 
 import { Button } from "@/src/components/ui/button";
-import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { Flex, MarkerBar, Metric, Text } from "@tremor/react";
 import Link from "next/link";
@@ -17,17 +16,17 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export const OrganizationUsageChart = () => {
   const organization = useQueryOrganization();
+  const entitled = useHasOrgEntitlement("cloud-usage-metering");
   const usage = api.usageMetering.last30d.useQuery(
     {
       orgId: organization!.id,
     },
     {
-      enabled:
-        organization !== undefined &&
-        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+      enabled: organization !== undefined && entitled,
       trpc: {
         context: {
           skipBatch: true,
@@ -40,7 +39,7 @@ export const OrganizationUsageChart = () => {
     organization?.cloudConfig?.monthlyObservationLimit ?? 50_000;
   const plan = organization?.cloudConfig?.plan ?? "Hobby";
 
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
+  if (!entitled) return null;
 
   return (
     <div>

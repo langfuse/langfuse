@@ -83,7 +83,7 @@ export default function MembersTable({
     scope: "organizationMembers:CUD",
   });
 
-  const projectMembersEntitlement = useHasOrgEntitlement("rbac-project-roles");
+  const projectRolesEntitlement = useHasOrgEntitlement("rbac-project-roles");
 
   const columns: LangfuseColumnDef<MembersTableRow>[] = [
     {
@@ -173,7 +173,7 @@ export default function MembersTable({
                 "meta",
               ) as MembersTableRow["meta"];
 
-              if (!projectMembersEntitlement) return "N/A";
+              if (!projectRolesEntitlement) return "N/A";
 
               return (
                 <ProjectRoleDropdown

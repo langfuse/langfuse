@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +38,6 @@ import {
 import { isPresent } from "@/src/utils/typeChecks";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { z } from "zod";
 
 const Category = z.object({

@@ -46,7 +46,7 @@ export const useOrgEntitlements = (): Entitlement[] => {
 /**
  * Hook to check if the current organization has a specific entitlement.
  */
-export const useHasOrgEntitlement = (entitlement: Entitlement): Boolean => {
+export const useHasOrgEntitlement = (entitlement: Entitlement): boolean => {
   const orgEntitlements = useOrgEntitlements();
   return orgEntitlements.includes(entitlement);
 };

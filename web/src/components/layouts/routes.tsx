@@ -29,7 +29,6 @@ export type Route = {
   children?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
-  requires?: "cloud" | "cloud-or-ee"; // feature requires cloud or ee
   entitlement?: Entitlement; // entitlement required
 };
 
