@@ -1,5 +1,5 @@
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
-import { Fragment, type PropsWithChildren, useState } from "react";
+import { Fragment, type PropsWithChildren, useEffect, useState } from "react";
 import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
 import { MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+import { getSession, signOut, useSession } from "next-auth/react";
 import { cn } from "@/src/utils/tailwind";
 import {
   Avatar,
@@ -71,10 +71,39 @@ const publishablePaths: string[] = [
   "/auth/reset-password",
 ];
 
+/**
+ * Patched version of useSession that retries fetching the session if the user
+ * is unauthenticated. This is useful to mitigate exceptions on the
+ * /api/auth/session endpoint which cause the session to be unauthenticated even
+ * though the user is signed in.
+ */
+function useSessionWithRetryOnUnauthenticated() {
+  const MAX_RETRIES = 3;
+  const [retryCount, setRetryCount] = useState(0);
+  const session = useSession();
+
+  useEffect(() => {
+    if (session.status === "unauthenticated" && retryCount < MAX_RETRIES) {
+      const fetchSession = async () => {
+        await getSession({ broadcast: true });
+        setRetryCount((prevCount) => prevCount + 1);
+      };
+      fetchSession();
+    }
+    if (session.status === "authenticated" && retryCount > 0) {
+      setRetryCount(0);
+    }
+  }, [session.status, retryCount]);
+
+  return session.status !== "unauthenticated" || retryCount >= MAX_RETRIES
+    ? session
+    : { ...session, status: "loading" };
+}
+
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
-  const session = useSession();
+  const session = useSessionWithRetryOnUnauthenticated();
 
   useCheckNotification(NOTIFICATIONS, session.status === "authenticated");
 
