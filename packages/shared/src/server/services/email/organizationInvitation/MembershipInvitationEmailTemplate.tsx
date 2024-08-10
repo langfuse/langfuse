@@ -15,7 +15,7 @@ import {
   Text,
 } from "@react-email/components";
 
-interface ProjectInvitationTemplateProps {
+interface MembershipInvitationTemplateProps {
   invitedByUsername: string;
   invitedByUserEmail: string;
   orgName: string;
@@ -25,7 +25,7 @@ interface ProjectInvitationTemplateProps {
   langfuseCloudRegion?: string;
 }
 
-export const ProjectInvitationTemplate = ({
+export const MembershipInvitationTemplate = ({
   invitedByUsername,
   invitedByUserEmail,
   orgName,
@@ -33,7 +33,7 @@ export const ProjectInvitationTemplate = ({
   inviteLink,
   emailFromAddress,
   langfuseCloudRegion,
-}: ProjectInvitationTemplateProps) => {
+}: MembershipInvitationTemplateProps) => {
   const previewText = `Join ${invitedByUsername} on Langfuse`;
 
   return (
@@ -103,4 +103,4 @@ export const ProjectInvitationTemplate = ({
   );
 };
 
-export default ProjectInvitationTemplate;
+export default MembershipInvitationTemplate;

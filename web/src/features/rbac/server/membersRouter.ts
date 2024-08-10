@@ -10,7 +10,7 @@ import {
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { OrganizationRole, ProjectRole, paginationZod } from "@langfuse/shared";
-import { sendProjectInvitationEmail } from "@langfuse/shared/src/server";
+import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
@@ -227,7 +227,7 @@ export const membersRouter = createTRPCRouter({
             after: projectMembership,
           });
         }
-        await sendProjectInvitationEmail({
+        await sendMembershipInvitationEmail({
           inviterEmail: ctx.session.user.email!,
           inviterName: ctx.session.user.name!,
           to: input.email,
@@ -261,7 +261,7 @@ export const membersRouter = createTRPCRouter({
 
         if (!project) throw new Error("Project not found");
 
-        await sendProjectInvitationEmail({
+        await sendMembershipInvitationEmail({
           inviterEmail: ctx.session.user.email!,
           inviterName: ctx.session.user.name!,
           to: input.email,

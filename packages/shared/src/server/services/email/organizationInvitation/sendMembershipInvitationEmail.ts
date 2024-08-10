@@ -2,7 +2,7 @@ import { createTransport } from "nodemailer";
 import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
 
-import ProjectInvitationTemplate from "./ProjectInvitationEmailTemplate";
+import MembershipInvitationTemplate from "./MembershipInvitationEmailTemplate";
 
 const langfuseUrls = {
   US: "https://us.cloud.langfuse.com",
@@ -10,7 +10,7 @@ const langfuseUrls = {
   STAGING: "https://staging.langfuse.com",
 };
 
-type SendProjectInvitationParams = {
+type SendMembershipInvitationParams = {
   env: Partial<
     Record<
       | "EMAIL_FROM_ADDRESS"
@@ -26,16 +26,16 @@ type SendProjectInvitationParams = {
   orgName: string;
 };
 
-export const sendProjectInvitationEmail = async ({
+export const sendMembershipInvitationEmail = async ({
   env,
   to,
   inviterName,
   inviterEmail,
   orgName,
-}: SendProjectInvitationParams) => {
+}: SendMembershipInvitationParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     console.error(
-      "Missing environment variables for sending project invitation email."
+      "Missing environment variables for sending membership invitation email."
     );
     return;
   }
@@ -59,7 +59,7 @@ export const sendProjectInvitationEmail = async ({
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
 
     const htmlTemplate = render(
-      ProjectInvitationTemplate({
+      MembershipInvitationTemplate({
         invitedByUsername: inviterName,
         invitedByUserEmail: inviterEmail,
         orgName: orgName,
