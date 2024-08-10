@@ -90,6 +90,9 @@ function useSessionWithRetryOnUnauthenticated() {
       };
       fetchSession();
     }
+    if (session.status === "authenticated" && retryCount > 0) {
+      setRetryCount(0);
+    }
   }, [session.status, retryCount]);
 
   return session.status !== "unauthenticated" || retryCount >= MAX_RETRIES
