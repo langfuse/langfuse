@@ -27,7 +27,7 @@ export const membersRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "members:read",
+        scope: "organizationMembers:read",
       });
       const orgMemberships = await ctx.prisma.organizationMembership.findMany({
         where: {
@@ -93,7 +93,7 @@ export const membersRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "members:read",
+        scope: "organizationMembers:read",
       });
       const invitations = await ctx.prisma.membershipInvitation.findMany({
         where: {
@@ -141,7 +141,7 @@ export const membersRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "members:CUD",
+        scope: "organizationMembers:CUD",
       });
 
       // check for entilement (project role)
@@ -295,7 +295,7 @@ export const membersRouter = createTRPCRouter({
       const hasAccess = hasOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "members:CUD",
+        scope: "organizationMembers:CUD",
       });
       if (!hasAccess && membership.userId !== ctx.session.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
@@ -343,7 +343,7 @@ export const membersRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "members:CUD",
+        scope: "organizationMembers:CUD",
       });
       const invitation = await ctx.prisma.membershipInvitation.findFirst({
         where: {
@@ -380,7 +380,7 @@ export const membersRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "members:CUD",
+        scope: "organizationMembers:CUD",
       });
 
       const membership = await ctx.prisma.organizationMembership.findFirst({
@@ -441,7 +441,7 @@ export const membersRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "members:CUD",
+        scope: "organizationMembers:CUD",
       });
 
       const projectMembership = await ctx.prisma.projectMembership.findFirst({
@@ -519,7 +519,7 @@ export const membersRouter = createTRPCRouter({
 //     throwIfNoProjectAccess({
 //       session: ctx.session,
 //       projectId: input.projectId,
-//       scope: "members:delete",
+//       scope: "organizationMembers:delete",
 //     });
 
 //     if (input.userId === ctx.session.user.id)
@@ -566,7 +566,7 @@ export const membersRouter = createTRPCRouter({
 //     throwIfNoProjectAccess({
 //       session: ctx.session,
 //       projectId: input.projectId,
-//       scope: "members:delete",
+//       scope: "organizationMembers:delete",
 //     });
 
 //     await auditLog({
@@ -599,7 +599,7 @@ export const membersRouter = createTRPCRouter({
 //     throwIfNoProjectAccess({
 //       session: ctx.session,
 //       projectId: input.projectId,
-//       scope: "members:create",
+//       scope: "organizationMembers:create",
 //     });
 
 //     const user = await ctx.prisma.user.findUnique({

@@ -1,18 +1,18 @@
 import { type Role } from "@/src/features/rbac/constants/roles";
 
 const scopes = [
-  "projects:view",
+  "projects:view", // todo: unused scope
   "projects:create",
   "projects:update",
   "projects:delete",
   "projects:transfer_organization",
   "organizations:update",
   "organizations:delete",
-  "members:read",
-  "members:CUD",
+  "organizationMembers:read",
+  "organizationMembers:CUD",
 ] as const;
 
-// type string of all Resource:Action, e.g. "members:read"
+// type string of all Resource:Action, e.g. "organizationMembers:read"
 export type Scope = (typeof scopes)[number];
 
 export const roleAccessRights: Record<Role, Scope[]> = {
@@ -24,8 +24,8 @@ export const roleAccessRights: Record<Role, Scope[]> = {
     "projects:transfer_organization",
     "organizations:update",
     "organizations:delete",
-    "members:CUD",
-    "members:read",
+    "organizationMembers:CUD",
+    "organizationMembers:read",
   ],
   ADMIN: [
     "projects:view",
@@ -34,10 +34,10 @@ export const roleAccessRights: Record<Role, Scope[]> = {
     "projects:delete",
     "projects:transfer_organization",
     "organizations:update",
-    "members:CUD",
-    "members:read",
+    "organizationMembers:CUD",
+    "organizationMembers:read",
   ],
-  MEMBER: ["projects:view", "members:read"],
-  VIEWER: ["projects:view", "members:read"],
+  MEMBER: ["projects:view", "organizationMembers:read"],
+  VIEWER: ["projects:view", "organizationMembers:read"],
   NONE: [],
 };

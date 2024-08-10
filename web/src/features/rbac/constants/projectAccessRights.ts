@@ -1,6 +1,9 @@
 import { type Role } from "@/src/features/rbac/constants/roles";
 
 const scopes = [
+  "projectMembers:read", // todo: not used yet
+  "projectMembers:create", // todo: not used yet
+  "projectMembers:delete", // todo: not used yet
   "apiKeys:read",
   "apiKeys:create",
   "apiKeys:delete",
@@ -16,6 +19,7 @@ const scopes = [
   "scoreConfigs:CUD",
   "scoreConfigs:read",
 
+  "project:view",
   "project:update",
   "integrations:CRUD",
 
@@ -44,6 +48,12 @@ export type Scope = (typeof scopes)[number];
 
 export const roleAccessRights: Record<Role, Scope[]> = {
   OWNER: [
+    "project:view", // todo: not used yet
+    "project:update",
+
+    "projectMembers:read", // todo: not used yet
+    "projectMembers:create", // todo: not used yet
+    "projectMembers:delete", // todo: not used yet
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
@@ -55,7 +65,6 @@ export const roleAccessRights: Record<Role, Scope[]> = {
     "scores:CUD",
     "scoreConfigs:CUD",
     "scoreConfigs:read",
-    "project:update",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
@@ -71,6 +80,11 @@ export const roleAccessRights: Record<Role, Scope[]> = {
     "batchExport:create",
   ],
   ADMIN: [
+    "project:view",
+    "project:update",
+    "projectMembers:read", // todo: not used yet
+    "projectMembers:create", // todo: not used yet
+    "projectMembers:delete", // todo: not used yet
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
@@ -82,7 +96,6 @@ export const roleAccessRights: Record<Role, Scope[]> = {
     "scores:CUD",
     "scoreConfigs:CUD",
     "scoreConfigs:read",
-    "project:update",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
@@ -98,6 +111,8 @@ export const roleAccessRights: Record<Role, Scope[]> = {
     "batchExport:create",
   ],
   MEMBER: [
+    "project:view",
+    "projectMembers:read",
     "apiKeys:read",
     "objects:publish",
     "objects:bookmark",
@@ -117,6 +132,7 @@ export const roleAccessRights: Record<Role, Scope[]> = {
     "batchExport:create",
   ],
   VIEWER: [
+    "project:view",
     "prompts:read",
     "evalTemplate:read",
     "scoreConfigs:read",

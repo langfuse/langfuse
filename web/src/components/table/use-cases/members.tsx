@@ -52,7 +52,7 @@ export default function MembersTable({
   const session = useSession();
   const hasViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "members:read",
+    scope: "organizationMembers:read",
   });
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -80,7 +80,7 @@ export default function MembersTable({
 
   const hasCudAccess = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "members:CUD",
+    scope: "organizationMembers:CUD",
   });
 
   const projectMembersEntitlement = useHasOrgEntitlement("rbac-project-roles");

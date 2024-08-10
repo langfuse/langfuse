@@ -52,7 +52,7 @@ export function CreateProjectMemberButton(props: {
   const [open, setOpen] = useState(false);
   const hasAccess = useHasOrganizationAccess({
     organizationId: props.orgId,
-    scope: "members:CUD",
+    scope: "organizationMembers:CUD",
   });
 
   const utils = api.useUtils();

@@ -37,7 +37,7 @@ export default function InvitesTable({
 }) {
   const hasViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "members:read",
+    scope: "organizationMembers:read",
   });
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -65,7 +65,7 @@ export default function InvitesTable({
 
   const hasCudAccess = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "members:CUD",
+    scope: "organizationMembers:CUD",
   });
 
   const columns: LangfuseColumnDef<InvitesTableRow>[] = [

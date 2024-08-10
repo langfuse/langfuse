@@ -183,6 +183,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
     if (!sessionProject) {
       // admin
       if (isProjectMemberOrAdmin(ctx.session.user, projectId)) {
+        // fetch org as it is not available in the session for admins
         const dbProject = await ctx.prisma.project.findFirst({
           select: {
             orgId: true,
@@ -204,9 +205,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
               ...ctx.session,
               user: ctx.session.user,
               orgId: dbProject.orgId,
-              orgRole: "ADMIN",
+              orgRole: "OWNER",
               projectId: projectId,
-              projectRole: "ADMIN",
+              projectRole: "OWNER",
             },
           },
         });

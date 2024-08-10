@@ -47,7 +47,7 @@ export const SingleOrganizationProjectOverview = ({
   });
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: org.id,
-    scope: "members:read",
+    scope: "organizationMembers:read",
   });
   const session = useSession();
 
