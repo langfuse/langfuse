@@ -30,7 +30,8 @@ SET "org_id" = CONCAT('o', "id");
 ALTER TABLE "projects" ALTER COLUMN "org_id" SET NOT NULL;
 -- AddForeignKey
 ALTER TABLE "projects" ADD CONSTRAINT "projects_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
+-- CreateIndex
+CREATE INDEX "projects_org_id_idx" ON "projects"("org_id");
 
 
 -- ORGANIZATION MEMBERSHIPS
@@ -138,8 +139,6 @@ UPDATE "membership_invitations"
 SET "project_role" = NULL, "project_id" = NULL;
 -- AddForeignKey
 ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
--- CreateIndex
-CREATE INDEX "projects_org_id_idx" ON "projects"("org_id");
 
 -- Add not null on org level cols after backfill
 ALTER TABLE "membership_invitations"
