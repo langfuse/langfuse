@@ -1,11 +1,4 @@
-import {
-  Building2,
-  LifeBuoy,
-  LockIcon,
-  Settings,
-  TriangleAlert,
-  Users,
-} from "lucide-react";
+import { Building2, LifeBuoy, LockIcon, Settings, Users } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -25,11 +18,9 @@ import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
 import { Divider } from "@tremor/react";
-import { Badge } from "@/src/components/ui/badge";
 import { Fragment } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { Role } from "@langfuse/shared";
 
 const SingleOrganizationProjectOverview = ({
   orgId,
@@ -57,9 +48,7 @@ const SingleOrganizationProjectOverview = ({
 
   const isDemoOrg =
     env.NEXT_PUBLIC_DEMO_ORG_ID === orgId &&
-    org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID) &&
-    session.data?.user?.organizations.find((o) => o.id === orgId)?.role ===
-      Role.NONE;
+    org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
 
   if (isDemoOrg) {
     return (
@@ -133,15 +122,7 @@ const SingleOrganizationProjectOverview = ({
           .map((project) => (
             <Card key={project.id}>
               <CardHeader>
-                <CardTitle className="text-base">
-                  {project.name}
-                  {project.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID && (
-                    <Badge variant="secondary" className="ml-2">
-                      <TriangleAlert className="mr-2 h-3 w-3" />
-                      Demo Project
-                    </Badge>
-                  )}
-                </CardTitle>
+                <CardTitle className="text-base">{project.name}</CardTitle>
               </CardHeader>
               <CardFooter className="gap-2">
                 <Button asChild variant="secondary">

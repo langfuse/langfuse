@@ -488,8 +488,7 @@ export default function Layout(props: PropsWithChildren) {
         <div className="lg:pl-56">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-          !session.data?.user?.email?.endsWith("@langfuse.com") ? (
+          Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (
             <div className="flex w-full items-center border-b border-dark-yellow  bg-light-yellow px-4 py-2 lg:sticky lg:top-0 lg:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
                 <div className="flex items-center gap-1">
@@ -500,19 +499,8 @@ export default function Layout(props: PropsWithChildren) {
               </div>
 
               <Button size="sm" asChild className="ml-2">
-                <Link
-                  href={
-                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                      ? "https://langfuse.com/docs/demo"
-                      : "https://docs-staging.langfuse.com/docs/demo" // staging
-                  }
-                  target="_blank"
-                >
-                  {
-                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                      ? "Use Chat ↗"
-                      : "Use Chat (staging) ↗" // staging
-                  }
+                <Link href={"https://langfuse.com/docs/demo"} target="_blank">
+                  Use Chat ↗
                 </Link>
               </Button>
             </div>

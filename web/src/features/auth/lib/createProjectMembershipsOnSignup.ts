@@ -21,14 +21,7 @@ export async function createProjectMembershipsOnSignup(user: {
         data: {
           userId: user.id,
           orgId: demoProject.orgId,
-          role: Role.NONE,
-          ProjectMemberships: {
-            create: {
-              userId: user.id,
-              projectId: demoProject.id,
-              role: Role.VIEWER,
-            },
-          },
+          role: Role.VIEWER,
         },
       });
     }

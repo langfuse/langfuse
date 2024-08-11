@@ -17,6 +17,7 @@ import { Card } from "@/src/components/ui/card";
 import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -125,6 +126,10 @@ export default function SettingsPage() {
 
 const Integrations = (props: { projectId: string }) => {
   const entitled = useHasOrgEntitlement("integration-posthog");
+  const hasAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "integrations:CRUD",
+  });
 
   return (
     <div>
@@ -137,7 +142,7 @@ const Integrations = (props: { projectId: string }) => {
           Langfuse Events/Metrics available in your Posthog Dashboards.
         </p>
         <div className="flex items-center gap-2">
-          {entitled ? (
+          {entitled && hasAccess ? (
             <Button variant="secondary" asChild>
               <Link
                 href={`/project/${props.projectId}/settings/posthog-integration`}
@@ -148,7 +153,11 @@ const Integrations = (props: { projectId: string }) => {
           ) : (
             <Button variant="secondary" disabled>
               <LockIcon className="mr-2 h-4 w-4" />
-              Public-beta on Langfuse Cloud
+              {!hasAccess
+                ? "Configure"
+                : !entitled
+                  ? "Public-beta on Langfuse Cloud"
+                  : ""}
             </Button>
           )}
           <Button asChild variant="ghost">
