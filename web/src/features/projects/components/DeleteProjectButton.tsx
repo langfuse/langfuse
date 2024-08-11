@@ -20,8 +20,8 @@ import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function DeleteProjectButton() {
   const capture = usePostHogClientCapture();
@@ -38,9 +38,9 @@ export function DeleteProjectButton() {
     }),
   });
 
-  const hasAccess = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "projects:delete",
+  const hasAccess = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "project:delete",
   });
 
   const deleteProject = api.projects.delete.useMutation();

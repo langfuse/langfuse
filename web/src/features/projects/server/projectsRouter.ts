@@ -84,10 +84,10 @@ export const projectsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
-        organizationId: ctx.session.orgId,
-        scope: "projects:delete",
+        projectId: ctx.session.projectId,
+        scope: "project:delete",
       });
       await auditLog({
         session: ctx.session,

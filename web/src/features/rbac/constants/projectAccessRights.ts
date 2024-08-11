@@ -21,6 +21,8 @@ const projectScopes = [
 
   "project:view",
   "project:update",
+  "project:delete",
+
   "integrations:CRUD",
 
   "datasets:CUD",
@@ -48,8 +50,9 @@ export type ProjectScope = (typeof projectScopes)[number];
 
 export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
   OWNER: [
-    "project:view", // todo: not used yet
+    "project:view",
     "project:update",
+    "project:delete",
 
     "projectMembers:read", // todo: not used yet
     "projectMembers:create", // todo: not used yet

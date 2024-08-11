@@ -16,17 +16,17 @@ import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LockIcon } from "lucide-react";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export default function RenameProject() {
   const { update: updateSession } = useSession();
-  const { project, organization } = useQueryProject();
+  const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "projects:update",
+  const hasAccess = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "project:update",
   });
 
   const form = useForm<z.infer<typeof projectNameSchema>>({

@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -36,6 +36,7 @@ import {
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
+import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   // if no allowlist is set, allow all users to create organizations
@@ -370,8 +371,12 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                               role: projectRole,
                             };
                           })
-                          // Only include projects where the user has a role other than NONE
-                          .filter((project) => project.role !== Role.NONE),
+                          // Only include projects where the user has the required role
+                          .filter((project) =>
+                            projectRoleAccessRights[project.role].includes(
+                              "project:view",
+                            ),
+                          ),
 
                         // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting
                         // If you edit this line, you risk executing code that is not MIT licensed (contained in /ee folders, see LICENSE)
