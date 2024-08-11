@@ -11,7 +11,7 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,9 +29,9 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { createProjectRoute } from "@/src/components/setup";
 import { env } from "@/src/env.mjs";
-import { api } from "@/src/utils/api";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 
 export default function Header({
   level = "h2",
@@ -126,18 +126,17 @@ const BreadcrumbComponent = ({
 }: {
   items?: { name: string; href?: string }[];
 }) => {
-  const [fetchOptions, setFetchOptions] = useState(false);
-  const { organization, project } = useQueryProjectOrOrganization();
-  const organizations = api.organizations.all.useQuery(undefined, {
-    enabled: fetchOptions,
-  });
   const router = useRouter();
+  const session = useSession();
+  const { organization, project } = useQueryProjectOrOrganization();
+
+  const organizations = session.data?.user?.organizations;
 
   return (
     <Breadcrumb>
       <BreadcrumbList>
         {organization && (
-          <DropdownMenu onOpenChange={setFetchOptions}>
+          <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-1">
               {organization?.name ?? "Organization"}
               <ChevronDownIcon className="h-4 w-4" />
@@ -150,8 +149,8 @@ const BreadcrumbComponent = ({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <div className="max-h-36 overflow-y-auto">
-                {organizations.data ? (
-                  organizations.data
+                {organizations ? (
+                  organizations
                     .sort((a, b) => {
                       // sort demo org to the bottom
                       const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
@@ -225,7 +224,7 @@ const BreadcrumbComponent = ({
             <BreadcrumbSeparator>
               <Slash />
             </BreadcrumbSeparator>
-            <DropdownMenu onOpenChange={setFetchOptions}>
+            <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-1">
                 {project?.name ?? "Project"}
                 <ChevronDownIcon className="h-4 w-4" />
@@ -241,8 +240,8 @@ const BreadcrumbComponent = ({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <div className="max-h-36 overflow-y-auto">
-                  {organizations.data ? (
-                    organizations.data
+                  {organizations ? (
+                    organizations
                       .find((org) => org.id === organization.id)
                       ?.projects.map((project) => (
                         <DropdownMenuItem key={project.id} asChild>

@@ -27,40 +27,43 @@ import { env } from "@/src/env.mjs";
 import { Divider } from "@tremor/react";
 import { Badge } from "@/src/components/ui/badge";
 import { Fragment } from "react";
-import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { type RouterOutput } from "@/src/utils/types";
 import { useSession } from "next-auth/react";
 import { Role } from "@langfuse/shared";
 
-export const SingleOrganizationProjectOverview = ({
-  org,
+const SingleOrganizationProjectOverview = ({
+  orgId,
   search,
   level = "h2",
 }: {
-  org: RouterOutput["organizations"]["all"][0];
+  orgId: string;
   search?: string;
   level?: "h2" | "h3";
 }) => {
   const createProjectAccess = useHasOrganizationAccess({
-    organizationId: org.id,
+    organizationId: orgId,
     scope: "projects:create",
   });
   const membersViewAccess = useHasOrganizationAccess({
-    organizationId: org.id,
+    organizationId: orgId,
     scope: "organizationMembers:read",
   });
   const session = useSession();
+  const org = session.data?.user?.organizations.find((o) => o.id === orgId);
+
+  if (!org) {
+    return null;
+  }
 
   const isDemoOrg =
-    env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
+    env.NEXT_PUBLIC_DEMO_ORG_ID === orgId &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID) &&
-    session.data?.user?.organizations.find((o) => o.id === org.id)?.role ===
+    session.data?.user?.organizations.find((o) => o.id === orgId)?.role ===
       Role.NONE;
 
   if (isDemoOrg) {
     return (
-      <div key={org.id}>
+      <div key={orgId}>
         {level === "h2" && <Header title="Demo Organization" />}
         <Card>
           <CardHeader>
@@ -86,28 +89,28 @@ export const SingleOrganizationProjectOverview = ({
   }
 
   return (
-    <div key={org.id} className="mb-10">
+    <div key={orgId} className="mb-10">
       <Header
         title={org.name}
         level={level}
-        status={org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
+        status={orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
         actionButtons={
           <>
             <Button asChild variant="ghost">
-              <Link href={`/organization/${org.id}/settings`}>
+              <Link href={`/organization/${orgId}/settings`}>
                 <Settings size={14} />
               </Link>
             </Button>
             {membersViewAccess && (
               <Button asChild variant="ghost">
-                <Link href={`/organization/${org.id}/settings?page=Members`}>
+                <Link href={`/organization/${orgId}/settings?page=Members`}>
                   <Users size={14} />
                 </Link>
               </Button>
             )}
             {createProjectAccess ? (
               <Button asChild variant="secondary">
-                <Link href={createProjectRoute(org.id)}>
+                <Link href={createProjectRoute(orgId)}>
                   <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
                   New project
                 </Link>
@@ -160,10 +163,11 @@ export const SingleOrganizationProjectOverview = ({
 export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
-  const organizations = api.organizations.all.useQuery();
+  const session = useSession();
+  const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
 
-  if (!organizations.data) {
+  if (organizations === undefined) {
     return "loading...";
   }
 
@@ -192,10 +196,10 @@ export const OrganizationProjectOverview = () => {
           <IntroducingOrganizations />
         </>
       )}
-      {organizations.data.filter(
-        (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
-      ).length === 0 && <Onboarding />}
-      {organizations.data
+      {organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
+        .length === 0 &&
+        !queryOrgId && <Onboarding />}
+      {organizations
         .filter((org) => queryOrgId === undefined || org.id === queryOrgId)
         .sort((a, b) => {
           // sort demo org to the bottom
@@ -211,7 +215,7 @@ export const OrganizationProjectOverview = () => {
               <Divider />
             )}
             <SingleOrganizationProjectOverview
-              org={org}
+              orgId={org.id}
               search={search ?? undefined}
               level="h3"
             />

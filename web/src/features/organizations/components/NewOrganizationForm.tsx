@@ -29,7 +29,6 @@ export const NewOrganizationForm = ({
       name: "",
     },
   });
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const createOrgMutation = api.organizations.create.useMutation({
     onError: (error) => form.setError("name", { message: error.message }),
@@ -43,8 +42,6 @@ export const NewOrganizationForm = ({
       })
       .then((org) => {
         void updateSession();
-        void utils.projects.invalidate();
-        void utils.organizations.invalidate();
         onSuccess(org.id);
         form.reset();
       })

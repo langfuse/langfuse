@@ -1,5 +1,5 @@
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { api } from "@/src/utils/api";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 export const useQueryProject = () => {
@@ -9,25 +9,27 @@ export const useQueryProject = () => {
 };
 
 export const useProject = (projectId: string | null) => {
-  const project = api.projects.byId.useQuery(
-    {
-      projectId: projectId as string,
-    },
-    {
-      enabled: Boolean(projectId),
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-    },
-  );
-  if (!project.data)
+  const session = useSession();
+  if (projectId === null) return { project: null, organization: null };
+
+  const data = session.data?.user?.organizations
+    // map to {project, organization}[]
+    .flatMap((org) =>
+      org.projects.map((project) => ({ project, organization: org })),
+    )
+    // find the project with the matching id
+    .find(({ project }) => project.id === projectId);
+
+  if (!data)
     return {
       project: null,
       organization: null,
     };
+
   // explicitly destructuring the data object to make it clear what is being returned
   return {
-    project: project.data.project,
-    organization: project.data.organization,
+    project: data.project,
+    organization: data.organization,
   };
 };
 

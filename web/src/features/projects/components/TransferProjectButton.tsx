@@ -37,23 +37,18 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { TriangleAlert } from "lucide-react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useState } from "react";
 
 export function TransferProjectButton() {
   const capture = usePostHogClientCapture();
   const session = useSession();
-  const [isOpen, setIsOpen] = useState(false);
   const { project, organization } = useQueryProject();
-  const utils = api.useUtils();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "projects:transfer_organization",
   });
-  const allOrgs = api.organizations.all.useQuery(undefined, {
-    enabled: isOpen,
-  });
+  const allOrgs = session.data?.user?.organizations ?? [];
   const organizationsToTransferTo =
-    allOrgs.data?.filter((org) =>
+    allOrgs.filter((org) =>
       hasOrganizationAccess({
         session: session.data,
         organizationId: org.id,
@@ -78,10 +73,8 @@ export function TransferProjectButton() {
         description:
           "The project is successfully transferred to the new organization. Redirecting...",
       });
-      void utils.organizations.invalidate();
-      void utils.projects.invalidate();
       await new Promise((resolve) => setTimeout(resolve, 5000));
-      session.update();
+      void session.update();
       window.location.href = "/";
     },
   });
@@ -104,7 +97,7 @@ export function TransferProjectButton() {
   };
 
   return (
-    <Dialog onOpenChange={setIsOpen}>
+    <Dialog>
       <DialogTrigger asChild>
         <Button variant="destructive-secondary" disabled={!hasAccess}>
           Transfer Project

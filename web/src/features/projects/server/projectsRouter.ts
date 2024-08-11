@@ -1,7 +1,6 @@
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
-  protectedProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
@@ -10,33 +9,8 @@ import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { parseDbOrg } from "@/src/features/organizations/utils/parseDbOrg";
 
 export const projectsRouter = createTRPCRouter({
-  byId: protectedProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const data = await ctx.prisma.project.findUnique({
-        where: {
-          id: input.projectId,
-        },
-        include: {
-          organization: true,
-        },
-      });
-      if (!data) throw new TRPCError({ code: "NOT_FOUND" });
-
-      const { organization, ...project } = data;
-
-      return {
-        project,
-        organization: organization ? parseDbOrg(organization) : null, // todo: remove once org is mandatory on projects
-      };
-    }),
   create: protectedOrganizationProcedure
     .input(
       z.object({

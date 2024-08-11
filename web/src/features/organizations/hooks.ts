@@ -1,4 +1,4 @@
-import { api } from "@/src/utils/api";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 /**
@@ -13,16 +13,12 @@ export const useQueryOrganization = () => {
 };
 
 export const useOrganization = (organizationId: string | null) => {
-  const res = api.organizations.byId.useQuery(
-    {
-      orgId: organizationId as string,
-    },
-    {
-      enabled: Boolean(organizationId),
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-    },
+  const session = useSession();
+  if (organizationId === null) return null;
+
+  const organization = session.data?.user?.organizations.find(
+    (org) => org.id === organizationId,
   );
 
-  return res.data ?? null;
+  return organization ?? null;
 };

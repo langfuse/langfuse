@@ -34,14 +34,11 @@ export const NewProjectForm = ({
       name: "",
     },
   });
-  const utils = api.useUtils();
   const router = useRouter();
   const createProjectMutation = api.projects.create.useMutation({
     onSuccess: (newProject) => {
       void updateSession();
       void router.push(`/project/${newProject.id}/settings`);
-      void utils.projects.invalidate();
-      void utils.organizations.invalidate();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });

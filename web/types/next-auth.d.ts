@@ -36,11 +36,13 @@ declare module "next-auth" {
     emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
     organizations: {
       id: PrismaOrganization["id"];
+      name: PrismaOrganization["name"];
       role: Role;
       cloudConfig: CloudConfigSchema | undefined;
       plan: Plan;
       projects: {
         id: PrismaProject["id"];
+        name: PrismaProject["name"];
         role: Role; // include only projects where user has a role
       }[];
     }[];

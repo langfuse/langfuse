@@ -18,11 +18,12 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { LockIcon } from "lucide-react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { useSession } from "next-auth/react";
 
 export default function RenameProject() {
+  const { update: updateSession } = useSession();
   const { project, organization } = useQueryProject();
   const capture = usePostHogClientCapture();
-  const utils = api.useUtils();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "projects:update",
@@ -36,7 +37,7 @@ export default function RenameProject() {
   });
   const renameProject = api.projects.update.useMutation({
     onSuccess: (_) => {
-      void utils.projects.invalidate();
+      void updateSession();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });

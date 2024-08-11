@@ -18,10 +18,11 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { LockIcon } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 export default function RenameOrganization() {
+  const { update: updateSession } = useSession();
   const capture = usePostHogClientCapture();
-  const utils = api.useUtils();
   const organization = useQueryOrganization();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
@@ -38,8 +39,8 @@ export default function RenameOrganization() {
     },
   });
   const renameOrganization = api.organizations.update.useMutation({
-    onSuccess: (_) => {
-      void utils.organizations.invalidate();
+    onSuccess: () => {
+      void updateSession();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });
