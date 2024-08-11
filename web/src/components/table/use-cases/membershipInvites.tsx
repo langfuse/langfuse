@@ -19,7 +19,7 @@ export type InvitesTableRow = {
   createdAt: Date;
   orgRole: OrganizationRole;
   projectRole?: ProjectRole;
-  sender: {
+  invitedByUser: {
     name: string | null;
     image: string | null;
   } | null;
@@ -98,12 +98,14 @@ export default function InvitesTable({
         ]
       : []),
     {
-      accessorKey: "sender",
-      id: "sender",
+      accessorKey: "invitedByUser",
+      id: "invitedByUser",
       header: "Invited By",
       cell: ({ row }) => {
-        const sender = row.getValue("sender") as InvitesTableRow["sender"];
-        const { name, image } = sender || {};
+        const invitedByUser = row.getValue(
+          "invitedByUser",
+        ) as InvitesTableRow["invitedByUser"];
+        const { name, image } = invitedByUser || {};
         return (
           <div className="flex items-center space-x-2">
             <Avatar className="h-7 w-7">
@@ -165,7 +167,7 @@ export default function InvitesTable({
         invite.projectId === projectId
           ? invite.projectRole ?? undefined
           : undefined,
-      sender: invite.sender,
+      invitedByUser: invite.invitedByUser,
     };
   };
 

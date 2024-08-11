@@ -100,7 +100,7 @@ export const membersRouter = createTRPCRouter({
           orgId: input.orgId,
         },
         include: {
-          sender: {
+          invitedByUser: {
             select: {
               name: true,
               image: true,
@@ -245,7 +245,7 @@ export const membersRouter = createTRPCRouter({
             email: input.email.toLowerCase(),
             orgRole: input.orgRole,
             projectRole: input.projectRole,
-            senderId: ctx.session.user.id,
+            invitedByUserId: ctx.session.user.id,
           },
         });
         await auditLog({

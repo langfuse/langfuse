@@ -116,6 +116,10 @@ CREATE INDEX "audit_logs_org_id_idx" ON "audit_logs"("org_id");
 
 
 -- MEMBERSHIP INVITATIONS
+-- Rename sender_id to invited_by_user_id
+ALTER TABLE "membership_invitations" DROP CONSTRAINT "membership_invitations_sender_id_fkey";
+ALTER TABLE "membership_invitations" RENAME COLUMN "sender_id" TO "invited_by_user_id";
+ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_invited_by_user_id_fkey" FOREIGN KEY ("invited_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 -- DropForeignKey
 ALTER TABLE "membership_invitations" DROP CONSTRAINT "membership_invitations_project_id_fkey";
 -- AlterTable

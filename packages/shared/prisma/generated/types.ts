@@ -243,7 +243,7 @@ export type MembershipInvitation = {
     org_role: OrganizationRole;
     project_id: string | null;
     project_role: ProjectRole | null;
-    sender_id: string | null;
+    invited_by_user_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
