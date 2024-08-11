@@ -7,6 +7,10 @@ import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloud
  */
 export function getOrganizationPlan(cloudConfig?: CloudConfigSchema): Plan {
   if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    // in dev, grant team plan to all organizations
+    if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
+      return "cloud:team";
+    }
     if (cloudConfig) {
       switch (cloudConfig.plan) {
         case "Hobby":
