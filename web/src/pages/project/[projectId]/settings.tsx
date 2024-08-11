@@ -1,9 +1,6 @@
-import { ChevronRightIcon } from "@heroicons/react/20/solid";
-import { RocketLaunchIcon } from "@heroicons/react/24/outline";
-import { SiOpenai } from "react-icons/si";
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { Code, Bird, GraduationCap, LockIcon } from "lucide-react";
+import { LockIcon } from "lucide-react";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import RenameProject from "@/src/features/projects/components/RenameProject";
@@ -35,7 +32,6 @@ export default function SettingsPage() {
               <div className="flex flex-col gap-10">
                 <HostNameProject />
                 <RenameProject />
-                <Instructions />
                 <div>
                   <Header title="Debug Information" level="h3" />
                   <JSONView
@@ -123,101 +119,6 @@ export default function SettingsPage() {
           },
         ]}
       />
-    </div>
-  );
-}
-
-const instructionItems = [
-  {
-    name: "Introduction",
-    description:
-      "Understand the basics of langfuse: tracing and feedback collection",
-    href: "https://langfuse.com/docs",
-    icon: GraduationCap,
-  },
-  {
-    name: "Quickstart",
-    description: "Follow the quickstart to integrate langfuse into your app",
-    href: "https://langfuse.com/docs/get-started",
-    icon: RocketLaunchIcon,
-  },
-  {
-    name: "OpenAI SDK Integration",
-    description: "Trace your OpenAI API calls with a single line of code",
-    href: "https://langfuse.com/docs/integrations/openai",
-    icon: SiOpenai,
-  },
-  {
-    name: "Langchain Integration",
-    description:
-      "Trace your Langchain llm/chain/agent/... with a single line of code",
-    href: "https://langfuse.com/docs/integrations/langchain",
-    icon: Bird,
-  },
-  {
-    name: "LlamaIndex Integration",
-    description:
-      "Trace your Llamaindex RAG application by adding the global callback handler",
-    href: "https://langfuse.com/docs/integrations/llama-index",
-    icon: Code,
-  },
-  {
-    name: "Typescript SDK",
-    description: "npm install langfuse",
-    href: "https://langfuse.com/docs/sdk/typescript",
-    icon: Code,
-  },
-  {
-    name: "Python SDK (Decorator)",
-    description: "pip install langfuse",
-    href: "https://langfuse.com/docs/sdk/python",
-    icon: Code,
-  },
-  {
-    name: "API Reference (Swagger)",
-    description: "Custom integration",
-    href: "https://langfuse.com/docs/reference",
-    icon: Code,
-  },
-];
-
-function Instructions() {
-  return (
-    <div>
-      <Header title="Docs" level="h3" />
-      <ul
-        role="list"
-        className="mt-6 divide-y divide-border border-b border-t border-border"
-      >
-        {instructionItems.map((item, itemIdx) => (
-          <li key={itemIdx}>
-            <div className="group relative flex items-start space-x-3 py-4">
-              <div className="flex-shrink-0">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent">
-                  <item.icon className="h-6 w-6" aria-hidden="true" />
-                </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-primary">
-                  <a href={item.href} target="_blank" rel="noreferrer noopener">
-                    <span className="absolute inset-0" aria-hidden="true" />
-                    {item.name}
-                  </a>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {item.description}
-                </p>
-              </div>
-              <div className="flex-shrink-0 self-center">
-                <ChevronRightIcon
-                  className="h-5 w-5 text-muted-foreground group-hover:text-muted-foreground"
-                  aria-hidden="true"
-                />
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
