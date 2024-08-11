@@ -113,9 +113,18 @@ export function TransferProjectButton() {
           <TriangleAlert className="h-4 w-4" />
           <AlertTitle>Warning</AlertTitle>
           <AlertDescription>
-            Transferring the project will move it to a different organization.
-            Members who are not part of the new organization will lose access.
-            However, all API keys, settings, and data will remain unchanged.
+            Transferring the project will move it to a different organization:
+            <ul className="list-disc pl-4">
+              <li>
+                Members who are not part of the new organization will lose
+                access.
+              </li>
+              <li>
+                The project remains fully operational as API keys, settings, and
+                data will remain unchanged. All features (e.g. tracing, prompt
+                management) will continue to work without interruption.
+              </li>
+            </ul>
           </AlertDescription>
         </Alert>
         <Form {...form}>
