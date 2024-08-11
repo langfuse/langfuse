@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Role } from "@langfuse/shared/src/db";
 import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -36,7 +36,6 @@ import {
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
-import { type Role } from "@/src/features/rbac/constants/roles";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -341,10 +340,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       const parsedCloudConfig = CloudConfigSchema.safeParse(
                         orgMembership.organization.cloudConfig,
                       );
-                      const orgRole: Role = orgMembership.role;
                       return {
                         id: orgMembership.organization.id,
-                        role: orgRole,
+                        role: orgMembership.role,
                         cloudConfig: parsedCloudConfig.data,
                         projects: orgMembership.organization.projects
                           .map((project) => {
@@ -359,7 +357,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                             };
                           })
                           // Only include projects where the user has a role other than NONE
-                          .filter((project) => project.role !== "NONE"),
+                          .filter((project) => project.role !== Role.NONE),
 
                         // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting
                         // If you edit this line, you risk executing code that is not MIT licensed (contained in /ee folders, see LICENSE)

@@ -3,11 +3,11 @@ import {
   type User as PrismaUser,
   type Project as PrismaProject,
   type Organization as PrismaOrganization,
+  type Role,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
 import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
 import { type Plan } from "@/src/features/entitlements/constants/plans";
-import { type Role } from "@/src/features/rbac/constants/roles";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -41,7 +41,7 @@ declare module "next-auth" {
       plan: Plan;
       projects: {
         id: PrismaProject["id"];
-        role: Role;
+        role: Role; // include only projects where user has a role
       }[];
     }[];
     featureFlags: Flags;

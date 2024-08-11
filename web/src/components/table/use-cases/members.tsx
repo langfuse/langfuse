@@ -18,7 +18,7 @@ import { CreateProjectMemberButton } from "@/src/features/rbac/components/Create
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import type { RouterOutput } from "@/src/utils/types";
-import { ProjectRole, OrganizationRole } from "@langfuse/shared";
+import { Role } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import { Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -34,8 +34,8 @@ export type MembersTableRow = {
   };
   email: string | null;
   createdAt: Date;
-  orgRole: OrganizationRole;
-  projectRole?: ProjectRole;
+  orgRole: Role;
+  projectRole?: Role;
   meta: {
     userId: string;
     orgMembershipId: string;
@@ -179,7 +179,7 @@ export default function MembersTable({
                 <ProjectRoleDropdown
                   orgMembershipId={orgMembershipId}
                   userId={userId}
-                  currentProjectRole={projectRole}
+                  currentProjectRole={projectRole ?? null}
                   orgId={orgId}
                   projectId={project.id}
                   hasCudAccess={hasCudAccess}
@@ -302,7 +302,7 @@ const OrgRoleDropdown = ({
   hasCudAccess,
 }: {
   orgMembershipId: string;
-  currentRole: OrganizationRole;
+  currentRole: Role;
   orgId: string;
   hasCudAccess: boolean;
 }) => {
@@ -323,14 +323,18 @@ const OrgRoleDropdown = ({
       disabled={!hasCudAccess || mut.isLoading}
       value={currentRole}
       onValueChange={(value) =>
-        mut.mutate({ orgId, orgMembershipId, role: value as OrganizationRole })
+        mut.mutate({
+          orgId,
+          orgMembershipId,
+          role: value as Role,
+        })
       }
     >
       <SelectTrigger className="w-[120px]">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {Object.values(OrganizationRole).map((role) => (
+        {Object.values(Role).map((role) => (
           <SelectItem key={role} value={role}>
             {role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()}
           </SelectItem>
@@ -350,7 +354,7 @@ const ProjectRoleDropdown = ({
 }: {
   orgMembershipId: string;
   userId: string;
-  currentProjectRole?: ProjectRole;
+  currentProjectRole: Role | null;
   orgId: string;
   projectId: string;
   hasCudAccess: boolean;
@@ -370,14 +374,14 @@ const ProjectRoleDropdown = ({
   return (
     <Select
       disabled={!hasCudAccess || mut.isLoading}
-      value={currentProjectRole ?? "None"}
+      value={currentProjectRole ?? Role.NONE}
       onValueChange={(value) => {
         mut.mutate({
           orgId,
           orgMembershipId,
           projectId,
           userId,
-          projectRole: value === "None" ? null : (value as ProjectRole),
+          projectRole: value as Role,
         });
       }}
     >
@@ -385,14 +389,12 @@ const ProjectRoleDropdown = ({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {Object.values(ProjectRole).map((role) => (
+        {Object.values(Role).map((role) => (
           <SelectItem key={role} value={role}>
             {role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()}
+            {role === Role.NONE ? " (keep default role)" : ""}
           </SelectItem>
         ))}
-        <SelectItem key="None" value="None">
-          None
-        </SelectItem>
       </SelectContent>
     </Select>
   );

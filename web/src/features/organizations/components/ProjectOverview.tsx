@@ -31,6 +31,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { type RouterOutput } from "@/src/utils/types";
 import { useSession } from "next-auth/react";
+import { Role } from "@langfuse/shared";
 
 export const SingleOrganizationProjectOverview = ({
   org,
@@ -55,7 +56,7 @@ export const SingleOrganizationProjectOverview = ({
     env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID) &&
     session.data?.user?.organizations.find((o) => o.id === org.id)?.role ===
-      "NONE";
+      Role.NONE;
 
   if (isDemoOrg) {
     return (

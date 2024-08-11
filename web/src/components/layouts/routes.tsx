@@ -1,5 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type Scope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import {
   Database,
   LayoutDashboard,
@@ -23,7 +23,7 @@ export type Route = {
   name: string;
   featureFlag?: Flag;
   label?: string | ReactNode;
-  projectRbacScope?: Scope;
+  projectRbacScope?: ProjectScope;
   icon?: LucideIcon | typeof LangfuseIcon; // ignored for nested routes
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder

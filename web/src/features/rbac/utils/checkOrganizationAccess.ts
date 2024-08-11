@@ -1,8 +1,8 @@
 import {
-  roleAccessRights,
-  type Scope,
+  organizationRoleAccessRights,
+  type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
-import { type Role } from "@/src/features/rbac/constants/roles";
+import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
@@ -10,13 +10,13 @@ import { useSession } from "next-auth/react";
 type HasOrganizationAccessParams =
   | {
       role: Role;
-      scope: Scope;
+      scope: OrganizationScope;
       admin?: boolean; // prop user.admin
     }
   | {
       session: null | Session;
       organizationId: string;
-      scope: Scope;
+      scope: OrganizationScope;
     };
 
 /**
@@ -38,7 +38,7 @@ export const throwIfNoOrganizationAccess = (p: HasOrganizationAccessParams) => {
  */
 export const useHasOrganizationAccess = (p: {
   organizationId: string | undefined;
-  scope: Scope;
+  scope: OrganizationScope;
 }) => {
   const { scope, organizationId } = p;
   const session = useSession();
@@ -65,5 +65,5 @@ export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
         )?.role;
   if (organizationRole === undefined) return false;
 
-  return roleAccessRights[organizationRole].includes(p.scope);
+  return organizationRoleAccessRights[organizationRole].includes(p.scope);
 }

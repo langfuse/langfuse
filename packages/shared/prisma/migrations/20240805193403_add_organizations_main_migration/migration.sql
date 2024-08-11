@@ -35,14 +35,14 @@ CREATE INDEX "projects_org_id_idx" ON "projects"("org_id");
 
 
 -- ORGANIZATION MEMBERSHIPS
--- Create OrganizationRole ENUM
-CREATE TYPE "OrganizationRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER', 'NONE');
+-- Create UserRole ENUM
+CREATE TYPE "Role" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER', 'NONE');
 -- Create empty table
 CREATE TABLE "organization_memberships" (
     "id" TEXT NOT NULL,
     "org_id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
-    "role" "OrganizationRole" NOT NULL,
+    "role" "Role" NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -65,7 +65,7 @@ SELECT
   md5(random()::text || clock_timestamp()::text || project_id::text || user_id::text)::uuid AS "id",
   CONCAT('o', "project_id") as "org_id",
   "user_id",
-  "role"::text::"OrganizationRole" as "role",
+  "role"::text::"Role" as "role",
   "created_at",
   "updated_at"
 FROM "project_memberships";
@@ -77,6 +77,9 @@ DELETE FROM "project_memberships";
 
 -- Add org_membership_id to project_memberships, ok to be not null as it's a new column on a now empty table
 ALTER TABLE "project_memberships" ADD COLUMN     "org_membership_id" TEXT NOT NULL;
+-- Switch to new UserRole enum
+ALTER TABLE "project_memberships" DROP COLUMN "role",
+ADD COLUMN     "role" "Role" NOT NULL;
 -- AddForeignKey
 ALTER TABLE "project_memberships" ADD CONSTRAINT "project_memberships_org_membership_id_fkey" FOREIGN KEY ("org_membership_id") REFERENCES "organization_memberships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 -- CreateIndex
@@ -103,7 +106,7 @@ FROM "projects"
 WHERE "audit_logs"."project_id" = "projects"."id";
 -- Backfill user_org_role with value from user_project_role
 UPDATE "audit_logs"
-SET "user_org_role" = "user_project_role"::text::"OrganizationRole";
+SET "user_org_role" = "user_project_role"::text::"Role";
 -- Drop and recreate user_project_role column as text column going forward, empty for historical data as it's all on org level now
 ALTER TABLE "audit_logs" DROP COLUMN "user_project_role";
 ALTER TABLE "audit_logs" ADD COLUMN "user_project_role" TEXT; -- nullable
@@ -125,7 +128,7 @@ ALTER TABLE "membership_invitations" DROP CONSTRAINT "membership_invitations_pro
 -- AlterTable
 ALTER TABLE "membership_invitations" RENAME COLUMN "role" TO "project_role";
 ALTER TABLE "membership_invitations" ADD COLUMN "org_id" TEXT;
-ALTER TABLE "membership_invitations" ADD COLUMN "org_role" "OrganizationRole";
+ALTER TABLE "membership_invitations" ADD COLUMN "org_role" "Role";
 ALTER TABLE "membership_invitations" ALTER COLUMN "project_id" DROP NOT NULL;
 ALTER TABLE "membership_invitations" ALTER COLUMN "project_role" DROP NOT NULL;
 -- Backfill org id
@@ -137,10 +140,14 @@ WHERE "membership_invitations"."project_id" = "projects"."id";
 ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 -- Backfill org role with value from project role
 UPDATE "membership_invitations"
-SET "org_role" = "project_role"::text::"OrganizationRole";
+SET "org_role" = "project_role"::text::"Role";
 -- Set project-level cols to null, as it's now org level for all existing invitations and role enum will change below
 UPDATE "membership_invitations"
 SET "project_role" = NULL, "project_id" = NULL;
+-- Switch to new UserRole enum
+ALTER TABLE "membership_invitations" DROP COLUMN "project_role",
+ADD COLUMN     "project_role" "Role";
+
 -- AddForeignKey
 ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -150,3 +157,7 @@ ALTER COLUMN "org_id" SET NOT NULL,
 ALTER COLUMN "org_role" SET NOT NULL;
 -- CreateIndex
 CREATE INDEX "membership_invitations_org_id_idx" ON "membership_invitations"("org_id");
+
+
+-- Drop ProjectRole enum as it is replaced by Role
+DROP TYPE "ProjectRole";

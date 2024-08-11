@@ -9,7 +9,7 @@ import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { OrganizationRole, ProjectRole, paginationZod } from "@langfuse/shared";
+import { paginationZod, Role } from "@langfuse/shared";
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -131,10 +131,10 @@ export const membersRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         email: z.string().email(),
-        orgRole: z.nativeEnum(OrganizationRole),
+        orgRole: z.nativeEnum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
-        projectRole: z.nativeEnum(ProjectRole).optional(),
+        projectRole: z.nativeEnum(Role).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -212,7 +212,7 @@ export const membersRouter = createTRPCRouter({
           action: "create",
           after: orgMembership,
         });
-        if (project && input.projectRole) {
+        if (project && input.projectRole && input.projectRole !== Role.NONE) {
           const projectMembership = await ctx.prisma.projectMembership.create({
             data: {
               userId: user.id,
@@ -244,7 +244,8 @@ export const membersRouter = createTRPCRouter({
             projectId: input.projectId,
             email: input.email.toLowerCase(),
             orgRole: input.orgRole,
-            projectRole: input.projectRole,
+            projectRole:
+              input.projectRole !== Role.NONE ? input.projectRole : null,
             invitedByUserId: ctx.session.user.id,
           },
         });
@@ -294,12 +295,12 @@ export const membersRouter = createTRPCRouter({
       if (!hasAccess && membership.userId !== ctx.session.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
 
-      if (membership.role === OrganizationRole.OWNER) {
+      if (membership.role === Role.OWNER) {
         // check if there are other remaining owners
         const owners = await ctx.prisma.organizationMembership.count({
           where: {
             orgId: input.orgId,
-            role: OrganizationRole.OWNER,
+            role: Role.OWNER,
           },
         });
         if (owners === 1) {
@@ -367,7 +368,7 @@ export const membersRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         orgMembershipId: z.string(),
-        role: z.nativeEnum(OrganizationRole),
+        role: z.nativeEnum(Role),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -390,7 +391,7 @@ export const membersRouter = createTRPCRouter({
       const otherOwners = await ctx.prisma.organizationMembership.count({
         where: {
           orgId: input.orgId,
-          role: OrganizationRole.OWNER,
+          role: Role.OWNER,
           id: {
             not: membership.id,
           },
@@ -429,7 +430,7 @@ export const membersRouter = createTRPCRouter({
         orgMembershipId: z.string(),
         userId: z.string(),
         projectId: z.string(),
-        projectRole: z.nativeEnum(ProjectRole).nullable(),
+        projectRole: z.nativeEnum(Role).nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -462,7 +463,7 @@ export const membersRouter = createTRPCRouter({
       });
 
       // If the project role is set to null, delete the project membership
-      if (input.projectRole === null) {
+      if (input.projectRole === null || input.projectRole === Role.NONE) {
         if (projectMembership) {
           await ctx.prisma.projectMembership.delete({
             where: {

@@ -181,7 +181,7 @@ model OrganizationMembership {
     organization       Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
     userId             String              @map("user_id")
     user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-    role               OrganizationRole    @map("role")
+    role               Role                @map("role")
     createdAt          DateTime            @default(now()) @map("created_at")
     updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
     ProjectMemberships ProjectMembership[]
@@ -192,14 +192,6 @@ model OrganizationMembership {
     @@map("organization_memberships")
 }
 
-enum OrganizationRole {
-    OWNER
-    ADMIN
-    MEMBER
-    VIEWER
-    NONE
-}
-
 // Set a project-specific role for a user in an organization
 model ProjectMembership {
     orgMembershipId        String                 @map("org_membership_id")
@@ -208,7 +200,7 @@ model ProjectMembership {
     project                Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
     userId                 String                 @map("user_id")
     user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-    role                   ProjectRole
+    role                   Role
     createdAt              DateTime               @default(now()) @map("created_at")
     updatedAt              DateTime               @default(now()) @updatedAt @map("updated_at")
 
@@ -220,18 +212,18 @@ model ProjectMembership {
 }
 
 model MembershipInvitation {
-    id              String           @id @unique @default(cuid())
+    id              String       @id @unique @default(cuid())
     email           String
-    orgId           String           @map("org_id")
-    organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
-    orgRole         OrganizationRole @map("org_role")
-    projectId       String?          @map("project_id")
-    project         Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
-    projectRole     ProjectRole?     @map("project_role")
-    invitedByUserId String?          @map("invited_by_user_id")
-    invitedByUser   User?            @relation(fields: [invitedByUserId], references: [id], onDelete: SetNull)
-    createdAt       DateTime         @default(now()) @map("created_at")
-    updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at")
+    orgId           String       @map("org_id")
+    organization    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+    orgRole         Role         @map("org_role")
+    projectId       String?      @map("project_id")
+    project         Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+    projectRole     Role?        @map("project_role")
+    invitedByUserId String?      @map("invited_by_user_id")
+    invitedByUser   User?        @relation(fields: [invitedByUserId], references: [id], onDelete: SetNull)
+    createdAt       DateTime     @default(now()) @map("created_at")
+    updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at")
 
     @@index([projectId])
     @@index([orgId])
@@ -239,11 +231,12 @@ model MembershipInvitation {
     @@map("membership_invitations")
 }
 
-enum ProjectRole {
+enum Role {
     OWNER
     ADMIN
     MEMBER
     VIEWER
+    NONE
 }
 
 model TraceSession {

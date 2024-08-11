@@ -1,5 +1,4 @@
-import { type Role } from "@/src/features/rbac/constants/roles";
-import { prisma as _prisma } from "@langfuse/shared/src/db";
+import { prisma as _prisma, type Role } from "@langfuse/shared/src/db";
 
 export type AuditableResource =
   | "organization"

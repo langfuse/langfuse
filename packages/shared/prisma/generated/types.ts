@@ -4,21 +4,14 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
-export const OrganizationRole = {
+export const Role = {
     OWNER: "OWNER",
     ADMIN: "ADMIN",
     MEMBER: "MEMBER",
     VIEWER: "VIEWER",
     NONE: "NONE"
 } as const;
-export type OrganizationRole = (typeof OrganizationRole)[keyof typeof OrganizationRole];
-export const ProjectRole = {
-    OWNER: "OWNER",
-    ADMIN: "ADMIN",
-    MEMBER: "MEMBER",
-    VIEWER: "VIEWER"
-} as const;
-export type ProjectRole = (typeof ProjectRole)[keyof typeof ProjectRole];
+export type Role = (typeof Role)[keyof typeof Role];
 export const ObservationType = {
     SPAN: "SPAN",
     EVENT: "EVENT",
@@ -240,9 +233,9 @@ export type MembershipInvitation = {
     id: string;
     email: string;
     org_id: string;
-    org_role: OrganizationRole;
+    org_role: Role;
     project_id: string | null;
-    project_role: ProjectRole | null;
+    project_role: Role | null;
     invited_by_user_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
@@ -344,7 +337,7 @@ export type OrganizationMembership = {
     id: string;
     org_id: string;
     user_id: string;
-    role: OrganizationRole;
+    role: Role;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
@@ -367,7 +360,7 @@ export type ProjectMembership = {
     org_membership_id: string;
     project_id: string;
     user_id: string;
-    role: ProjectRole;
+    role: Role;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };

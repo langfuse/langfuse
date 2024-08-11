@@ -1,8 +1,8 @@
 import {
-  roleAccessRights,
-  type Scope,
+  projectRoleAccessRights,
+  type ProjectScope,
 } from "@/src/features/rbac/constants/projectAccessRights";
-import { type Role } from "@/src/features/rbac/constants/roles";
+import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
@@ -10,13 +10,13 @@ import { useSession } from "next-auth/react";
 type HasProjectAccessParams =
   | {
       role: Role;
-      scope: Scope;
+      scope: ProjectScope;
       admin?: boolean; // prop user.admin
     }
   | {
       session: null | Session;
       projectId: string;
-      scope: Scope;
+      scope: ProjectScope;
     };
 
 /**
@@ -38,7 +38,7 @@ export const throwIfNoProjectAccess = (p: HasProjectAccessParams) => {
  */
 export const useHasProjectAccess = (p: {
   projectId: string | undefined;
-  scope: Scope;
+  scope: ProjectScope;
 }) => {
   const { scope, projectId } = p;
   const session = useSession();
@@ -61,5 +61,5 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
           .find((project) => project.id === p.projectId)?.role;
   if (projectRole === undefined) return false;
 
-  return roleAccessRights[projectRole].includes(p.scope);
+  return projectRoleAccessRights[projectRole].includes(p.scope);
 }

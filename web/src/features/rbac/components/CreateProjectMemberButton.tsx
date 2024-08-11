@@ -29,19 +29,15 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Input } from "@/src/components/ui/input";
-import { OrganizationRole, ProjectRole } from "@langfuse/shared";
+import { Role } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 const formSchema = z.object({
   email: z.string().trim().email(),
-  orgRole: z.nativeEnum(OrganizationRole),
-  projectRole: z.union([
-    z.nativeEnum(ProjectRole),
-    // Allow for the project role to be set to NONE
-    z.literal("NONE"),
-  ]),
+  orgRole: z.nativeEnum(Role),
+  projectRole: z.nativeEnum(Role),
 });
 
 export function CreateProjectMemberButton(props: {
@@ -69,8 +65,8 @@ export function CreateProjectMemberButton(props: {
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      orgRole: OrganizationRole.MEMBER,
-      projectRole: "NONE",
+      orgRole: Role.MEMBER,
+      projectRole: Role.NONE,
     },
   });
 
@@ -92,7 +88,7 @@ export function CreateProjectMemberButton(props: {
         //optional
         projectId: props.project?.id,
         projectRole:
-          values.projectRole === "NONE" ? undefined : values.projectRole,
+          values.projectRole === Role.NONE ? undefined : values.projectRole,
       })
       .then(() => {
         form.reset();
@@ -151,7 +147,7 @@ export function CreateProjectMemberButton(props: {
                       defaultValue={field.value}
                       onValueChange={(value) =>
                         field.onChange(
-                          value as (typeof OrganizationRole)[keyof typeof OrganizationRole],
+                          value as (typeof Role)[keyof typeof Role],
                         )
                       }
                     >
@@ -161,7 +157,7 @@ export function CreateProjectMemberButton(props: {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.values(OrganizationRole).map((role) => (
+                        {Object.values(Role).map((role) => (
                           <SelectItem value={role} key={role}>
                             {role}
                           </SelectItem>
@@ -183,7 +179,7 @@ export function CreateProjectMemberButton(props: {
                         defaultValue={field.value}
                         onValueChange={(value) =>
                           field.onChange(
-                            value as (typeof ProjectRole)[keyof typeof ProjectRole],
+                            value as (typeof Role)[keyof typeof Role],
                           )
                         }
                       >
@@ -193,14 +189,13 @@ export function CreateProjectMemberButton(props: {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.values(ProjectRole).map((role) => (
+                          {Object.values(Role).map((role) => (
                             <SelectItem value={role} key={role}>
-                              {role}
+                              {role === Role.NONE
+                                ? "None (keep default role)"
+                                : role}
                             </SelectItem>
                           ))}
-                          <SelectItem value="NONE" key="NONE">
-                            None (keep default role)
-                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>

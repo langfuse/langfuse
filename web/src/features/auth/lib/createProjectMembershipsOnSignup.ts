@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Role } from "@langfuse/shared/src/db";
 
 export async function createProjectMembershipsOnSignup(user: {
   id: string;
@@ -21,12 +21,12 @@ export async function createProjectMembershipsOnSignup(user: {
         data: {
           userId: user.id,
           orgId: demoProject.orgId,
-          role: "NONE",
+          role: Role.NONE,
           ProjectMemberships: {
             create: {
               userId: user.id,
               projectId: demoProject.id,
-              role: "VIEWER",
+              role: Role.VIEWER,
             },
           },
         },

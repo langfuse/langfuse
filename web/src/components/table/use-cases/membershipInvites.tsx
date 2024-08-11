@@ -9,16 +9,16 @@ import {
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import type { RouterOutput } from "@/src/utils/types";
-import { type ProjectRole, type OrganizationRole } from "@langfuse/shared";
 import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { type Role } from "@langfuse/shared";
 
 export type InvitesTableRow = {
   email: string;
   createdAt: Date;
-  orgRole: OrganizationRole;
-  projectRole?: ProjectRole;
+  orgRole: Role;
+  projectRole?: Role;
   invitedByUser: {
     name: string | null;
     image: string | null;

@@ -8,7 +8,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { TrashIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type Scope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -16,7 +16,7 @@ interface DeleteButtonProps {
   itemId: string;
   projectId: string;
   isTableAction?: boolean;
-  scope: Scope;
+  scope: ProjectScope;
   invalidateFunc: () => void;
   type: "trace" | "dataset";
   redirectUrl?: string;

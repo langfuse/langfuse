@@ -18,7 +18,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Role } from "@langfuse/shared/src/db";
 import * as Sentry from "@sentry/node";
 import * as z from "zod";
 
@@ -79,7 +79,6 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
-import { Role } from "@/src/features/rbac/constants/roles";
 
 setUpSuperjson();
 
@@ -204,9 +203,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
               ...ctx.session,
               user: ctx.session.user,
               orgId: dbProject.orgId,
-              orgRole: Role.parse("OWNER"),
+              orgRole: Role.OWNER,
               projectId: projectId,
-              projectRole: Role.parse("OWNER"),
+              projectRole: Role.OWNER,
             },
           },
         });
@@ -225,9 +224,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
           ...ctx.session,
           user: ctx.session.user,
           orgId: sessionProject.organization.id,
-          orgRole: Role.parse(sessionProject.organization.role),
+          orgRole: sessionProject.organization.role,
           projectId: projectId,
-          projectRole: Role.parse(sessionProject.role),
+          projectRole: sessionProject.role,
         },
       },
     });
@@ -273,9 +272,8 @@ const enforceIsAuthedAndOrgMember = t.middleware(({ ctx, rawInput, next }) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRole: Role.parse(
-          ctx.session.user.admin === true ? "OWNER" : sessionOrg!.role,
-        ),
+        orgRole:
+          ctx.session.user.admin === true ? Role.OWNER : sessionOrg!.role,
       },
     },
   });
@@ -336,9 +334,8 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     ctx: {
       session: {
         ...ctx.session,
-        projectRole: Role.parse(
-          ctx.session?.user?.admin === true ? "OWNER" : sessionProject?.role,
-        ),
+        projectRole:
+          ctx.session?.user?.admin === true ? Role.OWNER : sessionProject?.role,
       },
     },
   });
@@ -403,11 +400,10 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     ctx: {
       session: {
         ...ctx.session,
-        projectRole: Role.parse(
+        projectRole:
           ctx.session?.user?.admin === true
-            ? "OWNER"
+            ? Role.OWNER
             : userSessionProject?.role,
-        ),
       },
     },
   });
