@@ -9,10 +9,74 @@ import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { paginationZod, Role } from "@langfuse/shared";
+import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+
+// Record as it allows to type check that all roles are included
+const orderedRoles: Record<Role, number> = {
+  [Role.OWNER]: 4,
+  [Role.ADMIN]: 3,
+  [Role.MEMBER]: 2,
+  [Role.VIEWER]: 1,
+  [Role.NONE]: 0,
+};
+function throwIfHigherRole({ ownRole, role }: { ownRole: Role; role: Role }) {
+  if (orderedRoles[ownRole] < orderedRoles[role]) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "You cannot grant/edit a role higher than your own",
+    });
+  }
+}
+
+/**
+ * Throw if the user tries to set a project role that is higher than their own
+ * role determined by MAX(orgRole, projectRole)
+ */
+async function throwIfHigherProjectRole({
+  orgCtx, // context by protectedOrganizationProcedure
+  projectId,
+  projectRole,
+}: {
+  orgCtx: {
+    session: {
+      orgId: string;
+      orgRole: Role;
+      user: {
+        id: string;
+      };
+    };
+    prisma: PrismaClient;
+  };
+  projectId: string;
+  projectRole: Role;
+}) {
+  const projectMembership = await orgCtx.prisma.projectMembership.findFirst({
+    where: {
+      projectId,
+      userId: orgCtx.session.user.id,
+      organizationMembership: {
+        orgId: orgCtx.session.orgId,
+      },
+    },
+  });
+
+  const ownRoleValue: number = projectMembership
+    ? Math.max(
+        orderedRoles[projectMembership.role],
+        orderedRoles[orgCtx.session.orgRole],
+      )
+    : orderedRoles[orgCtx.session.orgRole];
+
+  if (ownRoleValue < orderedRoles[projectRole]) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "You cannot grant/edit a role higher than your own",
+    });
+  }
+}
 
 export const membersRouter = createTRPCRouter({
   all: protectedOrganizationProcedure
@@ -143,9 +207,13 @@ export const membersRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organizationMembers:CUD",
       });
+      throwIfHigherRole({
+        ownRole: ctx.session.orgRole,
+        role: input.orgRole,
+      });
 
       // check for entilement (project role)
-      if (input.projectRole) {
+      if (input.projectId && input.projectRole) {
         const entitled = hasEntitlement({
           entitlement: "rbac-project-roles",
           sessionUser: ctx.session.user,
@@ -174,6 +242,12 @@ export const membersRouter = createTRPCRouter({
             },
           })
         : null;
+      if (project && input.projectRole)
+        await throwIfHigherProjectRole({
+          orgCtx: ctx,
+          projectId: project.id,
+          projectRole: input.projectRole,
+        });
 
       const org = await ctx.prisma.organization.findFirst({
         where: {
@@ -241,11 +315,16 @@ export const membersRouter = createTRPCRouter({
         const invitation = await ctx.prisma.membershipInvitation.create({
           data: {
             orgId: input.orgId,
-            projectId: input.projectId,
+            projectId:
+              project && input.projectRole && input.projectRole !== Role.NONE
+                ? project.id
+                : null,
             email: input.email.toLowerCase(),
             orgRole: input.orgRole,
             projectRole:
-              input.projectRole !== Role.NONE ? input.projectRole : null,
+              input.projectRole && input.projectRole !== Role.NONE && project
+                ? input.projectRole
+                : null,
             invitedByUserId: ctx.session.user.id,
           },
         });
@@ -275,7 +354,7 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await ctx.prisma.organizationMembership.findFirst({
+      const orgMembership = await ctx.prisma.organizationMembership.findFirst({
         where: {
           orgId: input.orgId,
           id: input.orgMembershipId,
@@ -284,7 +363,7 @@ export const membersRouter = createTRPCRouter({
           ProjectMemberships: true,
         },
       });
-      if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!orgMembership) throw new TRPCError({ code: "NOT_FOUND" });
 
       // User is only allowed to delete their own membership if they do not have the required scope
       const hasAccess = hasOrganizationAccess({
@@ -292,10 +371,15 @@ export const membersRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organizationMembers:CUD",
       });
-      if (!hasAccess && membership.userId !== ctx.session.user.id)
+      if (!hasAccess && orgMembership.userId !== ctx.session.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
 
-      if (membership.role === Role.OWNER) {
+      throwIfHigherRole({
+        ownRole: ctx.session.orgRole,
+        role: orgMembership.role,
+      });
+
+      if (orgMembership.role === Role.OWNER) {
         // check if there are other remaining owners
         const owners = await ctx.prisma.organizationMembership.count({
           where: {
@@ -315,14 +399,14 @@ export const membersRouter = createTRPCRouter({
       await auditLog({
         session: ctx.session,
         resourceType: "orgMembership",
-        resourceId: membership.id,
+        resourceId: orgMembership.id,
         action: "delete",
-        before: membership,
+        before: orgMembership,
       });
 
       return await ctx.prisma.organizationMembership.delete({
         where: {
-          id: membership.id,
+          id: orgMembership.id,
           orgId: input.orgId,
         },
       });
@@ -372,7 +456,6 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      // TODO: constrain updating of roles depending on the user's own role
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
@@ -386,6 +469,15 @@ export const membersRouter = createTRPCRouter({
         },
       });
       if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
+
+      throwIfHigherRole({
+        ownRole: ctx.session.orgRole,
+        role: input.role, // new
+      });
+      throwIfHigherRole({
+        ownRole: ctx.session.orgRole,
+        role: membership.role, // old
+      });
 
       // check if this is the only remaining owner
       const otherOwners = await ctx.prisma.organizationMembership.count({
@@ -462,6 +554,15 @@ export const membersRouter = createTRPCRouter({
         },
       });
 
+      // check existing project role if it is higher than own role
+      if (projectMembership) {
+        await throwIfHigherProjectRole({
+          orgCtx: ctx,
+          projectId: input.projectId,
+          projectRole: projectMembership.role,
+        });
+      }
+
       // If the project role is set to null, delete the project membership
       if (input.projectRole === null || input.projectRole === Role.NONE) {
         if (projectMembership) {
@@ -485,6 +586,13 @@ export const membersRouter = createTRPCRouter({
         }
         return null;
       }
+
+      // check new project role if it is higher than own role
+      await throwIfHigherProjectRole({
+        orgCtx: ctx,
+        projectId: input.projectId,
+        projectRole: input.projectRole,
+      });
 
       // Create/update
       const updatedProjectMembership =
