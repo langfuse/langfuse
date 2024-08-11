@@ -7,11 +7,18 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { TRPCError } from "@trpc/server";
 
 export const organizationsRouter = createTRPCRouter({
   create: protectedProcedure
     .input(organizationNameSchema)
     .mutation(async ({ input, ctx }) => {
+      if (!ctx.session.user.canCreateOrganizations)
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have permission to create organizations",
+        });
+
       const organization = await ctx.prisma.organization.create({
         data: {
           name: input.name,

@@ -145,6 +145,7 @@ export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
   const session = useSession();
+  const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
 
@@ -165,12 +166,14 @@ export const OrganizationProjectOverview = () => {
                   placeholder="Search projects"
                   onChange={(e) => setQueryParams({ search: e.target.value })}
                 />
-                <Button data-testid="create-project-btn" asChild>
-                  <Link href="/setup">
-                    <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                    New Organization
-                  </Link>
-                </Button>
+                {canCreateOrg && (
+                  <Button data-testid="create-project-btn" asChild>
+                    <Link href="/setup">
+                      <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                      New Organization
+                    </Link>
+                  </Button>
+                )}
               </>
             }
           />
@@ -218,6 +221,8 @@ const IntroducingOrganizations = () => (
 );
 
 const Onboarding = () => {
+  const session = useSession();
+  const canCreateOrgs = session.data?.user?.canCreateOrganizations;
   return (
     <Card>
       <CardHeader>
@@ -227,13 +232,17 @@ const Onboarding = () => {
       </CardHeader>
       <CardContent>
         <p>
-          Create an organization and first project to get started with Langfuse.
+          {canCreateOrgs
+            ? "Create an organization and first project to get started with Langfuse."
+            : "You need to get invited to an organization to get started with Langfuse."}
         </p>
       </CardContent>
       <CardFooter className="flex gap-4">
-        <Button data-testid="create-project-btn" asChild>
-          <Link href="/setup">Start Setup</Link>
-        </Button>
+        {canCreateOrgs && (
+          <Button data-testid="create-project-btn" asChild>
+            <Link href="/setup">Start Setup</Link>
+          </Button>
+        )}
         <Button variant="secondary" asChild>
           <Link href="/support">
             <LifeBuoy className="mr-1.5 h-4 w-4" aria-hidden="true" />

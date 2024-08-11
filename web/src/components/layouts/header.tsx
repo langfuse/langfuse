@@ -32,6 +32,7 @@ import { env } from "@/src/env.mjs";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 export default function Header({
   level = "h2",
@@ -132,6 +133,12 @@ const BreadcrumbComponent = ({
 
   const organizations = session.data?.user?.organizations;
 
+  const canCreateOrganizations = session.data?.user?.canCreateOrganizations;
+  const canCreateProjects = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "projects:create",
+  });
+
   return (
     <Breadcrumb>
       <BreadcrumbList>
@@ -201,21 +208,29 @@ const BreadcrumbComponent = ({
                   <LoadingMenuItem />
                 )}
               </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  data-testid="create-project-btn"
-                  className="h-8 w-full text-sm font-normal"
-                  asChild
-                >
-                  <Link href="/setup">
-                    <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                    New Organization
-                  </Link>
-                </Button>
-              </DropdownMenuItem>
+
+              {canCreateOrganizations && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      data-testid="create-project-btn"
+                      className="h-8 w-full text-sm font-normal"
+                      asChild
+                    >
+                      <Link href="/setup">
+                        <PlusIcon
+                          className="mr-1.5 h-4 w-4"
+                          aria-hidden="true"
+                        />
+                        New Organization
+                      </Link>
+                    </Button>
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -280,21 +295,29 @@ const BreadcrumbComponent = ({
                     <LoadingMenuItem />
                   )}
                 </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    data-testid="create-project-btn"
-                    className="h-8 w-full text-sm font-normal"
-                    asChild
-                  >
-                    <Link href={createProjectRoute(organization.id)}>
-                      <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                      New Project
-                    </Link>
-                  </Button>
-                </DropdownMenuItem>
+
+                {canCreateProjects && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        data-testid="create-project-btn"
+                        className="h-8 w-full text-sm font-normal"
+                        asChild
+                      >
+                        <Link href={createProjectRoute(organization.id)}>
+                          <PlusIcon
+                            className="mr-1.5 h-4 w-4"
+                            aria-hidden="true"
+                          />
+                          New Project
+                        </Link>
+                      </Button>
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </>

@@ -37,6 +37,16 @@ import {
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
 
+function canCreateOrganizations(userEmail: string | null): boolean {
+  // if no allowlist is set, allow all users to create organizations
+  if (!env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS) return true;
+  if (!userEmail) return false;
+
+  const allowedOrgCreators =
+    env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS.toLowerCase().split(",");
+  return allowedOrgCreators.includes(userEmail.toLowerCase());
+}
+
 const staticProviders: Provider[] = [
   CredentialsProvider({
     name: "credentials",
@@ -117,6 +127,7 @@ const staticProviders: Provider[] = [
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
         featureFlags: parseFlags(dbUser.featureFlags),
+        canCreateOrganizations: canCreateOrganizations(dbUser.email),
         organizations: [],
       };
 
@@ -335,6 +346,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                   email: dbUser.email,
                   image: dbUser.image,
                   admin: dbUser.admin,
+                  canCreateOrganizations: canCreateOrganizations(dbUser.email),
                   organizations: dbUser.organizationMemberships.map(
                     (orgMembership) => {
                       const parsedCloudConfig = CloudConfigSchema.safeParse(
