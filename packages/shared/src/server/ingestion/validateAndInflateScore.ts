@@ -3,8 +3,8 @@ import {
   ScorePropsAgainstConfig,
   validateDbScoreConfigSafe,
   ValidatedScoreConfig,
-} from "@langfuse/shared";
-import { prisma, Score, ScoreDataType } from "@langfuse/shared/src/db";
+} from "../../../src";
+import { prisma, Score, ScoreDataType } from "../../db";
 
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
 

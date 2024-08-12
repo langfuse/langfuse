@@ -4,7 +4,7 @@ import {
   paginationMetaResponseZod,
   paginationZod,
   type ScoreConfig as ScoreConfigDbType,
-} from "@langfuse/shared";
+} from "../../../src";
 import { z } from "zod";
 
 /**
