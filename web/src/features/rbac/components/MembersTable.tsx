@@ -27,6 +27,13 @@ import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import { HoverCardPortal } from "@radix-ui/react-hover-card";
+import Link from "next/link";
 
 export type MembersTableRow = {
   user: {
@@ -147,7 +154,7 @@ export function MembersTable({
       header: "Organization Role",
       headerTooltip: {
         description:
-          "The org-role is the default role for this user in this organization and applies to the organization and all of its projects.",
+          "The org-role is the default role for this user in this organization and applies to the organization and all its projects.",
         href: "https://langfuse.com/docs/rbac",
       },
       cell: ({ row }) => {
@@ -156,14 +163,48 @@ export function MembersTable({
           "meta",
         ) as MembersTableRow["meta"];
         const { userId } = row.getValue("meta") as MembersTableRow["meta"];
-        return (
+        const disableInProjectSettings = Boolean(project?.id);
+
+        const ConfiguredOrgRoleDropdown = () => (
           <OrgRoleDropdown
             orgMembershipId={orgMembershipId}
             currentRole={orgRole}
             userId={userId}
             orgId={orgId}
-            hasCudAccess={hasCudAccessOrgLevel}
+            hasCudAccess={hasCudAccessOrgLevel && !disableInProjectSettings}
           />
+        );
+
+        return (
+          <div className="relative">
+            {disableInProjectSettings && hasCudAccessOrgLevel ? (
+              <HoverCard openDelay={0} closeDelay={0}>
+                <HoverCardTrigger>
+                  <ConfiguredOrgRoleDropdown />
+                </HoverCardTrigger>
+                <HoverCardPortal>
+                  <HoverCardContent
+                    hideWhenDetached={true}
+                    align="center"
+                    side="right"
+                  >
+                    <p className="text-xs">
+                      The organization-level role can to be edited in the{" "}
+                      <Link
+                        href={`/organization/${orgId}/settings?page=Members`}
+                        className="underline"
+                      >
+                        organization settings
+                      </Link>
+                      .
+                    </p>
+                  </HoverCardContent>
+                </HoverCardPortal>
+              </HoverCard>
+            ) : (
+              <ConfiguredOrgRoleDropdown />
+            )}
+          </div>
         );
       },
     },
