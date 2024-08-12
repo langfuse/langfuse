@@ -13,6 +13,7 @@ import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { type Role } from "@langfuse/shared";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type InvitesTableRow = {
   email: string;
@@ -35,9 +36,13 @@ export default function InvitesTable({
   orgId: string;
   projectId?: string;
 }) {
-  const hasViewAccess = useHasOrganizationAccess({
+  const hasOrgViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
+  });
+  const hasProjectViewAccess = useHasProjectAccess({
+    projectId,
+    scope: "projectMembers:read",
   });
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -45,16 +50,29 @@ export default function InvitesTable({
     pageSize: withDefault(NumberParam, 10),
   });
 
-  const invites = api.members.allInvites.useQuery(
-    {
-      orgId,
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
-    },
-    {
-      enabled: hasViewAccess,
-    },
-  );
+  const invites = projectId
+    ? api.members.allInvitesFromProject.useQuery(
+        {
+          orgId,
+          projectId,
+          page: paginationState.pageIndex,
+          limit: paginationState.pageSize,
+        },
+        {
+          enabled: hasProjectViewAccess,
+        },
+      )
+    : api.members.allInvitesFromOrg.useQuery(
+        {
+          orgId,
+          page: paginationState.pageIndex,
+          limit: paginationState.pageSize,
+        },
+        {
+          enabled: hasOrgViewAccess,
+        },
+      );
+
   const totalCount = invites.data?.totalCount ?? 0;
 
   const utils = api.useUtils();
@@ -154,7 +172,7 @@ export default function InvitesTable({
   ];
 
   const convertToTableRow = (
-    invite: RouterOutput["members"]["allInvites"]["invitations"][0],
+    invite: RouterOutput["members"]["allInvitesFromOrg"]["invitations"][0],
   ): InvitesTableRow => {
     return {
       meta: {
@@ -171,7 +189,7 @@ export default function InvitesTable({
     };
   };
 
-  if (!hasViewAccess) {
+  if (projectId ? !hasProjectViewAccess : !hasOrgViewAccess) {
     return (
       <Alert>
         <AlertTitle>Access Denied</AlertTitle>

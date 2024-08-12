@@ -2,8 +2,7 @@ import { type Role } from "@langfuse/shared/src/db";
 
 const projectScopes = [
   "projectMembers:read", // todo: not used yet
-  "projectMembers:create", // todo: not used yet
-  "projectMembers:delete", // todo: not used yet
+  "projectMembers:CUD", // todo: not used yet
   "apiKeys:read",
   "apiKeys:create",
   "apiKeys:delete",
@@ -53,10 +52,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "project:view",
     "project:update",
     "project:delete",
-
     "projectMembers:read", // todo: not used yet
-    "projectMembers:create", // todo: not used yet
-    "projectMembers:delete", // todo: not used yet
+    "projectMembers:CUD", // todo: not used yet
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
@@ -86,8 +83,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "project:view",
     "project:update",
     "projectMembers:read", // todo: not used yet
-    "projectMembers:create", // todo: not used yet
-    "projectMembers:delete", // todo: not used yet
+    "projectMembers:CUD", // todo: not used yet
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",

@@ -26,6 +26,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type MembersTableRow = {
   user: {
@@ -50,26 +51,42 @@ export default function MembersTable({
   project?: { id: string; name: string };
 }) {
   const session = useSession();
-  const hasViewAccess = useHasOrganizationAccess({
+  const hasOrgViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
+  });
+  const hasProjectViewAccess = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "projectMembers:read",
   });
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 10),
   });
 
-  const members = api.members.all.useQuery(
+  const membersViaOrg = api.members.allFromOrg.useQuery(
     {
       orgId,
-      projectId: project?.id,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
     {
-      enabled: hasViewAccess,
+      enabled: !project && hasOrgViewAccess,
     },
   );
+  const membersViaProject = api.members.allFromProject.useQuery(
+    {
+      orgId,
+      projectId: project!.id,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    {
+      enabled: project && hasProjectViewAccess,
+    },
+  );
+  const members = project ? membersViaProject : membersViaOrg;
+
   const totalCount = members.data?.totalCount ?? 0;
 
   const utils = api.useUtils();
@@ -225,7 +242,7 @@ export default function MembersTable({
     useColumnVisibility<MembersTableRow>("membersColumnVisibility", columns);
 
   const convertToTableRow = (
-    orgMembership: RouterOutput["members"]["all"]["memberships"][0],
+    orgMembership: RouterOutput["members"]["allFromOrg"]["memberships"][0], // type of both queries is the same
   ): MembersTableRow => {
     return {
       meta: {
@@ -243,7 +260,7 @@ export default function MembersTable({
     };
   };
 
-  if (!hasViewAccess) {
+  if (project ? !hasProjectViewAccess : !hasOrgViewAccess) {
     return (
       <Alert>
         <AlertTitle>Access Denied</AlertTitle>
