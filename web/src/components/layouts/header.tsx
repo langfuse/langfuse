@@ -144,18 +144,12 @@ const BreadcrumbComponent = ({
 
   const getProjectPath = (projectId: string) =>
     router.query.projectId
-      ? window.location.pathname.replace(
-          router.query.projectId as string,
-          projectId,
-        ) + window.location.search
+      ? router.asPath.replace(router.query.projectId as string, projectId)
       : `/project/${projectId}`;
 
   const getOrgPath = (orgId: string) =>
     router.query.organizationId
-      ? window.location.pathname.replace(
-          router.query.organizationId as string,
-          orgId,
-        ) + window.location.search
+      ? router.asPath.replace(router.query.organizationId as string, orgId)
       : `/organization/${orgId}`;
 
   return (
