@@ -31,15 +31,13 @@ import {
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
 import {
+  type APIScore,
   ScoreDataType,
   CreateAnnotationScoreData,
   UpdateAnnotationScoreData,
-} from "@langfuse/shared";
-import { type APIScore } from "@/src/features/public-api/types/scores";
-import {
   type ValidatedScoreConfig,
   type ConfigCategory,
-} from "@/src/features/public-api/types/score-configs";
+} from "@langfuse/shared";
 import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
 import {

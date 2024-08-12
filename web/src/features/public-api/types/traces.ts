@@ -1,6 +1,6 @@
 import { APIObservation } from "@/src/features/public-api/types/observations";
-import { APIScore } from "@/src/features/public-api/types/scores";
 import {
+  APIScore,
   paginationZod,
   paginationMetaResponseZod,
   orderBy,

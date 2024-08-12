@@ -1,17 +1,17 @@
+import { z } from "zod";
+
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { optionalPaginationZod } from "@langfuse/shared";
-
-import { ScoreDataType } from "@langfuse/shared/src/db";
-import { z } from "zod";
 import {
-  filterAndValidateDbScoreConfigList,
   Category,
+  filterAndValidateDbScoreConfigList,
+  optionalPaginationZod,
   validateDbScoreConfig,
-} from "@/src/features/public-api/types/score-configs";
+} from "@langfuse/shared";
+import { ScoreDataType } from "@langfuse/shared/src/db";
 
 const ScoreConfigAllInput = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure

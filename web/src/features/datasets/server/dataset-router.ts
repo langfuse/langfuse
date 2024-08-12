@@ -12,8 +12,7 @@ import {
 import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { paginationZod } from "@langfuse/shared";
-import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
+import { filterAndValidateDbScoreList, paginationZod } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 

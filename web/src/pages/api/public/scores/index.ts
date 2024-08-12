@@ -1,20 +1,20 @@
-import { prisma } from "@langfuse/shared/src/db";
-import { Prisma } from "@langfuse/shared/src/db";
-import { eventTypes, ingestionBatchEvent } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+
+import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   handleBatch,
   parseSingleTypedIngestionApiResponse,
 } from "@/src/pages/api/public/ingestion";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   GetScoresQuery,
   GetScoresResponse,
+  legacyFilterAndValidateV1GetScoreList,
   PostScoresBody,
   PostScoresResponse,
-  legacyFilterAndValidateV1GetScoreList,
-} from "@/src/features/public-api/types/scores";
+} from "@langfuse/shared";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { eventTypes, ingestionBatchEvent } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({

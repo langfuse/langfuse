@@ -32,7 +32,7 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScore } from "@/src/features/public-api/types/scores";
+import { type APIScore } from "@langfuse/shared";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;

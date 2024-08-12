@@ -6,7 +6,11 @@ import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
-import { type ScoreDataType, type Prisma } from "@langfuse/shared";
+import {
+  type ScoreDataType,
+  type Prisma,
+  type ConfigCategory,
+} from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import {
@@ -24,7 +28,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { type ConfigCategory } from "@/src/features/public-api/types/score-configs";
 
 type ScoreConfigTableRow = {
   id: string;

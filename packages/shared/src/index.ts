@@ -26,6 +26,10 @@ export * from "./features/batchExport/types";
 // annotation
 export * from "./features/annotation/types";
 
+// scores
+export * from "./features/scores/scoreConfigTypes";
+export * from "./features/scores/scoreTypes";
+
 // export db types only
 export * from "@prisma/client";
 export { type DB } from "../prisma/generated/types";

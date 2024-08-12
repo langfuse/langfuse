@@ -1,33 +1,35 @@
 import { z } from "zod";
 
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  Prisma,
-  type Trace,
-  type ObservationView,
-  type ObservationLevel,
-} from "@langfuse/shared/src/db";
-import { paginationZod, timeFilter } from "@langfuse/shared";
-import { type TraceOptions, singleFilter } from "@langfuse/shared";
-import { tracesTableCols } from "@langfuse/shared";
+import { instrumentAsync } from "@/src/utils/instrumentation";
 import {
   datetimeFilterToPrismaSql,
+  filterAndValidateDbScoreList,
+  orderBy,
+  orderByToPrismaSql,
+  paginationZod,
+  singleFilter,
   tableColumnsToSqlFilterAndPrefix,
+  timeFilter,
+  type TraceOptions,
+  tracesTableCols,
 } from "@langfuse/shared";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import {
+  type ObservationLevel,
+  type ObservationView,
+  Prisma,
+  type Trace,
+} from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@langfuse/shared";
-import { orderByToPrismaSql } from "@langfuse/shared";
-import { instrumentAsync } from "@/src/utils/instrumentation";
-import type Decimal from "decimal.js";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
+import type Decimal from "decimal.js";
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   searchQuery: z.string().nullable(),
