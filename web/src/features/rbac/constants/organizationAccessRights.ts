@@ -4,7 +4,7 @@ const organizationScopes = [
   "projects:create",
   "projects:transfer_org",
   "organizations:update",
-  "organizations:delete",
+  "organizations:delete", // todo: not implemented yet
   "organizationMembers:read",
   "organizationMembers:CUD",
 ] as const;
