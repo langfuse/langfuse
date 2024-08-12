@@ -30,7 +30,7 @@ export type InvitesTableRow = {
   };
 };
 
-export function InvitesPage({
+export function MembershipInvitesPage({
   orgId,
   projectId,
 }: {

@@ -44,7 +44,7 @@ export function TransferProjectButton() {
   const { project, organization } = useQueryProject();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
-    scope: "projects:transfer_organization",
+    scope: "projects:transfer_org",
   });
   const allOrgs = session.data?.user?.organizations ?? [];
   const organizationsToTransferTo =
@@ -52,7 +52,7 @@ export function TransferProjectButton() {
       hasOrganizationAccess({
         session: session.data,
         organizationId: org.id,
-        scope: "projects:transfer_organization",
+        scope: "projects:transfer_org",
       }),
     ) ?? [];
   const confirmMessage = (organization?.name + "/" + project?.name)

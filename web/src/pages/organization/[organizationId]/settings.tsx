@@ -1,7 +1,7 @@
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
-import { MembersTable } from "@/src/components/table/use-cases/members";
-import { InvitesPage } from "@/src/components/table/use-cases/membershipInvites";
+import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
+import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { env } from "@/src/env.mjs";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
@@ -41,7 +41,7 @@ const OrgSettingsPage = () => {
                   <MembersTable orgId={organization.id} />
                 </div>
                 <div>
-                  <InvitesPage orgId={organization.id} />
+                  <MembershipInvitesPage orgId={organization.id} />
                 </div>
               </div>
             ),

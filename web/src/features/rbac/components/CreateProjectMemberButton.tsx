@@ -24,7 +24,6 @@ import {
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
@@ -34,6 +33,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 
 const formSchema = z.object({
   email: z.string().trim().email(),
@@ -170,9 +170,7 @@ export function CreateProjectMemberButton(props: {
                         </FormControl>
                         <SelectContent>
                           {Object.values(Role).map((role) => (
-                            <SelectItem value={role} key={role}>
-                              {role}
-                            </SelectItem>
+                            <RoleSelectItem role={role} key={role} />
                           ))}
                         </SelectContent>
                       </Select>
@@ -209,11 +207,11 @@ export function CreateProjectMemberButton(props: {
                                 role !== Role.NONE,
                             )
                             .map((role) => (
-                              <SelectItem value={role} key={role}>
-                                {role === Role.NONE
-                                  ? "None (keep default role)"
-                                  : role}
-                              </SelectItem>
+                              <RoleSelectItem
+                                role={role}
+                                key={role}
+                                isProjectRole
+                              />
                             ))}
                         </SelectContent>
                       </Select>

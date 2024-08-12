@@ -2,7 +2,7 @@ import { type Role } from "@langfuse/shared/src/db";
 
 const organizationScopes = [
   "projects:create",
-  "projects:transfer_organization",
+  "projects:transfer_org",
   "organizations:update",
   "organizations:delete",
   "organizationMembers:read",
@@ -15,7 +15,7 @@ export type OrganizationScope = (typeof organizationScopes)[number];
 export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
   OWNER: [
     "projects:create",
-    "projects:transfer_organization",
+    "projects:transfer_org",
     "organizations:update",
     "organizations:delete",
     "organizationMembers:CUD",
@@ -23,7 +23,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
   ],
   ADMIN: [
     "projects:create",
-    "projects:transfer_organization",
+    "projects:transfer_org",
     "organizations:update",
     "organizationMembers:CUD",
     "organizationMembers:read",
@@ -32,3 +32,6 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
   VIEWER: [],
   NONE: [],
 };
+
+export const orgNoneRoleComment =
+  "No access to organization resources by default. User needs to be granted project-level access via project roles.";

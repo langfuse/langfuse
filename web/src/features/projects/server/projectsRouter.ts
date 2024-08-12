@@ -118,13 +118,13 @@ export const projectsRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: ctx.session.orgId,
-        scope: "projects:transfer_organization",
+        scope: "projects:transfer_org",
       });
       // destination org
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.targetOrgId,
-        scope: "projects:transfer_organization",
+        scope: "projects:transfer_org",
       });
 
       const project = await ctx.prisma.project.findUnique({

@@ -1,6 +1,4 @@
 import Header from "@/src/components/layouts/header";
-import { MembersTable } from "@/src/components/table/use-cases/members";
-import { InvitesPage } from "@/src/components/table/use-cases/membershipInvites";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -15,6 +13,8 @@ import { NewProjectForm } from "@/src/features/projects/components/NewProjectFor
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
+import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
+import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import {
   createProjectRoute,
   inviteMembersRoute,
@@ -145,7 +145,7 @@ export function SetupPage() {
                 <MembersTable orgId={organization.id} />
               </div>
               <div>
-                <InvitesPage orgId={organization.id} />
+                <MembershipInvitesPage orgId={organization.id} />
               </div>
             </div>
           )

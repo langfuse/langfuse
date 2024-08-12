@@ -9,7 +9,6 @@ import {
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
@@ -27,6 +26,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 
 export type MembersTableRow = {
   user: {
@@ -146,6 +146,11 @@ export function MembersTable({
       id: "orgRole",
       header: "Organization Role",
       enableHiding: true,
+      headerTooltip: {
+        description:
+          "The org-role is the default role for this user in this organization and applies to the organization and all of its projects.",
+        href: "https://langfuse.com/docs/rbac",
+      },
       cell: ({ row }) => {
         const orgRole = row.getValue("orgRole") as MembersTableRow["orgRole"];
         const { orgMembershipId } = row.getValue(
@@ -182,6 +187,7 @@ export function MembersTable({
             headerTooltip: {
               description:
                 "The role for this user in this specific project. This role overrides the default project role.",
+              href: "https://langfuse.com/docs/rbac",
             },
             cell: ({
               row,
@@ -360,9 +366,7 @@ const OrgRoleDropdown = ({
       </SelectTrigger>
       <SelectContent>
         {Object.values(Role).map((role) => (
-          <SelectItem key={role} value={role}>
-            {role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()}
-          </SelectItem>
+          <RoleSelectItem role={role} key={role} />
         ))}
       </SelectContent>
     </Select>
@@ -415,10 +419,7 @@ const ProjectRoleDropdown = ({
       </SelectTrigger>
       <SelectContent>
         {Object.values(Role).map((role) => (
-          <SelectItem key={role} value={role}>
-            {role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()}
-            {role === Role.NONE ? " (keep default role)" : ""}
-          </SelectItem>
+          <RoleSelectItem role={role} key={role} isProjectRole />
         ))}
       </SelectContent>
     </Select>
