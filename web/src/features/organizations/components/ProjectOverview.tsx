@@ -2,7 +2,6 @@ import { Building2, LifeBuoy, LockIcon, Settings, Users } from "lucide-react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
