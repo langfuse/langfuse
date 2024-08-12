@@ -10,6 +10,7 @@ import * as Sentry from "@sentry/node";
 // Mock Sentry
 vi.mock("@sentry/node", () => ({
   metrics: {
+    increment: vi.fn(),
     distribution: vi.fn(),
     gauge: vi.fn(),
   },
