@@ -24,7 +24,7 @@ import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 
-export default function Start() {
+export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { selectedOption, dateRange, setDateRangeAndOption } =

@@ -1,5 +1,5 @@
 import { OrganizationProjectOverview } from "@/src/features/organizations/components/ProjectOverview";
 
-export default function GetStartedPage() {
+export default function Home() {
   return <OrganizationProjectOverview />;
 }
