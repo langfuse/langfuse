@@ -16,4 +16,5 @@ export * from "../server/ingestion/types";
 export * from "./redis/redis";
 export * from "./redis/trace-upsert";
 export * from "./redis/batch-export";
+export * from "./redis/legacy-ingestion";
 export * from "./clickhouse";

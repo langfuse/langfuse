@@ -12,8 +12,10 @@ import {
   EventName,
   LangfuseNotFoundError,
   InternalServerError,
+  QueueJobs,
 } from "@langfuse/shared";
 import {
+  getLegacyIngestionQueue,
   type ingestionApiSchema,
   convertTraceUpsertEventsToRedisEvents,
   eventTypes,
@@ -28,9 +30,9 @@ import {
   SdkLogProcessor,
   type EventProcessor,
   TraceProcessor,
-} from "../../../server/api/services/EventProcessor";
-import { ObservationProcessor } from "../../../server/api/services/EventProcessor";
-import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
+} from "../../../../../packages/shared/src/server/ingestion/legacy/EventProcessor";
+import { ObservationProcessor } from "../../../../../packages/shared/src/server/ingestion/legacy/EventProcessor";
+import { ScoreProcessor } from "../../../../../packages/shared/src/server/ingestion/legacy/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -48,6 +50,7 @@ import { redis } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
+import { randomUUID } from "crypto";
 
 export const config = {
   api: {
@@ -132,7 +135,27 @@ export default async function handler(
     if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true") {
       // this function MUST NOT return but send the HTTP response directly
       console.log("Returning http response early");
-      handleBatchResult(
+      const queue = getLegacyIngestionQueue();
+
+      await queue?.add(
+        QueueJobs.LegacyIngestionJob,
+        {
+          payload: sortedBatch,
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.LegacyIngestionJob as const,
+        },
+        {
+          removeOnFail: 10000,
+          removeOnComplete: true,
+          attempts: 5,
+          backoff: {
+            type: "exponential",
+            delay: 1000,
+          },
+        },
+      );
+      return handleBatchResult(
         validationErrors, // we are not sending additional server errors to the client in case of early return
         sortedBatch.map((event) => ({ id: event.id, result: event })),
         res,
@@ -152,14 +175,11 @@ export default async function handler(
       authCheck.scope.projectId,
     );
 
-    //  in case we did not return early, we return the result here
-    if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "false") {
-      handleBatchResult(
-        [...validationErrors, ...result.errors],
-        result.results,
-        res,
-      );
-    }
+    handleBatchResult(
+      [...validationErrors, ...result.errors],
+      result.results,
+      res,
+    );
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       console.error("error_handling_ingestion_event", error);

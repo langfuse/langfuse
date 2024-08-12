@@ -63,6 +63,7 @@
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.4.2",
+    "decimal.js": "^10.4.3",
     "ioredis": "^5.4.1",
     "js-tiktoken": "^1.0.12",
     "kysely": "^0.27.3",

@@ -158,6 +158,9 @@ importers:
       bullmq:
         specifier: ^5.4.2
         version: 5.4.3
+      decimal.js:
+        specifier: ^10.4.3
+        version: 10.4.3
       ioredis:
         specifier: ^5.4.1
         version: 5.4.1
