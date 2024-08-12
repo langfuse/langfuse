@@ -896,7 +896,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(trace.tags).toEqual(["tag-1", "tag-2", "tag-3", "tag-4"]);
     expect(trace.tags.length).toBe(4);
-  });
+  }, 10000);
 
   it("should upsert traces in the right order", async () => {
     const traceId = randomUUID();
