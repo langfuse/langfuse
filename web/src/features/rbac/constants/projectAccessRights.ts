@@ -18,7 +18,7 @@ const projectScopes = [
   "scoreConfigs:CUD",
   "scoreConfigs:read",
 
-  "project:view",
+  "project:read",
   "project:update",
   "project:delete",
 
@@ -49,7 +49,7 @@ export type ProjectScope = (typeof projectScopes)[number];
 
 export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
   OWNER: [
-    "project:view",
+    "project:read",
     "project:update",
     "project:delete",
     "projectMembers:read",
@@ -80,7 +80,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "batchExport:create",
   ],
   ADMIN: [
-    "project:view",
+    "project:read",
     "project:update",
     "projectMembers:read",
     "projectMembers:CUD",
@@ -110,7 +110,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "batchExport:create",
   ],
   MEMBER: [
-    "project:view",
+    "project:read",
     "projectMembers:read",
     "apiKeys:read",
     "objects:publish",
@@ -131,7 +131,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "batchExport:create",
   ],
   VIEWER: [
-    "project:view",
+    "project:read",
     "prompts:read",
     "evalTemplate:read",
     "scoreConfigs:read",

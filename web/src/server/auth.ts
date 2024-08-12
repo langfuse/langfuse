@@ -374,7 +374,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           // Only include projects where the user has the required role
                           .filter((project) =>
                             projectRoleAccessRights[project.role].includes(
-                              "project:view",
+                              "project:read",
                             ),
                           ),
 
