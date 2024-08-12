@@ -289,8 +289,15 @@ const extendedPrismaAdapter: Adapter = {
     // (refresh_expires_in and not-before-policy in).
     // So, we need to remove this data from the payload before linking an account.
     // https://github.com/nextauthjs/next-auth/issues/7655
-    delete data["refresh_expires_in"];
-    delete data["not-before-policy"];
+    if (
+      env.AUTH_KEYCLOAK_CLIENT_ID &&
+      env.AUTH_KEYCLOAK_CLIENT_SECRET &&
+      env.AUTH_KEYCLOAK_ISSUER
+    ) {
+      delete data["refresh_expires_in"];
+      delete data["not-before-policy"];
+    }
+
     await prismaAdapter.linkAccount(data);
   },
 };
