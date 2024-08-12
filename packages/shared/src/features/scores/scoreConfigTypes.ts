@@ -1,11 +1,12 @@
+import { z } from "zod";
+
 import {
   isPresent,
   jsonSchema,
   paginationMetaResponseZod,
   paginationZod,
-  type ScoreConfig as ScoreConfigDbType,
+  ScoreConfig as ScoreConfigDbType,
 } from "../../../src";
-import { z } from "zod";
 
 /**
  * Types to use across codebase

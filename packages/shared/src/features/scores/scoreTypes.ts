@@ -1,13 +1,13 @@
+import { z } from "zod";
+
 import {
   isPresent,
-  paginationZod,
-  paginationMetaResponseZod,
   NonEmptyString,
-  type Score,
+  paginationMetaResponseZod,
+  paginationZod,
+  Score,
+  stringDateTime,
 } from "../../../src";
-import { stringDateTime } from "../../server";
-
-import { z } from "zod";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
 
 /**
