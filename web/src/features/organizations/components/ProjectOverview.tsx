@@ -167,7 +167,7 @@ export const OrganizationProjectOverview = () => {
                   onChange={(e) => setQueryParams({ search: e.target.value })}
                 />
                 {canCreateOrg && (
-                  <Button data-testid="create-project-btn" asChild>
+                  <Button data-testid="create-organization-btn" asChild>
                     <Link href="/setup">
                       <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
                       New Organization

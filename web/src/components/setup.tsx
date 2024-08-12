@@ -173,6 +173,7 @@ export function SetupPage() {
       {stepInt === 2 && organization && (
         <Button
           className="mt-4"
+          data-testid="btn-skip-add-members"
           onClick={() => router.push(createProjectRoute(organization.id))}
         >
           Next

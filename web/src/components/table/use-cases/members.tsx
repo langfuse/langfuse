@@ -78,12 +78,12 @@ export default function MembersTable({
   const membersViaProject = api.members.allFromProject.useQuery(
     {
       orgId,
-      projectId: project!.id,
+      projectId: project?.id ?? "NOT ENABLED",
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
     {
-      enabled: project && hasProjectViewAccess,
+      enabled: project !== undefined && hasProjectViewAccess,
     },
   );
   const members = project ? membersViaProject : membersViaOrg;
