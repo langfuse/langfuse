@@ -1,17 +1,13 @@
 import pino from "pino";
 import { env } from "./env";
 
-// Map Pino levels to Google Cloud Logging severity levels
-// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogSeverity
-const levelToSeverity = {
-  trace: "DEBUG",
-  debug: "DEBUG",
-  info: "INFO",
-  warn: "WARNING",
-  error: "ERROR",
-  fatal: "CRITICAL",
-};
-
+const transport = env.LANGFUSE_WORKER_BETTERSTACK_TOKEN
+  ? pino.transport({
+      target: "@logtail/pino",
+      options: { sourceToken: env.LANGFUSE_WORKER_BETTERSTACK_TOKEN },
+    })
+  : undefined;
+console.log("transport", env.LANGFUSE_WORKER_BETTERSTACK_TOKEN);
 export const getLogger = (
   env: "development" | "production" | "test",
   minLevel = "info"
@@ -29,38 +25,7 @@ export const getLogger = (
                   "@type":
                     "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent",
                 }
-              : {};
-          return {
-            level: pinoLevel,
-            severity: levelToSeverity[pinoLevel],
-            ...typeProp,
-          };
-        },
-        log(object: object & { err?: Error }) {
-          const stackTrace = object.err?.stack;
-          const stackProp = stackTrace ? { stack_trace: stackTrace } : {};
-          return {
-            ...object,
-            ...stackProp,
-          };
-        },
-      },
-      messageKey: "message",
-      timestamp: () => `,"eventTime":${Date.now() / 1000.0}`,
-    });
-  }
-  return pino({
-    level: minLevel,
-    transport: {
-      target: "pino-pretty",
-      options: {
-        translateTime: "HH:MM:ss Z",
-        ignore: "pid,hostname",
-      },
-    },
-  });
+  return pino(transport);
 };
-
 const logger = getLogger(env.NODE_ENV, env.LANGFUSE_LOG_LEVEL);
-
 export default logger;
