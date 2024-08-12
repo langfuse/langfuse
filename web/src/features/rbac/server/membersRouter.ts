@@ -2,7 +2,6 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
-  protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
@@ -10,7 +9,7 @@ import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
+import { type PrismaClient, Role } from "@langfuse/shared";
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -18,6 +17,8 @@ import {
   hasProjectAccess,
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
+import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
+import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 
 // Record as it allows to type check that all roles are included
 const orderedRoles: Record<Role, number> = {
@@ -83,229 +84,9 @@ async function throwIfHigherProjectRole({
   }
 }
 
-const orgLevelMemberQuery = z.object({
-  orgId: z.string(),
-  ...paginationZod,
-});
-
-const projectLevelMemberQuery = orgLevelMemberQuery.extend({
-  projectId: z.string(), // optional, view project_role for specific project
-});
-
-async function getMembers(
-  prisma: PrismaClient,
-  query:
-    | z.infer<typeof orgLevelMemberQuery>
-    | z.infer<typeof projectLevelMemberQuery>,
-  showAllOrgMembers: boolean = true,
-) {
-  const orgMemberships = await prisma.organizationMembership.findMany({
-    where: {
-      orgId: query.orgId,
-      // restrict to only members with role in a project if projectId is set and showAllOrgMembers is false
-      ...("projectId" in query && !showAllOrgMembers
-        ? {
-            // either org level role or project level role
-            OR: [
-              {
-                role: {
-                  not: Role.NONE,
-                },
-              },
-              {
-                ProjectMemberships: {
-                  some: {
-                    projectId: query.projectId,
-                    role: {
-                      not: Role.NONE,
-                    },
-                  },
-                },
-              },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      user: {
-        select: {
-          image: true,
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-    },
-    orderBy: {
-      user: {
-        email: "asc",
-      },
-    },
-    take: query.limit,
-    skip: query.page * query.limit,
-  });
-
-  const totalCount = await prisma.organizationMembership.count({
-    where: {
-      orgId: query.orgId,
-    },
-  });
-
-  const projectMemberships =
-    "projectId" in query
-      ? await prisma.projectMembership.findMany({
-          select: {
-            userId: true,
-            role: true,
-          },
-          where: {
-            orgMembershipId: {
-              in: orgMemberships.map((m) => m.id),
-            },
-            projectId: query.projectId,
-          },
-        })
-      : [];
-
-  return {
-    memberships: orgMemberships.map((om) => ({
-      ...om,
-      projectRole: projectMemberships.find((pm) => pm.userId === om.userId)
-        ?.role,
-    })),
-    totalCount,
-  };
-}
-
-// Extract the function for getting membership invites. It should follow a similar logic than the one for project members. If there is a project ID in the query, I only want to include invites with a specific role for this project. Thank you.
-const orgLevelInviteQuery = z.object({
-  orgId: z.string(),
-  ...paginationZod,
-});
-const projectLevelInviteQuery = orgLevelInviteQuery.extend({
-  projectId: z.string(),
-});
-async function getInvites(
-  prisma: PrismaClient,
-  query:
-    | z.infer<typeof orgLevelInviteQuery>
-    | z.infer<typeof projectLevelInviteQuery>,
-  showAllOrgMembers: boolean = true,
-) {
-  const invitations = await prisma.membershipInvitation.findMany({
-    where: {
-      orgId: query.orgId,
-      // restrict to only invites with role in a project if projectId is set
-      ...("projectId" in query && !showAllOrgMembers
-        ? {
-            OR: [
-              {
-                orgRole: {
-                  not: Role.NONE,
-                },
-              },
-              {
-                projectId: query.projectId,
-                projectRole: {
-                  not: Role.NONE,
-                },
-              },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      invitedByUser: {
-        select: {
-          name: true,
-          image: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: query.limit,
-    skip: query.page * query.limit,
-  });
-
-  const totalCount = await prisma.membershipInvitation.count({
-    where: {
-      orgId: query.orgId,
-    },
-  });
-
-  return {
-    invitations: invitations.map((i) => ({
-      ...i,
-    })),
-    totalCount,
-  };
-}
-
 export const membersRouter = createTRPCRouter({
-  allFromOrg: protectedOrganizationProcedure
-    .input(orgLevelMemberQuery)
-    .query(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "organizationMembers:read",
-      });
-      return getMembers(ctx.prisma, input);
-    }),
-  allFromProject: protectedProjectProcedure
-    .input(projectLevelMemberQuery)
-    .query(async ({ input, ctx }) => {
-      const orgAccess = hasOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "organizationMembers:read",
-      });
-      const projectAccess = hasProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "projectMembers:read",
-      });
-      if (!orgAccess && !projectAccess) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You do not have the required access rights",
-        });
-      }
-      return getMembers(ctx.prisma, input, orgAccess);
-    }),
-  allInvitesFromOrg: protectedOrganizationProcedure
-    .input(orgLevelInviteQuery)
-    .query(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "organizationMembers:read",
-      });
-      return getInvites(ctx.prisma, input);
-    }),
-  allInvitesFromProject: protectedProjectProcedure
-    .input(projectLevelInviteQuery)
-    .query(async ({ input, ctx }) => {
-      const orgAccess = hasOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "organizationMembers:read",
-      });
-      const projectAccess = hasProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "projectMembers:read",
-      });
-      if (!orgAccess && !projectAccess) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You do not have the required access rights",
-        });
-      }
-      return getInvites(ctx.prisma, input, orgAccess);
-    }),
+  ...allMembersRoutes,
+  ...allInvitesRoutes,
   create: protectedOrganizationProcedure
     .input(
       z.object({
