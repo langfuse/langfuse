@@ -13,6 +13,7 @@ export * from "./observationsTable";
 export * from "./utils/zod";
 export * from "./utils/json";
 export * from "./utils/objects";
+export * from "./utils/typeChecks";
 export { env } from "./env";
 
 // llm api

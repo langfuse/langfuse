@@ -1,5 +1,5 @@
-import * as Sentry from "@sentry/node";
 import {
+  isPresent,
   paginationZod,
   paginationMetaResponseZod,
   NonEmptyString,
@@ -8,7 +8,6 @@ import {
 import { stringDateTime } from "@langfuse/shared/src/server";
 
 import { z } from "zod";
-import { isPresent } from "@/src/utils/typeChecks";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
 
 /**
@@ -160,14 +159,17 @@ export const ScorePropsAgainstConfig = z.union([
  * @param scores
  * @returns list of validated scores
  */
-export const filterAndValidateDbScoreList = (scores: Score[]): APIScore[] =>
+export const filterAndValidateDbScoreList = (
+  scores: Score[],
+  onParseError?: (error: z.ZodError) => void
+): APIScore[] =>
   scores.reduce((acc, ts) => {
     const result = APIScore.safeParse(ts);
     if (result.success) {
       acc.push(result.data);
     } else {
       console.error("Score parsing error: ", result.error);
-      Sentry.captureException(result.error);
+      onParseError?.(result.error);
     }
     return acc;
   }, [] as APIScore[]);
@@ -262,7 +264,8 @@ export const GetScoresResponse = z.object({
 });
 
 export const legacyFilterAndValidateV1GetScoreList = (
-  scores: unknown[]
+  scores: unknown[],
+  onParseError?: (error: z.ZodError) => void
 ): z.infer<typeof LegacyGetScoreResponseDataV1>[] =>
   scores.reduce(
     (acc: z.infer<typeof LegacyGetScoreResponseDataV1>[], ts) => {
@@ -271,7 +274,7 @@ export const legacyFilterAndValidateV1GetScoreList = (
         acc.push(result.data);
       } else {
         console.error("Score parsing error: ", result.error);
-        Sentry.captureException(result.error);
+        onParseError?.(result.error);
       }
       return acc;
     },

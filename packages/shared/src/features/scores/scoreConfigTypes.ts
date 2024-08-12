@@ -1,12 +1,11 @@
-import { isPresent } from "@/src/utils/typeChecks";
 import {
+  isPresent,
   jsonSchema,
   paginationMetaResponseZod,
   paginationZod,
   type ScoreConfig as ScoreConfigDbType,
 } from "@langfuse/shared";
 import { z } from "zod";
-import * as Sentry from "@sentry/node";
 
 /**
  * Types to use across codebase
@@ -148,14 +147,15 @@ const ValidatedScoreConfigSchema = z
  * @returns list of validated score configs
  */
 export const filterAndValidateDbScoreConfigList = (
-  scoreConfigs: ScoreConfigDbType[]
+  scoreConfigs: ScoreConfigDbType[],
+  onParseError?: (error: z.ZodError) => void
 ): ValidatedScoreConfig[] =>
   scoreConfigs.reduce((acc, ts) => {
     const result = ValidatedScoreConfigSchema.safeParse(ts);
     if (result.success) {
       acc.push(result.data);
     } else {
-      Sentry.captureException(result.error);
+      onParseError?.(result.error);
     }
     return acc;
   }, [] as ValidatedScoreConfig[]);

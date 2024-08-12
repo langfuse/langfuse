@@ -13,6 +13,7 @@ import {
   validateDbScoreConfig,
 } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
+import * as Sentry from "@sentry/node";
 
 const inflateConfigBody = (body: z.infer<typeof PostScoreConfigBody>) => {
   if (isBooleanDataType(body.dataType)) {
@@ -64,7 +65,10 @@ export default withMiddlewares({
         skip: (page - 1) * limit,
       });
 
-      const configs = filterAndValidateDbScoreConfigList(rawConfigs);
+      const configs = filterAndValidateDbScoreConfigList(
+        rawConfigs,
+        Sentry.captureException,
+      );
 
       const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>(
         Prisma.sql`

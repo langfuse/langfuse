@@ -20,7 +20,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { ScoreDataType, availableDataTypes } from "@langfuse/shared";
+import { isPresent, ScoreDataType, availableDataTypes } from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -35,7 +35,6 @@ import {
   isCategoricalDataType,
   isNumericDataType,
 } from "@/src/features/scores/lib/helpers";
-import { isPresent } from "@/src/utils/typeChecks";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { z } from "zod";

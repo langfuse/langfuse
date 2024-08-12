@@ -28,6 +28,7 @@ import {
   type Trace,
 } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
+import * as Sentry from "@sentry/node";
 
 import type Decimal from "decimal.js";
 const TraceFilterOptions = z.object({
@@ -152,7 +153,10 @@ export const traceRouter = createTRPCRouter({
           },
         },
       });
-      const validatedScores = filterAndValidateDbScoreList(scores);
+      const validatedScores = filterAndValidateDbScoreList(
+        scores,
+        Sentry.captureException,
+      );
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
@@ -310,7 +314,10 @@ export const traceRouter = createTRPCRouter({
           projectId: trace.projectId,
         },
       });
-      const validatedScores = filterAndValidateDbScoreList(scores);
+      const validatedScores = filterAndValidateDbScoreList(
+        scores,
+        Sentry.captureException,
+      );
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
