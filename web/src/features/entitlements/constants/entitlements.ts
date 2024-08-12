@@ -23,7 +23,7 @@ const cloudAllPlansEntitlements: Entitlement[] = [
 export const entitlementAccess: Record<Plan, Entitlement[]> = {
   oss: [],
   "cloud:hobby": [...cloudAllPlansEntitlements],
-  "cloud:pro": [...cloudAllPlansEntitlements],
+  "cloud:pro": [...cloudAllPlansEntitlements, "rbac-project-roles"],
   "cloud:team": [...cloudAllPlansEntitlements, "rbac-project-roles"],
   "self-hosted:enterprise": [
     "playground",
