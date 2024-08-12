@@ -9,8 +9,8 @@ import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import MembersTable from "@/src/components/table/use-cases/members";
-import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
+import { MembersTable } from "@/src/components/table/use-cases/members";
+import { InvitesPage } from "@/src/components/table/use-cases/membershipInvites";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
@@ -100,12 +100,8 @@ export default function SettingsPage() {
                     project={{ id: project.id, name: project.name }}
                   />
                 </div>
-                <Header title="Membership Invites" level="h3" />
                 <div>
-                  <InvitesTable
-                    orgId={organization.id}
-                    projectId={project.id}
-                  />
+                  <InvitesPage orgId={organization.id} projectId={project.id} />
                 </div>
               </div>
             ),

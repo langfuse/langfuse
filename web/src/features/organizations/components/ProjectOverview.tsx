@@ -57,21 +57,18 @@ const SingleOrganizationProjectOverview = ({
         <Card>
           <CardHeader>
             <CardTitle>Try Langfuse Demo</CardTitle>
-            <CardDescription>
-              Explore Langfuse features by interacting with the demo.
-            </CardDescription>
           </CardHeader>
           <CardContent>
-            <p>
-              We have built a Q&A chatbot that answers questions based on the
-              Langfuse Docs. Interact with it to see traces in Langfuse.
-            </p>
-            <Button asChild className="mt-4" variant="secondary">
+            We have built a Q&A chatbot that answers questions based on the
+            Langfuse Docs. Interact with it to see traces in Langfuse.
+          </CardContent>
+          <CardFooter>
+            <Button asChild variant="secondary">
               <Link href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}`}>
-                Go to Demo Project
+                View Demo Project
               </Link>
             </Button>
-          </CardContent>
+          </CardFooter>
         </Card>
       </div>
     );
@@ -153,6 +150,10 @@ export const OrganizationProjectOverview = () => {
     return "loading...";
   }
 
+  const showOnboarding =
+    organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
+      .length === 0 && !queryOrgId;
+
   return (
     <div className="md:container">
       {!queryOrgId && (
@@ -177,12 +178,10 @@ export const OrganizationProjectOverview = () => {
               </>
             }
           />
-          <IntroducingOrganizations />
+          {!showOnboarding && <IntroducingOrganizations />}
         </>
       )}
-      {organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
-        .length === 0 &&
-        !queryOrgId && <Onboarding />}
+      {showOnboarding && <Onboarding />}
       {organizations
         .filter((org) => queryOrgId === undefined || org.id === queryOrgId)
         .sort((a, b) => {
@@ -238,21 +237,22 @@ const Onboarding = () => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p>
-          {canCreateOrgs
-            ? "Create an organization and first project to get started with Langfuse."
-            : "You need to get invited to an organization to get started with Langfuse."}
-        </p>
+        {canCreateOrgs
+          ? "Create an organization to get started. Alternatively, ask your organization admin to invite you."
+          : "You need to get invited to an organization to get started with Langfuse."}
       </CardContent>
       <CardFooter className="flex gap-4">
         {canCreateOrgs && (
           <Button data-testid="create-project-btn" asChild>
-            <Link href="/setup">Start Setup</Link>
+            <Link href="/setup">
+              <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              New Organization
+            </Link>
           </Button>
         )}
         <Button variant="secondary" asChild>
           <Link href="/support">
-            <LifeBuoy className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            <LifeBuoy className="mr-2 h-4 w-4" aria-hidden="true" />
             Support
           </Link>
         </Button>

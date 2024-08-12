@@ -14,6 +14,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { type Role } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import Header from "@/src/components/layouts/header";
 
 export type InvitesTableRow = {
   email: string;
@@ -29,7 +30,7 @@ export type InvitesTableRow = {
   };
 };
 
-export default function InvitesTable({
+export function InvitesPage({
   orgId,
   projectId,
 }: {
@@ -201,8 +202,12 @@ export default function InvitesTable({
     );
   }
 
+  if (totalCount === 0) return null;
+
   return (
     <>
+      {/* Header included in order to hide it when there are not invites yet */}
+      <Header title="Membership Invites" level="h3" />
       <DataTableToolbar
         columns={columns}
         // columnVisibility={columnVisibility}

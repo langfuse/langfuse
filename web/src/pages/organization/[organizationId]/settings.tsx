@@ -1,7 +1,7 @@
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
-import MembersTable from "@/src/components/table/use-cases/members";
-import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
+import { MembersTable } from "@/src/components/table/use-cases/members";
+import { InvitesPage } from "@/src/components/table/use-cases/membershipInvites";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { env } from "@/src/env.mjs";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
@@ -41,8 +41,7 @@ const OrgSettingsPage = () => {
                   <MembersTable orgId={organization.id} />
                 </div>
                 <div>
-                  <Header title="Membership Invites" level="h3" />
-                  <InvitesTable orgId={organization.id} />
+                  <InvitesPage orgId={organization.id} />
                 </div>
               </div>
             ),

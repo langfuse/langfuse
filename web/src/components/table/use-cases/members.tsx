@@ -43,7 +43,7 @@ export type MembersTableRow = {
   };
 };
 
-export default function MembersTable({
+export function MembersTable({
   orgId,
   project,
 }: {

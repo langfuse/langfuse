@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
-import MembersTable from "@/src/components/table/use-cases/members";
-import InvitesTable from "@/src/components/table/use-cases/membershipInvites";
+import { MembersTable } from "@/src/components/table/use-cases/members";
+import { InvitesPage } from "@/src/components/table/use-cases/membershipInvites";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -76,7 +76,9 @@ export function SetupPage() {
           <BreadcrumbItem>
             <BreadcrumbPage
               className={cn(
-                stepInt !== 1 ? "text-muted-foreground" : "text-foreground",
+                stepInt !== 1
+                  ? "text-muted-foreground"
+                  : "font-semibold text-foreground",
               )}
             >
               1. Create Organization
@@ -87,7 +89,9 @@ export function SetupPage() {
           <BreadcrumbItem>
             <BreadcrumbPage
               className={cn(
-                stepInt !== 2 ? "text-muted-foreground" : "text-foreground",
+                stepInt !== 2
+                  ? "text-muted-foreground"
+                  : "font-semibold text-foreground",
               )}
             >
               2. Invite Members
@@ -98,7 +102,9 @@ export function SetupPage() {
           <BreadcrumbItem>
             <BreadcrumbPage
               className={cn(
-                stepInt !== 3 ? "text-muted-foreground" : "text-foreground",
+                stepInt !== 3
+                  ? "text-muted-foreground"
+                  : "font-semibold text-foreground",
               )}
             >
               3. Create Project
@@ -109,7 +115,9 @@ export function SetupPage() {
           <BreadcrumbItem>
             <BreadcrumbPage
               className={cn(
-                stepInt !== 4 ? "text-muted-foreground" : "text-foreground",
+                stepInt !== 4
+                  ? "text-muted-foreground"
+                  : "font-semibold text-foreground",
               )}
             >
               4. Setup Tracing
@@ -138,8 +146,7 @@ export function SetupPage() {
                 <MembersTable orgId={organization.id} />
               </div>
               <div>
-                <Header title="Membership Invites" level="h3" />
-                <InvitesTable orgId={organization.id} />
+                <InvitesPage orgId={organization.id} />
               </div>
             </div>
           )
