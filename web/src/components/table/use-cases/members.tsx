@@ -55,10 +55,11 @@ export default function MembersTable({
     organizationId: orgId,
     scope: "organizationMembers:read",
   });
-  const hasProjectViewAccess = useHasProjectAccess({
-    projectId: project?.id,
-    scope: "projectMembers:read",
-  });
+  const hasProjectViewAccess =
+    useHasProjectAccess({
+      projectId: project?.id,
+      scope: "projectMembers:read",
+    }) || hasOrgViewAccess;
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 10),
@@ -95,9 +96,13 @@ export default function MembersTable({
     onSuccess: () => utils.members.invalidate(),
   });
 
-  const hasCudAccess = useHasOrganizationAccess({
+  const hasCudAccessOrgLevel = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:CUD",
+  });
+  const hasCudAccessProjectLevel = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "projectMembers:CUD",
   });
 
   const projectRolesEntitlement = useHasOrgEntitlement("rbac-project-roles");
@@ -151,7 +156,7 @@ export default function MembersTable({
             orgMembershipId={orgMembershipId}
             currentRole={orgRole}
             orgId={orgId}
-            hasCudAccess={hasCudAccess}
+            hasCudAccess={hasCudAccessOrgLevel}
           />
         );
       },
@@ -199,7 +204,9 @@ export default function MembersTable({
                   currentProjectRole={projectRole ?? null}
                   orgId={orgId}
                   projectId={project.id}
-                  hasCudAccess={hasCudAccess}
+                  hasCudAccess={
+                    hasCudAccessOrgLevel || hasCudAccessProjectLevel
+                  }
                 />
               );
             },
@@ -215,7 +222,8 @@ export default function MembersTable({
         const { orgMembershipId, userId } = row.getValue(
           "meta",
         ) as MembersTableRow["meta"];
-        return hasCudAccess || (userId && userId === session.data?.user?.id) ? (
+        return hasCudAccessOrgLevel ||
+          (userId && userId === session.data?.user?.id) ? (
           <div className="flex space-x-2">
             <button
               onClick={() => {

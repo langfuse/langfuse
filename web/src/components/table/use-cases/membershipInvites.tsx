@@ -40,10 +40,11 @@ export default function InvitesTable({
     organizationId: orgId,
     scope: "organizationMembers:read",
   });
-  const hasProjectViewAccess = useHasProjectAccess({
-    projectId,
-    scope: "projectMembers:read",
-  });
+  const hasProjectViewAccess =
+    useHasProjectAccess({
+      projectId,
+      scope: "projectMembers:read",
+    }) || hasOrgViewAccess;
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),

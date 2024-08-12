@@ -33,6 +33,7 @@ import { Role } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 const formSchema = z.object({
   email: z.string().trim().email(),
@@ -46,10 +47,17 @@ export function CreateProjectMemberButton(props: {
 }) {
   const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasOrganizationAccess({
+  const hasOrgAccess = useHasOrganizationAccess({
     organizationId: props.orgId,
     scope: "organizationMembers:CUD",
   });
+  const hasProjectAccess = useHasProjectAccess({
+    projectId: props.project?.id,
+    scope: "projectMembers:CUD",
+  });
+  const hasProjectRoleEntitlement = useHasOrgEntitlement("rbac-project-roles");
+  const hasOnlySingleProjectAccess =
+    !hasOrgAccess && hasProjectAccess && hasProjectRoleEntitlement;
 
   const utils = api.useUtils();
   const mutCreateProjectMember = api.members.create.useMutation({
@@ -65,8 +73,8 @@ export function CreateProjectMemberButton(props: {
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      orgRole: Role.MEMBER,
-      projectRole: Role.NONE,
+      orgRole: hasOnlySingleProjectAccess ? Role.NONE : Role.MEMBER,
+      projectRole: hasOnlySingleProjectAccess ? Role.MEMBER : Role.NONE,
     },
   });
 
@@ -99,8 +107,6 @@ export function CreateProjectMemberButton(props: {
       });
   }
 
-  const hasProjectRoleEntitlement = useHasOrgEntitlement("rbac-project-roles");
-
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -108,15 +114,20 @@ export function CreateProjectMemberButton(props: {
           <Button
             variant="secondary"
             loading={mutCreateProjectMember.isLoading}
-            disabled={!hasAccess}
+            disabled={!hasOrgAccess && !hasOnlySingleProjectAccess}
           >
             <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-            Add new member
+            {hasOnlySingleProjectAccess
+              ? "Add project member"
+              : "Add new member"}
           </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add new member to the organization</DialogTitle>
+            <DialogTitle>
+              Add new member to the{" "}
+              {hasOnlySingleProjectAccess ? "project" : "organization"}
+            </DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form
@@ -137,37 +148,39 @@ export function CreateProjectMemberButton(props: {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="orgRole"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Organization Role</FormLabel>
-                    <Select
-                      defaultValue={field.value}
-                      onValueChange={(value) =>
-                        field.onChange(
-                          value as (typeof Role)[keyof typeof Role],
-                        )
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an organization role" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {Object.values(Role).map((role) => (
-                          <SelectItem value={role} key={role}>
-                            {role}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {!hasOnlySingleProjectAccess && (
+                <FormField
+                  control={form.control}
+                  name="orgRole"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Organization Role</FormLabel>
+                      <Select
+                        defaultValue={field.value}
+                        onValueChange={(value) =>
+                          field.onChange(
+                            value as (typeof Role)[keyof typeof Role],
+                          )
+                        }
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an organization role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.values(Role).map((role) => (
+                            <SelectItem value={role} key={role}>
+                              {role}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               {props.project !== undefined && hasProjectRoleEntitlement && (
                 <FormField
                   control={form.control}
@@ -189,19 +202,27 @@ export function CreateProjectMemberButton(props: {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.values(Role).map((role) => (
-                            <SelectItem value={role} key={role}>
-                              {role === Role.NONE
-                                ? "None (keep default role)"
-                                : role}
-                            </SelectItem>
-                          ))}
+                          {Object.values(Role)
+                            .filter(
+                              (role) =>
+                                !hasOnlySingleProjectAccess ||
+                                role !== Role.NONE,
+                            )
+                            .map((role) => (
+                              <SelectItem value={role} key={role}>
+                                {role === Role.NONE
+                                  ? "None (keep default role)"
+                                  : role}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
-                      <FormDescription>
-                        This project role will override the default role for
-                        this current project ({props.project!.name}).
-                      </FormDescription>
+                      {!hasOnlySingleProjectAccess && (
+                        <FormDescription>
+                          This project role will override the default role for
+                          this current project ({props.project!.name}).
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}

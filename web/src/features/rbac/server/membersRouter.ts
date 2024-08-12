@@ -14,7 +14,10 @@ import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 
 // Record as it allows to type check that all roles are included
 const orderedRoles: Record<Role, number> = {
@@ -254,17 +257,23 @@ export const membersRouter = createTRPCRouter({
   allFromProject: protectedProjectProcedure
     .input(projectLevelMemberQuery)
     .query(async ({ input, ctx }) => {
-      const showAllOrgMembers = hasOrganizationAccess({
+      const orgAccess = hasOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
         scope: "organizationMembers:read",
       });
-      throwIfNoProjectAccess({
+      const projectAccess = hasProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "projectMembers:read",
       });
-      return getMembers(ctx.prisma, input, showAllOrgMembers);
+      if (!orgAccess && !projectAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have the required access rights",
+        });
+      }
+      return getMembers(ctx.prisma, input, orgAccess);
     }),
   allInvitesFromOrg: protectedOrganizationProcedure
     .input(orgLevelInviteQuery)
@@ -279,17 +288,23 @@ export const membersRouter = createTRPCRouter({
   allInvitesFromProject: protectedProjectProcedure
     .input(projectLevelInviteQuery)
     .query(async ({ input, ctx }) => {
-      const showAllOrgMembers = hasOrganizationAccess({
+      const orgAccess = hasOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
         scope: "organizationMembers:read",
       });
-      throwIfNoProjectAccess({
+      const projectAccess = hasProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "projectMembers:read",
       });
-      return getInvites(ctx.prisma, input, showAllOrgMembers);
+      if (!orgAccess && !projectAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have the required access rights",
+        });
+      }
+      return getInvites(ctx.prisma, input, orgAccess);
     }),
   create: protectedOrganizationProcedure
     .input(
@@ -303,11 +318,25 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "organizationMembers:CUD",
-      });
+      if (
+        // Require only project-level access rights if no orgRole is set but a projectId is
+        input.projectId &&
+        input.orgRole === Role.NONE
+      ) {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "projectMembers:CUD",
+        });
+      } else {
+        // Require org-level access rights
+        throwIfNoOrganizationAccess({
+          session: ctx.session,
+          organizationId: input.orgId,
+          scope: "organizationMembers:CUD",
+        });
+      }
+
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
         role: input.orgRole,
@@ -367,12 +396,45 @@ export const membersRouter = createTRPCRouter({
               userId: user.id,
             },
           });
+
+        // early return if user is already a member of the org
         if (existingOrgMembership) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "User is already a member of this organization",
-          });
+          // user exists and only a project role shall be added
+          if (
+            input.orgRole === Role.NONE &&
+            project &&
+            input.projectRole &&
+            input.projectRole !== Role.NONE
+          ) {
+            // Create project role for user
+            const newProjectMembership =
+              await ctx.prisma.projectMembership.create({
+                data: {
+                  userId: user.id,
+                  projectId: project.id,
+                  role: input.projectRole,
+                  orgMembershipId: existingOrgMembership.id,
+                },
+              });
+
+            // audit log
+            await auditLog({
+              session: ctx.session,
+              resourceType: "projectMembership",
+              resourceId: project.id + "--" + user.id,
+              action: "create",
+              after: newProjectMembership,
+            });
+            return;
+          } else {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "User is already a member of this organization",
+            });
+          }
         }
+
+        // create org membership as user is not a member yet
         const orgMembership = await ctx.prisma.organizationMembership.create({
           data: {
             userId: user.id,
@@ -466,7 +528,7 @@ export const membersRouter = createTRPCRouter({
       });
       if (!orgMembership) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // User is only allowed to delete their own membership if they do not have the required scope
+      // Check if user has access, either by having the correct role, or being the user themselves that is being deleted
       const hasAccess = hasOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
@@ -520,11 +582,6 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "organizationMembers:CUD",
-      });
       const invitation = await ctx.prisma.membershipInvitation.findFirst({
         where: {
           orgId: input.orgId,
@@ -532,6 +589,20 @@ export const membersRouter = createTRPCRouter({
         },
       });
       if (!invitation) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (invitation.projectId && invitation.orgRole === Role.NONE) {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: invitation.projectId,
+          scope: "projectMembers:CUD",
+        });
+      } else {
+        throwIfNoOrganizationAccess({
+          session: ctx.session,
+          organizationId: input.orgId,
+          scope: "organizationMembers:CUD",
+        });
+      }
 
       await auditLog({
         session: ctx.session,
@@ -627,11 +698,23 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "organizationMembers:CUD",
-      });
+      const hasAccess =
+        hasOrganizationAccess({
+          session: ctx.session,
+          organizationId: input.orgId,
+          scope: "organizationMembers:CUD",
+        }) ||
+        hasProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "projectMembers:CUD",
+        });
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have the required access rights",
+        });
+      }
 
       // check org membership id, can be trusted after this check
       const orgMembership = await ctx.prisma.organizationMembership.findUnique({
@@ -646,6 +729,12 @@ export const membersRouter = createTRPCRouter({
           message: "Organization membership not found",
         });
       }
+
+      // cannot edit project roles of users with higher org roles
+      throwIfHigherRole({
+        ownRole: ctx.session.orgRole,
+        role: orgMembership.role,
+      });
 
       const projectMembership = await ctx.prisma.projectMembership.findFirst({
         where: {
