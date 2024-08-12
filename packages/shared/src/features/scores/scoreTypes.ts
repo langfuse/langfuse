@@ -1,19 +1,19 @@
 import { z } from "zod";
 
+import { Score } from "@prisma/client";
+
+import { isPresent, stringDateTime } from "../../utils/typeChecks";
 import {
-  isPresent,
   NonEmptyString,
   paginationMetaResponseZod,
   paginationZod,
-  Score,
-  stringDateTime,
-} from "../../../src";
+} from "../../utils/zod";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
 
 /**
  * Types to use across codebase
  */
-export type APIScore = z.infer<typeof APIScore>;
+export type APIScore = z.infer<typeof APIScoreSchema>;
 
 /**
  * Helpers
@@ -69,7 +69,7 @@ const BaseScoreBody = z.object({
  * Objects
  */
 
-export const APIScore = z.discriminatedUnion("dataType", [
+export const APIScoreSchema = z.discriminatedUnion("dataType", [
   ScoreBase.merge(NumericData),
   ScoreBase.merge(CategoricalData),
   ScoreBase.merge(BooleanData),
@@ -164,7 +164,7 @@ export const filterAndValidateDbScoreList = (
   onParseError?: (error: z.ZodError) => void
 ): APIScore[] =>
   scores.reduce((acc, ts) => {
-    const result = APIScore.safeParse(ts);
+    const result = APIScoreSchema.safeParse(ts);
     if (result.success) {
       acc.push(result.data);
     } else {
@@ -182,7 +182,7 @@ export const filterAndValidateDbScoreList = (
  * @throws error if score fails validation
  */
 export const validateDbScore = (score: Score): APIScore =>
-  APIScore.parse(score);
+  APIScoreSchema.parse(score);
 
 /**
  * Endpoints
@@ -251,7 +251,7 @@ export const GetScoresQuery = z.object({
 
 // LegacyGetScoreResponseDataV1 is only used for response of GET /scores list endpoint
 const LegacyGetScoreResponseDataV1 = z.intersection(
-  APIScore,
+  APIScoreSchema,
   z.object({
     trace: z.object({
       userId: z.string().nullish(),
@@ -286,7 +286,7 @@ export const GetScoreQuery = z.object({
   scoreId: z.string(),
 });
 
-export const GetScoreResponse = APIScore;
+export const GetScoreResponse = APIScoreSchema;
 
 // DELETE /scores/{scoreId}
 export const DeleteScoreQuery = z.object({

@@ -1,12 +1,13 @@
 import { z } from "zod";
 
+import { ScoreConfig as ScoreConfigDbType } from "@prisma/client";
+
+import { isPresent } from "../../utils/typeChecks";
 import {
-  isPresent,
   jsonSchema,
   paginationMetaResponseZod,
   paginationZod,
-  ScoreConfig as ScoreConfigDbType,
-} from "../../../src";
+} from "../../utils/zod";
 
 /**
  * Types to use across codebase
