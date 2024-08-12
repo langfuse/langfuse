@@ -27,12 +27,15 @@ import {
   Slash,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { createProjectRoute } from "@/src/components/setup";
 import { env } from "@/src/env.mjs";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  createOrganizationRoute,
+  createProjectRoute,
+} from "@/src/features/setup/setupRoutes";
 
 export default function Header({
   level = "h2",
@@ -220,7 +223,7 @@ const BreadcrumbComponent = ({
                       className="h-8 w-full text-sm font-normal"
                       asChild
                     >
-                      <Link href="/setup">
+                      <Link href={createOrganizationRoute}>
                         <PlusIcon
                           className="mr-1.5 h-4 w-4"
                           aria-hidden="true"

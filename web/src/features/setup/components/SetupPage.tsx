@@ -15,6 +15,11 @@ import { NewProjectForm } from "@/src/features/projects/components/NewProjectFor
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
+import {
+  createProjectRoute,
+  inviteMembersRoute,
+  setupTracingRoute,
+} from "@/src/features/setup/setupRoutes";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
@@ -22,17 +27,6 @@ import { Check } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
-
-export const createOrganizationRoute = "/setup";
-
-export const createProjectRoute = (orgId: string) =>
-  `/organization/${orgId}/setup?orgstep=create-project`;
-
-export const inviteMembersRoute = (orgId: string) =>
-  `/organization/${orgId}/setup?orgstep=invite-members`;
-
-export const setupTracingRoute = (projectId: string) =>
-  `/project/${projectId}/setup`;
 
 // Multi-step setup process
 // 1. Create Organization: /setup
@@ -59,6 +53,11 @@ export function SetupPage() {
       {
         enabled: !!project && stepInt === 4,
         refetchInterval: 5000,
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
       },
     ).data ?? false;
 

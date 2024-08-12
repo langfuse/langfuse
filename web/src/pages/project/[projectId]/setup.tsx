@@ -1,3 +1,3 @@
-import { SetupPage } from "@/src/components/setup";
+import { SetupPage } from "@/src/features/setup/components/SetupPage";
 
 export default SetupPage;

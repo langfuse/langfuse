@@ -12,7 +12,6 @@ import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
-import { createProjectRoute } from "@/src/components/setup";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
@@ -20,6 +19,10 @@ import { Divider } from "@tremor/react";
 import { Fragment } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
+import {
+  createOrganizationRoute,
+  createProjectRoute,
+} from "@/src/features/setup/setupRoutes";
 
 const SingleOrganizationProjectOverview = ({
   orgId,
@@ -168,7 +171,7 @@ export const OrganizationProjectOverview = () => {
                 />
                 {canCreateOrg && (
                   <Button data-testid="create-organization-btn" asChild>
-                    <Link href="/setup">
+                    <Link href={createOrganizationRoute}>
                       <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
                       New Organization
                     </Link>
@@ -243,7 +246,7 @@ const Onboarding = () => {
       <CardFooter className="flex gap-4">
         {canCreateOrgs && (
           <Button data-testid="create-project-btn" asChild>
-            <Link href="/setup">
+            <Link href={createOrganizationRoute}>
               <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
               New Organization
             </Link>

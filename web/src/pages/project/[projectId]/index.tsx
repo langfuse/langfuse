@@ -23,6 +23,7 @@ import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -131,7 +132,7 @@ export default function Dashboard() {
 
   return (
     <div className="md:container">
-      <Header title="Dashboard" />
+      <Header title="Dashboard" actionButtons={<SetupTracingButton />} />
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
         <div className=" flex flex-col gap-2 lg:flex-row">
           <DatePickerWithRange
