@@ -10,11 +10,12 @@ CREATE TABLE "organizations" (
     CONSTRAINT "organizations_pkey" PRIMARY KEY ("id")
 );
 -- Backfill table ORGANIZATIONS: create a new organization for each project, move cloudConfig, and set the org_id on the project to project_id prefixed with 'o'
-INSERT INTO "organizations" ("id", "name", "cloud_config")
+INSERT INTO "organizations" ("id", "name", "cloud_config", "created_at")
 SELECT
   CONCAT('o', "id") as "id", -- This mapping is used in other migration steps as well, keep it consistent
   "name",
-  "cloud_config"
+  "cloud_config",
+  "created_at"
 FROM "projects";
 -- Drop column cloud_config from projects as it's now on organization level
 ALTER TABLE "projects" DROP COLUMN "cloud_config";
