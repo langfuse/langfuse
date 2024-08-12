@@ -21,6 +21,7 @@
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@clickhouse/client": "^1.4.0",
     "@langfuse/shared": "workspace:*",
+    "@logtail/pino": "^0.5.0",
     "@sentry/node": "8.13.0",
     "@sentry/profiling-node": "8.13.0",
     "backoff": "^2.5.0",
