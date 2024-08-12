@@ -142,6 +142,22 @@ const BreadcrumbComponent = ({
     scope: "projects:create",
   });
 
+  const getProjectPath = (projectId: string) =>
+    router.query.projectId
+      ? window.location.pathname.replace(
+          router.query.projectId as string,
+          projectId,
+        ) + window.location.search
+      : `/project/${projectId}`;
+
+  const getOrgPath = (orgId: string) =>
+    router.query.organizationId
+      ? window.location.pathname.replace(
+          router.query.organizationId as string,
+          orgId,
+        ) + window.location.search
+      : `/organization/${orgId}`;
+
   return (
     <Breadcrumb>
       <BreadcrumbList>
@@ -169,21 +185,21 @@ const BreadcrumbComponent = ({
                       if (isDemoB) return -1;
                       return 0;
                     })
-                    .map((org) => (
-                      <Fragment key={org.id}>
-                        {env.NEXT_PUBLIC_DEMO_ORG_ID === org.id && (
+                    .map((dropdownOrg) => (
+                      <Fragment key={dropdownOrg.id}>
+                        {env.NEXT_PUBLIC_DEMO_ORG_ID === dropdownOrg.id && (
                           <DropdownMenuSeparator />
                         )}
                         <DropdownMenuItem asChild>
                           <Link
-                            href={`/organization/${org.id}`}
+                            href={getOrgPath(dropdownOrg.id)}
                             className="flex cursor-pointer justify-between"
                           >
                             <span
                               className="max-w-36 overflow-hidden overflow-ellipsis whitespace-nowrap"
-                              title={org.name}
+                              title={dropdownOrg.name}
                             >
-                              {org.name}
+                              {dropdownOrg.name}
                             </span>
                             <Button
                               asChild
@@ -196,7 +212,7 @@ const BreadcrumbComponent = ({
                                   e.preventDefault();
                                   e.stopPropagation();
                                   router.push(
-                                    `/organization/${org.id}/settings`,
+                                    `/organization/${dropdownOrg.id}/settings`,
                                   );
                                 }}
                               >
@@ -261,17 +277,17 @@ const BreadcrumbComponent = ({
                   {organizations ? (
                     organizations
                       .find((org) => org.id === organization.id)
-                      ?.projects.map((project) => (
-                        <DropdownMenuItem key={project.id} asChild>
+                      ?.projects.map((dropdownProject) => (
+                        <DropdownMenuItem key={dropdownProject.id} asChild>
                           <Link
-                            href={`/project/${project.id}`}
+                            href={getProjectPath(dropdownProject.id)}
                             className="flex cursor-pointer justify-between"
                           >
                             <span
                               className="max-w-36 overflow-hidden overflow-ellipsis whitespace-nowrap"
-                              title={project.name}
+                              title={dropdownProject.name}
                             >
-                              {project.name}
+                              {dropdownProject.name}
                             </span>
                             <Button
                               asChild
@@ -284,7 +300,7 @@ const BreadcrumbComponent = ({
                                   e.preventDefault();
                                   e.stopPropagation();
                                   router.push(
-                                    `/project/${project.id}/settings`,
+                                    `/project/${dropdownProject.id}/settings`,
                                   );
                                 }}
                               >
