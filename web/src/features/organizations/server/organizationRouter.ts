@@ -61,26 +61,11 @@ export const organizationsRouter = createTRPCRouter({
       const beforeOrganization = await ctx.prisma.organization.findFirst({
         where: {
           id: input.orgId,
-          organizationMemberships: {
-            some: {
-              userId: ctx.session.user.id,
-              role: "OWNER",
-            },
-          },
         },
       });
-      if (!beforeOrganization) {
-        throw new Error("You do not have access to this organization");
-      }
       const afterOrganization = await ctx.prisma.organization.update({
         where: {
           id: input.orgId,
-          organizationMemberships: {
-            some: {
-              userId: ctx.session.user.id,
-              role: "OWNER",
-            },
-          },
         },
         data: {
           name: input.name,
