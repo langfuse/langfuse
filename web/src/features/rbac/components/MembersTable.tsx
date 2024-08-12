@@ -145,7 +145,6 @@ export function MembersTable({
       accessorKey: "orgRole",
       id: "orgRole",
       header: "Organization Role",
-      enableHiding: true,
       headerTooltip: {
         description:
           "The org-role is the default role for this user in this organization and applies to the organization and all of its projects.",
@@ -156,25 +155,16 @@ export function MembersTable({
         const { orgMembershipId } = row.getValue(
           "meta",
         ) as MembersTableRow["meta"];
+        const { userId } = row.getValue("meta") as MembersTableRow["meta"];
         return (
           <OrgRoleDropdown
             orgMembershipId={orgMembershipId}
             currentRole={orgRole}
+            userId={userId}
             orgId={orgId}
             hasCudAccess={hasCudAccessOrgLevel}
           />
         );
-      },
-    },
-    {
-      accessorKey: "createdAt",
-      id: "createdAt",
-      header: "Member Since",
-      enableHiding: true,
-      defaultHidden: true,
-      cell: ({ row }) => {
-        const value = row.getValue("createdAt") as MembersTableRow["createdAt"];
-        return value ? new Date(value).toLocaleString() : undefined;
       },
     },
     ...(project
@@ -183,7 +173,6 @@ export function MembersTable({
             accessorKey: "projectRole",
             id: "projectRole",
             header: "Project Role",
-            enableHiding: true,
             headerTooltip: {
               description:
                 "The role for this user in this specific project. This role overrides the default project role.",
@@ -219,6 +208,17 @@ export function MembersTable({
           },
         ]
       : []),
+    {
+      accessorKey: "createdAt",
+      id: "createdAt",
+      header: "Member Since",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value = row.getValue("createdAt") as MembersTableRow["createdAt"];
+        return value ? new Date(value).toLocaleString() : undefined;
+      },
+    },
     {
       accessorKey: "meta",
       id: "meta",
@@ -330,14 +330,17 @@ const OrgRoleDropdown = ({
   orgMembershipId,
   currentRole,
   orgId,
+  userId,
   hasCudAccess,
 }: {
   orgMembershipId: string;
   currentRole: Role;
   orgId: string;
+  userId: string;
   hasCudAccess: boolean;
 }) => {
   const utils = api.useUtils();
+  const session = useSession();
   const mut = api.members.updateOrgMembership.useMutation({
     onSuccess: () => {
       utils.members.invalidate();
@@ -353,13 +356,20 @@ const OrgRoleDropdown = ({
     <Select
       disabled={!hasCudAccess || mut.isLoading}
       value={currentRole}
-      onValueChange={(value) =>
-        mut.mutate({
-          orgId,
-          orgMembershipId,
-          role: value as Role,
-        })
-      }
+      onValueChange={(value) => {
+        if (
+          userId !== session.data?.user?.id ||
+          confirm(
+            "Are you sure that you want to change your own organization role?",
+          )
+        ) {
+          mut.mutate({
+            orgId,
+            orgMembershipId,
+            role: value as Role,
+          });
+        }
+      }}
     >
       <SelectTrigger className="w-[120px]">
         <SelectValue />
@@ -389,6 +399,7 @@ const ProjectRoleDropdown = ({
   hasCudAccess: boolean;
 }) => {
   const utils = api.useUtils();
+  const session = useSession();
   const mut = api.members.updateProjectRole.useMutation({
     onSuccess: () => {
       utils.members.invalidate();
@@ -405,13 +416,18 @@ const ProjectRoleDropdown = ({
       disabled={!hasCudAccess || mut.isLoading}
       value={currentProjectRole ?? Role.NONE}
       onValueChange={(value) => {
-        mut.mutate({
-          orgId,
-          orgMembershipId,
-          projectId,
-          userId,
-          projectRole: value as Role,
-        });
+        if (
+          userId !== session.data?.user?.id ||
+          confirm("Are you sure that you want to change your own project role?")
+        ) {
+          mut.mutate({
+            orgId,
+            orgMembershipId,
+            projectId,
+            userId,
+            projectRole: value as Role,
+          });
+        }
       }}
     >
       <SelectTrigger className="w-[120px]">
