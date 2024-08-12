@@ -67,18 +67,17 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  try {
-    return Sentry.startSpan(
-      {
-        name: "POST /api/public/ingestion",
-        forceTransaction: true,
-        op: "http.server",
-      },
-      async (span) => {
+  return Sentry.startSpan(
+    {
+      name: "POST /api/public/ingestion",
+      forceTransaction: true,
+      op: "http.server",
+    },
+    async (span) => {
+      try {
         const startTime = Date.now();
         let endTime = undefined;
         await runMiddleware(req, res, cors);
-
         if (req.method !== "POST") throw new MethodNotAllowedError();
 
         // CHECK AUTH FOR ALL EVENTS
@@ -177,41 +176,41 @@ export default async function handler(
           duration: (endTime ?? Date.now()) - startTime,
           async_duration: Date.now() - startTime,
         });
-      },
-    );
-  } catch (error: unknown) {
-    if (!(error instanceof UnauthorizedError)) {
-      console.error("error_handling_ingestion_event", error);
-      Sentry.captureException(error);
-    }
+      } catch (error: unknown) {
+        if (!(error instanceof UnauthorizedError)) {
+          console.error("error_handling_ingestion_event", error);
+          Sentry.captureException(error);
+        }
 
-    if (error instanceof BaseError) {
-      return res.status(error.httpCode).json({
-        error: error.name,
-        message: error.message,
-      });
-    }
+        if (error instanceof BaseError) {
+          return res.status(error.httpCode).json({
+            error: error.name,
+            message: error.message,
+          });
+        }
 
-    if (isPrismaException(error)) {
-      return res.status(500).json({
-        error: "Internal Server Error",
-      });
-    }
-    if (error instanceof z.ZodError) {
-      console.log(`Zod exception`, error.errors);
-      return res.status(400).json({
-        message: "Invalid request data",
-        error: error.errors,
-      });
-    }
+        if (isPrismaException(error)) {
+          return res.status(500).json({
+            error: "Internal Server Error",
+          });
+        }
+        if (error instanceof z.ZodError) {
+          console.log(`Zod exception`, error.errors);
+          return res.status(400).json({
+            message: "Invalid request data",
+            error: error.errors,
+          });
+        }
 
-    const errorMessage =
-      error instanceof Error ? error.message : "An unknown error occurred";
-    res.status(500).json({
-      message: "Invalid request data",
-      errors: [errorMessage],
-    });
-  }
+        const errorMessage =
+          error instanceof Error ? error.message : "An unknown error occurred";
+        res.status(500).json({
+          message: "Invalid request data",
+          errors: [errorMessage],
+        });
+      }
+    },
+  );
 }
 
 /**
