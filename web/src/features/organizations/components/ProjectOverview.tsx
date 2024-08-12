@@ -214,8 +214,15 @@ const IntroducingOrganizations = () => (
     <Building2 className="h-4 w-4" />
     <AlertTitle>Introducing Organizations</AlertTitle>
     <AlertDescription>
-      Organizations are a way to group projects and manage access to them. See
-      changelog to learn more about this change.
+      Organizations are a way to group projects and manage access to them. See{" "}
+      <Link
+        href="https://langfuse.com/changelog/2024-08-12-organizations"
+        className="underline"
+        target="_blank"
+      >
+        changelog
+      </Link>{" "}
+      to learn more.
     </AlertDescription>
   </Alert>
 );
