@@ -91,7 +91,7 @@ const SingleOrganizationProjectOverview = ({
             </Button>
             {membersViewAccess && (
               <Button asChild variant="ghost">
-                <Link href={`/organization/${orgId}/settings?page=Members`}>
+                <Link href={`/organization/${orgId}/settings/members`}>
                   <Users size={14} />
                 </Link>
               </Button>
