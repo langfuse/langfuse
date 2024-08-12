@@ -18,3 +18,4 @@ export * from "./redis/trace-upsert";
 export * from "./redis/batch-export";
 export * from "./redis/legacy-ingestion";
 export * from "./clickhouse";
+export * from "./auth/index";

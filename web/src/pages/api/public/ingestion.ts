@@ -1,38 +1,19 @@
-import {
-  type AuthHeaderVerificationResult,
-  ApiAuthService,
-} from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
-  type TraceUpsertEventType,
-  type EventBodyType,
-  EventName,
   LangfuseNotFoundError,
   InternalServerError,
   QueueJobs,
 } from "@langfuse/shared";
 import {
   getLegacyIngestionQueue,
-  type ingestionApiSchema,
-  convertTraceUpsertEventsToRedisEvents,
   eventTypes,
-  getTraceUpsertQueue,
   ingestionEvent,
 } from "@langfuse/shared/src/server";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { persistEventMiddleware } from "@/src/server/api/services/event-service";
-import { backOff } from "exponential-backoff";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
-import {
-  SdkLogProcessor,
-  type EventProcessor,
-  TraceProcessor,
-} from "../../../../../packages/shared/src/server/ingestion/legacy/EventProcessor";
-import { ObservationProcessor } from "../../../../../packages/shared/src/server/ingestion/legacy/EventProcessor";
-import { ScoreProcessor } from "../../../../../packages/shared/src/server/ingestion/legacy/EventProcessor";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -43,13 +24,13 @@ import {
   InvalidRequestError,
   MethodNotAllowedError,
   BaseError,
-  ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { redis } from "@langfuse/shared/src/server";
-
-import { isSigtermReceived } from "@/src/utils/shutdown";
-import { WorkerClient } from "@/src/server/api/services/WorkerClient";
+import {
+  redis,
+  handleBatch,
+  sendToWorkerIfEnvironmentConfigured,
+} from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
 export const config = {
@@ -58,12 +39,6 @@ export const config = {
       sizeLimit: "4.5mb",
     },
   },
-};
-
-type BatchResult = {
-  result: unknown;
-  id: string;
-  type: string;
 };
 
 export default async function handler(
@@ -253,80 +228,6 @@ const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
   return [...others, ...updates];
 };
 
-export const handleBatch = async (
-  events: z.infer<typeof ingestionApiSchema>["batch"],
-  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
-  req: NextApiRequest,
-  authCheck: AuthHeaderVerificationResult,
-) => {
-  console.log(
-    `handling ingestion ${events.length} events ${isSigtermReceived() ? "after SIGTERM" : ""}`,
-  );
-
-  if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
-
-  const results: BatchResult[] = []; // Array to store the results
-
-  const errors: {
-    error: unknown;
-    id: string;
-    type: string;
-  }[] = []; // Array to store the errors
-
-  for (const singleEvent of events) {
-    try {
-      const result = await retry(async () => {
-        return await handleSingleEvent(
-          singleEvent,
-          metadata,
-          req,
-          authCheck.scope,
-        );
-      });
-      results.push({
-        result: result,
-        id: singleEvent.id,
-        type: singleEvent.type,
-      }); // Push each result into the array
-    } catch (error) {
-      // Handle or log the error if `handleSingleEvent` fails
-      console.error("Error handling event:", error);
-      // Decide how to handle the error: rethrow, continue, or push an error object to results
-      // For example, push an error object:
-      errors.push({
-        error: error,
-        id: singleEvent.id,
-        type: singleEvent.type,
-      });
-    }
-  }
-
-  if (env.CLICKHOUSE_URL) {
-    await new WorkerClient()
-      .sendIngestionBatch({
-        batch: events,
-        metadata,
-        projectId: authCheck.scope.projectId,
-      })
-      .catch(); // Ignore errors while testing the ingestion via worker
-  }
-
-  return { results, errors };
-};
-
-async function retry<T>(request: () => Promise<T>): Promise<T> {
-  return await backOff(request, {
-    numOfAttempts: env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" ? 5 : 3,
-    retry: (e: Error, attemptNumber: number) => {
-      if (e instanceof UnauthorizedError || e instanceof ForbiddenError) {
-        console.log("not retrying auth error");
-        return false;
-      }
-      console.log(`retrying processing events ${attemptNumber}`);
-      return true;
-    },
-  });
-}
 export const getBadRequestError = (
   errors: Array<unknown>,
 ): InvalidRequestError[] =>
@@ -345,72 +246,6 @@ export const getResourceNotFoundError = (
 
 export const hasBadRequestError = (errors: Array<unknown>) =>
   errors.some((error) => error instanceof InvalidRequestError);
-
-const handleSingleEvent = async (
-  event: z.infer<typeof ingestionEvent>,
-  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
-  req: NextApiRequest,
-  apiScope: ApiAccessScope,
-) => {
-  const { body } = event;
-  let restEvent = body;
-  if ("input" in body) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { input, ...rest } = body;
-    restEvent = rest;
-  }
-  if ("output" in restEvent) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { output, ...rest } = restEvent;
-    restEvent = rest;
-  }
-
-  console.log(
-    `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
-  );
-
-  const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
-
-  const { type } = cleanedEvent;
-
-  await persistEventMiddleware(
-    prisma,
-    apiScope.projectId,
-    req,
-    cleanedEvent,
-    metadata,
-  );
-
-  let processor: EventProcessor;
-  switch (type) {
-    case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(cleanedEvent);
-      break;
-    case eventTypes.OBSERVATION_CREATE:
-    case eventTypes.OBSERVATION_UPDATE:
-    case eventTypes.EVENT_CREATE:
-    case eventTypes.SPAN_CREATE:
-    case eventTypes.SPAN_UPDATE:
-    case eventTypes.GENERATION_CREATE:
-    case eventTypes.GENERATION_UPDATE:
-      processor = new ObservationProcessor(cleanedEvent);
-      break;
-    case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(cleanedEvent);
-      break;
-    }
-    case eventTypes.SDK_LOG:
-      processor = new SdkLogProcessor(cleanedEvent);
-  }
-
-  // Deny access to non-score events if the access level is not "all"
-  // This is an additional safeguard to auth checks in EventProcessor
-  if (apiScope.accessLevel !== "all" && type !== eventTypes.SCORE_CREATE) {
-    throw new ForbiddenError("Access denied. Event type not allowed.");
-  }
-
-  return await processor.process(apiScope);
-};
 
 export const handleBatchResult = (
   errors: Array<{ id: string; error: unknown }>,
@@ -550,86 +385,6 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;
-};
-
-// cleans NULL characters from the event
-export function cleanEvent(obj: unknown): unknown {
-  if (typeof obj === "string") {
-    return obj.replace(/\u0000/g, "");
-  } else if (typeof obj === "object" && obj !== null) {
-    if (Array.isArray(obj)) {
-      return obj.map(cleanEvent);
-    } else {
-      // Here we assert that obj is a Record<string, unknown>
-      const objAsRecord = obj as Record<string, unknown>;
-      const newObj: Record<string, unknown> = {};
-      for (const key in objAsRecord) {
-        newObj[key] = cleanEvent(objAsRecord[key]);
-      }
-      return newObj;
-    }
-  } else {
-    return obj;
-  }
-}
-
-export const sendToWorkerIfEnvironmentConfigured = async (
-  batchResults: BatchResult[],
-  projectId: string,
-): Promise<void> => {
-  const traceEvents: TraceUpsertEventType[] = batchResults
-    .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
-    .map((result) =>
-      result.result &&
-      typeof result.result === "object" &&
-      "id" in result.result
-        ? // ingestion API only gets traces for one projectId
-          { traceId: result.result.id as string, projectId }
-        : null,
-    )
-    .filter(isNotNullOrUndefined);
-
-  try {
-    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && redis) {
-      console.log(`Sending ${traceEvents.length} events to worker via Redis`);
-
-      const queue = getTraceUpsertQueue();
-      if (!queue) {
-        console.error("TraceUpsertQueue not initialized");
-        return;
-      }
-
-      await queue.addBulk(convertTraceUpsertEventsToRedisEvents(traceEvents));
-    } else if (
-      env.LANGFUSE_WORKER_HOST &&
-      env.LANGFUSE_WORKER_PASSWORD &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-    ) {
-      console.log(`Sending ${traceEvents.length} events to worker via HTTP`);
-      const body: EventBodyType = {
-        name: EventName.TraceUpsert,
-        payload: traceEvents,
-      };
-
-      if (traceEvents.length > 0) {
-        await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:
-              "Basic " +
-              Buffer.from(
-                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
-              ).toString("base64"),
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(8 * 1000),
-        });
-      }
-    }
-  } catch (error) {
-    console.error("Error sending events to worker", error);
-  }
 };
 
 const gaugePrismaStats = async () => {

@@ -26,7 +26,6 @@
     "**/*.cjs",
     "**/*.mjs",
     "src/features/navigate-detail-pages",
-    "types/global.d.ts",
-    "../packages/shared/src/server/ingestion/legacy/EventProcessor.ts"
+    "types/global.d.ts"
   ]
 }

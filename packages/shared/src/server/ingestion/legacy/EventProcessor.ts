@@ -1,5 +1,4 @@
 import { tokenCount } from "@/src/features/ingest/usage";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
 import {
   type legacyObservationCreateEvent,
@@ -8,6 +7,7 @@ import {
   type generationCreateEvent,
   type sdkLogEvent,
   type traceEvent,
+  ApiAccessScope,
 } from "@langfuse/shared/src/server";
 import { ScoreDataType, prisma } from "@langfuse/shared/src/db";
 import { type ObservationEvent, findModel } from "@langfuse/shared/src/server";

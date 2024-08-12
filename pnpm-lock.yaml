@@ -161,6 +161,9 @@ importers:
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
+      exponential-backoff:
+        specifier: ^3.1.1
+        version: 3.1.1
       ioredis:
         specifier: ^5.4.1
         version: 5.4.1
