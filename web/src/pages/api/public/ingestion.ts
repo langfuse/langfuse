@@ -78,9 +78,7 @@ export default async function handler(
         const startTime = Date.now();
         let endTime = undefined;
         await runMiddleware(req, res, cors);
-        throw new MethodNotAllowedError();
-
-        if (req.method !== "POST") throw new Error("I am a new error");
+        if (req.method !== "POST") throw new MethodNotAllowedError();
 
         // CHECK AUTH FOR ALL EVENTS
         const authCheck = await new ApiAuthService(
