@@ -48,7 +48,6 @@ import { redis } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
-import { SpanStatus } from "next/dist/trace";
 
 export const config = {
   api: {
