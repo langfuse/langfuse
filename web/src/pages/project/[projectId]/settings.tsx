@@ -144,7 +144,7 @@ const Integrations = (props: { projectId: string }) => {
           {entitled && hasAccess ? (
             <Button variant="secondary" asChild>
               <Link
-                href={`/project/${props.projectId}/settings/posthog-integration`}
+                href={`/project/${props.projectId}/settings/integrations/posthog`}
               >
                 Configure
               </Link>
