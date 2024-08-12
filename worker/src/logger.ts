@@ -8,7 +8,7 @@ const getBetterstackLogginTransport = (minLevel: string) => {
         options: { sourceToken: env.LANGFUSE_WORKER_BETTERSTACK_TOKEN },
         level: minLevel,
       })
-    : undefined;
+    : { level: minLevel };
 };
 
 export const getLogger = (
