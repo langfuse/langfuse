@@ -371,19 +371,27 @@ export const membersRouter = createTRPCRouter({
       });
       if (!invitation) throw new TRPCError({ code: "NOT_FOUND" });
 
-      if (invitation.projectId && invitation.orgRole === Role.NONE) {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: invitation.projectId,
-          scope: "projectMembers:CUD",
+      if (
+        !(
+          hasOrganizationAccess({
+            session: ctx.session,
+            organizationId: input.orgId,
+            scope: "organizationMembers:CUD",
+          }) ||
+          (invitation.projectId &&
+            invitation.orgRole === Role.NONE &&
+            hasProjectAccess({
+              session: ctx.session,
+              projectId: invitation.projectId,
+              scope: "projectMembers:CUD",
+            }))
+        )
+      )
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message:
+            "You do not have sufficient rights to delete this invitation.",
         });
-      } else {
-        throwIfNoOrganizationAccess({
-          session: ctx.session,
-          organizationId: input.orgId,
-          scope: "organizationMembers:CUD",
-        });
-      }
 
       await auditLog({
         session: ctx.session,
