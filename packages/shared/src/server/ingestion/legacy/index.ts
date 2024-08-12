@@ -9,7 +9,6 @@ import {
   ScoreProcessor,
   SdkLogProcessor,
 } from "./EventProcessor";
-import { persistEventMiddleware } from "./event-service";
 import {
   EventBodyType,
   EventName,
