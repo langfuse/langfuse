@@ -14,6 +14,7 @@ import {
   projectNoneRoleComment,
   projectRoleAccessRights,
 } from "@/src/features/rbac/constants/projectAccessRights";
+import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 
 export const RoleSelectItem = ({
   role,
@@ -45,11 +46,16 @@ export const RoleSelectItem = ({
             <div className="text-xs">{orgNoneRoleComment}</div>
           ) : (
             <>
-              <div className="mb-2 font-bold">Role: {formatRole(role)}</div>
-              <p className="mt-2 text-xs font-semibold">Organization Scopes</p>
+              <div className="font-bold">Role: {formatRole(role)}</div>
+              <p className="mt-3 text-xs font-semibold">Organization Scopes</p>
               <ul className="list-inside list-disc text-xs">{orgScopes}</ul>
               <p className="mt-2 text-xs font-semibold">Project Scopes</p>
               <ul className="list-inside list-disc text-xs">{projectScopes}</ul>
+              <p className="mt-3 border-t pt-3 text-xs">
+                Note:{" "}
+                <span className="text-muted-foreground">Muted scopes</span> are
+                inherited from lower role.
+              </p>
             </>
           )}
         </HoverCardContent>
@@ -62,6 +68,12 @@ const reduceScopesToListItems = (
   accessRights: Record<string, string[]>,
   role: Role,
 ) => {
+  const currentRoleLevel = orderedRoles[role];
+  const lowerRole = Object.entries(orderedRoles).find(
+    ([_role, level]) => level === currentRoleLevel - 1,
+  )?.[0] as Role | undefined;
+  const inheritedScopes = lowerRole ? accessRights[lowerRole] : [];
+
   return accessRights[role].length > 0 ? (
     <>
       {Object.entries(
@@ -76,9 +88,27 @@ const reduceScopesToListItems = (
           },
           {} as Record<string, string[]>,
         ),
-      ).map(([resource, scopes]) => (
-        <li key={resource}>{`${resource}: ${scopes.join(", ")}`}</li>
-      ))}
+      ).map(([resource, actions]) => {
+        const inheritedActions = actions.filter((action) =>
+          inheritedScopes.includes(`${resource}:${action}`),
+        );
+        const newActions = actions.filter(
+          (action) => !inheritedScopes.includes(`${resource}:${action}`),
+        );
+
+        return (
+          <li key={resource}>
+            <span>{resource}: </span>
+            <span className="text-muted-foreground">
+              {inheritedActions.length > 0 ? inheritedActions.join(", ") : ""}
+              {newActions.length > 0 && inheritedActions.length > 0 ? ", " : ""}
+            </span>
+            <span className="font-semibold">
+              {newActions.length > 0 ? newActions.join(", ") : ""}
+            </span>
+          </li>
+        );
+      })}
     </>
   ) : (
     <li>None</li>

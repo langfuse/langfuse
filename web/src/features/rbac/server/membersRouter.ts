@@ -19,15 +19,9 @@ import {
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
+import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 
 // Record as it allows to type check that all roles are included
-const orderedRoles: Record<Role, number> = {
-  [Role.OWNER]: 4,
-  [Role.ADMIN]: 3,
-  [Role.MEMBER]: 2,
-  [Role.VIEWER]: 1,
-  [Role.NONE]: 0,
-};
 function throwIfHigherRole({ ownRole, role }: { ownRole: Role; role: Role }) {
   if (orderedRoles[ownRole] < orderedRoles[role]) {
     throw new TRPCError({
