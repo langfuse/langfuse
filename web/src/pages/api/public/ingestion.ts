@@ -69,7 +69,7 @@ export default async function handler(
 ) {
   return Sentry.startSpan(
     {
-      name: "POST /api/public/ingestion",
+      name: "Ingestion-Handler",
       forceTransaction: true,
       op: "http.server",
     },
@@ -139,15 +139,11 @@ export default async function handler(
 
         if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true") {
           // this function MUST NOT return but send the HTTP response directly
-          console.log("Returning http response early");
           handleBatchResult(
             validationErrors, // we are not sending additional server errors to the client in case of early return
             sortedBatch.map((event) => ({ id: event.id, result: event })),
             res,
           );
-          Sentry.captureEvent({
-            message: "Returning http response early",
-          });
           endTime = Date.now();
         }
 
