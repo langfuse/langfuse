@@ -18,17 +18,21 @@ import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfi
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useRouter } from "next/router";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
+  const router = useRouter();
   if (!project || !organization) return null;
   return (
     <div className="lg:container">
       <Header title="Project Settings" />
       <PagedSettingsContainer
+        activeSlug={router.query.page as string | undefined}
         pages={[
           {
             title: "General",
+            slug: "index",
             content: (
               <div className="flex flex-col gap-10">
                 <HostNameProject />
@@ -78,6 +82,7 @@ export default function SettingsPage() {
           },
           {
             title: "API Keys",
+            slug: "api-keys",
             content: (
               <div className="flex flex-col gap-10">
                 <ApiKeyList projectId={project.id} />
@@ -87,10 +92,12 @@ export default function SettingsPage() {
           },
           {
             title: "Scores / Evaluation",
+            slug: "scores",
             content: <ScoreConfigSettings projectId={project.id} />,
           },
           {
             title: "Members",
+            slug: "members",
             content: (
               <div>
                 <Header title="Project Members" level="h3" />
@@ -111,10 +118,12 @@ export default function SettingsPage() {
           },
           {
             title: "Integrations",
+            slug: "integrations",
             content: <Integrations projectId={project.id} />,
           },
           {
             title: "Organization Settings",
+            slug: "organization",
             href: `/organization/${organization.id}/settings`,
           },
         ]}

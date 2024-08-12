@@ -191,7 +191,7 @@ export function MembersTable({
                     <p className="text-xs">
                       The organization-level role can to be edited in the{" "}
                       <Link
-                        href={`/organization/${orgId}/settings?page=Members`}
+                        href={`/organization/${orgId}/settings/members`}
                         className="underline"
                       >
                         organization settings

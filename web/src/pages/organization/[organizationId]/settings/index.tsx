@@ -7,18 +7,24 @@ import { env } from "@/src/env.mjs";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { OrganizationUsageChart } from "@/src/features/usage-metering/OrganizationUsageChart";
+import { useRouter } from "next/router";
 
 const OrgSettingsPage = () => {
   const organization = useQueryOrganization();
+  const router = useRouter();
+  const { page } = router.query;
+
   if (!organization) return null;
 
   return (
     <div className="lg:container">
       <Header title="Organization Settings" />
       <PagedSettingsContainer
+        activeSlug={page as string | undefined}
         pages={[
           {
             title: "General",
+            slug: "index",
             content: (
               <div className="flex flex-col gap-10">
                 <RenameOrganization />
@@ -34,6 +40,7 @@ const OrgSettingsPage = () => {
           },
           {
             title: "Members",
+            slug: "members",
             content: (
               <div className="flex flex-col gap-10">
                 <div>
@@ -48,11 +55,13 @@ const OrgSettingsPage = () => {
           },
           {
             title: "Billing",
+            slug: "billing",
             content: <OrganizationUsageChart />,
             show: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined,
           },
           {
             title: "Projects",
+            slug: "projects",
             href: `/organization/${organization.id}`,
           },
         ]}

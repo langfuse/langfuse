@@ -2,7 +2,6 @@ import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode } from "react";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import {
   Select,
   SelectContent,
@@ -16,12 +15,17 @@ type SettingsProps = {
   pages: Array<
     {
       title: string;
+      slug: string;
       show?: boolean | (() => boolean);
     } & ({ content: ReactNode } | { href: string })
   >;
+  activeSlug?: string;
 };
 
-export const PagedSettingsContainer = ({ pages }: SettingsProps) => {
+export const PagedSettingsContainer = ({
+  pages,
+  activeSlug,
+}: SettingsProps) => {
   const router = useRouter();
   const availablePages = pages.filter((page) =>
     "show" in page
@@ -30,32 +34,37 @@ export const PagedSettingsContainer = ({ pages }: SettingsProps) => {
         : page.show
       : true,
   );
-  const [currentPageTitle, setCurrentPageTitle] = useQueryParam(
-    "page",
-    withDefault(StringParam, availablePages[0].title),
-  );
+
   const currentPage =
-    availablePages.find((page) => page.title === currentPageTitle) ??
+    availablePages.find((page) => page.slug === activeSlug) ??
     availablePages[0]; // Fallback to first page if not found
+
+  const onChange = (newSlug: string) => {
+    const pathSegments = router.asPath.split("/");
+    if (pathSegments[pathSegments.length - 1] !== "settings")
+      pathSegments.pop();
+    if (newSlug !== "index") pathSegments.push(newSlug);
+    router.push(pathSegments.join("/"));
+  };
 
   return (
     <main className="flex flex-1 flex-col gap-4 py-4 md:gap-8">
       <div className="grid w-full items-start gap-4 md:grid-cols-[180px_1fr] lg:grid-cols-[220px_1fr]">
         <nav className="block md:hidden">
           <Select
-            onValueChange={(title) => {
-              const page = availablePages.find((p) => p.title === title);
+            onValueChange={(slug) => {
+              const page = availablePages.find((p) => p.slug === slug);
               if (page && "href" in page) router.push(page.href);
-              else setCurrentPageTitle(title);
+              else onChange(slug);
             }}
-            value={currentPageTitle}
+            value={currentPage.slug}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select a page" />
             </SelectTrigger>
             <SelectContent>
               {availablePages.map((page) => (
-                <SelectItem key={page.title} value={page.title}>
+                <SelectItem key={page.title} value={page.slug}>
                   {page.title}
                   {"href" in page && (
                     <ArrowUpRight size={14} className="ml-1 inline" />
@@ -82,10 +91,10 @@ export const PagedSettingsContainer = ({ pages }: SettingsProps) => {
             ) : (
               <span
                 key={page.title}
-                onClick={() => setCurrentPageTitle(page.title)}
+                onClick={() => onChange(page.slug)}
                 className={cn(
                   "cursor-pointer font-semibold",
-                  page.title === currentPageTitle && "text-primary",
+                  page.slug === currentPage.slug && "text-primary",
                 )}
               >
                 {page.title}
