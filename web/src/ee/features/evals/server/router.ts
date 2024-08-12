@@ -12,7 +12,7 @@ import {
   singleFilter,
   variableMapping,
 } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
@@ -38,9 +38,11 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
 
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -83,9 +85,11 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -113,9 +117,11 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -140,9 +146,11 @@ export const evalRouter = createTRPCRouter({
       z.object({ projectId: z.string(), page: z.number(), limit: z.number() }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -183,9 +191,11 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -211,9 +221,11 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -257,9 +269,11 @@ export const evalRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-          throw new Error("Evals available in cloud only");
-        }
+        throwIfNoEntitlement({
+          entitlement: "model-based-evaluations",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -308,9 +322,11 @@ export const evalRouter = createTRPCRouter({
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplate)
     .mutation(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -357,9 +373,11 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -394,13 +412,15 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evalJobExecution:read",
       });
 
       const jobExecutions = await ctx.prisma.jobExecution.findMany({
