@@ -62,6 +62,7 @@ export const projectsRouter = createTRPCRouter({
       const project = await ctx.prisma.project.update({
         where: {
           id: input.projectId,
+          orgId: ctx.session.orgId,
         },
         data: {
           name: input.newName,
@@ -89,10 +90,16 @@ export const projectsRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "project:delete",
       });
+      const beforeProject = await ctx.prisma.project.findUnique({
+        where: {
+          id: input.projectId,
+        },
+      });
       await auditLog({
         session: ctx.session,
         resourceType: "project",
         resourceId: input.projectId,
+        before: beforeProject,
         action: "delete",
       });
 
