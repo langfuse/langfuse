@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - betterstack-logs
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
