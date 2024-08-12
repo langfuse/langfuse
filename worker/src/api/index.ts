@@ -10,6 +10,7 @@ import {
   ingestionApiSchemaWithProjectId,
   redis,
   getBatchExportQueue,
+  addExceptionToSpan,
 } from "@langfuse/shared/src/server";
 import * as Sentry from "@sentry/node";
 
@@ -168,6 +169,7 @@ router
       return res.status(200).send();
     } catch (e) {
       logger.error(e, "Failed to process ingestion event");
+      addExceptionToSpan(e);
 
       if (!res.headersSent)
         return res
