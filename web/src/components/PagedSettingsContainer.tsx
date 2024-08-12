@@ -34,9 +34,10 @@ export const PagedSettingsContainer = ({ pages }: SettingsProps) => {
     "page",
     withDefault(StringParam, availablePages[0].title),
   );
-  const currentPage = availablePages.find(
-    (page) => page.title === currentPageTitle,
-  );
+  const currentPage =
+    availablePages.find((page) => page.title === currentPageTitle) ??
+    availablePages[0]; // Fallback to first page if not found
+
   return (
     <main className="flex flex-1 flex-col gap-4 py-4 md:gap-8">
       <div className="grid w-full items-start gap-4 md:grid-cols-[180px_1fr] lg:grid-cols-[220px_1fr]">
