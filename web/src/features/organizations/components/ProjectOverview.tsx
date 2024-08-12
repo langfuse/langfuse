@@ -202,7 +202,7 @@ export const OrganizationProjectOverview = () => {
             <SingleOrganizationProjectOverview
               orgId={org.id}
               search={search ?? undefined}
-              level="h3"
+              level={queryOrgId ? "h2" : "h3"}
             />
           </Fragment>
         ))}
