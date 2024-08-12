@@ -43,6 +43,8 @@ export const flushIngestionQueueExecutor = redis
               logger.debug(
                 `Received flush request after ${waitTime} ms for ${projectEntityId}`
               );
+
+              Sentry.metrics.increment("ingestion_processing_request");
               Sentry.metrics.distribution(
                 "ingestion_flush_wait_time",
                 waitTime,
