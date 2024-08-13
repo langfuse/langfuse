@@ -134,10 +134,11 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
 
   if (!hasAccess) return null;
 
-  function onSubmit(values: CreateConfig) {
+  async function onSubmit(values: CreateConfig) {
     const error = validateScoreConfig(values);
     setFormError(error);
-    if (error) return;
+    const isValid = await form.trigger();
+    if (!isValid || error) return;
 
     return createScoreConfig
       .mutateAsync({
@@ -187,7 +188,11 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
             <DialogTitle>Add new score config</DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form className="space-y-6">
+            <form
+              className="space-y-6"
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+              onSubmit={form.handleSubmit(onSubmit)}
+            >
               <FormField
                 control={form.control}
                 name="name"
