@@ -33,6 +33,9 @@ import {
 } from "@/src/features/scores/lib/helpers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type DatabaseRow } from "@/src/server/api/services/query-builder";
+import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
+
+const SCORE_TIMESTAMP_ACCESSOR = "scoreTimestamp";
 
 function convertDateToStringTimestamp(date: Date): string {
   return date.toLocaleDateString("en-US", {
@@ -42,16 +45,84 @@ function convertDateToStringTimestamp(date: Date): string {
   });
 }
 
-function transformScoresToChartData(data: DatabaseRow[]) {
-  const chartLabels = new Set<string>();
+function padChartData(chartData: HistogramBin[]) {
+  const emptyBin = { bin: "", empty: 0 };
+  if (chartData.length < 3) {
+    return [emptyBin, emptyBin, ...chartData, emptyBin, emptyBin];
+  }
 
-  const groupedData = data.reduce(
+  if (chartData.length < 5) {
+    return [emptyBin, ...chartData, emptyBin];
+  }
+
+  return chartData;
+}
+
+type HistogramBin = { bin: string; count: number };
+type CategoryCounts = Record<string, number>;
+type ChartBin = { binLabel: string } & CategoryCounts;
+
+function aggregateScoreData(
+  data: DatabaseRow[],
+  previousTimestampChartBin?: ChartBin,
+): { categoryCounts: CategoryCounts; labels: string[] } {
+  const labels: string[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  let { binLabel, ...categoryCounts } =
+    previousTimestampChartBin || ({} as ChartBin);
+
+  data.forEach((row) => {
+    const label = row["stringValue"];
+    if (typeof label === "string") {
+      labels.push(label);
+      const previousChartBinCount = categoryCounts[label] ?? 0;
+      const count = previousChartBinCount + (row["countStringValue"] as number);
+      categoryCounts = { ...categoryCounts, [label]: count };
+    }
+  });
+
+  return { categoryCounts, labels };
+}
+
+function transformScoresToChartData(
+  data: DatabaseRow[],
+  agg?: DashboardDateRangeAggregationOption,
+) {
+  if (!agg) {
+    const { categoryCounts, labels } = aggregateScoreData(data);
+    return {
+      chartData: [{ ...categoryCounts, binLabel: "Aggregation" }],
+      chartLabels: Array.from(new Set(labels)),
+    };
+  } else {
+    const chartData: ChartBin[] = [];
+    const chartLabels: string[] = [];
+
+    const scoreDataByTimestamp = groupScoreDataByTimestamp(data);
+
+    Object.entries(scoreDataByTimestamp).forEach(([timestamp, data], index) => {
+      const previousTimestampData = chartData[index - 1] || {};
+
+      const { categoryCounts, labels } = aggregateScoreData(
+        data,
+        previousTimestampData,
+      );
+      chartLabels.push(...labels);
+      chartData.push({ ...categoryCounts, binLabel: timestamp } as ChartBin);
+    });
+
+    return { chartData, chartLabels: Array.from(new Set(chartLabels)) };
+  }
+}
+
+function groupScoreDataByTimestamp(
+  data: DatabaseRow[],
+): Record<string, DatabaseRow[]> {
+  return data.reduce(
     (acc, row) => {
-      const timestamp = row["scoreTimestamp"];
-      const key =
-        timestamp instanceof Date
-          ? convertDateToStringTimestamp(timestamp)
-          : "noTimestamp";
+      const timestamp = row[SCORE_TIMESTAMP_ACCESSOR];
+      if (!(timestamp instanceof Date)) return acc;
+      const key = convertDateToStringTimestamp(timestamp);
       if (!acc[key]) {
         acc[key] = [];
       }
@@ -60,26 +131,6 @@ function transformScoresToChartData(data: DatabaseRow[]) {
     },
     {} as Record<string, DatabaseRow[]>,
   );
-
-  const chartData = Object.values(groupedData).map((group) => {
-    return group.reduce((acc, row) => {
-      const label = row["stringValue"];
-      const timestamp = row["scoreTimestamp"];
-      const scoreTimestamp =
-        timestamp instanceof Date
-          ? convertDateToStringTimestamp(timestamp)
-          : "Aggregation";
-
-      const newAcc = { ...acc, scoreTimestamp };
-      if (typeof label === "string") {
-        chartLabels.add(label);
-        return { ...newAcc, [label]: row["countStringValue"] };
-      }
-      return { ...newAcc };
-    }, {});
-  });
-
-  return { chartData, chartLabels: Array.from(chartLabels) };
 }
 
 function CategoricalScoreChart(props: {
@@ -88,7 +139,6 @@ function CategoricalScoreChart(props: {
   source: ScoreSource;
   dataType: ScoreDataType;
   globalFilterState: FilterState;
-  barCategoryGap?: string | number;
   agg?: DashboardDateRangeAggregationOption;
 }) {
   const scores = api.dashboard.chart.useQuery(
@@ -103,7 +153,10 @@ function CategoricalScoreChart(props: {
         { column: "stringValue", agg: "COUNT" },
       ],
       filter: [
-        ...createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
+        ...createTracesTimeFilter(
+          props.globalFilterState,
+          SCORE_TIMESTAMP_ACCESSOR,
+        ),
         {
           type: "string",
           column: "scoreName",
@@ -141,7 +194,7 @@ function CategoricalScoreChart(props: {
           ? [
               {
                 type: "datetime",
-                column: "scoreTimestamp",
+                column: SCORE_TIMESTAMP_ACCESSOR,
                 temporalUnit:
                   dashboardDateRangeAggregationSettings[props.agg].date_trunc,
               } as const,
@@ -159,21 +212,136 @@ function CategoricalScoreChart(props: {
   );
 
   const { chartData, chartLabels } = scores.data
-    ? transformScoresToChartData(scores.data)
+    ? transformScoresToChartData(scores.data, props.agg)
     : { chartData: [], chartLabels: [] };
+
+  console.log({ chartData, chartLabels });
+
+  const barCategoryGap = (chartLength: number): string => {
+    if (chartLength > 7) return "10%";
+    if (chartLength > 5) return "20%";
+    if (chartLength > 3) return "30%";
+    else return "40%";
+  };
+  const colors = getColorsForCategories(chartLabels);
 
   return (
     <BarChart
       className="mt-6"
       data={chartData}
-      index="scoreTimestamp"
+      index="binLabel"
       categories={chartLabels}
-      colors={["blue", "teal", "amber", "rose", "indigo", "emerald"]}
+      colors={colors}
       valueFormatter={(number: number) =>
         Intl.NumberFormat("en-US").format(number).toString()
       }
       yAxisWidth={48}
-      barCategoryGap={props.barCategoryGap}
+      barCategoryGap={barCategoryGap(chartData.length)}
+      stack={!!props.agg}
+    />
+  );
+}
+
+function round(value: number, precision = 2) {
+  return parseFloat(value.toFixed(precision));
+}
+
+function createHistogramData(data: DatabaseRow[], minBins = 1, maxBins = 10) {
+  const numericScoreValues = data.map((item) => item.value as number);
+  if (!Boolean(numericScoreValues.length))
+    return { chartData: [], chartLabels: [] };
+
+  const min = round(Math.min(...numericScoreValues));
+  const range = round(Math.max(...numericScoreValues)) - min;
+  const bins = Math.min(Math.max(minBins, Math.ceil(range)), maxBins);
+  const binSize = range / bins ?? 1;
+  const histogramData = Array.from({ length: bins }, () => ({ count: 0 }));
+
+  for (const value of numericScoreValues) {
+    const shiftedValue = round(value) - min;
+    const binIndex = Math.min(Math.floor(shiftedValue / binSize), bins - 1);
+    histogramData[binIndex].count++;
+  }
+
+  const chartData = histogramData.reduce((acc, bin, i) => {
+    const rangeStart = min + i * binSize;
+    const rangeEnd = min + (i + 1) * binSize;
+    const rangeStr = `[${rangeStart.toFixed(2)}, ${rangeEnd.toFixed(2)}]`;
+
+    return [...acc, { bin: rangeStr, count: bin.count }];
+  }, [] as HistogramBin[]);
+
+  return {
+    chartLabels: ["count"],
+    chartData,
+  };
+}
+
+function Histogram(props: {
+  projectId: string;
+  name: string;
+  source: ScoreSource;
+  dataType: ScoreDataType;
+  globalFilterState: FilterState;
+}) {
+  const scores = api.dashboard.chart.useQuery(
+    {
+      projectId: props.projectId,
+      from: "traces_scores",
+      select: [{ column: "value" }],
+      filter: [
+        ...createTracesTimeFilter(
+          props.globalFilterState,
+          SCORE_TIMESTAMP_ACCESSOR,
+        ),
+        {
+          type: "string",
+          column: "scoreName",
+          value: props.name,
+          operator: "=",
+        },
+        {
+          type: "string",
+          column: "castScoreSource",
+          value: props.source,
+          operator: "=",
+        },
+        {
+          type: "string",
+          column: "castScoreDataType",
+          value: props.dataType,
+          operator: "=",
+        },
+      ],
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const { chartData, chartLabels } = scores.data
+    ? createHistogramData(scores.data)
+    : { chartData: [], chartLabels: [] };
+
+  const colors = getColorsForCategories(chartLabels);
+  const paddedChartData = padChartData(chartData);
+
+  return (
+    <BarChart
+      className="mt-6"
+      data={paddedChartData}
+      index="bin"
+      categories={chartLabels}
+      colors={colors}
+      valueFormatter={(number: number) =>
+        Intl.NumberFormat("en-US").format(number).toString()
+      }
+      yAxisWidth={48}
+      barCategoryGap={"0%"}
     />
   );
 }
@@ -223,6 +391,14 @@ function NumericScoreTimeSeriesChart(props: {
         {
           type: "string",
           column: "scoreName",
+        },
+        {
+          type: "string",
+          column: "scoreSource",
+        },
+        {
+          type: "string",
+          column: "scoreDataType",
         },
       ],
     },
@@ -295,11 +471,8 @@ export function ScoreAnalytics(props: {
       className={props.className}
       title="Scores Analytics"
       description="Summary statistics and timeseries"
-      isLoading={scoreKeysAndProps.isLoading} // likely move loading to individual chart level
-      headerClassName={cn(
-        "grid grid-cols-[1fr,auto,auto] items-center",
-        // scoreKeysAndProps.isLoading && "gap-6",
-      )}
+      isLoading={scoreKeysAndProps.isLoading}
+      headerClassName={"grid grid-cols-[1fr,auto,auto] items-center"}
       headerChildren={
         !scoreKeysAndProps.isLoading && (
           <MultiSelectKeyValues
@@ -349,13 +522,16 @@ export function ScoreAnalytics(props: {
                         dataType={dataType}
                         projectId={props.projectId}
                         globalFilterState={props.globalFilterState}
-                        barCategoryGap={"40%"}
                       />
                     )}
                     {isNumericDataType(dataType) && (
-                      <div className="p-2 text-xs">
-                        Histogram placeholder...
-                      </div>
+                      <Histogram
+                        source={source}
+                        name={name}
+                        dataType={dataType}
+                        projectId={props.projectId}
+                        globalFilterState={props.globalFilterState}
+                      />
                     )}
                   </Card>
                 </div>
