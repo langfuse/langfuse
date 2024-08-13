@@ -1,4 +1,3 @@
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import React, { useEffect, useRef } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -72,7 +71,9 @@ import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { isPresent } from "@/src/utils/typeChecks";
+import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -195,7 +196,7 @@ function AnnotateDrawerInner({
   source?: "TraceDetail" | "SessionDetail";
 }) {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
   });
@@ -608,7 +609,7 @@ function AnnotateDrawerInner({
                   )
                   .map((config) => ({
                     key: config.id,
-                    value: config.name,
+                    value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
                     disabled: fields.some(
                       (field) =>
                         !!field.scoreId && field.configId === config.id,
@@ -618,7 +619,7 @@ function AnnotateDrawerInner({
                 values={fields
                   .filter((field) => !!field.configId)
                   .map((field) => ({
-                    value: field.name,
+                    value: `${getScoreDataTypeIcon(field.dataType)} ${field.name}`,
                     key: field.configId as string,
                   }))}
                 controlButtons={
@@ -628,9 +629,7 @@ function AnnotateDrawerInner({
                         type: type,
                         source: source,
                       });
-                      router.push(
-                        `/project/${projectId}/settings#score-configs`,
-                      );
+                      router.push(`/project/${projectId}/settings/scores`);
                     }}
                   >
                     Manage score configs

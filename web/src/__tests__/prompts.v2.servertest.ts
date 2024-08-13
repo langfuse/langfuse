@@ -773,19 +773,26 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       });
 
       const otherProjectId = "239ad00f-562f-411d-af14-831c75ddd875";
+      await prisma.organization.upsert({
+        where: { id: "other-org" },
+        create: { id: "other-org", name: "other-org" },
+        update: {},
+      });
+      await prisma.organizationMembership.upsert({
+        where: {
+          orgId_userId: { orgId: "other-org", userId: "user-test" },
+        },
+        create: { userId: "user-test", orgId: "other-org", role: "OWNER" },
+        update: { role: "OWNER" },
+      });
       await prisma.project.upsert({
         where: { id: otherProjectId },
         create: {
           id: otherProjectId,
           name: "demo-app",
-          projectMembers: {
-            create: {
-              role: "OWNER",
-              userId: "user-test",
-            },
-          },
+          orgId: "other-org",
         },
-        update: {},
+        update: { name: "demo-app", orgId: "other-org" },
       });
 
       await createPromptInDB({

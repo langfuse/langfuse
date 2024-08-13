@@ -27,7 +27,7 @@ const supportChannels = [
     description:
       "Create an issue on Github to report bugs or request new features.",
     href: "https://github.com/langfuse/langfuse/issues/new/choose",
-    buttonText: "Create issue",
+    buttonText: "Create Issue",
     primary: true,
   },
   {
@@ -35,7 +35,7 @@ const supportChannels = [
     title: "GitHub Support",
     description: "Create a support ticket via GitHub discussions.",
     href: "https://github.com/orgs/langfuse/discussions/categories/support",
-    buttonText: "Submit question",
+    buttonText: "Submit Question",
     primary: true,
   },
   {

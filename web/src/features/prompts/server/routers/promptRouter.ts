@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { CreatePromptTRPCSchema } from "@/src/features/prompts/server/utils/validation";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -34,7 +34,7 @@ export const promptRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(PromptFilterOptions)
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "prompts:read",
@@ -146,7 +146,7 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "prompts:read",
@@ -162,7 +162,7 @@ export const promptRouter = createTRPCRouter({
     .input(CreatePromptTRPCSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "prompts:CUD",
@@ -253,7 +253,7 @@ export const promptRouter = createTRPCRouter({
       try {
         const { projectId, promptName } = input;
 
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId,
           scope: "prompts:CUD",
@@ -313,7 +313,7 @@ export const promptRouter = createTRPCRouter({
       const { projectId } = input;
 
       try {
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId,
           scope: "prompts:CUD",
@@ -402,7 +402,7 @@ export const promptRouter = createTRPCRouter({
       try {
         const { projectId } = input;
 
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId,
           scope: "prompts:CUD",
@@ -487,7 +487,7 @@ export const promptRouter = createTRPCRouter({
   allLabels: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "prompts:read",
@@ -513,7 +513,7 @@ export const promptRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const { projectId, name: promptName } = input;
 
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId,
         scope: "objects:tag",
@@ -560,7 +560,7 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "prompts:read",
@@ -625,7 +625,7 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "prompts:read",

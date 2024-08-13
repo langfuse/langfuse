@@ -1,4 +1,4 @@
-import { Job, Queue, Worker } from "bullmq";
+import { Job, Worker } from "bullmq";
 
 import {
   BaseError,
@@ -13,17 +13,6 @@ import { instrumentAsync } from "../instrumentation";
 import logger from "../logger";
 import { redis } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
-
-export const batchExportQueue = redis
-  ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(QueueName.BatchExport, {
-      connection: redis,
-      defaultJobOptions: {
-        removeOnComplete: true,
-        removeOnFail: 100,
-        attempts: 2,
-      },
-    })
-  : null;
 
 export const batchExportJobExecutor = redis
   ? new Worker<TQueueJobTypes[QueueName.BatchExport]>(
