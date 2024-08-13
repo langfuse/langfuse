@@ -20,6 +20,7 @@ import {
   getTraceUpsertQueue,
   ingestionEvent,
   addExceptionToSpan,
+  instrumentAsync,
 } from "@langfuse/shared/src/server";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
@@ -67,127 +68,132 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  try {
-    await runMiddleware(req, res, cors);
-    if (req.method !== "POST") throw new MethodNotAllowedError();
+  instrumentAsync(
+    { name: "ingestion_event", traceScope: "ingestion" },
+    async () => {
+      try {
+        await runMiddleware(req, res, cors);
+        if (req.method !== "POST") throw new MethodNotAllowedError();
 
-    // CHECK AUTH FOR ALL EVENTS
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+        // CHECK AUTH FOR ALL EVENTS
+        const authCheck = await new ApiAuthService(
+          prisma,
+          redis,
+        ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
-    if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
+        if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
-    const batchType = z.object({
-      batch: z.array(z.unknown()),
-      metadata: jsonSchema.nullish(),
-    });
+        const batchType = z.object({
+          batch: z.array(z.unknown()),
+          metadata: jsonSchema.nullish(),
+        });
 
-    const parsedSchema = batchType.safeParse(req.body);
+        const parsedSchema = batchType.safeParse(req.body);
 
-    recordCount(
-      "ingestion_event",
-      parsedSchema.success ? parsedSchema.data.batch.length : 0,
-    );
+        recordCount(
+          "ingestion_event",
+          parsedSchema.success ? parsedSchema.data.batch.length : 0,
+        );
 
-    await gaugePrismaStats();
+        await gaugePrismaStats();
 
-    if (!parsedSchema.success) {
-      console.log("Invalid request data", parsedSchema.error);
-      return res.status(400).json({
-        message: "Invalid request data",
-        errors: parsedSchema.error.issues.map((issue) => issue.message),
-      });
-    }
-
-    const validationErrors: { id: string; error: unknown }[] = [];
-
-    const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
-      parsedSchema.data.batch.map((event) => {
-        const parsed = ingestionEvent.safeParse(event);
-        if (!parsed.success) {
-          validationErrors.push({
-            id:
-              typeof event === "object" && event && "id" in event
-                ? typeof event.id === "string"
-                  ? event.id
-                  : "unknown"
-                : "unknown",
-            error: new InvalidRequestError(parsed.error.message),
+        if (!parsedSchema.success) {
+          console.log("Invalid request data", parsedSchema.error);
+          return res.status(400).json({
+            message: "Invalid request data",
+            errors: parsedSchema.error.issues.map((issue) => issue.message),
           });
-          return undefined;
-        } else {
-          return parsed.data;
         }
-      });
-    const filteredBatch: z.infer<typeof ingestionEvent>[] =
-      batch.filter(isNotNullOrUndefined);
 
-    await telemetry();
+        const validationErrors: { id: string; error: unknown }[] = [];
 
-    const sortedBatch = sortBatch(filteredBatch);
+        const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
+          parsedSchema.data.batch.map((event) => {
+            const parsed = ingestionEvent.safeParse(event);
+            if (!parsed.success) {
+              validationErrors.push({
+                id:
+                  typeof event === "object" && event && "id" in event
+                    ? typeof event.id === "string"
+                      ? event.id
+                      : "unknown"
+                    : "unknown",
+                error: new InvalidRequestError(parsed.error.message),
+              });
+              return undefined;
+            } else {
+              return parsed.data;
+            }
+          });
+        const filteredBatch: z.infer<typeof ingestionEvent>[] =
+          batch.filter(isNotNullOrUndefined);
 
-    if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true") {
-      // this function MUST NOT return but send the HTTP response directly
-      handleBatchResult(
-        validationErrors, // we are not sending additional server errors to the client in case of early return
-        sortedBatch.map((event) => ({ id: event.id, result: event })),
-        res,
-      );
-    }
+        await telemetry();
 
-    const result = await handleBatch(
-      sortedBatch,
-      parsedSchema.data.metadata,
-      req,
-      authCheck,
-    );
+        const sortedBatch = sortBatch(filteredBatch);
 
-    // send out REST requests to worker for all trace types
-    await sendToWorkerIfEnvironmentConfigured(
-      result.results,
-      authCheck.scope.projectId,
-    );
+        if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true") {
+          // this function MUST NOT return but send the HTTP response directly
+          handleBatchResult(
+            validationErrors, // we are not sending additional server errors to the client in case of early return
+            sortedBatch.map((event) => ({ id: event.id, result: event })),
+            res,
+          );
+        }
 
-    handleBatchResult(
-      [...validationErrors, ...result.errors],
-      result.results,
-      res,
-    );
-  } catch (error: unknown) {
-    if (!(error instanceof UnauthorizedError)) {
-      console.error("error_handling_ingestion_event", error);
-      addExceptionToSpan(error);
-    }
+        const result = await handleBatch(
+          sortedBatch,
+          parsedSchema.data.metadata,
+          req,
+          authCheck,
+        );
 
-    if (error instanceof BaseError) {
-      return res.status(error.httpCode).json({
-        error: error.name,
-        message: error.message,
-      });
-    }
+        // send out REST requests to worker for all trace types
+        await sendToWorkerIfEnvironmentConfigured(
+          result.results,
+          authCheck.scope.projectId,
+        );
 
-    if (isPrismaException(error)) {
-      return res.status(500).json({
-        error: "Internal Server Error",
-      });
-    }
-    if (error instanceof z.ZodError) {
-      console.log(`Zod exception`, error.errors);
-      return res.status(400).json({
-        message: "Invalid request data",
-        error: error.errors,
-      });
-    }
+        handleBatchResult(
+          [...validationErrors, ...result.errors],
+          result.results,
+          res,
+        );
+      } catch (error: unknown) {
+        if (!(error instanceof UnauthorizedError)) {
+          console.error("error_handling_ingestion_event", error);
+          addExceptionToSpan(error);
+        }
 
-    const errorMessage =
-      error instanceof Error ? error.message : "An unknown error occurred";
-    res.status(500).json({
-      message: "Invalid request data",
-      errors: [errorMessage],
-    });
-  }
+        if (error instanceof BaseError) {
+          return res.status(error.httpCode).json({
+            error: error.name,
+            message: error.message,
+          });
+        }
+
+        if (isPrismaException(error)) {
+          return res.status(500).json({
+            error: "Internal Server Error",
+          });
+        }
+        if (error instanceof z.ZodError) {
+          console.log(`Zod exception`, error.errors);
+          return res.status(400).json({
+            message: "Invalid request data",
+            error: error.errors,
+          });
+        }
+
+        const errorMessage =
+          error instanceof Error ? error.message : "An unknown error occurred";
+        res.status(500).json({
+          message: "Invalid request data",
+          errors: [errorMessage],
+        });
+      }
+    },
+  );
 }
 
 /**
