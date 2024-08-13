@@ -60,7 +60,11 @@ const validateScoreConfig = (values: CreateConfig): string | null => {
   const { dataType, maxValue, minValue, categories } = values;
 
   if (isNumericDataType(dataType)) {
-    if (isPresent(maxValue) && isPresent(minValue) && maxValue <= minValue) {
+    if (
+      isPresent(maxValue) &&
+      isPresent(minValue) &&
+      Number(maxValue) <= Number(minValue)
+    ) {
       return "Maximum value must be greater than Minimum value.";
     }
   } else if (isCategoricalDataType(dataType)) {
@@ -98,6 +102,7 @@ const validateScoreConfig = (values: CreateConfig): string | null => {
 export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const capture = usePostHogClientCapture();
 
   const hasAccess = useHasAccess({
@@ -145,11 +150,21 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
         });
         form.reset();
         setOpen(false);
+        setConfirmOpen(false);
       })
       .catch((error) => {
         console.error(error);
       });
   }
+
+  const handleSubmitConfirm = async () => {
+    const error = validateScoreConfig(form.getValues());
+    setFormError(error);
+    const isValid = await form.trigger();
+    if (isValid && !error) {
+      setConfirmOpen(true);
+    }
+  };
 
   return (
     <>
@@ -158,6 +173,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
         onOpenChange={(v) => {
           setOpen(v);
           form.reset();
+          setFormError(null);
         }}
       >
         <DialogTrigger asChild>
@@ -171,11 +187,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
             <DialogTitle>Add new score config</DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form
-              className="space-y-6"
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
-              onSubmit={form.handleSubmit(onSubmit)}
-            >
+            <form className="space-y-6">
               <FormField
                 control={form.control}
                 name="name"
@@ -396,14 +408,47 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   </>
                 )}
               />
-              <Button
-                type="submit"
-                className="w-full"
-                loading={form.formState.isSubmitting}
-              >
-                Submit
-              </Button>
             </form>
+            <Dialog
+              open={confirmOpen}
+              onOpenChange={(isOpenAction) => {
+                if (!isOpenAction) setConfirmOpen(false);
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={handleSubmitConfirm}
+                >
+                  Submit
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirm Submission</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm">
+                  Score configs cannot be edited or deleted after they have been
+                  created. Are you sure you want to proceed?
+                </p>
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setConfirmOpen(false)}
+                  >
+                    Continue Editing
+                  </Button>
+                  <Button
+                    type="submit"
+                    loading={form.formState.isSubmitting}
+                    onClick={form.handleSubmit(onSubmit)}
+                  >
+                    Confirm
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
             {formError ? (
               <p className="text-red text-center">
                 <span className="font-bold">Error:</span> {formError}
