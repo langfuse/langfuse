@@ -277,7 +277,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(({ ctx, rawInput, next }) => {
   });
 });
 
-export const protectedOrganizationProcedure = withSentryProcedure.use(
+export const protectedOrganizationProcedure = withOtelTracingProcedure.use(
   enforceIsAuthedAndOrgMember,
 );
 
