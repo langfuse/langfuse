@@ -98,8 +98,6 @@ export function CategoricalScoreChart(props: {
       )
     : { chartData: [], chartLabels: [] };
 
-  console.log({ chartData, chartLabels });
-
   const barCategoryGap = (chartLength: number): string => {
     if (chartLength > 7) return "10%";
     if (chartLength > 5) return "20%";
