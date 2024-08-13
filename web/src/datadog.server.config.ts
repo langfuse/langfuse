@@ -5,11 +5,7 @@ import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
-import {
-  SimpleSpanProcessor,
-  ConsoleSpanExporter,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import dd from "dd-trace";
 import opentelemetry from "@opentelemetry/api";
 
 if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -17,9 +13,14 @@ if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   opentelemetry.context.setGlobalContextManager(contextManager);
 
-  const provider = new NodeTracerProvider();
+  const tracer = dd.init({
+    profiling: false,
+    runtimeMetrics: true,
+  });
 
-  provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
+  const { TracerProvider } = tracer;
+
+  const provider = new TracerProvider();
 
   registerInstrumentations({
     instrumentations: [
