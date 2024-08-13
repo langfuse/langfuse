@@ -1,31 +1,29 @@
+import { addMinutes } from "date-fns";
 import { z } from "zod";
 
-import {
-  createTRPCRouter,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Prisma, type Score } from "@langfuse/shared/src/db";
-import {
-  CreateAnnotationScoreData,
-  UpdateAnnotationScoreData,
-  paginationZod,
-} from "@langfuse/shared";
-import { singleFilter } from "@langfuse/shared";
-import {
-  tableColumnsToSqlFilterAndPrefix,
-  orderByToPrismaSql,
-} from "@langfuse/shared";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import {
   type ScoreOptions,
   scoresTableCols,
 } from "@/src/server/api/definitions/scoresTable";
-import { orderBy } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { validateDbScore } from "@/src/features/public-api/types/scores";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import { tableDateRangeAggregationSettings } from "@/src/utils/date-range-utils";
-import { addMinutes } from "date-fns";
+import {
+  CreateAnnotationScoreData,
+  orderBy,
+  orderByToPrismaSql,
+  paginationZod,
+  singleFilter,
+  tableColumnsToSqlFilterAndPrefix,
+  UpdateAnnotationScoreData,
+  validateDbScore,
+} from "@langfuse/shared";
+import { Prisma, type Score } from "@langfuse/shared/src/db";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -83,6 +81,7 @@ export const scoresRouter = createTRPCRouter({
           u.name AS "authorUserName"
           `,
           input.projectId,
+          ctx.session.orgId,
           filterCondition,
           orderByCondition,
           input.limit,
@@ -96,6 +95,7 @@ export const scoresRouter = createTRPCRouter({
         generateScoresQuery(
           Prisma.sql` count(*) AS "totalCount"`,
           input.projectId,
+          ctx.session.orgId,
           filterCondition,
           Prisma.empty,
           1, // limit
@@ -349,6 +349,7 @@ export const scoresRouter = createTRPCRouter({
 const generateScoresQuery = (
   select: Prisma.Sql,
   projectId: string,
+  orgId: string,
   filterCondition: Prisma.Sql,
   orderCondition: Prisma.Sql,
   limit: number,
@@ -360,7 +361,7 @@ const generateScoresQuery = (
   FROM scores s
   LEFT JOIN traces t ON t.id = s.trace_id AND t.project_id = ${projectId}
   LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
-  LEFT JOIN users u ON u.id = s.author_user_id
+  LEFT JOIN users u ON u.id = s.author_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${orgId})
   WHERE s.project_id = ${projectId}
   ${filterCondition}
   ${orderCondition}

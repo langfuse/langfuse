@@ -26,7 +26,7 @@ import {
   Minimize2,
 } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { isPresent } from "@/src/utils/typeChecks";
+import { isPresent } from "@langfuse/shared";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Skeleton } from "@/src/components/ui/skeleton";

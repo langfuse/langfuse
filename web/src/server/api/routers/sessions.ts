@@ -1,24 +1,25 @@
 import { z } from "zod";
+
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
-  protectedProjectProcedure,
   protectedGetSessionProcedure,
+  protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  singleFilter,
-  type SessionOptions,
+  filterAndValidateDbScoreList,
   getSessionTableSQL,
+  orderBy,
+  paginationZod,
+  type SessionOptions,
+  singleFilter,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-import { paginationZod } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-
+import * as Sentry from "@sentry/node";
 import { TRPCError } from "@trpc/server";
-import { orderBy } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import type Decimal from "decimal.js";
-import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
 
+import type Decimal from "decimal.js";
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
@@ -138,7 +139,10 @@ export const sessionRouter = createTRPCRouter({
           },
         });
 
-        const validatedScores = filterAndValidateDbScoreList(scores);
+        const validatedScores = filterAndValidateDbScoreList(
+          scores,
+          Sentry.captureException,
+        );
 
         const totalCostQuery = Prisma.sql`
         SELECT
