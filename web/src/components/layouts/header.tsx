@@ -123,14 +123,37 @@ const BreadcrumbComponent = ({
     scope: "projects:create",
   });
 
+  /**
+   * Truncate the path before the first dynamic segment that is not allowlisted.
+   * e.g. /project/[projectId]/traces/[traceId] -> /project/[projectId]/traces
+   */
+  const truncatePathBeforeDynamicSegments = (path: string) => {
+    const allowlistedIds = ["[projectId]", "[organizationId]", "[page]"];
+    const segments = router.route.split("/");
+    const idSegments = segments.filter(
+      (segment) => segment.startsWith("[") && segment.endsWith("]"),
+    );
+    const stopSegment = idSegments.filter((id) => !allowlistedIds.includes(id));
+    if (stopSegment.length === 0) return path;
+    const stopIndex = segments.indexOf(stopSegment[0]);
+    const truncatedPath = path.split("/").slice(0, stopIndex).join("/");
+    return truncatedPath;
+  };
+
   const getProjectPath = (projectId: string) =>
     router.query.projectId
-      ? router.asPath.replace(router.query.projectId as string, projectId)
+      ? truncatePathBeforeDynamicSegments(router.asPath).replace(
+          router.query.projectId as string,
+          projectId,
+        )
       : `/project/${projectId}`;
 
   const getOrgPath = (orgId: string) =>
     router.query.organizationId
-      ? router.asPath.replace(router.query.organizationId as string, orgId)
+      ? truncatePathBeforeDynamicSegments(router.asPath).replace(
+          router.query.organizationId as string,
+          orgId,
+        )
       : `/organization/${orgId}`;
 
   return (
