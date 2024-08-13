@@ -86,7 +86,7 @@ const events = {
     "update_form_submit",
     "delete_form_submit",
   ],
-  organizations: ["new_form_submit", "new_form_open"],
+  organizations: ["new_form_submit", "new_form_open", ""],
   projects: ["new_form_submit", "new_form_open"],
   dataset_item: [
     "archive_toggle",
@@ -123,6 +123,7 @@ const events = {
     "delete_membership_invitation",
     "delete_membership",
     "pricing_dialog_opened",
+    "delete_organization",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
