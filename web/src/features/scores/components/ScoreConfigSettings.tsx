@@ -1,11 +1,11 @@
 import React from "react";
 import Header from "@/src/components/layouts/header";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CreateScoreConfigButton } from "@/src/features/scores/components/CreateScoreConfigButton";
 import { ScoreConfigsTable } from "@/src/components/table/use-cases/score-configs";
 
 export function ScoreConfigSettings({ projectId }: { projectId: string }) {
-  const hasReadAccess = useHasAccess({
+  const hasReadAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "scoreConfigs:read",
   });

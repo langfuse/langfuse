@@ -2,7 +2,7 @@ import { createTransport } from "nodemailer";
 import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
 
-import ProjectInvitationTemplate from "./ProjectInvitationEmailTemplate";
+import MembershipInvitationTemplate from "./MembershipInvitationEmailTemplate";
 
 const langfuseUrls = {
   US: "https://us.cloud.langfuse.com",
@@ -10,7 +10,7 @@ const langfuseUrls = {
   STAGING: "https://staging.langfuse.com",
 };
 
-type SendProjectInvitationParams = {
+type SendMembershipInvitationParams = {
   env: Partial<
     Record<
       | "EMAIL_FROM_ADDRESS"
@@ -23,19 +23,19 @@ type SendProjectInvitationParams = {
   to: string;
   inviterName: string;
   inviterEmail: string;
-  projectName: string;
+  orgName: string;
 };
 
-export const sendProjectInvitationEmail = async ({
+export const sendMembershipInvitationEmail = async ({
   env,
   to,
   inviterName,
   inviterEmail,
-  projectName,
-}: SendProjectInvitationParams) => {
+  orgName,
+}: SendMembershipInvitationParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     console.error(
-      "Missing environment variables for sending project invitation email."
+      "Missing environment variables for sending membership invitation email."
     );
     return;
   }
@@ -59,10 +59,10 @@ export const sendProjectInvitationEmail = async ({
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
 
     const htmlTemplate = render(
-      ProjectInvitationTemplate({
+      MembershipInvitationTemplate({
         invitedByUsername: inviterName,
         invitedByUserEmail: inviterEmail,
-        projectName: projectName,
+        orgName: orgName,
         receiverEmail: to,
         inviteLink: authUrl,
         emailFromAddress: env.EMAIL_FROM_ADDRESS,
@@ -72,11 +72,8 @@ export const sendProjectInvitationEmail = async ({
 
     await mailer.sendMail({
       to,
-      from: {
-        address: env.EMAIL_FROM_ADDRESS,
-        name: "Langfuse",
-      },
-      subject: `${inviterName} invited you to join "${projectName}"`,
+      from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
+      subject: `${inviterName} invited you to join "${orgName}" organization on Langfuse`,
       html: htmlTemplate,
     });
   } catch (error) {

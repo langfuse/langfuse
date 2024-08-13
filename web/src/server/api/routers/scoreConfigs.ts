@@ -1,4 +1,4 @@
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -25,7 +25,7 @@ export const scoreConfigsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreConfigAllInputPaginated)
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scoreConfigs:read",
@@ -67,7 +67,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scoreConfigs:CUD",
@@ -90,7 +90,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scoreConfigs:CUD",

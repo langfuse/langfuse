@@ -20,14 +20,15 @@ import {
 } from "@/src/components/ui/table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 export function ApiKeyList(props: { projectId: string }) {
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "apiKeys:read",
   });
@@ -41,11 +42,23 @@ export function ApiKeyList(props: { projectId: string }) {
     },
   );
 
-  if (!hasAccess) return null;
+  if (!hasAccess) {
+    return (
+      <div>
+        <Header title="API Keys" level="h3" />
+        <Alert>
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>
+            You do not have permission to view API keys for this project.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <Header title="API keys" level="h3" />
+      <Header title="API Keys" level="h3" />
       <Card className="mb-4">
         <Table>
           <TableHeader>
@@ -61,32 +74,43 @@ export function ApiKeyList(props: { projectId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody className="text-muted-foreground">
-            {apiKeys.data?.map((apiKey) => (
-              <TableRow key={apiKey.id} className="hover:bg-primary-foreground">
-                <TableCell className="hidden md:table-cell">
-                  {apiKey.createdAt.toLocaleDateString()}
-                </TableCell>
-                {/* <TableCell>{apiKey.note ?? ""}</TableCell> */}
-                <TableCell className="font-mono">
-                  <CodeView
-                    className="inline-block"
-                    content={apiKey.publicKey}
-                  />
-                </TableCell>
-                <TableCell className="font-mono">
-                  {apiKey.displaySecretKey}
-                </TableCell>
-                {/* <TableCell>
-                  {apiKey.lastUsedAt?.toLocaleDateString() ?? "Never"}
-                </TableCell> */}
-                <TableCell>
-                  <DeleteApiKeyButton
-                    projectId={props.projectId}
-                    apiKeyId={apiKey.id}
-                  />
+            {apiKeys.data?.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center">
+                  None
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              apiKeys.data?.map((apiKey) => (
+                <TableRow
+                  key={apiKey.id}
+                  className="hover:bg-primary-foreground"
+                >
+                  <TableCell className="hidden md:table-cell">
+                    {apiKey.createdAt.toLocaleDateString()}
+                  </TableCell>
+                  {/* <TableCell>{apiKey.note ?? ""}</TableCell> */}
+                  <TableCell className="font-mono">
+                    <CodeView
+                      className="inline-block"
+                      content={apiKey.publicKey}
+                    />
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    {apiKey.displaySecretKey}
+                  </TableCell>
+                  {/* <TableCell>
+                  {apiKey.lastUsedAt?.toLocaleDateString() ?? "Never"}
+                </TableCell> */}
+                  <TableCell>
+                    <DeleteApiKeyButton
+                      projectId={props.projectId}
+                      apiKeyId={apiKey.id}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
@@ -98,7 +122,7 @@ export function ApiKeyList(props: { projectId: string }) {
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "apiKeys:delete",
   });

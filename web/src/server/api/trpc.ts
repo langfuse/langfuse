@@ -19,7 +19,7 @@ import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Role } from "@langfuse/shared/src/db";
 import * as z from "zod";
 
 type CreateContextOptions = {
@@ -78,7 +78,6 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
-import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { addUserToSpan } from "@langfuse/shared/src/server";
 
 setUpSuperjson();
@@ -158,7 +157,7 @@ const inputProjectSchema = z.object({
  */
 
 const enforceUserIsAuthedAndProjectMember = t.middleware(
-  ({ ctx, rawInput, next }) => {
+  async ({ ctx, rawInput, next }) => {
     if (!ctx.session || !ctx.session.user) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
@@ -172,15 +171,49 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
 
     // check that the user is a member of this project
     const projectId = result.data.projectId;
-    const sessionProject = ctx.session.user.projects.find(
-      ({ id }) => id === projectId,
-    );
+    const sessionProject = ctx.session.user.organizations
+      .flatMap((org) =>
+        org.projects.map((project) => ({ ...project, organization: org })),
+      )
+      .find((project) => project.id === projectId);
 
-    if (!sessionProject && !isProjectMemberOrAdmin(ctx.session.user, projectId))
+    if (!sessionProject) {
+      if (ctx.session.user.admin === true) {
+        // fetch org as it is not available in the session for admins
+        const dbProject = await ctx.prisma.project.findFirst({
+          select: {
+            orgId: true,
+          },
+          where: {
+            id: projectId,
+          },
+        });
+        if (!dbProject) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Project not found",
+          });
+        }
+        return next({
+          ctx: {
+            // infers the `session` as non-nullable
+            session: {
+              ...ctx.session,
+              user: ctx.session.user,
+              orgId: dbProject.orgId,
+              orgRole: Role.OWNER,
+              projectId: projectId,
+              projectRole: Role.OWNER,
+            },
+          },
+        });
+      }
+      // not a member
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "User is not a member of this project",
       });
+    }
 
     return next({
       ctx: {
@@ -188,9 +221,10 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
         session: {
           ...ctx.session,
           user: ctx.session.user,
-          projectRole:
-            ctx.session.user.admin === true ? "ADMIN" : sessionProject!.role,
+          orgId: sessionProject.organization.id,
+          orgRole: sessionProject.organization.role,
           projectId: projectId,
+          projectRole: sessionProject.role,
         },
       },
     });
@@ -199,6 +233,52 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
 
 export const protectedProjectProcedure = withOtelTracingProcedure.use(
   enforceUserIsAuthedAndProjectMember,
+);
+
+const inputOrganizationSchema = z.object({
+  orgId: z.string(),
+});
+
+const enforceIsAuthedAndOrgMember = t.middleware(({ ctx, rawInput, next }) => {
+  if (!ctx.session || !ctx.session.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+
+  const result = inputOrganizationSchema.safeParse(rawInput);
+  if (!result.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid input, orgId is required",
+    });
+  }
+
+  const orgId = result.data.orgId;
+  const sessionOrg = ctx.session.user.organizations.find(
+    (org) => org.id === orgId,
+  );
+
+  if (!sessionOrg && ctx.session.user.admin !== true) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
+  }
+
+  return next({
+    ctx: {
+      session: {
+        ...ctx.session,
+        user: ctx.session.user,
+        orgId: orgId,
+        orgRole:
+          ctx.session.user.admin === true ? Role.OWNER : sessionOrg!.role,
+      },
+    },
+  });
+});
+
+export const protectedOrganizationProcedure = withSentryProcedure.use(
+  enforceIsAuthedAndOrgMember,
 );
 
 /*
@@ -237,15 +317,11 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
       message: "Trace not found",
     });
 
-  const sessionProject = ctx.session?.user?.projects.find(
-    ({ id }) => id === trace.projectId,
-  );
+  const sessionProject = ctx.session?.user?.organizations
+    .flatMap((org) => org.projects)
+    .find(({ id }) => id === trace.projectId);
 
-  if (
-    !trace.public &&
-    !sessionProject &&
-    !isProjectMemberOrAdmin(ctx.session?.user, trace.projectId)
-  )
+  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true)
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message:
@@ -257,7 +333,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
       session: {
         ...ctx.session,
         projectRole:
-          ctx.session?.user?.admin === true ? "ADMIN" : sessionProject?.role,
+          ctx.session?.user?.admin === true ? Role.OWNER : sessionProject?.role,
       },
     },
   });
@@ -303,9 +379,9 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
       message: "Session not found",
     });
 
-  const userSessionProject = ctx.session?.user?.projects.find(
-    ({ id }) => id === projectId,
-  );
+  const userSessionProject = ctx.session?.user?.organizations
+    .flatMap((org) => org.projects)
+    .find(({ id }) => id === projectId);
 
   if (
     !session.public &&
@@ -324,7 +400,7 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
         ...ctx.session,
         projectRole:
           ctx.session?.user?.admin === true
-            ? "ADMIN"
+            ? Role.OWNER
             : userSessionProject?.role,
       },
     },

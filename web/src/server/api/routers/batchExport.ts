@@ -1,6 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { WorkerClient } from "@/src/server/api/services/WorkerClient";
 import {
   createTRPCRouter,
@@ -16,14 +16,20 @@ import {
 import { getBatchExportQueue } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { redis } from "@langfuse/shared/src/server";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 export const batchExportRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateBatchExportSchema)
     .mutation(async ({ input, ctx }) => {
       try {
+        throwIfNoEntitlement({
+          entitlement: "batch-export",
+          sessionUser: ctx.session.user,
+          projectId: input.projectId,
+        });
         // Check permissions, esp. projectId
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "batchExport:create",
