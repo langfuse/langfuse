@@ -336,7 +336,6 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     ctx: {
       session: {
         ...ctx.session,
-        projectId,
         projectRole:
           ctx.session?.user?.admin === true ? Role.OWNER : sessionProject?.role,
       },
