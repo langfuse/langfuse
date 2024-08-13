@@ -181,7 +181,7 @@ function UserTracking() {
 
 if (process.env.NEXT_MANUAL_SIG_HANDLE) {
   prexit(async (signal) => {
-    console.log("Signal: ", signal);
+    if (env.DOCKER_BUILD) console.log("Signal: ", signal);
     return await shutdown(signal);
   });
 }

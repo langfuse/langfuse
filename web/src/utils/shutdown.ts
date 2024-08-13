@@ -27,11 +27,11 @@ export const shutdown = async (signal: PrexitSignal) => {
   // import redis at runtime
 
   if (signal === "SIGTERM" || signal === "SIGINT") {
-    if (env.DOCKER_BUILD) {
+    if (env.DOCKER_BUILD)
       console.log(
         `SIGTERM / SIGINT received. Shutting down in ${TIMEOUT / 1000} seconds.`,
       );
-    }
+
     setSigtermReceived();
 
     return await new Promise<void>((resolve) => {
