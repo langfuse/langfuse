@@ -37,10 +37,12 @@ export const env = createEnv({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
     }),
-    // Add newly signed up users to default project with role
+    // Add newly signed up users to default org and/or project with role
+    LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
+    LANGFUSE_DEFAULT_ORG_ROLE: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]).optional(),
     LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
-      .enum(["ADMIN", "MEMBER", "VIEWER"])
+      .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
     LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
@@ -198,7 +200,9 @@ export const env = createEnv({
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
     LANGFUSE_TRACING_SAMPLE_RATE: process.env.LANGFUSE_TRACING_SAMPLE_RATE,
-    // Default project and role
+    // Default org, project and role
+    LANGFUSE_DEFAULT_ORG_ID: process.env.LANGFUSE_DEFAULT_ORG_ID,
+    LANGFUSE_DEFAULT_ORG_ROLE: process.env.LANGFUSE_DEFAULT_ORG_ROLE,
     LANGFUSE_DEFAULT_PROJECT_ID: process.env.LANGFUSE_DEFAULT_PROJECT_ID,
     LANGFUSE_DEFAULT_PROJECT_ROLE: process.env.LANGFUSE_DEFAULT_PROJECT_ROLE,
     // AUTH
