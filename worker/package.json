@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.68.0",
+  "version": "2.69.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -21,6 +21,7 @@
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@clickhouse/client": "^1.4.0",
     "@langfuse/shared": "workspace:*",
+    "@logtail/pino": "^0.5.0",
     "@opentelemetry/api": "^1.8.0",
     "@opentelemetry/auto-instrumentations-node": "^0.44.0",
     "@opentelemetry/instrumentation": "^0.52.1",
@@ -72,6 +73,7 @@
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
+    "tsx": "^4.7.2",
     "typescript": "^5.4.5",
     "vite": "^5.2.13",
     "vitest": "^1.5.3"

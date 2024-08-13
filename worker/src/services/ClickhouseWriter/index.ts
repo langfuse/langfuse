@@ -204,6 +204,11 @@ export class ClickhouseWriter {
     logger.debug(
       `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`
     );
+
+    Sentry.metrics.increment(
+      "ingestion_clickhouse_insert",
+      params.records.length
+    );
   }
 }
 

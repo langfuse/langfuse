@@ -9,6 +9,7 @@ import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 // Mock Sentry
 vi.mock("@sentry/node", () => ({
   metrics: {
+    increment: vi.fn(),
     distribution: vi.fn(),
     gauge: vi.fn(),
   },
