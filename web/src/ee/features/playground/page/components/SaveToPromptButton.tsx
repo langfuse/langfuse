@@ -109,10 +109,15 @@ export const SaveToPromptButton: React.FC = () => {
                 <CommandItem
                   key={promptName.value}
                   title={promptName.label}
-                  value={promptName.value}
+                  value={promptName.label}
                   onSelect={(currentValue) => {
+                    const promptId =
+                      allPromptNames.find(
+                        (prompt) => prompt.label === currentValue,
+                      )?.value ?? "";
+
                     setSelectedPromptId(
-                      currentValue === selectedPromptId ? "" : currentValue,
+                      promptId === selectedPromptId ? "" : promptId,
                     );
                   }}
                 >
