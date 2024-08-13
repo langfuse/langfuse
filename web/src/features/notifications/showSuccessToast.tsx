@@ -4,15 +4,16 @@ import {
   type SuccessNotificationProps,
 } from "@/src/features/notifications/SuccessNotification";
 
-export const showSuccessToast = (
-  params: Omit<SuccessNotificationProps, "onDismiss">,
-) => {
+export const showSuccessToast = ({
+  duration = 5000,
+  ...params
+}: Omit<SuccessNotificationProps, "onDismiss"> & { duration?: number }) => {
   toast.custom(
     (t) => (
       <SuccessNotification {...params} onDismiss={() => toast.dismiss(t)} />
     ),
     {
-      duration: 5000,
+      duration,
       style: {
         padding: "1rem",
         border: "1px solid hsl(var(--dark-green))",

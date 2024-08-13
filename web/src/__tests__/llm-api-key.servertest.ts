@@ -18,19 +18,26 @@ describe("llmApiKey.all RPC", () => {
     user: {
       id: "user-1",
       name: "Demo User",
-      projects: [
+      organizations: [
         {
-          id: projectId,
-          role: "ADMIN",
-          name: "test",
+          id: "seed-org-id",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+            },
+          ],
         },
       ],
       featureFlags: {
         templateFlag: true,
-        evals: true,
       },
       admin: true,
     },
+    environment: {} as any,
   };
 
   const ctx = createInnerTRPCContext({ session });

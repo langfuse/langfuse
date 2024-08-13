@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterOutput } from "@/src/utils/types";
 import TagManager from "@/src/features/tag/components/TagMananger";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -21,7 +21,7 @@ export function TagPromptDetailsPopover({
   className,
 }: TagPromptDetailsPopoverProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const hasAccess = useHasAccess({ projectId, scope: "objects:tag" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "objects:tag" });
 
   const utils = api.useUtils();
   const mutTags = api.prompts.updateTags.useMutation({

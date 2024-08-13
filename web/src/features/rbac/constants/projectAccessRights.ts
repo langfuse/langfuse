@@ -1,10 +1,8 @@
-import { type ProjectRole } from "@langfuse/shared";
+import { type Role } from "@langfuse/shared/src/db";
 
-const scopes = [
-  "members:read",
-  "members:create",
-  "members:delete",
-
+const projectScopes = [
+  "projectMembers:read",
+  "projectMembers:CUD",
   "apiKeys:read",
   "apiKeys:create",
   "apiKeys:delete",
@@ -20,9 +18,10 @@ const scopes = [
   "scoreConfigs:CUD",
   "scoreConfigs:read",
 
-  "project:delete",
+  "project:read",
   "project:update",
-  "project:transfer",
+  "project:delete",
+
   "integrations:CRUD",
 
   "datasets:CUD",
@@ -46,13 +45,15 @@ const scopes = [
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
-export type Scope = (typeof scopes)[number];
+export type ProjectScope = (typeof projectScopes)[number];
 
-export const roleAccessRights: Record<ProjectRole, Scope[]> = {
+export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
   OWNER: [
-    "members:read",
-    "members:create",
-    "members:delete",
+    "project:read",
+    "project:update",
+    "project:delete",
+    "projectMembers:read",
+    "projectMembers:CUD",
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
@@ -64,9 +65,6 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "scores:CUD",
     "scoreConfigs:CUD",
     "scoreConfigs:read",
-    "project:delete",
-    "project:update",
-    "project:transfer",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
@@ -82,10 +80,10 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "batchExport:create",
   ],
   ADMIN: [
+    "project:read",
     "project:update",
-    "members:read",
-    "members:create",
-    "members:delete",
+    "projectMembers:read",
+    "projectMembers:CUD",
     "apiKeys:read",
     "apiKeys:create",
     "apiKeys:delete",
@@ -112,7 +110,8 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "batchExport:create",
   ],
   MEMBER: [
-    "members:read",
+    "project:read",
+    "projectMembers:read",
     "apiKeys:read",
     "objects:publish",
     "objects:bookmark",
@@ -132,6 +131,7 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "batchExport:create",
   ],
   VIEWER: [
+    "project:read",
     "prompts:read",
     "evalTemplate:read",
     "scoreConfigs:read",
@@ -139,4 +139,8 @@ export const roleAccessRights: Record<ProjectRole, Scope[]> = {
     "evalJobExecution:read",
     "llmApiKeys:read",
   ],
+  NONE: [],
 };
+
+export const projectNoneRoleComment =
+  "Do not override the organization role for this project.";
