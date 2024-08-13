@@ -26,6 +26,7 @@ import {
   TraceRecordInsertType,
   traceRecordReadSchema,
   ClickhouseClientType,
+  validateAndInflateScore,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -158,12 +159,11 @@ export class IngestionService {
           observationEventList: eventList as ObservationEvent[],
         });
       case EntityType.Score: {
-        return; // TODO: refactor score validations and enable processing again
-        // return await this.processScoreEventList({
-        //   projectId,
-        //   entityId,
-        //   scoreEventList: eventList as ScoreEventType[],
-        // });
+        return await this.processScoreEventList({
+          projectId,
+          entityId,
+          scoreEventList: eventList as ScoreEventType[],
+        });
       }
     }
   }
@@ -243,21 +243,30 @@ export class IngestionService {
     const timeSortedEvents =
       IngestionService.toTimeSortedEventList(scoreEventList);
 
-    const scoreRecords: ScoreRecordInsertType[] = timeSortedEvents.map(
-      (score) => ({
-        id: entityId,
-        project_id: projectId,
-        timestamp: this.getMillisecondTimestamp(score.timestamp),
-        name: score.body.name,
-        value: score.body.value,
-        source: "API",
-        trace_id: score.body.traceId,
-        data_type: score.body.dataType,
-        observation_id: score.body.observationId ?? null,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-      })
-    );
+    const scoreRecordPromises: Promise<ScoreRecordInsertType>[] =
+      timeSortedEvents.map(async (scoreEvent) => {
+        const validatedScore = await validateAndInflateScore({
+          body: scoreEvent.body,
+          scoreId: entityId,
+          projectId,
+        });
+
+        return {
+          id: entityId,
+          project_id: projectId,
+          timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
+          name: validatedScore.name,
+          value: validatedScore.value,
+          source: validatedScore.source,
+          trace_id: validatedScore.traceId,
+          data_type: validatedScore.dataType,
+          observation_id: validatedScore.observationId,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        };
+      });
+
+    const scoreRecords = await Promise.all(scoreRecordPromises);
 
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({

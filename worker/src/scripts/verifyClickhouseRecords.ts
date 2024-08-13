@@ -8,20 +8,23 @@ import {
 
 // Constants
 const LIMIT = 50;
-const ITERATIONS = 10;
-const DATE_START = new Date("2024-08-09T08:20:00.000Z");
-const DATE_END = new Date(Date.now() - 1000 * 60 * 60); // 1 hour ago
+const ITERATIONS = 20;
+const DATE_START = new Date("2024-08-13T10:30:00.000Z");
+const DATE_END = new Date(); //new Date(Date.now() - 1000 * 60 * 60); // 1 hour ago
 
-const TABLE_SAMPLE_RATE = 0.003;
+const TABLE_SAMPLE_RATE = 10;
 
 async function main() {
   const failedObservationList: string[] = [];
   const failedTraceList: string[] = [];
+  const failedScoreList: string[] = [];
   const checkedObservationSet = new Set<string>();
   const checkedTraceSet = new Set<string>();
+  const checkedScoreSet = new Set<string>();
 
   let totalObservationCount = 0;
   let totalTraceCount = 0;
+  let totalScoreCount = 0;
   let currentIteration = 0;
 
   while (currentIteration < ITERATIONS) {
@@ -53,11 +56,7 @@ async function main() {
           totalObservationCount += 1;
           checkedObservationSet.add(id);
 
-          await verifyClickhouseObservation(obs).catch((e) => {
-            throw new Error(
-              `Failed to verify observation ${id}: ${e.message}, ${e.stack}`
-            );
-          });
+          await verifyClickhouseObservation(obs);
         })
       );
 
@@ -76,7 +75,7 @@ async function main() {
     // Check traces
     const randomTraces = await prisma.$queryRaw<unknown[]>(
       Prisma.sql`
-        SELECT * 
+        SELECT *
         FROM traces TABLESAMPLE SYSTEM(${TABLE_SAMPLE_RATE})
         WHERE
           timestamp > ${DATE_START}::TIMESTAMP WITH time zone at time zone 'UTC'
@@ -97,11 +96,7 @@ async function main() {
           totalTraceCount += 1;
           checkedTraceSet.add(id);
 
-          await verifyClickhouseTrace(trace).catch((e) => {
-            throw new Error(
-              `Failed to verify trace ${id}: ${e.message}, ${e.stack}`
-            );
-          });
+          await verifyClickhouseTrace(trace);
         })
       );
 
@@ -117,10 +112,53 @@ async function main() {
       console.error(e);
     }
 
+    // Check scores
+    const randomScores = await prisma.$queryRaw<unknown[]>(
+      Prisma.sql`
+        SELECT * 
+        FROM scores TABLESAMPLE SYSTEM(${TABLE_SAMPLE_RATE})
+        WHERE
+          timestamp > ${DATE_START}::TIMESTAMP WITH time zone at time zone 'UTC'
+          AND timestamp < ${DATE_END}::TIMESTAMP WITH time zone at time zone 'UTC'
+          AND source = 'API'
+        LIMIT ${LIMIT}
+      `
+    );
+
+    console.log(`Verifying ${randomScores.length} scores...`);
+
+    try {
+      const results = await Promise.allSettled(
+        randomScores.map(async (score) => {
+          const id = (score as any).id;
+          if (checkedScoreSet.has(id)) {
+            return;
+          }
+          totalScoreCount += 1;
+          checkedScoreSet.add(id);
+
+          await verifyClickhouseScore(score);
+        })
+      );
+
+      results.forEach((result, i) => {
+        if (result.status === "rejected") {
+          const message = `[${i}] ` + result.reason;
+          failedScoreList.push(message);
+
+          console.error(message);
+        }
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
     currentIteration++;
   }
 
   console.log(`Total observations verified: ${totalObservationCount}`);
+  console.log(`Total traces verified: ${totalTraceCount}`);
+  console.log(`Total scores verified: ${totalScoreCount}`);
 
   if (failedObservationList.length > 0) {
     await Promise.all([
@@ -149,6 +187,18 @@ async function main() {
   } else {
     console.log(`All ${totalTraceCount} traces verified successfully`);
   }
+
+  if (failedScoreList.length > 0) {
+    writeFile(
+      `src/scripts/output/${new Date().toISOString()}_failedScores.txt`,
+      failedScoreList.join("\n")
+    ),
+      console.error(
+        `Failed to verify ${failedScoreList.length} out of ${totalScoreCount} scores`
+      );
+  } else {
+    console.log(`All ${totalScoreCount} scores verified successfully`);
+  }
 }
 
 main().then(() => {
@@ -175,7 +225,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
     pgValue: any;
     chValue: any;
   }) =>
-    `[${projectId}-observation-${observationId}] Field ${params.key} does not match between Postgres and Clickhouse: \n Postgres: ${JSON.stringify(params.pgValue)} \n Clickhouse: ${JSON.stringify(params.chValue)}`;
+    `[${projectId}-observation-${observationId}] Mismatch between Postgres and Clickhouse:\n${JSON.stringify({ key: params.key, pg: params.pgValue, ch: params.chValue }, null, 2)}`;
 
   for (const key in postgresObservation) {
     const pgValue = postgresObservation[key];
@@ -508,7 +558,7 @@ async function verifyClickhouseTrace(postgresTrace: any) {
     pgValue: any;
     chValue: any;
   }) =>
-    `[${projectId}-trace-${traceId}] Field ${params.key} does not match between Postgres and Clickhouse: \n Postgres: ${JSON.stringify(params.pgValue)} \n Clickhouse: ${JSON.stringify(params.chValue)}`;
+    `[${projectId}-trace-${traceId}] Mismatch between Postgres and Clickhouse:\n${JSON.stringify({ key: params.key, pg: params.pgValue, ch: params.chValue }, null, 2)}`;
 
   for (const key of Object.keys(postgresTrace)) {
     const pgValue = postgresTrace[key];
@@ -602,7 +652,9 @@ async function verifyClickhouseTrace(postgresTrace: any) {
           JSON.stringify(parsedPgValue, Object.keys(parsedPgValue).sort()) !==
             JSON.stringify(
               parsedChValue,
-              Object.keys(parsedChValue as any).sort()
+              parsedChValue instanceof Object
+                ? Object.keys(parsedChValue as any).sort()
+                : undefined
             )
         ) {
           throw new Error(
@@ -612,6 +664,78 @@ async function verifyClickhouseTrace(postgresTrace: any) {
               chValue: JSON.stringify(parsedChValue),
             })
           );
+        }
+
+        break;
+      }
+
+      default:
+        throw Error("Unhandled observation key: " + key);
+    }
+  }
+}
+
+async function verifyClickhouseScore(postgresScore: any) {
+  const { id: scoreId, project_id: projectId } = postgresScore;
+
+  const clickhouseResult = await clickhouseClient.query({
+    query: `SELECT * FROM scores WHERE project_id = '${projectId}' AND id = '${scoreId}' ORDER BY updated_at DESC LIMIT 1`,
+    format: "JSONEachRow",
+  });
+
+  const clickhouseScore = (await clickhouseResult.json())[0];
+  if (!clickhouseScore) {
+    throw new Error(
+      `Score ${scoreId} not found in Clickhouse for project ${projectId}`
+    );
+  }
+
+  const getErrorMessage = (params: {
+    key: string;
+    pgValue: any;
+    chValue: any;
+  }) =>
+    `[${projectId}-score-${scoreId}] Mismatch between Postgres and Clickhouse:\n${JSON.stringify({ key: params.key, pg: params.pgValue, ch: params.chValue }, null, 2)}`;
+
+  for (const key of Object.keys(postgresScore)) {
+    const pgValue = postgresScore[key];
+    const chValue = (clickhouseScore as any)[key];
+
+    switch (key) {
+      // Different by nature
+      case "created_at":
+      case "updated_at":
+        continue;
+
+      // Same in PG as in CH
+      case "id":
+      case "name":
+      case "project_id":
+      case "value":
+      case "observation_id":
+      case "trace_id":
+      case "comment":
+      case "source":
+      case "author_user_id":
+      case "config_id":
+      case "string_value":
+      case "data_type": {
+        if (pgValue && pgValue !== chValue) {
+          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+        }
+
+        break;
+      }
+
+      // timestamp cannot be overwritten in CH, so they are allowed to be different
+      case "timestamp": {
+        if (
+          pgValue &&
+          chValue &&
+          typeof pgValue.toISOString() !==
+            typeof clickhouseStringDateSchema.parse(chValue)
+        ) {
+          throw new Error(getErrorMessage({ key, pgValue, chValue }));
         }
 
         break;

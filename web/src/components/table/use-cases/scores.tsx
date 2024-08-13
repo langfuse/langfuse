@@ -16,9 +16,13 @@ import {
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { isPresent } from "@/src/utils/typeChecks";
+
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
-import type { FilterState, ScoreDataType } from "@langfuse/shared";
+import {
+  isPresent,
+  type FilterState,
+  type ScoreDataType,
+} from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {

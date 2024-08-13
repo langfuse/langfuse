@@ -1,6 +1,5 @@
 import { ScoreSource } from "@langfuse/shared";
-import { type APIScore } from "@/src/features/public-api/types/scores";
-import { type ValidatedScoreConfig } from "@/src/features/public-api/types/score-configs";
+import { type APIScore, type ValidatedScoreConfig } from "@langfuse/shared";
 
 export const getDefaultScoreData = ({
   scores,

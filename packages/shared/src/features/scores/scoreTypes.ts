@@ -1,20 +1,19 @@
-import * as Sentry from "@sentry/node";
-import {
-  paginationZod,
-  paginationMetaResponseZod,
-  NonEmptyString,
-  type Score,
-} from "@langfuse/shared";
-import { stringDateTime } from "@langfuse/shared/src/server";
-
 import { z } from "zod";
-import { isPresent } from "@/src/utils/typeChecks";
-import { Category as ConfigCategory } from "./score-configs";
+
+import { Score } from "@prisma/client";
+
+import { isPresent, stringDateTime } from "../../utils/typeChecks";
+import {
+  NonEmptyString,
+  paginationMetaResponseZod,
+  paginationZod,
+} from "../../utils/zod";
+import { Category as ConfigCategory } from "./scoreConfigTypes";
 
 /**
  * Types to use across codebase
  */
-export type APIScore = z.infer<typeof APIScore>;
+export type APIScore = z.infer<typeof APIScoreSchema>;
 
 /**
  * Helpers
@@ -70,7 +69,7 @@ const BaseScoreBody = z.object({
  * Objects
  */
 
-export const APIScore = z.discriminatedUnion("dataType", [
+export const APIScoreSchema = z.discriminatedUnion("dataType", [
   ScoreBase.merge(NumericData),
   ScoreBase.merge(CategoricalData),
   ScoreBase.merge(BooleanData),
@@ -84,13 +83,13 @@ export const ScoreBodyWithoutConfig = z.discriminatedUnion("dataType", [
     z.object({
       value: z.number(),
       dataType: z.literal("NUMERIC"),
-    }),
+    })
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.string(),
       dataType: z.literal("CATEGORICAL"),
-    }),
+    })
   ),
   BaseScoreBody.merge(
     z.object({
@@ -98,7 +97,7 @@ export const ScoreBodyWithoutConfig = z.discriminatedUnion("dataType", [
         message: "Value must be either 0 or 1",
       }),
       dataType: z.literal("BOOLEAN"),
-    }),
+    })
   ),
 ]);
 
@@ -160,14 +159,17 @@ export const ScorePropsAgainstConfig = z.union([
  * @param scores
  * @returns list of validated scores
  */
-export const filterAndValidateDbScoreList = (scores: Score[]): APIScore[] =>
+export const filterAndValidateDbScoreList = (
+  scores: Score[],
+  onParseError?: (error: z.ZodError) => void
+): APIScore[] =>
   scores.reduce((acc, ts) => {
-    const result = APIScore.safeParse(ts);
+    const result = APIScoreSchema.safeParse(ts);
     if (result.success) {
       acc.push(result.data);
     } else {
       console.error("Score parsing error: ", result.error);
-      Sentry.captureException(result.error);
+      onParseError?.(result.error);
     }
     return acc;
   }, [] as APIScore[]);
@@ -180,7 +182,7 @@ export const filterAndValidateDbScoreList = (scores: Score[]): APIScore[] =>
  * @throws error if score fails validation
  */
 export const validateDbScore = (score: Score): APIScore =>
-  APIScore.parse(score);
+  APIScoreSchema.parse(score);
 
 /**
  * Endpoints
@@ -196,14 +198,14 @@ export const PostScoresBody = z.discriminatedUnion("dataType", [
       value: z.number(),
       dataType: z.literal("NUMERIC"),
       configId: z.string().nullish(),
-    }),
+    })
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.string(),
       dataType: z.literal("CATEGORICAL"),
       configId: z.string().nullish(),
-    }),
+    })
   ),
   BaseScoreBody.merge(
     z.object({
@@ -213,14 +215,14 @@ export const PostScoresBody = z.discriminatedUnion("dataType", [
       }),
       dataType: z.literal("BOOLEAN"),
       configId: z.string().nullish(),
-    }),
+    })
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.union([z.string(), z.number()]),
       dataType: z.undefined(),
       configId: z.string().nullish(),
-    }),
+    })
   ),
 ]);
 
@@ -249,12 +251,12 @@ export const GetScoresQuery = z.object({
 
 // LegacyGetScoreResponseDataV1 is only used for response of GET /scores list endpoint
 const LegacyGetScoreResponseDataV1 = z.intersection(
-  APIScore,
+  APIScoreSchema,
   z.object({
     trace: z.object({
       userId: z.string().nullish(),
     }),
-  }),
+  })
 );
 export const GetScoresResponse = z.object({
   data: z.array(LegacyGetScoreResponseDataV1),
@@ -263,6 +265,7 @@ export const GetScoresResponse = z.object({
 
 export const legacyFilterAndValidateV1GetScoreList = (
   scores: unknown[],
+  onParseError?: (error: z.ZodError) => void
 ): z.infer<typeof LegacyGetScoreResponseDataV1>[] =>
   scores.reduce(
     (acc: z.infer<typeof LegacyGetScoreResponseDataV1>[], ts) => {
@@ -271,11 +274,11 @@ export const legacyFilterAndValidateV1GetScoreList = (
         acc.push(result.data);
       } else {
         console.error("Score parsing error: ", result.error);
-        Sentry.captureException(result.error);
+        onParseError?.(result.error);
       }
       return acc;
     },
-    [] as z.infer<typeof LegacyGetScoreResponseDataV1>[],
+    [] as z.infer<typeof LegacyGetScoreResponseDataV1>[]
   );
 
 // GET /scores/{scoreId}
@@ -283,7 +286,7 @@ export const GetScoreQuery = z.object({
   scoreId: z.string(),
 });
 
-export const GetScoreResponse = APIScore;
+export const GetScoreResponse = APIScoreSchema;
 
 // DELETE /scores/{scoreId}
 export const DeleteScoreQuery = z.object({
