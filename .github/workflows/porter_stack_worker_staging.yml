@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - "marc/lfe-1199-add-organizations"
+      - "main"
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
