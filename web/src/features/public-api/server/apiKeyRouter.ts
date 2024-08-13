@@ -1,6 +1,6 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateKeySet } from "@langfuse/shared/src/server";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -17,7 +17,7 @@ export const apiKeysRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "apiKeys:read",
@@ -49,7 +49,7 @@ export const apiKeysRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "apiKeys:create",
@@ -91,7 +91,7 @@ export const apiKeysRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "apiKeys:delete",

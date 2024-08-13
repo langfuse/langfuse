@@ -1,9 +1,8 @@
 // Langfuse Cloud only
 
 import { Button } from "@/src/components/ui/button";
-import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
-import { Card, Flex, MarkerBar, Metric, Text } from "@tremor/react";
+import { Flex, MarkerBar, Metric, Text } from "@tremor/react";
 import Link from "next/link";
 import { PricingPage } from "@/src/features/pricing-page/PricingPage";
 import {
@@ -14,16 +13,20 @@ import {
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
-export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
-  projectId,
-}) => {
+export const OrganizationUsageChart = () => {
+  const organization = useQueryOrganization();
+  const entitled = useHasOrgEntitlement("cloud-usage-metering");
   const usage = api.usageMetering.last30d.useQuery(
     {
-      projectId,
+      orgId: organization!.id,
     },
     {
+      enabled: organization !== undefined && entitled,
       trpc: {
         context: {
           skipBatch: true,
@@ -32,17 +35,16 @@ export const ProjectUsageChart: React.FC<{ projectId: string }> = ({
     },
   );
   const capture = usePostHogClientCapture();
-  const project = api.projects.byId.useQuery({ projectId });
   const planLimit =
-    project.data?.cloudConfig?.monthlyObservationLimit ?? 50_000;
-  const plan = project.data?.cloudConfig?.plan ?? "Hobby";
+    organization?.cloudConfig?.monthlyObservationLimit ?? 50_000;
+  const plan = organization?.cloudConfig?.plan ?? "Hobby";
 
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
+  if (!entitled) return null;
 
   return (
     <div>
       <Header title="Usage & Billing" level="h3" />
-      <Card className="p-4 lg:w-1/2">
+      <Card className="p-4">
         {usage.data !== undefined ? (
           <>
             <Text>Observations / last 30d</Text>

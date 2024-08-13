@@ -1,4 +1,3 @@
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import React, { useEffect, useRef } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -72,6 +71,7 @@ import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { isPresent } from "@/src/utils/typeChecks";
 
 const AnnotationScoreDataSchema = z.object({
@@ -195,7 +195,7 @@ function AnnotateDrawerInner({
   source?: "TraceDetail" | "SessionDetail";
 }) {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
   });

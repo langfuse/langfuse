@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
   DialogContent,
@@ -100,7 +100,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
 
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "scoreConfigs:CUD",
   });

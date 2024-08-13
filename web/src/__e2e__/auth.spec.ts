@@ -15,16 +15,7 @@ test("should redirect to home if signed in", async ({ page }) => {
   // wait 2 seconds
   await page.waitForTimeout(2000);
 
-  if (process.env.CI)
-    await expect(page).toHaveURL(
-      // project id from seed.ts
-      "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-    );
-  else
-    console.log(
-      "Test skipped as redirect depends on db state, URL after signing in:",
-      page.url(),
-    );
+  await expect(page).toHaveURL("/");
 });
 
 test("Successfully sign up & able to go to homepage", async ({ page }) => {
@@ -35,7 +26,7 @@ test("Successfully sign up & able to go to homepage", async ({ page }) => {
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   await page.waitForTimeout(2000);
   // see get started page
-  await expect(page).toHaveURL("/?getStarted=1");
+  await expect(page).toHaveURL("/");
 });
 
 test("Successfully sign up & able to go to homepage with uppercase email", async ({
@@ -48,7 +39,7 @@ test("Successfully sign up & able to go to homepage with uppercase email", async
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   await page.waitForTimeout(2000);
   // see get started page
-  await expect(page).toHaveURL("/?getStarted=1");
+  await expect(page).toHaveURL("/");
 });
 
 test("Signup input validation", async ({ page }) => {
@@ -64,7 +55,7 @@ test("Signup input validation", async ({ page }) => {
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   await page.waitForTimeout(2000);
   // don't see get started page
-  await expect(page).not.toHaveURL("/?getStarted=1");
+  await expect(page).not.toHaveURL("/");
 });
 
 // random email address to be used in tests
@@ -83,7 +74,8 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   await page.waitForTimeout(2000);
 
   // project id and prompt from seed.ts
-  const promptUrl = "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/prompts/summary-prompt";
+  const promptUrl =
+    "/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/prompts/summary-prompt";
 
   await page.getByRole("button", { name: /Demo User/ }).click();
 
