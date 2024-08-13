@@ -33,6 +33,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore } from "@langfuse/shared";
+import { useSession } from "next-auth/react";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -181,8 +182,9 @@ export function TracePage({ traceId }: { traceId: string }) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const utils = api.useUtils();
+  const session = useSession();
   const trace = api.traces.byId.useQuery(
-    { traceId },
+    { traceId, projectId: router.query.projectId as string },
     {
       retry(failureCount, error) {
         if (error.data?.code === "UNAUTHORIZED") return false;
@@ -201,7 +203,10 @@ export function TracePage({ traceId }: { traceId: string }) {
           skipBatch: true,
         },
       },
-      enabled: !!trace.data?.projectId && trace.isSuccess,
+      enabled:
+        !!trace.data?.projectId &&
+        trace.isSuccess &&
+        session.status === "authenticated",
     },
   );
 

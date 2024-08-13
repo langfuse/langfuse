@@ -29,7 +29,7 @@ export function TagTraceDetailsPopover({
       await utils.traces.byId.cancel();
       setIsLoading(true);
       // Snapshot the previous value
-      const prev = utils.traces.byId.getData({ traceId });
+      const prev = utils.traces.byId.getData({ traceId, projectId });
 
       return { prev };
     },
@@ -37,12 +37,12 @@ export function TagTraceDetailsPopover({
       setIsLoading(false);
       trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
-      utils.traces.byId.setData({ traceId }, context?.prev);
+      utils.traces.byId.setData({ traceId, projectId }, context?.prev);
     },
     onSettled: (data, error, { traceId, tags }) => {
       setIsLoading(false);
       utils.traces.byId.setData(
-        { traceId },
+        { traceId, projectId },
         (oldQueryData: RouterOutput["traces"]["byId"] | undefined) => {
           return oldQueryData
             ? {

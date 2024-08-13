@@ -158,7 +158,7 @@ export function StarTraceDetailsToggle({
       setIsLoading(true);
 
       // Snapshot the previous value
-      const prevData = utils.traces.byId.getData({ traceId });
+      const prevData = utils.traces.byId.getData({ traceId, projectId });
 
       return { prevData };
     },
@@ -166,13 +166,13 @@ export function StarTraceDetailsToggle({
       setIsLoading(false);
       trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
-      utils.traces.byId.setData({ traceId }, context?.prevData);
+      utils.traces.byId.setData({ traceId, projectId }, context?.prevData);
     },
     onSettled: () => {
       setIsLoading(false);
 
       utils.traces.byId.setData(
-        { traceId },
+        { traceId, projectId },
         (oldQueryData: RouterOutput["traces"]["byId"] | undefined) => {
           return oldQueryData
             ? {
