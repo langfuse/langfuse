@@ -20,17 +20,16 @@ import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useQueryProject } from "@/src/features/projects/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"; // Import success toast function
 
-export function DeleteProjectButton() {
+export function DeleteOrganizationButton() {
   const capture = usePostHogClientCapture();
 
-  //code for dynamic confirmation message
-  const { project, organization } = useQueryProject();
-  const confirmMessage = (organization?.name + "/" + project?.name)
-    .replaceAll(" ", "-")
-    .toLowerCase();
+  const organization = useQueryOrganization();
+  const confirmMessage =
+    organization?.name.replaceAll(" ", "-").toLowerCase() ?? "organization";
 
   const formSchema = z.object({
     name: z.string().includes(confirmMessage, {
@@ -38,12 +37,12 @@ export function DeleteProjectButton() {
     }),
   });
 
-  const hasAccess = useHasProjectAccess({
-    projectId: project?.id,
-    scope: "project:delete",
+  const hasAccess = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organization:delete",
   });
 
-  const deleteProject = api.projects.delete.useMutation();
+  const deleteOrganization = api.organizations.delete.useMutation();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -52,35 +51,37 @@ export function DeleteProjectButton() {
     },
   });
 
-  // delete project functionality
-  const onSubmit = () => {
-    if (!project) return;
-    capture("project_settings:project_delete");
-    deleteProject
-      .mutateAsync({
-        projectId: project.id,
-      })
-      .then(() => {
-        window.location.href = "/"; // browser reload to refresh jwt
-      })
-      .catch((error) => {
-        console.error(error);
+  const onSubmit = async () => {
+    if (!organization) return;
+    try {
+      await deleteOrganization.mutateAsync({
+        orgId: organization.id,
       });
+      capture("organization_settings:delete_organization");
+      showSuccessToast({
+        title: "Organization Deleted",
+        description: "The organization has been successfully deleted.",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // Delay for 5 seconds
+      window.location.href = "/"; // Browser reload to refresh jwt
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="destructive-secondary" disabled={!hasAccess}>
-          Delete Project
+          Delete Organization
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold  ">
-            Delete Project
+          <DialogTitle className="text-lg font-semibold">
+            Delete Organization
           </DialogTitle>
-          <DialogDescription className=" ">
+          <DialogDescription>
             {`To confirm, type "${confirmMessage}" in the input box `}
           </DialogDescription>
         </DialogHeader>
@@ -105,10 +106,10 @@ export function DeleteProjectButton() {
             <Button
               type="submit"
               variant="destructive"
-              loading={deleteProject.isLoading}
+              loading={deleteOrganization.isLoading}
               className="w-full"
             >
-              Delete project
+              Delete Organization
             </Button>
           </form>
         </Form>

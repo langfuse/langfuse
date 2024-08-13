@@ -229,7 +229,6 @@ const BreadcrumbComponent = ({
                     <Button
                       variant="ghost"
                       size="xs"
-                      data-testid="create-project-btn"
                       className="h-8 w-full text-sm font-normal"
                       asChild
                     >
@@ -316,7 +315,6 @@ const BreadcrumbComponent = ({
                       <Button
                         variant="ghost"
                         size="xs"
-                        data-testid="create-project-btn"
                         className="h-8 w-full text-sm font-normal"
                         asChild
                       >

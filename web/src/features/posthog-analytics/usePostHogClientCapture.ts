@@ -123,6 +123,7 @@ const events = {
     "delete_membership_invitation",
     "delete_membership",
     "pricing_dialog_opened",
+    "delete_organization",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
