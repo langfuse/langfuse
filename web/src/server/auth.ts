@@ -39,8 +39,13 @@ import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrgan
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
-  // if no allowlist is set, allow all users to create organizations
-  if (!env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS) return true;
+  // if no allowlist is set or no active EE key, allow all users to create organizations
+  if (
+    !env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS ||
+    !env.LANGFUSE_EE_LICENSE_KEY
+  )
+    return true;
+
   if (!userEmail) return false;
 
   const allowedOrgCreators =
