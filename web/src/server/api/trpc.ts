@@ -289,6 +289,7 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure.use(
 
 const inputTraceSchema = z.object({
   traceId: z.string(),
+  projectId: z.string(),
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
@@ -300,14 +301,15 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     });
 
   const traceId = result.data.traceId;
+  const projectId = result.data.projectId;
 
   const trace = await prisma.trace.findFirst({
     where: {
       id: traceId,
+      projectId: projectId,
     },
     select: {
       public: true,
-      projectId: true,
     },
   });
 
@@ -319,7 +321,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
 
   const sessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
-    .find(({ id }) => id === trace.projectId);
+    .find(({ id }) => id === projectId);
 
   if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true)
     throw new TRPCError({
