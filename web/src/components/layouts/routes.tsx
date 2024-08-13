@@ -150,7 +150,6 @@ export const ROUTES: Route[] = [
     pathname: "/support",
     icon: LifeBuoy,
     bottom: true,
-    newTab: true,
     customizableHref: "supportHref",
   },
 ];

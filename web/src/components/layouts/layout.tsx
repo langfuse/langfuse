@@ -176,6 +176,10 @@ export default function Layout(props: PropsWithChildren) {
     return {
       ...route,
       href,
+      newTab:
+        route.customizableHref && uiCustomization?.[route.customizableHref]
+          ? true
+          : route.newTab,
       current: router.pathname === route.pathname,
       children:
         children.length > 0
