@@ -56,7 +56,7 @@ export const organizationsRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "organizations:update",
+        scope: "organization:update",
       });
       const beforeOrganization = await ctx.prisma.organization.findFirst({
         where: {
@@ -79,6 +79,48 @@ export const organizationsRouter = createTRPCRouter({
         action: "update",
         before: beforeOrganization,
         after: afterOrganization,
+      });
+
+      return true;
+    }),
+  delete: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:delete",
+      });
+
+      const countProjects = await ctx.prisma.project.count({
+        where: {
+          orgId: input.orgId,
+        },
+      });
+      if (countProjects > 0) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Please delete or transfer all projects before deleting the organization.",
+        });
+      }
+
+      const organization = await ctx.prisma.organization.delete({
+        where: {
+          id: input.orgId,
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "organization",
+        resourceId: input.orgId,
+        action: "delete",
+        before: organization,
       });
 
       return true;

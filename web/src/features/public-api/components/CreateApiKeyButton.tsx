@@ -12,6 +12,7 @@ import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useUtils();
@@ -71,12 +72,11 @@ export function CreateApiKeyButton(props: { projectId: string }) {
         <div className="shrink overflow-x-hidden overflow-y-scroll">
           <ApiKeyRender generatedKeys={generatedKeys ?? undefined} />
           {generatedKeys && (
-            <div className="mb-2 max-w-full">
+            <div className="mt-4 max-w-full">
               <div className="text-md my-2 font-semibold">Usage</div>
               <QuickstartExamples
                 secretKey={generatedKeys.secretKey}
                 publicKey={generatedKeys.publicKey}
-                host={window.origin}
               />
             </div>
           )}
@@ -91,6 +91,7 @@ export const ApiKeyRender = ({
 }: {
   generatedKeys?: { secretKey: string; publicKey: string };
 }) => {
+  const uiCustomization = useUiCustomization();
   return (
     <>
       <div className="mb-4">
@@ -107,7 +108,7 @@ export const ApiKeyRender = ({
       </div>
       <div>
         <div className="text-md mb-2 font-semibold">Host</div>
-        <CodeView content={window.origin} />
+        <CodeView content={uiCustomization?.hostname ?? window.origin} />
       </div>
     </>
   );

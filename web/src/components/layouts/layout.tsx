@@ -32,6 +32,7 @@ import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { EnvLabel } from "@/src/components/EnvLabel";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -115,6 +116,8 @@ export default function Layout(props: PropsWithChildren) {
 
   const entitlements = useOrgEntitlements();
 
+  const uiCustomization = useUiCustomization();
+
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
 
@@ -161,11 +164,22 @@ export default function Layout(props: PropsWithChildren) {
     const children: (NavigationItem | null)[] =
       route.children?.map((child) => mapNavigation(child)).filter(Boolean) ??
       [];
+
+    const href = (
+      route.customizableHref
+        ? uiCustomization?.[route.customizableHref] ?? route.pathname
+        : route.pathname
+    )
+      ?.replace("[projectId]", routerProjectId ?? "")
+      .replace("[organizationId]", routerOrganizationId ?? "");
+
     return {
       ...route,
-      href: route.pathname
-        ?.replace("[projectId]", routerProjectId ?? "")
-        .replace("[organizationId]", routerOrganizationId ?? ""),
+      href,
+      newTab:
+        route.customizableHref && uiCustomization?.[route.customizableHref]
+          ? true
+          : route.newTab,
       current: router.pathname === route.pathname,
       children:
         children.length > 0
@@ -174,10 +188,9 @@ export default function Layout(props: PropsWithChildren) {
     };
   };
 
-  const navigationMapped: (NavigationItem | null)[] = ROUTES.map((route) =>
-    mapNavigation(route),
-  ).filter(Boolean);
-  const navigation = navigationMapped.filter(Boolean) as NavigationItem[]; // does not include null due to filter
+  const navigation = ROUTES.map((route) => mapNavigation(route)).filter(
+    (item): item is NavigationItem => Boolean(item),
+  );
   const topNavigation = navigation.filter(({ bottom }) => !bottom);
   const bottomNavigation = navigation.filter(({ bottom }) => bottom);
 
@@ -340,20 +353,32 @@ export default function Layout(props: PropsWithChildren) {
                 <EnvLabel className="my-2" />
                 <MainNavigation nav={topNavigation} />
                 <MainNavigation nav={bottomNavigation} className="mt-auto" />
-                <FeedbackButtonWrapper
-                  className="space-y-1"
-                  title="Provide feedback"
-                  description="What do you think about this project? What can be improved?"
-                  type="feedback"
-                >
-                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-1.5 text-sm font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent">
-                    <MessageSquarePlus
-                      className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
-                      aria-hidden="true"
-                    />
-                    Feedback
-                  </li>
-                </FeedbackButtonWrapper>
+                {uiCustomization?.feedbackHref ? (
+                  <Link href={uiCustomization.feedbackHref}>
+                    <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-1.5 text-sm font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent">
+                      <MessageSquarePlus
+                        className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
+                        aria-hidden="true"
+                      />
+                      Feedback
+                    </li>
+                  </Link>
+                ) : (
+                  <FeedbackButtonWrapper
+                    className="space-y-1"
+                    title="Provide feedback"
+                    description="What do you think about this project? What can be improved?"
+                    type="feedback"
+                  >
+                    <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-1.5 text-sm font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent">
+                      <MessageSquarePlus
+                        className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
+                        aria-hidden="true"
+                      />
+                      Feedback
+                    </li>
+                  </FeedbackButtonWrapper>
+                )}
               </ul>
             </nav>
 

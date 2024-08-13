@@ -165,7 +165,7 @@ export const OrganizationProjectOverview = () => {
             actionButtons={
               <>
                 <Input
-                  className="w-56"
+                  className="w-36 lg:w-56"
                   placeholder="Search projects"
                   onChange={(e) => setQueryParams({ search: e.target.value })}
                 />
