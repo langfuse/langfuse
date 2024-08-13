@@ -100,7 +100,10 @@ export function MembersTable({
   const utils = api.useUtils();
 
   const mutDeleteMember = api.members.deleteMembership.useMutation({
-    onSuccess: () => utils.members.invalidate(),
+    onSuccess: (data) => {
+      if (data.userId === session.data?.user?.id) void session.update();
+      utils.members.invalidate();
+    },
   });
 
   const hasCudAccessOrgLevel = useHasOrganizationAccess({
@@ -383,9 +386,9 @@ const OrgRoleDropdown = ({
   const utils = api.useUtils();
   const session = useSession();
   const mut = api.members.updateOrgMembership.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.members.invalidate();
-      void session.update();
+      if (data.userId === session.data?.user?.id) void session.update();
       showSuccessToast({
         title: "Saved",
         description: "Organization role updated successfully",
@@ -443,9 +446,9 @@ const ProjectRoleDropdown = ({
   const utils = api.useUtils();
   const session = useSession();
   const mut = api.members.updateProjectRole.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.members.invalidate();
-      void session.update();
+      if (data.userId === session.data?.user?.id) void session.update();
       showSuccessToast({
         title: "Saved",
         description: "Project role updated successfully",

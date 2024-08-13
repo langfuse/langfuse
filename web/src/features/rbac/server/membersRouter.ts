@@ -557,7 +557,9 @@ export const membersRouter = createTRPCRouter({
             before: projectMembership,
           });
         }
-        return null;
+        return {
+          userId: input.userId,
+        };
       }
 
       // check new project role if it is higher than own role
