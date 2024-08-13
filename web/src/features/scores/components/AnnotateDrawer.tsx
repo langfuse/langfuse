@@ -30,15 +30,14 @@ import {
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
 import {
+  type APIScore,
+  isPresent,
   ScoreDataType,
   CreateAnnotationScoreData,
   UpdateAnnotationScoreData,
-} from "@langfuse/shared";
-import { type APIScore } from "@/src/features/public-api/types/scores";
-import {
   type ValidatedScoreConfig,
   type ConfigCategory,
-} from "@/src/features/public-api/types/score-configs";
+} from "@langfuse/shared";
 import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -72,7 +71,6 @@ import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { isPresent } from "@/src/utils/typeChecks";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 
 const AnnotationScoreDataSchema = z.object({
