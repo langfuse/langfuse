@@ -8,6 +8,7 @@ import {
   type sdkLogEvent,
   type traceEvent,
   validateAndInflateScore,
+  instrument,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { type ObservationEvent, findModel } from "@langfuse/shared/src/server";
