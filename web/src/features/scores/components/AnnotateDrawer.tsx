@@ -629,9 +629,7 @@ function AnnotateDrawerInner({
                         type: type,
                         source: source,
                       });
-                      router.push(
-                        `/project/${projectId}/settings#score-configs`,
-                      );
+                      router.push(`/project/${projectId}/settings/scores`);
                     }}
                   >
                     Manage score configs
