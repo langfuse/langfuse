@@ -385,6 +385,7 @@ const OrgRoleDropdown = ({
   const mut = api.members.updateOrgMembership.useMutation({
     onSuccess: () => {
       utils.members.invalidate();
+      void session.update();
       showSuccessToast({
         title: "Saved",
         description: "Organization role updated successfully",
@@ -444,6 +445,7 @@ const ProjectRoleDropdown = ({
   const mut = api.members.updateProjectRole.useMutation({
     onSuccess: () => {
       utils.members.invalidate();
+      void session.update();
       showSuccessToast({
         title: "Saved",
         description: "Project role updated successfully",

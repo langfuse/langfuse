@@ -29,5 +29,6 @@ export const entitlementAccess: Record<Plan, Entitlement[]> = {
     "playground",
     "model-based-evaluations",
     "rbac-project-roles",
+    // `LANGFUSE_ALLOWED_ORGANIZATION_CREATORS` -> directly checked on instance level in auth.ts
   ],
 };

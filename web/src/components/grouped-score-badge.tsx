@@ -36,7 +36,7 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
             <p className="truncate" title={name}>
               {name}:
             </p>
-            <div className="flex items-center gap-3 text-nowrap">
+            <div className="flex items-center gap-1 text-nowrap">
               {scores.map((s, i) => (
                 <span
                   key={i}
