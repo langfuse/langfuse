@@ -96,7 +96,10 @@ export function NumericScoreTimeSeriesChart(props: {
       )
     : [];
 
-  return !isEmptyTimeSeries(extractedScores) ? (
+  return !isEmptyTimeSeries({
+    data: extractedScores,
+    isNullValueAllowed: true,
+  }) ? (
     <BaseTimeSeriesChart agg={props.agg} data={extractedScores} connectNulls />
   ) : (
     <NoData noDataText="No data">

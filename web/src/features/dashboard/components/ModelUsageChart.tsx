@@ -147,7 +147,7 @@ export const ModelUsageChart = ({
                   metric={item.totalMetric}
                   description={item.metricDescription}
                 />
-                {!isEmptyTimeSeries(item.data) ? (
+                {!isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
                     agg={agg}
                     data={item.data}

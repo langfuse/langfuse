@@ -118,13 +118,21 @@ export function fillMissingValuesAndTransform(
   return result;
 }
 
-export const isEmptyTimeSeries = (data: TimeSeriesChartDataPoint[]) => {
+export const isEmptyTimeSeries = ({
+  data,
+  isNullValueAllowed = false,
+}: {
+  data: TimeSeriesChartDataPoint[];
+  isNullValueAllowed?: boolean;
+}) => {
   return (
     data.length === 0 ||
     data.every(
       (item) =>
         item.values.length === 0 ||
-        item.values.every((value) => value.value === 0),
+        (isNullValueAllowed
+          ? false
+          : item.values.every((value) => value.value === 0)),
     )
   );
 };

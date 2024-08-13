@@ -115,7 +115,7 @@ export const GenerationLatencyChart = ({
             tabTitle: item.tabTitle,
             content: (
               <>
-                {!isEmptyTimeSeries(item.data) ? (
+                {!isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
                     agg={agg}
                     data={item.data}

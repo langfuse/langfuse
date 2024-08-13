@@ -68,7 +68,7 @@ export function ChartScores(props: {
       description="Average score per name"
       isLoading={scores.isLoading}
     >
-      {!isEmptyTimeSeries(extractedScores) ? (
+      {!isEmptyTimeSeries({ data: extractedScores }) ? (
         <BaseTimeSeriesChart
           agg={props.agg}
           data={extractedScores}
