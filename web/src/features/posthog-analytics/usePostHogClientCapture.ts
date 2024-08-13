@@ -86,7 +86,7 @@ const events = {
     "update_form_submit",
     "delete_form_submit",
   ],
-  organizations: ["new_form_submit", "new_form_open", ""],
+  organizations: ["new_form_submit", "new_form_open"],
   projects: ["new_form_submit", "new_form_open"],
   dataset_item: [
     "archive_toggle",
