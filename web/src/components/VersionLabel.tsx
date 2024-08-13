@@ -29,8 +29,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
     enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
     onError: (error) => console.error("checkUpdate error", error), // do not render default error message
   });
-  const isEeVersion =
-    useIsEeEnabled() && !Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+  const isEeVersion = useIsEeEnabled();
 
   const hasUpdate =
     !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
