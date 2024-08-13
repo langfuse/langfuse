@@ -217,7 +217,7 @@ const IntroducingOrganizations = () => (
     <AlertDescription>
       Organizations are a way to group projects and manage access to them. See{" "}
       <Link
-        href="https://langfuse.com/changelog/2024-08-12-organizations"
+        href="https://langfuse.com/changelog/2024-08-13-organizations"
         className="underline"
         target="_blank"
       >
