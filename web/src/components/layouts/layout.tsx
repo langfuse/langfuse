@@ -2,7 +2,6 @@ import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { Fragment, type PropsWithChildren, useEffect, useState } from "react";
 import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
@@ -14,14 +13,13 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { Button } from "@/src/components/ui/button";
 import Head from "next/head";
 import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
-import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Toaster } from "@/src/components/ui/sonner";
 import {
   NOTIFICATIONS,
@@ -29,10 +27,11 @@ import {
 } from "@/src/features/notifications/checkNotifications";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { ProjectNavigation } from "@/src/components/projectNavigation";
 import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
-import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
+import { EnvLabel } from "@/src/components/EnvLabel";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -103,6 +102,10 @@ function useSessionWithRetryOnUnauthenticated() {
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
+  const routerProjectId = router.query.projectId as string | undefined;
+  const routerOrganizationId = router.query.organizationId as
+    | string
+    | undefined;
   const session = useSessionWithRetryOnUnauthenticated();
 
   useCheckNotification(NOTIFICATIONS, session.status === "authenticated");
@@ -110,12 +113,19 @@ export default function Layout(props: PropsWithChildren) {
   const enableExperimentalFeatures =
     session.data?.environment.enableExperimentalFeatures ?? false;
 
-  const projectId = router.query.projectId as string | undefined;
-  const isEeEnabled = useIsEeEnabled();
+  const entitlements = useOrgEntitlements();
+
+  // project info based on projectId in the URL
+  const { project, organization } = useQueryProjectOrOrganization();
 
   const mapNavigation = (route: Route): NavigationItem | null => {
     // Project-level routes
-    if (!projectId && route.pathname?.includes("[projectId]")) return null;
+    if (!routerProjectId && route.pathname?.includes("[projectId]"))
+      return null;
+
+    // Organization-level routes
+    if (!routerOrganizationId && route.pathname?.includes("[organizationId]"))
+      return null;
 
     // Feature Flags
     if (
@@ -127,24 +137,21 @@ export default function Layout(props: PropsWithChildren) {
     )
       return null;
 
-    // check ee or cloud requirements
+    // check entitlements
     if (
-      route.requires !== undefined &&
-      !(
-        (route.requires === "cloud" &&
-          Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)) ||
-        (route.requires === "cloud-or-ee" && isEeEnabled)
-      )
+      route.entitlement !== undefined &&
+      !entitlements.includes(route.entitlement)
     )
       return null;
 
     // RBAC
     if (
-      route.rbacScope !== undefined &&
-      (!projectId ||
-        !hasAccess({
-          projectId,
-          scope: route.rbacScope,
+      route.projectRbacScope !== undefined &&
+      (!project ||
+        !organization ||
+        !hasProjectAccess({
+          projectId: project.id,
+          scope: route.projectRbacScope,
           session: session.data,
         }))
     )
@@ -156,7 +163,9 @@ export default function Layout(props: PropsWithChildren) {
       [];
     return {
       ...route,
-      href: route.pathname?.replace("[projectId]", projectId ?? ""),
+      href: route.pathname
+        ?.replace("[projectId]", routerProjectId ?? "")
+        .replace("[organizationId]", routerOrganizationId ?? ""),
       current: router.pathname === route.pathname,
       children:
         children.length > 0
@@ -173,8 +182,6 @@ export default function Layout(props: PropsWithChildren) {
   const bottomNavigation = navigation.filter(({ bottom }) => bottom);
 
   const currentPathName = navigation.find(({ current }) => current)?.name;
-
-  const projects = session.data?.user?.projects ?? [];
 
   if (session.status === "loading") return <Spinner message="Loading" />;
 
@@ -311,28 +318,11 @@ export default function Layout(props: PropsWithChildren) {
                     </div>
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
-                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background px-6 py-4">
-                    <LangfuseLogo
-                      version
-                      size="xl"
-                      showEnvLabel={session.data?.user?.email?.endsWith(
-                        "@langfuse.com",
-                      )}
-                    />
+                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background px-4 py-3">
                     <nav className="flex flex-1 flex-col">
                       <ul role="list">
                         <MainNavigation nav={navigation} />
                       </ul>
-                      <div className="mb-2 flex flex-row place-content-between items-center">
-                        <div className="text-xs font-semibold text-muted-foreground">
-                          Project
-                        </div>
-                        <NewProjectButton size="xs" />
-                      </div>
-                      <ProjectNavigation
-                        currentProjectId={projectId ?? ""}
-                        projects={projects}
-                      />
                     </nav>
                   </div>
                 </Dialog.Panel>
@@ -344,17 +334,10 @@ export default function Layout(props: PropsWithChildren) {
         {/* Static sidebar for desktop */}
         <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col border-r border-border bg-background pt-7">
-            <LangfuseLogo
-              version
-              size="xl"
-              className="mb-8 px-6"
-              showEnvLabel={session.data?.user?.email?.endsWith(
-                "@langfuse.com",
-              )}
-            />
-            <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
+          <div className="flex h-screen grow flex-col border-r border-border bg-background">
+            <nav className="flex h-full flex-1 flex-col overflow-y-auto px-4 py-3">
               <ul role="list" className="flex h-full flex-col">
+                <EnvLabel className="my-2" />
                 <MainNavigation nav={topNavigation} />
                 <MainNavigation nav={bottomNavigation} className="mt-auto" />
                 <FeedbackButtonWrapper
@@ -371,21 +354,11 @@ export default function Layout(props: PropsWithChildren) {
                     Feedback
                   </li>
                 </FeedbackButtonWrapper>
-                <div className="mb-2 flex flex-row place-content-between items-center">
-                  <div className="text-xs font-semibold text-muted-foreground">
-                    Project
-                  </div>
-                  <NewProjectButton size="xs" />
-                </div>
-                <ProjectNavigation
-                  currentProjectId={projectId ?? ""}
-                  projects={projects}
-                />
               </ul>
             </nav>
 
             <Menu as="div" className="relative">
-              <Menu.Button className="flex w-full items-center gap-x-2 overflow-hidden p-1.5 py-3 pl-6 pr-8 text-sm font-semibold text-primary hover:bg-primary-foreground">
+              <Menu.Button className="flex w-full items-center gap-x-2 overflow-hidden p-1.5 py-3 pl-3 pr-4 text-sm font-semibold text-primary hover:bg-primary-foreground">
                 <span className="sr-only">Open user menu</span>
                 <Avatar className="h-7 w-7">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -514,10 +487,8 @@ export default function Layout(props: PropsWithChildren) {
         </div>
         <div className="lg:pl-56">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
-            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") &&
-          !session.data?.user?.email?.endsWith("@langfuse.com") ? (
+          routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (
             <div className="flex w-full items-center border-b border-dark-yellow  bg-light-yellow px-4 py-2 lg:sticky lg:top-0 lg:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
                 <div className="flex items-center gap-1">
@@ -528,19 +499,8 @@ export default function Layout(props: PropsWithChildren) {
               </div>
 
               <Button size="sm" asChild className="ml-2">
-                <Link
-                  href={
-                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                      ? "https://langfuse.com/docs/demo"
-                      : "https://docs-staging.langfuse.com/docs/demo" // staging
-                  }
-                  target="_blank"
-                >
-                  {
-                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                      ? "Use Chat ↗"
-                      : "Use Chat (staging) ↗" // staging
-                  }
+                <Link href={"https://langfuse.com/docs/demo"} target="_blank">
+                  Use Chat ↗
                 </Link>
               </Button>
             </div>
@@ -584,7 +544,7 @@ const MainNavigation: React.FC<{
                   item.current
                     ? "bg-primary-foreground text-primary-accent"
                     : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
-                  "group flex gap-x-3 rounded-md p-2 text-sm font-semibold",
+                  "group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold",
                 )}
                 onClick={onNavitemClick}
                 target={item.newTab ? "_blank" : undefined}
@@ -601,18 +561,22 @@ const MainNavigation: React.FC<{
                   />
                 )}
                 {item.name}
-                {item.label && (
-                  <span
-                    className={cn(
-                      "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                      item.current
-                        ? "border-primary-accent text-primary-accent"
-                        : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                )}
+                {item.label &&
+                  (typeof item.label === "string" ? (
+                    <span
+                      className={cn(
+                        "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                        item.current
+                          ? "border-primary-accent text-primary-accent"
+                          : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
+                      )}
+                    >
+                      {item.label}
+                    </span>
+                  ) : (
+                    // ReactNode
+                    item.label
+                  ))}
               </Link>
             ) : item.children && item.children.length > 0 ? (
               <Disclosure

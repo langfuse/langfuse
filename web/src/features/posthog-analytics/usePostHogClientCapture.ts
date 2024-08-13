@@ -86,6 +86,7 @@ const events = {
     "update_form_submit",
     "delete_form_submit",
   ],
+  organizations: ["new_form_submit", "new_form_open"],
   projects: ["new_form_submit", "new_form_open"],
   dataset_item: [
     "archive_toggle",
@@ -111,6 +112,13 @@ const events = {
     "api_key_create",
     "llm_api_key_delete",
     "llm_api_key_create",
+    "send_membership_invitation",
+    "delete_membership_invitation",
+    "delete_membership",
+    "pricing_dialog_opened",
+  ],
+  organization_settings: [
+    "rename_form_submit",
     "send_membership_invitation",
     "delete_membership_invitation",
     "delete_membership",
