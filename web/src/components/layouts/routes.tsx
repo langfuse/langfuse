@@ -1,5 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type Scope } from "@/src/features/rbac/constants/roleAccessRights";
+import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import {
   Database,
   LayoutDashboard,
@@ -12,22 +12,38 @@ import {
   LibraryBig,
   TerminalIcon,
   Lightbulb,
+  Grid2X2,
 } from "lucide-react";
+import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { type ReactNode } from "react";
+import { VersionLabel } from "@/src/components/VersionLabel";
+import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 
 export type Route = {
   name: string;
   featureFlag?: Flag;
-  label?: string;
-  rbacScope?: Scope;
-  icon?: LucideIcon; // ignored for nested routes
+  label?: string | ReactNode;
+  projectRbacScope?: ProjectScope;
+  icon?: LucideIcon | typeof LangfuseIcon; // ignored for nested routes
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
-  requires?: "cloud" | "cloud-or-ee"; // feature requires cloud or ee
+  entitlement?: Entitlement; // entitlement required
 };
 
 export const ROUTES: Route[] = [
+  {
+    name: "Langfuse",
+    pathname: "/",
+    icon: LangfuseIcon,
+    label: <VersionLabel />,
+  },
+  {
+    name: "Projects",
+    pathname: "/organization/[organizationId]",
+    icon: Grid2X2,
+  },
   {
     name: "Dashboard",
     pathname: `/project/[projectId]`,
@@ -62,26 +78,26 @@ export const ROUTES: Route[] = [
   {
     name: "Evaluation",
     icon: Lightbulb,
-    requires: "cloud",
+    entitlement: "model-based-evaluations",
     label: "Beta",
     children: [
       {
         name: "Templates",
         pathname: `/project/[projectId]/evals/templates`,
-        requires: "cloud",
-        rbacScope: "evalTemplate:read",
+        entitlement: "model-based-evaluations",
+        projectRbacScope: "evalTemplate:read",
       },
       {
         name: "Configs",
         pathname: `/project/[projectId]/evals/configs`,
-        requires: "cloud",
-        rbacScope: "evalJob:read",
+        entitlement: "model-based-evaluations",
+        projectRbacScope: "evalJob:read",
       },
       {
         name: "Log",
         pathname: `/project/[projectId]/evals/log`,
-        requires: "cloud",
-        rbacScope: "evalJobExecution:read",
+        entitlement: "model-based-evaluations",
+        projectRbacScope: "evalJobExecution:read",
       },
     ],
   },
@@ -94,13 +110,13 @@ export const ROUTES: Route[] = [
     name: "Prompts",
     pathname: "/project/[projectId]/prompts",
     icon: PenSquareIcon,
-    rbacScope: "prompts:read",
+    projectRbacScope: "prompts:read",
   },
   {
     name: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
-    requires: "cloud-or-ee",
+    entitlement: "playground",
   },
   {
     name: "Datasets",
@@ -114,6 +130,12 @@ export const ROUTES: Route[] = [
     bottom: true,
   },
   {
+    name: "Settings",
+    pathname: "/organization/[organizationId]/settings",
+    icon: Settings,
+    bottom: true,
+  },
+  {
     name: "Docs",
     pathname: "https://langfuse.com/docs",
     icon: LibraryBig,
@@ -122,7 +144,7 @@ export const ROUTES: Route[] = [
   },
   {
     name: "Support",
-    pathname: "/project/[projectId]/support",
+    pathname: "/support",
     icon: LifeBuoy,
     bottom: true,
   },

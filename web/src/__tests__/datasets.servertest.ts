@@ -848,6 +848,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const otherProject = await prisma.project.create({
       data: {
         name: "other-project",
+        organization: {
+          connectOrCreate: {
+            where: { id: "other-org" },
+            create: { name: "other-org", id: "other-org" },
+          },
+        },
       },
     });
 

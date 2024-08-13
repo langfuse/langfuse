@@ -420,6 +420,14 @@ export class IngestionService {
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
 
+    // Override endTimes that are before startTimes with the startTime
+    if (
+      parsedObservationRecord.end_time &&
+      parsedObservationRecord.end_time < parsedObservationRecord.start_time
+    ) {
+      parsedObservationRecord.end_time = parsedObservationRecord.start_time;
+    }
+
     const generationUsage = await this.getGenerationUsage({
       projectId,
       observationRecord: parsedObservationRecord,

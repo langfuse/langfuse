@@ -15,25 +15,25 @@ import {
   Text,
 } from "@react-email/components";
 
-interface ProjectInvitationTemplateProps {
+interface MembershipInvitationTemplateProps {
   invitedByUsername: string;
   invitedByUserEmail: string;
-  projectName: string;
+  orgName: string;
   receiverEmail: string;
   inviteLink: string;
   emailFromAddress: string;
   langfuseCloudRegion?: string;
 }
 
-export const ProjectInvitationTemplate = ({
+export const MembershipInvitationTemplate = ({
   invitedByUsername,
   invitedByUserEmail,
-  projectName,
+  orgName,
   receiverEmail,
   inviteLink,
   emailFromAddress,
   langfuseCloudRegion,
-}: ProjectInvitationTemplateProps) => {
+}: MembershipInvitationTemplateProps) => {
   const previewText = `Join ${invitedByUsername} on Langfuse`;
 
   return (
@@ -53,7 +53,7 @@ export const ProjectInvitationTemplate = ({
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-              Join <strong>{projectName}</strong> on <strong>Langfuse</strong>
+              Join <strong>{orgName}</strong> on <strong>Langfuse</strong>
             </Heading>
             <Text className="text-sm leading-6 text-black">Hello,</Text>
             <Text className="text-sm leading-6 text-black">
@@ -64,7 +64,8 @@ export const ProjectInvitationTemplate = ({
               >
                 {invitedByUserEmail}
               </Link>
-              ) has invited you to the <strong>{projectName}</strong> project on
+              ) has invited you to join the <strong>{orgName}</strong>{" "}
+              organization on
               {langfuseCloudRegion
                 ? ` Langfuse (${langfuseCloudRegion} data region)`
                 : " Langfuse"}
@@ -78,7 +79,7 @@ export const ProjectInvitationTemplate = ({
                 Accept Invitation
               </Button>
               <Text className="mt-2 text-xs leading-3 text-muted-foreground">
-                (you need to create an account)
+                (you need to create an account with this email address)
               </Text>
             </Section>
             <Text className="text-sm leading-6 text-black">
@@ -102,4 +103,4 @@ export const ProjectInvitationTemplate = ({
   );
 };
 
-export default ProjectInvitationTemplate;
+export default MembershipInvitationTemplate;

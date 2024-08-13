@@ -3,10 +3,10 @@ import { useRouter } from "next/router";
 
 import { Button } from "@/src/components/ui/button";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
-import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export const ResetPlaygroundButton: React.FC = () => {
-  const isEeEnabled = useIsEeEnabled();
+  const available = useHasOrgEntitlement("playground");
   const router = useRouter();
   const { setPlaygroundCache } = usePlaygroundCache();
 
@@ -16,7 +16,7 @@ export const ResetPlaygroundButton: React.FC = () => {
     router.reload();
   };
 
-  if (!isEeEnabled) return null;
+  if (!available) return null;
 
   return (
     <Button

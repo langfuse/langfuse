@@ -4,8 +4,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Prisma, type Score } from "@langfuse/shared/src/db";
 import {
   CreateAnnotationScoreData,
   UpdateAnnotationScoreData,
@@ -141,7 +141,7 @@ export const scoresRouter = createTRPCRouter({
   createAnnotationScore: protectedProjectProcedure
     .input(CreateAnnotationScoreData)
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scores:CUD",
@@ -180,6 +180,14 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
           },
         });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "score",
+          resourceId: updatedScore.id,
+          action: "update",
+          before: existingScore,
+          after: updatedScore,
+        });
         return validateDbScore(updatedScore);
       }
 
@@ -200,11 +208,7 @@ export const scoresRouter = createTRPCRouter({
       });
 
       await auditLog({
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === input.projectId,
-        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
+        session: ctx.session,
         resourceType: "score",
         resourceId: score.id,
         action: "create",
@@ -215,7 +219,7 @@ export const scoresRouter = createTRPCRouter({
   updateAnnotationScore: protectedProjectProcedure
     .input(UpdateAnnotationScoreData)
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scores:CUD",
@@ -230,19 +234,6 @@ export const scoresRouter = createTRPCRouter({
       if (!score) {
         throw new Error("No annotation score with this id in this project.");
       }
-
-      await auditLog({
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === input.projectId,
-        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
-        resourceType: "score",
-        resourceId: score.id,
-        action: "update",
-        after: score,
-      });
-
       const updatedScore = await ctx.prisma.score.update({
         where: {
           id: score.id,
@@ -255,12 +246,22 @@ export const scoresRouter = createTRPCRouter({
           authorUserId: ctx.session.user.id,
         },
       });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "score",
+        resourceId: score.id,
+        action: "update",
+        before: score,
+        after: updatedScore,
+      });
+
       return validateDbScore(updatedScore);
     }),
   deleteAnnotationScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scores:CUD",
@@ -278,11 +279,7 @@ export const scoresRouter = createTRPCRouter({
       }
 
       await auditLog({
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === input.projectId,
-        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
+        session: ctx.session,
         resourceType: "score",
         resourceId: score.id,
         action: "delete",
