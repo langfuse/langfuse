@@ -144,6 +144,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
       .mutateAsync({
         projectId,
         ...values,
+        categories: values.categories?.length ? values.categories : undefined,
       })
       .then(() => {
         capture("score_configs:create_form_submit", {
@@ -417,7 +418,8 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
             <Dialog
               open={confirmOpen}
               onOpenChange={(isOpenAction) => {
-                if (!isOpenAction) setConfirmOpen(false);
+                if (!isOpenAction && !form.formState.isSubmitting)
+                  setConfirmOpen(false);
               }}
             >
               <DialogTrigger asChild>
@@ -441,6 +443,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   <Button
                     type="button"
                     variant="outline"
+                    disabled={form.formState.isSubmitting}
                     onClick={() => setConfirmOpen(false)}
                   >
                     Continue Editing
