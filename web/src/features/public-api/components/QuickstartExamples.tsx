@@ -5,17 +5,18 @@ import {
   TabsContent,
   TabsTrigger,
 } from "@/src/components/ui/tabs";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import Link from "next/link";
 
 export const QuickstartExamples = ({
   secretKey,
   publicKey,
-  host,
 }: {
   secretKey: string;
   publicKey: string;
-  host: string;
 }) => {
+  const uiCustomization = useUiCustomization();
   const capture = usePostHogClientCapture();
   const tabs = [
     { value: "python", label: "Python" },
@@ -26,6 +27,24 @@ export const QuickstartExamples = ({
     { value: "llamaindex", label: "LlamaIndex" },
     { value: "other", label: "Other" },
   ];
+  const host = uiCustomization?.hostname ?? window.origin;
+
+  // if custom docs link, do not show quickstart examples but refer to docs
+  if (uiCustomization?.documentationHref) {
+    return (
+      <p className="mb-2">
+        See your{" "}
+        <Link
+          href={uiCustomization.documentationHref}
+          target="_blank"
+          className="underline"
+        >
+          internal documentation
+        </Link>{" "}
+        for details on how to set up Langfuse in your organization.
+      </p>
+    );
+  }
 
   return (
     <Tabs defaultValue="python" className="relative max-w-full">
