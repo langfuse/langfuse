@@ -9,20 +9,27 @@ export function useIndividualScoreColumns<
 >({
   projectId,
   scoreColumnKey,
-  selectedTimeOption,
+  selectedFilterOption,
   showAggregateViewOnly = false,
   scoreColumnPrefix,
 }: {
   projectId: string;
   scoreColumnKey: keyof T & string;
-  selectedTimeOption?: TableDateRangeOptions;
+  selectedFilterOption?: TableDateRangeOptions;
   showAggregateViewOnly?: boolean;
   scoreColumnPrefix?: "Trace" | "Generation";
 }) {
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
     {
       projectId,
-      selectedTimeOption,
+      ...(selectedFilterOption
+        ? {
+            selectedTimeOption: {
+              option: selectedFilterOption,
+              filterSource: "TABLE",
+            },
+          }
+        : {}),
     },
     {
       trpc: {

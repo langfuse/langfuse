@@ -29,6 +29,7 @@ export function ScoreAnalytics(props: {
 
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery({
     projectId: props.projectId,
+    selectedTimeOption: { option: props.agg, filterSource: "DASHBOARD" },
   });
 
   const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
