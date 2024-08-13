@@ -1,7 +1,6 @@
 import { Card } from "@/src/components/ui/card";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { type Trace } from "@langfuse/shared";
-import { type APIScore } from "@/src/features/public-api/types/scores";
+import { type APIScore, type Trace } from "@langfuse/shared";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
