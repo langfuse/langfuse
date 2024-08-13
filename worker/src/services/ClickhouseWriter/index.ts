@@ -205,10 +205,7 @@ export class ClickhouseWriter {
       `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`
     );
 
-    Sentry.metrics.increment(
-      "ingestion_clickhouse_insert",
-      params.records.length
-    );
+    recordGauge("ingestion_clickhouse_insert", params.records.length);
   }
 }
 

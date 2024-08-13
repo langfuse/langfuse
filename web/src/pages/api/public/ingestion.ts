@@ -68,8 +68,6 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   try {
-    const startTime = Date.now();
-    let endTime = undefined;
     await runMiddleware(req, res, cors);
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
@@ -137,7 +135,6 @@ export default async function handler(
         sortedBatch.map((event) => ({ id: event.id, result: event })),
         res,
       );
-      endTime = Date.now();
     }
 
     const result = await handleBatch(

@@ -2,7 +2,10 @@ import { BatchExportStatus, QueueJobs } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
 import logger from "../../logger";
-import { getBatchExportQueue } from "@langfuse/shared/src/server";
+import {
+  getBatchExportQueue,
+  addExceptionToSpan,
+} from "@langfuse/shared/src/server";
 
 /**
  * Enqueues batch export jobs from the database to the job queue.
