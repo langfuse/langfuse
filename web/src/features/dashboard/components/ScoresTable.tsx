@@ -18,7 +18,10 @@ export const ScoresTable = ({
   projectId: string;
   globalFilterState: FilterState;
 }) => {
-  const localFilters = createTracesTimeFilter(globalFilterState);
+  const localFilters = createTracesTimeFilter(
+    globalFilterState,
+    "scoreTimestamp",
+  );
   const metrics = api.dashboard.chart.useQuery(
     {
       projectId,
@@ -28,7 +31,15 @@ export const ScoresTable = ({
         { column: "scoreId", agg: "COUNT" },
         { column: "value", agg: "AVG" },
       ],
-      filter: localFilters,
+      filter: [
+        ...localFilters,
+        {
+          type: "stringOptions",
+          column: "castScoreDataType",
+          value: ["NUMERIC", "BOOLEAN"],
+          operator: "any of",
+        },
+      ],
       groupBy: [{ type: "string", column: "scoreName" }],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
     },
@@ -49,6 +60,12 @@ export const ScoresTable = ({
         select: [{ column: "scoreName" }, { column: "scoreId", agg: "COUNT" }],
         filter: [
           ...localFilters,
+          {
+            type: "stringOptions",
+            column: "castScoreDataType",
+            value: ["NUMERIC", "BOOLEAN"],
+            operator: "any of",
+          },
           {
             column: "value",
             operator: "=",
