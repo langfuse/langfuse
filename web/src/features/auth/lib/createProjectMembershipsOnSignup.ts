@@ -45,6 +45,7 @@ export async function createProjectMembershipsOnSignup(user: {
         },
       });
     }
+
     // Invites do not work for users without emails (some future SSO users)
     if (user.email) await processMembershipInvitations(user.email, user.id);
   } catch (e) {
