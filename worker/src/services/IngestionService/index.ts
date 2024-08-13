@@ -261,6 +261,8 @@ export class IngestionService {
           trace_id: validatedScore.traceId,
           data_type: validatedScore.dataType,
           observation_id: validatedScore.observationId,
+          comment: validatedScore.comment,
+          string_value: validatedScore.stringValue,
           created_at: Date.now(),
           updated_at: Date.now(),
         };
