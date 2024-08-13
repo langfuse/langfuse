@@ -8,7 +8,6 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addExceptionToSpan } from "@langfuse/shared/src/server";
-import * as Sentry from "@sentry/node";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
