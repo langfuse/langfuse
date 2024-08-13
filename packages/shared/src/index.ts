@@ -13,6 +13,7 @@ export * from "./observationsTable";
 export * from "./utils/zod";
 export * from "./utils/json";
 export * from "./utils/objects";
+export * from "./utils/typeChecks";
 export { env } from "./env";
 
 // llm api
@@ -25,6 +26,10 @@ export * from "./features/batchExport/types";
 
 // annotation
 export * from "./features/annotation/types";
+
+// scores
+export * from "./features/scores/scoreConfigTypes";
+export * from "./features/scores/scoreTypes";
 
 // export db types only
 export * from "@prisma/client";
