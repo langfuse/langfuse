@@ -273,13 +273,15 @@ export const traceRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure
     .input(
       z.object({
-        traceId: z.string(),
+        traceId: z.string(), // used for security check
+        projectId: z.string(), // used for security check
       }),
     )
     .query(async ({ input, ctx }) => {
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input.traceId,
+          projectId: input.projectId,
         },
       });
       const observations = await ctx.prisma.observationView.findMany({

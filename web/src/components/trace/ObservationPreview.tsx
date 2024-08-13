@@ -42,6 +42,7 @@ export const ObservationPreview = (props: {
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: props.currentObservationId,
     traceId: props.traceId,
+    projectId: props.projectId,
   });
 
   const preloadedObservation = props.observations.find(
