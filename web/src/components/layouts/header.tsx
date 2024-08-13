@@ -1,4 +1,3 @@
-import { ChevronLeftIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { type Status, StatusBadge } from "./status-badge";
@@ -50,27 +49,9 @@ export default function Header({
   level?: "h2" | "h3";
   className?: string;
 }) {
-  const backHref =
-    props.breadcrumb &&
-    [...props.breadcrumb.map((i) => i.href).filter(Boolean)].pop();
-
   return (
     <div className={cn(level === "h2" ? "mb-4" : "mb-2", props.className)}>
       <div>
-        {backHref ? (
-          <nav className="sm:hidden" aria-label="Back">
-            <Link
-              href={backHref}
-              className="flex items-center text-sm font-medium text-muted-foreground hover:text-primary"
-            >
-              <ChevronLeftIcon
-                className="-ml-1 mr-1 h-5 w-5 flex-shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-              Back
-            </Link>
-          </nav>
-        ) : null}
         {level === "h2" ? (
           <BreadcrumbComponent items={props.breadcrumb} />
         ) : null}
