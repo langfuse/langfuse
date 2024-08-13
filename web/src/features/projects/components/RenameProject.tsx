@@ -70,7 +70,7 @@ export default function RenameProject() {
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
-          <p className="mb-4 text-sm text-primary" data-testid="project-name">
+          <p className="mb-4 text-sm text-primary">
             Your Project is currently named &quot;
             <b>{project?.name ?? ""}</b>
             &quot;.
@@ -81,7 +81,6 @@ export default function RenameProject() {
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex-1"
-            data-testid="rename-project-form"
             id="rename-project-form"
           >
             <FormField
@@ -95,7 +94,6 @@ export default function RenameProject() {
                         placeholder={project?.name ?? ""}
                         {...field}
                         className="flex-1"
-                        data-testid="new-project-name-input"
                         disabled={!hasAccess}
                       />
                       {!hasAccess && (
