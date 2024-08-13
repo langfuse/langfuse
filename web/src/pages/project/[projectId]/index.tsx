@@ -23,7 +23,7 @@ import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { ScoreAnalytics } from "@/src/features/dashboard/components/ScoreAnalytics";
+import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 
 export default function Dashboard() {
