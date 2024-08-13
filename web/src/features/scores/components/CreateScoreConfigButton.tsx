@@ -434,6 +434,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                 </p>
                 <div className="flex justify-end space-x-2">
                   <Button
+                    type="button"
                     variant="outline"
                     onClick={() => setConfirmOpen(false)}
                   >
