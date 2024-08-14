@@ -18,6 +18,7 @@ import { logQueueWorkerError } from "./utils/logQueueWorkerError";
 import { onShutdown } from "./utils/shutdown";
 
 import helmet from "helmet";
+import { legacyIngestionExecutor } from "./queues/legacyIngestionQueue";
 
 const app = express();
 
@@ -55,6 +56,7 @@ evalJobExecutor?.on("failed", logQueueWorkerError);
 batchExportJobExecutor?.on("failed", logQueueWorkerError);
 repeatQueueExecutor?.on("failed", logQueueWorkerError);
 flushIngestionQueueExecutor?.on("failed", logQueueWorkerError);
+legacyIngestionExecutor?.on("failed", logQueueWorkerError);
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
 process.on("SIGTERM", () => onShutdown("SIGTERM"));

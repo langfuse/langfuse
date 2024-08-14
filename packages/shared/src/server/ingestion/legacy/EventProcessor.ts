@@ -1,32 +1,29 @@
-import { tokenCount } from "@/src/features/ingest/usage";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import {
-  type legacyObservationCreateEvent,
-  eventTypes,
-  type scoreEvent,
-  type generationCreateEvent,
-  type sdkLogEvent,
-  type traceEvent,
-  ApiAccessScope,
-  validateAndInflateScore,
-} from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
-import { type ObservationEvent, findModel } from "@langfuse/shared/src/server";
-import { ResourceNotFoundError } from "@/src/utils/exceptions";
-import { mergeJson } from "@langfuse/shared";
-import {
-  type Trace,
-  type Observation,
-  type Score,
-  type Prisma,
-  type Model,
+  Model,
+  Observation,
+  Prisma,
+  prisma,
+  Score,
+  Trace,
 } from "@langfuse/shared/src/db";
+import { mergeJson } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { type z } from "zod";
 import { jsonSchema } from "@langfuse/shared";
 import { ForbiddenError } from "@langfuse/shared";
-
 import Decimal from "decimal.js";
+import { findModel } from "../model-match";
+import {
+  ObservationEvent,
+  eventTypes,
+  legacyObservationCreateEvent,
+  generationCreateEvent,
+  traceEvent,
+  scoreEvent,
+  sdkLogEvent,
+} from "../types";
+import { validateAndInflateScore } from "../validateAndInflateScore";
+import { ApiAccessScope } from "../../auth/types";
 
 export interface EventProcessor {
   process(
@@ -72,7 +69,7 @@ export class ObservationProcessor implements EventProcessor {
       this.event.type === eventTypes.OBSERVATION_UPDATE &&
       !existingObservation
     ) {
-      throw new ResourceNotFoundError(this.event.id, "Observation not found");
+      throw new Error("Observation not found");
     }
 
     // find matching model definition based on event and existing observation in db
@@ -312,22 +309,24 @@ export class ObservationProcessor implements EventProcessor {
     const newPromptTokens =
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId
-        ? tokenCount({
-            model: model,
-            text: body.input ?? existingObservation?.input,
-          })
-        : undefined);
+        ? 0
+        : // tokenCount({
+          //     model: model,
+          //     text: body.input ?? existingObservation?.input,
+          //   })
+          undefined);
 
     const newCompletionTokens =
       body.usage?.output ??
       ((body.output || existingObservation?.output) &&
       model &&
       model.tokenizerId
-        ? tokenCount({
-            model: model,
-            text: body.output ?? existingObservation?.output,
-          })
-        : undefined);
+        ? 0
+        : //  tokenCount({
+          //     model: model,
+          //     text: body.output ?? existingObservation?.output,
+          //   })
+          undefined);
 
     return [newPromptTokens, newCompletionTokens];
   }

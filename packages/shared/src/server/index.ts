@@ -3,7 +3,7 @@ export * from "./services/email/organizationInvitation/sendMembershipInvitationE
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
 export * from "./services/PromptService";
-export * from "./auth";
+export * from "./auth/auth";
 export * from "./llm/fetchLLMCompletion";
 export * from "./llm/types";
 export * from "./utils/DatabaseReadStream";
@@ -18,5 +18,5 @@ export * from "./redis/redis";
 export * from "./redis/trace-upsert";
 export * from "./redis/batch-export";
 export * from "./redis/legacy-ingestion";
-export * from "./clickhouse";
-export * from "./auth/index";
+export * from "./auth/types";
+export * from "./ingestion/legacy/index";

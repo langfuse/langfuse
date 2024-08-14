@@ -18,9 +18,9 @@ import {
   convertTraceUpsertEventsToRedisEvents,
   getTraceUpsertQueue,
 } from "../../redis/trace-upsert";
-import { ApiAccessScope, AuthHeaderVerificationResult } from "../../auth/index";
-import { backoff } from "exponential-backoff";
-import { prisma } from "../../../db";
+import { ApiAccessScope, AuthHeaderVerificationResult } from "../../auth/types";
+import { redis } from "../../redis/redis";
+import { backOff } from "exponential-backoff";
 
 export type BatchResult = {
   result: unknown;
@@ -30,7 +30,6 @@ export type BatchResult = {
 
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
-  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
   authCheck: AuthHeaderVerificationResult
 ) => {
   console.log(`handling ingestion ${events.length} events`);
@@ -48,7 +47,7 @@ export const handleBatch = async (
   for (const singleEvent of events) {
     try {
       const result = await retry(async () => {
-        return await handleSingleEvent(singleEvent, metadata, authCheck.scope);
+        return await handleSingleEvent(singleEvent, authCheck.scope);
       });
       results.push({
         result: result,
@@ -97,7 +96,6 @@ async function retry<T>(request: () => Promise<T>): Promise<T> {
 
 const handleSingleEvent = async (
   event: z.infer<typeof ingestionEvent>,
-  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
   apiScope: ApiAccessScope
 ) => {
   const { body } = event;
