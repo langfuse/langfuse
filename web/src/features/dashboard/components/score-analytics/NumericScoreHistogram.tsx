@@ -9,10 +9,7 @@ import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-u
 import React from "react";
 import { BarChart } from "@tremor/react";
 import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
-import {
-  createHistogramData,
-  padChartData,
-} from "@/src/features/dashboard/lib/score-analytics-utils";
+import { padChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
 
 export function NumericScoreHistogram(props: {
   projectId: string;
@@ -21,7 +18,7 @@ export function NumericScoreHistogram(props: {
   dataType: ScoreDataType;
   globalFilterState: FilterState;
 }) {
-  const scores = api.dashboard.chart.useQuery(
+  const histogram = api.dashboard.scoreHistogram.useQuery(
     {
       projectId: props.projectId,
       from: "traces_scores",
@@ -57,8 +54,8 @@ export function NumericScoreHistogram(props: {
     },
   );
 
-  const { chartData, chartLabels } = scores.data
-    ? createHistogramData(scores.data)
+  const { chartData, chartLabels } = histogram.data
+    ? histogram.data
     : { chartData: [], chartLabels: [] };
 
   const colors = getColorsForCategories(chartLabels);
