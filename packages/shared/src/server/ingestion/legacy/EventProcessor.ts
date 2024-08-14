@@ -14,7 +14,7 @@ import {
 import { validateAndInflateScore } from "../validateAndInflateScore";
 import { ApiAccessScope } from "../../auth/types";
 import { Trace, Observation, Score, Prisma, Model } from "@prisma/client";
-import { ForbiddenError } from "../../../errors";
+import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { mergeJson } from "../../../utils/json";
 import { jsonSchema } from "../../../utils/zod";
 import { prisma } from "../../../db";
@@ -76,7 +76,9 @@ export class ObservationProcessor implements EventProcessor {
       this.event.type === eventTypes.OBSERVATION_UPDATE &&
       !existingObservation
     ) {
-      throw new Error("Observation not found");
+      throw new LangfuseNotFoundError(
+        `Observation with id ${this.event.id} not found`
+      );
     }
 
     // find matching model definition based on event and existing observation in db

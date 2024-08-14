@@ -16,7 +16,6 @@ import {
   SdkLogProcessor,
   TraceProcessor,
 } from "@langfuse/shared/src/server";
-import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -274,12 +273,12 @@ export const getBadRequestError = (
       error instanceof InvalidRequestError,
   );
 
-export const getResourceNotFoundError = (
+export const getLangfuseNotFoundError = (
   errors: Array<unknown>,
-): ResourceNotFoundError[] =>
+): LangfuseNotFoundError[] =>
   errors.filter(
-    (error): error is ResourceNotFoundError =>
-      error instanceof ResourceNotFoundError,
+    (error): error is LangfuseNotFoundError =>
+      error instanceof LangfuseNotFoundError,
   );
 
 export const hasBadRequestError = (errors: Array<unknown>) =>
@@ -317,7 +316,7 @@ export const handleBatchResult = (
         message: "Authentication error",
         error: error.error.message,
       });
-    } else if (error.error instanceof ResourceNotFoundError) {
+    } else if (error.error instanceof LangfuseNotFoundError) {
       returnedErrors.push({
         id: error.id,
         status: 404,
@@ -400,9 +399,9 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   if (badRequestErrors.length > 0) {
     throw new InvalidRequestError(badRequestErrors[0].message);
   }
-  const ResourceNotFoundError = getResourceNotFoundError(unknownErrors);
-  if (ResourceNotFoundError.length > 0) {
-    throw new LangfuseNotFoundError(ResourceNotFoundError[0].message);
+  const langfuseNotFoundError = getLangfuseNotFoundError(unknownErrors);
+  if (langfuseNotFoundError.length > 0) {
+    throw langfuseNotFoundError[0];
   }
   if (errors.length > 0) {
     throw new InternalServerError("Internal Server Error");
