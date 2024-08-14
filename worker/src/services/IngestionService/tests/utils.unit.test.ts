@@ -61,4 +61,13 @@ describe("overwriteObject", () => {
     const result = overwriteObject(objC, objD, []);
     expect(result.metadata).toEqual({});
   });
+
+  it("should overwrite null keys", () => {
+    const obj_1 = { key1: null, key2: "value2" };
+    const obj_2 = { key1: "newValue1", key2: "newValue2 " };
+
+    const result = overwriteObject(obj_1 as any, obj_2 as any, []);
+
+    expect(result.key1).toBe("newValue1");
+  });
 });

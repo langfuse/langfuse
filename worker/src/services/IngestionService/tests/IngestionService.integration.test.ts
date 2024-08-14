@@ -1000,6 +1000,122 @@ describe("Ingestion end-to-end tests", () => {
     );
   });
 
+  it("should correctly set tokens if usage provided as null", async () => {
+    const generationId = randomUUID();
+    const traceId = randomUUID();
+
+    const timestamp = new Date().toISOString();
+    const traceEventList: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp,
+        body: {
+          id: traceId,
+          timestamp,
+          name: "trace-name",
+          userId: "user-1",
+        },
+      },
+    ];
+
+    const generationEventList1: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "observation-create",
+        timestamp,
+        body: {
+          type: "GENERATION",
+          id: generationId,
+          traceId,
+          name: "LiteLLM.run",
+          // usage: null,
+        },
+      },
+    ];
+
+    await Promise.all([
+      ingestionService.processTraceEventList({
+        projectId,
+        entityId: traceId,
+        traceEventList,
+      }),
+      ingestionService.processObservationEventList({
+        projectId,
+        entityId: generationId,
+        observationEventList: generationEventList1,
+      }),
+    ]);
+
+    await clickhouseWriter.flushAll(true);
+    console.log(
+      "generation1",
+      await getClickhouseRecord(TableName.Observations, generationId)
+    );
+
+    const generationEventList2: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "observation-update",
+        timestamp,
+        body: {
+          traceId,
+          type: "GENERATION",
+          id: generationId,
+          endTime: new Date().toISOString(),
+          model: "azure/gpt35turbo0125",
+          modelParameters: {
+            model: "azure/gpt35turbo0125",
+            max_tokens: 2000,
+            temperature: 0,
+            n: 1,
+            stream: false,
+          },
+          usage: {
+            input: 1285,
+            output: 513,
+            total: 1798,
+            unit: "TOKENS" as any,
+            inputCost: 0.0006425,
+            outputCost: 0.0007695,
+            totalCost: 0.001412,
+          },
+        },
+      },
+    ];
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: generationId,
+      observationEventList: generationEventList2,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId
+    );
+
+    expect(generation.provided_input_usage_units).toEqual(1285);
+    expect(generation.provided_output_usage_units).toEqual(513);
+    expect(generation.provided_total_usage_units).toEqual(1798);
+
+    expect(generation.input_usage_units).toEqual(1285);
+    expect(generation.output_usage_units).toEqual(513);
+    expect(generation.total_usage_units).toEqual(1798);
+
+    expect(generation.provided_input_cost).toEqual(0.0006425);
+    expect(generation.provided_output_cost).toEqual(0.0007695);
+    expect(generation.provided_total_cost).toEqual(0.001412);
+
+    expect(generation.provided_input_cost).toEqual(0.0006425);
+    expect(generation.provided_output_cost).toEqual(0.0007695);
+    expect(generation.provided_total_cost).toEqual(0.001412);
+
+    expect(generation.unit).toEqual("TOKENS");
+  });
+
   it("should update all token counts if update does not contain model name", async () => {
     const traceId = randomUUID();
     const generationId = randomUUID();
