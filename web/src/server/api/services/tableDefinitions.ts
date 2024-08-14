@@ -89,23 +89,11 @@ const scoreSource = {
   name: "scoreSource",
   id: "scoreSource",
   type: "string",
-  internal: 's."source"',
+  internal: 's."source"::text',
 } as const;
 const scoreDataType = {
   name: "scoreDataType",
   id: "scoreDataType",
-  type: "string",
-  internal: 's."data_type"',
-} as const;
-const castScoreSource = {
-  name: "castScoreSource",
-  id: "castScoreSource",
-  type: "string",
-  internal: 's."source"::text',
-} as const;
-const castScoreDataType = {
-  name: "castScoreDataType",
-  id: "castScoreDataType",
   type: "string",
   internal: 's."data_type"::text',
 } as const;
@@ -244,9 +232,7 @@ export const tableDefinitions: TableDefinitions = {
       tracesProjectId,
       { name: "value", id: "value", type: "number", internal: 's."value"' },
       scoreSource,
-      castScoreSource,
       scoreDataType,
-      castScoreDataType,
       scoreStringValue,
       scoreId,
       traceVersion,

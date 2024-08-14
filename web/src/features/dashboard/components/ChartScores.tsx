@@ -31,7 +31,7 @@ export function ChartScores(props: {
         ...createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
         {
           type: "stringOptions",
-          column: "castScoreDataType",
+          column: "scoreDataType",
           value: ["NUMERIC", "BOOLEAN"],
           operator: "any of",
         },

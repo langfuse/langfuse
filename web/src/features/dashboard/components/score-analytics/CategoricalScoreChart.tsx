@@ -44,13 +44,13 @@ export function CategoricalScoreChart(props: {
         },
         {
           type: "string",
-          column: "castScoreSource",
+          column: "scoreSource",
           value: props.source,
           operator: "=",
         },
         {
           type: "string",
-          column: "castScoreDataType",
+          column: "scoreDataType",
           value: props.dataType,
           operator: "=",
         },

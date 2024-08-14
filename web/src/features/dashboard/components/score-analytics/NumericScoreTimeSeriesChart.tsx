@@ -44,13 +44,13 @@ export function NumericScoreTimeSeriesChart(props: {
         },
         {
           type: "string",
-          column: "castScoreSource",
+          column: "scoreSource",
           value: props.source as string,
           operator: "=",
         },
         {
           type: "string",
-          column: "castScoreDataType",
+          column: "scoreDataType",
           value: props.dataType as string,
           operator: "=",
         },
