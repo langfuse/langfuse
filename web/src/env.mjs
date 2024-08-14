@@ -37,10 +37,12 @@ export const env = createEnv({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
     }),
-    // Add newly signed up users to default project with role
+    // Add newly signed up users to default org and/or project with role
+    LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
+    LANGFUSE_DEFAULT_ORG_ROLE: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]).optional(),
     LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
-      .enum(["ADMIN", "MEMBER", "VIEWER"])
+      .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
     LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
@@ -117,6 +119,11 @@ export const env = createEnv({
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
     CLICKHOUSE_PASSWORD: z.string().optional(),
+    // EE ui customization
+    LANGFUSE_UI_API_HOST: z.string().optional(),
+    LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
+    LANGFUSE_UI_SUPPORT_HREF: z.string().url().optional(),
+    LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
     ADMIN_API_KEY: z.string().optional(),
@@ -145,6 +152,14 @@ export const env = createEnv({
     LANGFUSE_ASYNC_INGESTION_PROCESSING: z
       .enum(["true", "false"])
       .default("false"),
+    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z.string().optional().refine((value) => {
+      if (!value) return true;
+
+      const creators = value.split(",");
+      const emailSchema = z.string().email()
+      return creators.every((creator) => emailSchema.safeParse(creator).success);
+    }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses")
+      .transform((v) => (v === "" || v === undefined ? undefined : v)),
   },
 
   /**
@@ -160,6 +175,7 @@ export const env = createEnv({
       .enum(["US", "EU", "STAGING", "DEV"])
       .optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
+    NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
@@ -174,6 +190,7 @@ export const env = createEnv({
   runtimeEnv: {
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+    NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
@@ -192,7 +209,9 @@ export const env = createEnv({
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
     LANGFUSE_TRACING_SAMPLE_RATE: process.env.LANGFUSE_TRACING_SAMPLE_RATE,
-    // Default project and role
+    // Default org, project and role
+    LANGFUSE_DEFAULT_ORG_ID: process.env.LANGFUSE_DEFAULT_ORG_ID,
+    LANGFUSE_DEFAULT_ORG_ROLE: process.env.LANGFUSE_DEFAULT_ORG_ROLE,
     LANGFUSE_DEFAULT_PROJECT_ID: process.env.LANGFUSE_DEFAULT_PROJECT_ID,
     LANGFUSE_DEFAULT_PROJECT_ROLE: process.env.LANGFUSE_DEFAULT_PROJECT_ROLE,
     // AUTH
@@ -268,6 +287,11 @@ export const env = createEnv({
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
+    // EE ui customization
+    LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
+    LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
+    LANGFUSE_UI_SUPPORT_HREF: process.env.LANGFUSE_UI_SUPPORT_HREF,
+    LANGFUSE_UI_FEEDBACK_HREF: process.env.LANGFUSE_UI_FEEDBACK_HREF,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
@@ -282,6 +306,7 @@ export const env = createEnv({
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
     LANGFUSE_ASYNC_INGESTION_PROCESSING:
       process.env.LANGFUSE_ASYNC_INGESTION_PROCESSING,
+    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

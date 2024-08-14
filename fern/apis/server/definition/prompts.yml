@@ -51,7 +51,7 @@ service:
       response: PromptMetaListResponse
 
     create:
-      docs: Create a prompt
+      docs: Create a new version for the prompt with the given `name`
       method: POST
       path: /prompts
       request: CreatePromptRequest

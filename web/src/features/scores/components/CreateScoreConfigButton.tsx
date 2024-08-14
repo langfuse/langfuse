@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { ScoreDataType, availableDataTypes } from "@langfuse/shared";
+import { isPresent, ScoreDataType, availableDataTypes } from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -35,7 +35,6 @@ import {
   isCategoricalDataType,
   isNumericDataType,
 } from "@/src/features/scores/lib/helpers";
-import { isPresent } from "@/src/utils/typeChecks";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { z } from "zod";
@@ -60,7 +59,11 @@ const validateScoreConfig = (values: CreateConfig): string | null => {
   const { dataType, maxValue, minValue, categories } = values;
 
   if (isNumericDataType(dataType)) {
-    if (isPresent(maxValue) && isPresent(minValue) && maxValue <= minValue) {
+    if (
+      isPresent(maxValue) &&
+      isPresent(minValue) &&
+      Number(maxValue) <= Number(minValue)
+    ) {
       return "Maximum value must be greater than Minimum value.";
     }
   } else if (isCategoricalDataType(dataType)) {
@@ -98,9 +101,10 @@ const validateScoreConfig = (values: CreateConfig): string | null => {
 export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const capture = usePostHogClientCapture();
 
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "scoreConfigs:CUD",
   });
@@ -129,15 +133,17 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
 
   if (!hasAccess) return null;
 
-  function onSubmit(values: CreateConfig) {
+  async function onSubmit(values: CreateConfig) {
     const error = validateScoreConfig(values);
     setFormError(error);
-    if (error) return;
+    const isValid = await form.trigger();
+    if (!isValid || error) return;
 
     return createScoreConfig
       .mutateAsync({
         projectId,
         ...values,
+        categories: values.categories?.length ? values.categories : undefined,
       })
       .then(() => {
         capture("score_configs:create_form_submit", {
@@ -145,11 +151,21 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
         });
         form.reset();
         setOpen(false);
+        setConfirmOpen(false);
       })
       .catch((error) => {
         console.error(error);
       });
   }
+
+  const handleSubmitConfirm = async () => {
+    const error = validateScoreConfig(form.getValues());
+    setFormError(error);
+    const isValid = await form.trigger();
+    if (isValid && !error) {
+      setConfirmOpen(true);
+    }
+  };
 
   return (
     <>
@@ -158,6 +174,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
         onOpenChange={(v) => {
           setOpen(v);
           form.reset();
+          setFormError(null);
         }}
       >
         <DialogTrigger asChild>
@@ -396,14 +413,50 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   </>
                 )}
               />
-              <Button
-                type="submit"
-                className="w-full"
-                loading={form.formState.isSubmitting}
-              >
-                Submit
-              </Button>
             </form>
+            <Dialog
+              open={confirmOpen}
+              onOpenChange={(isOpenAction) => {
+                if (!isOpenAction && !form.formState.isSubmitting)
+                  setConfirmOpen(false);
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={handleSubmitConfirm}
+                >
+                  Submit
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirm Submission</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm">
+                  Score configs cannot be edited or deleted after they have been
+                  created. Are you sure you want to proceed?
+                </p>
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={form.formState.isSubmitting}
+                    onClick={() => setConfirmOpen(false)}
+                  >
+                    Continue Editing
+                  </Button>
+                  <Button
+                    type="submit"
+                    loading={form.formState.isSubmitting}
+                    onClick={form.handleSubmit(onSubmit)}
+                  >
+                    Confirm
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
             {formError ? (
               <p className="text-red text-center">
                 <span className="font-bold">Error:</span> {formError}

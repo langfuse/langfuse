@@ -6,7 +6,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import { MessageCircleMore } from "lucide-react";
 
-import { type APIScore } from "@/src/features/public-api/types/scores";
+import { type APIScore } from "@langfuse/shared";
 import { type LastUserScore } from "@/src/features/scores/lib/types";
 
 export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
@@ -36,7 +36,7 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
             <p className="truncate" title={name}>
               {name}:
             </p>
-            <div className="flex items-center gap-3 text-nowrap">
+            <div className="flex items-center gap-1 text-nowrap">
               {scores.map((s, i) => (
                 <span
                   key={i}

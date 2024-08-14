@@ -9,13 +9,13 @@ import {
   Prisma,
   type Dataset,
 } from "@langfuse/shared/src/db";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { paginationZod } from "@langfuse/shared";
-import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
+import { filterAndValidateDbScoreList, paginationZod } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { type ScoreSimplified } from "@/src/features/scores/lib/types";
+import * as Sentry from "@sentry/node";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -319,7 +319,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "datasets:CUD",
@@ -360,7 +360,6 @@ export const datasetRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "datasetItem",
         resourceId: input.datasetItemId,
-        projectId: input.projectId,
         action: "update",
         after: datasetItem,
       });
@@ -376,7 +375,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "datasets:CUD",
@@ -399,7 +398,6 @@ export const datasetRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "dataset",
         resourceId: dataset.id,
-        projectId: input.projectId,
         action: "create",
         after: dataset,
       });
@@ -417,7 +415,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "datasets:CUD",
@@ -444,7 +442,6 @@ export const datasetRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "dataset",
         resourceId: dataset.id,
-        projectId: input.projectId,
         action: "update",
         after: dataset,
       });
@@ -454,7 +451,7 @@ export const datasetRouter = createTRPCRouter({
   deleteDataset: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "datasets:CUD",
@@ -471,7 +468,6 @@ export const datasetRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "dataset",
         resourceId: deletedDataset.id,
-        projectId: input.projectId,
         action: "delete",
         before: deletedDataset,
       });
@@ -490,7 +486,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "datasets:CUD",
@@ -537,7 +533,6 @@ export const datasetRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "datasetItem",
         resourceId: datasetItem.id,
-        projectId: input.projectId,
         action: "create",
         after: datasetItem,
       });
@@ -650,9 +645,14 @@ export const datasetRouter = createTRPCRouter({
         `,
       );
 
-      const validatedTraceScores = filterAndValidateDbScoreList(traceScores);
-      const validatedObservationScores =
-        filterAndValidateDbScoreList(observationScores);
+      const validatedTraceScores = filterAndValidateDbScoreList(
+        traceScores,
+        Sentry.captureException,
+      );
+      const validatedObservationScores = filterAndValidateDbScoreList(
+        observationScores,
+        Sentry.captureException,
+      );
 
       const items = runItems.map((ri) => {
         return {
