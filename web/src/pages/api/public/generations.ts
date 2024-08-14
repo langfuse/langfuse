@@ -33,7 +33,7 @@ export default withMiddlewares({
     responseSchema: PatchGenerationsV1Response,
     fn: async ({ body, auth, req }) => {
       const ingestionBatch = transformGenerationPatchToIngestionBatch(body);
-      const result = await handleBatch(ingestionBatch, {}, req, auth);
+      const result = await handleBatch(ingestionBatch, auth);
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,

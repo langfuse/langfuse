@@ -33,7 +33,7 @@ export default withMiddlewares({
     responseSchema: PatchSpansV1Response,
     fn: async ({ body, auth, req }) => {
       const ingestionBatch = transformLegacySpanPatchToIngestionBatch(body);
-      const result = await handleBatch(ingestionBatch, {}, req, auth);
+      const result = await handleBatch(ingestionBatch, auth);
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,
