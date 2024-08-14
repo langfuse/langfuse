@@ -2,10 +2,7 @@ import { v4 } from "uuid";
 
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import {
-  handleBatch,
-  parseSingleTypedIngestionApiResponse,
-} from "@/src/pages/api/public/ingestion";
+import { parseSingleTypedIngestionApiResponse } from "@/src/pages/api/public/ingestion";
 import {
   GetScoresQuery,
   GetScoresResponse,
@@ -14,7 +11,11 @@ import {
   PostScoresResponse,
 } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
-import { eventTypes, ingestionBatchEvent } from "@langfuse/shared/src/server";
+import {
+  eventTypes,
+  handleBatch,
+  ingestionBatchEvent,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -30,8 +31,6 @@ export default withMiddlewares({
       };
       const result = await handleBatch(
         ingestionBatchEvent.parse([event]),
-        {},
-        req,
         auth,
       );
       const response = parseSingleTypedIngestionApiResponse(

@@ -9,11 +9,7 @@ import {
   ScoreProcessor,
   SdkLogProcessor,
 } from "./EventProcessor";
-import {
-  EventBodyType,
-  EventName,
-  TraceUpsertEventType,
-} from "../../../queues";
+import { EventBodyType, EventName, TraceUpsertEventType } from "../../queues";
 import {
   convertTraceUpsertEventsToRedisEvents,
   getTraceUpsertQueue,

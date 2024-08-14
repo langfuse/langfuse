@@ -8,12 +8,9 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { Prisma } from "@langfuse/shared/src/db";
-import {
-  handleBatch,
-  parseSingleTypedIngestionApiResponse,
-} from "@/src/pages/api/public/ingestion";
+import { parseSingleTypedIngestionApiResponse } from "@/src/pages/api/public/ingestion";
 import { type Trace } from "@langfuse/shared";
-import { eventTypes } from "@langfuse/shared/src/server";
+import { eventTypes, handleBatch } from "@langfuse/shared/src/server";
 
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
@@ -34,7 +31,7 @@ export default withMiddlewares({
         body: body,
       };
 
-      const result = await handleBatch([event], {}, req, auth);
+      const result = await handleBatch([event], auth);
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,

@@ -8,10 +8,8 @@ import {
 } from "@/src/features/public-api/types/generations";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import {
-  handleBatch,
-  parseSingleTypedIngestionApiResponse,
-} from "@/src/pages/api/public/ingestion";
+import { parseSingleTypedIngestionApiResponse } from "@/src/pages/api/public/ingestion";
+import { handleBatch } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -20,7 +18,7 @@ export default withMiddlewares({
     responseSchema: PostGenerationsV1Response,
     fn: async ({ body, auth, req }) => {
       const ingestionBatch = transformGenerationPostToIngestionBatch(body);
-      const result = await handleBatch(ingestionBatch, {}, req, auth);
+      const result = await handleBatch(ingestionBatch, auth);
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,

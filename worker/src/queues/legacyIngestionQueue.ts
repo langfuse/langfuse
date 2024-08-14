@@ -1,5 +1,5 @@
 import { Job, Queue, Worker } from "bullmq";
-import { QueueName, TQueueJobTypes } from "@langfuse/shared";
+import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import logger from "../logger";
 
 import {
@@ -82,10 +82,10 @@ export const legacyIngestionExecutor = redis
       },
       {
         connection: redis,
-        concurrency: 80,
+        concurrency: 200,
         limiter: {
           // execute 75 calls in 1000ms
-          max: 100,
+          max: 150,
           duration: 1000,
         },
       }

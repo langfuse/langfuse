@@ -4,7 +4,7 @@ import {
   QueueName,
   TQueueJobTypes,
   TraceUpsertEventType,
-} from "../../queues";
+} from "../queues";
 import { Queue } from "bullmq";
 import { redis } from "./redis";
 

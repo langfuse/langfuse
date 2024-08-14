@@ -20,3 +20,4 @@ export * from "./redis/batch-export";
 export * from "./redis/legacy-ingestion";
 export * from "./auth/types";
 export * from "./ingestion/legacy/index";
+export * from "./queues";

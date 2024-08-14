@@ -1,6 +1,5 @@
 export * from "./constants";
 export * from "./queries";
-export * from "./queues";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./tableDefinitions";

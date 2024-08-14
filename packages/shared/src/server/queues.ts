@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ingestionBatchEvent } from "./server";
+import { ingestionBatchEvent } from ".";
 
 export enum EventName {
   TraceUpsert = "TraceUpsert",

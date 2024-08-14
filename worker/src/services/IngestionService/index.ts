@@ -2,7 +2,7 @@ import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 
-import { Model, PrismaClient, Prompt, QueueJobs } from "@langfuse/shared";
+import { Model, PrismaClient, Prompt } from "@langfuse/shared";
 import {
   convertObservationReadToInsert,
   convertScoreReadToInsert,
@@ -27,6 +27,7 @@ import {
   traceRecordReadSchema,
   ClickhouseClientType,
   validateAndInflateScore,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";

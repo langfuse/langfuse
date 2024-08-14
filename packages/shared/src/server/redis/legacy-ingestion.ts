@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { QueueJobs, QueueName, TQueueJobTypes } from "../../queues";
+import { QueueJobs, QueueName, TQueueJobTypes } from "../queues";
 import { redis } from "./redis";
 import { ingestionBatchEvent } from "../ingestion/types";
 import z from "zod";
