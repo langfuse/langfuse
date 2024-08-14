@@ -8,6 +8,8 @@ import RenameOrganization from "@/src/features/organizations/components/RenameOr
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { OrganizationUsageChart } from "@/src/features/usage-metering/OrganizationUsageChart";
 import { useRouter } from "next/router";
+import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
+import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 
 const OrgSettingsPage = () => {
   const organization = useQueryOrganization();
@@ -35,6 +37,16 @@ const OrgSettingsPage = () => {
                     json={{ name: organization.name, id: organization.id }}
                   />
                 </div>
+                <SettingsDangerZone
+                  items={[
+                    {
+                      title: "Delete this organization",
+                      description:
+                        "Once you delete an organization, there is no going back. Please be certain.",
+                      button: <DeleteOrganizationButton />,
+                    },
+                  ]}
+                />
               </div>
             ),
           },

@@ -1,13 +1,16 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
 import {
   GetTraceV1Query,
   GetTraceV1Response,
 } from "@/src/features/public-api/types/traces";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
-import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  filterAndValidateDbScoreList,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import * as Sentry from "@sentry/node";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -48,7 +51,10 @@ export default withMiddlewares({
       ]);
 
       const outObservations = observations.map(transformDbToApiObservation);
-      const validatedScores = filterAndValidateDbScoreList(scores);
+      const validatedScores = filterAndValidateDbScoreList(
+        scores,
+        Sentry.captureException,
+      );
 
       const { duration, ...restOfTrace } = trace;
 

@@ -596,9 +596,9 @@ export const promptRouter = createTRPCRouter({
           id: {
             in: userIds,
           },
-          projectMemberships: {
+          organizationMemberships: {
             some: {
-              projectId: input.projectId,
+              orgId: ctx.session.orgId,
             },
           },
         },

@@ -1,14 +1,15 @@
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   datetimeFilterToPrismaSql,
-  tableColumnsToSqlFilterAndPrefix,
+  filterAndValidateDbScoreList,
   observationsTableCols,
+  orderByToPrismaSql,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
-import { orderByToPrismaSql } from "@langfuse/shared";
-import { type ObservationView, Prisma } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
+import { type ObservationView, Prisma, prisma } from "@langfuse/shared/src/db";
+
 import { type GetAllGenerationsInput } from "../getAllQuery";
-import { filterAndValidateDbScoreList } from "@/src/features/public-api/types/scores";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import * as Sentry from "@sentry/node";
 
 type AdditionalObservationFields = {
   traceName: string | null;
@@ -150,7 +151,10 @@ export async function getAllGenerations({
       },
     },
   });
-  const validatedScores = filterAndValidateDbScoreList(scores);
+  const validatedScores = filterAndValidateDbScoreList(
+    scores,
+    Sentry.captureException,
+  );
 
   const fullGenerations = generations.map((generation) => {
     const filteredScores = aggregateScores(

@@ -1,18 +1,19 @@
 /** @jest-environment node */
 
+import { v4 as uuidv4 } from "uuid";
+
 import {
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import { PostGenerationsV1Response } from "@/src/features/public-api/types/generations";
-import { PostScoresResponse } from "@/src/features/public-api/types/scores";
 import {
-  GetTraceV1Response,
   GetTracesV1Response,
+  GetTraceV1Response,
   PostTracesV1Response,
 } from "@/src/features/public-api/types/traces";
+import { PostScoresResponse } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { v4 as uuidv4 } from "uuid";
 
 describe("/api/public/traces API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -33,7 +34,7 @@ describe("/api/public/traces API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-       );
+    );
 
     const trace = await makeZodVerifiedAPICall(
       GetTraceV1Response,
@@ -64,7 +65,7 @@ describe("/api/public/traces API Endpoint", () => {
         version: "2.0.0",
         public: true,
       },
-       );
+    );
 
     const dbTrace1 = await prisma.trace.findFirst({
       where: {
@@ -94,7 +95,7 @@ describe("/api/public/traces API Endpoint", () => {
         version: "5.0.0",
         public: false,
       },
-       );
+    );
 
     const dbTrace2 = await prisma.trace.findFirst({
       where: {
@@ -125,7 +126,7 @@ describe("/api/public/traces API Endpoint", () => {
         id: "trace-1",
         tags: ["tag-1", "tag-2", "tag-3"],
       },
-       );
+    );
 
     await makeZodVerifiedAPICall(
       PostTracesV1Response,
@@ -135,7 +136,7 @@ describe("/api/public/traces API Endpoint", () => {
         id: "trace-2",
         tags: ["tag-1"],
       },
-       );
+    );
 
     await makeZodVerifiedAPICall(
       PostTracesV1Response,
@@ -145,7 +146,7 @@ describe("/api/public/traces API Endpoint", () => {
         id: "trace-3",
         tags: ["tag-2", "tag-3"],
       },
-       );
+    );
 
     // multiple tags
     const traces = await makeZodVerifiedAPICall(
@@ -206,7 +207,7 @@ describe("/api/public/traces API Endpoint", () => {
         release: "1.0.0",
         version: "2.0.0",
       },
-       );
+    );
     console.log(traceId);
 
     // Simulate observations with costs and latencies
@@ -223,7 +224,7 @@ describe("/api/public/traces API Endpoint", () => {
         startTime: "2021-01-01T00:00:00.000Z",
         endTime: "2021-01-01T00:10:00.000Z",
       },
-       );
+    );
     await makeZodVerifiedAPICall(
       PostGenerationsV1Response,
       "POST",
@@ -234,7 +235,7 @@ describe("/api/public/traces API Endpoint", () => {
         startTime: "2021-01-01T00:10:00.000Z",
         endTime: "2021-01-01T00:20:00.000Z",
       },
-       );
+    );
 
     // Simulate scores on the trace
     const scoreId1 = uuidv4();
@@ -249,7 +250,7 @@ describe("/api/public/traces API Endpoint", () => {
         traceId: traceId,
         comment: "First score",
       },
-       );
+    );
     const scoreId2 = uuidv4();
     await makeZodVerifiedAPICall(
       PostScoresResponse,
@@ -262,7 +263,7 @@ describe("/api/public/traces API Endpoint", () => {
         traceId: traceId,
         comment: "Second score",
       },
-       );
+    );
     const scoreId3 = uuidv4();
     await makeZodVerifiedAPICall(
       PostScoresResponse,
@@ -275,7 +276,7 @@ describe("/api/public/traces API Endpoint", () => {
         traceId: traceId,
         comment: "Third score",
       },
-       );
+    );
 
     // GET traces
     // Retrieve the trace with totalCost and latency
@@ -334,7 +335,7 @@ describe("/api/public/traces API Endpoint", () => {
         release: "1.0.0",
         version: "1.0.0",
       },
-       );
+    );
 
     await makeZodVerifiedAPICall(
       PostTracesV1Response,
@@ -350,7 +351,7 @@ describe("/api/public/traces API Endpoint", () => {
         release: "1.0.0",
         version: "1.0.0",
       },
-       );
+    );
 
     // Filter by session ID
     const tracesBySessionId = await makeZodVerifiedAPICall(

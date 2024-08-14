@@ -16,9 +16,13 @@ import {
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { isPresent } from "@/src/utils/typeChecks";
+
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
-import type { FilterState, ScoreDataType } from "@langfuse/shared";
+import {
+  isPresent,
+  type FilterState,
+  type ScoreDataType,
+} from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
@@ -30,6 +34,7 @@ export type ScoresTableRow = {
   dataType: ScoreDataType;
   value: string;
   author: {
+    userId?: string;
     image?: string;
     name?: string;
   };
@@ -279,7 +284,7 @@ export default function ScoresTable({
       enableHiding: true,
       size: 150,
       cell: ({ row }) => {
-        const { name, image } = row.getValue(
+        const { userId, name, image } = row.getValue(
           "author",
         ) as ScoresTableRow["author"];
         return (
@@ -290,7 +295,7 @@ export default function ScoresTable({
                 alt={name ?? "User Avatar"}
               />
             </Avatar>
-            <span>{name}</span>
+            <span>{name ?? userId}</span>
           </div>
         );
       },
@@ -343,6 +348,7 @@ export default function ScoresTable({
             : score.value.toFixed(4)
           : score.stringValue ?? "",
       author: {
+        userId: score.authorUserId ?? undefined,
         image: score.authorUserImage ?? undefined,
         name: score.authorUserName ?? undefined,
       },

@@ -1,5 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { type ScoreSource } from "@langfuse/shared";
+import { type APIScore, type ScoreSource } from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -22,7 +22,6 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { type APIScore } from "@/src/features/public-api/types/scores";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
 export const ObservationPreview = (props: {
@@ -43,6 +42,7 @@ export const ObservationPreview = (props: {
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: props.currentObservationId,
     traceId: props.traceId,
+    projectId: props.projectId,
   });
 
   const preloadedObservation = props.observations.find(

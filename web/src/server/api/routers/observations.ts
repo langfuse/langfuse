@@ -10,6 +10,7 @@ export const observationsRouter = createTRPCRouter({
       z.object({
         observationId: z.string(),
         traceId: z.string(), // required for protectedGetTraceProcedure
+        projectId: z.string(), // required for protectedGetTraceProcedure
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -17,6 +18,7 @@ export const observationsRouter = createTRPCRouter({
         where: {
           id: input.observationId,
           traceId: input.traceId,
+          projectId: input.projectId,
         },
       });
       const scores = observation.traceId

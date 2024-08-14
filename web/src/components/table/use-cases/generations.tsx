@@ -561,6 +561,7 @@ export default function GenerationsTable({
           <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
+            projectId={projectId}
             col="input"
             singleLine={rowHeight === "s"}
           />
@@ -581,6 +582,7 @@ export default function GenerationsTable({
           <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
+            projectId={projectId}
             col="output"
             singleLine={rowHeight === "s"}
           />
@@ -604,6 +606,7 @@ export default function GenerationsTable({
           <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
+            projectId={projectId}
             col="metadata"
             singleLine={rowHeight === "s"}
           />
@@ -780,18 +783,21 @@ export default function GenerationsTable({
 const GenerationsDynamicCell = ({
   traceId,
   observationId,
+  projectId,
   col,
   singleLine = false,
 }: {
   traceId: string;
   observationId: string;
+  projectId: string;
   col: "input" | "output" | "metadata";
   singleLine: boolean;
 }) => {
   const observation = api.observations.byId.useQuery(
     {
-      observationId: observationId,
-      traceId: traceId,
+      observationId,
+      traceId,
+      projectId,
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",

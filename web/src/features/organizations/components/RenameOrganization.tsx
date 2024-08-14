@@ -26,7 +26,7 @@ export default function RenameOrganization() {
   const organization = useQueryOrganization();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
-    scope: "organizations:update",
+    scope: "organization:update",
   });
 
   const orgName =
@@ -73,7 +73,7 @@ export default function RenameOrganization() {
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
-          <p className="mb-4 text-sm" data-testid="organization-name">
+          <p className="mb-4 text-sm">
             Your Organization is currently named &quot;<b>{orgName}</b>
             &quot;.
           </p>
@@ -83,7 +83,6 @@ export default function RenameOrganization() {
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex-1"
-            data-testid="rename-organization-form"
             id="rename-organization-form"
           >
             <FormField
@@ -97,7 +96,6 @@ export default function RenameOrganization() {
                         placeholder={orgName}
                         {...field}
                         className="flex-1"
-                        data-testid="new-organization-name-input"
                         disabled={!hasAccess}
                       />
                       {!hasAccess && (

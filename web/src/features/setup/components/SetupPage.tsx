@@ -252,7 +252,6 @@ const TracingSetup = ({
           <QuickstartExamples
             secretKey={apiKeys.secretKey}
             publicKey={apiKeys.publicKey}
-            host={window.origin}
           />
         </div>
       )}

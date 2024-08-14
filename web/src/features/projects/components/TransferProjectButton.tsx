@@ -174,11 +174,7 @@ export function TransferProjectButton() {
                 <FormItem>
                   <FormLabel>Confirm</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder={confirmMessage}
-                      {...field}
-                      data-testid="new-project-name-input"
-                    />
+                    <Input placeholder={confirmMessage} {...field} />
                   </FormControl>
                   <FormDescription>
                     {`To confirm, type "${confirmMessage}" in the input box `}
