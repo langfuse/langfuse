@@ -32,11 +32,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(60 * 10),
-  LANGFUSE_INGESTION_FLUSH_DELAY_MS: z.coerce
-    .number()
-    .nonnegative()
-    .default(10000),
-  LANGFUSE_INGESTION_FLUSH_ATTEMPTS: z.coerce.number().positive().default(3),
   LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()

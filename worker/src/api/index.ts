@@ -2,13 +2,10 @@ import express from "express";
 import basicAuth from "express-basic-auth";
 
 import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
   convertTraceUpsertEventsToRedisEvents,
   getTraceUpsertQueue,
-  ingestionApiSchemaWithProjectId,
-  redis,
   getBatchExportQueue,
 } from "@langfuse/shared/src/server";
 import * as Sentry from "@sentry/node";
@@ -16,9 +13,6 @@ import * as Sentry from "@sentry/node";
 import { env } from "../env";
 import { checkContainerHealth } from "../features/health";
 import logger from "../logger";
-import { ingestionFlushQueue } from "../queues/ingestionFlushQueue";
-import { ClickhouseWriter } from "../services/ClickhouseWriter";
-import { IngestionService } from "../services/IngestionService";
 
 const router = express.Router();
 
@@ -136,44 +130,7 @@ router
     })
   )
   .post("/ingestion", async (req, res) => {
-    try {
-      if (!redis) {
-        throw new Error("Redis connection not available");
-      }
-
-      const { body } = req;
-      const events = ingestionApiSchemaWithProjectId.safeParse(body);
-
-      if (!events.success) {
-        logger.error(events.error, "Failed to parse ingestion event");
-
-        return res.status(400).json(events.error);
-      }
-
-      const { batch, projectId } = events.data;
-
-      if (!ingestionFlushQueue) {
-        throw Error("Ingestion flush queue not available");
-      }
-
-      await new IngestionService(
-        redis,
-        prisma,
-        ingestionFlushQueue,
-        ClickhouseWriter.getInstance(),
-        clickhouseClient,
-        env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS // TODO: Make this configurable,
-      ).addBatch(batch, projectId);
-
-      return res.status(200).send();
-    } catch (e) {
-      logger.error(e, "Failed to process ingestion event");
-
-      if (!res.headersSent)
-        return res
-          .status(500)
-          .json({ message: e instanceof Error ? e.message : undefined });
-    }
+    return res.status(200).send(); // Not implemented, Send 200 to acknowledge the request for web containers to not throw
   });
 
 export default router;
