@@ -162,6 +162,10 @@ export const env = createEnv({
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses")
       .transform((v) => (v === "" || v === undefined ? undefined : v)),
+    LANGFUSE_INGESTION_BUFFER_TTL_SECONDS: z.coerce
+      .number()
+      .positive()
+      .default(60 * 10),
   },
 
   /**
@@ -303,6 +307,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ASYNC_INGESTION_PROCESSING,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
+    LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:
+      process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
