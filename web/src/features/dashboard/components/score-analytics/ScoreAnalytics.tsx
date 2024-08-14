@@ -91,14 +91,14 @@ export function ScoreAnalytics(props: {
       {Boolean(scoreKeysAndProps.data?.length) &&
       Boolean(scoreAnalyticsValues.length) ? (
         <div className="grid grid-flow-row gap-4">
-          {selectedDashboardScoreKeys.map((scoreKey, index) => {
+          {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
             const scoreData = scoreKeyToData.get(scoreKey);
             if (!scoreData) return null;
             const { name, dataType, source } = scoreData;
 
             return (
               <div key={scoreKey}>
-                <div className="">{`${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`}</div>
+                <div>{`${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`}</div>
                 <div className="mt-2 grid grid-cols-2 gap-4">
                   {/* aggregate */}
                   <div>
