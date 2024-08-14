@@ -38,10 +38,8 @@ describe("Ingestion end-to-end tests", () => {
     ingestionService = new IngestionService(
       redis,
       prisma,
-      mockIngestionFlushQueue,
       clickhouseWriter,
-      clickhouseClient,
-      30
+      clickhouseClient
     );
   });
 

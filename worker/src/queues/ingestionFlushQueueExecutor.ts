@@ -58,10 +58,8 @@ export const ingestionQueueExecutor = redis
                 await new IngestionService(
                   redis,
                   prisma,
-                  ingestionFlushQueue,
                   ClickhouseWriter.getInstance(),
-                  clickhouseClient,
-                  env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS
+                  clickhouseClient
                 ).flush(projectEntityId);
 
                 // Log processing time

@@ -25,9 +25,9 @@ import {
   traceRecordReadSchema,
   ClickhouseClientType,
   validateAndInflateScore,
-  IngestionFlushQueue,
   IngestionUtils,
   ClickhouseEntityType,
+  PromptService,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -64,14 +64,16 @@ const immutableEntityKeys: {
 };
 
 export class IngestionService {
+  private promptService: PromptService;
+
   constructor(
     private redis: Redis,
-    private prisma: PrismaClient,
-    private ingestionFlushQueue: IngestionFlushQueue,
+    prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
-    private clickhouseClient: ClickhouseClientType,
-    private bufferTtlSeconds: number
-  ) {}
+    private clickhouseClient: ClickhouseClientType
+  ) {
+    this.promptService = new PromptService(prisma, redis);
+  }
 
   public async flush(projectEntityKey: string): Promise<void> {
     const bufferKey = IngestionUtils.getBufferKey(projectEntityKey);
@@ -387,20 +389,15 @@ export class IngestionService {
 
     if (!lastObservationWithPromptInfo) return null;
 
-    const dbPrompt = await this.prisma.prompt.findFirst({
-      where: {
-        projectId,
-        name: lastObservationWithPromptInfo.body.promptName,
-        version: lastObservationWithPromptInfo.body.promptVersion,
-      },
-      select: {
-        id: true,
-        name: true,
-        version: true,
-      },
-    });
+    const { promptName, promptVersion: version } =
+      lastObservationWithPromptInfo.body;
 
-    return dbPrompt;
+    return this.promptService.getPrompt({
+      projectId,
+      promptName,
+      version,
+      label: undefined,
+    });
   }
 
   private hasPromptInformation(
