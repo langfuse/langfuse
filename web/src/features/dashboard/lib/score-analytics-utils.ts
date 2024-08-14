@@ -22,7 +22,10 @@ export function createHistogramData(
 
   const min = round(Math.min(...numericScoreValues));
   const range = round(Math.max(...numericScoreValues)) - min;
-  const bins = Math.min(Math.max(minBins, Math.ceil(range)), maxBins);
+  const bins = Math.min(
+    Math.max(minBins, Math.ceil(Math.sqrt(numericScoreValues.length))),
+    maxBins,
+  );
   const binSize = range / bins || 1;
 
   const baseChartData = Array.from({ length: bins }).map(
