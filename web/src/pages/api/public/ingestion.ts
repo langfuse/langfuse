@@ -114,43 +114,49 @@ export default async function handler(
 
     if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" && redis) {
       // this function MUST NOT return but send the HTTP response directly
-      console.log("Returning http response early");
-
-      // still need to check auth scope for all events individually
-
-      const failedAccessScope = accessCheckPerEvent(sortedBatch, authCheck);
-
       const queue = getLegacyIngestionQueue();
 
-      await queue?.add(
-        QueueJobs.LegacyIngestionJob,
-        {
-          payload: { data: sortedBatch, authCheck: authCheck },
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.LegacyIngestionJob as const,
-        },
-        {
-          removeOnFail: 10000,
-          removeOnComplete: true,
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
+      if (queue) {
+        console.log("Returning http response early");
+
+        // still need to check auth scope for all events individually
+
+        const failedAccessScope = accessCheckPerEvent(sortedBatch, authCheck);
+
+        await queue?.add(
+          QueueJobs.LegacyIngestionJob,
+          {
+            payload: { data: sortedBatch, authCheck: authCheck },
+            id: randomUUID(),
+            timestamp: new Date(),
+            name: QueueJobs.LegacyIngestionJob as const,
           },
-        },
-      );
-      return handleBatchResult(
-        [
-          ...validationErrors,
-          ...failedAccessScope.map((e) => ({
-            id: e.id,
-            error: "Access Scope Denied",
-          })),
-        ], // we are not sending additional server errors to the client in case of early return
-        sortedBatch.map((event) => ({ id: event.id, result: event })),
-        res,
-      );
+          {
+            removeOnFail: 10000,
+            removeOnComplete: true,
+            attempts: 5,
+            backoff: {
+              type: "exponential",
+              delay: 1000,
+            },
+          },
+        );
+        return handleBatchResult(
+          [
+            ...validationErrors,
+            ...failedAccessScope.map((e) => ({
+              id: e.id,
+              error: "Access Scope Denied",
+            })),
+          ], // we are not sending additional server errors to the client in case of early return
+          sortedBatch.map((event) => ({ id: event.id, result: event })),
+          res,
+        );
+      } else {
+        console.error(
+          "Ingestion queue not initialized, falling back to sync processing",
+        );
+      }
     }
 
     const result = await handleBatch(sortedBatch, authCheck, tokenCount);
