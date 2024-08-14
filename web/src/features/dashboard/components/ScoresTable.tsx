@@ -17,7 +17,7 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDeta
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 
-const formatScoreCellByType = (
+const dropValuesForCategoricalScores = (
   value: number,
   scoreDataType: ScoreDataType,
 ): string => {
@@ -196,16 +196,19 @@ export const ScoresTable = ({
             {compactNumberFormatter(item.countScoreId as number)}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-average`}>
-            {formatScoreCellByType(item.avgValue, item.scoreDataType)}
+            {dropValuesForCategoricalScores(item.avgValue, item.scoreDataType)}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-zero`}>
-            {formatScoreCellByType(
+            {dropValuesForCategoricalScores(
               item.zeroValueScore as number,
               item.scoreDataType,
             )}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-one`}>
-            {formatScoreCellByType(item.oneValueScore, item.scoreDataType)}
+            {dropValuesForCategoricalScores(
+              item.oneValueScore,
+              item.scoreDataType,
+            )}
           </RightAlignedCell>,
         ])}
         collapse={{ collapsed: 5, expanded: 20 }}
