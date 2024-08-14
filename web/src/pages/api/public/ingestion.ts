@@ -48,6 +48,7 @@ import {
 } from "@langfuse/shared";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
+import logger from "@/src/server/utils/logger";
 
 export const config = {
   api: {
@@ -67,6 +68,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  logger.info("Ingestion-Handler");
   return Sentry.startSpan(
     {
       name: "Ingestion-Handler",

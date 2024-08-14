@@ -167,6 +167,10 @@ export const env = createEnv({
       .number()
       .positive()
       .default(60 * 10),
+    LANGFUSE_LOG_LEVEL: z
+      .enum(["trace", "debug", "info", "warn", "error", "fatal"])
+      .optional(),
+    LANGFUSE_WORKER_BETTERSTACK_TOKEN: z.string().optional(),
   },
 
   /**
@@ -312,6 +316,9 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:
       process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
+    LANGFUSE_LOG_LEVEL: process.env.LANGFUSE_LOG_LEVEL,
+    LANGFUSE_WORKER_BETTERSTACK_TOKEN:
+      process.env.LANGFUSE_WORKER_BETTERSTACK_TOKEN,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
