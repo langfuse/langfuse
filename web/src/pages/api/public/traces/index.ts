@@ -15,6 +15,7 @@ import { eventTypes, handleBatch } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { tracesTableCols, orderByToPrismaSql } from "@langfuse/shared";
+import { tokenCount } from "@/src/features/ingest/usage";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -31,7 +32,7 @@ export default withMiddlewares({
         body: body,
       };
 
-      const result = await handleBatch([event], auth);
+      const result = await handleBatch([event], auth, tokenCount);
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,

@@ -16,6 +16,7 @@ import {
   handleBatch,
   ingestionBatchEvent,
 } from "@langfuse/shared/src/server";
+import { tokenCount } from "@/src/features/ingest/usage";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -32,6 +33,7 @@ export default withMiddlewares({
       const result = await handleBatch(
         ingestionBatchEvent.parse([event]),
         auth,
+        tokenCount,
       );
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,

@@ -7,6 +7,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { parseSingleTypedIngestionApiResponse } from "@/src/pages/api/public/ingestion";
 import { handleBatch } from "@langfuse/shared/src/server";
+import { tokenCount } from "@/src/features/ingest/usage";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -15,7 +16,7 @@ export default withMiddlewares({
     responseSchema: PostEventsV1Response,
     fn: async ({ body, auth, req }) => {
       const ingestionBatch = transformEventToIngestionBatch(body);
-      const result = await handleBatch(ingestionBatch, auth);
+      const result = await handleBatch(ingestionBatch, auth, tokenCount);
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,

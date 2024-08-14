@@ -10,6 +10,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { parseSingleTypedIngestionApiResponse } from "@/src/pages/api/public/ingestion";
 import { handleBatch } from "@langfuse/shared/src/server";
+import { tokenCount } from "@/src/features/ingest/usage";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -18,7 +19,7 @@ export default withMiddlewares({
     responseSchema: PostSpansV1Response,
     fn: async ({ body, auth, req }) => {
       const ingestionBatch = transformLegacySpanPostToIngestionBatch(body);
-      const result = await handleBatch(ingestionBatch, auth);
+      const result = await handleBatch(ingestionBatch, auth, tokenCount);
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,
@@ -33,7 +34,7 @@ export default withMiddlewares({
     responseSchema: PatchSpansV1Response,
     fn: async ({ body, auth, req }) => {
       const ingestionBatch = transformLegacySpanPatchToIngestionBatch(body);
-      const result = await handleBatch(ingestionBatch, auth);
+      const result = await handleBatch(ingestionBatch, auth, tokenCount);
       const response = parseSingleTypedIngestionApiResponse(
         result.errors,
         result.results,
