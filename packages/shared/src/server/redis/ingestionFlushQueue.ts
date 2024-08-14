@@ -1,9 +1,9 @@
 import { Queue } from "bullmq";
 
 import { QueueName } from "@langfuse/shared";
-import { redis } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
+import { redis } from "../redis/redis";
 
 export type IngestionFlushQueue = Queue<null>;
 
