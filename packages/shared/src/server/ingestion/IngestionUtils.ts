@@ -1,4 +1,4 @@
-import { eventTypes, IngestionEventType } from "@langfuse/shared/src/server";
+import { eventTypes, IngestionEventType } from "./types";
 
 const reservedCharsEscapeMap = [
   { reserved: ":", escape: "|%|" },
