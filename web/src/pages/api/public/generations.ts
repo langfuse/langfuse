@@ -17,7 +17,7 @@ export default withMiddlewares({
     name: "Create Generation (Legacy)",
     bodySchema: PostGenerationsV1Body,
     responseSchema: PostGenerationsV1Response,
-    fn: async ({ body, auth, req }) => {
+    fn: async ({ body, auth }) => {
       const ingestionBatch = transformGenerationPostToIngestionBatch(body);
       const result = await handleBatch(ingestionBatch, auth, tokenCount);
       const response = parseSingleTypedIngestionApiResponse(
@@ -32,7 +32,7 @@ export default withMiddlewares({
     name: "Patch Generation (Legacy)",
     bodySchema: PatchGenerationsV1Body,
     responseSchema: PatchGenerationsV1Response,
-    fn: async ({ body, auth, req }) => {
+    fn: async ({ body, auth }) => {
       const ingestionBatch = transformGenerationPatchToIngestionBatch(body);
       const result = await handleBatch(ingestionBatch, auth, tokenCount);
       const response = parseSingleTypedIngestionApiResponse(

@@ -14,7 +14,7 @@ export default withMiddlewares({
     name: "Create Event",
     bodySchema: PostEventsV1Body,
     responseSchema: PostEventsV1Response,
-    fn: async ({ body, auth, req }) => {
+    fn: async ({ body, auth }) => {
       const ingestionBatch = transformEventToIngestionBatch(body);
       const result = await handleBatch(ingestionBatch, auth, tokenCount);
       const response = parseSingleTypedIngestionApiResponse(

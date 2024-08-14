@@ -23,7 +23,7 @@ export default withMiddlewares({
     name: "Create Score",
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
-    fn: async ({ body, auth, req }) => {
+    fn: async ({ body, auth }) => {
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,

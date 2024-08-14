@@ -22,7 +22,7 @@ export default withMiddlewares({
     name: "Create Trace",
     bodySchema: PostTracesV1Body,
     responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
-    fn: async ({ body, auth, req }) => {
+    fn: async ({ body, auth }) => {
       await telemetry();
 
       const event = {
