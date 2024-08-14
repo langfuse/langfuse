@@ -15,6 +15,11 @@ export const legacyIngestionQueue = redis
       QueueName.LegacyIngestionQueue,
       {
         connection: redis,
+        defaultJobOptions: {
+          removeOnComplete: true,
+          removeOnFail: 1000,
+          attempts: 5,
+        },
       }
     )
   : null;
