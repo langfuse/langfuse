@@ -35,7 +35,7 @@ export function NumericScoreTimeSeriesChart(props: {
       from: "traces_scores",
       select: [{ column: "scoreName" }, { column: "value", agg: "AVG" }],
       filter: [
-        ...createTracesTimeFilter(props.globalFilterState),
+        ...createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
         {
           type: "string",
           column: "scoreName",
@@ -58,7 +58,7 @@ export function NumericScoreTimeSeriesChart(props: {
       groupBy: [
         {
           type: "datetime",
-          column: "timestamp",
+          column: "scoreTimestamp",
           temporalUnit:
             dashboardDateRangeAggregationSettings[props.agg].date_trunc,
         },
@@ -87,7 +87,7 @@ export function NumericScoreTimeSeriesChart(props: {
 
   const extractedScores = scores.data
     ? fillMissingValuesAndTransform(
-        extractTimeSeriesData(scores.data, "timestamp", [
+        extractTimeSeriesData(scores.data, "scoreTimestamp", [
           {
             labelColumn: "scoreName",
             valueColumn: "avgValue",

@@ -66,7 +66,7 @@ export function NumericScoreHistogram(props: {
 
   return (
     <BarChart
-      className="mt-6"
+      className="mt-4"
       data={paddedChartData}
       index="binLabel"
       categories={chartLabels}

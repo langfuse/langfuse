@@ -108,7 +108,7 @@ export function CategoricalScoreChart(props: {
 
   return (
     <BarChart
-      className="mt-6"
+      className="mt-4"
       data={chartData}
       index="binLabel"
       categories={chartLabels}
