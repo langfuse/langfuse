@@ -2,15 +2,13 @@ import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 
-import { Model, PrismaClient, Prompt, QueueJobs } from "@langfuse/shared";
+import { Model, PrismaClient, Prompt } from "@langfuse/shared";
 import {
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
   eventTypes,
   findModel,
-  IngestionBatchEventType,
-  IngestionEventType,
   ingestionEventWithProjectId,
   IngestionEventWithProjectIdType,
   ObservationEvent,
@@ -27,21 +25,16 @@ import {
   traceRecordReadSchema,
   ClickhouseClientType,
   validateAndInflateScore,
+  IngestionUtils,
+  ClickhouseEntityType,
+  PromptService,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
 import { instrumentAsync } from "../../instrumentation";
 import logger from "../../logger";
-import { IngestionFlushQueue } from "../../queues/ingestionFlushQueue";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
-
-enum EntityType {
-  Trace = "trace",
-  Score = "score",
-  Observation = "observation",
-  SDK_LOG = "sdk-log",
-}
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -70,54 +63,20 @@ const immutableEntityKeys: {
   ],
 };
 
-const reservedCharsEscapeMap = [
-  { reserved: ":", escape: "|%|" },
-  { reserved: "_", escape: "|#|" },
-];
-
 export class IngestionService {
+  private promptService: PromptService;
+
   constructor(
     private redis: Redis,
-    private prisma: PrismaClient,
-    private ingestionFlushQueue: IngestionFlushQueue,
+    prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
-    private clickhouseClient: ClickhouseClientType,
-    private bufferTtlSeconds: number
-  ) {}
-
-  public async addBatch(
-    events: IngestionBatchEventType,
-    projectId: string
-  ): Promise<void> {
-    const ingestedEvents = events.map(async (event) => {
-      if (!("id" in event.body && event.body.id)) {
-        logger.warn(
-          `Received ingestion event without id, ${JSON.stringify(event)}`
-        );
-
-        return null;
-      }
-
-      const projectEntityKey = this.getProjectEntityKey({
-        entityId: event.body.id,
-        eventType: this.getEventType(event),
-        projectId,
-      });
-      const bufferKey = this.getBufferKey(projectEntityKey);
-      const serializedEventData = JSON.stringify({ ...event, projectId });
-
-      await this.redis.lpush(bufferKey, serializedEventData);
-      await this.redis.expire(bufferKey, this.bufferTtlSeconds);
-      await this.ingestionFlushQueue.add(QueueJobs.FlushIngestionEntity, null, {
-        jobId: projectEntityKey,
-      });
-    });
-
-    await Promise.all(ingestedEvents);
+    private clickhouseClient: ClickhouseClientType
+  ) {
+    this.promptService = new PromptService(prisma, redis);
   }
 
   public async flush(projectEntityKey: string): Promise<void> {
-    const bufferKey = this.getBufferKey(projectEntityKey);
+    const bufferKey = IngestionUtils.getBufferKey(projectEntityKey);
     const eventList = (await this.redis.lrange(bufferKey, 0, -1))
       .map((serializedEventData) => {
         const parsed = ingestionEventWithProjectId.safeParse(
@@ -143,22 +102,22 @@ export class IngestionService {
     }
 
     const { projectId, eventType, entityId } =
-      this.parseProjectEntityKey(projectEntityKey);
+      IngestionUtils.parseProjectEntityKey(projectEntityKey);
 
     switch (eventType) {
-      case EntityType.Trace:
+      case ClickhouseEntityType.Trace:
         return await this.processTraceEventList({
           projectId,
           entityId,
           traceEventList: eventList as TraceEventType[],
         });
-      case EntityType.Observation:
+      case ClickhouseEntityType.Observation:
         return await this.processObservationEventList({
           projectId,
           entityId,
           observationEventList: eventList as ObservationEvent[],
         });
-      case EntityType.Score: {
+      case ClickhouseEntityType.Score: {
         return await this.processScoreEventList({
           projectId,
           entityId,
@@ -166,70 +125,6 @@ export class IngestionService {
         });
       }
     }
-  }
-
-  private getEventType(event: IngestionEventType): EntityType {
-    switch (event.type) {
-      case eventTypes.TRACE_CREATE:
-        return EntityType.Trace;
-      case eventTypes.OBSERVATION_CREATE:
-      case eventTypes.OBSERVATION_UPDATE:
-      case eventTypes.EVENT_CREATE:
-      case eventTypes.SPAN_CREATE:
-      case eventTypes.SPAN_UPDATE:
-      case eventTypes.GENERATION_CREATE:
-      case eventTypes.GENERATION_UPDATE:
-        return EntityType.Observation;
-      case eventTypes.SCORE_CREATE:
-        return EntityType.Score;
-      case eventTypes.SDK_LOG:
-        return EntityType.SDK_LOG;
-    }
-  }
-
-  private getProjectEntityKey(params: {
-    projectId: string;
-    eventType: EntityType;
-    entityId: string;
-  }): string {
-    const sanitizedEntityId = IngestionService.escapeReservedChars(
-      params.entityId
-    );
-
-    return `${params.projectId}_${params.eventType}_${sanitizedEntityId}`;
-  }
-
-  private parseProjectEntityKey(projectEntityKey: string) {
-    const split = projectEntityKey.split("_");
-
-    if (split.length !== 3) {
-      throw new Error(
-        `Invalid project entity key format ${projectEntityKey}, expected 3 parts`
-      );
-    }
-
-    const [projectId, eventType, escapedEntityId] = split;
-    const entityId = IngestionService.unescapeReservedChars(escapedEntityId);
-
-    return { projectId, eventType, entityId };
-  }
-
-  private getBufferKey(projectEntityKey: string): string {
-    return "ingestionBuffer:" + projectEntityKey;
-  }
-
-  private static escapeReservedChars(string: string): string {
-    return reservedCharsEscapeMap.reduce(
-      (acc, { reserved, escape }) => acc.replaceAll(reserved, escape),
-      string
-    );
-  }
-
-  private static unescapeReservedChars(escapedString: string): string {
-    return reservedCharsEscapeMap.reduce(
-      (acc, { reserved, escape }) => acc.replaceAll(escape, reserved),
-      escapedString
-    );
   }
 
   private async processScoreEventList(params: {
@@ -494,20 +389,15 @@ export class IngestionService {
 
     if (!lastObservationWithPromptInfo) return null;
 
-    const dbPrompt = await this.prisma.prompt.findFirst({
-      where: {
-        projectId,
-        name: lastObservationWithPromptInfo.body.promptName,
-        version: lastObservationWithPromptInfo.body.promptVersion,
-      },
-      select: {
-        id: true,
-        name: true,
-        version: true,
-      },
-    });
+    const { promptName, promptVersion: version } =
+      lastObservationWithPromptInfo.body;
 
-    return dbPrompt;
+    return this.promptService.getPrompt({
+      projectId,
+      promptName,
+      version,
+      label: undefined,
+    });
   }
 
   private hasPromptInformation(

@@ -4,7 +4,7 @@ import { redis } from "@langfuse/shared/src/server";
 
 import { evalJobCreator, evalJobExecutor } from "../queues/evalQueue";
 import { batchExportJobExecutor } from "../queues/batchExportQueue";
-import { flushIngestionQueueExecutor } from "../queues/ingestionFlushQueue";
+import { ingestionQueueExecutor } from "../queues/ingestionFlushQueueExecutor";
 import { repeatQueueExecutor } from "../queues/repeatQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
@@ -23,7 +23,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
     evalJobCreator,
     evalJobExecutor,
     batchExportJobExecutor,
-    flushIngestionQueueExecutor,
+    ingestionQueueExecutor,
     repeatQueueExecutor,
   ];
 

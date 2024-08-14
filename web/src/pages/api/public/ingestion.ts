@@ -19,7 +19,9 @@ import {
   eventTypes,
   getTraceUpsertQueue,
   ingestionEvent,
+  redis,
 } from "@langfuse/shared/src/server";
+import { enqueueIngestionEvents } from "@/src/features/ingest/enqueueIngestionEvents";
 import { type ApiAccessScope } from "@/src/features/public-api/server/types";
 import { persistEventMiddleware } from "@/src/server/api/services/event-service";
 import { backOff } from "exponential-backoff";
@@ -44,10 +46,8 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { redis } from "@langfuse/shared/src/server";
 
 import { isSigtermReceived } from "@/src/utils/shutdown";
-import { WorkerClient } from "@/src/server/api/services/WorkerClient";
 
 export const config = {
   api: {
@@ -283,13 +283,12 @@ export const handleBatch = async (
   }
 
   if (env.CLICKHOUSE_URL) {
-    await new WorkerClient()
-      .sendIngestionBatch({
-        batch: events,
-        metadata,
-        projectId: authCheck.scope.projectId,
-      })
-      .catch(); // Ignore errors while testing the ingestion via worker
+    try {
+      await enqueueIngestionEvents(authCheck.scope.projectId, events);
+      console.log(`Added ${events.length} ingestion events to queue`);
+    } catch (err) {
+      console.error("Error adding ingestion events to queue", err);
+    }
   }
 
   return { results, errors };
