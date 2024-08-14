@@ -1,16 +1,5 @@
-import {
-  Model,
-  Observation,
-  Prisma,
-  prisma,
-  Score,
-  Trace,
-} from "@langfuse/shared/src/db";
-import { mergeJson } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { type z } from "zod";
-import { jsonSchema } from "@langfuse/shared";
-import { ForbiddenError } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import { findModel } from "../model-match";
 import {
@@ -24,6 +13,11 @@ import {
 } from "../types";
 import { validateAndInflateScore } from "../validateAndInflateScore";
 import { ApiAccessScope } from "../../auth/types";
+import { Trace, Observation, Score, Prisma, Model } from "@prisma/client";
+import { ForbiddenError } from "../../../errors";
+import { mergeJson } from "../../../utils/json";
+import { jsonSchema } from "../../../utils/zod";
+import { prisma } from "../../../db";
 
 export interface EventProcessor {
   auth(apiScope: ApiAccessScope): void;
