@@ -11,6 +11,17 @@ function round(value: number, precision = 2) {
   return parseFloat(value.toFixed(precision));
 }
 
+function computeBinSize(
+  minBins: number,
+  maxBins: number,
+  range: number,
+  valueCount: number,
+) {
+  return range === 0
+    ? 1
+    : Math.min(Math.max(minBins, Math.ceil(Math.sqrt(valueCount))), maxBins);
+}
+
 export function createHistogramData(
   data: DatabaseRow[],
   minBins = 1,
@@ -22,9 +33,11 @@ export function createHistogramData(
 
   const min = round(Math.min(...numericScoreValues));
   const range = round(Math.max(...numericScoreValues)) - min;
-  const bins = Math.min(
-    Math.max(minBins, Math.ceil(Math.sqrt(numericScoreValues.length))),
+  const bins = computeBinSize(
+    minBins,
     maxBins,
+    range,
+    numericScoreValues.length,
   );
   const binSize = range / bins || 1;
 
