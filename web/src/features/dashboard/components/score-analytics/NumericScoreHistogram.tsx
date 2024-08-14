@@ -45,6 +45,7 @@ export function NumericScoreHistogram(props: {
           operator: "=",
         },
       ],
+      limit: 10000,
     },
     {
       trpc: {

@@ -16,6 +16,7 @@ import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components
 import { CategoricalScoreChart } from "@/src/features/dashboard/components/score-analytics/CategoricalScoreChart";
 import { NumericScoreHistogram } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogram";
 import { NoData } from "@/src/features/dashboard/components/NoData";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -112,6 +113,9 @@ export function ScoreAnalytics(props: {
                   <div>
                     <div className="mb-2 text-sm text-muted-foreground">
                       Total aggregate scores
+                      {isNumericDataType(dataType) && (
+                        <DocPopup description="Aggregate of up to 10,000 scores" />
+                      )}
                     </div>
                     {(isCategoricalDataType(dataType) ||
                       isBooleanDataType(dataType)) && (
