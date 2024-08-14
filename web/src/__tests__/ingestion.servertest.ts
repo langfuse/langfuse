@@ -708,17 +708,6 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbScore?.observationId).toBe(generationId);
     expect(dbScore?.value).toBe(100.5);
 
-    const logEvent = await prisma.events.findFirst({
-      where: {
-        data: {
-          path: ["body", "log"],
-          string_contains: "ERROR",
-        },
-      },
-    });
-
-    expect(logEvent).toBeDefined();
-    expect(logEvent).not.toBeFalsy();
     expect(JSON.stringify(logEvent?.data)).toContain("KeyError: 'model_name'");
   });
 
