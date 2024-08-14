@@ -14,6 +14,7 @@ import { env } from "../env";
 import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
+import { SpanKind } from "@opentelemetry/api";
 
 const ingestionFlushQueue = getIngestionFlushQueue();
 
@@ -25,7 +26,7 @@ export const ingestionQueueExecutor = redis
           {
             name: "flush-ingestion-consumer",
             traceScope: "ingestion-flush-queue",
-            spanKind: "consumer",
+            spanKind: SpanKind.CONSUMER,
           },
           async () => {
             if (job.name === QueueJobs.FlushIngestionEntity) {
