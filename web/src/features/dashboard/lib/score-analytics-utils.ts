@@ -4,7 +4,7 @@ import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 // types
 type HistogramBin = { binLabel: string; count: number };
 type CategoryCounts = Record<string, number>;
-type ChartBin = { binLabel?: string } & CategoryCounts;
+type ChartBin = { binLabel: string } & CategoryCounts;
 
 // numeric score analytics helpers
 function round(value: number, precision = 2) {
@@ -121,16 +121,20 @@ function groupCategoricalScoreDataByTimestamp(
   );
 }
 
+function uniqueAndSort(labels: string[]): string[] {
+  return Array.from(new Set(labels)).sort();
+}
+
 export function transformCategoricalScoresToChartData(
   data: DatabaseRow[],
   scoreTimestampAccessor: string,
   agg?: DashboardDateRangeAggregationOption,
-) {
+): { chartData: ChartBin[]; chartLabels: string[] } {
   if (!agg) {
     const { categoryCounts, labels } = aggregateCategoricalScoreData(data);
     return {
-      chartData: [{ ...categoryCounts, binLabel: "Aggregation" }],
-      chartLabels: Array.from(new Set(labels)),
+      chartData: [{ ...categoryCounts, binLabel: "Aggregation" }] as ChartBin[],
+      chartLabels: uniqueAndSort(labels),
     };
   } else {
     const scoreDataByTimestamp = groupCategoricalScoreDataByTimestamp(
@@ -147,6 +151,12 @@ export function transformCategoricalScoresToChartData(
       chartData.push({ ...categoryCounts, binLabel: timestamp } as ChartBin);
     });
 
-    return { chartData, chartLabels: Array.from(new Set(chartLabels)) };
+    return { chartData, chartLabels: uniqueAndSort(chartLabels) };
   }
+}
+
+export function isEmptyBarChart({ data }: { data: ChartBin[] }) {
+  return (
+    data.length === 0 || data.every((item) => Object.keys(item).length === 1)
+  );
 }

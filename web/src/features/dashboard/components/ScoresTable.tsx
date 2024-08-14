@@ -15,15 +15,23 @@ import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
+import { type DatabaseRow } from "@/src/server/api/services/query-builder";
 
-function formatScoreCellByType(
+const formatScoreCellByType = (
   value: number,
   scoreDataType: ScoreDataType,
-): string {
+): string => {
   return isCategoricalDataType(scoreDataType)
     ? "-"
     : compactNumberFormatter(value);
-}
+};
+
+const scoreNameSourceDataTypeMatch =
+  (scoreName: string, scoreSource: ScoreSource, scoreDataType: ScoreDataType) =>
+  (item: DatabaseRow) =>
+    item.scoreName === scoreName &&
+    item.scoreSource === scoreSource &&
+    item.scoreDataType === scoreDataType;
 
 export const ScoresTable = ({
   className,
@@ -129,18 +137,20 @@ export const ScoresTable = ({
 
     return metrics.data.map((metric) => {
       const scoreName = metric.scoreName as string;
+      const scoreSource = metric.scoreSource as ScoreSource;
+      const scoreDataType = metric.scoreDataType as ScoreDataType;
 
       const zeroValueScore = zeroValueScores.data.find(
-        (item) => item.scoreName === scoreName,
+        scoreNameSourceDataTypeMatch(scoreName, scoreSource, scoreDataType),
       );
       const oneValueScore = oneValueScores.data.find(
-        (item) => item.scoreName === scoreName,
+        scoreNameSourceDataTypeMatch(scoreName, scoreSource, scoreDataType),
       );
 
       return {
-        scoreName: metric.scoreName as string,
-        scoreSource: metric.scoreSource as ScoreSource,
-        scoreDataType: metric.scoreDataType as ScoreDataType,
+        scoreName,
+        scoreSource,
+        scoreDataType,
         countScoreId: metric.countScoreId ? metric.countScoreId : 0,
         avgValue: metric.avgValue ? (metric.avgValue as number) : 0,
         zeroValueScore: zeroValueScore?.countScoreId

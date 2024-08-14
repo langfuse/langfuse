@@ -234,12 +234,14 @@ export default function Dashboard() {
             globalFilterState={mergedFilterState}
           />
         )}
-        <ScoreAnalytics
-          className="col-span-1 flex-auto justify-between lg:col-span-full"
-          agg={agg}
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-        />
+        {!disableExpensiveDashboardComponents && (
+          <ScoreAnalytics
+            className="col-span-1 flex-auto justify-between lg:col-span-full"
+            agg={agg}
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+          />
+        )}
       </div>
     </div>
   );

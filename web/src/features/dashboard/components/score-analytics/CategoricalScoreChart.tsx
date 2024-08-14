@@ -10,11 +10,15 @@ import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-import React from "react";
+import React, { useMemo } from "react";
 import { BarChart } from "@tremor/react";
 import { Card } from "@/src/components/ui/card";
 import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
-import { transformCategoricalScoresToChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
+import {
+  isEmptyBarChart,
+  transformCategoricalScoresToChartData,
+} from "@/src/features/dashboard/lib/score-analytics-utils";
+import { NoData } from "@/src/features/dashboard/components/NoData";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
@@ -91,13 +95,15 @@ export function CategoricalScoreChart(props: {
     },
   );
 
-  const { chartData, chartLabels } = scores.data
-    ? transformCategoricalScoresToChartData(
-        scores.data,
-        "scoreTimestamp",
-        props.agg,
-      )
-    : { chartData: [], chartLabels: [] };
+  const { chartData, chartLabels } = useMemo(() => {
+    return scores.data
+      ? transformCategoricalScoresToChartData(
+          scores.data,
+          "scoreTimestamp",
+          props.agg,
+        )
+      : { chartData: [], chartLabels: [] };
+  }, [scores.data, props.agg]);
 
   const barCategoryGap = (chartLength: number): string => {
     if (chartLength > 7) return "10%";
@@ -107,7 +113,9 @@ export function CategoricalScoreChart(props: {
   };
   const colors = getColorsForCategories(chartLabels);
 
-  return (
+  return isEmptyBarChart({ data: chartData }) ? (
+    <NoData noDataText="No data" className="h-[21rem]"></NoData>
+  ) : (
     <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
       <BarChart
         className="mt-4"

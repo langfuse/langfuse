@@ -27,10 +27,19 @@ export function ScoreAnalytics(props: {
     string[]
   >([]);
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery({
-    projectId: props.projectId,
-    selectedTimeOption: { option: props.agg, filterSource: "DASHBOARD" },
-  });
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId: props.projectId,
+      selectedTimeOption: { option: props.agg, filterSource: "DASHBOARD" },
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
     const scoreAnalyticsOptions =

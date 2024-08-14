@@ -13,13 +13,12 @@ import {
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { NoData } from "@/src/features/dashboard/components/NoData";
-import DocPopup from "@/src/components/layouts/doc-popup";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-import React from "react";
+import React, { useMemo } from "react";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -86,16 +85,18 @@ export function NumericScoreTimeSeriesChart(props: {
     },
   );
 
-  const extractedScores = scores.data
-    ? fillMissingValuesAndTransform(
-        extractTimeSeriesData(scores.data, "scoreTimestamp", [
-          {
-            uniqueIdentifierColumns: [{ accessor: "scoreName" }],
-            valueColumn: "avgValue",
-          },
-        ]),
-      )
-    : [];
+  const extractedScores = useMemo(() => {
+    return scores.data
+      ? fillMissingValuesAndTransform(
+          extractTimeSeriesData(scores.data, "scoreTimestamp", [
+            {
+              uniqueIdentifierColumns: [{ accessor: "scoreName" }],
+              valueColumn: "avgValue",
+            },
+          ]),
+        )
+      : [];
+  }, [scores.data]);
 
   return !isEmptyTimeSeries({
     data: extractedScores,
@@ -109,11 +110,6 @@ export function NumericScoreTimeSeriesChart(props: {
       />
     </Card>
   ) : (
-    <NoData noDataText="No data" className="h-[21rem]">
-      <DocPopup
-        description="Scores evaluate LLM quality and can be created manually or using the SDK."
-        href="https://langfuse.com/docs/scores"
-      />
-    </NoData>
+    <NoData noDataText="No data" className="h-[21rem]"></NoData>
   );
 }
