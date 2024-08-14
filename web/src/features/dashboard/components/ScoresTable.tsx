@@ -14,6 +14,16 @@ import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAligned
 import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
+
+function formatScoreCellByType(
+  value: number,
+  scoreDataType: ScoreDataType,
+): string {
+  return isCategoricalDataType(scoreDataType)
+    ? "-"
+    : compactNumberFormatter(value);
+}
 
 export const ScoresTable = ({
   className,
@@ -39,15 +49,7 @@ export const ScoresTable = ({
         { column: "scoreSource" },
         { column: "scoreDataType" },
       ],
-      filter: [
-        ...localFilters,
-        {
-          type: "stringOptions",
-          column: "castScoreDataType",
-          value: ["NUMERIC", "BOOLEAN"],
-          operator: "any of",
-        },
-      ],
+      filter: localFilters,
       groupBy: [
         { type: "string", column: "scoreName" },
         {
@@ -83,12 +85,6 @@ export const ScoresTable = ({
         ],
         filter: [
           ...localFilters,
-          {
-            type: "stringOptions",
-            column: "castScoreDataType",
-            value: ["NUMERIC", "BOOLEAN"],
-            operator: "any of",
-          },
           {
             column: "value",
             operator: "=",
@@ -190,13 +186,16 @@ export const ScoresTable = ({
             {compactNumberFormatter(item.countScoreId as number)}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-average`}>
-            {compactNumberFormatter(item.avgValue)}
+            {formatScoreCellByType(item.avgValue, item.scoreDataType)}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-zero`}>
-            {compactNumberFormatter(item.zeroValueScore as number)}
+            {formatScoreCellByType(
+              item.zeroValueScore as number,
+              item.scoreDataType,
+            )}
           </RightAlignedCell>,
           <RightAlignedCell key={`${i}-one`}>
-            {compactNumberFormatter(item.oneValueScore)}
+            {formatScoreCellByType(item.oneValueScore, item.scoreDataType)}
           </RightAlignedCell>,
         ])}
         collapse={{ collapsed: 5, expanded: 20 }}
