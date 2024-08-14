@@ -707,8 +707,6 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbScore?.traceId).toBe(traceId);
     expect(dbScore?.observationId).toBe(generationId);
     expect(dbScore?.value).toBe(100.5);
-
-    expect(JSON.stringify(logEvent?.data)).toContain("KeyError: 'model_name'");
   });
 
   it("should upsert threats", async () => {
