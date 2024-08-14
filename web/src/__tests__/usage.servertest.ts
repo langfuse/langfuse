@@ -1,4 +1,4 @@
-import { tokenCount } from "@/src/server/api/services/usage";
+import { tokenCount } from "@/src/features/ingest/usage";
 import { ModelUsageUnit } from "@langfuse/shared";
 
 describe("Token Count Functions", () => {
