@@ -22,7 +22,6 @@ import React, { useMemo } from "react";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
-  scoreKey: string;
   source: ScoreSource;
   dataType: ScoreDataType;
   name: string;

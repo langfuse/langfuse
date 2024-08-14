@@ -158,7 +158,6 @@ export function ScoreAnalytics(props: {
                     {isNumericDataType(dataType) && (
                       <NumericScoreTimeSeriesChart
                         agg={props.agg}
-                        scoreKey={scoreKey}
                         source={source}
                         name={name}
                         dataType={dataType}
