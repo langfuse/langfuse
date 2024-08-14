@@ -82,10 +82,10 @@ export const legacyIngestionExecutor = redis
       },
       {
         connection: redis,
-        concurrency: 200,
+        concurrency: 50,
         limiter: {
           // execute 75 calls in 1000ms
-          max: 150,
+          max: 100,
           duration: 1000,
         },
       }
