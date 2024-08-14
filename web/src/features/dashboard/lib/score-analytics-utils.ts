@@ -67,25 +67,21 @@ function convertDateToStringTimestamp(date: Date): string {
   });
 }
 
-function aggregateCategoricalScoreData(
-  data: DatabaseRow[],
-  previousTimestampChartBin?: ChartBin,
-): { categoryCounts: CategoryCounts; labels: string[] } {
+function aggregateCategoricalScoreData(data: DatabaseRow[]): {
+  categoryCounts: CategoryCounts;
+  labels: string[];
+} {
   const labels: string[] = [];
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { binLabel, ...initialCategoryCounts } =
-    previousTimestampChartBin || {};
 
   const categoryCounts = data.reduce((acc: CategoryCounts, row) => {
     const label = row["stringValue"];
     if (typeof label === "string") {
       labels.push(label);
-      const previousBinCount = acc[label] ?? 0;
       const currentBinCount = (row["countStringValue"] as number) ?? 0;
-      return { ...acc, [label]: currentBinCount + previousBinCount };
+      return { ...acc, [label]: currentBinCount };
     }
     return acc;
-  }, initialCategoryCounts);
+  }, {} as CategoryCounts);
 
   return { categoryCounts, labels };
 }
@@ -129,12 +125,8 @@ export function transformCategoricalScoresToChartData(
     const chartData: ChartBin[] = [];
     const chartLabels: string[] = [];
 
-    Object.entries(scoreDataByTimestamp).forEach(([timestamp, data], index) => {
-      const previousTimestampData = chartData[index - 1] || {};
-      const { categoryCounts, labels } = aggregateCategoricalScoreData(
-        data,
-        previousTimestampData,
-      );
+    Object.entries(scoreDataByTimestamp).forEach(([timestamp, data]) => {
+      const { categoryCounts, labels } = aggregateCategoricalScoreData(data);
       chartLabels.push(...labels);
       chartData.push({ ...categoryCounts, binLabel: timestamp } as ChartBin);
     });
