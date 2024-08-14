@@ -18,6 +18,7 @@ import { ApiAccessScope, AuthHeaderVerificationResult } from "../../auth/types";
 import { redis } from "../../redis/redis";
 import { backOff } from "exponential-backoff";
 import { Model } from "../../..";
+import { enqueueIngestionEvents } from "./enqueueIngestionEvents";
 
 export type BatchResult = {
   result: unknown;
@@ -75,13 +76,12 @@ export const handleBatch = async (
   }
 
   if (env.CLICKHOUSE_URL) {
-    // await new WorkerClient()
-    //   .sendIngestionBatch({
-    //     batch: events,
-    //     metadata,
-    //     projectId: authCheck.scope.projectId,
-    //   })
-    //   .catch(); // Ignore errors while testing the ingestion via worker
+    try {
+      await enqueueIngestionEvents(authCheck.scope.projectId, events);
+      console.log(`Added ${events.length} ingestion events to queue`);
+    } catch (err) {
+      console.error("Error adding ingestion events to queue", err);
+    }
   }
 
   return { results, errors };
