@@ -3,9 +3,8 @@ import { api } from "@/src/utils/api";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Separator } from "@/src/components/ui/separator";
 import { Card } from "@/src/components/ui/card";
 import {
@@ -25,8 +24,9 @@ export function ScoreAnalytics(props: {
   globalFilterState: FilterState;
   projectId: string;
 }) {
-  const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
-    useLocalStorage<string[]>(`selectedDashboardScores-${props.projectId}`, []);
+  const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] = useState<
+    string[]
+  >([]);
 
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery({
     projectId: props.projectId,
