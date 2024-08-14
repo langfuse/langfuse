@@ -18,6 +18,7 @@ import { ForbiddenError } from "../../../errors";
 import { mergeJson } from "../../../utils/json";
 import { jsonSchema } from "../../../utils/zod";
 import { prisma } from "../../../db";
+import { tokenCount } from "./usage";
 
 export interface EventProcessor {
   auth(apiScope: ApiAccessScope): void;
@@ -302,15 +303,16 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation
   ) {
+    if (!model) return;
+
     const newPromptTokens =
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId
         ? 0
-        : // tokenCount({
-          //     model: model,
-          //     text: body.input ?? existingObservation?.input,
-          //   })
-          undefined);
+        : tokenCount({
+            model: model,
+            text: body.input ?? existingObservation?.input,
+          }));
 
     const newCompletionTokens =
       body.usage?.output ??
@@ -318,11 +320,10 @@ export class ObservationProcessor implements EventProcessor {
       model &&
       model.tokenizerId
         ? 0
-        : //  tokenCount({
-          //     model: model,
-          //     text: body.output ?? existingObservation?.output,
-          //   })
-          undefined);
+        : tokenCount({
+            model: model,
+            text: body.output ?? existingObservation?.output,
+          }));
 
     return [newPromptTokens, newCompletionTokens];
   }
