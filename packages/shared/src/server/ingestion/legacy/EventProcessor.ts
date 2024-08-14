@@ -26,6 +26,8 @@ import { validateAndInflateScore } from "../validateAndInflateScore";
 import { ApiAccessScope } from "../../auth/types";
 
 export interface EventProcessor {
+  auth(apiScope: ApiAccessScope): void;
+
   process(
     apiScope: ApiAccessScope
   ): Promise<Trace | Observation | Score> | undefined;
@@ -386,9 +388,13 @@ export class ObservationProcessor implements EventProcessor {
     };
   }
 
-  async process(apiScope: ApiAccessScope): Promise<Observation> {
+  auth(apiScope: ApiAccessScope): void {
     if (apiScope.accessLevel !== "all")
       throw new ForbiddenError("Access denied for observation creation");
+  }
+
+  async process(apiScope: ApiAccessScope): Promise<Observation> {
+    this.auth(apiScope);
 
     const existingObservation = this.event.body.id
       ? await prisma.observation.findFirst({
@@ -425,15 +431,17 @@ export class TraceProcessor implements EventProcessor {
     this.event = event;
   }
 
+  auth(apiScope: ApiAccessScope): void {
+    if (apiScope.accessLevel !== "all")
+      throw new ForbiddenError("Access denied for trace creation");
+  }
+
   async process(
     apiScope: ApiAccessScope
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
-    if (apiScope.accessLevel !== "all")
-      throw new ForbiddenError(
-        `Access denied for trace creation, ${apiScope.accessLevel}`
-      );
+    this.auth(apiScope);
 
     const internalId = body.id ?? v4();
 
@@ -535,15 +543,19 @@ export class ScoreProcessor implements EventProcessor {
     this.event = event;
   }
 
+  auth(apiScope: ApiAccessScope) {
+    if (apiScope.accessLevel !== "scores" && apiScope.accessLevel !== "all")
+      throw new ForbiddenError(
+        `Access denied for score creation, ${apiScope.accessLevel}`
+      );
+  }
+
   async process(
     apiScope: ApiAccessScope
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
-    if (apiScope.accessLevel !== "scores" && apiScope.accessLevel !== "all")
-      throw new ForbiddenError(
-        `Access denied for score creation, ${apiScope.accessLevel}`
-      );
+    this.auth(apiScope);
 
     const id = body.id ?? v4();
 
@@ -589,6 +601,10 @@ export class SdkLogProcessor implements EventProcessor {
 
   constructor(event: z.infer<typeof sdkLogEvent>) {
     this.event = event;
+  }
+
+  auth(apiScope: ApiAccessScope) {
+    return;
   }
 
   process() {

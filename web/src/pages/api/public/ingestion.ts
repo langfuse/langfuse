@@ -7,6 +7,14 @@ import {
   getLegacyIngestionQueue,
   eventTypes,
   ingestionEvent,
+  type ingestionBatchEvent,
+  type AuthHeaderVerificationResult,
+  type AuthHeaderValidVerificationResult,
+  type EventProcessor,
+  ObservationProcessor,
+  ScoreProcessor,
+  SdkLogProcessor,
+  TraceProcessor,
 } from "@langfuse/shared/src/server";
 import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import { isNotNullOrUndefined } from "@/src/utils/types";
@@ -106,6 +114,11 @@ export default async function handler(
     if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" && redis) {
       // this function MUST NOT return but send the HTTP response directly
       console.log("Returning http response early");
+
+      // still need to check auth scope for all events individually
+
+      const failedAccessScope = accessCheckPerEvent(sortedBatch, authCheck);
+
       const queue = getLegacyIngestionQueue();
 
       await queue?.add(
@@ -127,7 +140,13 @@ export default async function handler(
         },
       );
       return handleBatchResult(
-        validationErrors, // we are not sending additional server errors to the client in case of early return
+        [
+          ...validationErrors,
+          ...failedAccessScope.map((e) => ({
+            id: e.id,
+            error: "Access Scope Denied",
+          })),
+        ], // we are not sending additional server errors to the client in case of early return
         sortedBatch.map((event) => ({ id: event.id, result: event })),
         res,
       );
@@ -183,6 +202,43 @@ export default async function handler(
     });
   }
 }
+
+const accessCheckPerEvent = (
+  events: z.infer<typeof ingestionBatchEvent>,
+  authCheck: AuthHeaderValidVerificationResult,
+) => {
+  const unauthorizedEvents: { id: string; type: string }[] = [];
+
+  for (const event of events) {
+    try {
+      let processor: EventProcessor;
+      switch (event.type) {
+        case eventTypes.TRACE_CREATE:
+          processor = new TraceProcessor(event);
+          break;
+        case eventTypes.OBSERVATION_CREATE:
+        case eventTypes.OBSERVATION_UPDATE:
+        case eventTypes.EVENT_CREATE:
+        case eventTypes.SPAN_CREATE:
+        case eventTypes.SPAN_UPDATE:
+        case eventTypes.GENERATION_CREATE:
+        case eventTypes.GENERATION_UPDATE:
+          processor = new ObservationProcessor(event);
+          break;
+        case eventTypes.SCORE_CREATE:
+          processor = new ScoreProcessor(event);
+          break;
+        case eventTypes.SDK_LOG:
+          processor = new SdkLogProcessor(event);
+          break;
+      }
+      processor.auth(authCheck.scope);
+    } catch (error) {
+      unauthorizedEvents.push({ id: event.id, type: event.type });
+    }
+  }
+  return unauthorizedEvents;
+};
 
 /**
  * Sorts a batch of ingestion events. Orders by: updating events last, sorted by timestamp asc.
