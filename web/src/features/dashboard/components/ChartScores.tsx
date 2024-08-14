@@ -2,7 +2,7 @@ import { api } from "@/src/utils/api";
 
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { type FilterState } from "@langfuse/shared";
+import { type ScoreDataType, type FilterState } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
@@ -15,6 +15,7 @@ import {
   dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
+import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 
 export function ChartScores(props: {
   className?: string;
@@ -26,7 +27,12 @@ export function ChartScores(props: {
     {
       projectId: props.projectId,
       from: "traces_scores",
-      select: [{ column: "scoreName" }, { column: "value", agg: "AVG" }],
+      select: [
+        { column: "scoreName" },
+        { column: "scoreDataType" },
+        { column: "scoreSource" },
+        { column: "value", agg: "AVG" },
+      ],
       filter: [
         ...createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
         {
@@ -47,6 +53,8 @@ export function ChartScores(props: {
           type: "string",
           column: "scoreName",
         },
+        { type: "string", column: "scoreDataType" },
+        { type: "string", column: "scoreSource" },
       ],
     },
     {
@@ -62,7 +70,18 @@ export function ChartScores(props: {
     ? fillMissingValuesAndTransform(
         extractTimeSeriesData(scores.data, "scoreTimestamp", [
           {
-            labelColumn: "scoreName",
+            uniqueIdentifierColumns: [
+              {
+                accessor: "scoreDataType",
+                formatFct: (value) =>
+                  getScoreDataTypeIcon(value as ScoreDataType),
+              },
+              { accessor: "scoreName" },
+              {
+                accessor: "scoreSource",
+                formatFct: (value) => `(${value.toLowerCase()})`,
+              },
+            ],
             valueColumn: "avgValue",
           },
         ]),
@@ -73,7 +92,7 @@ export function ChartScores(props: {
     <DashboardCard
       className={props.className}
       title="Scores"
-      description="Moving average per score name"
+      description="Moving average per score"
       isLoading={scores.isLoading}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (

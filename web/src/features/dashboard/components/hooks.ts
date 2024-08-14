@@ -46,51 +46,75 @@ type ChartData = {
   value?: number;
 };
 
+type FieldMappingItem = {
+  uniqueIdentifierColumns: {
+    accessor: string;
+    formatFct?: (value: string) => string;
+  }[];
+  valueColumn: string;
+};
+
+function getLabelValue(
+  uniqueIdentifierColumns: FieldMappingItem["uniqueIdentifierColumns"],
+  row: DatabaseRow,
+): string {
+  return uniqueIdentifierColumns
+    .map(({ accessor, formatFct }) => {
+      if (row[accessor] === null || row[accessor] === undefined) return null;
+      return formatFct
+        ? formatFct(row[accessor] as string)
+        : (row[accessor] as string);
+    })
+    .filter((value) => value !== null)
+    .join(" ");
+}
+
 // we get data for time series in the following format:
 // ts: 123, label1: 1, label2: 2
 // ts: 456, label1: 5, label2: 9
 // This needs to be mapped to the following format:
 // [{ts: 123, values: [{label1: 1, label2: 2}]}, {ts: 456, values: [{label1: 5, label2: 9}]]
 
-type FieldMappingItem = {
-  labelColumn: string;
-  valueColumn: string;
-};
-
 export function extractTimeSeriesData(
   data: DatabaseRow[],
   timeColumn: string,
   mapping: FieldMappingItem[],
 ): Map<number, ChartData[]> {
-  return data.reduce((acc: Map<number, ChartData[]>, curr: DatabaseRow) => {
-    const date = new Date(curr[timeColumn] as Date).getTime();
+  console.time("extractTimeSeriesData");
+  const test = data.reduce(
+    (acc: Map<number, ChartData[]>, curr: DatabaseRow) => {
+      const date = new Date(curr[timeColumn] as Date).getTime();
 
-    const reducedData: ChartData[] = [];
-    // Map the desired fields from the DatabaseRow to the ChartData based on the mapping provided
-    mapping.forEach((mapItem) => {
-      const labelValue = curr[mapItem.labelColumn] as string;
-      const columnValue = curr[mapItem.valueColumn];
-      if (
-        labelValue &&
-        columnValue !== undefined &&
-        typeof labelValue === "string"
-      ) {
-        reducedData.push({
-          label: labelValue,
-          value: columnValue ? (columnValue as number) : 0,
-        });
+      const reducedData: ChartData[] = [];
+      // Map the desired fields from the DatabaseRow to the ChartData based on the mapping provided
+      mapping.forEach((mapItem) => {
+        const labelValue = getLabelValue(mapItem.uniqueIdentifierColumns, curr);
+        const columnValue = curr[mapItem.valueColumn];
+        if (
+          labelValue &&
+          columnValue !== undefined &&
+          typeof labelValue === "string"
+        ) {
+          reducedData.push({
+            label: labelValue,
+            value: columnValue ? (columnValue as number) : 0,
+          });
+        }
+      });
+
+      const existingData = acc.get(date);
+      if (existingData) {
+        existingData.push(...reducedData);
+      } else {
+        acc.set(date, reducedData);
       }
-    });
 
-    const existingData = acc.get(date);
-    if (existingData) {
-      existingData.push(...reducedData);
-    } else {
-      acc.set(date, reducedData);
-    }
-
-    return acc;
-  }, new Map<number, ChartData[]>());
+      return acc;
+    },
+    new Map<number, ChartData[]>(),
+  );
+  console.timeEnd("extractTimeSeriesData");
+  return test;
 }
 
 export function fillMissingValuesAndTransform(

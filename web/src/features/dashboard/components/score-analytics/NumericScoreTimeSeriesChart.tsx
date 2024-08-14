@@ -89,7 +89,7 @@ export function NumericScoreTimeSeriesChart(props: {
     ? fillMissingValuesAndTransform(
         extractTimeSeriesData(scores.data, "scoreTimestamp", [
           {
-            labelColumn: "scoreName",
+            uniqueIdentifierColumns: [{ accessor: "scoreName" }],
             valueColumn: "avgValue",
           },
         ]),
