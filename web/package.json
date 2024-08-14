@@ -14,9 +14,10 @@
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
-    "test": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose",
+    "test": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --testPathIgnorePatterns='__e2e__'",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
-    "test:e2e": "dotenv -e ../.env -- playwright test",
+    "test:e2e": "dotenv -e ../.env -- playwright test'",
+    "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --testPathPattern='__e2e__'",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
     "generationCost:backfill": "dotenv -e ../.env -- tsx scripts/observations-backfill-calculated-cost.ts"
   },
@@ -120,6 +121,7 @@
     "use-query-params": "^2.2.1",
     "uuid": "^9.0.1",
     "vaul": "^0.9.1",
+    "wait-for-expect": "^3.0.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
