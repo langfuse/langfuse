@@ -6,11 +6,11 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox
 
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
-RUN npm install turbo@^1.13.3 --global
+RUN npm install turbo@^1.13.4 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@8.15.5 --activate
+RUN corepack prepare pnpm@9.5.0 --activate
 
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
@@ -35,6 +35,7 @@ RUN pnpm install --frozen-lockfile
 
 # pass public variables in build step
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ARG NEXT_PUBLIC_DEMO_ORG_ID
 ARG NEXT_PUBLIC_DEMO_PROJECT_ID
 ARG NEXT_PUBLIC_POSTHOG_KEY
 ARG NEXT_PUBLIC_POSTHOG_HOST
@@ -47,6 +48,8 @@ RUN turbo run build --filter=worker...
 
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
+
+RUN apk add --no-cache dumb-init
 
 WORKDIR /app
 
@@ -62,5 +65,5 @@ COPY --from=builder --chown=expressjs:expressjs /app .
 EXPOSE 3030
 ENV PORT=3030
 
-CMD ["node", "worker/dist/index.js"]
+ENTRYPOINT ["dumb-init", "--", "node", "worker/dist/index.js"]
 

@@ -59,6 +59,17 @@ describe("/api/public/ingestion API Endpoint", () => {
     },
     {
       usage: {
+        input: 1,
+        output: 2,
+        unit: ModelUsageUnit.Requests,
+      },
+      expectedUnit: ModelUsageUnit.Requests,
+      expectedPromptTokens: 1,
+      expectedCompletionTokens: 2,
+      expectedTotalTokens: 3,
+    },
+    {
+      usage: {
         input: 30,
         output: 10,
         unit: ModelUsageUnit.Seconds,
@@ -1129,11 +1140,16 @@ describe("/api/public/ingestion API Endpoint", () => {
   it("should not override a trace from a different project", async () => {
     const traceId = v4();
     const newProjectId = v4();
-
+    await prisma.organization.upsert({
+      where: { id: "other-org" },
+      create: { id: "other-org", name: "other-org" },
+      update: {},
+    });
     await prisma.project.create({
       data: {
         id: newProjectId,
         name: "another-project",
+        orgId: "other-org",
       },
     });
 

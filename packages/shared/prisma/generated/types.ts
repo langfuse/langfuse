@@ -4,13 +4,14 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
-export const ProjectRole = {
+export const Role = {
     OWNER: "OWNER",
     ADMIN: "ADMIN",
     MEMBER: "MEMBER",
-    VIEWER: "VIEWER"
+    VIEWER: "VIEWER",
+    NONE: "NONE"
 } as const;
-export type ProjectRole = (typeof ProjectRole)[keyof typeof ProjectRole];
+export type Role = (typeof Role)[keyof typeof Role];
 export const ObservationType = {
     SPAN: "SPAN",
     EVENT: "EVENT",
@@ -90,8 +91,10 @@ export type AuditLog = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     user_id: string;
-    project_id: string;
-    user_project_role: ProjectRole;
+    org_id: string;
+    user_org_role: string;
+    project_id: string | null;
+    user_project_role: string | null;
     resource_type: string;
     resource_id: string;
     action: string;
@@ -121,15 +124,16 @@ export type CronJobs = {
 };
 export type Dataset = {
     id: string;
+    project_id: string;
     name: string;
     description: string | null;
     metadata: unknown | null;
-    project_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
 export type DatasetItem = {
     id: string;
+    project_id: string;
     status: Generated<DatasetStatus>;
     input: unknown | null;
     expected_output: unknown | null;
@@ -142,6 +146,7 @@ export type DatasetItem = {
 };
 export type DatasetRunItems = {
     id: string;
+    project_id: string;
     dataset_run_id: string;
     dataset_item_id: string;
     trace_id: string;
@@ -151,6 +156,7 @@ export type DatasetRunItems = {
 };
 export type DatasetRuns = {
     id: string;
+    project_id: string;
     name: string;
     description: string | null;
     metadata: unknown | null;
@@ -226,9 +232,11 @@ export type LlmApiKeys = {
 export type MembershipInvitation = {
     id: string;
     email: string;
-    role: ProjectRole;
-    project_id: string;
-    sender_id: string | null;
+    org_id: string;
+    org_role: Role;
+    project_id: string | null;
+    project_role: Role | null;
+    invited_by_user_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
@@ -306,6 +314,8 @@ export type ObservationView = {
     unit: string | null;
     completion_start_time: Timestamp | null;
     prompt_id: string | null;
+    prompt_name: string | null;
+    prompt_version: number | null;
     model_id: string | null;
     input_price: string | null;
     output_price: string | null;
@@ -315,6 +325,21 @@ export type ObservationView = {
     calculated_total_cost: string | null;
     latency: number | null;
     time_to_first_token: number | null;
+};
+export type Organization = {
+    id: string;
+    name: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    cloud_config: unknown | null;
+};
+export type OrganizationMembership = {
+    id: string;
+    org_id: string;
+    user_id: string;
+    role: Role;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
 };
 export type PosthogIntegration = {
     project_id: string;
@@ -326,15 +351,16 @@ export type PosthogIntegration = {
 };
 export type Project = {
     id: string;
+    org_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     name: string;
-    cloud_config: unknown | null;
 };
 export type ProjectMembership = {
+    org_membership_id: string;
     project_id: string;
     user_id: string;
-    role: ProjectRole;
+    role: Role;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
@@ -479,6 +505,8 @@ export type DB = {
     models: Model;
     observations: Observation;
     observations_view: ObservationView;
+    organization_memberships: OrganizationMembership;
+    organizations: Organization;
     posthog_integrations: PosthogIntegration;
     project_memberships: ProjectMembership;
     projects: Project;

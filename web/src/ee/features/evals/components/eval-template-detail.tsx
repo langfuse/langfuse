@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
@@ -72,6 +72,13 @@ export const EvalTemplateDetail = () => {
             </>
           )
         }
+        breadcrumb={[
+          {
+            name: "Eval Templates",
+            href: `/project/${router.query.projectId as string}/evals/templates`,
+          },
+          { name: template.data?.name ?? "Loading..." },
+        ]}
       />
       {allTemplates.isLoading || !allTemplates.data ? (
         <div>Loading...</div>
@@ -117,7 +124,7 @@ export function EvalVersionDropdown(props: {
         <SelectGroup>
           {props.options?.map((template) => (
             <SelectItem key={template.id} value={template.id}>
-              {template.version} - {template.createdAt.toLocaleDateString()}
+              v{template.version} - {template.createdAt.toLocaleDateString()}
             </SelectItem>
           ))}
         </SelectGroup>
@@ -135,7 +142,10 @@ export function UpdateTemplate({
   isLoading: boolean;
   setIsEditing: (isEditing: boolean) => void;
 }) {
-  const hasAccess = useHasAccess({ projectId, scope: "evalTemplate:create" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:create",
+  });
   const capture = usePostHogClientCapture();
 
   const handlePromptEdit = () => {

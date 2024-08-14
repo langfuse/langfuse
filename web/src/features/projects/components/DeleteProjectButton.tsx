@@ -15,28 +15,22 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
-export function DeleteProjectButton(props: { projectId: string }) {
-  const session = useSession();
+export function DeleteProjectButton() {
   const capture = usePostHogClientCapture();
 
   //code for dynamic confirmation message
-  const userInfo = session.data?.user;
-  const currentProject = userInfo?.projects.find(
-    (project) => project.id == props.projectId,
-  );
-  const confirmMessage =
-    userInfo?.name?.replace(" ", "-") +
-    "/" +
-    currentProject?.name.replace(" ", "-");
+  const { project, organization } = useQueryProject();
+  const confirmMessage = (organization?.name + "/" + project?.name)
+    .replaceAll(" ", "-")
+    .toLowerCase();
 
   const formSchema = z.object({
     name: z.string().includes(confirmMessage, {
@@ -44,8 +38,8 @@ export function DeleteProjectButton(props: { projectId: string }) {
     }),
   });
 
-  const hasAccess = useHasAccess({
-    projectId: props.projectId,
+  const hasAccess = useHasProjectAccess({
+    projectId: project?.id,
     scope: "project:delete",
   });
 
@@ -60,10 +54,11 @@ export function DeleteProjectButton(props: { projectId: string }) {
 
   // delete project functionality
   const onSubmit = () => {
+    if (!project) return;
     capture("project_settings:project_delete");
     deleteProject
       .mutateAsync({
-        projectId: props.projectId,
+        projectId: project.id,
       })
       .then(() => {
         window.location.href = "/"; // browser reload to refresh jwt
@@ -74,57 +69,50 @@ export function DeleteProjectButton(props: { projectId: string }) {
   };
 
   return (
-    <div>
-      <Header title="Danger Zone" level="h3" />
-      <Dialog>
-        <DialogTrigger asChild>
-          <Button variant="destructive" disabled={!hasAccess}>
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="destructive-secondary" disabled={!hasAccess}>
+          Delete Project
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-semibold  ">
             Delete Project
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold  ">
-              Delete Project
-            </DialogTitle>
-            <DialogDescription className=" ">
-              {`To confirm, type "${confirmMessage}" in the input box `}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-8"
+          </DialogTitle>
+          <DialogDescription className=" ">
+            {`To confirm, type "${confirmMessage}" in the input box `}
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-8"
+          >
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input placeholder={confirmMessage} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button
+              type="submit"
+              variant="destructive"
+              loading={deleteProject.isLoading}
+              className="w-full"
             >
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input
-                        placeholder={confirmMessage}
-                        {...field}
-                        data-testid="new-project-name-input"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                variant="destructive"
-                loading={deleteProject.isLoading}
-                className="w-full"
-              >
-                Delete project
-              </Button>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-    </div>
+              Delete project
+            </Button>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }

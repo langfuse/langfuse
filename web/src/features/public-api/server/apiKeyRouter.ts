@@ -1,11 +1,13 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateKeySet } from "@langfuse/shared/src/server";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { redis } from "@langfuse/shared/src/server";
 
 export const apiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -15,7 +17,7 @@ export const apiKeysRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "apiKeys:read",
@@ -47,7 +49,7 @@ export const apiKeysRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "apiKeys:create",
@@ -89,7 +91,7 @@ export const apiKeysRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "apiKeys:delete",
@@ -101,20 +103,9 @@ export const apiKeysRouter = createTRPCRouter({
         action: "delete",
       });
 
-      // Make sure the API key exists and belongs to the project the user has access to
-      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
-        where: {
-          id: input.id,
-          projectId: input.projectId,
-        },
-      });
-
-      await ctx.prisma.apiKey.delete({
-        where: {
-          id: apiKey.id,
-        },
-      });
-
-      return true;
+      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
+        input.id,
+        input.projectId,
+      );
     }),
 });

@@ -2,8 +2,9 @@ import {
   type ObservationView,
   paginationMetaResponseZod,
   paginationZod,
-  stringDateTime,
 } from "@langfuse/shared";
+
+import { stringDateTime } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 /**
@@ -35,7 +36,11 @@ export const APIObservation = z
     model: z.string().nullable(),
     modelParameters: z.any(),
     completionStartTime: z.coerce.date().nullable(),
+
+    // prompt
     promptId: z.string().nullable(),
+    promptName: z.string().nullable(),
+    promptVersion: z.number().int().positive().nullable(),
 
     // usage
     usage: z.object({
@@ -115,6 +120,7 @@ export const GetObservationsV1Query = z.object({
   name: z.string().nullish(),
   userId: z.string().nullish(),
   traceId: z.string().nullish(),
+  version: z.string().nullish(),
   parentObservationId: z.string().nullish(),
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,

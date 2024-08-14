@@ -1,14 +1,15 @@
-import { prisma } from "@langfuse/shared/src/db";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import * as Sentry from "@sentry/node";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   DeleteScoreQuery,
   DeleteScoreResponse,
   GetScoreQuery,
   GetScoreResponse,
-} from "@/src/features/public-api/types/scores";
-import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
+  InternalServerError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import * as Sentry from "@sentry/node";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({

@@ -1007,6 +1007,13 @@ paths:
             type: string
             format: date-time
             nullable: true
+        - name: version
+          in: query
+          description: Optional filter to only include observations with a certain version.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -1181,6 +1188,26 @@ paths:
           schema:
             type: integer
             nullable: true
+        - name: fromUpdatedAt
+          in: query
+          description: >-
+            Optional filter to only include prompt versions created/updated on
+            or after a certain datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toUpdatedAt
+          in: query
+          description: >-
+            Optional filter to only include prompt versions created/updated
+            before a certain datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -1215,7 +1242,7 @@ paths:
               schema: {}
       security: *ref_0
     post:
-      description: Create a prompt
+      description: Create a new version for the prompt with the given `name`
       operationId: prompts_create
       tags:
         - Prompts
@@ -1675,7 +1702,7 @@ paths:
       security: *ref_0
   /api/public/sessions:
     get:
-      description: Get sessions.
+      description: Get sessions
       operationId: sessions_list
       tags:
         - Sessions
@@ -1846,7 +1873,7 @@ paths:
       security: *ref_0
   /api/public/traces:
     get:
-      description: Get list of traces.
+      description: Get list of traces
       operationId: trace_list
       tags:
         - Trace
@@ -1924,6 +1951,20 @@ paths:
             items:
               type: string
               nullable: true
+        - name: version
+          in: query
+          description: Optional filter to only include traces with a certain version.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: release
+          in: query
+          description: Optional filter to only include traces with a certain release.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -1969,32 +2010,44 @@ components:
         timestamp:
           type: string
           format: date-time
+          description: The timestamp when the trace was created
         name:
           type: string
           nullable: true
+          description: The name of the trace
         input:
           nullable: true
+          description: The input data of the trace. Can be any JSON.
         output:
           nullable: true
+          description: The output data of the trace. Can be any JSON.
         sessionId:
           type: string
           nullable: true
+          description: The session identifier associated with the trace
         release:
           type: string
           nullable: true
+          description: The release version of the application when the trace was created
         version:
           type: string
           nullable: true
+          description: The version of the trace
         userId:
           type: string
           nullable: true
+          description: The user identifier associated with the trace
         metadata:
           nullable: true
+          description: The metadata associated with the trace. Can be any JSON.
         tags:
           type: array
           items:
             type: string
           nullable: true
+          description: >-
+            The tags associated with the trace. Can be an array of strings or
+            null.
         public:
           type: boolean
           nullable: true
@@ -2101,56 +2154,74 @@ components:
       properties:
         id:
           type: string
+          description: The unique identifier of the observation
         traceId:
           type: string
           nullable: true
+          description: The trace ID associated with the observation
         type:
           type: string
+          description: The type of the observation
         name:
           type: string
           nullable: true
+          description: The name of the observation
         startTime:
           type: string
           format: date-time
+          description: The start time of the observation
         endTime:
           type: string
           format: date-time
           nullable: true
+          description: The end time of the observation.
         completionStartTime:
           type: string
           format: date-time
           nullable: true
+          description: The completion start time of the observation
         model:
           type: string
           nullable: true
+          description: The model used for the observation
         modelParameters:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/MapValue'
           nullable: true
+          description: The parameters of the model used for the observation
         input:
           nullable: true
+          description: The input data of the observation
         version:
           type: string
           nullable: true
+          description: The version of the observation
         metadata:
           nullable: true
+          description: Additional metadata of the observation
         output:
           nullable: true
+          description: The output data of the observation
         usage:
           $ref: '#/components/schemas/Usage'
           nullable: true
+          description: The usage data of the observation
         level:
           $ref: '#/components/schemas/ObservationLevel'
+          description: The level of the observation
         statusMessage:
           type: string
           nullable: true
+          description: The status message of the observation
         parentObservationId:
           type: string
           nullable: true
+          description: The parent observation ID
         promptId:
           type: string
           nullable: true
+          description: The prompt ID associated with the observation
       required:
         - id
         - type
@@ -2160,41 +2231,58 @@ components:
       title: ObservationsView
       type: object
       properties:
+        promptName:
+          type: string
+          nullable: true
+          description: The name of the prompt associated with the observation
+        promptVersion:
+          type: integer
+          nullable: true
+          description: The version of the prompt associated with the observation
         modelId:
           type: string
           nullable: true
+          description: The unique identifier of the model
         inputPrice:
           type: number
           format: double
           nullable: true
+          description: The price of the input in USD
         outputPrice:
           type: number
           format: double
           nullable: true
+          description: The price of the output in USD.
         totalPrice:
           type: number
           format: double
           nullable: true
+          description: The total price in USD.
         calculatedInputCost:
           type: number
           format: double
           nullable: true
+          description: The calculated cost of the input in USD
         calculatedOutputCost:
           type: number
           format: double
           nullable: true
+          description: The calculated cost of the output in USD
         calculatedTotalCost:
           type: number
           format: double
           nullable: true
+          description: The calculated total cost in USD
         latency:
           type: number
           format: double
           nullable: true
+          description: The latency in seconds.
         timeToFirstToken:
           type: number
           format: double
           nullable: true
+          description: The time to the first token in seconds
       allOf:
         - $ref: '#/components/schemas/Observation'
     Usage:
@@ -2540,23 +2628,31 @@ components:
       properties:
         id:
           type: string
+          description: Unique identifier of the dataset run
         name:
           type: string
+          description: Name of the dataset run
         description:
           type: string
           nullable: true
+          description: Description of the run
         metadata:
           nullable: true
+          description: Metadata of the dataset run
         datasetId:
           type: string
+          description: Id of the associated dataset
         datasetName:
           type: string
+          description: Name of the associated dataset
         createdAt:
           type: string
           format: date-time
+          description: The date and time when the dataset run was created
         updatedAt:
           type: string
           format: date-time
+          description: The date and time when the dataset run was last updated
       required:
         - id
         - name
@@ -2650,6 +2746,7 @@ components:
         - MILLISECONDS
         - SECONDS
         - IMAGES
+        - REQUESTS
       description: Unit of usage in Langfuse
     ObservationLevel:
       title: ObservationLevel
@@ -2714,8 +2811,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Dataset items are upserted on their id. Id needs to be globally
-            unique and cannot be reused across datasets.
+            Dataset items are upserted on their id. Id needs to be unique
+            (project-level) and cannot be reused across datasets.
         status:
           $ref: '#/components/schemas/DatasetStatus'
           nullable: true
@@ -3610,11 +3707,20 @@ components:
           type: array
           items:
             type: string
+        lastUpdatedAt:
+          type: string
+          format: date-time
+        lastConfig:
+          description: >-
+            Config object of the most recent prompt version that matches the
+            filters (if any are provided)
       required:
         - name
         - versions
         - labels
         - tags
+        - lastUpdatedAt
+        - lastConfig
     CreatePromptRequest:
       title: CreatePromptRequest
       oneOf:

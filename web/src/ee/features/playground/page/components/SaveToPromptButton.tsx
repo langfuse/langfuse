@@ -24,11 +24,10 @@ import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export const SaveToPromptButton: React.FC = () => {
-  const isEeEnabled = useIsEeEnabled();
-  const [open, setOpen] = useState(false);
+  const available = useHasOrgEntitlement("playground");
   const [selectedPromptId, setSelectedPromptId] = useState("");
   const { modelParams, messages, output, promptVariables } =
     usePlaygroundContext();
@@ -84,7 +83,7 @@ export const SaveToPromptButton: React.FC = () => {
     );
   };
 
-  if (!isEeEnabled) return null;
+  if (!available) return null;
 
   return (
     <Popover>
@@ -110,12 +109,16 @@ export const SaveToPromptButton: React.FC = () => {
                 <CommandItem
                   key={promptName.value}
                   title={promptName.label}
-                  value={promptName.value}
+                  value={promptName.label}
                   onSelect={(currentValue) => {
+                    const promptId =
+                      allPromptNames.find(
+                        (prompt) => prompt.label === currentValue,
+                      )?.value ?? "";
+
                     setSelectedPromptId(
-                      currentValue === selectedPromptId ? "" : currentValue,
+                      promptId === selectedPromptId ? "" : promptId,
                     );
-                    setOpen(false);
                   }}
                 >
                   <Check

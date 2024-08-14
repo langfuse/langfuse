@@ -39,6 +39,9 @@ service:
           toStartTime:
             type: optional<datetime>
             docs: Retrieve only observations with a start_time before this datetime (ISO 8601).
+          version:
+            type: optional<string>
+            docs: Optional filter to only include observations with a certain version.
       response: ObservationsViews
 
 types:

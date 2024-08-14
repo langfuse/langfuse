@@ -3,7 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { EvalConfigForm } from "@/src/ee/features/evals/components/eval-config-form";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -75,6 +75,13 @@ export const EvalConfigDetail = () => {
             isLoading={config.isLoading}
           />
         }
+        breadcrumb={[
+          {
+            name: "Eval Configs",
+            href: `/project/${router.query.projectId as string}/evals/configs`,
+          },
+          { name: config.data?.id },
+        ]}
       />
       {existingEvalConfig && (
         <>
@@ -82,8 +89,10 @@ export const EvalConfigDetail = () => {
             <Label>Eval Template</Label>
             <TableLink
               path={`/project/${projectId}/evals/templates/${existingEvalConfig.evalTemplateId}`}
-              value={existingEvalConfig.evalTemplateId ?? ""}
-              truncateAt={40}
+              value={
+                `${existingEvalConfig.evalTemplate.name} (v${existingEvalConfig.evalTemplate.version})` ??
+                ""
+              }
             />
           </div>
 
@@ -123,7 +132,7 @@ export function DeactivateConfig({
   isLoading: boolean;
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
 

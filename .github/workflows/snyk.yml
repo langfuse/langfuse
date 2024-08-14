@@ -1,5 +1,12 @@
 name: Snyk Container
-on: push
+on:
+  push:
+    branches-ignore:
+      - "dependabot/**"
+  pull_request:
+    branches:
+      - "**"
+
 jobs:
   snyk:
     runs-on: ubuntu-latest
@@ -18,7 +25,7 @@ jobs:
           args: --file=web/Dockerfile
 
       - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
           category: web
@@ -33,7 +40,7 @@ jobs:
           args: --file=worker/Dockerfile
 
       - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
           category: worker

@@ -27,7 +27,7 @@ import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPriv
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
-import { isAnySsoConfigured } from "@langfuse/ee/sso";
+import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { Shield } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
@@ -407,35 +407,39 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                 </form>
               </Form>
             ) : null}
-            <div className="flex flex-row gap-3">
-              <Button
-                className="w-full"
-                loading={credentialsForm.formState.isSubmitting}
-                disabled={
-                  env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                  turnstileToken === undefined
-                }
-                onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
-                data-testid="submit-email-password-sign-in-form"
-              >
-                Sign in
-              </Button>
-              {authProviders.sso && (
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  loading={ssoLoading}
-                  disabled={
-                    env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                    turnstileToken === undefined
-                  }
-                  onClick={handleSsoSignIn}
-                >
-                  <Shield className="mr-3" size={18} />
-                  SSO
-                </Button>
-              )}
-            </div>
+            {(authProviders.credentials || authProviders.sso) && (
+              <div className="flex flex-row gap-3">
+                {authProviders.credentials && (
+                  <Button
+                    className="w-full"
+                    loading={credentialsForm.formState.isSubmitting}
+                    disabled={
+                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                      turnstileToken === undefined
+                    }
+                    onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
+                    data-testid="submit-email-password-sign-in-form"
+                  >
+                    Sign in
+                  </Button>
+                )}
+                {authProviders.sso && (
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    loading={ssoLoading}
+                    disabled={
+                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                      turnstileToken === undefined
+                    }
+                    onClick={handleSsoSignIn}
+                  >
+                    <Shield className="mr-3" size={18} />
+                    SSO
+                  </Button>
+                )}
+              </div>
+            )}
             {credentialsFormError ? (
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}

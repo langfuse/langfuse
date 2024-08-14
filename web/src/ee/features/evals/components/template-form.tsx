@@ -70,11 +70,13 @@ export const EvalTemplateForm = (props: {
               />
             </SelectTrigger>
             <SelectContent className="max-h-60 max-w-80">
-              {TEMPLATES.map((project) => (
-                <SelectItem key={project.name} value={project.name}>
-                  {project.name}
-                </SelectItem>
-              ))}
+              {TEMPLATES.sort((a, b) => a.name.localeCompare(b.name)).map(
+                (project) => (
+                  <SelectItem key={project.name} value={project.name}>
+                    {project.name}
+                  </SelectItem>
+                ),
+              )}
             </SelectContent>
           </Select>
         </div>

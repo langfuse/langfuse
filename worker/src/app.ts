@@ -1,4 +1,4 @@
-import "./instrumentation"; // this is required to make instrumentation work
+import "./sentry"; // this is required to make instrumentation work
 import express from "express";
 import cors from "cors";
 import * as Sentry from "@sentry/node";
@@ -12,7 +12,11 @@ import logger from "./logger";
 
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
+import { flushIngestionQueueExecutor } from "./queues/ingestionFlushQueue";
 import { repeatQueueExecutor } from "./queues/repeatQueue";
+import { logQueueWorkerError } from "./utils/logQueueWorkerError";
+import { onShutdown } from "./utils/shutdown";
+
 import helmet from "helmet";
 
 const app = express();
@@ -41,30 +45,18 @@ logger.info(
   batchExportJobExecutor?.isRunning()
 );
 logger.info("Repeat Queue Executor started", repeatQueueExecutor?.isRunning());
+logger.info(
+  "Flush Ingestion Queue Executor started",
+  flushIngestionQueueExecutor?.isRunning()
+);
 
-evalJobCreator?.on("failed", (job, err) => {
-  logger.error(err, `Eval Job with id ${job?.id} failed with error ${err}`);
-});
+evalJobCreator?.on("failed", logQueueWorkerError);
+evalJobExecutor?.on("failed", logQueueWorkerError);
+batchExportJobExecutor?.on("failed", logQueueWorkerError);
+repeatQueueExecutor?.on("failed", logQueueWorkerError);
+flushIngestionQueueExecutor?.on("failed", logQueueWorkerError);
 
-evalJobExecutor?.on("failed", (job, err) => {
-  logger.error(
-    err,
-    `Eval execution Job with id ${job?.id} failed with error ${err}`
-  );
-});
-
-batchExportJobExecutor?.on("failed", (job, err) => {
-  logger.error(
-    err,
-    `Batch Export Job with id ${job?.id} failed with error ${err}`
-  );
-});
-
-repeatQueueExecutor?.on("failed", (job, err) => {
-  logger.error(
-    err,
-    `Repeat Queue Job with id ${job?.id} failed with error ${err}`
-  );
-});
+process.on("SIGINT", () => onShutdown("SIGINT"));
+process.on("SIGTERM", () => onShutdown("SIGTERM"));
 
 export default app;

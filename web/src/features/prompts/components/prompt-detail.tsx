@@ -4,10 +4,7 @@ import { useRouter } from "next/router";
 import { NumberParam, useQueryParam } from "use-query-params";
 import type { z } from "zod";
 import Header from "@/src/components/layouts/header";
-import {
-  ChatMlArraySchema,
-  OpenAiMessageView,
-} from "@/src/components/trace/IOPreview";
+import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -31,6 +28,7 @@ import {
 } from "@/src/components/ui/accordion";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
+import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -157,9 +155,9 @@ export const PromptDetail = () => {
           />
         </div>
         <div className="col-span-3">
-          <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
-            <div className="flex flex-row items-center gap-3 p-2.5">
-              Tags
+          <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground">
+            <div className="flex flex-row items-center gap-3 px-3 py-1">
+              <span className="text-sm">Tags</span>
               <TagPromptDetailsPopover
                 key={prompt.id}
                 projectId={projectId as string}

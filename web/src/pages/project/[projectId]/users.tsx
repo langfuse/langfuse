@@ -15,11 +15,12 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type Score } from "@langfuse/shared";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { type FilterState } from "@langfuse/shared";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { type LastUserScore } from "@/src/features/scores/lib/types";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 
@@ -28,6 +29,9 @@ type RowData = {
   firstEvent: string;
   lastEvent: string;
   totalEvents: string;
+  lastScore: LastUserScore | undefined;
+  totalTokens: string;
+  totalCost: string;
 };
 
 export default function UsersPage() {
@@ -35,14 +39,7 @@ export default function UsersPage() {
   const projectId = router.query.projectId as string;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "timestamp",
-        type: "datetime",
-        operator: ">",
-        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "users",
   );
 
@@ -53,8 +50,23 @@ export default function UsersPage() {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange();
+
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const filterState = userFilterState.concat(dateRangeFilter);
   const users = api.users.all.useQuery({
-    filter: userFilterState,
+    filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
@@ -111,14 +123,14 @@ export default function UsersPage() {
       accessorKey: "userId",
       enableColumnFilter: true,
       header: "User ID",
+      size: 150,
       cell: ({ row }) => {
-        const value = row.getValue("userId");
+        const value: RowData["userId"] = row.getValue("userId");
         return typeof value === "string" ? (
           <>
             <TableLink
               path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -127,8 +139,9 @@ export default function UsersPage() {
     {
       accessorKey: "firstEvent",
       header: "First Event",
+      size: 150,
       cell: ({ row }) => {
-        const value: unknown = row.getValue("firstEvent");
+        const value: RowData["firstEvent"] = row.getValue("firstEvent");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -140,8 +153,9 @@ export default function UsersPage() {
     {
       accessorKey: "lastEvent",
       header: "Last Event",
+      size: 150,
       cell: ({ row }) => {
-        const value: unknown = row.getValue("lastEvent");
+        const value: RowData["lastEvent"] = row.getValue("lastEvent");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -153,8 +167,9 @@ export default function UsersPage() {
     {
       accessorKey: "totalEvents",
       header: "Total Events",
+      size: 120,
       cell: ({ row }) => {
-        const value: unknown = row.getValue("totalEvents");
+        const value: RowData["totalEvents"] = row.getValue("totalEvents");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -166,8 +181,9 @@ export default function UsersPage() {
     {
       accessorKey: "totalTokens",
       header: "Total Tokens",
+      size: 120,
       cell: ({ row }) => {
-        const value: unknown = row.getValue("totalTokens");
+        const value: RowData["totalTokens"] = row.getValue("totalTokens");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -179,8 +195,9 @@ export default function UsersPage() {
     {
       accessorKey: "totalCost",
       header: "Total Cost",
+      size: 120,
       cell: ({ row }) => {
-        const value: unknown = row.getValue("totalCost");
+        const value: RowData["totalCost"] = row.getValue("totalCost");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -192,8 +209,9 @@ export default function UsersPage() {
     {
       accessorKey: "lastScore",
       header: "Last Score",
+      size: 200,
       cell: ({ row }) => {
-        const value: Score | null = row.getValue("lastScore");
+        const value: RowData["lastScore"] = row.getValue("lastScore");
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
@@ -201,7 +219,7 @@ export default function UsersPage() {
         return (
           <>
             {value ? (
-              <div className="flex items-center gap-4">
+              <div className="grid grid-cols-[1fr,auto] items-center gap-4">
                 <TableLink
                   path={
                     value.observationId
@@ -232,8 +250,10 @@ export default function UsersPage() {
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
-        setFilterState={setUserFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
         columns={columns}
@@ -259,8 +279,8 @@ export default function UsersPage() {
                         t.lastTrace?.toLocaleString() ??
                         "No event yet",
                       totalEvents: compactNumberFormatter(
-                        (Number(t.totalTraces) || 0) +
-                          (Number(t.totalObservations) || 0),
+                        Number(t.totalTraces ?? 0) +
+                          Number(t.totalObservations ?? 0),
                       ),
                       totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
                       lastScore: t.lastScore,
@@ -274,7 +294,7 @@ export default function UsersPage() {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
           onChange: setPaginationState,
           state: paginationState,
         }}

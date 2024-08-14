@@ -13,12 +13,15 @@ import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ScoreDataType } from "@langfuse/shared";
+import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { type FilterState } from "@langfuse/shared";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
-type PromptVersionTableRow = {
+export type PromptVersionTableRow = {
   version: number;
   labels: string[];
   medianLatency?: number | null;
@@ -26,8 +29,8 @@ type PromptVersionTableRow = {
   medianOutputTokens?: number | null;
   medianCost?: number | null;
   generationCount?: number | null;
-  averageObservationScores?: Record<string, number> | null;
-  averageTraceScores?: Record<string, number> | null;
+  traceScores?: ScoreAggregate;
+  generationScores?: ScoreAggregate;
   lastUsed?: string | null;
   firstUsed?: string | null;
 };
@@ -38,13 +41,13 @@ type PromptMetric = PromptMetricsOutput[number];
 type PromptCoreData = PromptCoreOutput["promptVersions"][number];
 
 function joinPromptCoreAndMetricData(
-  promptCoreData: PromptCoreOutput,
+  promptCoreData?: PromptCoreOutput,
   promptMetricsData?: PromptMetricsOutput,
 ): {
   status: "loading" | "error" | "success";
   combinedData: (PromptCoreData & Partial<PromptMetric>)[] | undefined;
 } {
-  if (!promptCoreData) return { status: "error", combinedData: undefined }; // defensive should never happen
+  if (!promptCoreData) return { status: "loading", combinedData: undefined };
 
   const { promptVersions } = promptCoreData;
 
@@ -87,7 +90,19 @@ export default function PromptVersionTable() {
     "promptVersion",
     "s",
   );
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange("7 days");
 
+  const dateRangeFilter: FilterState | null = dateRange?.from
+    ? [
+        {
+          column: "Start Time",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : null;
   const promptVersions = api.prompts.allVersions.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
@@ -106,6 +121,7 @@ export default function PromptVersionTable() {
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
+      filter: dateRangeFilter,
     },
     {
       enabled: Boolean(projectId) && promptVersions.isSuccess,
@@ -117,11 +133,35 @@ export default function PromptVersionTable() {
     },
   );
 
+  const {
+    scoreColumns: traceScoreColumns,
+    scoreKeysAndProps,
+    isColumnLoading: isTraceColumnLoading,
+  } = useIndividualScoreColumns<PromptVersionTableRow>({
+    projectId,
+    scoreColumnPrefix: "Trace",
+    scoreColumnKey: "traceScores",
+    showAggregateViewOnly: true,
+    selectedTimeOption: selectedOption,
+  });
+
+  const {
+    scoreColumns: generationScoreColumns,
+    isColumnLoading: isGenerationColumnLoading,
+  } = useIndividualScoreColumns<PromptVersionTableRow>({
+    projectId,
+    scoreColumnPrefix: "Generation",
+    scoreColumnKey: "generationScores",
+    showAggregateViewOnly: true,
+    selectedTimeOption: selectedOption,
+  });
+
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
     {
       accessorKey: "version",
       id: "version",
       header: "Version",
+      size: 80,
       cell: ({ row }) => {
         const version = row.getValue("version");
         return typeof version === "number" ? (
@@ -136,6 +176,7 @@ export default function PromptVersionTable() {
       accessorKey: "labels",
       id: "labels",
       header: "Labels",
+      size: 160,
       cell: ({ row }) => {
         const values: string[] = row.getValue("labels");
         return (
@@ -159,6 +200,7 @@ export default function PromptVersionTable() {
       accessorKey: "medianLatency",
       id: "medianLatency",
       header: "Median latency",
+      size: 140,
       cell: ({ row }) => {
         const latency: number | undefined | null =
           row.getValue("medianLatency");
@@ -176,6 +218,7 @@ export default function PromptVersionTable() {
       accessorKey: "medianInputTokens",
       id: "medianInputTokens",
       header: "Median input tokens",
+      size: 160,
       enableHiding: true,
       cell: ({ row }) => {
         const value: number | undefined | null =
@@ -191,6 +234,7 @@ export default function PromptVersionTable() {
       accessorKey: "medianOutputTokens",
       id: "medianOutputTokens",
       header: "Median output tokens",
+      size: 170,
       enableHiding: true,
       cell: ({ row }) => {
         const value: number | undefined | null =
@@ -205,6 +249,7 @@ export default function PromptVersionTable() {
       accessorKey: "medianCost",
       id: "medianCost",
       header: "Median cost",
+      size: 120,
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("medianCost");
         if (!promptMetrics.isSuccess) {
@@ -219,6 +264,7 @@ export default function PromptVersionTable() {
       accessorKey: "generationCount",
       id: "generationCount",
       header: "Generations count",
+      size: 150,
       enableHiding: true,
       cell: ({ row }) => {
         const value: number | undefined | null =
@@ -232,64 +278,33 @@ export default function PromptVersionTable() {
       },
     },
     {
-      accessorKey: "averageObservationScores",
-      id: "averageObservationScores",
-      header: "Average observation scores",
-      cell: ({ row }) => {
-        const scores: PromptVersionTableRow["averageObservationScores"] =
-          row.getValue("averageObservationScores");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-
-        return (
-          (scores && (
-            <GroupedScoreBadges
-              scores={Object.entries(scores).map(([k, v]) => ({
-                name: k,
-                value: v,
-                dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
-              }))}
-              variant="headings"
-            />
-          )) ??
-          null
-        );
+      accessorKey: "traceScores",
+      header: "Trace Scores",
+      id: "traceScores",
+      columns: traceScoreColumns,
+      cell: () => {
+        return isTraceColumnLoading ? (
+          <Skeleton className="h-3 w-1/2"></Skeleton>
+        ) : null;
       },
-      enableHiding: true,
     },
     {
-      accessorKey: "averageTraceScores",
-      id: "averageTraceScores",
-      header: "Average trace scores",
-      cell: ({ row }) => {
-        const scores: PromptVersionTableRow["averageTraceScores"] =
-          row.getValue("averageTraceScores");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-
-        return (
-          (scores && (
-            <GroupedScoreBadges
-              scores={Object.entries(scores).map(([k, v]) => ({
-                name: k,
-                value: v,
-                dataType: ScoreDataType.NUMERIC, // numeric and boolean values treated as numeric
-              }))}
-              variant="headings"
-            />
-          )) ??
-          null
-        );
+      accessorKey: "generationScores",
+      header: "Generation Scores",
+      id: "generationScores",
+      columns: generationScoreColumns,
+      cell: () => {
+        return isGenerationColumnLoading ? (
+          <Skeleton className="h-3 w-1/2"></Skeleton>
+        ) : null;
       },
-      enableHiding: true,
     },
     {
       accessorKey: "lastUsed",
       id: "lastUsed",
       header: "Last used",
       enableHiding: true,
+      size: 150,
       headerTooltip: {
         description:
           "The last time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
@@ -307,6 +322,7 @@ export default function PromptVersionTable() {
       accessorKey: "firstUsed",
       id: "firstUsed",
       header: "First used",
+      size: 150,
       enableHiding: true,
       headerTooltip: {
         description:
@@ -325,13 +341,9 @@ export default function PromptVersionTable() {
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<PromptVersionTableRow>(
-      "promptVersionsColumnVisibility",
+      `promptVersionsColumnVisibility-${projectId}`,
       columns,
     );
-
-  if (!promptVersions.data) {
-    return <div>Loading...</div>;
-  }
 
   const totalCount = promptVersions?.data?.totalCount ?? 0;
 
@@ -342,21 +354,30 @@ export default function PromptVersionTable() {
 
   const rows: PromptVersionTableRow[] =
     promptVersions.isSuccess && !!combinedData
-      ? combinedData.map((prompt) => ({
-          version: prompt.version,
-          labels: prompt.labels,
-          medianLatency: prompt.medianLatency,
-          medianInputTokens: prompt.medianInputTokens,
-          medianOutputTokens: prompt.medianOutputTokens,
-          medianCost: prompt.medianTotalCost,
-          generationCount: prompt.observationCount,
-          averageObservationScores: prompt.averageObservationScores,
-          averageTraceScores: prompt.averageTraceScores,
-          lastUsed:
-            prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
-          firstUsed:
-            prompt.firstUsed?.toLocaleString() ?? "No linked generation yet",
-        }))
+      ? combinedData.map((prompt) => {
+          return {
+            version: prompt.version,
+            labels: prompt.labels,
+            medianLatency: prompt.medianLatency,
+            medianInputTokens: prompt.medianInputTokens,
+            medianOutputTokens: prompt.medianOutputTokens,
+            medianCost: prompt.medianTotalCost,
+            traceScores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              prompt.traceScores ?? {},
+              "Trace",
+            ),
+            generationScores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              prompt.observationScores ?? {},
+              "Generation",
+            ),
+            lastUsed:
+              prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
+            firstUsed:
+              prompt.firstUsed?.toLocaleString() ?? "No linked generation yet",
+          };
+        })
       : [];
 
   return (
@@ -403,6 +424,8 @@ export default function PromptVersionTable() {
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibilityState}
+          selectedOption={selectedOption}
+          setDateRangeAndOption={setDateRangeAndOption}
         />
       </div>
       <DataTable

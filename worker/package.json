@@ -1,14 +1,14 @@
 {
   "name": "worker",
-  "version": "2.61.1",
+  "version": "2.70.1",
   "description": "",
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": "20"
   },
   "scripts": {
-    "test": "dotenv -e ../.env -- vitest run --reporter=basic --pool=forks",
+    "test": "dotenv -e ../.env -- vitest run --reporter=basic --pool=forks --poolOptions.forks.singleFork=true",
     "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
@@ -19,10 +19,11 @@
   "author": "engineering@langfuse.com",
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
+    "@clickhouse/client": "^1.4.0",
     "@langfuse/shared": "workspace:*",
-    "@prisma/instrumentation": "^5.16.2",
-    "@sentry/node": "^8.13.0",
-    "@sentry/profiling-node": "^8.13.0",
+    "@logtail/pino": "^0.5.0",
+    "@sentry/node": "8.13.0",
+    "@sentry/profiling-node": "8.13.0",
     "backoff": "^2.5.0",
     "bullmq": "^5.4.2",
     "cors": "^2.8.5",
@@ -46,14 +47,15 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
-    "@repo/typescript-config": "*",
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/express-serve-static-core": "^4.19.3",
     "@types/lodash": "^4.17.5",
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.6",
+    "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
@@ -65,6 +67,7 @@
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
+    "tsx": "^4.7.2",
     "typescript": "^5.4.5",
     "vite": "^5.2.13",
     "vitest": "^1.5.3"

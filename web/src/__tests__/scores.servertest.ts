@@ -11,7 +11,7 @@ import {
   DeleteScoreResponse,
   GetScoreResponse,
   GetScoresResponse,
-} from "@/src/features/public-api/types/scores";
+} from "@langfuse/shared";
 import { z } from "zod";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 
@@ -597,7 +597,8 @@ describe("/api/public/scores API Endpoint", () => {
       error: [
         {
           code: "custom",
-          message: "Value must be either 0 or 1",
+          message:
+            "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
           path: ["value"],
         },
       ],

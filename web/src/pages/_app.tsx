@@ -18,6 +18,7 @@ import { useRouter } from "next/router";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
+import prexit from "prexit";
 
 // Custom polyfills not yet available in `next-core`:
 // https://github.com/vercel/next.js/issues/58242
@@ -31,6 +32,8 @@ import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
+import { shutdown } from "@/src/utils/shutdown";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 const setProjectInPosthog = () => {
   // project
@@ -88,18 +91,24 @@ const MyApp: AppType<{ session: Session | null }> = ({
     <QueryParamProvider adapter={NextAdapterPages}>
       <TooltipProvider>
         <PostHogProvider client={posthog}>
-          <SessionProvider session={session} refetchOnWindowFocus={true}>
+          <SessionProvider
+            session={session}
+            refetchOnWindowFocus={true}
+            refetchInterval={5 * 60} // 5 minutes
+          >
             <DetailPageListsProvider>
-              <ThemeProvider
-                attribute="class"
-                enableSystem
-                disableTransitionOnChange
-              >
-                <Layout>
-                  <Component {...pageProps} />
-                  <UserTracking />
-                </Layout>
-              </ThemeProvider>
+              <MarkdownContextProvider>
+                <ThemeProvider
+                  attribute="class"
+                  enableSystem
+                  disableTransitionOnChange
+                >
+                  <Layout>
+                    <Component {...pageProps} />
+                    <UserTracking />
+                  </Layout>
+                </ThemeProvider>
+              </MarkdownContextProvider>
               <CrispWidget />
             </DetailPageListsProvider>
           </SessionProvider>
@@ -123,7 +132,13 @@ function UserTracking() {
           email: session.data.user?.email ?? undefined,
           name: session.data.user?.name ?? undefined,
           featureFlags: session.data.user?.featureFlags ?? undefined,
-          projects: session.data.user?.projects ?? undefined,
+          projects:
+            session.data.user?.organizations.flatMap((org) =>
+              org.projects.map((project) => ({
+                ...project,
+                organization: org,
+              })),
+            ) ?? undefined,
           LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
       const emailDomain = session.data.user?.email?.split("@")[1];
@@ -143,8 +158,8 @@ function UserTracking() {
         email: session.data.user?.email ?? "undefined",
         data: {
           userId: session.data.user?.id ?? "undefined",
-          projects: session.data.user?.projects
-            ? JSON.stringify(session.data.user.projects)
+          organizations: session.data.user?.organizations
+            ? JSON.stringify(session.data.user.organizations)
             : "undefined",
           featureFlags: session.data.user?.featureFlags
             ? JSON.stringify(session.data.user.featureFlags)
@@ -162,4 +177,11 @@ function UserTracking() {
     }
   }, [session]);
   return null;
+}
+
+if (process.env.NEXT_MANUAL_SIG_HANDLE) {
+  prexit(async (signal) => {
+    console.log("Signal: ", signal);
+    return await shutdown(signal);
+  });
 }

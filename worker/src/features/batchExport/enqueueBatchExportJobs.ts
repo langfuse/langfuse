@@ -3,7 +3,7 @@ import { kyselyPrisma } from "@langfuse/shared/src/db";
 import * as Sentry from "@sentry/node";
 
 import logger from "../../logger";
-import { batchExportQueue } from "../../queues/batchExportQueue";
+import { getBatchExportQueue } from "@langfuse/shared/src/server";
 
 /**
  * Enqueues batch export jobs from the database to the job queue.
@@ -18,7 +18,8 @@ export async function enqueueBatchExportJobs() {
       .where("status", "=", BatchExportStatus.QUEUED)
       .execute();
 
-    if (batchExportQueue) {
+    const queue = getBatchExportQueue();
+    if (queue) {
       const newJobs = queuedJobs.map(
         (job) =>
           ({
@@ -35,7 +36,7 @@ export async function enqueueBatchExportJobs() {
           }) as const
       );
 
-      await batchExportQueue.addBulk(newJobs);
+      await queue.addBulk(newJobs);
       logger.info(`Enqueued ${newJobs.length} batch export jobs from postgres`);
     }
   } catch (error) {

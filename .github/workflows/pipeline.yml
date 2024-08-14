@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v3
         with:
-          version: 8.15.5
+          version: 9.5.0
       - uses: actions/setup-node@v3
         with:
           node-version: 20
@@ -63,6 +63,7 @@ jobs:
           fi
 
   tests-web:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
@@ -78,7 +79,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v3
         with:
-          version: 8.15.5
+          version: 9.5.0
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
@@ -93,7 +94,7 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          cp .env.dev.example web/.env
+          grep -v '^REDIS_HOST=' .env.dev.example > web/.env
 
       - name: Run + migrate
         run: |
@@ -118,6 +119,7 @@ jobs:
         run: pnpm --filter=web run test
 
   tests-worker:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
@@ -133,7 +135,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v3
         with:
-          version: 8.15.5
+          version: 9.5.0
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
@@ -145,10 +147,17 @@ jobs:
         run: |
           pnpm install
 
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
+
       - name: Load default env
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
+          cp .env.dev.example worker/.env
 
       - name: Run + migrate
         run: |
@@ -158,6 +167,7 @@ jobs:
 
       - name: Seed DB
         run: |
+          pnpm run --filter=shared ch:up
           pnpm run db:migrate
           pnpm run db:seed
 
@@ -173,7 +183,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v3
         with:
-          version: 8.15.5
+          version: 9.5.0
       - uses: actions/setup-node@v3
         with:
           node-version: 20
@@ -236,7 +246,7 @@ jobs:
     steps:
       - uses: pnpm/action-setup@v3
         with:
-          version: 8.15.5
+          version: 9.5.0
       - name: Setup node
         uses: actions/setup-node@v3
         with:

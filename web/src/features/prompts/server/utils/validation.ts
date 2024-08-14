@@ -15,7 +15,7 @@ export enum PromptType {
 export const PromptLabelSchema = z
   .string()
   .min(1)
-  .max(20)
+  .max(36)
   .regex(
     /^[a-z0-9_\-.]+$/,
     "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
@@ -67,6 +67,8 @@ export const GetPromptsMetaSchema = z.object({
   tag: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
+  fromUpdatedAt: z.string().datetime({ offset: true }).nullish(),
+  toUpdatedAt: z.string().datetime({ offset: true }).nullish(),
 });
 
 export type GetPromptsMetaType = z.infer<typeof GetPromptsMetaSchema>;

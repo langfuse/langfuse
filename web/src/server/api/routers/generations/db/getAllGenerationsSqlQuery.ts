@@ -1,12 +1,15 @@
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   datetimeFilterToPrismaSql,
-  tableColumnsToSqlFilterAndPrefix,
+  filterAndValidateDbScoreList,
   observationsTableCols,
+  orderByToPrismaSql,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
-import { orderByToPrismaSql } from "@langfuse/shared";
-import { type ObservationView, Prisma } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
+import { type ObservationView, Prisma, prisma } from "@langfuse/shared/src/db";
+
 import { type GetAllGenerationsInput } from "../getAllQuery";
+import * as Sentry from "@sentry/node";
 
 type AdditionalObservationFields = {
   traceName: string | null;
@@ -52,7 +55,7 @@ export async function getAllGenerations({
 
   // to improve query performance, add timeseries filter to observation queries as well
   const startTimeFilter = input.filter.find(
-    (f) => f.column === "start_time" && f.type === "datetime",
+    (f) => f.column === "Start Time" && f.type === "datetime",
   );
   const datetimeFilter =
     startTimeFilter && startTimeFilter.type === "datetime"
@@ -79,7 +82,8 @@ export async function getAllGenerations({
           FROM
             scores
           WHERE
-            project_id = ${input.projectId}
+          project_id = ${input.projectId}
+          AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')
           GROUP BY
             1,
             2,
@@ -147,10 +151,14 @@ export async function getAllGenerations({
       },
     },
   });
+  const validatedScores = filterAndValidateDbScoreList(
+    scores,
+    Sentry.captureException,
+  );
 
   const fullGenerations = generations.map((generation) => {
-    const filteredScores = scores.filter(
-      (s) => s.observationId === generation.id,
+    const filteredScores = aggregateScores(
+      validatedScores.filter((s) => s.observationId === generation.id),
     );
     return {
       ...generation,

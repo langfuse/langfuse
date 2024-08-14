@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -27,20 +27,31 @@ import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@langfuse/ee/sso";
+} from "@/src/ee/features/multi-tenant-sso/utils";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
+import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
 import {
   CustomSSOProvider,
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
+import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
+import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 
-export const cloudConfigSchema = z.object({
-  plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
-  monthlyObservationLimit: z.number().int().positive().optional(),
-  // used for table and dashboard queries
-  defaultLookBackDays: z.number().int().positive().optional(),
-});
+function canCreateOrganizations(userEmail: string | null): boolean {
+  // if no allowlist is set or no active EE key, allow all users to create organizations
+  if (
+    !env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS ||
+    !env.LANGFUSE_EE_LICENSE_KEY
+  )
+    return true;
+
+  if (!userEmail) return false;
+
+  const allowedOrgCreators =
+    env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS.toLowerCase().split(",");
+  return allowedOrgCreators.includes(userEmail.toLowerCase());
+}
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -122,7 +133,8 @@ const staticProviders: Provider[] = [
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
         featureFlags: parseFlags(dbUser.featureFlags),
-        projects: [],
+        canCreateOrganizations: canCreateOrganizations(dbUser.email),
+        organizations: [],
       };
 
       return userObj;
@@ -286,6 +298,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
   const data: NextAuthOptions = {
     session: {
       strategy: "jwt",
+      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
     },
     callbacks: {
       async session({ session, token }): Promise<Session> {
@@ -302,9 +315,18 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             emailVerified: true,
             featureFlags: true,
             admin: true,
-            projectMemberships: {
+            organizationMemberships: {
               include: {
-                project: true,
+                organization: {
+                  include: {
+                    projects: true,
+                  },
+                },
+                ProjectMemberships: {
+                  include: {
+                    project: true,
+                  },
+                },
               },
             },
           },
@@ -317,8 +339,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
             disableExpensivePostgresQueries:
               env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
-            defaultTableDateTimeOffset:
-              env.LANGFUSE_DEFAULT_TABLE_DATETIME_OFFSET,
             // Enables features that are only available under an enterprise license when self-hosting Langfuse
             // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
             eeEnabled: env.LANGFUSE_EE_LICENSE_KEY !== undefined,
@@ -332,19 +352,44 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                   email: dbUser.email,
                   image: dbUser.image,
                   admin: dbUser.admin,
-                  emailVerified: dbUser.emailVerified?.toISOString(),
-                  projects: dbUser.projectMemberships.map((membership) => ({
-                    id: membership.project.id,
-                    name: membership.project.name,
-                    role: membership.role,
-                    cloudConfig: {
-                      defaultLookBackDays:
-                        cloudConfigSchema
-                          .nullish()
-                          .parse(membership.project.cloudConfig)
-                          ?.defaultLookBackDays ?? null,
+                  canCreateOrganizations: canCreateOrganizations(dbUser.email),
+                  organizations: dbUser.organizationMemberships.map(
+                    (orgMembership) => {
+                      const parsedCloudConfig = CloudConfigSchema.safeParse(
+                        orgMembership.organization.cloudConfig,
+                      );
+                      return {
+                        id: orgMembership.organization.id,
+                        name: orgMembership.organization.name,
+                        role: orgMembership.role,
+                        cloudConfig: parsedCloudConfig.data,
+                        projects: orgMembership.organization.projects
+                          .map((project) => {
+                            const projectRole: Role =
+                              orgMembership.ProjectMemberships.find(
+                                (membership) =>
+                                  membership.projectId === project.id,
+                              )?.role ?? orgMembership.role;
+                            return {
+                              id: project.id,
+                              name: project.name,
+                              role: projectRole,
+                            };
+                          })
+                          // Only include projects where the user has the required role
+                          .filter((project) =>
+                            projectRoleAccessRights[project.role].includes(
+                              "project:read",
+                            ),
+                          ),
+
+                        // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting
+                        // If you edit this line, you risk executing code that is not MIT licensed (contained in /ee folders, see LICENSE)
+                        plan: getOrganizationPlan(parsedCloudConfig.data),
+                      };
                     },
-                  })),
+                  ),
+                  emailVerified: dbUser.emailVerified?.toISOString(),
                   featureFlags: parseFlags(dbUser.featureFlags),
                 }
               : null,
@@ -354,9 +399,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         // Block sign in without valid user.email
         const email = user.email?.toLowerCase();
         if (!email) {
+          console.error("No email found in user object");
           throw new Error("No email found in user object");
         }
         if (z.string().email().safeParse(email).success === false) {
+          console.error("Invalid email found in user object");
           throw new Error("Invalid email found in user object");
         }
 
@@ -365,6 +412,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         const domain = email.split("@")[1];
         const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
         if (customSsoProvider && account?.provider !== customSsoProvider) {
+          console.log(
+            "Custom SSO provider enforced for domain, user signed in with other provider",
+          );
           throw new Error(`You must sign in via SSO for this domain.`);
         }
 
@@ -484,7 +534,14 @@ export const getServerAuthSession = async (ctx: {
   const authOptions = await getAuthOptions();
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself
-  // disable caching for anything auth related
-  ctx.res.setHeader("Cache-Control", "no-store, max-age=0");
+
+  // disable caching for any api requiring server-side auth
+  ctx.res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate",
+  );
+  ctx.res.setHeader("Pragma", "no-cache");
+  ctx.res.setHeader("Expires", "0");
+
   return getServerSession(ctx.req, ctx.res, authOptions);
 };

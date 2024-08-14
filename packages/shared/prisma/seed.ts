@@ -14,6 +14,7 @@ import { v4 } from "uuid";
 import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey } from "../src/server";
 import { encrypt } from "../src/encryption";
+import { redis } from "../src/server/redis/redis";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
@@ -33,38 +34,110 @@ async function main() {
     options,
   }).values.environment;
 
+  const seedOrgId = "seed-org-id";
+  const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  const seedUserId1 = "user-1"; // Owner of org
+  const seedUserId2 = "user-2"; // Member of org, admin of project
+
   const user = await prisma.user.upsert({
-    where: { id: "user-1" },
+    where: { id: seedUserId1 },
     update: {
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
     },
     create: {
-      id: "user-1",
+      id: seedUserId1,
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
       image: "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png",
     },
   });
+  const user2 = await prisma.user.upsert({
+    where: { id: seedUserId2 },
+    update: {
+      name: "Demo User 2",
+      email: "member@langfuse.com",
+      password: await hash("password", 12),
+    },
+    create: {
+      id: seedUserId2,
+      name: "Demo User 2",
+      email: "member@langfuse.com",
+      password: await hash("password", 12),
+    },
+  });
 
-  const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  await prisma.organization.upsert({
+    where: { id: seedOrgId },
+    update: {
+      name: "Seed Org",
+    },
+    create: {
+      id: seedOrgId,
+      name: "Seed Org",
+    },
+  });
 
   const project1 = await prisma.project.upsert({
     where: { id: seedProjectId },
     update: {
       name: "llm-app",
+      orgId: seedOrgId,
     },
     create: {
       id: seedProjectId,
       name: "llm-app",
-      projectMembers: {
-        create: {
-          role: "OWNER",
-          userId: user.id,
-        },
+      orgId: seedOrgId,
+    },
+  });
+
+  const orgMembership = await prisma.organizationMembership.upsert({
+    where: {
+      orgId_userId: {
+        userId: user.id,
+        orgId: seedOrgId,
       },
+    },
+    create: {
+      userId: user.id,
+      orgId: seedOrgId,
+      role: "OWNER",
+    },
+    update: {},
+  });
+
+  const orgMembership2 = await prisma.organizationMembership.upsert({
+    where: {
+      orgId_userId: {
+        userId: user2.id,
+        orgId: seedOrgId,
+      },
+    },
+    create: {
+      userId: user2.id,
+      orgId: seedOrgId,
+      role: "MEMBER",
+    },
+    update: {},
+  });
+
+  const projectMembership = await prisma.projectMembership.upsert({
+    where: {
+      projectId_userId: {
+        projectId: project1.id,
+        userId: user2.id,
+      },
+    },
+    create: {
+      userId: user2.id,
+      projectId: project1.id,
+      role: "ADMIN",
+      orgMembershipId: orgMembership2.id,
+    },
+    update: {
+      orgMembershipId: orgMembership2.id,
     },
   });
 
@@ -113,17 +186,38 @@ async function main() {
 
   // Do not run the following for local docker compose setup
   if (environment === "examples" || environment === "load") {
-    const project2 = await prisma.project.upsert({
-      where: { id: "239ad00f-562f-411d-af14-831c75ddd875" },
+    const seedOrgIdOrg2 = "demo-org-id";
+    const project2Id = "239ad00f-562f-411d-af14-831c75ddd875";
+    const org2 = await prisma.organization.upsert({
+      where: { id: seedOrgIdOrg2 },
+      update: {
+        name: "Langfuse Demo",
+      },
       create: {
-        id: "239ad00f-562f-411d-af14-831c75ddd875",
+        id: seedOrgIdOrg2,
+        name: "Langfuse Demo",
+      },
+    });
+    const project2 = await prisma.project.upsert({
+      where: { id: project2Id },
+      create: {
+        id: project2Id,
         name: "demo-app",
-        projectMembers: {
-          create: {
-            role: "OWNER",
-            userId: user.id,
-          },
+        orgId: org2.id,
+      },
+      update: { orgId: seedOrgIdOrg2 },
+    });
+    await prisma.organizationMembership.upsert({
+      where: {
+        orgId_userId: {
+          userId: user.id,
+          orgId: seedOrgIdOrg2,
         },
+      },
+      create: {
+        userId: user.id,
+        orgId: seedOrgIdOrg2,
+        role: "VIEWER",
       },
       update: {},
     });
@@ -286,6 +380,7 @@ async function main() {
             : undefined;
         const datasetItem = await prisma.datasetItem.create({
           data: {
+            projectId: project2.id,
             datasetId: dataset.id,
             sourceTraceId: sourceObservation?.traceId,
             sourceObservationId:
@@ -312,6 +407,7 @@ async function main() {
       for (let datasetRunNumber = 0; datasetRunNumber < 5; datasetRunNumber++) {
         const datasetRun = await prisma.datasetRuns.create({
           data: {
+            projectId: project2.id,
             name: `demo-dataset-run-${datasetRunNumber}`,
             description: Math.random() > 0.5 ? "Dataset run description" : "",
             datasetId: dataset.id,
@@ -336,6 +432,7 @@ async function main() {
 
           await prisma.datasetRunItems.create({
             data: {
+              projectId: project2.id,
               datasetItemId,
               traceId: observation.traceId as string,
               observationId: Math.random() > 0.5 ? observation.id : undefined,
@@ -351,10 +448,14 @@ async function main() {
 main()
   .then(async () => {
     await prisma.$disconnect();
+    redis?.disconnect();
+    console.log("Disconnected from postgres and redis");
   })
   .catch(async (e) => {
     console.error(e);
     await prisma.$disconnect();
+    redis?.disconnect();
+    console.log("Disconnected from postgres and redis");
     process.exit(1);
   });
 
@@ -710,7 +811,7 @@ function createObjects(
                   },
                   {
                     role: "user",
-                    content: "How can i create a React component?",
+                    content: "How can i create a *React* component?",
                   },
                 ]
               : {
@@ -728,37 +829,8 @@ function createObjects(
                     },
                   ],
                 },
-          output: {
-            completion: `Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.
-
-              1.  **Functional Component**:
-              
-              A functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:
-              
-              
-              'import React from 'react';  function Greeting(props) {   return <h1>Hello, {props.name}</h1>; }  export default Greeting;'
-              
-              To use this component in another file, you can do:
-              
-              
-              'import Greeting from './Greeting';  function App() {   return (     <div>       <Greeting name="John" />     </div>   ); }  export default App;'
-              
-              2.  **Class Component**:
-              
-              You can also define components as classes in React. These have some additional features compared to functional components:
-              
-              
-              'import React, { Component } from 'react';  class Greeting extends Component {   render() {     return <h1>Hello, {this.props.name}</h1>;   } }  export default Greeting;'
-              
-              And here's how to use this component:
-              
-              
-              'import Greeting from './Greeting';  class App extends Component {   render() {     return (       <div>         <Greeting name="John" />       </div>     );   } }  export default App;'
-              
-              With the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.
-              
-              Remember to import React at the top of your file whenever you're creating a component, because JSX transpiles to 'React.createElement' calls under the hood.`,
-          },
+          output:
+            "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.\n\n**Image**\n\n![Languse Example Image](https://static.langfuse.com/langfuse-dev/langfuse-example-image.jpeg)\n\n1.  **Functional Component**:\n\nA functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:\n\n```javascript\nimport React from 'react';\nfunction Greeting(props) {\n  return <h1>Hello, {props.name}</h1>;\n}\nexport default Greeting;\n```\n\nTo use this component in another file, you can do:\n\n```javascript\nimport Greeting from './Greeting';\nfunction App() {\n  return (\n    <div>\n      <Greeting name=\"John\" />\n    </div>\n  );\n}\nexport default App;\n```\n\n2.  **Class Component**:\n\nYou can also define components as classes in React. These have some additional features compared to functional components:\n\n```javascript\nimport React, { Component } from 'react';\nclass Greeting extends Component {\n  render() {\n    return <h1>Hello, {this.props.name}</h1>;\n  }\n}\nexport default Greeting;\n```\n\nAnd here's how to use this component:\n\n```javascript\nimport Greeting from './Greeting';\nclass App extends Component {\n  render() {\n    return (\n      <div>\n        <Greeting name=\"John\" />\n      </div>\n    );\n  }\n}\nexport default App;\n```\n\nWith the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.\n\nRemember to import React at the top of your file whenever you're creating a component, because JSX transpiles to `React.createElement` calls under the hood.",
           model: model,
           internalModel: model,
           modelParameters: {

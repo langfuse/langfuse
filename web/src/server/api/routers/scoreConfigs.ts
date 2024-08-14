@@ -1,17 +1,18 @@
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { z } from "zod";
+
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { optionalPaginationZod } from "@langfuse/shared";
-
-import { ScoreDataType } from "@langfuse/shared/src/db";
-import { z } from "zod";
 import {
-  filterAndValidateDbScoreConfigList,
   Category,
+  filterAndValidateDbScoreConfigList,
+  optionalPaginationZod,
   validateDbScoreConfig,
-} from "@/src/features/public-api/types/score-configs";
+} from "@langfuse/shared";
+import { ScoreDataType } from "@langfuse/shared/src/db";
+import * as Sentry from "@sentry/node";
 
 const ScoreConfigAllInput = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -25,7 +26,7 @@ export const scoreConfigsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreConfigAllInputPaginated)
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scoreConfigs:read",
@@ -50,7 +51,10 @@ export const scoreConfigsRouter = createTRPCRouter({
       });
 
       return {
-        configs: filterAndValidateDbScoreConfigList(configs),
+        configs: filterAndValidateDbScoreConfigList(
+          configs,
+          Sentry.captureException,
+        ),
         totalCount: configsCount,
       };
     }),
@@ -67,7 +71,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scoreConfigs:CUD",
@@ -90,7 +94,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scoreConfigs:CUD",

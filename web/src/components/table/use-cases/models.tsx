@@ -9,7 +9,7 @@ import {
 import { useState } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type Prisma, type Model } from "@langfuse/shared/src/db";
@@ -17,6 +17,9 @@ import Decimal from "decimal.js";
 import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
+import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 
 export type ModelTableRow = {
   modelId: string;
@@ -43,7 +46,7 @@ const modelConfigDescriptions = {
   outputPrice: "Price per 1000 units of output",
   totalPrice:
     "Price per 1000 units, for models that don't have input/output specific prices",
-  unit: "Unit of measurement for generative model, can be TOKENS, CHARACTERS, SECONDS, MILLISECONDS, or IMAGES.",
+  unit: "Unit of measurement for generative model, can be TOKENS, CHARACTERS, SECONDS, MILLISECONDS, REQUESTS or IMAGES.",
   tokenizerId:
     "Tokenizer used for this model to calculate token counts if none are ingested. Pick from list of supported tokenizers.",
   config:
@@ -62,12 +65,15 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   });
   const totalCount = models.data?.totalCount ?? 0;
 
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "s");
+
   const columns: LangfuseColumnDef<ModelTableRow>[] = [
     {
       accessorKey: "maintainer",
       id: "maintainer",
       enableColumnFilter: true,
       header: "Maintainer",
+      size: 100,
     },
     {
       accessorKey: "modelName",
@@ -76,6 +82,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.modelName,
       },
+      size: 150,
     },
     {
       accessorKey: "startDate",
@@ -84,6 +91,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.startDate,
       },
+      size: 100,
       cell: ({ row }) => {
         const value: Date | undefined = row.getValue("startDate");
 
@@ -101,14 +109,13 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.matchPattern,
       },
       header: "Match Pattern",
+      size: 200,
       cell: ({ row }) => {
         const value: string = row.getValue("matchPattern");
 
-        return (
-          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-xs ">
-            {value}
-          </code>
-        );
+        return value ? (
+          <IOTableCell data={value} singleLine={rowHeight === "s"} />
+        ) : null;
       },
     },
     {
@@ -125,6 +132,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.inputPrice,
       },
+      size: 170,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("inputPrice");
 
@@ -136,6 +144,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           <span className="text-xs">-</span>
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "outputPrice",
@@ -151,6 +160,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           </>
         );
       },
+      size: 170,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("outputPrice");
 
@@ -162,6 +172,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           <span className="text-xs">-</span>
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "totalPrice",
@@ -177,6 +188,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.totalPrice,
       },
+      size: 170,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("totalPrice");
 
@@ -188,6 +200,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           <span className="text-xs">-</span>
         );
       },
+      enableHiding: true,
     },
     {
       accessorKey: "unit",
@@ -197,6 +210,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.unit,
       },
       enableHiding: true,
+      size: 110,
     },
     {
       accessorKey: "tokenizerId",
@@ -206,6 +220,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.tokenizerId,
       },
       enableHiding: true,
+      size: 110,
     },
     {
       accessorKey: "config",
@@ -215,19 +230,19 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.config,
       },
       enableHiding: true,
+      size: 200,
       cell: ({ row }) => {
         const value: Prisma.JsonValue | undefined = row.getValue("config");
 
         return value ? (
-          <span className="text-xs">{JSON.stringify(value)}</span>
-        ) : (
-          <span className="text-xs">-</span>
-        );
+          <IOTableCell data={value} singleLine={rowHeight === "s"} />
+        ) : null;
       },
     },
     {
       accessorKey: "actions",
       header: "Actions",
+      size: 70,
       cell: ({ row }) => {
         return (
           <DeleteModelButton
@@ -241,7 +256,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   ];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ModelTableRow>("scoresColumnVisibility", columns);
+    useColumnVisibility<ModelTableRow>("modelsColumnVisibility", columns);
 
   const convertToTableRow = (model: Model): ModelTableRow => {
     return {
@@ -262,31 +277,41 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   };
 
   return (
-    <DataTable
-      columns={columns}
-      data={
-        models.isLoading
-          ? { isLoading: true, isError: false }
-          : models.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: models.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: models.data.models.map((t) => convertToTableRow(t)),
-              }
-      }
-      pagination={{
-        pageCount: Math.ceil(totalCount / paginationState.pageSize),
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-      columnVisibility={columnVisibility}
-      onColumnVisibilityChange={setColumnVisibility}
-    />
+    <>
+      <DataTableToolbar
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+      />
+      <DataTable
+        columns={columns}
+        data={
+          models.isLoading
+            ? { isLoading: true, isError: false }
+            : models.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: models.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: models.data.models.map((t) => convertToTableRow(t)),
+                }
+        }
+        pagination={{
+          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        rowHeight={rowHeight}
+      />
+    </>
   );
 }
 
@@ -308,7 +333,7 @@ const DeleteModelButton = ({
     },
   });
 
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId,
     scope: "models:CUD",
   });

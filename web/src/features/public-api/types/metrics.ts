@@ -1,8 +1,5 @@
-import {
-  paginationMetaResponseZod,
-  paginationZod,
-  stringDateTime,
-} from "@langfuse/shared";
+import { paginationMetaResponseZod, paginationZod } from "@langfuse/shared";
+import { stringDateTime } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 /**

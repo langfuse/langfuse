@@ -1,28 +1,29 @@
+import { addMinutes } from "date-fns";
 import { z } from "zod";
 
-import {
-  createTRPCRouter,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type ProjectRole, Prisma, type Score } from "@langfuse/shared/src/db";
-import {
-  CreateAnnotationScoreData,
-  UpdateAnnotationScoreData,
-  paginationZod,
-} from "@langfuse/shared";
-import { singleFilter } from "@langfuse/shared";
-import {
-  tableColumnsToSqlFilterAndPrefix,
-  orderByToPrismaSql,
-} from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import {
   type ScoreOptions,
   scoresTableCols,
 } from "@/src/server/api/definitions/scoresTable";
-import { orderBy } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { validateDbScore } from "@/src/features/public-api/types/scores";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import { tableDateRangeAggregationSettings } from "@/src/utils/date-range-utils";
+import {
+  CreateAnnotationScoreData,
+  orderBy,
+  orderByToPrismaSql,
+  paginationZod,
+  singleFilter,
+  tableColumnsToSqlFilterAndPrefix,
+  UpdateAnnotationScoreData,
+  validateDbScore,
+} from "@langfuse/shared";
+import { Prisma, type Score } from "@langfuse/shared/src/db";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -80,6 +81,7 @@ export const scoresRouter = createTRPCRouter({
           u.name AS "authorUserName"
           `,
           input.projectId,
+          ctx.session.orgId,
           filterCondition,
           orderByCondition,
           input.limit,
@@ -93,6 +95,7 @@ export const scoresRouter = createTRPCRouter({
         generateScoresQuery(
           Prisma.sql` count(*) AS "totalCount"`,
           input.projectId,
+          ctx.session.orgId,
           filterCondition,
           Prisma.empty,
           1, // limit
@@ -138,7 +141,7 @@ export const scoresRouter = createTRPCRouter({
   createAnnotationScore: protectedProjectProcedure
     .input(CreateAnnotationScoreData)
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scores:CUD",
@@ -158,7 +161,7 @@ export const scoresRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           traceId: input.traceId,
-          observationId: input.observationId,
+          observationId: input.observationId ?? null,
           source: "ANNOTATION",
           configId: input.configId,
         },
@@ -176,6 +179,14 @@ export const scoresRouter = createTRPCRouter({
             comment: input.comment,
             authorUserId: ctx.session.user.id,
           },
+        });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "score",
+          resourceId: updatedScore.id,
+          action: "update",
+          before: existingScore,
+          after: updatedScore,
         });
         return validateDbScore(updatedScore);
       }
@@ -197,11 +208,7 @@ export const scoresRouter = createTRPCRouter({
       });
 
       await auditLog({
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === input.projectId,
-        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
+        session: ctx.session,
         resourceType: "score",
         resourceId: score.id,
         action: "create",
@@ -212,7 +219,7 @@ export const scoresRouter = createTRPCRouter({
   updateAnnotationScore: protectedProjectProcedure
     .input(UpdateAnnotationScoreData)
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scores:CUD",
@@ -227,19 +234,6 @@ export const scoresRouter = createTRPCRouter({
       if (!score) {
         throw new Error("No annotation score with this id in this project.");
       }
-
-      await auditLog({
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === input.projectId,
-        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
-        resourceType: "score",
-        resourceId: score.id,
-        action: "update",
-        after: score,
-      });
-
       const updatedScore = await ctx.prisma.score.update({
         where: {
           id: score.id,
@@ -252,12 +246,22 @@ export const scoresRouter = createTRPCRouter({
           authorUserId: ctx.session.user.id,
         },
       });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "score",
+        resourceId: score.id,
+        action: "update",
+        before: score,
+        after: updatedScore,
+      });
+
       return validateDbScore(updatedScore);
     }),
   deleteAnnotationScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scores:CUD",
@@ -275,11 +279,7 @@ export const scoresRouter = createTRPCRouter({
       }
 
       await auditLog({
-        projectId: input.projectId,
-        userId: ctx.session.user.id,
-        userProjectRole: ctx.session.user.projects.find(
-          (p) => p.id === input.projectId,
-        )?.role as ProjectRole, // throwIfNoAccess ensures this is defined
+        session: ctx.session,
         resourceType: "score",
         resourceId: score.id,
         action: "delete",
@@ -293,11 +293,63 @@ export const scoresRouter = createTRPCRouter({
         },
       });
     }),
+  getScoreKeysAndProps: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        selectedTimeOption: z
+          .union([
+            z.literal("7 days"),
+            z.literal("30 min"),
+            z.literal("1 hour"),
+            z.literal("6 hours"),
+            z.literal("24 hours"),
+            z.literal("3 days"),
+            z.literal("14 days"),
+            z.literal("1 month"),
+            z.literal("3 months"),
+            z.literal("All time"),
+          ])
+          .optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const date =
+        !!input.selectedTimeOption && input.selectedTimeOption !== "All time"
+          ? addMinutes(
+              new Date(),
+              -tableDateRangeAggregationSettings[input.selectedTimeOption],
+            )
+          : undefined;
+
+      const scores = await ctx.prisma.score.groupBy({
+        where: {
+          projectId: input.projectId,
+          ...(date ? { timestamp: { gte: date } } : {}),
+        },
+        take: 1000,
+        orderBy: {
+          _count: {
+            id: "desc",
+          },
+        },
+        by: ["name", "source", "dataType"],
+      });
+
+      if (scores.length === 0) return [];
+      return scores.map(({ name, source, dataType }) => ({
+        key: composeAggregateScoreKey({ name, source, dataType }),
+        name: name,
+        source: source,
+        dataType: dataType,
+      }));
+    }),
 });
 
 const generateScoresQuery = (
   select: Prisma.Sql,
   projectId: string,
+  orgId: string,
   filterCondition: Prisma.Sql,
   orderCondition: Prisma.Sql,
   limit: number,
@@ -309,7 +361,7 @@ const generateScoresQuery = (
   FROM scores s
   LEFT JOIN traces t ON t.id = s.trace_id AND t.project_id = ${projectId}
   LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
-  LEFT JOIN users u ON u.id = s.author_user_id
+  LEFT JOIN users u ON u.id = s.author_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${orgId})
   WHERE s.project_id = ${projectId}
   ${filterCondition}
   ${orderCondition}

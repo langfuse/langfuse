@@ -1,10 +1,10 @@
 import { expect, test, describe, vi } from "vitest";
-import { evalQueue } from "../api";
 import { QueueJobs, TraceUpsertEventSchema } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import logger from "../logger";
 import { evalJobCreator } from "../queues/evalQueue";
+import { getTraceUpsertQueue } from "@langfuse/shared/src/server";
 
 describe.sequential("handle redis events", () => {
   test("handle redis job succeeding", async () => {
@@ -23,9 +23,11 @@ describe.sequential("handle redis events", () => {
       logger.info(`Eval Job with id ${job?.id} completed`);
     });
 
-    expect(evalQueue).toBeDefined();
+    const traceUpsertQueue = getTraceUpsertQueue();
 
-    const job = await evalQueue?.add(QueueJobs.TraceUpsert, {
+    expect(traceUpsertQueue).toBeDefined();
+
+    const job = await traceUpsertQueue?.add(QueueJobs.TraceUpsert, {
       id: randomUUID(),
       timestamp: new Date(),
       payload: {
@@ -37,7 +39,7 @@ describe.sequential("handle redis events", () => {
 
     await vi.waitFor(
       async () => {
-        const jobState = await evalQueue?.getJobState(job!.id!);
+        const jobState = await traceUpsertQueue?.getJobState(job!.id!);
         expect(jobState).toEqual("completed");
       },
       {

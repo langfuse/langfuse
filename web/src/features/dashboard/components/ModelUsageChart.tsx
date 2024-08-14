@@ -1,9 +1,5 @@
 import { api } from "@/src/utils/api";
 
-import {
-  dateTimeAggregationSettings,
-  type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@langfuse/shared";
 
 import {
@@ -19,6 +15,10 @@ import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTim
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 import { env } from "@/src/env.mjs";
 
@@ -31,7 +31,7 @@ export const ModelUsageChart = ({
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
-  agg: DateTimeAggregationOption;
+  agg: DashboardDateRangeAggregationOption;
 }) => {
   const tokens = api.dashboard.chart.useQuery(
     {
@@ -52,7 +52,7 @@ export const ModelUsageChart = ({
         {
           type: "datetime",
           column: "startTime",
-          temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
         },
         {
           type: "string",

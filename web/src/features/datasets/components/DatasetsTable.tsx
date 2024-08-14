@@ -26,7 +26,7 @@ type RowData = {
     id: string;
     name: string;
   };
-  description: string;
+  description?: string;
   createdAt: string;
   lastRunAt?: string;
   countItems: number;
@@ -65,13 +65,13 @@ export function DatasetsTable(props: { projectId: string }) {
       accessorKey: "key",
       header: "Name",
       id: "key",
+      size: 150,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
           <TableLink
             path={`/project/${props.projectId}/datasets/${key.id}`}
             value={key.name}
-            truncateAt={50}
           />
         );
       },
@@ -81,36 +81,42 @@ export function DatasetsTable(props: { projectId: string }) {
       header: "Description",
       id: "description",
       enableHiding: true,
+      size: 200,
     },
     {
       accessorKey: "countItems",
       header: "Items",
       id: "countItems",
       enableHiding: true,
+      size: 60,
     },
     {
       accessorKey: "countRuns",
       header: "Runs",
       id: "countRuns",
       enableHiding: true,
+      size: 60,
     },
     {
       accessorKey: "createdAt",
       header: "Created",
       id: "createdAt",
       enableHiding: true,
+      size: 150,
     },
     {
       accessorKey: "lastRunAt",
       header: "Last Run",
       id: "lastRunAt",
       enableHiding: true,
+      size: 150,
     },
     {
       accessorKey: "metadata",
       header: "Metadata",
       id: "metadata",
       enableHiding: true,
+      size: 300,
       cell: ({ row }) => {
         const metadata: RowData["metadata"] = row.getValue("metadata");
         return !!metadata ? (
@@ -122,6 +128,7 @@ export function DatasetsTable(props: { projectId: string }) {
       id: "actions",
       accessorKey: "actions",
       header: "Actions",
+      size: 70,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (

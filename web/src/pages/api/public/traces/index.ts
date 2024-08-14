@@ -12,7 +12,9 @@ import {
   handleBatch,
   parseSingleTypedIngestionApiResponse,
 } from "@/src/pages/api/public/ingestion";
-import { type Trace, eventTypes } from "@langfuse/shared";
+import { type Trace } from "@langfuse/shared";
+import { eventTypes } from "@langfuse/shared/src/server";
+
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { tracesTableCols, orderByToPrismaSql } from "@langfuse/shared";
@@ -71,6 +73,12 @@ export default withMiddlewares({
       const toTimestampCondition = query.toTimestamp
         ? Prisma.sql`AND t."timestamp" < ${query.toTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
+      const versionCondition = query.version
+        ? Prisma.sql`AND t."version" = ${query.version}`
+        : Prisma.empty;
+      const releaseCondition = query.release
+        ? Prisma.sql`AND t."release" = ${query.release}`
+        : Prisma.empty;
 
       const orderByCondition = orderByToPrismaSql(
         query.orderBy ?? null,
@@ -120,6 +128,8 @@ export default withMiddlewares({
           ${userCondition}
           ${nameCondition}
           ${tagsCondition}
+          ${versionCondition}
+          ${releaseCondition}
           ${sessionCondition}
           ${orderByCondition}
           LIMIT ${query.limit} OFFSET ${skipValue}
@@ -146,6 +156,8 @@ export default withMiddlewares({
           name: query.name ? query.name : undefined,
           userId: query.userId ? query.userId : undefined,
           sessionId: query.sessionId ? query.sessionId : undefined,
+          version: query.version ? query.version : undefined,
+          release: query.release ? query.release : undefined,
           timestamp: {
             gte: query.fromTimestamp
               ? new Date(query.fromTimestamp)

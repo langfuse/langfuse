@@ -7,18 +7,22 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
+import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
   type ScoreOptions,
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
-import { isPresent } from "@/src/utils/typeChecks";
+
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
-import type { FilterState, ScoreDataType } from "@langfuse/shared";
+import {
+  isPresent,
+  type FilterState,
+  type ScoreDataType,
+} from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type ScoresTableRow = {
@@ -30,6 +34,7 @@ export type ScoresTableRow = {
   dataType: ScoreDataType;
   value: string;
   author: {
+    userId?: string;
     image?: string;
     name?: string;
   };
@@ -84,20 +89,27 @@ export default function ScoresTable({
   });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange();
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Timestamp",
-        type: "datetime",
-        operator: ">",
-        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "scores",
   );
 
-  const filterState = createFilterState(userFilterState, [
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const combinedFilter = userFilterState.concat(dateRangeFilter);
+  const filterState = createFilterState(combinedFilter, [
     ...(userId ? [{ key: "User ID", value: userId }] : []),
     ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
     ...(observationId ? [{ key: "Observation ID", value: observationId }] : []),
@@ -135,8 +147,9 @@ export default function ScoresTable({
       accessorKey: "traceId",
       id: "traceId",
       enableColumnFilter: true,
-      header: "Trace ID",
+      header: "Trace",
       enableSorting: true,
+      size: 100,
       cell: ({ row }) => {
         const value = row.getValue("traceId");
         return typeof value === "string" ? (
@@ -152,8 +165,9 @@ export default function ScoresTable({
     {
       accessorKey: "observationId",
       id: "observationId",
-      header: "Observation ID",
+      header: "Observation",
       enableSorting: true,
+      size: 100,
       cell: ({ row }) => {
         const observationId = row.getValue(
           "observationId",
@@ -173,6 +187,7 @@ export default function ScoresTable({
       id: "traceName",
       enableHiding: true,
       enableSorting: true,
+      size: 150,
       cell: ({ row }) => {
         const value = row.getValue("traceName") as ScoresTableRow["traceName"];
         const filter = encodeURIComponent(
@@ -182,14 +197,13 @@ export default function ScoresTable({
           <TableLink
             path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
     },
     {
       accessorKey: "userId",
-      header: "Trace User ID",
+      header: "User",
       id: "userId",
       headerTooltip: {
         description: "The user ID associated with the trace.",
@@ -197,6 +211,7 @@ export default function ScoresTable({
       },
       enableHiding: true,
       enableSorting: true,
+      size: 100,
       cell: ({ row }) => {
         const value = row.getValue("userId");
         return typeof value === "string" ? (
@@ -204,7 +219,6 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/users/${value}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -216,6 +230,7 @@ export default function ScoresTable({
       id: "timestamp",
       enableHiding: true,
       enableSorting: true,
+      size: 150,
     },
     {
       accessorKey: "source",
@@ -223,6 +238,7 @@ export default function ScoresTable({
       id: "source",
       enableHiding: true,
       enableSorting: true,
+      size: 100,
     },
     {
       accessorKey: "name",
@@ -230,6 +246,7 @@ export default function ScoresTable({
       id: "name",
       enableHiding: true,
       enableSorting: true,
+      size: 150,
     },
     {
       accessorKey: "dataType",
@@ -237,6 +254,7 @@ export default function ScoresTable({
       id: "dataType",
       enableHiding: true,
       enableSorting: true,
+      size: 100,
     },
     {
       accessorKey: "value",
@@ -244,14 +262,29 @@ export default function ScoresTable({
       id: "value",
       enableHiding: true,
       enableSorting: true,
+      size: 100,
+    },
+    {
+      accessorKey: "comment",
+      header: "Comment",
+      id: "comment",
+      enableHiding: true,
+      size: 400,
+      cell: ({ row }) => {
+        const value = row.getValue("comment") as ScoresTableRow["comment"];
+        return (
+          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
+        );
+      },
     },
     {
       accessorKey: "author",
       id: "author",
       header: "Author",
       enableHiding: true,
+      size: 150,
       cell: ({ row }) => {
-        const { name, image } = row.getValue(
+        const { userId, name, image } = row.getValue(
           "author",
         ) as ScoresTableRow["author"];
         return (
@@ -262,7 +295,7 @@ export default function ScoresTable({
                 alt={name ?? "User Avatar"}
               />
             </Avatar>
-            <span>{name}</span>
+            <span>{name ?? userId}</span>
           </div>
         );
       },
@@ -277,6 +310,7 @@ export default function ScoresTable({
       },
       enableHiding: true,
       enableSorting: true,
+      size: 150,
       cell: ({ row }) => {
         const value = row.getValue("jobConfigurationId");
         return typeof value === "string" ? (
@@ -284,22 +318,9 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/evals/configs/${value}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
-      },
-    },
-    {
-      accessorKey: "comment",
-      header: "Comment",
-      id: "comment",
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.getValue("comment") as ScoresTableRow["comment"];
-        return (
-          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        );
       },
     },
   ];
@@ -327,6 +348,7 @@ export default function ScoresTable({
             : score.value.toFixed(4)
           : score.stringValue ?? "",
       author: {
+        userId: score.authorUserId ?? undefined,
         image: score.authorUserImage ?? undefined,
         name: score.authorUserName ?? undefined,
       },
@@ -353,11 +375,13 @@ export default function ScoresTable({
         columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={userFilterState}
-        setFilterState={setUserFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
         columns={columns}

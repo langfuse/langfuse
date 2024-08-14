@@ -1,6 +1,6 @@
-import { type z } from "zod";
+import { z } from "zod";
 import lodash from "lodash";
-import { jsonSchema } from "./zod";
+import { JsonNested, jsonSchema, jsonSchemaNullable } from "./zod";
 
 export const parseJson = (input: string) => {
   try {
@@ -56,4 +56,53 @@ export const mergeJson = (
     return json2;
   }
   return lodash.merge(json1, json2);
+};
+
+export const parseJsonPrioritised = (
+  json: string
+): z.infer<typeof jsonSchema> | string | undefined => {
+  try {
+    const parsedJson = JSON.parse(json);
+
+    if (Object.keys(parsedJson).length === 0) {
+      return parsedJson;
+    }
+
+    const parsedArray = z.array(jsonSchemaNullable).safeParse(parsedJson);
+    if (parsedArray.success) {
+      return parsedArray.data;
+    }
+
+    const parsedObject = z.record(jsonSchemaNullable).safeParse(parsedJson);
+    if (parsedObject.success) {
+      return parsedObject.data;
+    }
+
+    return jsonSchema.parse(parsedJson);
+  } catch (error) {
+    const parsed = jsonSchema.safeParse(json);
+
+    return parsed.success ? parsed.data : json;
+  }
+};
+
+export const convertRecordToJsonSchema = (
+  record: Record<string, string>
+): JsonNested | undefined => {
+  const jsonSchema: JsonNested = {};
+
+  // if record is empty, return undefined
+  if (Object.keys(record).length === 0) {
+    return undefined;
+  }
+
+  for (const key in record) {
+    try {
+      jsonSchema[key] = JSON.parse(record[key]);
+    } catch (e) {
+      jsonSchema[key] = record[key];
+    }
+  }
+
+  return jsonSchema;
 };

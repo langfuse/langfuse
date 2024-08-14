@@ -1,12 +1,11 @@
 import { APIObservation } from "@/src/features/public-api/types/observations";
-import { APIScore } from "@/src/features/public-api/types/scores";
 import {
+  APIScoreSchema,
   paginationZod,
   paginationMetaResponseZod,
-  stringDateTime,
   orderBy,
-  TraceBody,
 } from "@langfuse/shared";
+import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 /**
@@ -54,6 +53,8 @@ export const GetTracesV1Query = z.object({
   name: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
   sessionId: z.string().nullish(),
+  version: z.string().nullish(),
+  release: z.string().nullish(),
   fromTimestamp: stringDateTime,
   toTimestamp: stringDateTime,
   orderBy: z
@@ -82,6 +83,6 @@ export const GetTraceV1Query = z.object({
   traceId: z.string(),
 });
 export const GetTraceV1Response = APIExtendedTrace.extend({
-  scores: z.array(APIScore),
+  scores: z.array(APIScoreSchema),
   observations: z.array(APIObservation),
 }).strict();

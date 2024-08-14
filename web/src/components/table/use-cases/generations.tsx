@@ -1,9 +1,8 @@
 import { api, directApi } from "@/src/utils/api";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   DropdownMenu,
@@ -21,7 +20,7 @@ import {
   withDefault,
 } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { formatIntervalSeconds, utcDateOffsetByDays } from "@/src/utils/dates";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -39,11 +38,17 @@ import {
 } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
-import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import {
+  getScoreGroupColumnProps,
+  verifyAndPrefixScoreDataAgainstKeys,
+} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 
 export type GenerationsTableRow = {
   id: string;
@@ -55,6 +60,8 @@ export type GenerationsTableRow = {
   completionStartTime?: Date;
   latency?: number;
   timeToFirstToken?: number;
+  // scores holds grouped column with individual scores
+  scores: ScoreAggregate;
   name?: string;
   model?: string;
   // i/o and metadata not set explicitly, but fetched from the server from the cell
@@ -65,7 +72,6 @@ export type GenerationsTableRow = {
   outputCost?: Decimal;
   totalCost?: Decimal;
   traceName?: string;
-  scores?: ScoreSimplified[];
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -106,15 +112,11 @@ export default function GenerationsTable({
     "s",
   );
 
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange();
+
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Start Time",
-        type: "datetime",
-        operator: ">",
-        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "generations",
   );
 
@@ -145,7 +147,19 @@ export default function GenerationsTable({
       ]
     : [];
 
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Start Time",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
   const filterState = inputFilterState.concat([
+    ...dateRangeFilter,
     ...promptNameFilter,
     ...promptVersionFilter,
   ]);
@@ -176,6 +190,13 @@ export default function GenerationsTable({
       },
     },
   );
+
+  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
+    useIndividualScoreColumns<GenerationsTableRow>({
+      projectId,
+      scoreColumnKey: "scores",
+      selectedTimeOption: selectedOption,
+    });
 
   const transformFilterOptions = (
     filterOptions: ObservationOptions | undefined,
@@ -236,6 +257,7 @@ export default function GenerationsTable({
       accessorKey: "id",
       id: "id",
       header: "ID",
+      size: 100,
       cell: ({ row }) => {
         const observationId = row.getValue("id");
         const traceId = row.getValue("traceId");
@@ -253,12 +275,14 @@ export default function GenerationsTable({
       accessorKey: "name",
       id: "name",
       header: "Name",
+      size: 150,
       enableSorting: true,
     },
     {
       accessorKey: "traceId",
       id: "traceId",
       header: "Trace ID",
+      size: 100,
       cell: ({ row }) => {
         const value = row.getValue("traceId");
         return typeof value === "string" ? (
@@ -274,6 +298,7 @@ export default function GenerationsTable({
       accessorKey: "traceName",
       id: "traceName",
       header: "Trace Name",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
     },
@@ -281,6 +306,7 @@ export default function GenerationsTable({
       accessorKey: "startTime",
       id: "startTime",
       header: "Start Time",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -292,6 +318,7 @@ export default function GenerationsTable({
       accessorKey: "endTime",
       id: "endTime",
       header: "End Time",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
     },
@@ -299,6 +326,7 @@ export default function GenerationsTable({
       accessorKey: "timeToFirstToken",
       id: "timeToFirstToken",
       header: "Time to First Token",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -312,22 +340,12 @@ export default function GenerationsTable({
         );
       },
     },
-    {
-      accessorKey: "scores",
-      id: "scores",
-      header: "Scores",
-      cell: ({ row }) => {
-        const values: ScoreSimplified[] | undefined = row.getValue("scores");
-        return (
-          values && <GroupedScoreBadges scores={values} variant="headings" />
-        );
-      },
-      enableHiding: true,
-    },
+    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
     {
       accessorKey: "latency",
       id: "latency",
       header: "Latency",
+      size: 100,
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
         return latency !== undefined ? (
@@ -341,6 +359,7 @@ export default function GenerationsTable({
       accessorKey: "timePerOutputToken",
       id: "timePerOutputToken",
       header: "Time per Output Token",
+      size: 200,
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
         const usage: {
@@ -365,6 +384,7 @@ export default function GenerationsTable({
       accessorKey: "inputCost",
       id: "inputCost",
       header: "Input Cost",
+      size: 120,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("inputCost");
 
@@ -380,6 +400,7 @@ export default function GenerationsTable({
       accessorKey: "outputCost",
       id: "outputCost",
       header: "Output Cost",
+      size: 120,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("outputCost");
 
@@ -395,6 +416,7 @@ export default function GenerationsTable({
       accessorKey: "totalCost",
       header: "Total Cost",
       id: "totalCost",
+      size: 120,
       cell: ({ row }) => {
         const value: Decimal | undefined = row.getValue("totalCost");
 
@@ -409,6 +431,12 @@ export default function GenerationsTable({
       accessorKey: "level",
       id: "level",
       header: "Level",
+      size: 100,
+      headerTooltip: {
+        description:
+          "Use You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
+        href: "https://langfuse.com/docs/tracing-features/log-levels",
+      },
       enableHiding: true,
       cell({ row }) {
         const value: ObservationLevel | undefined = row.getValue("level");
@@ -430,6 +458,12 @@ export default function GenerationsTable({
       accessorKey: "statusMessage",
       header: "Status Message",
       id: "statusMessage",
+      size: 150,
+      headerTooltip: {
+        description:
+          "Use a statusMessage to e.g. provide additional information on a status such as level=ERROR.",
+        href: "https://langfuse.com/docs/tracing-features/log-levels",
+      },
       enableHiding: true,
       defaultHidden: true,
     },
@@ -437,6 +471,7 @@ export default function GenerationsTable({
       accessorKey: "model",
       id: "model",
       header: "Model",
+      size: 150,
       enableHiding: true,
       enableSorting: true,
     },
@@ -444,6 +479,7 @@ export default function GenerationsTable({
       accessorKey: "inputTokens",
       id: "inputTokens",
       header: "Input Tokens",
+      size: 100,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -460,6 +496,7 @@ export default function GenerationsTable({
       accessorKey: "outputTokens",
       id: "outputTokens",
       header: "Output Tokens",
+      size: 100,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -476,6 +513,7 @@ export default function GenerationsTable({
       accessorKey: "totalTokens",
       id: "totalTokens",
       header: "Total Tokens",
+      size: 100,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
@@ -492,6 +530,7 @@ export default function GenerationsTable({
       accessorKey: "usage",
       header: "Usage",
       id: "usage",
+      size: 150,
       cell: ({ row }) => {
         const value: {
           promptTokens: number;
@@ -514,6 +553,7 @@ export default function GenerationsTable({
       accessorKey: "input",
       header: "Input",
       id: "input",
+      size: 300,
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -521,6 +561,7 @@ export default function GenerationsTable({
           <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
+            projectId={projectId}
             col="input"
             singleLine={rowHeight === "s"}
           />
@@ -533,6 +574,7 @@ export default function GenerationsTable({
       accessorKey: "output",
       id: "output",
       header: "Output",
+      size: 300,
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -540,6 +582,7 @@ export default function GenerationsTable({
           <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
+            projectId={projectId}
             col="output"
             singleLine={rowHeight === "s"}
           />
@@ -551,6 +594,11 @@ export default function GenerationsTable({
     {
       accessorKey: "metadata",
       header: "Metadata",
+      size: 300,
+      headerTooltip: {
+        description: "Add metadata to traces to track additional information.",
+        href: "https://langfuse.com/docs/tracing-features/metadata",
+      },
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -558,6 +606,7 @@ export default function GenerationsTable({
           <GenerationsDynamicCell
             observationId={observationId}
             traceId={traceId}
+            projectId={projectId}
             col="metadata"
             singleLine={rowHeight === "s"}
           />
@@ -570,6 +619,11 @@ export default function GenerationsTable({
       accessorKey: "version",
       id: "version",
       header: "Version",
+      size: 100,
+      headerTooltip: {
+        description: "Track changes via the version tag.",
+        href: "https://langfuse.com/docs/experimentation",
+      },
       enableHiding: true,
       enableSorting: true,
     },
@@ -577,6 +631,11 @@ export default function GenerationsTable({
       accessorKey: "promptName",
       id: "promptName",
       header: "Prompt",
+      headerTooltip: {
+        description: "Link to prompt version in Langfuse prompt management.",
+        href: "https://langfuse.com/docs/prompts",
+      },
+      size: 200,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -589,49 +648,54 @@ export default function GenerationsTable({
             <TableLink
               path={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}?version=${promptVersion}`}
               value={value}
-              truncateAt={40}
             />
           )
         );
       },
     },
   ];
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<GenerationsTableRow>(
-      "generationsColumnVisibility",
+      `generationsColumnVisibility-${projectId}`,
       columns,
     );
 
-  const rows: GenerationsTableRow[] = generations.isSuccess
-    ? generations.data.generations.map((generation) => {
-        return {
-          id: generation.id,
-          traceId: generation.traceId ?? undefined,
-          traceName: generation.traceName ?? "",
-          startTime: generation.startTime,
-          endTime: generation.endTime?.toLocaleString() ?? undefined,
-          timeToFirstToken: generation.timeToFirstToken ?? undefined,
-          latency: generation.latency ?? undefined,
-          totalCost: generation.calculatedTotalCost ?? undefined,
-          inputCost: generation.calculatedInputCost ?? undefined,
-          outputCost: generation.calculatedOutputCost ?? undefined,
-          name: generation.name ?? undefined,
-          version: generation.version ?? "",
-          model: generation.model ?? "",
-          scores: generation.scores,
-          level: generation.level,
-          statusMessage: generation.statusMessage ?? undefined,
-          usage: {
-            promptTokens: generation.promptTokens,
-            completionTokens: generation.completionTokens,
-            totalTokens: generation.totalTokens,
-          },
-          promptId: generation.promptId ?? undefined,
-          promptName: generation.promptName ?? undefined,
-          promptVersion: generation.promptVersion ?? undefined,
-        };
-      })
-    : [];
+  const rows: GenerationsTableRow[] = useMemo(() => {
+    return generations.isSuccess
+      ? generations.data.generations.map((generation) => {
+          return {
+            id: generation.id,
+            traceId: generation.traceId ?? undefined,
+            traceName: generation.traceName ?? "",
+            startTime: generation.startTime,
+            endTime: generation.endTime?.toLocaleString() ?? undefined,
+            timeToFirstToken: generation.timeToFirstToken ?? undefined,
+            scores: verifyAndPrefixScoreDataAgainstKeys(
+              scoreKeysAndProps,
+              generation.scores,
+            ),
+            latency: generation.latency ?? undefined,
+            totalCost: generation.calculatedTotalCost ?? undefined,
+            inputCost: generation.calculatedInputCost ?? undefined,
+            outputCost: generation.calculatedOutputCost ?? undefined,
+            name: generation.name ?? undefined,
+            version: generation.version ?? "",
+            model: generation.model ?? "",
+            level: generation.level,
+            statusMessage: generation.statusMessage ?? undefined,
+            usage: {
+              promptTokens: generation.promptTokens,
+              completionTokens: generation.completionTokens,
+              totalTokens: generation.totalTokens,
+            },
+            promptId: generation.promptId ?? undefined,
+            promptName: generation.promptName ?? undefined,
+            promptVersion: generation.promptVersion ?? undefined,
+          };
+        })
+      : [];
+  }, [generations, scoreKeysAndProps]);
 
   return (
     <>
@@ -639,7 +703,7 @@ export default function GenerationsTable({
         columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={inputFilterState}
-        setFilterState={setInputFilterState}
+        setFilterState={useDebounce(setInputFilterState)}
         searchConfig={{
           placeholder: "Search by id, name, traceName, model",
           updateQuery: setSearchQuery,
@@ -649,6 +713,8 @@ export default function GenerationsTable({
         setColumnVisibility={setColumnVisibilityState}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -717,18 +783,21 @@ export default function GenerationsTable({
 const GenerationsDynamicCell = ({
   traceId,
   observationId,
+  projectId,
   col,
   singleLine = false,
 }: {
   traceId: string;
   observationId: string;
+  projectId: string;
   col: "input" | "output" | "metadata";
   singleLine: boolean;
 }) => {
   const observation = api.observations.byId.useQuery(
     {
-      observationId: observationId,
-      traceId: traceId,
+      observationId,
+      traceId,
+      projectId,
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",

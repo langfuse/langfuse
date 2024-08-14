@@ -44,6 +44,7 @@ export enum QueueName {
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   BatchExport = "batch-export-queue",
   RepeatQueue = "repeat-queue",
+  IngestionFlushQueue = "ingestion-flush-queue",
 }
 
 export enum QueueJobs {
@@ -51,6 +52,7 @@ export enum QueueJobs {
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
   EnqueueBatchExportJobs = "enqueue-batch-export-jobs",
+  FlushIngestionEntity = "flush-ingestion-entity",
 }
 
 export type TQueueJobTypes = {

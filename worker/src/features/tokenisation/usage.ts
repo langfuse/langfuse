@@ -1,3 +1,4 @@
+import { parseJsonPrioritised } from "@langfuse/shared";
 import { isChatModel, isTiktokenModel } from "./types";
 import { countTokens } from "@anthropic-ai/tokenizer";
 import { Model } from "@prisma/client";
@@ -70,8 +71,13 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
   }
 
   let result = undefined;
+  const parsedText =
+    typeof p.text === "string" ? parseJsonPrioritised(p.text) : p.text; // Clickhouse stores ChatMessage array as string
 
-  if (isChatMessageArray(p.text) && isChatModel(config.data.tokenizerModel)) {
+  if (
+    isChatMessageArray(parsedText) &&
+    isChatModel(config.data.tokenizerModel)
+  ) {
     // check if the tokenizerConfig is a valid chat config
     const parsedConfig = OpenAiChatTokenConfig.safeParse(
       p.model.tokenizerConfig
@@ -85,13 +91,16 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
       return undefined;
     }
     result = openAiChatTokenCount({
-      messages: p.text,
+      messages: parsedText,
       config: parsedConfig.data,
     });
   } else {
-    result = isString(p.text)
-      ? getTokensByModel(config.data.tokenizerModel, p.text)
-      : getTokensByModel(config.data.tokenizerModel, JSON.stringify(p.text));
+    result = isString(parsedText)
+      ? getTokensByModel(config.data.tokenizerModel, parsedText)
+      : getTokensByModel(
+          config.data.tokenizerModel,
+          JSON.stringify(parsedText)
+        );
   }
   return result;
 }
