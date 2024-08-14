@@ -1,5 +1,6 @@
 import { expect, describe, it, vi } from "vitest";
 import { IngestionService } from "../../IngestionService";
+import { IngestionUtils } from "@langfuse/shared/src/server";
 
 describe("IngestionService unit tests", () => {
   it("correctly escapes user provided IDs", async () => {
@@ -7,14 +8,14 @@ describe("IngestionService unit tests", () => {
     const userProvidedId = "user_provided_id_with:colon:chars";
     const expectedEscapedId = "user|#|provided|#|id|#|with|%|colon|%|chars";
 
-    expect((IngestionService as any).escapeReservedChars(userProvidedId)).toBe(
+    expect((IngestionUtils as any).escapeReservedChars(userProvidedId)).toBe(
       expectedEscapedId
     );
     expect(
-      (IngestionService as any).unescapeReservedChars(expectedEscapedId)
+      (IngestionUtils as any).unescapeReservedChars(expectedEscapedId)
     ).toBe(userProvidedId);
 
-    expect((IngestionService as any).escapeReservedChars(validUuid)).toBe(
+    expect((IngestionUtils as any).escapeReservedChars(validUuid)).toBe(
       validUuid
     );
   });

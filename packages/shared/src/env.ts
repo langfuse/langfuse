@@ -28,6 +28,11 @@ const EnvSchema = z.object({
   CLICKHOUSE_URL: z.string().url().optional(),
   CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_PASSWORD: z.string().optional(),
+  LANGFUSE_INGESTION_FLUSH_DELAY_MS: z.coerce
+    .number()
+    .nonnegative()
+    .default(10000),
+  LANGFUSE_INGESTION_FLUSH_ATTEMPTS: z.coerce.number().positive().default(3),
 });
 
 export const env = EnvSchema.parse(process.env);
