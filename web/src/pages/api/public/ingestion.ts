@@ -8,18 +8,15 @@ import {
   eventTypes,
   ingestionEvent,
   redis,
+  type AuthHeaderValidVerificationResult,
+  type ingestionBatchEvent,
+  handleBatch,
 } from "@langfuse/shared/src/server";
-import { enqueueIngestionEvents } from "@/src/features/ingest/enqueueIngestionEvents";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { persistEventMiddleware } from "@/src/server/api/services/event-service";
-import { backOff } from "exponential-backoff";
-import { ResourceNotFoundError } from "@/src/utils/exceptions";
 import {
   SdkLogProcessor,
   type EventProcessor,
   ObservationProcessor,
   ScoreProcessor,
-  SdkLogProcessor,
   TraceProcessor,
 } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
@@ -35,8 +32,6 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import {
-  redis,
-  handleBatch,
   sendToWorkerIfEnvironmentConfigured,
   QueueJobs,
 } from "@langfuse/shared/src/server";
@@ -269,79 +264,6 @@ const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
   return [...others, ...updates];
 };
 
-export const handleBatch = async (
-  events: z.infer<typeof ingestionApiSchema>["batch"],
-  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
-  req: NextApiRequest,
-  authCheck: AuthHeaderVerificationResult,
-) => {
-  console.log(
-    `handling ingestion ${events.length} events ${isSigtermReceived() ? "after SIGTERM" : ""}`,
-  );
-
-  if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
-
-  const results: BatchResult[] = []; // Array to store the results
-
-  const errors: {
-    error: unknown;
-    id: string;
-    type: string;
-  }[] = []; // Array to store the errors
-
-  for (const singleEvent of events) {
-    try {
-      const result = await retry(async () => {
-        return await handleSingleEvent(
-          singleEvent,
-          metadata,
-          req,
-          authCheck.scope,
-        );
-      });
-      results.push({
-        result: result,
-        id: singleEvent.id,
-        type: singleEvent.type,
-      }); // Push each result into the array
-    } catch (error) {
-      // Handle or log the error if `handleSingleEvent` fails
-      console.error("Error handling event:", error);
-      // Decide how to handle the error: rethrow, continue, or push an error object to results
-      // For example, push an error object:
-      errors.push({
-        error: error,
-        id: singleEvent.id,
-        type: singleEvent.type,
-      });
-    }
-  }
-
-  if (env.CLICKHOUSE_URL) {
-    try {
-      await enqueueIngestionEvents(authCheck.scope.projectId, events);
-      console.log(`Added ${events.length} ingestion events to queue`);
-    } catch (err) {
-      console.error("Error adding ingestion events to queue", err);
-    }
-  }
-
-  return { results, errors };
-};
-
-async function retry<T>(request: () => Promise<T>): Promise<T> {
-  return await backOff(request, {
-    numOfAttempts: env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" ? 5 : 3,
-    retry: (e: Error, attemptNumber: number) => {
-      if (e instanceof UnauthorizedError || e instanceof ForbiddenError) {
-        console.log("not retrying auth error");
-        return false;
-      }
-      console.log(`retrying processing events ${attemptNumber}`);
-      return true;
-    },
-  });
-}
 export const getBadRequestError = (
   errors: Array<unknown>,
 ): InvalidRequestError[] =>
