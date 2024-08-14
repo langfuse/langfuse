@@ -1,8 +1,8 @@
 import { Queue } from "bullmq";
 
 import { env } from "../../env";
-import { QueueName } from "../../queues";
 import { redis } from "../redis/redis";
+import { QueueName } from "../queues";
 
 export type IngestionFlushQueue = Queue<null>;
 
