@@ -19,7 +19,7 @@ function computeBinSize(
 ) {
   return range === 0
     ? 1
-    : Math.min(Math.max(minBins, Math.ceil(Math.sqrt(valueCount))), maxBins);
+    : Math.min(Math.max(minBins, Math.floor(Math.sqrt(valueCount))), maxBins);
 }
 
 export function createHistogramData(

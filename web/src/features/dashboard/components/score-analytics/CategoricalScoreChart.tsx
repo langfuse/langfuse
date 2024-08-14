@@ -12,6 +12,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import React from "react";
 import { BarChart } from "@tremor/react";
+import { Card } from "@/src/components/ui/card";
 import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
 import { transformCategoricalScoresToChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
 
@@ -107,18 +108,20 @@ export function CategoricalScoreChart(props: {
   const colors = getColorsForCategories(chartLabels);
 
   return (
-    <BarChart
-      className="mt-4"
-      data={chartData}
-      index="binLabel"
-      categories={chartLabels}
-      colors={colors}
-      valueFormatter={(number: number) =>
-        Intl.NumberFormat("en-US").format(number).toString()
-      }
-      yAxisWidth={48}
-      barCategoryGap={barCategoryGap(chartData.length)}
-      stack={!!props.agg}
-    />
+    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
+      <BarChart
+        className="mt-4"
+        data={chartData}
+        index="binLabel"
+        categories={chartLabels}
+        colors={colors}
+        valueFormatter={(number: number) =>
+          Intl.NumberFormat("en-US").format(number).toString()
+        }
+        yAxisWidth={48}
+        barCategoryGap={barCategoryGap(chartData.length)}
+        stack={!!props.agg}
+      />
+    </Card>
   );
 }

@@ -1,6 +1,7 @@
 import { api } from "@/src/utils/api";
 
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import { Card } from "@/src/components/ui/card";
 import {
   type ScoreSource,
   type FilterState,
@@ -100,9 +101,15 @@ export function NumericScoreTimeSeriesChart(props: {
     data: extractedScores,
     isNullValueAllowed: true,
   }) ? (
-    <BaseTimeSeriesChart agg={props.agg} data={extractedScores} connectNulls />
+    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
+      <BaseTimeSeriesChart
+        agg={props.agg}
+        data={extractedScores}
+        connectNulls
+      />
+    </Card>
   ) : (
-    <NoData noDataText="No data">
+    <NoData noDataText="No data" className="h-[21rem]">
       <DocPopup
         description="Scores evaluate LLM quality and can be created manually or using the SDK."
         href="https://langfuse.com/docs/scores"

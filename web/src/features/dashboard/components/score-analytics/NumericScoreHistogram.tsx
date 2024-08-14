@@ -8,6 +8,7 @@ import {
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";
 import { BarChart } from "@tremor/react";
+import { Card } from "@/src/components/ui/card";
 import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
 import { padChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
 
@@ -62,17 +63,19 @@ export function NumericScoreHistogram(props: {
   const paddedChartData = padChartData(chartData);
 
   return (
-    <BarChart
-      className="mt-4"
-      data={paddedChartData}
-      index="binLabel"
-      categories={chartLabels}
-      colors={colors}
-      valueFormatter={(number: number) =>
-        Intl.NumberFormat("en-US").format(number).toString()
-      }
-      yAxisWidth={48}
-      barCategoryGap={"0%"}
-    />
+    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
+      <BarChart
+        className="mt-4"
+        data={paddedChartData}
+        index="binLabel"
+        categories={chartLabels}
+        colors={colors}
+        valueFormatter={(number: number) =>
+          Intl.NumberFormat("en-US").format(number).toString()
+        }
+        yAxisWidth={48}
+        barCategoryGap={"0%"}
+      />
+    </Card>
   );
 }

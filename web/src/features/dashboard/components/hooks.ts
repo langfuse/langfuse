@@ -80,41 +80,35 @@ export function extractTimeSeriesData(
   timeColumn: string,
   mapping: FieldMappingItem[],
 ): Map<number, ChartData[]> {
-  console.time("extractTimeSeriesData");
-  const test = data.reduce(
-    (acc: Map<number, ChartData[]>, curr: DatabaseRow) => {
-      const date = new Date(curr[timeColumn] as Date).getTime();
+  return data.reduce((acc: Map<number, ChartData[]>, curr: DatabaseRow) => {
+    const date = new Date(curr[timeColumn] as Date).getTime();
 
-      const reducedData: ChartData[] = [];
-      // Map the desired fields from the DatabaseRow to the ChartData based on the mapping provided
-      mapping.forEach((mapItem) => {
-        const labelValue = getLabelValue(mapItem.uniqueIdentifierColumns, curr);
-        const columnValue = curr[mapItem.valueColumn];
-        if (
-          labelValue &&
-          columnValue !== undefined &&
-          typeof labelValue === "string"
-        ) {
-          reducedData.push({
-            label: labelValue,
-            value: columnValue ? (columnValue as number) : 0,
-          });
-        }
-      });
-
-      const existingData = acc.get(date);
-      if (existingData) {
-        existingData.push(...reducedData);
-      } else {
-        acc.set(date, reducedData);
+    const reducedData: ChartData[] = [];
+    // Map the desired fields from the DatabaseRow to the ChartData based on the mapping provided
+    mapping.forEach((mapItem) => {
+      const labelValue = getLabelValue(mapItem.uniqueIdentifierColumns, curr);
+      const columnValue = curr[mapItem.valueColumn];
+      if (
+        labelValue &&
+        columnValue !== undefined &&
+        typeof labelValue === "string"
+      ) {
+        reducedData.push({
+          label: labelValue,
+          value: columnValue ? (columnValue as number) : 0,
+        });
       }
+    });
 
-      return acc;
-    },
-    new Map<number, ChartData[]>(),
-  );
-  console.timeEnd("extractTimeSeriesData");
-  return test;
+    const existingData = acc.get(date);
+    if (existingData) {
+      existingData.push(...reducedData);
+    } else {
+      acc.set(date, reducedData);
+    }
+
+    return acc;
+  }, new Map<number, ChartData[]>());
 }
 
 export function fillMissingValuesAndTransform(

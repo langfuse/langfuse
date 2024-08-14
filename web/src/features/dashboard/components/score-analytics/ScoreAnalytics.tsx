@@ -6,7 +6,6 @@ import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import React, { useMemo, useState } from "react";
 import { Separator } from "@/src/components/ui/separator";
-import { Card } from "@/src/components/ui/card";
 import {
   isBooleanDataType,
   isCategoricalDataType,
@@ -105,27 +104,25 @@ export function ScoreAnalytics(props: {
                     <div className="mb-2 text-sm text-muted-foreground">
                       Total aggregate scores
                     </div>
-                    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
-                      {(isCategoricalDataType(dataType) ||
-                        isBooleanDataType(dataType)) && (
-                        <CategoricalScoreChart
-                          source={source}
-                          name={name}
-                          dataType={dataType}
-                          projectId={props.projectId}
-                          globalFilterState={props.globalFilterState}
-                        />
-                      )}
-                      {isNumericDataType(dataType) && (
-                        <NumericScoreHistogram
-                          source={source}
-                          name={name}
-                          dataType={dataType}
-                          projectId={props.projectId}
-                          globalFilterState={props.globalFilterState}
-                        />
-                      )}
-                    </Card>
+                    {(isCategoricalDataType(dataType) ||
+                      isBooleanDataType(dataType)) && (
+                      <CategoricalScoreChart
+                        source={source}
+                        name={name}
+                        dataType={dataType}
+                        projectId={props.projectId}
+                        globalFilterState={props.globalFilterState}
+                      />
+                    )}
+                    {isNumericDataType(dataType) && (
+                      <NumericScoreHistogram
+                        source={source}
+                        name={name}
+                        dataType={dataType}
+                        projectId={props.projectId}
+                        globalFilterState={props.globalFilterState}
+                      />
+                    )}
                   </div>
                   {/* timeseries */}
                   <div>
@@ -134,30 +131,28 @@ export function ScoreAnalytics(props: {
                         ? "Moving average over time"
                         : "Scores added over time"}
                     </div>
-                    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
-                      {(isCategoricalDataType(dataType) ||
-                        isBooleanDataType(dataType)) && (
-                        <CategoricalScoreChart
-                          agg={props.agg}
-                          source={source}
-                          name={name}
-                          dataType={dataType}
-                          projectId={props.projectId}
-                          globalFilterState={props.globalFilterState}
-                        />
-                      )}
-                      {isNumericDataType(dataType) && (
-                        <NumericScoreTimeSeriesChart
-                          agg={props.agg}
-                          scoreKey={scoreKey}
-                          source={source}
-                          name={name}
-                          dataType={dataType}
-                          projectId={props.projectId}
-                          globalFilterState={props.globalFilterState}
-                        />
-                      )}
-                    </Card>
+                    {(isCategoricalDataType(dataType) ||
+                      isBooleanDataType(dataType)) && (
+                      <CategoricalScoreChart
+                        agg={props.agg}
+                        source={source}
+                        name={name}
+                        dataType={dataType}
+                        projectId={props.projectId}
+                        globalFilterState={props.globalFilterState}
+                      />
+                    )}
+                    {isNumericDataType(dataType) && (
+                      <NumericScoreTimeSeriesChart
+                        agg={props.agg}
+                        scoreKey={scoreKey}
+                        source={source}
+                        name={name}
+                        dataType={dataType}
+                        projectId={props.projectId}
+                        globalFilterState={props.globalFilterState}
+                      />
+                    )}
                   </div>
                 </div>
                 {scoreAnalyticsValues.length - 1 > index && (
