@@ -8,7 +8,6 @@ import {
   eventTypes,
   ingestionEvent,
   type ingestionBatchEvent,
-  type AuthHeaderVerificationResult,
   type AuthHeaderValidVerificationResult,
   type EventProcessor,
   ObservationProcessor,
@@ -36,7 +35,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
-import { tokenCount } from "@/src/server/api/services/usage";
+import { tokenCount } from "@/src/features/ingest/usage";
 
 export const config = {
   api: {
@@ -223,7 +222,7 @@ const accessCheckPerEvent = (
         case eventTypes.SPAN_UPDATE:
         case eventTypes.GENERATION_CREATE:
         case eventTypes.GENERATION_UPDATE:
-          processor = new ObservationProcessor(event);
+          processor = new ObservationProcessor(event, tokenCount);
           break;
         case eventTypes.SCORE_CREATE:
           processor = new ScoreProcessor(event);
