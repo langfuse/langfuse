@@ -93,6 +93,34 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      /**
+       * Create a new organization membership
+       * - Checks for:
+       *   - scope: organizationMembers:CUD if not only project-role is set, then projectMembers:CUD
+       *   - orgRole is not higher than own role
+       *   - if project role
+       *     - projectRole is not higher than own role
+       *     - entitlement for project roles if projectRole is set
+       *     - project is in org
+       *  - if user exists
+       *    - if org membership exists
+       *      - if only project role is set (orgRole === Role.NONE)
+       *         - create project role
+       *         - audit log
+       *         - return
+       *      - else throw error
+       *    - create org membership
+       *    - audit log
+       *    - if project role is set
+       *     - create project role
+       *    - audit log
+       *    - send email
+       * - else
+       *  - create membership invitation
+       *  - audit log
+       *  - send email
+       */
+
       if (
         // Require only project-level access rights if no orgRole is set but a projectId is
         input.projectId &&
@@ -292,6 +320,9 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      /**
+       * Delete an organization membership, used in membership table
+       */
       const orgMembership = await ctx.prisma.organizationMembership.findFirst({
         where: {
           orgId: input.orgId,
@@ -357,6 +388,9 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      /**
+       * Delete a membership invitation, used in membership_invitation table
+       */
       const invitation = await ctx.prisma.membershipInvitation.findFirst({
         where: {
           orgId: input.orgId,
@@ -411,6 +445,10 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      /**
+       * Used by dropdown in membership table to update the organization role of a user
+       */
+
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
@@ -481,6 +519,9 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      /**
+       * Used by dropdown in membership table to update the project role of a user
+       */
       const hasAccess =
         hasOrganizationAccess({
           session: ctx.session,
