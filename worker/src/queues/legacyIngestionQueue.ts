@@ -59,7 +59,7 @@ export const legacyIngestionExecutor = redis
             await legacyIngestionQueue
               ?.count()
               .then((count) => {
-                logger.debug(`Legacy Ingestion flush queue length: ${count}`);
+                logger.info(`Legacy Ingestion flush queue length: ${count}`);
                 Sentry.metrics.gauge(
                   "legacy_ingestion_flush_queue_length",
                   count,
@@ -82,10 +82,10 @@ export const legacyIngestionExecutor = redis
       },
       {
         connection: redis,
-        concurrency: 20,
+        concurrency: 80,
         limiter: {
           // execute 75 calls in 1000ms
-          max: 75,
+          max: 100,
           duration: 1000,
         },
       }
