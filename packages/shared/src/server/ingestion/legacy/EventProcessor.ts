@@ -18,7 +18,6 @@ import { ForbiddenError } from "../../../errors";
 import { mergeJson } from "../../../utils/json";
 import { jsonSchema } from "../../../utils/zod";
 import { prisma } from "../../../db";
-import { tokenCount } from "./usage";
 
 export interface EventProcessor {
   auth(apiScope: ApiAccessScope): void;
@@ -30,9 +29,20 @@ export interface EventProcessor {
 
 export class ObservationProcessor implements EventProcessor {
   event: ObservationEvent;
+  calculateTokenDelegate: (p: {
+    model: Model;
+    text: unknown;
+  }) => number | undefined;
 
-  constructor(event: ObservationEvent) {
+  constructor(
+    event: ObservationEvent,
+    calculateTokenDelegate: (p: {
+      model: Model;
+      text: unknown;
+    }) => number | undefined
+  ) {
     this.event = event;
+    this.calculateTokenDelegate = calculateTokenDelegate;
   }
 
   async convertToObservation(
@@ -109,6 +119,7 @@ export class ObservationProcessor implements EventProcessor {
       "usage" in this.event.body
         ? this.calculateTokenCounts(
             this.event.body,
+            this.calculateTokenDelegate,
             internalModel ?? undefined,
             existingObservation ?? undefined
           )
@@ -300,16 +311,20 @@ export class ObservationProcessor implements EventProcessor {
     body:
       | z.infer<typeof legacyObservationCreateEvent>["body"]
       | z.infer<typeof generationCreateEvent>["body"],
+    calculateTokenDelegate: (p: {
+      model: Model;
+      text: unknown;
+    }) => number | undefined,
     model?: Model,
     existingObservation?: Observation
   ) {
-    if (!model) return;
+    if (!model) return [undefined, undefined];
 
     const newPromptTokens =
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId
         ? 0
-        : tokenCount({
+        : calculateTokenDelegate({
             model: model,
             text: body.input ?? existingObservation?.input,
           }));
@@ -320,7 +335,7 @@ export class ObservationProcessor implements EventProcessor {
       model &&
       model.tokenizerId
         ? 0
-        : tokenCount({
+        : calculateTokenDelegate({
             model: model,
             text: body.output ?? existingObservation?.output,
           }));

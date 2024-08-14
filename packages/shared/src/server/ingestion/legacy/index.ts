@@ -17,6 +17,7 @@ import {
 import { ApiAccessScope, AuthHeaderVerificationResult } from "../../auth/types";
 import { redis } from "../../redis/redis";
 import { backOff } from "exponential-backoff";
+import { Model } from "../../..";
 
 export type BatchResult = {
   result: unknown;
@@ -24,9 +25,15 @@ export type BatchResult = {
   type: string;
 };
 
+type TokenCountInput = {
+  model: Model;
+  text: unknown;
+};
+
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
-  authCheck: AuthHeaderVerificationResult
+  authCheck: AuthHeaderVerificationResult,
+  calculateTokenDelegate: (p: TokenCountInput) => number | undefined
 ) => {
   console.log(`handling ingestion ${events.length} events`);
 
@@ -43,7 +50,11 @@ export const handleBatch = async (
   for (const singleEvent of events) {
     try {
       const result = await retry(async () => {
-        return await handleSingleEvent(singleEvent, authCheck.scope);
+        return await handleSingleEvent(
+          singleEvent,
+          authCheck.scope,
+          calculateTokenDelegate
+        );
       });
       results.push({
         result: result,
@@ -92,7 +103,11 @@ async function retry<T>(request: () => Promise<T>): Promise<T> {
 
 const handleSingleEvent = async (
   event: z.infer<typeof ingestionEvent>,
-  apiScope: ApiAccessScope
+  apiScope: ApiAccessScope,
+  calculateTokenDelegate: (p: {
+    model: Model;
+    text: unknown;
+  }) => number | undefined
 ) => {
   const { body } = event;
   let restEvent = body;
@@ -127,7 +142,10 @@ const handleSingleEvent = async (
     case eventTypes.SPAN_UPDATE:
     case eventTypes.GENERATION_CREATE:
     case eventTypes.GENERATION_UPDATE:
-      processor = new ObservationProcessor(cleanedEvent);
+      processor = new ObservationProcessor(
+        cleanedEvent,
+        calculateTokenDelegate
+      );
       break;
     case eventTypes.SCORE_CREATE: {
       processor = new ScoreProcessor(cleanedEvent);

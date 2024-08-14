@@ -9,6 +9,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "../instrumentation";
 import * as Sentry from "@sentry/node";
+import { tokenCount } from "../features/tokenisation/usage";
 
 export const legacyIngestionQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
@@ -51,7 +52,8 @@ export const legacyIngestionExecutor = redis
 
             const result = await handleBatch(
               job.data.payload.data,
-              job.data.payload.authCheck
+              job.data.payload.authCheck,
+              tokenCount
             );
 
             // send out REST requests to worker for all trace types

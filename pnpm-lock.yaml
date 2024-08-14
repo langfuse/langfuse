@@ -167,9 +167,6 @@ importers:
       ioredis:
         specifier: ^5.4.1
         version: 5.4.1
-      js-tiktoken:
-        specifier: ^1.0.12
-        version: 1.0.12
       kysely:
         specifier: ^0.27.3
         version: 0.27.3

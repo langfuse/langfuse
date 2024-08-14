@@ -37,6 +37,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
+import { tokenCount } from "@/src/server/api/services/usage";
 
 export const config = {
   api: {
@@ -152,7 +153,7 @@ export default async function handler(
       );
     }
 
-    const result = await handleBatch(sortedBatch, authCheck);
+    const result = await handleBatch(sortedBatch, authCheck, tokenCount);
 
     // send out REST requests to worker for all trace types
     await sendToWorkerIfEnvironmentConfigured(
