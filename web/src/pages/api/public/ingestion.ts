@@ -103,7 +103,7 @@ export default async function handler(
 
     const sortedBatch = sortBatch(filteredBatch);
 
-    if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true") {
+    if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" && redis) {
       // this function MUST NOT return but send the HTTP response directly
       console.log("Returning http response early");
       const queue = getLegacyIngestionQueue();
