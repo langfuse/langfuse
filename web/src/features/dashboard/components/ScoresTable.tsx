@@ -2,12 +2,18 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import { type FilterState } from "@langfuse/shared";
+import {
+  type ScoreDataType,
+  type ScoreSource,
+  type FilterState,
+} from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { RightAlignedCell } from "./RightAlignedCell";
+import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAlignedCell";
 import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 
 export const ScoresTable = ({
   className,
@@ -30,6 +36,8 @@ export const ScoresTable = ({
         { column: "scoreName" },
         { column: "scoreId", agg: "COUNT" },
         { column: "value", agg: "AVG" },
+        { column: "scoreSource" },
+        { column: "scoreDataType" },
       ],
       filter: [
         ...localFilters,
@@ -40,7 +48,17 @@ export const ScoresTable = ({
           operator: "any of",
         },
       ],
-      groupBy: [{ type: "string", column: "scoreName" }],
+      groupBy: [
+        { type: "string", column: "scoreName" },
+        {
+          type: "string",
+          column: "scoreSource",
+        },
+        {
+          type: "string",
+          column: "scoreDataType",
+        },
+      ],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
     },
     {
@@ -57,7 +75,12 @@ export const ScoresTable = ({
       {
         projectId,
         from: "traces_scores",
-        select: [{ column: "scoreName" }, { column: "scoreId", agg: "COUNT" }],
+        select: [
+          { column: "scoreName" },
+          { column: "scoreId", agg: "COUNT" },
+          { column: "scoreSource" },
+          { column: "scoreDataType" },
+        ],
         filter: [
           ...localFilters,
           {
@@ -73,7 +96,17 @@ export const ScoresTable = ({
             type: "number",
           },
         ],
-        groupBy: [{ type: "string", column: "scoreName" }],
+        groupBy: [
+          { type: "string", column: "scoreName" },
+          {
+            type: "string",
+            column: "scoreSource",
+          },
+          {
+            type: "string",
+            column: "scoreDataType",
+          },
+        ],
         orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
       },
       {
@@ -110,6 +143,8 @@ export const ScoresTable = ({
 
       return {
         scoreName: metric.scoreName as string,
+        scoreSource: metric.scoreSource as ScoreSource,
+        scoreDataType: metric.scoreDataType as ScoreDataType,
         countScoreId: metric.countScoreId ? metric.countScoreId : 0,
         avgValue: metric.avgValue ? (metric.avgValue as number) : 0,
         zeroValueScore: zeroValueScore?.countScoreId
@@ -148,7 +183,9 @@ export const ScoresTable = ({
           <RightAlignedCell key="one">1</RightAlignedCell>,
         ]}
         rows={data.map((item, i) => [
-          item.scoreName,
+          <LeftAlignedCell
+            key={`${i}-name`}
+          >{`${getScoreDataTypeIcon(item.scoreDataType)} ${item.scoreName} (${item.scoreSource.toLowerCase()})`}</LeftAlignedCell>,
           <RightAlignedCell key={`${i}-count`}>
             {compactNumberFormatter(item.countScoreId as number)}
           </RightAlignedCell>,
