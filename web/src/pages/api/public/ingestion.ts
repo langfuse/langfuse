@@ -2,11 +2,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import {
-  LangfuseNotFoundError,
-  InternalServerError,
-  QueueJobs,
-} from "@langfuse/shared";
+import { LangfuseNotFoundError, InternalServerError } from "@langfuse/shared";
 import {
   getLegacyIngestionQueue,
   eventTypes,
@@ -29,6 +25,7 @@ import {
   redis,
   handleBatch,
   sendToWorkerIfEnvironmentConfigured,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
