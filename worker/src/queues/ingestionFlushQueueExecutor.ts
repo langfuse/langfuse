@@ -1,46 +1,31 @@
-import { Queue, Worker } from "bullmq";
-
+import { Worker } from "bullmq";
 import { QueueJobs, QueueName } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
-  redis,
+  getIngestionFlushQueue,
   instrumentAsync,
+  recordCount,
   recordGauge,
   recordHistogram,
-  recordCount,
+  redis,
 } from "@langfuse/shared/src/server";
-
 import { env } from "../env";
 import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
-import { SpanKind } from "@opentelemetry/api";
 
-export type IngestionFlushQueue = Queue<null>;
+const ingestionFlushQueue = getIngestionFlushQueue();
 
-export const ingestionFlushQueue: IngestionFlushQueue | null = redis
-  ? new Queue<null>(QueueName.IngestionFlushQueue, {
-      connection: redis,
-      defaultJobOptions: {
-        removeOnComplete: true, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
-        removeOnFail: 1000,
-        delay: env.LANGFUSE_INGESTION_FLUSH_DELAY_MS,
-        attempts: env.LANGFUSE_INGESTION_FLUSH_ATTEMPTS,
-      },
-    })
-  : null;
-
-export const flushIngestionQueueExecutor = redis
+export const ingestionQueueExecutor = redis
   ? new Worker(
       QueueName.IngestionFlushQueue,
       async (job) => {
         return instrumentAsync(
           {
             name: "flush-ingestion-consumer",
-            rootSpan: true,
-            traceScope: "flush-ingestion-queue",
-            spanKind: SpanKind.CONSUMER,
+            traceScope: "ingestion-flush-queue",
+            spanKind: "consumer",
           },
           async () => {
             if (job.name === QueueJobs.FlushIngestionEntity) {
@@ -55,6 +40,7 @@ export const flushIngestionQueueExecutor = redis
                 `Received flush request after ${waitTime} ms for ${projectEntityId}`
               );
 
+              recordCount("ingestion_processing_request");
               recordHistogram("ingestion_flush_wait_time", waitTime, {
                 unit: "milliseconds",
               });
@@ -72,10 +58,8 @@ export const flushIngestionQueueExecutor = redis
                 await new IngestionService(
                   redis,
                   prisma,
-                  ingestionFlushQueue,
                   ClickhouseWriter.getInstance(),
-                  clickhouseClient,
-                  env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS
+                  clickhouseClient
                 ).flush(projectEntityId);
 
                 // Log processing time
