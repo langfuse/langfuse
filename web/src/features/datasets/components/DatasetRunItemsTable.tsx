@@ -168,6 +168,7 @@ export function DatasetRunItemsTable(
         return trace ? (
           <TraceObservationIOCell
             traceId={trace.traceId}
+            projectId={props.projectId}
             observationId={trace.observationId}
             io="input"
             singleLine={rowHeight === "s"}
@@ -186,6 +187,7 @@ export function DatasetRunItemsTable(
         return trace ? (
           <TraceObservationIOCell
             traceId={trace.traceId}
+            projectId={props.projectId}
             observationId={trace.observationId}
             io="output"
             singleLine={rowHeight === "s"}
@@ -290,18 +292,20 @@ export function DatasetRunItemsTable(
 
 const TraceObservationIOCell = ({
   traceId,
+  projectId,
   observationId,
   io,
   singleLine = false,
 }: {
   traceId: string;
+  projectId: string;
   observationId?: string;
   io: "input" | "output";
   singleLine?: boolean;
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
-    { traceId: traceId },
+    { traceId, projectId },
     {
       enabled: observationId === undefined,
       trpc: {
@@ -315,7 +319,8 @@ const TraceObservationIOCell = ({
   const observation = api.observations.byId.useQuery(
     {
       observationId: observationId as string, // disabled when observationId is undefined
-      traceId: traceId,
+      projectId,
+      traceId,
     },
     {
       enabled: observationId !== undefined,

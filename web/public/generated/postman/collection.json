@@ -937,7 +937,7 @@
           "_type": "endpoint",
           "name": "Create",
           "request": {
-            "description": "Create a prompt",
+            "description": "Create a new version for the prompt with the given `name`",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/prompts",
               "host": [

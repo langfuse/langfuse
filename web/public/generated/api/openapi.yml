@@ -1242,7 +1242,7 @@ paths:
               schema: {}
       security: *ref_0
     post:
-      description: Create a prompt
+      description: Create a new version for the prompt with the given `name`
       operationId: prompts_create
       tags:
         - Prompts
