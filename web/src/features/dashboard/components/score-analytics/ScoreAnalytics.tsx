@@ -131,8 +131,8 @@ export function ScoreAnalytics(props: {
                   <div>
                     <div className="mb-2 text-sm text-muted-foreground">
                       {isNumericDataType(dataType)
-                        ? "Average scores over time"
-                        : "Scores distribution over time"}
+                        ? "Moving average over time"
+                        : "Cumulative distribution over time"}
                     </div>
                     <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
                       {(isCategoricalDataType(dataType) ||

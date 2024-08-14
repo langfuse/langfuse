@@ -27,11 +27,19 @@ export function ChartScores(props: {
       projectId: props.projectId,
       from: "traces_scores",
       select: [{ column: "scoreName" }, { column: "value", agg: "AVG" }],
-      filter: createTracesTimeFilter(props.globalFilterState),
+      filter: [
+        ...createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
+        {
+          type: "stringOptions",
+          column: "castScoreDataType",
+          value: ["NUMERIC", "BOOLEAN"],
+          operator: "any of",
+        },
+      ],
       groupBy: [
         {
           type: "datetime",
-          column: "timestamp",
+          column: "scoreTimestamp",
           temporalUnit:
             dashboardDateRangeAggregationSettings[props.agg].date_trunc,
         },
@@ -52,7 +60,7 @@ export function ChartScores(props: {
 
   const extractedScores = scores.data
     ? fillMissingValuesAndTransform(
-        extractTimeSeriesData(scores.data, "timestamp", [
+        extractTimeSeriesData(scores.data, "scoreTimestamp", [
           {
             labelColumn: "scoreName",
             valueColumn: "avgValue",
@@ -65,7 +73,7 @@ export function ChartScores(props: {
     <DashboardCard
       className={props.className}
       title="Scores"
-      description="Average score per name"
+      description="Moving average per score name"
       isLoading={scores.isLoading}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
