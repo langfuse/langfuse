@@ -160,13 +160,11 @@ export default async function handler(
     );
 
     //  in case we did not return early, we return the result here
-    if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "false") {
-      handleBatchResult(
-        [...validationErrors, ...result.errors],
-        result.results,
-        res,
-      );
-    }
+    handleBatchResult(
+      [...validationErrors, ...result.errors],
+      result.results,
+      res,
+    );
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       console.error("error_handling_ingestion_event", error);
