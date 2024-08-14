@@ -39,7 +39,9 @@ export const env = createEnv({
     }),
     // Add newly signed up users to default org and/or project with role
     LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
-    LANGFUSE_DEFAULT_ORG_ROLE: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]).optional(),
+    LANGFUSE_DEFAULT_ORG_ROLE: z
+      .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"])
+      .optional(),
     LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
@@ -109,8 +111,7 @@ export const env = createEnv({
     LANGFUSE_WORKER_HOST: z.string().optional(),
     LANGFUSE_WORKER_PASSWORD: z.string().optional(),
     TURNSTILE_SECRET_KEY: z.string().optional(),
-    // DB event log
-    ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
+
     // clickhouse
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
@@ -148,13 +149,18 @@ export const env = createEnv({
     LANGFUSE_ASYNC_INGESTION_PROCESSING: z
       .enum(["true", "false"])
       .default("false"),
-    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z.string().optional().refine((value) => {
-      if (!value) return true;
+    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
+      .string()
+      .optional()
+      .refine((value) => {
+        if (!value) return true;
 
-      const creators = value.split(",");
-      const emailSchema = z.string().email()
-      return creators.every((creator) => emailSchema.safeParse(creator).success);
-    }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses")
+        const creators = value.split(",");
+        const emailSchema = z.string().email();
+        return creators.every(
+          (creator) => emailSchema.safeParse(creator).success,
+        );
+      }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses")
       .transform((v) => (v === "" || v === undefined ? undefined : v)),
   },
 
@@ -272,8 +278,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     // Other
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
-    // db event log
-    ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
@@ -297,7 +301,8 @@ export const env = createEnv({
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
     LANGFUSE_ASYNC_INGESTION_PROCESSING:
       process.env.LANGFUSE_ASYNC_INGESTION_PROCESSING,
-    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
+    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
+      process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

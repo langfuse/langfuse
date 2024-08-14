@@ -28,7 +28,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_URL: z.string().url().optional(),
   CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_PASSWORD: z.string().optional(),
-  ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
 });
 
 export const env = EnvSchema.parse(process.env);

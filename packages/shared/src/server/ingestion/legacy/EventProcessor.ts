@@ -320,27 +320,25 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Observation
   ) {
-    if (!model) return [undefined, undefined];
-
     const newPromptTokens =
       body.usage?.input ??
       ((body.input || existingObservation?.input) && model && model.tokenizerId
-        ? 0
-        : calculateTokenDelegate({
+        ? calculateTokenDelegate({
             model: model,
             text: body.input ?? existingObservation?.input,
-          }));
+          })
+        : undefined);
 
     const newCompletionTokens =
       body.usage?.output ??
       ((body.output || existingObservation?.output) &&
       model &&
       model.tokenizerId
-        ? 0
-        : calculateTokenDelegate({
+        ? calculateTokenDelegate({
             model: model,
             text: body.output ?? existingObservation?.output,
-          }));
+          })
+        : undefined);
 
     return [newPromptTokens, newCompletionTokens];
   }
