@@ -132,7 +132,7 @@ export default async function handler(
             name: QueueJobs.LegacyIngestionJob as const,
           },
           {
-            removeOnFail: 10000,
+            removeOnFail: 1_000_000,
             removeOnComplete: true,
             attempts: 5,
             backoff: {
