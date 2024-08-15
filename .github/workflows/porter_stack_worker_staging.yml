@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - add-legacy-ingestion-queue
+      - staging
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
