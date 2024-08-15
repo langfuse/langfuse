@@ -33,6 +33,13 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { captureException } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
+import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
+
+type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
+type ReactMarkdownNodeChildren = Exclude<
+  ReactMarkdownNode,
+  undefined
+>["children"];
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
@@ -42,10 +49,6 @@ const MemoizedReactMarkdown: FC<Options> = memo(
     prevProps.children === nextProps.children &&
     prevProps.className === nextProps.className,
 );
-
-const isChecklist = (children: ReactNode) =>
-  Array.isArray(children) &&
-  children.some((child: any) => child?.props?.className === "task-list-item");
 
 /**
  * Implemented customLoader as we cannot whitelist user provided image domains
@@ -193,6 +196,10 @@ const isTextElement = (child: ReactNode): child is ReactElement =>
   typeof child.type !== "string" &&
   ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type.name);
 
+const isChecklist = (children: ReactNode) =>
+  Array.isArray(children) &&
+  children.some((child: any) => child?.props?.className === "task-list-item");
+
 const transformListItemChildren = (children: ReactNode) =>
   Children.map(children, (child) =>
     isTextElement(child) ? (
@@ -202,6 +209,14 @@ const transformListItemChildren = (children: ReactNode) =>
     ) : (
       child
     ),
+  );
+
+const isImageNode = (node?: ReactMarkdownNode): boolean =>
+  !!node &&
+  Array.isArray(node.children) &&
+  node.children.some(
+    (child: ReactMarkdownNodeChildren[number]) =>
+      "tagName" in child && child.tagName === "img",
   );
 
 export function MarkdownView({
@@ -281,7 +296,10 @@ export function MarkdownView({
         )}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
-          p({ children }) {
+          p({ children, node }) {
+            if (isImageNode(node)) {
+              return <>{children}</>;
+            }
             return (
               <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>
             );
