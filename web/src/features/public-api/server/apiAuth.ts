@@ -1,23 +1,14 @@
 import { env } from "@/src/env.mjs";
-import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
+import {
+  createShaHash,
+  verifySecretKey,
+  type AuthHeaderVerificationResult,
+} from "@langfuse/shared/src/server";
 import { type PrismaClient, type ApiKey } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import * as Sentry from "@sentry/node";
 import { type Redis } from "ioredis";
 import { z } from "zod";
-
-export type AuthHeaderVerificationResult =
-  | AuthHeaderValidVerificationResult
-  | {
-      validKey: false;
-      error: string;
-    };
-
-export type AuthHeaderValidVerificationResult = {
-  validKey: true;
-  scope: ApiAccessScope;
-};
 
 export const ApiKeyZod = z.object({
   id: z.string(),

@@ -9,6 +9,7 @@ require("dd-trace").init({
 
 Sentry.init({
   dsn: String(env.SENTRY_DSN),
+
   integrations: [
     Sentry.httpIntegration(),
     Sentry.expressIntegration(),

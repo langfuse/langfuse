@@ -1,6 +1,8 @@
 import { env } from "@/src/env.mjs";
-import { type EventBodyType } from "@langfuse/shared";
-import { type IngestionApiSchemaWithProjectId } from "@langfuse/shared/src/server";
+import {
+  type EventBodyType,
+  type IngestionApiSchemaWithProjectId,
+} from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@/src/utils/instrumentation";
 
 export class WorkerClient {
