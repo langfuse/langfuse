@@ -50,6 +50,10 @@ logger.info(
   "Flush Ingestion Queue Executor started",
   ingestionQueueExecutor?.isRunning()
 );
+logger.info(
+  "Legacy Ingestion Executor started",
+  legacyIngestionExecutor?.isRunning()
+);
 
 evalJobCreator?.on("failed", logQueueWorkerError);
 evalJobExecutor?.on("failed", logQueueWorkerError);
