@@ -26,6 +26,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -235,11 +236,16 @@ export default function Dashboard() {
           />
         )}
         {!disableExpensiveDashboardComponents && (
-          <ScoreAnalytics
-            className="col-span-1 flex-auto justify-between lg:col-span-full"
-            agg={agg}
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
+          <FeatureFlagToggle
+            featureFlag="scoreDashboard"
+            whenEnabled={
+              <ScoreAnalytics
+                className="col-span-1 flex-auto justify-between lg:col-span-full"
+                agg={agg}
+                projectId={projectId}
+                globalFilterState={mergedFilterState}
+              />
+            }
           />
         )}
       </div>
