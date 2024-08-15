@@ -81,11 +81,6 @@ export const legacyIngestionExecutor = redis
       {
         connection: redis,
         concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY, // n ingestion batches at a time
-        limiter: {
-          // per second, process max n batches
-          max: 20,
-          duration: 1000,
-        },
       }
     )
   : null;
