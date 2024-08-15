@@ -1,6 +1,8 @@
 import { env } from "@/src/env.mjs";
 import {
+  addUserToSpan,
   createShaHash,
+  recordCount,
   verifySecretKey,
   type AuthHeaderVerificationResult,
 } from "@langfuse/shared/src/server";
