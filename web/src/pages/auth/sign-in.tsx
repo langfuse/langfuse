@@ -104,6 +104,8 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   };
 };
 
+type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
+
 // Also used in src/pages/auth/sign-up.tsx
 export function SSOButtons({
   authProviders,
@@ -113,9 +115,24 @@ export function SSOButtons({
   action?: string;
 }) {
   const capture = usePostHogClientCapture();
+  const [providerSigningIn, setProviderSigningIn] =
+    useState<NextAuthProvider | null>(null);
+
+  const handleSignIn = (provider: NextAuthProvider) => {
+    setProviderSigningIn(provider);
+    capture("sign_in:button_click", { provider });
+    signIn(provider)
+      .then(() => {
+        // do not reset loadingProvider here, as the page will reload
+      })
+      .catch((error) => {
+        console.error(error);
+        setProviderSigningIn(null);
+      });
+  };
 
   return (
-    // any authprovider from props is enanbles
+    // any authprovider from props is enabled
     Object.entries(authProviders).some(
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
@@ -126,11 +143,9 @@ export function SSOButtons({
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
           {authProviders.google && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "google" });
-                void signIn("google");
-              }}
+              onClick={() => handleSignIn("google")}
               variant="secondary"
+              loading={providerSigningIn === "google"}
             >
               <FcGoogle className="mr-3" size={18} />
               Google
@@ -138,11 +153,9 @@ export function SSOButtons({
           )}
           {authProviders.github && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "github" });
-                void signIn("github");
-              }}
+              onClick={() => handleSignIn("github")}
               variant="secondary"
+              loading={providerSigningIn === "github"}
             >
               <FaGithub className="mr-3" size={18} />
               Github
@@ -150,13 +163,9 @@ export function SSOButtons({
           )}
           {authProviders.azureAd && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", {
-                  provider: "azure-ad",
-                });
-                void signIn("azure-ad");
-              }}
+              onClick={() => handleSignIn("azure-ad")}
               variant="secondary"
+              loading={providerSigningIn === "azure-ad"}
             >
               <TbBrandAzure className="mr-3" size={18} />
               Azure AD
@@ -164,11 +173,9 @@ export function SSOButtons({
           )}
           {authProviders.okta && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "okta" });
-                void signIn("okta");
-              }}
+              onClick={() => handleSignIn("okta")}
               variant="secondary"
+              loading={providerSigningIn === "okta"}
             >
               <SiOkta className="mr-3" size={18} />
               Okta
@@ -176,11 +183,9 @@ export function SSOButtons({
           )}
           {authProviders.auth0 && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "auth0" });
-                void signIn("auth0");
-              }}
+              onClick={() => handleSignIn("auth0")}
               variant="secondary"
+              loading={providerSigningIn === "auth0"}
             >
               <SiAuth0 className="mr-3" size={18} />
               Auth0
@@ -188,11 +193,9 @@ export function SSOButtons({
           )}
           {authProviders.cognito && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "cognito" });
-                void signIn("cognito");
-              }}
+              onClick={() => handleSignIn("cognito")}
               variant="secondary"
+              loading={providerSigningIn === "cognito"}
             >
               <SiAmazoncognito className="mr-3" size={18} />
               Cognito
@@ -200,11 +203,9 @@ export function SSOButtons({
           )}
           {authProviders.custom && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "custom" });
-                void signIn("custom");
-              }}
+              onClick={() => handleSignIn("custom")}
               variant="secondary"
+              loading={providerSigningIn === "custom"}
             >
               <TbBrandOauth className="mr-3" size={18} />
               {authProviders.custom.name}
