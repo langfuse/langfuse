@@ -258,7 +258,7 @@ jobs:
         run: (pnpm run start&)
 
       - name: Run e2e tests
-        run: pnpm run test:e2e:server
+        run: pnpm --filter=web run test:e2e:server
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
