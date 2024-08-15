@@ -252,7 +252,7 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run db:seed
+          pnpm run db:seed:examples
 
       - name: Build
         run: pnpm run build
