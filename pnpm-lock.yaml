@@ -279,6 +279,9 @@ importers:
       '@anthropic-ai/tokenizer':
         specifier: ^0.0.4
         version: 0.0.4
+      '@appsignal/opentelemetry-instrumentation-bullmq':
+        specifier: ^0.7.1
+        version: 0.7.1(bullmq@5.4.3)
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.8.0)(@trpc/server@10.45.2)
@@ -740,6 +743,9 @@ importers:
       '@anthropic-ai/tokenizer':
         specifier: ^0.0.4
         version: 0.0.4
+      '@appsignal/opentelemetry-instrumentation-bullmq':
+        specifier: ^0.7.1
+        version: 0.7.1(bullmq@5.4.3)
       '@clickhouse/client':
         specifier: ^1.4.0
         version: 1.4.0
@@ -949,6 +955,14 @@ packages:
 
   '@anthropic-ai/tokenizer@0.0.4':
     resolution: {integrity: sha512-EHRKbxlxlc8W4KCBEseByJ7YwyYCmgu9OyN59H9+IYIGPoKv8tXyQXinkeGDI+cI8Tiuz9wk2jZb/kK7AyvL7g==}
+
+  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.1':
+    resolution: {integrity: sha512-pteS18B3yQuJLfEzdmO2zRM5LCJGHx2xCaS/X/PdakHXiV+5wqsyAQfGEDqyyN45ZC730lYHdeNwzan/b0zmlw==}
+    peerDependencies:
+      bullmq: ^2 || ^3 || ^4 || ^5
+    peerDependenciesMeta:
+      bullmq:
+        optional: true
 
   '@aws-crypto/crc32@5.2.0':
     resolution: {integrity: sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg==}
@@ -2900,6 +2914,12 @@ packages:
 
   '@opentelemetry/instrumentation-winston@0.36.0':
     resolution: {integrity: sha512-NTuGpUA9AGC7EmKQyMn3ABiqJ3XvHihRcxdvqhs8E72nHmIU3n6om+DCYYE3fpEQwbC9N14ir8fqA5Oxn0Ynag==}
+    engines: {node: '>=14'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.3.0
+
+  '@opentelemetry/instrumentation@0.34.0':
+    resolution: {integrity: sha512-VET/bOh4StOQV4vf1sAvn2JD67BhW2vPZ/ynl2gHXyafme2yB8Hs9+tr1TLzFwNGo7jwMFviFQkZjCYxMuK0AA==}
     engines: {node: '>=14'}
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
@@ -6864,6 +6884,10 @@ packages:
     resolution: {integrity: sha512-CYcENa+FtcUKLmhhqyctpclsq7QF38pKjZHsGNiSQF5r4FtoKDWabFDl3hzaEQMvT1LHEysw5twgLvpYYb4vbw==}
     engines: {node: ^10.12.0 || >=12.0.0}
 
+  flat@5.0.2:
+    resolution: {integrity: sha512-b6suED+5/3rTpUBdG1gupIl8MPFCAMA0QXwmljLhvCUKcUvdE4gWky9zpuGCcXHOsz4J9wPGNWq6OKpmIzz3hQ==}
+    hasBin: true
+
   flat@6.0.1:
     resolution: {integrity: sha512-/3FfIa8mbrg3xE7+wAhWeV+bd7L2Mof+xtZb5dRDKZ+wDvYJK4WDYeIOuOhre5Yv5aQObZrlbRmk3RTSiuQBtw==}
     engines: {node: '>=18'}
@@ -9875,6 +9899,10 @@ packages:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
     engines: {node: '>=0.10.0'}
 
+  require-in-the-middle@5.2.0:
+    resolution: {integrity: sha512-efCx3b+0Z69/LGJmm9Yvi4cqEdxnoGnxYxGxBghkkTTFeXRtTCmmhO0AnAfHz59k957uTSuy8WaHqOs8wbYUWg==}
+    engines: {node: '>=6'}
+
   require-in-the-middle@7.4.0:
     resolution: {integrity: sha512-X34iHADNbNDfr6OTStIAHWSAvvKQRYgLO6duASaVf7J2VA3lvmNYboAHOuLC2huav1IwgZJtyEcJCKVzFxOSMQ==}
     engines: {node: '>=8.6.0'}
@@ -11327,6 +11355,17 @@ snapshots:
     dependencies:
       '@types/node': 18.19.25
       tiktoken: 1.0.15
+
+  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.1(bullmq@5.4.3)':
+    dependencies:
+      '@opentelemetry/api': 1.8.0
+      '@opentelemetry/instrumentation': 0.34.0(@opentelemetry/api@1.8.0)
+      '@opentelemetry/semantic-conventions': 1.25.1
+      flat: 5.0.2
+    optionalDependencies:
+      bullmq: 5.4.3
+    transitivePeerDependencies:
+      - supports-color
 
   '@aws-crypto/crc32@5.2.0':
     dependencies:
@@ -14199,6 +14238,15 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.8.0
       '@opentelemetry/instrumentation': 0.50.0(@opentelemetry/api@1.8.0)
+    transitivePeerDependencies:
+      - supports-color
+
+  '@opentelemetry/instrumentation@0.34.0(@opentelemetry/api@1.8.0)':
+    dependencies:
+      '@opentelemetry/api': 1.8.0
+      require-in-the-middle: 5.2.0
+      semver: 7.6.3
+      shimmer: 1.2.1
     transitivePeerDependencies:
       - supports-color
 
@@ -19217,6 +19265,8 @@ snapshots:
       keyv: 4.5.4
       rimraf: 3.0.2
 
+  flat@5.0.2: {}
+
   flat@6.0.1: {}
 
   flatted@3.3.1: {}
@@ -19367,7 +19417,7 @@ snapshots:
     dependencies:
       basic-ftp: 5.0.5
       data-uri-to-buffer: 6.0.2
-      debug: 4.3.5(supports-color@5.5.0)
+      debug: 4.3.6
       fs-extra: 11.2.0
     transitivePeerDependencies:
       - supports-color
@@ -22915,6 +22965,14 @@ snapshots:
   replace-string@3.1.0: {}
 
   require-directory@2.1.1: {}
+
+  require-in-the-middle@5.2.0:
+    dependencies:
+      debug: 4.3.6
+      module-details-from-path: 1.0.3
+      resolve: 1.22.8
+    transitivePeerDependencies:
+      - supports-color
 
   require-in-the-middle@7.4.0:
     dependencies:

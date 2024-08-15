@@ -6,6 +6,7 @@ import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 
 const { TracerProvider } = tracer.init({
   profiling: false,
@@ -22,6 +23,7 @@ registerInstrumentations({
     new PrismaInstrumentation(),
     getNodeAutoInstrumentations(),
     new PinoInstrumentation(),
+    new BullMQInstrumentation(),
   ],
 });
 
