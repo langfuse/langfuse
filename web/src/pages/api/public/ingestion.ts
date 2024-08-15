@@ -177,7 +177,7 @@ export default async function handler(
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       console.error("error_handling_ingestion_event", error);
-      Sentry.captureException(error);
+      addExceptionToSpan(error);
     }
 
     if (error instanceof BaseError) {
