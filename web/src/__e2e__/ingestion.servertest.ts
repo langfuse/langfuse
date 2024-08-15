@@ -3,7 +3,6 @@ import { JobExecutionStatus, prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 import { ApiKeyZod } from "@/src/features/public-api/server/apiAuth";
-import { makeAPICall } from "@/src/__tests__/test-utils";
 
 const generateAuth = (username: string, password: string) => {
   const auth = Buffer.from(`${username}:${password}`).toString("base64");
