@@ -54,7 +54,7 @@ type FieldMappingItem = {
   valueColumn: string;
 };
 
-function getLabelValue(
+function generateChartLabelFromColumns(
   uniqueIdentifierColumns: FieldMappingItem["uniqueIdentifierColumns"],
   row: DatabaseRow,
 ): string {
@@ -86,15 +86,18 @@ export function extractTimeSeriesData(
     const reducedData: ChartData[] = [];
     // Map the desired fields from the DatabaseRow to the ChartData based on the mapping provided
     mapping.forEach((mapItem) => {
-      const labelValue = getLabelValue(mapItem.uniqueIdentifierColumns, curr);
+      const chartLabel = generateChartLabelFromColumns(
+        mapItem.uniqueIdentifierColumns,
+        curr,
+      );
       const columnValue = curr[mapItem.valueColumn];
       if (
-        labelValue &&
+        chartLabel &&
         columnValue !== undefined &&
-        typeof labelValue === "string"
+        typeof chartLabel === "string"
       ) {
         reducedData.push({
-          label: labelValue,
+          label: chartLabel,
           value: columnValue ? (columnValue as number) : 0,
         });
       }
