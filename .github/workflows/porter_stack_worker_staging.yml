@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - staging
+      - main
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
