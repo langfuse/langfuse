@@ -43,7 +43,8 @@ async function enqueueSingleIngestionEvent(
   projectId: string,
   event: IngestionEventType,
   redis: Redis,
-  ingestionFlushQueue: IngestionFlushQueue
+  ingestionFlushQueue: IngestionFlushQueue,
+  batchTimestamp: string
 ): Promise<void> {
   if (!("id" in event.body && event.body.id)) {
     console.warn(
