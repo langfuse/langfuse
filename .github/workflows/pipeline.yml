@@ -254,7 +254,7 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Install playwright
+      - name: Run server
         run: pnpm run start
 
       - name: Run e2e tests
