@@ -79,10 +79,10 @@ export const legacyIngestionExecutor = redis
       },
       {
         connection: redis,
-        concurrency: 50, // n ingestion batches at a time
+        concurrency: 25, // n ingestion batches at a time
         limiter: {
           // per second, process max n batches
-          max: 40,
+          max: 20,
           duration: 1000,
         },
       }
