@@ -1,5 +1,5 @@
 import { v4 } from "uuid";
-import { prisma } from "@langfuse/shared/src/db";
+import { JobExecutionStatus, prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 import { ApiKeyZod } from "@/src/features/public-api/server/apiAuth";
@@ -52,6 +52,7 @@ describe("Ingestion Pipeline", () => {
           body: {
             name: "test trace",
             id: traceId,
+            userId: "user-1", // triggers the eval
           },
         },
         {
@@ -79,7 +80,6 @@ describe("Ingestion Pipeline", () => {
       body: JSON.stringify(event),
     });
 
-    // poll until 10 seconds, until condition is met
     await waitForExpect(async () => {
       const trace = await prisma.trace.findUnique({
         where: {
@@ -108,8 +108,27 @@ describe("Ingestion Pipeline", () => {
       expect(llmApiKey.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     });
 
+    // check for eval
+    await waitForExpect(async () => {
+      const evalExecution = await prisma.jobExecution.findFirst({
+        where: {
+          jobInputTraceId: traceId,
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      });
+
+      expect(evalExecution).not.toBeNull();
+
+      if (!evalExecution) {
+        return;
+      }
+
+      // failure due to missing openai key in the pipeline. Expected
+      expect(evalExecution.status).toBe(JobExecutionStatus.ERROR);
+    }, 15000);
+
     expect(response.status).toBe(207);
-  }, 10000);
+  }, 20000);
 });
 
 describe("Prompts endpoints", () => {
