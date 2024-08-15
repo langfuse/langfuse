@@ -123,7 +123,7 @@ export default async function handler(
 
         const failedAccessScope = accessCheckPerEvent(sortedBatch, authCheck);
 
-        await queue?.add(
+        await queue.add(
           QueueJobs.LegacyIngestionJob,
           {
             payload: { data: sortedBatch, authCheck: authCheck },

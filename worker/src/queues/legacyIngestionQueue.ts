@@ -1,4 +1,4 @@
-import { Job, Queue, Worker } from "bullmq";
+import { Job, Worker } from "bullmq";
 import {
   getLegacyIngestionQueue,
   QueueName,
@@ -47,7 +47,7 @@ export const legacyIngestionExecutor = redis
               tokenCount
             );
 
-            // send out REST requests to worker for all trace types
+            // send out REDIS requests to worker for all trace types
             await sendToWorkerIfEnvironmentConfigured(
               result.results,
               job.data.payload.authCheck.scope.projectId
