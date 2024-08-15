@@ -7,6 +7,7 @@ import {
   isValidTableDateRangeAggregationOption,
   type TableDateRangeAggregationOption,
   type TableDateRange,
+  DEFAULT_AGGREGATION_SELECTION,
 } from "@/src/utils/date-range-utils";
 
 export interface UseTableDateRangeOutput {
@@ -35,7 +36,7 @@ export function useTableDateRange(
     validatedInitialRangeOption,
   );
   const initialDateRange =
-    selectedOption !== "All time"
+    selectedOption !== DEFAULT_AGGREGATION_SELECTION
       ? {
           from: addMinutes(
             new Date(),
