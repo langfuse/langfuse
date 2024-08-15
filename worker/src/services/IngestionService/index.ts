@@ -75,8 +75,8 @@ export class IngestionService {
     this.promptService = new PromptService(prisma, redis);
   }
 
-  public async flush(projectEntityKey: string): Promise<void> {
-    const bufferKey = IngestionUtils.getBufferKey(projectEntityKey);
+  public async flush(flushKey: string): Promise<void> {
+    const bufferKey = IngestionUtils.getBufferKey(flushKey);
     const eventList = (await this.redis.lrange(bufferKey, 0, -1))
       .map((serializedEventData) => {
         const parsed = ingestionEventWithProjectId.safeParse(
@@ -97,12 +97,12 @@ export class IngestionService {
 
     if (eventList.length === 0) {
       throw new Error(
-        `No valid events found in buffer for project entity ${projectEntityKey}`
+        `No valid events found in buffer for flushKey ${flushKey}`
       );
     }
 
     const { projectId, eventType, entityId } =
-      IngestionUtils.parseProjectEntityKey(projectEntityKey);
+      IngestionUtils.parseFlushKey(flushKey);
 
     switch (eventType) {
       case ClickhouseEntityType.Trace:
