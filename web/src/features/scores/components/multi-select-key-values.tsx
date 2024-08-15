@@ -43,7 +43,11 @@ export function MultiSelectKeyValues<
 }: {
   title?: string;
   values: T[];
-  onValueChange: (values: T[], changedValue?: string) => void;
+  onValueChange: (
+    values: T[],
+    changedValue?: string,
+    selectedKeys?: Set<string>,
+  ) => void;
   options: MultiSelectOptions[] | readonly MultiSelectOptions[];
   className?: string;
   disabled?: boolean;
@@ -145,6 +149,7 @@ export function MultiSelectKeyValues<
                       onValueChange(
                         filterValues.length ? filterValues : [],
                         value,
+                        selectedValueKeys,
                       );
                     }}
                     disabled={option.disabled}

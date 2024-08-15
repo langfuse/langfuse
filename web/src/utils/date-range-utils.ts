@@ -28,6 +28,11 @@ export const TABLE_AGGREGATION_OPTIONS = [
   "3 months",
 ] as const;
 
+export const TABLE_RANGE_DROPDOWN_OPTIONS = [
+  ...TABLE_AGGREGATION_OPTIONS,
+  DEFAULT_AGGREGATION_SELECTION,
+] as const;
+
 export type DashboardDateRangeAggregationOption =
   (typeof DASHBOARD_AGGREGATION_OPTIONS)[number];
 

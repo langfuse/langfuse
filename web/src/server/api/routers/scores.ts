@@ -1,13 +1,19 @@
-import { addMinutes } from "date-fns";
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import {
   type ScoreOptions,
   scoresTableCols,
 } from "@/src/server/api/definitions/scoresTable";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import {
+  DASHBOARD_AGGREGATION_OPTIONS,
+  DEFAULT_AGGREGATION_SELECTION,
+  TABLE_RANGE_DROPDOWN_OPTIONS,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/utils/date-range-utils";
+import { addMinutes } from "date-fns";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -25,6 +31,19 @@ import {
 } from "@langfuse/shared";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
 
+const SelectedTimeOption = z
+  .discriminatedUnion("filterSource", [
+    z.object({
+      filterSource: z.literal("TABLE"),
+      option: z.enum(TABLE_RANGE_DROPDOWN_OPTIONS),
+    }),
+    z.object({
+      filterSource: z.literal("DASHBOARD"),
+      option: z.enum(DASHBOARD_AGGREGATION_OPTIONS),
+    }),
+  ])
+  .optional();
+
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
@@ -34,6 +53,32 @@ const ScoreFilterOptions = z.object({
 const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
 });
+
+const getDateFromOption = (
+  selectedTimeOption: z.infer<typeof SelectedTimeOption>,
+): Date | undefined => {
+  if (!selectedTimeOption) return undefined;
+
+  const { filterSource, option } = selectedTimeOption;
+  if (filterSource === "TABLE") {
+    const setting =
+      tableDateRangeAggregationSettings[
+        option as keyof typeof tableDateRangeAggregationSettings
+      ];
+
+    return option !== DEFAULT_AGGREGATION_SELECTION
+      ? addMinutes(new Date(), -setting)
+      : undefined;
+  } else if (filterSource === "DASHBOARD") {
+    const setting =
+      dashboardDateRangeAggregationSettings[
+        option as keyof typeof dashboardDateRangeAggregationSettings
+      ];
+
+    return addMinutes(new Date(), -setting.minutes);
+  }
+  return undefined;
+};
 
 export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -297,30 +342,11 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        selectedTimeOption: z
-          .union([
-            z.literal("7 days"),
-            z.literal("30 min"),
-            z.literal("1 hour"),
-            z.literal("6 hours"),
-            z.literal("24 hours"),
-            z.literal("3 days"),
-            z.literal("14 days"),
-            z.literal("1 month"),
-            z.literal("3 months"),
-            z.literal("All time"),
-          ])
-          .optional(),
+        selectedTimeOption: SelectedTimeOption,
       }),
     )
     .query(async ({ input, ctx }) => {
-      const date =
-        !!input.selectedTimeOption && input.selectedTimeOption !== "All time"
-          ? addMinutes(
-              new Date(),
-              -tableDateRangeAggregationSettings[input.selectedTimeOption],
-            )
-          : undefined;
+      const date = getDateFromOption(input.selectedTimeOption);
 
       const scores = await ctx.prisma.score.groupBy({
         where: {
