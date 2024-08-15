@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 import { ApiKeyZod } from "@/src/features/public-api/server/apiAuth";
+import { makeAPICall } from "@/src/__tests__/test-utils";
 
 const generateAuth = (username: string, password: string) => {
   const auth = Buffer.from(`${username}:${password}`).toString("base64");
@@ -109,4 +110,61 @@ describe("Ingestion Pipeline", () => {
 
     expect(response.status).toBe(207);
   }, 10000);
+});
+
+describe("Prompts endpoints", () => {
+  it("creates and returns a prompt", async () => {
+    const promptName = "prompt-name" + v4();
+    const chatMessages = [
+      { role: "system", content: "You are a bot" },
+      { role: "user", content: "What's up?" },
+    ];
+    const response = await fetch(
+      "http://localhost:3000/api/public/v2/prompts",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: userApiKeyAuth,
+        },
+        body: JSON.stringify({
+          name: promptName,
+          prompt: chatMessages,
+          type: "chat",
+          labels: ["production"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(201);
+
+    const fetchedPrompt = await fetch(
+      `http://localhost:3000/api/public/v2/prompts/${encodeURIComponent(promptName)}`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: userApiKeyAuth,
+        },
+      },
+    );
+    expect(fetchedPrompt.status).toBe(200);
+    expect(fetchedPrompt.body).not.toBeNull();
+
+    if (fetchedPrompt.body === null) {
+      return;
+    }
+
+    const validatedPrompt = await fetchedPrompt.json();
+
+    expect(validatedPrompt.name).toBe(promptName);
+
+    const redisKey = `prompt:7a88fb47-b4e2-43b8-a06c-a5ce950dc53a:${promptName}:${validatedPrompt.labels[0]}`;
+    const redisValue = await redis?.get(redisKey);
+
+    expect(redisValue).not.toBeNull();
+    if (!redisValue) {
+      return;
+    }
+    expect(JSON.parse(redisValue)).toEqual(validatedPrompt);
+  });
 });
