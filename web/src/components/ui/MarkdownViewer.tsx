@@ -32,6 +32,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { captureException } from "@sentry/nextjs";
+import { useSession } from "next-auth/react";
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
@@ -65,13 +66,13 @@ const customLoader = ({
 
 const ImageErrorDisplay = ({
   src,
-  errorDescription,
+  displayError,
 }: {
   src: string;
-  errorDescription: string;
+  displayError: string;
 }) => (
   <div className="flex flex-row items-center gap-2">
-    <span title={errorDescription} className="h-4 w-4">
+    <span title={displayError} className="h-4 w-4">
       <ImageOff className="h-4 w-4" />
     </span>
     <Link href={src} className="underline" target="_blank">
@@ -84,10 +85,23 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
   const [isImageVisible, setIsImageVisible] = useState(false);
+  const session = useSession();
 
   if (!isPresent(src)) return null;
 
-  const isValidImage = api.utilities.validateImgUrl.useQuery(src);
+  const isValidImage = api.utilities.validateImgUrl.useQuery(src, {
+    enabled: session.status === "authenticated",
+  });
+
+  if (session.status !== "authenticated") {
+    return (
+      <ImageErrorDisplay
+        src={src}
+        displayError="Images not rendered on public traces and observations"
+      />
+    );
+  }
+
   if (isValidImage.isLoading) {
     return (
       <Skeleton className="h-8 w-1/2 items-center p-2 text-xs">
@@ -96,13 +110,13 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
     );
   }
 
-  const errorDescription = `Cannot load image. ${src.includes("http") ? "Http images are not rendered in Langfuse for security reasons" : "Invalid image URL"}`;
+  const displayError = `Cannot load image. ${src.includes("http") ? "Http images are not rendered in Langfuse for security reasons" : "Invalid image URL"}`;
 
   if (isValidImage.data?.isValid) {
     return (
       <div>
         {hasFetchError ? (
-          <ImageErrorDisplay src={src} errorDescription={errorDescription} />
+          <ImageErrorDisplay src={src} displayError={displayError} />
         ) : (
           <div
             className={cn(
@@ -171,7 +185,7 @@ const MarkdownImage: Components["img"] = ({ src, alt }) => {
     );
   }
 
-  return <ImageErrorDisplay src={src} errorDescription={errorDescription} />;
+  return <ImageErrorDisplay src={src} displayError={displayError} />;
 };
 
 const isTextElement = (child: ReactNode): child is ReactElement =>
