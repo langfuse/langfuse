@@ -142,7 +142,7 @@ export function ScoreAnalytics(props: {
                     <div className="mb-2 text-sm text-muted-foreground">
                       {isNumericDataType(dataType)
                         ? "Moving average over time"
-                        : "Scores added over time"}
+                        : "Scores over time"}
                     </div>
                     {(isCategoricalDataType(dataType) ||
                       isBooleanDataType(dataType)) && (
