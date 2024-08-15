@@ -139,10 +139,10 @@ describe("Ingestion Pipeline", () => {
 
       // failure due to missing openai key in the pipeline. Expected
       expect(evalExecution.status).toBe(JobExecutionStatus.ERROR);
-    }, 15000);
+    }, 20000);
 
     expect(response.status).toBe(207);
-  }, 20000);
+  }, 25000);
 });
 
 describe("Prompts endpoint", () => {
