@@ -131,7 +131,7 @@ describe("Ingestion Pipeline", () => {
   }, 20000);
 });
 
-describe("Prompts endpoints", () => {
+describe("Prompts endpoint", () => {
   it("creates and returns a prompt", async () => {
     const promptName = "prompt-name" + v4();
     const chatMessages = [
