@@ -7,14 +7,39 @@ import {
 } from "@langfuse/shared/src/server";
 
 // Constants
-const LIMIT = 50;
-const ITERATIONS = 20;
-const DATE_START = new Date("2024-08-13T10:30:00.000Z");
-const DATE_END = new Date(); //new Date(Date.now() - 1000 * 60 * 60); // 1 hour ago
+const LIMIT = 100;
+const ITERATIONS = 10;
+const DATE_START = new Date("2024-08-15T00:00:00.000Z");
+const DATE_END = new Date(Date.now() - 1000 * 60 * 15); // 15 minutes ago
 
-const TABLE_SAMPLE_RATE = 10;
+const TABLE_SAMPLE_RATE = 0.05;
 
-async function main() {
+// Execution
+main({
+  overwriteObservationIds: [],
+  overwriteTraceIds: [],
+  overwriteScoreIds: [],
+}).then(() => {
+  console.log("done");
+  process.exit(0);
+});
+
+type MainParams = {
+  overwriteObservationIds: string[];
+  overwriteTraceIds: string[];
+  overwriteScoreIds: string[];
+};
+
+async function main(params: MainParams) {
+  const { overwriteObservationIds, overwriteTraceIds, overwriteScoreIds } =
+    params;
+
+  const hasOverwrite = [
+    overwriteObservationIds,
+    overwriteTraceIds,
+    overwriteScoreIds,
+  ].some((o) => o.length > 0);
+
   const failedObservationList: string[] = [];
   const failedTraceList: string[] = [];
   const failedScoreList: string[] = [];
@@ -31,24 +56,41 @@ async function main() {
     console.log(`Iteration ${currentIteration + 1}/${ITERATIONS}`);
 
     // Check observations
-    const randomObservations = await prisma.$queryRaw<unknown[]>(
-      Prisma.sql`
-        SELECT
-          *
-        FROM
-          observations TABLESAMPLE SYSTEM(${TABLE_SAMPLE_RATE})
-        WHERE
-          start_time > ${DATE_START}::TIMESTAMP WITH time zone at time zone 'UTC'
-          AND start_time < ${DATE_END}::TIMESTAMP WITH time zone at time zone 'UTC'
-        LIMIT ${LIMIT}
-      `
-    );
+    let observations: unknown[] = [];
 
-    console.log(`Verifying ${randomObservations.length} observations...`);
+    if (overwriteObservationIds.length > 0) {
+      observations = await prisma.$queryRaw<unknown[]>(
+        Prisma.sql`
+          SELECT
+            *
+          FROM
+            observations
+          WHERE
+            id IN (${Prisma.join(overwriteObservationIds, ", ")})
+        `
+      );
+    } else if (!hasOverwrite) {
+      const randomObservations = await prisma.$queryRaw<unknown[]>(
+        Prisma.sql`
+          SELECT
+            *
+          FROM
+            observations TABLESAMPLE SYSTEM(${TABLE_SAMPLE_RATE})
+          WHERE
+            start_time > ${DATE_START}::TIMESTAMP WITH time zone at time zone 'UTC'
+            AND start_time < ${DATE_END}::TIMESTAMP WITH time zone at time zone 'UTC'
+          LIMIT ${LIMIT}
+        `
+      );
+
+      observations = randomObservations;
+    }
+
+    console.log(`Verifying ${observations.length} observations...`);
 
     try {
       const results = await Promise.allSettled(
-        randomObservations.map(async (obs) => {
+        observations.map(async (obs) => {
           const id = (obs as any).id;
           if (checkedObservationSet.has(id)) {
             return;
@@ -73,8 +115,19 @@ async function main() {
     }
 
     // Check traces
-    const randomTraces = await prisma.$queryRaw<unknown[]>(
-      Prisma.sql`
+    let traces: unknown[] = [];
+    if (overwriteTraceIds.length > 0) {
+      const traces = await prisma.$queryRaw<unknown[]>(
+        Prisma.sql`
+          SELECT *
+          FROM traces
+          WHERE
+            id IN (${Prisma.join(overwriteTraceIds, ", ")})
+        `
+      );
+    } else if (!hasOverwrite) {
+      const randomTraces = await prisma.$queryRaw<unknown[]>(
+        Prisma.sql`
         SELECT *
         FROM traces TABLESAMPLE SYSTEM(${TABLE_SAMPLE_RATE})
         WHERE
@@ -82,13 +135,16 @@ async function main() {
           AND timestamp < ${DATE_END}::TIMESTAMP WITH time zone at time zone 'UTC'
         LIMIT ${LIMIT}
       `
-    );
+      );
 
-    console.log(`Verifying ${randomTraces.length} traces...`);
+      traces = randomTraces;
+    }
+
+    console.log(`Verifying ${traces.length} traces...`);
 
     try {
       const results = await Promise.allSettled(
-        randomTraces.map(async (trace) => {
+        traces.map(async (trace) => {
           const id = (trace as any).id;
           if (checkedTraceSet.has(id)) {
             return;
@@ -113,23 +169,37 @@ async function main() {
     }
 
     // Check scores
-    const randomScores = await prisma.$queryRaw<unknown[]>(
-      Prisma.sql`
-        SELECT * 
-        FROM scores TABLESAMPLE SYSTEM(${TABLE_SAMPLE_RATE})
-        WHERE
-          timestamp > ${DATE_START}::TIMESTAMP WITH time zone at time zone 'UTC'
-          AND timestamp < ${DATE_END}::TIMESTAMP WITH time zone at time zone 'UTC'
-          AND source = 'API'
-        LIMIT ${LIMIT}
-      `
-    );
+    let scores: unknown[] = [];
+    if (overwriteScoreIds.length > 0) {
+      scores = await prisma.$queryRaw<unknown[]>(
+        Prisma.sql`
+          SELECT *
+          FROM scores
+          WHERE
+            id IN (${Prisma.join(overwriteScoreIds, ", ")})
+        `
+      );
+    } else if (!hasOverwrite) {
+      const randomScores = await prisma.$queryRaw<unknown[]>(
+        Prisma.sql`
+          SELECT * 
+          FROM scores TABLESAMPLE SYSTEM(${TABLE_SAMPLE_RATE})
+          WHERE
+            timestamp > ${DATE_START}::TIMESTAMP WITH time zone at time zone 'UTC'
+            AND timestamp < ${DATE_END}::TIMESTAMP WITH time zone at time zone 'UTC'
+            AND source = 'API'
+          LIMIT ${LIMIT}
+        `
+      );
 
-    console.log(`Verifying ${randomScores.length} scores...`);
+      scores = randomScores;
+    }
+
+    console.log(`Verifying ${scores.length} scores...`);
 
     try {
       const results = await Promise.allSettled(
-        randomScores.map(async (score) => {
+        scores.map(async (score) => {
           const id = (score as any).id;
           if (checkedScoreSet.has(id)) {
             return;
@@ -154,6 +224,7 @@ async function main() {
     }
 
     currentIteration++;
+    if (hasOverwrite) break;
   }
 
   console.log(`Total observations verified: ${totalObservationCount}`);
@@ -161,15 +232,13 @@ async function main() {
   console.log(`Total scores verified: ${totalScoreCount}`);
 
   if (failedObservationList.length > 0) {
-    await Promise.all([
-      writeFile(
-        `src/scripts/output/${new Date().toISOString()}_failedObservations.txt`,
-        failedObservationList.join("\n")
-      ),
-    ]);
-    console.error(
-      `Failed to verify ${failedObservationList.length} out of ${totalObservationCount} observations`
-    );
+    await writeFile(
+      `src/scripts/output/${new Date().toISOString()}_failedObservations.txt`,
+      failedObservationList.join("\n")
+    ),
+      console.error(
+        `Failed to verify ${failedObservationList.length} out of ${totalObservationCount} observations`
+      );
   } else {
     console.log(
       `All ${totalObservationCount} observations verified successfully`
@@ -177,34 +246,31 @@ async function main() {
   }
 
   if (failedTraceList.length > 0) {
-    writeFile(
+    await writeFile(
       `src/scripts/output/${new Date().toISOString()}_failedTraces.txt`,
       failedTraceList.join("\n")
-    ),
-      console.error(
-        `Failed to verify ${failedTraceList.length} out of ${totalTraceCount} traces`
-      );
+    );
+
+    console.error(
+      `Failed to verify ${failedTraceList.length} out of ${totalTraceCount} traces`
+    );
   } else {
     console.log(`All ${totalTraceCount} traces verified successfully`);
   }
 
   if (failedScoreList.length > 0) {
-    writeFile(
+    await writeFile(
       `src/scripts/output/${new Date().toISOString()}_failedScores.txt`,
       failedScoreList.join("\n")
-    ),
-      console.error(
-        `Failed to verify ${failedScoreList.length} out of ${totalScoreCount} scores`
-      );
+    );
+
+    console.error(
+      `Failed to verify ${failedScoreList.length} out of ${totalScoreCount} scores`
+    );
   } else {
     console.log(`All ${totalScoreCount} scores verified successfully`);
   }
 }
-
-main().then(() => {
-  console.log("done");
-  process.exit(0);
-});
 
 async function verifyClickhouseObservation(postgresObservation: any) {
   const { id: observationId, project_id: projectId } = postgresObservation;

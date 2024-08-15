@@ -1,5 +1,6 @@
-import { Worker } from "bullmq";
-import { QueueJobs, QueueName } from "@langfuse/shared";
+import { Queue, Worker } from "bullmq";
+
+import { QueueJobs, QueueName } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
@@ -30,15 +31,15 @@ export const ingestionQueueExecutor = redis
           },
           async () => {
             if (job.name === QueueJobs.FlushIngestionEntity) {
-              const projectEntityId = job.id;
-              if (!projectEntityId) {
-                throw new Error("ProjectEntity ID not provided");
+              const flushKey = job.id;
+              if (!flushKey) {
+                throw new Error("Flushkey not provided");
               }
 
               // Log wait time
               const waitTime = Date.now() - job.timestamp;
               logger.debug(
-                `Received flush request after ${waitTime} ms for ${projectEntityId}`
+                `Received flush request after ${waitTime} ms for ${flushKey}`
               );
 
               recordCount("ingestion_processing_request");
@@ -61,12 +62,12 @@ export const ingestionQueueExecutor = redis
                   prisma,
                   ClickhouseWriter.getInstance(),
                   clickhouseClient
-                ).flush(projectEntityId);
+                ).flush(flushKey);
 
                 // Log processing time
                 const processingTime = Date.now() - processingStartTime;
                 logger.debug(
-                  `Prepared and scheduled CH-write in ${processingTime} ms for ${projectEntityId}`
+                  `Prepared and scheduled CH-write in ${processingTime} ms for ${flushKey}`
                 );
                 recordHistogram(
                   "ingestion_flush_processing_time",
@@ -87,7 +88,7 @@ export const ingestionQueueExecutor = redis
                   .catch();
               } catch (err) {
                 console.error(
-                  `Error processing flush request for ${projectEntityId}`,
+                  `Error processing flush request for ${flushKey}`,
                   err
                 );
 

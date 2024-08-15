@@ -12,7 +12,8 @@ import {
   validateDbScoreConfig,
 } from "@langfuse/shared";
 import { ScoreDataType } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
+import { addExceptionToSpan } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const ScoreConfigAllInput = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -53,7 +54,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       return {
         configs: filterAndValidateDbScoreConfigList(
           configs,
-          Sentry.captureException,
+          addExceptionToSpan,
         ),
         totalCount: configsCount,
       };
@@ -83,6 +84,14 @@ export const scoreConfigsRouter = createTRPCRouter({
         },
       });
 
+      await auditLog({
+        session: ctx.session,
+        resourceType: "scoreConfig",
+        resourceId: config.id,
+        action: "create",
+        after: config,
+      });
+
       return validateDbScoreConfig(config);
     }),
   update: protectedProjectProcedure
@@ -100,6 +109,16 @@ export const scoreConfigsRouter = createTRPCRouter({
         scope: "scoreConfigs:CUD",
       });
 
+      const existingConfig = await ctx.prisma.scoreConfig.findFirst({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+      if (!existingConfig) {
+        throw new Error("No score config with this id in this project.");
+      }
+
       const config = await ctx.prisma.scoreConfig.update({
         where: {
           id: input.id,
@@ -108,6 +127,15 @@ export const scoreConfigsRouter = createTRPCRouter({
         data: {
           isArchived: input.isArchived,
         },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "scoreConfig",
+        resourceId: config.id,
+        action: "update",
+        before: existingConfig,
+        after: config,
       });
 
       return validateDbScoreConfig(config);

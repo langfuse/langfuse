@@ -1,16 +1,16 @@
 import { Job, Queue, Worker } from "bullmq";
-import {
-  ApiError,
-  BaseError,
-  QueueName,
-  TQueueJobTypes,
-} from "@langfuse/shared";
+import { ApiError, BaseError } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../features/evaluation/eval-service";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";
-import { addExceptionToSpan, redis } from "@langfuse/shared/src/server";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import {
+  redis,
+  QueueName,
+  TQueueJobTypes,
+  addExceptionToSpan,
+  instrumentAsync,
+} from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
 
 export const evalQueue = redis

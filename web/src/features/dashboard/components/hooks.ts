@@ -46,16 +46,34 @@ type ChartData = {
   value?: number;
 };
 
+type FieldMappingItem = {
+  uniqueIdentifierColumns: {
+    accessor: string;
+    formatFct?: (value: string) => string;
+  }[];
+  valueColumn: string;
+};
+
+function generateChartLabelFromColumns(
+  uniqueIdentifierColumns: FieldMappingItem["uniqueIdentifierColumns"],
+  row: DatabaseRow,
+): string {
+  return uniqueIdentifierColumns
+    .map(({ accessor, formatFct }) => {
+      if (row[accessor] === null || row[accessor] === undefined) return null;
+      return formatFct
+        ? formatFct(row[accessor] as string)
+        : (row[accessor] as string);
+    })
+    .filter((value) => value !== null)
+    .join(" ");
+}
+
 // we get data for time series in the following format:
 // ts: 123, label1: 1, label2: 2
 // ts: 456, label1: 5, label2: 9
 // This needs to be mapped to the following format:
 // [{ts: 123, values: [{label1: 1, label2: 2}]}, {ts: 456, values: [{label1: 5, label2: 9}]]
-
-type FieldMappingItem = {
-  labelColumn: string;
-  valueColumn: string;
-};
 
 export function extractTimeSeriesData(
   data: DatabaseRow[],
@@ -68,15 +86,18 @@ export function extractTimeSeriesData(
     const reducedData: ChartData[] = [];
     // Map the desired fields from the DatabaseRow to the ChartData based on the mapping provided
     mapping.forEach((mapItem) => {
-      const labelValue = curr[mapItem.labelColumn] as string;
+      const chartLabel = generateChartLabelFromColumns(
+        mapItem.uniqueIdentifierColumns,
+        curr,
+      );
       const columnValue = curr[mapItem.valueColumn];
       if (
-        labelValue &&
+        chartLabel &&
         columnValue !== undefined &&
-        typeof labelValue === "string"
+        typeof chartLabel === "string"
       ) {
         reducedData.push({
-          label: labelValue,
+          label: chartLabel,
           value: columnValue ? (columnValue as number) : 0,
         });
       }
@@ -118,13 +139,21 @@ export function fillMissingValuesAndTransform(
   return result;
 }
 
-export const isEmptyTimeSeries = (data: TimeSeriesChartDataPoint[]) => {
+export const isEmptyTimeSeries = ({
+  data,
+  isNullValueAllowed = false,
+}: {
+  data: TimeSeriesChartDataPoint[];
+  isNullValueAllowed?: boolean;
+}) => {
   return (
     data.length === 0 ||
     data.every(
       (item) =>
         item.values.length === 0 ||
-        item.values.every((value) => value.value === 0),
+        (isNullValueAllowed
+          ? false
+          : item.values.every((value) => value.value === 0)),
     )
   );
 };

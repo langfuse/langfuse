@@ -28,6 +28,7 @@ import {
   IngestionUtils,
   ClickhouseEntityType,
   PromptService,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -75,8 +76,8 @@ export class IngestionService {
     this.promptService = new PromptService(prisma, redis);
   }
 
-  public async flush(projectEntityKey: string): Promise<void> {
-    const bufferKey = IngestionUtils.getBufferKey(projectEntityKey);
+  public async flush(flushKey: string): Promise<void> {
+    const bufferKey = IngestionUtils.getBufferKey(flushKey);
     const eventList = (await this.redis.lrange(bufferKey, 0, -1))
       .map((serializedEventData) => {
         const parsed = ingestionEventWithProjectId.safeParse(
@@ -97,12 +98,12 @@ export class IngestionService {
 
     if (eventList.length === 0) {
       throw new Error(
-        `No valid events found in buffer for project entity ${projectEntityKey}`
+        `No valid events found in buffer for flushKey ${flushKey}`
       );
     }
 
     const { projectId, eventType, entityId } =
-      IngestionUtils.parseProjectEntityKey(projectEntityKey);
+      IngestionUtils.parseFlushKey(flushKey);
 
     switch (eventType) {
       case ClickhouseEntityType.Trace:
@@ -498,11 +499,7 @@ export class IngestionService {
 
   static calculateTokenCosts(
     model: Model | null | undefined,
-    userProvidedCosts: {
-      provided_input_cost?: number | null;
-      provided_output_cost?: number | null;
-      provided_total_cost?: number | null;
-    },
+    observationRecord: ObservationRecordInsertType,
     tokenCounts: {
       input_usage_units?: number | null;
       output_usage_units?: number | null;
@@ -513,20 +510,21 @@ export class IngestionService {
     output_cost: number | null | undefined;
     total_cost: number | null | undefined;
   } {
+    const { provided_input_cost, provided_output_cost, provided_total_cost } =
+      observationRecord;
+
     // If user has provided any cost point, do not calculate anything else
     if (
-      userProvidedCosts.provided_input_cost != null ||
-      userProvidedCosts.provided_output_cost != null ||
-      userProvidedCosts.provided_total_cost != null
+      provided_input_cost != null ||
+      provided_output_cost != null ||
+      provided_total_cost != null
     ) {
       return {
-        ...userProvidedCosts,
-        input_cost: userProvidedCosts.provided_input_cost,
-        output_cost: userProvidedCosts.provided_output_cost,
+        input_cost: provided_input_cost,
+        output_cost: provided_output_cost,
         total_cost:
-          userProvidedCosts.provided_total_cost ??
-          (userProvidedCosts.provided_input_cost ?? 0) +
-            (userProvidedCosts.provided_output_cost ?? 0),
+          provided_total_cost ??
+          (provided_input_cost ?? 0) + (provided_output_cost ?? 0),
       };
     }
 

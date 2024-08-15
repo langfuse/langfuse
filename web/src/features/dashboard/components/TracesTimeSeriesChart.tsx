@@ -82,7 +82,7 @@ export const TracesTimeSeriesChart = ({
           total ? compactNumberFormatter(total) : compactNumberFormatter(0)
         }
       />
-      {!isEmptyTimeSeries(transformedTraces) ? (
+      {!isEmptyTimeSeries({ data: transformedTraces }) ? (
         <BaseTimeSeriesChart
           className="h-full min-h-80 self-stretch"
           agg={agg}

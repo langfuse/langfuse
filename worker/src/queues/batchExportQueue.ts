@@ -1,11 +1,6 @@
 import { Job, Worker } from "bullmq";
 
-import {
-  BaseError,
-  BatchExportStatus,
-  QueueName,
-  TQueueJobTypes,
-} from "@langfuse/shared";
+import { BaseError, BatchExportStatus } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
 import {
@@ -13,7 +8,7 @@ import {
   instrumentAsync,
 } from "@langfuse/shared/src/server";
 import logger from "../logger";
-import { redis } from "@langfuse/shared/src/server";
+import { redis, QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 import { SpanKind } from "@opentelemetry/api";
 
