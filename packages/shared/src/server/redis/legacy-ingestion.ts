@@ -1,9 +1,6 @@
 import { Queue } from "bullmq";
-import { QueueJobs, QueueName, TQueueJobTypes } from "../queues";
+import { QueueName, TQueueJobTypes } from "../queues";
 import { redis } from "./redis";
-import { ingestionBatchEvent } from "../ingestion/types";
-import z from "zod";
-import { randomUUID } from "crypto";
 
 let legacyIngestionQueue: Queue<
   TQueueJobTypes[QueueName.LegacyIngestionQueue]

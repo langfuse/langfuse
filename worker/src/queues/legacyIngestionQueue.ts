@@ -1,5 +1,9 @@
 import { Job, Queue, Worker } from "bullmq";
-import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
+import {
+  getLegacyIngestionQueue,
+  QueueName,
+  TQueueJobTypes,
+} from "@langfuse/shared/src/server";
 import logger from "../logger";
 
 import {
@@ -10,20 +14,6 @@ import {
 import { instrumentAsync } from "../instrumentation";
 import * as Sentry from "@sentry/node";
 import { tokenCount } from "../features/tokenisation/usage";
-
-export const legacyIngestionQueue = redis
-  ? new Queue<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
-      QueueName.LegacyIngestionQueue,
-      {
-        connection: redis,
-        defaultJobOptions: {
-          removeOnComplete: true,
-          removeOnFail: 1000,
-          attempts: 5,
-        },
-      }
-    )
-  : null;
 
 export const legacyIngestionExecutor = redis
   ? new Worker<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
@@ -63,7 +53,7 @@ export const legacyIngestionExecutor = redis
             );
 
             // Log queue size
-            await legacyIngestionQueue
+            await getLegacyIngestionQueue()
               ?.count()
               .then((count) => {
                 logger.info(`Legacy Ingestion flush queue length: ${count}`);
@@ -89,10 +79,10 @@ export const legacyIngestionExecutor = redis
       },
       {
         connection: redis,
-        concurrency: 50,
+        concurrency: 50, // n ingestion batches at a time
         limiter: {
-          // execute 75 calls in 1000ms
-          max: 100,
+          // per second, process max n batches
+          max: 40,
           duration: 1000,
         },
       }
