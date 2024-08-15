@@ -14,6 +14,7 @@ import {
 import { instrumentAsync } from "../instrumentation";
 import * as Sentry from "@sentry/node";
 import { tokenCount } from "../features/tokenisation/usage";
+import { env } from "../env";
 
 export const legacyIngestionExecutor = redis
   ? new Worker<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
@@ -79,7 +80,7 @@ export const legacyIngestionExecutor = redis
       },
       {
         connection: redis,
-        concurrency: 25, // n ingestion batches at a time
+        concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY, // n ingestion batches at a time
         limiter: {
           // per second, process max n batches
           max: 20,

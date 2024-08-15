@@ -94,7 +94,7 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          grep -v -e '^REDIS_HOST=' -e '^LANGFUSE_ASYNC_INGESTION_PROCESSING=' -e '^LANGFUSE_CACHE_API_KEY_ENABLED=' -e '^LANGFUSE_CACHE_PROMPT_ENABLED=' .env.dev.example > web/.env
+          grep -v -e '^REDIS_HOST=' -e '^LANGFUSE_ASYNC_INGESTION_PROCESSING=' -e '^LANGFUSE_CACHE_API_KEY_ENABLED=' -e '^LANGFUSE_CACHE_PROMPT_ENABLED=' .env.dev.example > .env
 
       - name: Run + migrate
         run: |
