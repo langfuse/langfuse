@@ -11,6 +11,7 @@ export type AuditableResource =
   | "project"
   | "observation"
   | "score"
+  | "scoreConfig"
   | "model"
   | "prompt"
   | "session"

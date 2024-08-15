@@ -12,7 +12,7 @@ import logger from "./logger";
 
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
-import { flushIngestionQueueExecutor } from "./queues/ingestionFlushQueue";
+import { ingestionQueueExecutor } from "./queues/ingestionFlushQueueExecutor";
 import { repeatQueueExecutor } from "./queues/repeatQueue";
 import { logQueueWorkerError } from "./utils/logQueueWorkerError";
 import { onShutdown } from "./utils/shutdown";
@@ -47,14 +47,14 @@ logger.info(
 logger.info("Repeat Queue Executor started", repeatQueueExecutor?.isRunning());
 logger.info(
   "Flush Ingestion Queue Executor started",
-  flushIngestionQueueExecutor?.isRunning()
+  ingestionQueueExecutor?.isRunning()
 );
 
 evalJobCreator?.on("failed", logQueueWorkerError);
 evalJobExecutor?.on("failed", logQueueWorkerError);
 batchExportJobExecutor?.on("failed", logQueueWorkerError);
 repeatQueueExecutor?.on("failed", logQueueWorkerError);
-flushIngestionQueueExecutor?.on("failed", logQueueWorkerError);
+ingestionQueueExecutor?.on("failed", logQueueWorkerError);
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
 process.on("SIGTERM", () => onShutdown("SIGTERM"));

@@ -29,10 +29,8 @@ vi.mock("../../ClickhouseWriter", async (importOriginal) => {
 const mockIngestionService = new IngestionService(
   null as any,
   prisma,
-  null as any,
   clickhouseWriteExports.ClickhouseWriter.getInstance() as any,
-  mockClickhouseClient as any,
-  10
+  mockClickhouseClient as any
 );
 
 describe("Token Cost Calculation", () => {
