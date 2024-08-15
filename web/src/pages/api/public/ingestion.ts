@@ -11,6 +11,8 @@ import {
   type AuthHeaderValidVerificationResult,
   type ingestionBatchEvent,
   handleBatch,
+  type TQueueJobTypes,
+  type QueueName,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
