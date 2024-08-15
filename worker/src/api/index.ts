@@ -1,12 +1,13 @@
 import express from "express";
 import basicAuth from "express-basic-auth";
-
-import { EventBodySchema, EventName, QueueJobs } from "@langfuse/shared";
 import {
   clickhouseClient,
   convertTraceUpsertEventsToRedisEvents,
   getTraceUpsertQueue,
   getBatchExportQueue,
+  EventBodySchema,
+  EventName,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import * as Sentry from "@sentry/node";
 

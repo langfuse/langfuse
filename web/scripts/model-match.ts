@@ -8,8 +8,8 @@ import "dotenv/config";
 import { findModel } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import lodash from "lodash";
-import { tokenCount } from "@/src/features/ingest/usage";
 import { type Prisma } from "@langfuse/shared/src/db";
+import { tokenCount } from "@/src/features/ingest/usage";
 
 async function main() {
   return await modelMatch();

@@ -3,9 +3,9 @@ import Decimal from "decimal.js";
 import { v4 as uuidv4 } from "uuid";
 
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
-import { ObservationProcessor } from "@/src/server/api/services/EventProcessor";
 import { ModelUsageUnit } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { ObservationProcessor } from "@langfuse/shared/src/server";
 
 describe("Token Cost Calculation", () => {
   const modelName = "gpt-test-" + nanoid();

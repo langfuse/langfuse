@@ -14,9 +14,10 @@
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
-    "test": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose",
+    "test": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --testPathIgnorePatterns='__e2e__'",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
+    "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --testPathPattern='__e2e__'",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
     "generationCost:backfill": "dotenv -e ../.env -- tsx scripts/observations-backfill-calculated-cost.ts"
   },
@@ -86,7 +87,6 @@
     "date-fns": "^3.3.1",
     "decimal.js": "^10.4.3",
     "dompurify": "^3.1.5",
-    "exponential-backoff": "^3.1.1",
     "graphql": "^16.9.0",
     "ioredis": "^5.4.1",
     "ip-address": "^9.0.5",
@@ -157,7 +157,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.7.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "wait-for-expect": "^3.0.2"
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"

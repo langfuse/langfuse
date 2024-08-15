@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { QueueName, TQueueJobTypes } from "../../queues";
+import { QueueName, TQueueJobTypes } from "../queues";
 import { redis } from "./redis";
 
 let batchExportQueue: Queue<TQueueJobTypes[QueueName.BatchExport]> | null =

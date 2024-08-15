@@ -13,35 +13,42 @@ export enum ClickhouseEntityType {
 }
 
 export class IngestionUtils {
-  public static getBufferKey(projectEntityKey: string): string {
-    return "ingestionBuffer:" + projectEntityKey;
+  public static getBufferKey(flushKey: string): string {
+    const { projectId, eventType, entityId } =
+      IngestionUtils.parseFlushKey(flushKey);
+
+    const sanitizedEntityId = IngestionUtils.escapeReservedChars(entityId);
+
+    return (
+      "ingestionBuffer:" + `${projectId}_${eventType}_${sanitizedEntityId}`
+    );
   }
 
-  public static getProjectEntityKey(params: {
+  public static getFlushKey(params: {
     projectId: string;
     eventType: ClickhouseEntityType;
     entityId: string;
+    batchTimestamp: string;
   }): string {
-    const sanitizedEntityId = IngestionUtils.escapeReservedChars(
-      params.entityId
-    );
+    const { projectId, eventType, entityId, batchTimestamp } = params;
+    const sanitizedEntityId = IngestionUtils.escapeReservedChars(entityId);
 
-    return `${params.projectId}_${params.eventType}_${sanitizedEntityId}`;
+    return `${projectId}_${eventType}_${sanitizedEntityId}_${batchTimestamp}`;
   }
 
-  public static parseProjectEntityKey(projectEntityKey: string) {
+  public static parseFlushKey(projectEntityKey: string) {
     const split = projectEntityKey.split("_");
 
-    if (split.length !== 3) {
+    if (split.length < 3) {
       throw new Error(
-        `Invalid project entity key format ${projectEntityKey}, expected 3 parts`
+        `Invalid project entity key format ${projectEntityKey}, expected 3 or 4 parts`
       );
     }
 
-    const [projectId, eventType, escapedEntityId] = split;
+    const [projectId, eventType, escapedEntityId, batchTimestamp] = split;
     const entityId = IngestionUtils.unescapeReservedChars(escapedEntityId);
 
-    return { projectId, eventType, entityId };
+    return { projectId, eventType, entityId, batchTimestamp };
   }
 
   private static escapeReservedChars(string: string): string {
