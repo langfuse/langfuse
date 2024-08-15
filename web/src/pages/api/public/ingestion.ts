@@ -12,6 +12,7 @@ import {
   type AuthHeaderValidVerificationResult,
   type ingestionBatchEvent,
   handleBatch,
+  recordCount,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
