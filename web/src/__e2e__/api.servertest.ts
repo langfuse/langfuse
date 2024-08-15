@@ -80,6 +80,21 @@ describe("Ingestion Pipeline", () => {
     });
 
     await waitForExpect(async () => {
+      // we need a second call to the public API with the API key, so that it is stored in redis
+      // first call (ingestion above) generates the new, fast API hash
+      // second call (below) stores the API key in redis
+      const traceUrl = `http://localhost:3000/api/public/traces/${traceId}`;
+
+      const traceResponse = await fetch(traceUrl, {
+        headers: {
+          Authorization: userApiKeyAuth,
+        },
+      });
+
+      expect(traceResponse.status).toBe(200);
+      expect(traceResponse.body).not.toBeNull();
+      expect((await traceResponse.json()).id).toBe(traceId);
+
       const trace = await prisma.trace.findUnique({
         where: {
           id: traceId,
