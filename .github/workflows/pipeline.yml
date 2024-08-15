@@ -255,7 +255,7 @@ jobs:
         run: pnpm run build
 
       - name: Run server
-        run: pnpm run start
+        run: (pnpm run start&)
 
       - name: Run e2e tests
         run: pnpm run test:e2e:server
