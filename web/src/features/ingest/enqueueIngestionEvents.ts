@@ -21,11 +21,18 @@ export async function enqueueIngestionEvents(
   if (!redis) throw Error("Redis connection not available");
 
   const queuedEventPromises: Promise<void>[] = [];
+  const batchTimestamp = Date.now().toString();
 
   // Use for loop as TS does not narrow redis type in map function
   for (const event of events) {
     queuedEventPromises.push(
-      enqueueSingleIngestionEvent(projectId, event, redis, ingestionFlushQueue),
+      enqueueSingleIngestionEvent(
+        projectId,
+        event,
+        redis,
+        ingestionFlushQueue,
+        batchTimestamp,
+      ),
     );
   }
 
@@ -37,6 +44,7 @@ async function enqueueSingleIngestionEvent(
   event: IngestionEventType,
   redis: Redis,
   ingestionFlushQueue: IngestionFlushQueue,
+  batchTimestamp: string,
 ): Promise<void> {
   if (!("id" in event.body && event.body.id)) {
     console.warn(
@@ -46,17 +54,18 @@ async function enqueueSingleIngestionEvent(
     return;
   }
 
-  const projectEntityKey = IngestionUtils.getProjectEntityKey({
+  const flushKey = IngestionUtils.getFlushKey({
     entityId: event.body.id,
     eventType: IngestionUtils.getEventType(event),
     projectId,
+    batchTimestamp,
   });
-  const bufferKey = IngestionUtils.getBufferKey(projectEntityKey);
+  const bufferKey = IngestionUtils.getBufferKey(flushKey);
   const serializedEventData = JSON.stringify({ ...event, projectId });
 
   await redis.lpush(bufferKey, serializedEventData);
   await redis.expire(bufferKey, env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS);
   await ingestionFlushQueue.add(QueueJobs.FlushIngestionEntity, null, {
-    jobId: projectEntityKey,
+    jobId: flushKey,
   });
 }
