@@ -1,12 +1,12 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
 import * as Sentry from "@sentry/node";
-import {
-  ApiAuthService,
-  type AuthHeaderValidVerificationResult,
-} from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import {
+  redis,
+  type AuthHeaderValidVerificationResult,
+} from "@langfuse/shared/src/server";
 
 type RouteConfig<
   TQuery extends ZodType<any>,

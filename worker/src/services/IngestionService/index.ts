@@ -28,6 +28,7 @@ import {
   IngestionUtils,
   ClickhouseEntityType,
   PromptService,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";

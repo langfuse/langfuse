@@ -1,15 +1,10 @@
 import { Job, Queue, Worker } from "bullmq";
-import {
-  ApiError,
-  BaseError,
-  QueueName,
-  TQueueJobTypes,
-} from "@langfuse/shared";
+import { ApiError, BaseError } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../features/evaluation/eval-service";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";
-import { redis } from "@langfuse/shared/src/server";
+import { redis, QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "../instrumentation";
 import * as Sentry from "@sentry/node";
 

@@ -9,6 +9,7 @@ import { repeatQueueExecutor } from "../queues/repeatQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
+import { legacyIngestionExecutor } from "../queues/legacyIngestionQueue";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
@@ -25,6 +26,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
     batchExportJobExecutor,
     ingestionQueueExecutor,
     repeatQueueExecutor,
+    legacyIngestionExecutor,
   ];
 
   await Promise.all(workers.map((worker) => worker?.close()));

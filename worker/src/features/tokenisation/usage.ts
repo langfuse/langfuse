@@ -1,7 +1,6 @@
-import { parseJsonPrioritised } from "@langfuse/shared";
+import { Model, parseJsonPrioritised } from "@langfuse/shared";
 import { isChatModel, isTiktokenModel } from "./types";
 import { countTokens } from "@anthropic-ai/tokenizer";
-import { Model } from "@prisma/client";
 
 import {
   type TiktokenModel,

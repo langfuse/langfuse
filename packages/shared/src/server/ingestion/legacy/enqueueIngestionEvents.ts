@@ -1,17 +1,17 @@
-import { env } from "@/src/env.mjs";
-import { QueueJobs } from "@langfuse/shared";
-import {
-  type IngestionEventType,
-  getIngestionFlushQueue,
-  redis,
-  IngestionUtils,
-  type IngestionFlushQueue,
-} from "@langfuse/shared/src/server";
 import { type Redis } from "ioredis";
+import { QueueJobs } from "../../queues";
+import {
+  getIngestionFlushQueue,
+  IngestionFlushQueue,
+} from "../../redis/ingestionFlushQueue";
+import { IngestionUtils } from "../IngestionUtils";
+import { IngestionEventType } from "../types";
+import { redis } from "../../redis/redis";
+import { env } from "../../../env";
 
 export async function enqueueIngestionEvents(
   projectId: string,
-  events: IngestionEventType[],
+  events: IngestionEventType[]
 ) {
   const ingestionFlushQueue = getIngestionFlushQueue();
 
@@ -31,8 +31,8 @@ export async function enqueueIngestionEvents(
         event,
         redis,
         ingestionFlushQueue,
-        batchTimestamp,
-      ),
+        batchTimestamp
+      )
     );
   }
 
@@ -44,11 +44,11 @@ async function enqueueSingleIngestionEvent(
   event: IngestionEventType,
   redis: Redis,
   ingestionFlushQueue: IngestionFlushQueue,
-  batchTimestamp: string,
+  batchTimestamp: string
 ): Promise<void> {
   if (!("id" in event.body && event.body.id)) {
     console.warn(
-      `Received ingestion event without id: ${JSON.stringify(event)}`,
+      `Received ingestion event without id: ${JSON.stringify(event)}`
     );
 
     return;

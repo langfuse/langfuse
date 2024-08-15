@@ -33,6 +33,10 @@ const EnvSchema = z.object({
     .nonnegative()
     .default(10000),
   LANGFUSE_INGESTION_FLUSH_ATTEMPTS: z.coerce.number().positive().default(3),
+  LANGFUSE_INGESTION_BUFFER_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(60 * 10),
 });
 
 export const env = EnvSchema.parse(process.env);
