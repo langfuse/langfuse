@@ -1,9 +1,9 @@
 import { env } from "@/src/env.mjs";
 import {
+  instrumentAsync,
   type EventBodyType,
   type IngestionApiSchemaWithProjectId,
 } from "@langfuse/shared/src/server";
-import { instrumentAsync } from "@/src/utils/instrumentation";
 
 export class WorkerClient {
   readonly enabled: boolean;
