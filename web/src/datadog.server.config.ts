@@ -6,7 +6,7 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import dd from "dd-trace";
 import opentelemetry from "@opentelemetry/api";
-import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
+// import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 
 console.log(
   "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION",
@@ -34,7 +34,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new HttpInstrumentation(),
       new PrismaInstrumentation(),
       getNodeAutoInstrumentations(),
-      new BullMQInstrumentation(),
+      // new BullMQInstrumentation(),
     ],
   });
 
