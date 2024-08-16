@@ -46,7 +46,7 @@ export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 export const addExceptionToSpan = (
   ex: unknown,
   span?: opentelemetry.Span,
-  code?: string = undefined
+  code?: string
 ) => {
   const activeSpan = span ?? getCurrentSpan();
 
