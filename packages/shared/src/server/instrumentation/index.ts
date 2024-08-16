@@ -39,14 +39,25 @@ export async function instrumentAsync<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
-export const addExceptionToSpan = (ex: unknown, span?: opentelemetry.Span) => {
+export const addExceptionToSpan = (
+  ex: unknown,
+  span?: opentelemetry.Span,
+  code?: string
+) => {
   const activeSpan = span ?? getCurrentSpan();
 
   if (!activeSpan) {
     return;
   }
 
-  activeSpan.recordException(ex as opentelemetry.Exception);
+  const exception = {
+    code: code,
+    message: ex instanceof Error ? ex.message : String(ex),
+    name: ex instanceof Error ? ex.name : "Error",
+    stack: ex instanceof Error ? ex.stack : undefined,
+  };
+
+  activeSpan.recordException(exception);
   activeSpan.setStatus({ code: opentelemetry.SpanStatusCode.ERROR });
 };
 
