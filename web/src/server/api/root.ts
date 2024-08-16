@@ -23,6 +23,7 @@ import { credentialsRouter } from "@/src/features/auth-credentials/server/creden
 import { batchExportRouter } from "@/src/server/api/routers/batchExport";
 import { utilsRouter } from "@/src/server/api/routers/utilities";
 import { uiCustomizationRouter } from "@/src/ee/features/ui-customization/uiCustomizationRouter";
+import { commentsRouter } from "@/src/server/api/routers/comments";
 
 /**
  * This is the primary router for your server.
@@ -54,6 +55,7 @@ export const appRouter = createTRPCRouter({
   credentials: credentialsRouter,
   utilities: utilsRouter,
   uiCustomization: uiCustomizationRouter,
+  comments: commentsRouter,
 });
 
 // export type definition of API
