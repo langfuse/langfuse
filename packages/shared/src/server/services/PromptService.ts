@@ -18,12 +18,6 @@ export class PromptService {
       (cacheEnabled || env.LANGFUSE_CACHE_PROMPT_ENABLED === "true");
 
     this.ttlSeconds = env.LANGFUSE_CACHE_PROMPT_TTL_SECONDS;
-
-    if (this.cacheEnabled) {
-      this.logInfo("Prompt cache enabled with TTL seconds", this.ttlSeconds);
-    } else {
-      this.logInfo("Prompt cache disabled");
-    }
   }
 
   public async getPrompt(params: PromptParams): Promise<Prompt | null> {
