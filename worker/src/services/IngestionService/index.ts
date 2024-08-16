@@ -28,7 +28,6 @@ import {
   IngestionUtils,
   ClickhouseEntityType,
   PromptService,
-  QueueJobs,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -166,10 +165,21 @@ export class IngestionService {
 
     const scoreRecords = await Promise.all(scoreRecordPromises);
 
+    const clickhouseScoreRecord = await this.getClickhouseRecord({
+      projectId,
+      entityId,
+      table: TableName.Scores,
+    });
+
+    if (!clickhouseScoreRecord && !this.hasCreateEvent(scoreEventList)) {
+      throw new Error(
+        `No create event or existing record found for score with id ${entityId} in project ${projectId}`
+      );
+    }
+
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({
-        projectId,
-        entityId,
+        clickhouseScoreRecord,
         scoreRecords,
       });
 
@@ -193,9 +203,20 @@ export class IngestionService {
       traceEventList: timeSortedEvents,
     });
 
-    const finalTraceRecord = await this.mergeTraceRecords({
+    const clickhouseTraceRecord = await this.getClickhouseRecord({
       projectId,
       entityId,
+      table: TableName.Traces,
+    });
+
+    if (!clickhouseTraceRecord && !this.hasCreateEvent(traceEventList)) {
+      throw new Error(
+        `No create event or existing record found for trace with id ${entityId} in project ${projectId}`
+      );
+    }
+
+    const finalTraceRecord = await this.mergeTraceRecords({
+      clickhouseTraceRecord,
       traceRecords,
     });
 
@@ -221,10 +242,25 @@ export class IngestionService {
       prompt,
     });
 
-    const finalObservationRecord = await this.mergeObservationRecords({
+    const clickhouseObservationRecord = await this.getClickhouseRecord({
       projectId,
       entityId,
+      table: TableName.Observations,
+    });
+
+    if (
+      !clickhouseObservationRecord &&
+      !this.hasCreateEvent(observationEventList)
+    ) {
+      throw new Error(
+        `No create event or existing record found for observation with id ${entityId} in project ${projectId}`
+      );
+    }
+
+    const finalObservationRecord = await this.mergeObservationRecords({
+      projectId,
       observationRecords,
+      clickhouseObservationRecord,
     });
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
@@ -253,17 +289,10 @@ export class IngestionService {
   }
 
   private async mergeScoreRecords(params: {
-    projectId: string;
-    entityId: string;
     scoreRecords: ScoreRecordInsertType[];
+    clickhouseScoreRecord?: ScoreRecordInsertType | null;
   }): Promise<ScoreRecordInsertType> {
-    const { projectId, entityId, scoreRecords } = params;
-
-    const clickhouseScoreRecord = await this.getClickhouseRecord({
-      projectId,
-      entityId,
-      table: TableName.Scores,
-    });
+    const { scoreRecords, clickhouseScoreRecord } = params;
 
     const recordsToMerge = clickhouseScoreRecord
       ? [clickhouseScoreRecord, ...scoreRecords]
@@ -278,17 +307,10 @@ export class IngestionService {
   }
 
   private async mergeTraceRecords(params: {
-    projectId: string;
-    entityId: string;
     traceRecords: TraceRecordInsertType[];
+    clickhouseTraceRecord?: TraceRecordInsertType | null;
   }): Promise<TraceRecordInsertType> {
-    const { projectId, entityId, traceRecords } = params;
-
-    const clickhouseTraceRecord = await this.getClickhouseRecord({
-      projectId,
-      entityId,
-      table: TableName.Traces,
-    });
+    const { traceRecords, clickhouseTraceRecord } = params;
 
     const recordsToMerge = clickhouseTraceRecord
       ? [clickhouseTraceRecord, ...traceRecords]
@@ -304,19 +326,14 @@ export class IngestionService {
 
   private async mergeObservationRecords(params: {
     projectId: string;
-    entityId: string;
     observationRecords: ObservationRecordInsertType[];
+    clickhouseObservationRecord?: ObservationRecordInsertType | null;
   }): Promise<ObservationRecordInsertType> {
-    const { projectId, entityId, observationRecords } = params;
+    const { projectId, observationRecords, clickhouseObservationRecord } =
+      params;
 
-    const existingObservationRecord = await this.getClickhouseRecord({
-      projectId,
-      entityId,
-      table: TableName.Observations,
-    });
-
-    const recordsToMerge = existingObservationRecord
-      ? [existingObservationRecord, ...observationRecords]
+    const recordsToMerge = clickhouseObservationRecord
+      ? [clickhouseObservationRecord, ...observationRecords]
       : observationRecords;
 
     const mergedRecord = this.mergeRecords(
@@ -755,6 +772,14 @@ export class IngestionService {
 
   private getMillisecondTimestamp(timestamp?: string | null): number {
     return timestamp ? new Date(timestamp).getTime() : Date.now();
+  }
+
+  private hasCreateEvent(
+    eventList: ObservationEvent[] | ScoreEventType[] | TraceEventType[]
+  ): boolean {
+    return eventList.some((event) =>
+      event.type.toLowerCase().includes("create")
+    );
   }
 }
 
