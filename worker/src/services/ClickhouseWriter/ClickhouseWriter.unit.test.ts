@@ -1,40 +1,45 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { clickhouseClient } from "@langfuse/shared/src/server";
+import { clickhouseClient, instrumentAsync } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
 import logger from "../../logger";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
-// Mock Sentry
-vi.mock("@sentry/node", () => ({
-  metrics: {
-    increment: vi.fn(),
-    distribution: vi.fn(),
-    gauge: vi.fn(),
-  },
-  init: vi.fn(),
-}));
+// Mock recordHistogram, recordCount, recordGauge
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    clickhouseClient: {
+      insert: vi.fn(),
+    },
+    recordHistogram: vi.fn(),
+    recordCount: vi.fn(),
+    recordGauge: vi.fn(),
+    instrumentAsync,
+  };
+});
 
-vi.mock("../../env", () => ({
-  env: {
-    LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: 100,
-    LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: 5000,
-    LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: 3,
-  },
-}));
-vi.mock("../../logger", () => ({
-  default: {
+vi.mock("../../env", async () => {
+  const actual = await vi.importActual("../../env");
+  return {
+    ...actual,
+    env: {
+      LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: 100,
+      LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: 5000,
+      LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: 3,
+    },
+  };
+});
+
+vi.mock("../../logger", () => {
+  return {
     info: vi.fn(),
     debug: vi.fn(),
     error: vi.fn(),
-  },
-}));
-vi.mock("@langfuse/shared/src/server", () => ({
-  clickhouseClient: {
-    insert: vi.fn(),
-  },
-}));
+  };
+});
 
 describe("ClickhouseWriter", () => {
   let writer: ClickhouseWriter;
@@ -241,7 +246,10 @@ describe("ClickhouseWriter", () => {
   });
 
   it("should report wait time and processing time metrics correctly", async () => {
-    const metricsDistributionSpy = vi.spyOn(Sentry.metrics, "distribution");
+    const metricsDistributionSpy = vi.spyOn(
+      "@langfuse/shared/src/server",
+      "recordHistogram"
+    );
     const mockInsert = vi.spyOn(clickhouseClient, "insert").mockResolvedValue();
 
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
