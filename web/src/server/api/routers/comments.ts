@@ -73,9 +73,7 @@ export const commentsRouter = createTRPCRouter({
       return comment;
     }),
   delete: protectedProjectProcedure
-    .input(
-      z.object({ projectId: z.string(), id: z.string(), userId: z.string() }),
-    )
+    .input(z.object({ projectId: z.string(), id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -93,13 +91,13 @@ export const commentsRouter = createTRPCRouter({
         throw new Error("No comment with this id in this project.");
       }
 
-      if (comment.authorUserId !== input.userId) {
+      if (comment.authorUserId !== ctx.session.user.id) {
         throw new Error(
           "Comment author user id does not match provided user id",
         );
       }
 
-      return await ctx.prisma.score.delete({
+      return await ctx.prisma.comment.delete({
         where: {
           id: comment.id,
           projectId: input.projectId,
