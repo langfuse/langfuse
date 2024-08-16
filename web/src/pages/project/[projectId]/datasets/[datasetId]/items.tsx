@@ -10,7 +10,7 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
-import DuplicateDatasetButton from "@/src/features/datasets/components/DuplicateDatasetButton";
+import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 
 export default function DatasetItems() {
   const router = useRouter();
