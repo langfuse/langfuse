@@ -214,11 +214,13 @@ export function DataTable<TData extends object, TValue>({
                       >
                         {header.isPlaceholder ? null : (
                           <>
-                            <div className="select-none">
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
+                            <div className="flex select-none items-center">
+                              <span className="truncate">
+                                {flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                              </span>
                               {columnDef.headerTooltip && (
                                 <DocPopup
                                   description={
