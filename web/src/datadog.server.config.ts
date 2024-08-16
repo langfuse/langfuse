@@ -1,4 +1,3 @@
-import { env } from "@/src/env.mjs";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
@@ -11,10 +10,10 @@ import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-
 
 console.log(
   "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION",
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
 );
 console.log("VERCEL", process.env.VERCEL);
-if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
   console.log("Initializing otel tracing");
   const contextManager = new AsyncHooksContextManager().enable();
 
