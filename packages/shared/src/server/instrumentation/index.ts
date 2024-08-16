@@ -13,9 +13,12 @@ export type SpanCtx = {
 export function instrument<T>(ctx: SpanCtx, callback: CallbackFn<T>): T {
   return getTracer(ctx.traceScope).startActiveSpan(ctx.name, (span) => {
     try {
-      return callback();
+      const result = callback();
+      span.end();
+      return result;
     } catch (ex) {
       addExceptionToSpan(ex as opentelemetry.Exception, span);
+      span.end();
       throw ex;
     }
   });
@@ -32,9 +35,12 @@ export async function instrumentAsync<T>(
     { root: ctx.rootSpan, kind: ctx.spanKind },
     async (span) => {
       try {
-        return await callback();
+        const result = await callback();
+        span.end();
+        return result;
       } catch (ex) {
         addExceptionToSpan(ex as opentelemetry.Exception, span);
+        span.end();
         throw ex;
       }
     }
