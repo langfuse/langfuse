@@ -67,7 +67,6 @@ export const evalJobExecutor = redis
         return instrumentAsync(
           {
             name: "evalJobExecutor",
-            rootSpan: true,
             spanKind: SpanKind.CONSUMER,
             traceScope: "eval-execution",
           },

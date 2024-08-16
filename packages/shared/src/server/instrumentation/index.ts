@@ -27,14 +27,18 @@ export async function instrumentAsync<T>(
   ctx: SpanCtx,
   callback: CallbackAsyncFn<T>
 ): Promise<T> {
-  return getTracer(ctx.traceScope).startActiveSpan(ctx.name, async (span) => {
-    try {
-      return await callback();
-    } catch (ex) {
-      addExceptionToSpan(ex as opentelemetry.Exception, span);
-      throw ex;
+  return getTracer(ctx.traceScope).startActiveSpan(
+    ctx.name,
+    { root: ctx.rootSpan, kind: ctx.spanKind },
+    async (span) => {
+      try {
+        return await callback();
+      } catch (ex) {
+        addExceptionToSpan(ex as opentelemetry.Exception, span);
+        throw ex;
+      }
     }
-  });
+  );
 }
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
@@ -42,7 +46,7 @@ export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 export const addExceptionToSpan = (
   ex: unknown,
   span?: opentelemetry.Span,
-  code?: string
+  code?: string = undefined
 ) => {
   const activeSpan = span ?? getCurrentSpan();
 
@@ -58,7 +62,10 @@ export const addExceptionToSpan = (
   };
 
   activeSpan.recordException(exception);
-  activeSpan.setStatus({ code: opentelemetry.SpanStatusCode.ERROR });
+  activeSpan.setStatus({
+    code: opentelemetry.SpanStatusCode.ERROR,
+    message: exception.message,
+  });
 };
 
 export const addUserToSpan = (

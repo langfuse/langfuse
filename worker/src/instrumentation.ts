@@ -6,7 +6,7 @@ import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
+// import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import opentelemetry from "@opentelemetry/api";
 
@@ -29,7 +29,7 @@ registerInstrumentations({
     new PrismaInstrumentation(),
     getNodeAutoInstrumentations(),
     new PinoInstrumentation(),
-    new BullMQInstrumentation(),
+    // new BullMQInstrumentation(),
   ],
 });
 
