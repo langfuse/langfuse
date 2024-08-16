@@ -11,18 +11,14 @@ export type SpanCtx = {
 };
 
 export function instrument<T>(ctx: SpanCtx, callback: CallbackFn<T>): T {
-  return getTracer(ctx.traceScope).startActiveSpan(
-    ctx.name,
-    { kind: ctx.spanKind, root: ctx.rootSpan },
-    (span) => {
-      try {
-        return callback();
-      } catch (ex) {
-        addExceptionToSpan(ex as opentelemetry.Exception, span);
-        throw ex;
-      }
+  return getTracer(ctx.traceScope).startActiveSpan(ctx.name, (span) => {
+    try {
+      return callback();
+    } catch (ex) {
+      addExceptionToSpan(ex as opentelemetry.Exception, span);
+      throw ex;
     }
-  );
+  });
 }
 
 type CallbackAsyncFn<T> = () => Promise<T>;
@@ -31,18 +27,14 @@ export async function instrumentAsync<T>(
   ctx: SpanCtx,
   callback: CallbackAsyncFn<T>
 ): Promise<T> {
-  return getTracer(ctx.traceScope).startActiveSpan(
-    ctx.name,
-    { kind: ctx.spanKind, root: ctx.rootSpan },
-    async (span) => {
-      try {
-        return await callback();
-      } catch (ex) {
-        addExceptionToSpan(ex as opentelemetry.Exception, span);
-        throw ex;
-      }
+  return getTracer(ctx.traceScope).startActiveSpan(ctx.name, async (span) => {
+    try {
+      return await callback();
+    } catch (ex) {
+      addExceptionToSpan(ex as opentelemetry.Exception, span);
+      throw ex;
     }
-  );
+  });
 }
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
