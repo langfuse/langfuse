@@ -291,6 +291,10 @@ export const evaluate = async ({
 
   let completion: string;
   try {
+    logger.info(
+      `Prompt: ${JSON.stringify([{ role: ChatMessageRole.System, content: prompt }])}`
+    );
+
     completion = await fetchLLMCompletion({
       streaming: false,
       apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
@@ -305,7 +309,7 @@ export const evaluate = async ({
       functionCall: {
         name: "evaluate",
         description: "some description",
-        parameters: openAIFunction,
+        input_schema: openAIFunction,
       },
     });
   } catch (e) {

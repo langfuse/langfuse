@@ -85,7 +85,12 @@ export const evalModelsByAdapter: Record<LLMAdapter, string[]> = {
     "gpt-4-turbo-preview",
     "gpt-3.5-turbo",
   ] as const,
-  [LLMAdapter.Anthropic]: [] as const,
+  [LLMAdapter.Anthropic]: [
+    "claude-3-5-sonnet-20240620",
+    "claude-3-opus-20240229",
+    "claude-3-sonnet-20240229",
+    "claude-3-haiku-20240307",
+  ] as const,
   [LLMAdapter.Azure]: [] as const,
 };
 

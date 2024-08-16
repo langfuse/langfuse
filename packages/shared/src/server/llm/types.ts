@@ -89,7 +89,7 @@ export const supportedModels = {
 export type LLMFunctionCall = {
   name: string;
   description: string;
-  parameters: z.ZodTypeAny; // this has to be a json schema for OpenAI
+  input_schema: z.ZodTypeAny;
 };
 
 export const LLMApiKeySchema = z

@@ -56,6 +56,8 @@ export const useModelParams = ({
     [selectedProviderApiKey, evalModelsOnly],
   );
 
+  console.log("availableModels", availableModels);
+
   const updateModelParamValue: ModelParamsContext["updateModelParamValue"] = (
     key,
     value,

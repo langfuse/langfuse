@@ -122,16 +122,17 @@ export async function fetchLLMCompletion(
   }
 
   if (params.functionCall) {
-    const functionCallingModel = chatModel.bind({
-      functions: [
-        {
-          ...params.functionCall,
-          parameters: zodToJsonSchema(params.functionCall.parameters),
-        },
-      ],
-      function_call: { name: params.functionCall.name },
-    });
+    const tools = [
+      {
+        ...params.functionCall,
+        input_schema: zodToJsonSchema(params.functionCall.input_schema),
+      },
+    ];
+
+    console.log(tools);
+    const functionCallingModel = chatModel.bindTools(tools);
     const outputParser = new JsonOutputFunctionsParser();
+
     return await functionCallingModel.pipe(outputParser).invoke(finalMessages);
   }
 
