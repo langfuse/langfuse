@@ -10,6 +10,7 @@ import opentelemetry from "@opentelemetry/api";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 
 if (!process.env.VERCEL && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  console.log("Initializing otel tracing");
   const contextManager = new AsyncHooksContextManager().enable();
 
   opentelemetry.context.setGlobalContextManager(contextManager);
