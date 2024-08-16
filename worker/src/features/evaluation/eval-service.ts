@@ -299,7 +299,7 @@ export const evaluate = async ({
       streaming: false,
       apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
       baseURL: parsedKey.data.baseURL || undefined,
-      messages: [{ role: ChatMessageRole.System, content: prompt }],
+      messages: [{ role: ChatMessageRole.User, content: prompt }],
       modelParams: {
         provider: template.provider,
         model: template.model,
