@@ -7,6 +7,11 @@ import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
+import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
+
+const contextManager = new AsyncHooksContextManager().enable();
+
+opentelemetry.context.setGlobalContextManager(contextManager);
 
 const { TracerProvider } = tracer.init({
   profiling: false,
