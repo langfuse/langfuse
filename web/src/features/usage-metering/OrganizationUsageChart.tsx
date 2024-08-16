@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { Flex, MarkerBar, Metric, Text } from "@tremor/react";
 import Link from "next/link";
-import { PricingPage } from "@/src/features/pricing-page/PricingPage";
+import { PricingPage } from "@/src/ee/features/billing/PricingPage";
 import {
   Dialog,
   DialogContent,

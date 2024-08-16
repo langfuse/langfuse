@@ -166,6 +166,7 @@ export const env = createEnv({
       .number()
       .positive()
       .default(60 * 10),
+    STRIPE_SECRET_KEY: z.string().optional(),
   },
 
   /**
@@ -176,6 +177,8 @@ export const env = createEnv({
    * WARNING: They do not work when used in Docker builds as NEXT_PUBLIC variables are not runtime but compile-time.
    */
   client: {
+    // WARNING: Also add these to web/Dockerfile
+
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
       .enum(["US", "EU", "STAGING", "DEV"])
@@ -187,6 +190,7 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     NEXT_PUBLIC_CRISP_WEBSITE_ID: z.string().optional(),
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   },
 
   /**
@@ -309,6 +313,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:
       process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
