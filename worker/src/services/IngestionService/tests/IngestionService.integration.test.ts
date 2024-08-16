@@ -896,6 +896,110 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.tags.length).toBe(4);
   });
 
+  it("should fail if no create event AND no existing record in CH", async () => {
+    const traceId = randomUUID();
+    const generationId = randomUUID();
+
+    // First flush
+    const traceEventList1: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: traceId,
+          name: "trace-name",
+          userId: "user-1",
+          metadata: { key: "value" },
+          release: "1.0.0",
+          version: "2.0.0",
+          tags: ["tag-1", "tag-2", "tag-2"],
+        },
+      },
+    ];
+
+    const generationEventListNoCreate: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "observation-update",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          traceId: traceId,
+          type: "GENERATION",
+          output: { key: "this is a great gpt output" },
+        },
+      },
+    ];
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      traceEventList: traceEventList1,
+    });
+
+    expect(
+      ingestionService.processObservationEventList({
+        projectId,
+        entityId: generationId,
+        observationEventList: generationEventListNoCreate,
+      })
+    ).rejects.toThrow();
+
+    const generationEventListWithCreate: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "observation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          traceId: traceId,
+          type: "GENERATION",
+          input: "This is a great prompt",
+        },
+      },
+    ];
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: generationId,
+      observationEventList: generationEventListWithCreate,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    vi.useRealTimers();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    vi.useFakeTimers();
+
+    // Now the generation update should work
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: generationId,
+      observationEventList: generationEventListNoCreate,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    vi.useRealTimers();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    vi.useFakeTimers();
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId
+    );
+
+    expect(generation.id).toBe(generationId);
+    expect(generation.trace_id).toBe(traceId);
+    expect(generation.output).toEqual(
+      JSON.stringify({
+        key: "this is a great gpt output",
+      })
+    );
+    expect(generation.input).toEqual("This is a great prompt");
+  });
+
   it("should upsert traces in the right order", async () => {
     const traceId = randomUUID();
 
@@ -1048,10 +1152,6 @@ describe("Ingestion end-to-end tests", () => {
     ]);
 
     await clickhouseWriter.flushAll(true);
-    console.log(
-      "generation1",
-      await getClickhouseRecord(TableName.Observations, generationId)
-    );
 
     const generationEventList2: ObservationEvent[] = [
       {
