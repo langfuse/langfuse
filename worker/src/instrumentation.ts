@@ -8,6 +8,7 @@ import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
+import opentelemetry from "@opentelemetry/api";
 
 const contextManager = new AsyncHooksContextManager().enable();
 
