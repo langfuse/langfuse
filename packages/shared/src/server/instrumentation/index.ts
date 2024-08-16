@@ -62,6 +62,7 @@ export const addExceptionToSpan = (
   };
 
   activeSpan.recordException(exception);
+
   activeSpan.setStatus({
     code: opentelemetry.SpanStatusCode.ERROR,
     message: exception.message,
