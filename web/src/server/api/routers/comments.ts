@@ -104,4 +104,66 @@ export const commentsRouter = createTRPCRouter({
         },
       });
     }),
+  getByObjectId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        objectId: z.string(),
+        objectType: z.nativeEnum(CommentObjectType),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:read",
+      });
+
+      return await ctx.prisma.comment.findMany({
+        where: {
+          projectId: input.projectId,
+          objectId: input.objectId,
+          objectType: input.objectType,
+        },
+      });
+    }),
+  getCountsByObjectIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        objectIds: z.array(z.string()),
+        objectType: z.nativeEnum(CommentObjectType),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:read",
+      });
+
+      const comments = await ctx.prisma.comment.findMany({
+        select: {
+          id: true,
+          objectId: true,
+        },
+        where: {
+          projectId: input.projectId,
+          objectId: { in: input.objectIds },
+          objectType: input.objectType,
+        },
+      });
+      const commentCountByObject = new Map<string, number>();
+
+      comments.forEach(({ objectId }) => {
+        const prevCount = commentCountByObject.get(objectId);
+        if (!!prevCount) {
+          commentCountByObject.set(objectId, prevCount + 1);
+        } else {
+          commentCountByObject.set(objectId, 1);
+        }
+      });
+
+      return commentCountByObject;
+    }),
 });
