@@ -47,7 +47,10 @@ export function tokenCount(p: {
   } else if (p.model.tokenizerId === "claude") {
     return claudeTokenCount(p.text);
   } else {
-    console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
+    if (p.model.tokenizerId) {
+      console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
+    }
+
     return undefined;
   }
 }
