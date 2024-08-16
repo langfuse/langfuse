@@ -6,6 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { CommentObjectType } from "../../../../../packages/shared/dist/prisma/generated/types";
+import { Prisma } from "@langfuse/shared";
 
 const CreateCommentData = z.object({
   projectId: z.string(),
@@ -65,6 +66,7 @@ export const commentsRouter = createTRPCRouter({
           content: input.content,
           objectId: input.objectId,
           objectType: input.objectType,
+          authorUserId: ctx.session.user.id,
         },
       });
 
@@ -119,13 +121,36 @@ export const commentsRouter = createTRPCRouter({
         scope: "comments:read",
       });
 
-      return await ctx.prisma.comment.findMany({
-        where: {
-          projectId: input.projectId,
-          objectId: input.objectId,
-          objectType: input.objectType,
-        },
-      });
+      const comments = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          content: string;
+          timestamp: Date;
+          authorUserId: string | null;
+          authorUserImage: string | null;
+          authorUserName: string | null;
+        }>
+      >(
+        Prisma.sql`
+        SELECT
+          c.id, 
+          c.content, 
+          c.timestamp,
+          u.id AS "authorUserId",
+          u.image AS "authorUserImage", 
+          u.name AS "authorUserName"
+        FROM comments c
+        LEFT JOIN users u ON u.id = c.author_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${ctx.session.orgId})
+        WHERE 
+          c."project_id" = ${input.projectId}
+          AND c."object_id" = ${input.objectId}
+          AND c."object_type"::text = ${input.objectType}
+        ORDER BY 
+          timestamp DESC
+        `,
+      );
+
+      return comments;
     }),
   getCountsByObjectIds: protectedProjectProcedure
     .input(
