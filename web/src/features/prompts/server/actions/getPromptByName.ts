@@ -1,8 +1,11 @@
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { InvalidRequestError, type Prompt } from "@langfuse/shared";
-import { PromptService, redis } from "@langfuse/shared/src/server";
+import {
+  PromptService,
+  redis,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/nextjs";
 
 type GetPromptByNameParams = {
   promptName: string;
@@ -15,11 +18,7 @@ export const getPromptByName = async (
   params: GetPromptByNameParams,
 ): Promise<Prompt | null> => {
   const { promptName, projectId, version, label } = params;
-  const promptService = new PromptService(
-    prisma,
-    redis,
-    Sentry.metrics.increment,
-  );
+  const promptService = new PromptService(prisma, redis, recordIncrement);
 
   if (version && label)
     throw new InvalidRequestError("Cannot specify both version and label");

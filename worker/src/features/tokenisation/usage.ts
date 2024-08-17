@@ -10,6 +10,7 @@ import {
 } from "tiktoken";
 
 import { z } from "zod";
+import { instrument } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
   tokenizerModel: z.string().refine(isTiktokenModel, {
@@ -31,28 +32,35 @@ export function tokenCount(p: {
   model: Model;
   text: unknown;
 }): number | undefined {
-  if (
-    p.text === null ||
-    p.text === undefined ||
-    (Array.isArray(p.text) && p.text.length === 0)
-  ) {
-    return undefined;
-  }
+  return instrument(
+    {
+      name: "token-count",
+    },
+    () => {
+      if (
+        p.text === null ||
+        p.text === undefined ||
+        (Array.isArray(p.text) && p.text.length === 0)
+      ) {
+        return undefined;
+      }
 
-  if (p.model.tokenizerId === "openai") {
-    return openAiTokenCount({
-      model: p.model,
-      text: p.text,
-    });
-  } else if (p.model.tokenizerId === "claude") {
-    return claudeTokenCount(p.text);
-  } else {
-    if (p.model.tokenizerId) {
-      console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
+      if (p.model.tokenizerId === "openai") {
+        return openAiTokenCount({
+          model: p.model,
+          text: p.text,
+        });
+      } else if (p.model.tokenizerId === "claude") {
+        return claudeTokenCount(p.text);
+      } else {
+        if (p.model.tokenizerId) {
+          console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
+        }
+
+        return undefined;
+      }
     }
-
-    return undefined;
-  }
+  );
 }
 
 type ChatMessage = {

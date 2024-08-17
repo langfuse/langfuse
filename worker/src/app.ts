@@ -1,7 +1,5 @@
-import "./sentry"; // this is required to make instrumentation work
 import express from "express";
 import cors from "cors";
-import * as Sentry from "@sentry/node";
 import * as middlewares from "./middlewares";
 import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
@@ -33,13 +31,11 @@ app.get<{}, MessageResponse>("/", (req, res) => {
 
 app.use("/api", api);
 
-// The error handler must be before any other error middleware and after all controllers
-app.use(Sentry.expressErrorHandler());
-
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
 
 logger.info("Eval Job Creator started", evalJobCreator?.isRunning());
+
 logger.info("Eval Job Executor started", evalJobExecutor?.isRunning());
 logger.info(
   "Batch Export Job Executor started",
