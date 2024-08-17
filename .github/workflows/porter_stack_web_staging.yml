@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - dd-web-container
+      - main
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
