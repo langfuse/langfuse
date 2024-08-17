@@ -1,6 +1,6 @@
 ![langfuse_logo_1024](https://github.com/user-attachments/assets/f17d8fc1-8206-4afa-a5ec-774826be88a8)
 
-<div align="center"><h1> Langfuse: Open Source LLM Engineering Platform</h4></div>
+<div align="center"><h1> Langfuse: Open Source LLM Observability & Engineering Platform</h4></div>
 <div align="center"><h2> Debug and improve your LLM app</h4></div>
 <div align="center"><h3> LLM Observability, Prompt Management, LLM Evaluations, Datasets, LLM Metrics and Prompt Playground</h4></div>
 
