@@ -15,7 +15,7 @@ type CallbackFn<T> = () => T | Promise<T>;
 export function instrument<T>(
   ctx: SpanCtx,
   callback: CallbackFn<T>
-): Promise<T> | T {
+): T extends Promise<any> ? Promise<T> : T {
   return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
     {
@@ -37,12 +37,16 @@ export function instrument<T>(
       try {
         const result = callback();
         if (result instanceof Promise) {
-          return result.then(handleResult).catch(handleError);
+          return result
+            .then(handleResult)
+            .catch(handleError) as T extends Promise<any> ? Promise<T> : T;
         } else {
-          return handleResult(result);
+          return handleResult(result) as T extends Promise<any>
+            ? Promise<T>
+            : T;
         }
       } catch (ex) {
-        return handleError(ex);
+        return handleError(ex) as T extends Promise<any> ? Promise<T> : T;
       }
     }
   );
