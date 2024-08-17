@@ -5,9 +5,9 @@ import * as dd from "dd-trace";
 
 export type SpanCtx = {
   name: string;
-  traceScope: string;
   spanKind?: opentelemetry.SpanKind; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind
   rootSpan?: boolean; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#traces
+  traceScope?: string;
 };
 
 type CallbackFn<T> = () => T | Promise<T>;
@@ -16,7 +16,7 @@ export function instrument<T>(
   ctx: SpanCtx,
   callback: CallbackFn<T>
 ): Promise<T> | T {
-  return getTracer(ctx.traceScope).startActiveSpan(
+  return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
     {
       root: ctx.rootSpan,

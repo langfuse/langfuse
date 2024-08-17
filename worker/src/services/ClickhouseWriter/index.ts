@@ -81,7 +81,6 @@ export class ClickhouseWriter {
     return instrument(
       {
         name: "write-to-clickhouse",
-        traceScope: "write-to-clickhouse",
         spanKind: SpanKind.CONSUMER,
       },
       async () => {

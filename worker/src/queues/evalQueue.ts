@@ -29,7 +29,6 @@ export const evalJobCreator = redis
         return instrument(
           {
             name: "evalJobCreator",
-            traceScope: "eval-job-creator",
             rootSpan: true,
             spanKind: SpanKind.CONSUMER,
           },
@@ -68,7 +67,6 @@ export const evalJobExecutor = redis
           {
             name: "evalJobExecutor",
             spanKind: SpanKind.CONSUMER,
-            traceScope: "eval-execution",
           },
           async () => {
             try {

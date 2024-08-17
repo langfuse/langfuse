@@ -27,7 +27,6 @@ export const legacyIngestionExecutor = redis
         return instrument(
           {
             name: "legacyIngestion",
-            traceScope: "legacy-ingestion",
             spanKind: SpanKind.CONSUMER,
             rootSpan: true,
           },

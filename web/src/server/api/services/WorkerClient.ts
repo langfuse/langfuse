@@ -31,18 +31,15 @@ export class WorkerClient {
   }
 
   async sendIngestionBatch(params: IngestionApiSchemaWithProjectId) {
-    await instrument(
-      { name: "insert-clickhouse", traceScope: "ingestion-pipeline" },
-      async () => {
-        await this.sendWorkerRequest({
-          method: "POST",
-          route: "/api/ingestion",
-          body: params,
-        }).catch((error) => {
-          console.error("Error sending events to worker", error);
-        });
-      },
-    );
+    await instrument({ name: "insert-clickhouse" }, async () => {
+      await this.sendWorkerRequest({
+        method: "POST",
+        route: "/api/ingestion",
+        body: params,
+      }).catch((error) => {
+        console.error("Error sending events to worker", error);
+      });
+    });
   }
 
   private async sendWorkerRequest(params: {

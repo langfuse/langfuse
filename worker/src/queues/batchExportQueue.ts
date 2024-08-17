@@ -16,7 +16,6 @@ export const batchExportJobExecutor = redis
         return instrument(
           {
             name: "batchExportJobExecutor",
-            traceScope: "batch-export",
             spanKind: SpanKind.CONSUMER,
           },
           async () => {

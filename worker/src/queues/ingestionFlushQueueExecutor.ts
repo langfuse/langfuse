@@ -26,7 +26,6 @@ export const ingestionQueueExecutor = redis
         return instrument(
           {
             name: "flush-ingestion-consumer",
-            traceScope: "ingestion-flush-queue",
             spanKind: SpanKind.CONSUMER,
           },
           async () => {

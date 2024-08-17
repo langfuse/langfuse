@@ -121,7 +121,7 @@ export const traceRouter = createTRPCRouter({
       );
 
       const traces = await instrument(
-        { name: "get-all-traces", traceScope: "trace-router" },
+        { name: "get-all-traces" },
         async () =>
           await ctx.prisma.$queryRaw<
             Array<
