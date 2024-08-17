@@ -7,12 +7,8 @@ import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import dd from "dd-trace";
 import opentelemetry from "@opentelemetry/api";
 // import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
+import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 
-console.log(
-  "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION",
-  process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-);
-console.log("VERCEL", process.env.VERCEL);
 if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
   console.log("Initializing otel tracing");
   const contextManager = new AsyncHooksContextManager().enable();
@@ -34,6 +30,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new HttpInstrumentation(),
       new PrismaInstrumentation(),
       getNodeAutoInstrumentations(),
+      new UndiciInstrumentation(),
       // new BullMQInstrumentation(),
     ],
   });
