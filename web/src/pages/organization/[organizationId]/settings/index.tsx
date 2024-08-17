@@ -6,10 +6,10 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { env } from "@/src/env.mjs";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { OrganizationUsageChart } from "@/src/features/usage-metering/OrganizationUsageChart";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
+import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 
 const OrgSettingsPage = () => {
   const organization = useQueryOrganization();
@@ -68,7 +68,7 @@ const OrgSettingsPage = () => {
           {
             title: "Billing",
             slug: "billing",
-            content: <OrganizationUsageChart />,
+            content: <BillingSettings />,
             show: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined,
           },
           {

@@ -4,18 +4,15 @@ import {
 } from "@/src/ee/features/billing/stripeClientReference";
 import { env } from "@/src/env.mjs";
 import { type NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { prisma } from "@langfuse/shared/src/db";
 import { parseDbOrg } from "@/src/features/organizations/utils/parseDbOrg";
 import * as Sentry from "@sentry/node";
 import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
+import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
+import type Stripe from "stripe";
 
 const STRIPE_WEBHOOK_SIGNING_SECRET =
   "whsec_12dc385262f1a5d0f4ba1507cc81f9b3a3e2d03fd99d4ad625b8e21c87dcfd37";
-
-const stripe = env.STRIPE_SECRET_KEY
-  ? new Stripe(env.STRIPE_SECRET_KEY)
-  : undefined;
 
 /*
  * Sign-up endpoint (email/password users), creates user in database.
@@ -28,7 +25,7 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
       { status: 405 },
     );
 
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION || !stripe) {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION || !stripeClient) {
     console.error("[Stripe Webhook] Endpoint only available in Langfuse Cloud");
     return NextResponse.json(
       { message: "Stripe webhook endpoint only available in Langfuse Cloud" },
@@ -45,7 +42,7 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
   }
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
+    event = stripeClient.webhooks.constructEvent(
       await req.text(),
       sig,
       STRIPE_WEBHOOK_SIGNING_SECRET,
@@ -61,18 +58,37 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
   // Handle the event
   switch (event.type) {
     case "checkout.session.completed":
-      // add customer id
+      // add customer id and subscription id to the organization that created the checkout session
       const session = event.data.object;
       console.log("[Stripe Webhook] Start checkout.session.completed", session);
       await handleCheckoutSessionCompleted(session);
       break;
     case "customer.subscription.created":
+      // update the active product id on the organization linked to the subscription
       const subscription = event.data.object;
       console.log(
         "[Stripe Webhook] Start customer.subscription.created",
         subscription,
       );
-      await handleSubscriptionCreated(subscription);
+      await handleSubscriptionChanged(subscription, "created");
+      break;
+    case "customer.subscription.deleted":
+      // remove the active product id on the organization linked to the subscription
+      const deletedSubscription = event.data.object;
+      console.log(
+        "[Stripe Webhook] Start customer.subscription.deleted",
+        deletedSubscription,
+      );
+      await handleSubscriptionChanged(deletedSubscription, "deleted");
+      break;
+    case "customer.subscription.updated":
+      // update the active product id on the organization linked to the subscription
+      const updatedSubscription = event.data.object;
+      console.log(
+        "[Stripe Webhook] Start customer.subscription.updated",
+        updatedSubscription,
+      );
+      await handleSubscriptionChanged(updatedSubscription, "updated");
       break;
     default:
       console.log(`Unhandled event type ${event.type}`);
@@ -108,6 +124,7 @@ async function handleCheckoutSessionCompleted(
     where: { id: orgId },
   });
   if (!organization) {
+    console.error("[Stripe Webhook] Organization not found");
     Sentry.captureMessage("[Stripe Webhook] Organization not found", {
       extra: {
         stripeCheckoutSession: session,
@@ -119,6 +136,9 @@ async function handleCheckoutSessionCompleted(
   // check that checkout session includes customer and subscription IDs
   const customerId = session.customer;
   if (typeof customerId !== "string" || typeof subscriptionId !== "string") {
+    console.error(
+      "[Stripe Webhook] Checkout session missing customer ID or subscription ID",
+    );
     Sentry.captureMessage(
       "[Stripe Webhook] Checkout session missing customer ID or subscription ID",
       {
@@ -134,8 +154,10 @@ async function handleCheckoutSessionCompleted(
   if (parsedOrg.cloudConfig?.stripe) {
     // check that there is not already a customer or subscription ID that does not match the checkout session
     if (
-      parsedOrg.cloudConfig?.stripe?.customerId !== customerId ||
-      parsedOrg.cloudConfig?.stripe?.activeSubscriptionId !== subscriptionId
+      (parsedOrg.cloudConfig?.stripe?.customerId &&
+        parsedOrg.cloudConfig?.stripe?.customerId !== customerId) ||
+      (parsedOrg.cloudConfig?.stripe?.activeSubscriptionId &&
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId !== subscriptionId)
     ) {
       Sentry.captureMessage(
         "[Stripe Webhook] Customer or Subscription ID mismatch",
@@ -168,11 +190,14 @@ async function handleCheckoutSessionCompleted(
   });
 }
 
-async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
+async function handleSubscriptionChanged(
+  subscription: Stripe.Subscription,
+  action: "created" | "deleted" | "updated",
+) {
   const subscriptionId = subscription.id;
 
   // find the org with the customer ID
-  const organization = await prisma.organization.findFirst({
+  const organizations = await prisma.organization.findMany({
     where: {
       cloudConfig: {
         path: ["stripe", "activeSubscriptionId"],
@@ -180,8 +205,8 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       },
     },
   });
-  if (!organization) {
-    console.error("[Stripe Webhook] Organization not found");
+  if (organizations.length === 0) {
+    console.error("[Stripe Webhook] No organization not found");
     return;
   }
 
@@ -209,16 +234,20 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   }
 
   // assert that no other product is already set on the org
-  const parsedOrg = parseDbOrg(organization);
+  const parsedOrgs = organizations.map(parseDbOrg);
   if (
-    parsedOrg.cloudConfig?.stripe?.activeProductId &&
-    parsedOrg.cloudConfig?.stripe?.activeProductId !== productId
+    parsedOrgs.some(
+      (parsedOrg) =>
+        action !== "updated" &&
+        parsedOrg.cloudConfig?.stripe?.activeProductId &&
+        parsedOrg.cloudConfig?.stripe?.activeProductId !== productId,
+    )
   ) {
     Sentry.captureMessage(
-      "[Stripe Webhook] Another active product id already set on org",
+      "[Stripe Webhook] Another active product id already set on (one of the) org with this active subscription id",
       {
         extra: {
-          cloudConfig: parsedOrg.cloudConfig,
+          parsedOrgs,
           subscriptionItem,
         },
       },
@@ -227,19 +256,44 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   }
 
   // update the cloud config with the product ID
-  await prisma.organization.update({
-    where: { id: organization.id },
-    data: {
-      cloudConfig: {
-        ...parsedOrg.cloudConfig,
-        stripe: {
-          ...parsedOrg.cloudConfig?.stripe,
-          ...CloudConfigSchema.shape.stripe.parse({
-            activeProductId: productId,
-          }),
+  for (const parsedOrg of parsedOrgs) {
+    if (action === "created" || action === "updated") {
+      await prisma.organization.update({
+        where: {
+          id: parsedOrg.id,
         },
-      },
-    },
-  });
+        data: {
+          cloudConfig: {
+            ...parsedOrg.cloudConfig,
+            stripe: {
+              ...parsedOrg.cloudConfig?.stripe,
+              ...CloudConfigSchema.shape.stripe.parse({
+                activeProductId: productId,
+              }),
+            },
+          },
+        },
+      });
+    } else if (action === "deleted") {
+      await prisma.organization.update({
+        where: {
+          id: parsedOrg.id,
+        },
+        data: {
+          cloudConfig: {
+            ...parsedOrg.cloudConfig,
+            stripe: {
+              ...parsedOrg.cloudConfig?.stripe,
+              ...CloudConfigSchema.shape.stripe.parse({
+                activeProductId: undefined,
+                activeSubscriptionId: undefined,
+              }),
+            },
+          },
+        },
+      });
+    }
+  }
+
   return;
 }

@@ -1,4 +1,4 @@
-import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/mapStripeProductIdToPlan";
+import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { type Plan } from "@/src/features/entitlements/constants/plans";
 import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
@@ -9,9 +9,9 @@ import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloud
 export function getOrganizationPlan(cloudConfig?: CloudConfigSchema): Plan {
   if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     // in dev, grant team plan to all organizations
-    if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
-      return "cloud:team";
-    }
+    // if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
+    //   return "cloud:team";
+    // }
     if (cloudConfig) {
       // manual plan override
       if (cloudConfig.plan) {
