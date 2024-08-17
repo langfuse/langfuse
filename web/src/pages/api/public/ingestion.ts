@@ -142,6 +142,7 @@ export default async function handler(
             },
           },
         );
+        throw new Error("Killing it here");
         return handleBatchResult(
           [
             ...validationErrors,
