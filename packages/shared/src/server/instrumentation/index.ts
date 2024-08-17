@@ -68,7 +68,15 @@ export const traceException = (
     stack: ex instanceof Error ? ex.stack : undefined,
   };
 
+  // adds an otel event
   activeSpan.recordException(exception);
+
+  //adds tags for datadog error tracking
+  activeSpan.setAttributes({
+    "error.stack": exception.stack,
+    "error.message": exception.message,
+    "error.type": exception.name,
+  });
 
   activeSpan.setStatus({
     code: opentelemetry.SpanStatusCode.ERROR,

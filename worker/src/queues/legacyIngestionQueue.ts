@@ -36,6 +36,8 @@ export const legacyIngestionExecutor = redis
                 `Processing legacy ingestion for payload ${JSON.stringify(job.data.payload)}`
               );
 
+              throw new Error("Killing it here");
+
               // Log wait time
               const waitTime = Date.now() - job.timestamp;
               logger.debug(
