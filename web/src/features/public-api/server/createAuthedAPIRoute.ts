@@ -1,10 +1,11 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type ZodType, type z } from "zod";
+import { ,type ZodType, type z } from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   redis,
   type AuthHeaderValidVerificationResult,
+  traceException,
 } from "@langfuse/shared/src/server";
 
 type RouteConfig<
@@ -79,6 +80,7 @@ export const createAuthedAPIRoute = <
       const parsingResult = routeConfig.responseSchema.safeParse(response);
       if (!parsingResult.success) {
         console.error("Response validation failed:", parsingResult.error);
+        traceException(parsingResult.error);
       }
     }
 

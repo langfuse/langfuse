@@ -32,7 +32,7 @@ import { z } from "zod";
 import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
 import {
   CustomSSOProvider,
-  addExceptionToSpan,
+  traceException,
   sendResetPasswordVerificationRequest,
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
@@ -291,7 +291,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     dynamicSsoProviders = await loadSsoProviders();
   } catch (e) {
     console.error("Error loading dynamic SSO providers", e);
-    addExceptionToSpan(e);
+    traceException(e);
   }
   const providers = [...staticProviders, ...dynamicSsoProviders];
 

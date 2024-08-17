@@ -1,7 +1,7 @@
 import express from "express";
 import basicAuth from "express-basic-auth";
 import {
-  addExceptionToSpan,
+  traceException,
   clickhouseClient,
   convertTraceUpsertEventsToRedisEvents,
   getTraceUpsertQueue,
@@ -117,7 +117,7 @@ router
       return res.status(400).send();
     } catch (e) {
       logger.error(e, "Error processing events");
-      addExceptionToSpan(e);
+      traceException(e);
       return res.status(500).json({
         status: "error",
       });

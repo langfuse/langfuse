@@ -3,7 +3,7 @@ import { Job, Worker } from "bullmq";
 import { BaseError, BatchExportStatus } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
-import { addExceptionToSpan, instrument } from "@langfuse/shared/src/server";
+import { traceException, instrument } from "@langfuse/shared/src/server";
 import logger from "../logger";
 import { redis, QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
@@ -46,7 +46,7 @@ export const batchExportJobExecutor = redis
                 e,
                 `Failed Batch Export job for id ${job.data.payload.batchExportId} ${e}`
               );
-              addExceptionToSpan(e);
+              traceException(e);
               throw e;
             }
           }

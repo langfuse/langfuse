@@ -29,7 +29,7 @@ export function instrument<T>(
       };
 
       const handleError = (ex: unknown) => {
-        addExceptionToSpan(ex as opentelemetry.Exception, span);
+        traceException(ex as opentelemetry.Exception, span);
         span.end();
         throw ex;
       };
@@ -50,7 +50,7 @@ export function instrument<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
-export const addExceptionToSpan = (
+export const traceException = (
   ex: unknown,
   span?: opentelemetry.Span,
   code?: string

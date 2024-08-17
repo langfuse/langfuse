@@ -21,7 +21,7 @@ import {
   PromptService,
   redis,
   recordIncrement,
-  addExceptionToSpan,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 
@@ -102,7 +102,7 @@ export default async function handler(
     throw new MethodNotAllowedError();
   } catch (error: unknown) {
     console.error(error);
-    addExceptionToSpan(error);
+    traceException(error);
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({

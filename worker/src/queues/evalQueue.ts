@@ -8,7 +8,7 @@ import {
   redis,
   QueueName,
   TQueueJobTypes,
-  addExceptionToSpan,
+  traceException,
   instrument,
 } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
@@ -42,7 +42,7 @@ export const evalJobCreator = redis
                 e,
                 `Failed job Evaluation for traceId ${job.data.payload.traceId} ${e}`
               );
-              addExceptionToSpan(e);
+              traceException(e);
               throw e;
             }
           }
@@ -103,7 +103,7 @@ export const evalJobExecutor = redis
                   `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`
                 );
               }
-              addExceptionToSpan(e);
+              traceException(e);
               throw e;
             }
           }

@@ -26,7 +26,7 @@ import {
   Prisma,
   type Trace,
 } from "@langfuse/shared/src/db";
-import { addExceptionToSpan, instrument } from "@langfuse/shared/src/server";
+import { traceException, instrument } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 import type Decimal from "decimal.js";
@@ -167,7 +167,7 @@ export const traceRouter = createTRPCRouter({
       });
       const validatedScores = filterAndValidateDbScoreList(
         scores,
-        addExceptionToSpan,
+        traceException,
       );
 
       const totalTraceCount = totalTraces[0]?.count;
@@ -330,7 +330,7 @@ export const traceRouter = createTRPCRouter({
       });
       const validatedScores = filterAndValidateDbScoreList(
         scores,
-        addExceptionToSpan,
+        traceException,
       );
 
       const obsStartTimes = observations

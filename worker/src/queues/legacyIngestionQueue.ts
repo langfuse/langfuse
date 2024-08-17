@@ -1,6 +1,6 @@
 import { Job, Worker } from "bullmq";
 import {
-  addExceptionToSpan,
+  traceException,
   getLegacyIngestionQueue,
   instrument,
   QueueName,
@@ -76,7 +76,7 @@ export const legacyIngestionExecutor = redis
                 e,
                 `Failed job Evaluation for traceId ${job.data.payload} ${e}`
               );
-              addExceptionToSpan(e);
+              traceException(e);
               throw e;
             }
           }

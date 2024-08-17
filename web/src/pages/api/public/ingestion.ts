@@ -7,7 +7,7 @@ import {
   getLegacyIngestionQueue,
   eventTypes,
   ingestionEvent,
-  addExceptionToSpan,
+  traceException,
   redis,
   type AuthHeaderValidVerificationResult,
   type ingestionBatchEvent,
@@ -178,7 +178,7 @@ export default async function handler(
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       console.error("error_handling_ingestion_event", error);
-      addExceptionToSpan(error);
+      traceException(error);
     }
 
     if (error instanceof BaseError) {
@@ -340,7 +340,7 @@ export const handleBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
-    addExceptionToSpan(errors);
+    traceException(errors);
     console.log("Error processing events", returnedErrors);
   }
 
@@ -423,7 +423,7 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   const parsedObj = object.safeParse(results[0].result);
   if (!parsedObj.success) {
     console.error("Error parsing response", parsedObj.error);
-    addExceptionToSpan(parsedObj.error);
+    traceException(parsedObj.error);
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;

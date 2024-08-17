@@ -2,7 +2,7 @@ import { BatchExportStatus } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../../logger";
 import {
-  addExceptionToSpan,
+  traceException,
   getBatchExportQueue,
   QueueJobs,
 } from "@langfuse/shared/src/server";
@@ -46,6 +46,6 @@ export async function enqueueBatchExportJobs() {
       "Error while checking for QUEUED batch export jobs in postgres",
       error
     );
-    addExceptionToSpan(error);
+    traceException(error);
   }
 }
