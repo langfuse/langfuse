@@ -32,6 +32,7 @@ export const legacyIngestionExecutor = redis
           },
           async () => {
             try {
+              const startTime = Date.now();
               logger.info(
                 `Processing legacy ingestion for payload ${JSON.stringify(job.data.payload)}`
               );
@@ -70,6 +71,11 @@ export const legacyIngestionExecutor = redis
                   return count;
                 })
                 .catch();
+              recordHistogram(
+                "legacy_ingestion_processing_time",
+                Date.now() - startTime,
+                { unit: "milliseconds" }
+              );
             } catch (e) {
               logger.error(
                 e,
