@@ -9,7 +9,7 @@ import {
   QueueName,
   TQueueJobTypes,
   addExceptionToSpan,
-  instrumentAsync,
+  instrument,
 } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
 
@@ -26,7 +26,7 @@ export const evalJobCreator = redis
   ? new Worker<TQueueJobTypes[QueueName.TraceUpsert]>(
       QueueName.TraceUpsert,
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
-        return instrumentAsync(
+        return instrument(
           {
             name: "evalJobCreator",
             traceScope: "eval-job-creator",
@@ -64,7 +64,7 @@ export const evalJobExecutor = redis
   ? new Worker<TQueueJobTypes[QueueName.EvaluationExecution]>(
       QueueName.EvaluationExecution,
       async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
-        return instrumentAsync(
+        return instrument(
           {
             name: "evalJobExecutor",
             spanKind: SpanKind.CONSUMER,

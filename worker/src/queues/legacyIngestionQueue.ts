@@ -2,9 +2,9 @@ import { Job, Worker } from "bullmq";
 import {
   addExceptionToSpan,
   getLegacyIngestionQueue,
-  instrumentAsync,
+  instrument,
   QueueName,
-  recordCount,
+  recordIncrement,
   recordGauge,
   recordHistogram,
   TQueueJobTypes,
@@ -24,7 +24,7 @@ export const legacyIngestionExecutor = redis
   ? new Worker<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
       QueueName.LegacyIngestionQueue,
       async (job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>) => {
-        return instrumentAsync(
+        return instrument(
           {
             name: "legacyIngestion",
             traceScope: "legacy-ingestion",
@@ -43,7 +43,7 @@ export const legacyIngestionExecutor = redis
                 `Received flush request after ${waitTime} ms for ${job.data.payload.authCheck.scope.projectId}`
               );
 
-              recordCount("legacy_ingestion_processing_request");
+              recordIncrement("legacy_ingestion_processing_request");
               recordHistogram("legacy_ingestion_flush_wait_time", waitTime, {
                 unit: "milliseconds",
               });

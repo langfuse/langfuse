@@ -26,10 +26,7 @@ import {
   Prisma,
   type Trace,
 } from "@langfuse/shared/src/db";
-import {
-  addExceptionToSpan,
-  instrumentAsync,
-} from "@langfuse/shared/src/server";
+import { addExceptionToSpan, instrument } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 import type Decimal from "decimal.js";
@@ -123,7 +120,7 @@ export const traceRouter = createTRPCRouter({
         orderByCondition,
       );
 
-      const traces = await instrumentAsync(
+      const traces = await instrument(
         { name: "get-all-traces", traceScope: "trace-router" },
         async () =>
           await ctx.prisma.$queryRaw<

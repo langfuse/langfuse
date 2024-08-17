@@ -31,7 +31,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import { instrument } from "@langfuse/shared/src/server";
 import logger from "../../logger";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
@@ -598,7 +598,7 @@ export class IngestionService {
     };
     const { projectId, entityId, table } = params;
 
-    return await instrumentAsync(
+    return await instrument(
       { name: `get-${table}`, traceScope: "ingestion" },
       async () => {
         const queryResult = await this.clickhouseClient.query({

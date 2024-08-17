@@ -5,8 +5,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
   getIngestionFlushQueue,
-  instrumentAsync,
-  recordCount,
+  instrument,
+  recordIncrement,
   recordGauge,
   recordHistogram,
   redis,
@@ -23,7 +23,7 @@ export const ingestionQueueExecutor = redis
   ? new Worker(
       QueueName.IngestionFlushQueue,
       async (job) => {
-        return instrumentAsync(
+        return instrument(
           {
             name: "flush-ingestion-consumer",
             traceScope: "ingestion-flush-queue",
@@ -42,7 +42,7 @@ export const ingestionQueueExecutor = redis
                 `Received flush request after ${waitTime} ms for ${flushKey}`
               );
 
-              recordCount("ingestion_processing_request");
+              recordIncrement("ingestion_processing_request");
               recordHistogram("ingestion_flush_wait_time", waitTime, {
                 unit: "milliseconds",
               });

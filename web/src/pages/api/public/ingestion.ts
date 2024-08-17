@@ -12,7 +12,7 @@ import {
   type AuthHeaderValidVerificationResult,
   type ingestionBatchEvent,
   handleBatch,
-  recordCount,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
@@ -71,7 +71,7 @@ export default async function handler(
 
     const parsedSchema = batchType.safeParse(req.body);
 
-    recordCount(
+    recordIncrement(
       "ingestion_event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );

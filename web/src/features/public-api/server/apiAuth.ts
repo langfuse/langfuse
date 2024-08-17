@@ -2,7 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   addUserToSpan,
   createShaHash,
-  recordCount,
+  recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
 } from "@langfuse/shared/src/server";
@@ -212,17 +212,17 @@ export class ApiAuthService {
     const redisApiKey = await this.fetchApiKeyFromRedis(hash);
 
     if (redisApiKey === API_KEY_NON_EXISTENT) {
-      recordCount("api_key_cache_hit", 1);
+      recordIncrement("api_key_cache_hit", 1);
       throw new Error("Invalid credentials");
     }
 
     // if we found something, return the object.
     if (redisApiKey) {
-      recordCount("api_key_cache_hit", 1);
+      recordIncrement("api_key_cache_hit", 1);
       return redisApiKey;
     }
 
-    recordCount("api_key_cache_miss", 1);
+    recordIncrement("api_key_cache_miss", 1);
 
     // if redis not available or object not found, try the database
     const apiKey = await this.prisma.apiKey.findUnique({

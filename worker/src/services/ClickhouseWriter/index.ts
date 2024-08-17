@@ -9,7 +9,7 @@ import {
 
 import { env } from "../../env";
 import logger from "../../logger";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import { instrument } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
 
 export class ClickhouseWriter {
@@ -78,7 +78,7 @@ export class ClickhouseWriter {
   }
 
   private async flushAll(fullQueue = false) {
-    return instrumentAsync(
+    return instrument(
       {
         name: "write-to-clickhouse",
         traceScope: "write-to-clickhouse",

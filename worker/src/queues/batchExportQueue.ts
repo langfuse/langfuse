@@ -3,10 +3,7 @@ import { Job, Worker } from "bullmq";
 import { BaseError, BatchExportStatus } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
-import {
-  addExceptionToSpan,
-  instrumentAsync,
-} from "@langfuse/shared/src/server";
+import { addExceptionToSpan, instrument } from "@langfuse/shared/src/server";
 import logger from "../logger";
 import { redis, QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
@@ -16,7 +13,7 @@ export const batchExportJobExecutor = redis
   ? new Worker<TQueueJobTypes[QueueName.BatchExport]>(
       QueueName.BatchExport,
       async (job: Job<TQueueJobTypes[QueueName.BatchExport]>) => {
-        return instrumentAsync(
+        return instrument(
           {
             name: "batchExportJobExecutor",
             traceScope: "batch-export",

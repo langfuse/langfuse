@@ -20,7 +20,7 @@ import {
 import {
   PromptService,
   redis,
-  recordCount,
+  recordIncrement,
   addExceptionToSpan,
 } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
@@ -51,7 +51,7 @@ export default async function handler(
       const promptName = searchParams.name;
       const version = searchParams.version ?? undefined;
 
-      const promptService = new PromptService(prisma, redis, recordCount);
+      const promptService = new PromptService(prisma, redis, recordIncrement);
 
       let prompt: Prompt | null = null;
 

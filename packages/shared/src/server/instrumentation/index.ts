@@ -1,7 +1,7 @@
 import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 
-type CallbackFn<T> = () => T;
+// type CallbackFn<T> = () => T;
 
 export type SpanCtx = {
   name: string;
@@ -10,38 +10,39 @@ export type SpanCtx = {
   rootSpan?: boolean; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#traces
 };
 
-export function instrument<T>(ctx: SpanCtx, callback: CallbackFn<T>): T {
-  return getTracer(ctx.traceScope).startActiveSpan(ctx.name, (span) => {
-    try {
-      const result = callback();
-      span.end();
-      return result;
-    } catch (ex) {
-      addExceptionToSpan(ex as opentelemetry.Exception, span);
-      span.end();
-      throw ex;
-    }
-  });
-}
+type CallbackFn<T> = () => T | Promise<T>;
 
-type CallbackAsyncFn<T> = () => Promise<T>;
-
-export async function instrumentAsync<T>(
+export function instrument<T>(
   ctx: SpanCtx,
-  callback: CallbackAsyncFn<T>
-): Promise<T> {
+  callback: CallbackFn<T>
+): Promise<T> | T {
   return getTracer(ctx.traceScope).startActiveSpan(
     ctx.name,
-    { root: ctx.rootSpan, kind: ctx.spanKind },
-    async (span) => {
-      try {
-        const result = await callback();
+    {
+      root: ctx.rootSpan,
+      kind: ctx.spanKind,
+    },
+    (span) => {
+      const handleResult = (result: T) => {
         span.end();
         return result;
-      } catch (ex) {
+      };
+
+      const handleError = (ex: unknown) => {
         addExceptionToSpan(ex as opentelemetry.Exception, span);
         span.end();
         throw ex;
+      };
+
+      try {
+        const result = callback();
+        if (result instanceof Promise) {
+          return result.then(handleResult).catch(handleError);
+        } else {
+          return handleResult(result);
+        }
+      } catch (ex) {
+        return handleError(ex);
       }
     }
   );
@@ -92,7 +93,6 @@ export const addUserToSpan = (
 };
 
 export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
-export const getMeter = (name: string) => opentelemetry.metrics.getMeter(name);
 
 export const recordGauge = (
   stat: string,
@@ -106,7 +106,7 @@ export const recordGauge = (
   dd.dogstatsd.gauge(stat, value, tags);
 };
 
-export const recordCount = (
+export const recordIncrement = (
   stat: string,
   value?: number | undefined,
   tags?: { [tag: string]: string | number } | undefined
