@@ -24,6 +24,21 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   const provider = new TracerProvider();
 
+  // correct the ressrouce name for http requests
+  tracer.use("http", {
+    hooks: {
+      request(span, req) {
+        if (span && req) {
+          const url = "path" in req ? req.path : req.url;
+          if (url) {
+            const method = req.method;
+            span.setTag("resource.name", method ? `${method} ${url}` : url);
+          }
+        }
+      },
+    },
+  });
+
   registerInstrumentations({
     instrumentations: [
       new IORedisInstrumentation(),
