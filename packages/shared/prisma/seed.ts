@@ -866,6 +866,7 @@ function createObjects(
             traceId: trace.id,
             source: ScoreSource.API,
             projectId: trace.projectId,
+            timestamp: generationTsEnd,
           });
         if (Math.random() > 0.6)
           scores.push({
@@ -875,6 +876,7 @@ function createObjects(
             traceId: trace.id,
             source: ScoreSource.API,
             projectId: trace.projectId,
+            timestamp: generationTsEnd,
           });
 
         for (let l = 0; l < Math.floor(Math.random() * 2); l++) {

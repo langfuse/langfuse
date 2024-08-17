@@ -1,10 +1,13 @@
 import { expect, test, describe, vi } from "vitest";
-import { QueueJobs, TraceUpsertEventSchema } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import logger from "../logger";
 import { evalJobCreator } from "../queues/evalQueue";
-import { getTraceUpsertQueue } from "@langfuse/shared/src/server";
+import {
+  getTraceUpsertQueue,
+  QueueJobs,
+  TraceUpsertEventSchema,
+} from "@langfuse/shared/src/server";
 
 describe.sequential("handle redis events", () => {
   test("handle redis job succeeding", async () => {

@@ -78,7 +78,10 @@ export const ModelUsageChart = ({
     tokens.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(tokens.data, "startTime", [
-            { labelColumn: "model", valueColumn: "sumTotalTokens" },
+            {
+              uniqueIdentifierColumns: [{ accessor: "model" }],
+              valueColumn: "sumTotalTokens",
+            },
           ]),
           allModels,
         )
@@ -89,7 +92,7 @@ export const ModelUsageChart = ({
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(tokens.data, "startTime", [
             {
-              labelColumn: "model",
+              uniqueIdentifierColumns: [{ accessor: "model" }],
               valueColumn: "sumCalculatedTotalCost",
             },
           ]),
@@ -147,7 +150,7 @@ export const ModelUsageChart = ({
                   metric={item.totalMetric}
                   description={item.metricDescription}
                 />
-                {!isEmptyTimeSeries(item.data) ? (
+                {!isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
                     agg={agg}
                     data={item.data}

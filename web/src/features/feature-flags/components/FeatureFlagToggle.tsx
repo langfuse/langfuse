@@ -11,8 +11,9 @@ export const FeatureFlagToggle = (props: {
 
   const enableExperimentalFeatures =
     session.data?.environment.enableExperimentalFeatures ?? false;
+  const isAdmin = session.data?.user?.admin ?? false;
 
-  if (enableExperimentalFeatures) return props.whenEnabled ?? <></>;
+  if (enableExperimentalFeatures || isAdmin) return props.whenEnabled ?? <></>;
 
   const flags = session.data?.user?.featureFlags;
   const isEnabled = flags !== undefined && flags[props.featureFlag];

@@ -1,10 +1,23 @@
 import { z } from "zod";
+import { ingestionBatchEvent } from ".";
 
 export enum EventName {
   TraceUpsert = "TraceUpsert",
   BatchExport = "BatchExport",
   EvaluationExecution = "EvaluationExecution",
+  LegacyIngestion = "LegacyIngestion",
 }
+
+export const LegacyIngestionEvent = z.object({
+  data: ingestionBatchEvent,
+  authCheck: z.object({
+    validKey: z.literal(true),
+    scope: z.object({
+      projectId: z.string(),
+      accessLevel: z.enum(["all", "scores"]),
+    }),
+  }),
+});
 
 export const BatchExportJobSchema = z.object({
   projectId: z.string(),
@@ -22,6 +35,7 @@ export const EvalExecutionEvent = z.object({
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceUpsertEventType = z.infer<typeof TraceUpsertEventSchema>;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
+export type LegacyIngestionEventType = z.infer<typeof LegacyIngestionEvent>;
 
 export const EventBodySchema = z.union([
   z.object({
@@ -45,6 +59,7 @@ export enum QueueName {
   BatchExport = "batch-export-queue",
   RepeatQueue = "repeat-queue",
   IngestionFlushQueue = "ingestion-flush-queue",
+  LegacyIngestionQueue = "legacy-ingestion-queue",
 }
 
 export enum QueueJobs {
@@ -53,6 +68,7 @@ export enum QueueJobs {
   BatchExportJob = "batch-export-job",
   EnqueueBatchExportJobs = "enqueue-batch-export-jobs",
   FlushIngestionEntity = "flush-ingestion-entity",
+  LegacyIngestionJob = "legacy-ingestion-job",
 }
 
 export type TQueueJobTypes = {
@@ -73,5 +89,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: BatchExportJobType;
     name: QueueJobs.BatchExportJob;
+  };
+  [QueueName.LegacyIngestionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: LegacyIngestionEventType;
+    name: QueueJobs.LegacyIngestionJob;
   };
 };

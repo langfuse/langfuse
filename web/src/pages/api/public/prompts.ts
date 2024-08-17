@@ -17,9 +17,13 @@ import {
   ForbiddenError,
   type Prompt,
 } from "@langfuse/shared";
-import { PromptService, redis } from "@langfuse/shared/src/server";
+import {
+  PromptService,
+  redis,
+  recordIncrement,
+  traceException,
+} from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
-import * as Sentry from "@sentry/node";
 
 export default async function handler(
   req: NextApiRequest,
@@ -47,11 +51,7 @@ export default async function handler(
       const promptName = searchParams.name;
       const version = searchParams.version ?? undefined;
 
-      const promptService = new PromptService(
-        prisma,
-        redis,
-        Sentry.metrics.increment,
-      );
+      const promptService = new PromptService(prisma, redis, recordIncrement);
 
       let prompt: Prompt | null = null;
 
@@ -102,8 +102,7 @@ export default async function handler(
     throw new MethodNotAllowedError();
   } catch (error: unknown) {
     console.error(error);
-
-    Sentry.captureException(error);
+    traceException(error);
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({

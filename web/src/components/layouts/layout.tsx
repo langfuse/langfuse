@@ -78,7 +78,7 @@ const publishablePaths: string[] = [
  * though the user is signed in.
  */
 function useSessionWithRetryOnUnauthenticated() {
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 2;
   const [retryCount, setRetryCount] = useState(0);
   const session = useSession();
 

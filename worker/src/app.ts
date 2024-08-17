@@ -1,7 +1,5 @@
-import "./sentry"; // this is required to make instrumentation work
 import express from "express";
 import cors from "cors";
-import * as Sentry from "@sentry/node";
 import * as middlewares from "./middlewares";
 import api from "./api";
 import MessageResponse from "./interfaces/MessageResponse";
@@ -18,6 +16,7 @@ import { logQueueWorkerError } from "./utils/logQueueWorkerError";
 import { onShutdown } from "./utils/shutdown";
 
 import helmet from "helmet";
+import { legacyIngestionExecutor } from "./queues/legacyIngestionQueue";
 
 const app = express();
 
@@ -32,13 +31,11 @@ app.get<{}, MessageResponse>("/", (req, res) => {
 
 app.use("/api", api);
 
-// The error handler must be before any other error middleware and after all controllers
-app.use(Sentry.expressErrorHandler());
-
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
 
 logger.info("Eval Job Creator started", evalJobCreator?.isRunning());
+
 logger.info("Eval Job Executor started", evalJobExecutor?.isRunning());
 logger.info(
   "Batch Export Job Executor started",
@@ -49,12 +46,17 @@ logger.info(
   "Flush Ingestion Queue Executor started",
   ingestionQueueExecutor?.isRunning()
 );
+logger.info(
+  "Legacy Ingestion Executor started",
+  legacyIngestionExecutor?.isRunning()
+);
 
 evalJobCreator?.on("failed", logQueueWorkerError);
 evalJobExecutor?.on("failed", logQueueWorkerError);
 batchExportJobExecutor?.on("failed", logQueueWorkerError);
 repeatQueueExecutor?.on("failed", logQueueWorkerError);
 ingestionQueueExecutor?.on("failed", logQueueWorkerError);
+legacyIngestionExecutor?.on("failed", logQueueWorkerError);
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
 process.on("SIGTERM", () => onShutdown("SIGTERM"));

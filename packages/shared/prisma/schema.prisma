@@ -279,7 +279,6 @@ model Trace {
     createdAt  DateTime      @default(now()) @map("created_at")
     updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
 
-    DatasetItem  DatasetItem[]
     JobExecution JobExecution[]
 
     @@index([projectId])
@@ -364,9 +363,8 @@ model Observation {
     calculatedOutputCost Decimal? @map("calculated_output_cost")
     calculatedTotalCost  Decimal? @map("calculated_total_cost")
 
-    completionStartTime DateTime?     @map("completion_start_time")
-    project             Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    derivedDatasetItems DatasetItem[]
+    completionStartTime DateTime? @map("completion_start_time")
+    project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
     promptId String? @map("prompt_id") // no fk constraint, prompt can be deleted
 
@@ -559,9 +557,7 @@ model DatasetItem {
     expectedOutput      Json?             @map("expected_output")
     metadata            Json?
     sourceTraceId       String?           @map("source_trace_id")
-    sourceTrace         Trace?            @relation(fields: [sourceTraceId], references: [id], onDelete: SetNull)
     sourceObservationId String?           @map("source_observation_id")
-    sourceObservation   Observation?      @relation(fields: [sourceObservationId], references: [id], onDelete: SetNull)
     datasetId           String            @map("dataset_id")
     dataset             Dataset           @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
     createdAt           DateTime          @default(now()) @map("created_at")

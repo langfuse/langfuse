@@ -1,48 +1,53 @@
-import { tokenCount } from "@/src/features/ingest/usage";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import {
-  type legacyObservationCreateEvent,
-  eventTypes,
-  type scoreEvent,
-  type generationCreateEvent,
-  type sdkLogEvent,
-  type traceEvent,
-  validateAndInflateScore,
-} from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
-import { type ObservationEvent, findModel } from "@langfuse/shared/src/server";
-import { ResourceNotFoundError } from "@/src/utils/exceptions";
-import { mergeJson } from "@langfuse/shared";
-import {
-  type Trace,
-  type Observation,
-  type Score,
-  type Prisma,
-  type Model,
-} from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { type z } from "zod";
-import { jsonSchema } from "@langfuse/shared";
-import { ForbiddenError } from "@langfuse/shared";
-import { instrument } from "@/src/utils/instrumentation";
 import Decimal from "decimal.js";
+import { findModel } from "../model-match";
+import {
+  ObservationEvent,
+  eventTypes,
+  legacyObservationCreateEvent,
+  generationCreateEvent,
+  traceEvent,
+  scoreEvent,
+  sdkLogEvent,
+} from "../types";
+import { validateAndInflateScore } from "../validateAndInflateScore";
+import { ApiAccessScope } from "../../auth/types";
+import { Trace, Observation, Score, Prisma, Model } from "@prisma/client";
+import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
+import { mergeJson } from "../../../utils/json";
+import { jsonSchema } from "../../../utils/zod";
+import { prisma } from "../../../db";
 
 export interface EventProcessor {
+  auth(apiScope: ApiAccessScope): void;
+
   process(
-    apiScope: ApiAccessScope,
+    apiScope: ApiAccessScope
   ): Promise<Trace | Observation | Score> | undefined;
 }
 
 export class ObservationProcessor implements EventProcessor {
   event: ObservationEvent;
+  calculateTokenDelegate: (p: {
+    model: Model;
+    text: unknown;
+  }) => number | undefined;
 
-  constructor(event: ObservationEvent) {
+  constructor(
+    event: ObservationEvent,
+    calculateTokenDelegate: (p: {
+      model: Model;
+      text: unknown;
+    }) => number | undefined
+  ) {
     this.event = event;
+    this.calculateTokenDelegate = calculateTokenDelegate;
   }
 
   async convertToObservation(
     apiScope: ApiAccessScope,
-    existingObservation: Observation | null,
+    existingObservation: Observation | null
   ): Promise<{
     id: string;
     create: Prisma.ObservationUncheckedCreateInput;
@@ -71,7 +76,9 @@ export class ObservationProcessor implements EventProcessor {
       this.event.type === eventTypes.OBSERVATION_UPDATE &&
       !existingObservation
     ) {
-      throw new ResourceNotFoundError(this.event.id, "Observation not found");
+      throw new LangfuseNotFoundError(
+        `Observation with id ${this.event.id} not found`
+      );
     }
 
     // find matching model definition based on event and existing observation in db
@@ -114,8 +121,9 @@ export class ObservationProcessor implements EventProcessor {
       "usage" in this.event.body
         ? this.calculateTokenCounts(
             this.event.body,
+            this.calculateTokenDelegate,
             internalModel ?? undefined,
-            existingObservation ?? undefined,
+            existingObservation ?? undefined
           )
         : [undefined, undefined];
 
@@ -151,7 +159,7 @@ export class ObservationProcessor implements EventProcessor {
     const calculatedCosts = ObservationProcessor.calculateTokenCosts(
       internalModel,
       userProvidedTokenCosts,
-      tokenCounts,
+      tokenCounts
     );
 
     // merge metadata from existingObservation.metadata and metadata
@@ -159,7 +167,7 @@ export class ObservationProcessor implements EventProcessor {
       existingObservation?.metadata
         ? jsonSchema.parse(existingObservation.metadata)
         : undefined,
-      this.event.body.metadata ?? undefined,
+      this.event.body.metadata ?? undefined
     );
 
     const prompt =
@@ -305,34 +313,34 @@ export class ObservationProcessor implements EventProcessor {
     body:
       | z.infer<typeof legacyObservationCreateEvent>["body"]
       | z.infer<typeof generationCreateEvent>["body"],
+    calculateTokenDelegate: (p: {
+      model: Model;
+      text: unknown;
+    }) => number | undefined,
     model?: Model,
-    existingObservation?: Observation,
+    existingObservation?: Observation
   ) {
-    return instrument({ name: "calculate-tokens" }, () => {
-      const newPromptTokens =
-        body.usage?.input ??
-        ((body.input || existingObservation?.input) &&
-        model &&
-        model.tokenizerId
-          ? tokenCount({
-              model: model,
-              text: body.input ?? existingObservation?.input,
-            })
-          : undefined);
+    const newPromptTokens =
+      body.usage?.input ??
+      ((body.input || existingObservation?.input) && model && model.tokenizerId
+        ? calculateTokenDelegate({
+            model: model,
+            text: body.input ?? existingObservation?.input,
+          })
+        : undefined);
 
-      const newCompletionTokens =
-        body.usage?.output ??
-        ((body.output || existingObservation?.output) &&
-        model &&
-        model.tokenizerId
-          ? tokenCount({
-              model: model,
-              text: body.output ?? existingObservation?.output,
-            })
-          : undefined);
+    const newCompletionTokens =
+      body.usage?.output ??
+      ((body.output || existingObservation?.output) &&
+      model &&
+      model.tokenizerId
+        ? calculateTokenDelegate({
+            model: model,
+            text: body.output ?? existingObservation?.output,
+          })
+        : undefined);
 
-      return [newPromptTokens, newCompletionTokens];
-    });
+    return [newPromptTokens, newCompletionTokens];
   }
 
   static calculateTokenCosts(
@@ -342,7 +350,7 @@ export class ObservationProcessor implements EventProcessor {
       outputCost?: Decimal | null;
       totalCost?: Decimal | null;
     },
-    tokenCounts: { input?: number; output?: number; total?: number },
+    tokenCounts: { input?: number; output?: number; total?: number }
   ): {
     inputCost?: Decimal | null;
     outputCost?: Decimal | null;
@@ -359,7 +367,7 @@ export class ObservationProcessor implements EventProcessor {
         totalCost:
           userProvidedCosts.totalCost ??
           (userProvidedCosts.inputCost ?? new Decimal(0)).add(
-            userProvidedCosts.outputCost ?? new Decimal(0),
+            userProvidedCosts.outputCost ?? new Decimal(0)
           ),
       };
     }
@@ -390,9 +398,13 @@ export class ObservationProcessor implements EventProcessor {
     };
   }
 
-  async process(apiScope: ApiAccessScope): Promise<Observation> {
+  auth(apiScope: ApiAccessScope): void {
     if (apiScope.accessLevel !== "all")
       throw new ForbiddenError("Access denied for observation creation");
+  }
+
+  async process(apiScope: ApiAccessScope): Promise<Observation> {
+    this.auth(apiScope);
 
     const existingObservation = this.event.body.id
       ? await prisma.observation.findFirst({
@@ -405,7 +417,7 @@ export class ObservationProcessor implements EventProcessor {
       existingObservation.projectId !== apiScope.projectId
     ) {
       throw new ForbiddenError(
-        `Access denied for observation creation ${existingObservation.projectId} `,
+        `Access denied for observation creation ${existingObservation.projectId} `
       );
     }
 
@@ -429,15 +441,17 @@ export class TraceProcessor implements EventProcessor {
     this.event = event;
   }
 
+  auth(apiScope: ApiAccessScope): void {
+    if (apiScope.accessLevel !== "all")
+      throw new ForbiddenError("Access denied for trace creation");
+  }
+
   async process(
-    apiScope: ApiAccessScope,
+    apiScope: ApiAccessScope
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
-    if (apiScope.accessLevel !== "all")
-      throw new ForbiddenError(
-        `Access denied for trace creation, ${apiScope.accessLevel}`,
-      );
+    this.auth(apiScope);
 
     const internalId = body.id ?? v4();
 
@@ -445,7 +459,7 @@ export class TraceProcessor implements EventProcessor {
       "Trying to create trace, project ",
       apiScope.projectId,
       ", id:",
-      internalId,
+      internalId
     );
 
     const existingTrace = await prisma.trace.findFirst({
@@ -456,7 +470,7 @@ export class TraceProcessor implements EventProcessor {
 
     if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
       throw new ForbiddenError(
-        `Access denied for trace creation ${existingTrace.projectId}`,
+        `Access denied for trace creation ${existingTrace.projectId}`
       );
     }
 
@@ -464,7 +478,7 @@ export class TraceProcessor implements EventProcessor {
       existingTrace?.metadata
         ? jsonSchema.parse(existingTrace.metadata)
         : undefined,
-      body.metadata ?? undefined,
+      body.metadata ?? undefined
     );
 
     const mergedTags =
@@ -539,15 +553,19 @@ export class ScoreProcessor implements EventProcessor {
     this.event = event;
   }
 
+  auth(apiScope: ApiAccessScope) {
+    if (apiScope.accessLevel !== "scores" && apiScope.accessLevel !== "all")
+      throw new ForbiddenError(
+        `Access denied for score creation, ${apiScope.accessLevel}`
+      );
+  }
+
   async process(
-    apiScope: ApiAccessScope,
+    apiScope: ApiAccessScope
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
-    if (apiScope.accessLevel !== "scores" && apiScope.accessLevel !== "all")
-      throw new ForbiddenError(
-        `Access denied for score creation, ${apiScope.accessLevel}`,
-      );
+    this.auth(apiScope);
 
     const id = body.id ?? v4();
 
@@ -561,7 +579,7 @@ export class ScoreProcessor implements EventProcessor {
     });
     if (existingScore && existingScore.projectId !== apiScope.projectId) {
       throw new ForbiddenError(
-        `Access denied for score creation ${existingScore.projectId}`,
+        `Access denied for score creation ${existingScore.projectId}`
       );
     }
 
@@ -593,6 +611,10 @@ export class SdkLogProcessor implements EventProcessor {
 
   constructor(event: z.infer<typeof sdkLogEvent>) {
     this.event = event;
+  }
+
+  auth(apiScope: ApiAccessScope) {
+    return;
   }
 
   process() {
