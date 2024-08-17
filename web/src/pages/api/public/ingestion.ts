@@ -7,10 +7,12 @@ import {
   getLegacyIngestionQueue,
   eventTypes,
   ingestionEvent,
+  traceException,
   redis,
   type AuthHeaderValidVerificationResult,
   type ingestionBatchEvent,
   handleBatch,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
@@ -22,7 +24,6 @@ import {
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
-import * as Sentry from "@sentry/nextjs";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { env } from "@/src/env.mjs";
 import {
@@ -70,7 +71,7 @@ export default async function handler(
 
     const parsedSchema = batchType.safeParse(req.body);
 
-    Sentry.metrics.increment(
+    recordIncrement(
       "ingestion_event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
@@ -141,6 +142,7 @@ export default async function handler(
             },
           },
         );
+
         return handleBatchResult(
           [
             ...validationErrors,
@@ -176,7 +178,7 @@ export default async function handler(
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
       console.error("error_handling_ingestion_event", error);
-      Sentry.captureException(error);
+      traceException(error);
     }
 
     if (error instanceof BaseError) {
@@ -329,9 +331,6 @@ export const handleBatchResult = (
         error: error.error.message,
       });
     } else {
-      if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-        Sentry.captureException(error.error);
-      }
       returnedErrors.push({
         id: error.id,
         status: 500,
@@ -341,6 +340,7 @@ export const handleBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
+    traceException(errors);
     console.log("Error processing events", returnedErrors);
   }
 
@@ -423,7 +423,7 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   const parsedObj = object.safeParse(results[0].result);
   if (!parsedObj.success) {
     console.error("Error parsing response", parsedObj.error);
-    Sentry.captureException(parsedObj.error);
+    traceException(parsedObj.error);
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;

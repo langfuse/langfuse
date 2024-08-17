@@ -8,7 +8,6 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { instrumentAsync } from "@/src/utils/instrumentation";
 import {
   datetimeFilterToPrismaSql,
   filterAndValidateDbScoreList,
@@ -27,7 +26,7 @@ import {
   Prisma,
   type Trace,
 } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
+import { traceException, instrument } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 import type Decimal from "decimal.js";
@@ -121,7 +120,7 @@ export const traceRouter = createTRPCRouter({
         orderByCondition,
       );
 
-      const traces = await instrumentAsync(
+      const traces = await instrument(
         { name: "get-all-traces" },
         async () =>
           await ctx.prisma.$queryRaw<
@@ -168,7 +167,7 @@ export const traceRouter = createTRPCRouter({
       });
       const validatedScores = filterAndValidateDbScoreList(
         scores,
-        Sentry.captureException,
+        traceException,
       );
 
       const totalTraceCount = totalTraces[0]?.count;
@@ -331,7 +330,7 @@ export const traceRouter = createTRPCRouter({
       });
       const validatedScores = filterAndValidateDbScoreList(
         scores,
-        Sentry.captureException,
+        traceException,
       );
 
       const obsStartTimes = observations
