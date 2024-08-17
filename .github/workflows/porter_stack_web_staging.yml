@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - dd-ressource-name
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
