@@ -29,7 +29,15 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     hooks: {
       request(span, req) {
         if (span && req) {
-          const url = "path" in req ? req.path : req.url;
+          let url = "path" in req ? req.path : req.url;
+          if (url) {
+            // Remove URL parameters
+            url = url.split("?")[0];
+            // Add wildcard for /_next/static
+            if (url.startsWith("/_next/static")) {
+              url = "/_next/static/*";
+            }
+          }
           if (url) {
             const method = req.method;
             span.setTag("resource.name", method ? `${method} ${url}` : url);
