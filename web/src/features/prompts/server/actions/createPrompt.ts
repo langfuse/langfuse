@@ -8,7 +8,11 @@ import { type PrismaClient } from "@langfuse/shared/src/db";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
 import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
-import { PromptService, redis } from "@langfuse/shared/src/server";
+import {
+  PromptService,
+  recordIncrement,
+  redis,
+} from "@langfuse/shared/src/server";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;

@@ -34,7 +34,7 @@ export function tokenCount(p: {
 }): number | undefined {
   return instrument(
     {
-      name: "tokenCount",
+      name: "token-count",
     },
     () => {
       if (
