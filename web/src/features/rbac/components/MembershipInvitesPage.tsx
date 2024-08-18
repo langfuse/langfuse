@@ -192,14 +192,7 @@ export function MembershipInvitesPage({
   };
 
   if (projectId ? !hasProjectViewAccess : !hasOrgViewAccess) {
-    return (
-      <Alert>
-        <AlertTitle>Access Denied</AlertTitle>
-        <AlertDescription>
-          You do not have permission to view invites of this organization.
-        </AlertDescription>
-      </Alert>
-    );
+    return null;
   }
 
   if (totalCount === 0) return null;

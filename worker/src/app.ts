@@ -19,6 +19,7 @@ import { onShutdown } from "./utils/shutdown";
 
 import helmet from "helmet";
 import { legacyIngestionExecutor } from "./queues/legacyIngestionQueue";
+import { cloudUsageMeteringJobExecutor } from "./queues/cloudUsageMeteringQueue";
 
 const app = express();
 
@@ -54,6 +55,10 @@ logger.info(
   "Legacy Ingestion Executor started",
   legacyIngestionExecutor?.isRunning()
 );
+logger.info(
+  "Cloud Usage Metering Job Executor started",
+  cloudUsageMeteringJobExecutor?.isRunning()
+);
 
 evalJobCreator?.on("failed", logQueueWorkerError);
 evalJobExecutor?.on("failed", logQueueWorkerError);
@@ -61,6 +66,7 @@ batchExportJobExecutor?.on("failed", logQueueWorkerError);
 repeatQueueExecutor?.on("failed", logQueueWorkerError);
 ingestionQueueExecutor?.on("failed", logQueueWorkerError);
 legacyIngestionExecutor?.on("failed", logQueueWorkerError);
+cloudUsageMeteringJobExecutor?.on("failed", logQueueWorkerError);
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
 process.on("SIGTERM", () => onShutdown("SIGTERM"));

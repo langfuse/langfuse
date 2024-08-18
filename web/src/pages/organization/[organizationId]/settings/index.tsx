@@ -10,11 +10,13 @@ import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 const OrgSettingsPage = () => {
   const organization = useQueryOrganization();
   const router = useRouter();
   const { page } = router.query;
+  const showBillingSettings = useHasOrgEntitlement("cloud-billing");
 
   if (!organization) return null;
 
@@ -69,7 +71,7 @@ const OrgSettingsPage = () => {
             title: "Billing",
             slug: "billing",
             content: <BillingSettings />,
-            show: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined,
+            show: showBillingSettings,
           },
           {
             title: "Projects",

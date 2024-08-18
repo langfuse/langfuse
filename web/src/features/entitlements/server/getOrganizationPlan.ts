@@ -1,7 +1,7 @@
 import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { type Plan } from "@/src/features/entitlements/constants/plans";
-import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
+import { type CloudConfigSchema } from "@langfuse/shared";
 
 /**
  * Get the plan of the organization based on the cloud configuration. Used to add this plan to the organization object in JWT via NextAuth.

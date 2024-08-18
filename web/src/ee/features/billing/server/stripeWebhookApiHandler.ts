@@ -5,11 +5,10 @@ import {
 import { env } from "@/src/env.mjs";
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { parseDbOrg } from "@/src/features/organizations/utils/parseDbOrg";
 import * as Sentry from "@sentry/node";
-import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
 import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import type Stripe from "stripe";
+import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
 
 const STRIPE_WEBHOOK_SIGNING_SECRET =
   "whsec_12dc385262f1a5d0f4ba1507cc81f9b3a3e2d03fd99d4ad625b8e21c87dcfd37";
@@ -194,6 +193,9 @@ async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
 ) {
+  // wait for 3 seconds to ensure the subscription is fully created during the checkout session
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+
   const subscriptionId = subscription.id;
 
   // find the org with the customer ID

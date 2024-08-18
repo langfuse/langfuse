@@ -3,13 +3,14 @@ import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { parseDbOrg } from "@/src/features/organizations/utils/parseDbOrg";
+import { parseDbOrg } from "@langfuse/shared";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
@@ -20,6 +21,11 @@ export const cloudBillingRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
         sessionUser: ctx.session.user,
@@ -38,13 +44,20 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
+      const parsedOrg = parseDbOrg(org);
+      if (parsedOrg.cloudConfig?.plan)
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Cannot initialize stripe checkout for orgs that have a manual/legacy plan",
+        });
+
       if (!stripeClient)
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Stripe client not initialized",
         });
 
-      const parsedOrg = parseDbOrg(org);
       const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
       const stripeActiveSubscriptionId =
         parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
@@ -107,10 +120,14 @@ export const cloudBillingRouter = createTRPCRouter({
             optional: true,
           },
         ],
-        customer_update: {
-          name: "auto",
-          address: "auto",
-        },
+        ...(stripeCustomerId
+          ? {
+              customer_update: {
+                name: "auto",
+                address: "auto",
+              },
+            }
+          : {}),
         billing_address_collection: "required",
         success_url: returnUrl,
         cancel_url: returnUrl,
@@ -141,7 +158,11 @@ export const cloudBillingRouter = createTRPCRouter({
         sessionUser: ctx.session.user,
         orgId: input.orgId,
       });
-      // TODO: add billing scope
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
 
       const org = await ctx.prisma.organization.findUnique({
         where: {
@@ -163,7 +184,9 @@ export const cloudBillingRouter = createTRPCRouter({
 
       const parsedOrg = parseDbOrg(org);
       let stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
-      if (!stripeCustomerId) {
+      let stripeSubscriptionId =
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+      if (!stripeCustomerId || !stripeSubscriptionId) {
         // Do not create a new customer if the org is on a plan (assigned manually)
         return null;
       }
@@ -187,6 +210,11 @@ export const cloudBillingRouter = createTRPCRouter({
         entitlement: "cloud-billing",
         sessionUser: ctx.session.user,
         orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
       });
 
       const thirtyDaysAgo = new Date();

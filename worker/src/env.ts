@@ -67,6 +67,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(25),
+  STRIPE_SECRET_KEY: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);

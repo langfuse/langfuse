@@ -7,6 +7,7 @@ const organizationScopes = [
   "organization:delete",
   "organizationMembers:read",
   "organizationMembers:CUD",
+  "langfuseCloudBilling:CRUD",
 ] as const;
 
 // type string of all Resource:Action, e.g. "organizationMembers:read"
@@ -20,6 +21,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organization:delete",
     "organizationMembers:CUD",
     "organizationMembers:read",
+    "langfuseCloudBilling:CRUD",
   ],
   ADMIN: [
     "projects:create",
