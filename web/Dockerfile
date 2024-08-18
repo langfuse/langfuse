@@ -88,6 +88,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
+COPY --chown=nextjs:nodejs ./web/next-logger.config.js ./web/next-logger.config.js
 COPY --chown=nextjs:nodejs ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
 RUN chmod +x ./web/entrypoint.sh
 
