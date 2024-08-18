@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - pino
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
