@@ -53,6 +53,7 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   try {
+    console.log("Processing ingestion event - haha");
     await runMiddleware(req, res, cors);
     if (req.method !== "POST") throw new MethodNotAllowedError();
 

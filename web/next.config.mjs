@@ -5,6 +5,7 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
+import { withLogtail } from "@logtail/next";
 
 /**
  * CSP headers
@@ -31,7 +32,12 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     instrumentationHook: true,
-    serverComponentsExternalPackages: ["sequelize", "pino", "pino-pretty"],
+    serverComponentsExternalPackages: [
+      "sequelize",
+      "pino",
+      "pino-pretty",
+      "@logtail/pino",
+    ],
   },
 
   /**
@@ -162,4 +168,4 @@ const sentryOptions = {
   tunnelRoute: "/api/monitoring-tunnel",
 };
 
-export default withSentryConfig(nextConfig, sentryOptions);
+export default withLogtail(withSentryConfig(nextConfig, sentryOptions));
