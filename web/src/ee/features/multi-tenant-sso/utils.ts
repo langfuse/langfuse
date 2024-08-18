@@ -54,7 +54,6 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
     } catch (e) {
       console.error("Failed to load SSO configs from the database", e);
       Sentry.captureException(e);
-
       // empty array will be cached to prevent repeated DB queries
       failedToFetch = true;
     }
@@ -70,6 +69,7 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
             `Failed to parse SSO provider config for domain ${v.domain}`,
             e,
           );
+
           Sentry.captureException(e);
           return null;
         }

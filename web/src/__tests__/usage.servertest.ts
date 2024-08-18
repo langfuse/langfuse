@@ -1,5 +1,5 @@
-import { ModelUsageUnit } from "@langfuse/shared";
 import { tokenCount } from "@/src/features/ingest/usage";
+import { ModelUsageUnit } from "@langfuse/shared";
 
 describe("Token Count Functions", () => {
   const generateModel = (model: string, tokenizer: string) => {

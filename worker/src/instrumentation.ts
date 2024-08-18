@@ -1,31 +1,38 @@
-import * as Sentry from "@sentry/node";
-import { env } from "./env";
+import tracer from "dd-trace";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
+import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
+import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
+import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
+import { PrismaInstrumentation } from "@prisma/instrumentation";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
+import opentelemetry from "@opentelemetry/api";
+import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
+// import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 
-type CallbackFn<T> = (span?: Sentry.Span) => T;
+const contextManager = new AsyncHooksContextManager().enable();
 
-export function instrument<T>(
-  ctx: { name: string },
-  callback: CallbackFn<T>
-): T {
-  if (env.SENTRY_DSN) {
-    return Sentry.startSpan(ctx, callback);
-  } else {
-    return callback();
-  }
-}
+opentelemetry.context.setGlobalContextManager(contextManager);
 
-type CallbackAsyncFn<T> = (span?: Sentry.Span) => Promise<T>;
-export async function instrumentAsync<T>(
-  ctx: { name: string },
-  callback: CallbackAsyncFn<T>
-): Promise<T> {
-  if (env.SENTRY_DSN) {
-    return Sentry.startSpan(ctx, async (span) => {
-      const result = await callback(span);
-      span?.end();
-      return result;
-    });
-  } else {
-    return callback();
-  }
-}
+const { TracerProvider } = tracer.init({
+  profiling: false,
+  runtimeMetrics: true,
+});
+
+const provider = new TracerProvider();
+
+registerInstrumentations({
+  instrumentations: [
+    new IORedisInstrumentation(),
+    new HttpInstrumentation(),
+    new ExpressInstrumentation(),
+    new PrismaInstrumentation(),
+    getNodeAutoInstrumentations(),
+    new PinoInstrumentation(),
+    new UndiciInstrumentation(),
+    // new BullMQInstrumentation(),
+  ],
+});
+
+provider.register();

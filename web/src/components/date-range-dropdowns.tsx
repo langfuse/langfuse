@@ -16,14 +16,14 @@ import {
   type DashboardDateRangeOptions,
   type TableDateRangeOptions,
   DASHBOARD_AGGREGATION_OPTIONS,
-  TABLE_AGGREGATION_OPTIONS,
   type DashboardDateRange,
+  TABLE_RANGE_DROPDOWN_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { Clock } from "lucide-react";
 
 type BaseDateRangeDropdownProps<T> = {
   selectedOption: T;
-  options: T[];
+  options: readonly T[];
   onSelectionChange: (value: T) => void;
 };
 
@@ -118,7 +118,7 @@ export const TableDateRangeDropdown: React.FC<TableDateRangeDropdownProps> = ({
   return (
     <BaseDateRangeDropdown
       selectedOption={selectedOption}
-      options={[...TABLE_AGGREGATION_OPTIONS, DEFAULT_AGGREGATION_SELECTION]}
+      options={TABLE_RANGE_DROPDOWN_OPTIONS}
       onSelectionChange={onDropDownSelection}
     />
   );

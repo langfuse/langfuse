@@ -1,7 +1,9 @@
 import { env } from "@/src/env.mjs";
-import { type EventBodyType } from "@langfuse/shared";
-import { type IngestionApiSchemaWithProjectId } from "@langfuse/shared/src/server";
-import { instrumentAsync } from "@/src/utils/instrumentation";
+import {
+  instrument,
+  type EventBodyType,
+  type IngestionApiSchemaWithProjectId,
+} from "@langfuse/shared/src/server";
 
 export class WorkerClient {
   readonly enabled: boolean;
@@ -29,7 +31,7 @@ export class WorkerClient {
   }
 
   async sendIngestionBatch(params: IngestionApiSchemaWithProjectId) {
-    await instrumentAsync({ name: "insert-clickhouse" }, async () => {
+    await instrument({ name: "insert-clickhouse" }, async () => {
       await this.sendWorkerRequest({
         method: "POST",
         route: "/api/ingestion",

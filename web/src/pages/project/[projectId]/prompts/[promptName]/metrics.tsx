@@ -142,7 +142,7 @@ export default function PromptVersionTable() {
     scoreColumnPrefix: "Trace",
     scoreColumnKey: "traceScores",
     showAggregateViewOnly: true,
-    selectedTimeOption: selectedOption,
+    selectedFilterOption: selectedOption,
   });
 
   const {
@@ -153,7 +153,7 @@ export default function PromptVersionTable() {
     scoreColumnPrefix: "Generation",
     scoreColumnKey: "generationScores",
     showAggregateViewOnly: true,
-    selectedTimeOption: selectedOption,
+    selectedFilterOption: selectedOption,
   });
 
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
