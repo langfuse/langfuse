@@ -2,9 +2,17 @@ const pino = require("pino");
 const pretty = require("pino-pretty");
 
 const logger = (defaultConfig) => {
-  return process.env.NODE_ENV !== "production" &&
-    process.env.NODE_ENV !== "test"
+  return process.env.NODE_ENV !== "development"
     ? pino(
+        pino.transport({
+          ...defaultConfig,
+          target: "@logtail/pino", //sends logs to betterstack
+          options: {
+            sourceToken: process.env.LANGFUSE_WEB_BETTERSTACK_TOKEN,
+          },
+        }),
+      )
+    : pino(
         {
           ...defaultConfig,
           browser: {
@@ -12,19 +20,9 @@ const logger = (defaultConfig) => {
           },
         },
         pretty({
-          //needs stream config. pretty transport does not work.
           levelFirst: false,
           colorize: true,
           ignore: "",
-        }),
-      )
-    : pino(
-        pino.transport({
-          ...defaultConfig,
-          target: "@logtail/pino", //sends logs to betterstack
-          options: {
-            sourceToken: process.env.LANGFUSE_WEB_BETTERSTACK_TOKEN,
-          },
         }),
       );
 };

@@ -168,4 +168,4 @@ const sentryOptions = {
   tunnelRoute: "/api/monitoring-tunnel",
 };
 
-export default withLogtail(withSentryConfig(nextConfig, sentryOptions));
+export default withSentryConfig(nextConfig, sentryOptions);
