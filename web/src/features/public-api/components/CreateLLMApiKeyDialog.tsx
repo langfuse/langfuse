@@ -54,7 +54,11 @@ const formSchema = z
     path: ["withDefaultModels"],
   });
 
-export function CreateLLMApiKeyDialog() {
+export function CreateLLMApiKeyDialog({
+  evalModelsOnly,
+}: {
+  evalModelsOnly?: boolean;
+}) {
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -216,11 +220,16 @@ export function CreateLLMApiKeyDialog() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {Object.values(LLMAdapter).map((provider) => (
-                        <SelectItem value={provider} key={provider}>
-                          {provider}
-                        </SelectItem>
-                      ))}
+                      {Object.values(LLMAdapter)
+                        .filter(
+                          (provider) =>
+                            !evalModelsOnly || provider === LLMAdapter.OpenAI,
+                        )
+                        .map((provider) => (
+                          <SelectItem value={provider} key={provider}>
+                            {provider}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

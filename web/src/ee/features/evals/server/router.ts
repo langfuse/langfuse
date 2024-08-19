@@ -6,7 +6,11 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { DEFAULT_TRACE_JOB_DELAY, EvalTargetObject } from "@langfuse/shared";
+import {
+  DEFAULT_TRACE_JOB_DELAY,
+  EvalTargetObject,
+  LLMAdapter,
+} from "@langfuse/shared";
 import {
   ZodModelConfig,
   singleFilter,
@@ -332,6 +336,22 @@ export const evalRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "evalTemplate:create",
       });
+
+      const matchingLLMKey = await ctx.prisma.llmApiKeys.findFirst({
+        where: {
+          projectId: input.projectId,
+          provider: input.provider,
+        },
+      });
+
+      if (!matchingLLMKey) {
+        throw new Error("No matching LLM key found for provider");
+      }
+
+      // check that the adapter on the api key is openai for evals
+      if (matchingLLMKey.adapter !== LLMAdapter.OpenAI) {
+        throw new Error("Only OpenAI models are supported for evals");
+      }
 
       const latestTemplate = await ctx.prisma.evalTemplate.findFirst({
         where: {
