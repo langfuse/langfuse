@@ -1,12 +1,11 @@
 import { z } from "zod";
-import { type CommentObjectType } from "@langfuse/shared";
 
-const TRACE: CommentObjectType = "TRACE";
-const OBSERVATION: CommentObjectType = "OBSERVATION";
-const SESSION: CommentObjectType = "SESSION";
-const PROMPT: CommentObjectType = "PROMPT";
-
-const COMMENT_OBJECT_TYPES = [TRACE, OBSERVATION, SESSION, PROMPT] as const;
+const COMMENT_OBJECT_TYPES = [
+  "TRACE",
+  "OBSERVATION",
+  "SESSION",
+  "PROMPT",
+] as const;
 
 export const CreateCommentData = z.object({
   projectId: z.string(),
