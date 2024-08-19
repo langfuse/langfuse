@@ -6,12 +6,7 @@ const OBSERVATION: CommentObjectType = "OBSERVATION";
 const SESSION: CommentObjectType = "SESSION";
 const PROMPT: CommentObjectType = "PROMPT";
 
-export const COMMENT_OBJECT_TYPE = [
-  TRACE,
-  OBSERVATION,
-  SESSION,
-  PROMPT,
-] as const;
+const COMMENT_OBJECT_TYPE = [TRACE, OBSERVATION, SESSION, PROMPT] as const;
 
 export const CreateCommentData = z.object({
   projectId: z.string(),
