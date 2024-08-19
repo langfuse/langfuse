@@ -10,12 +10,6 @@ import type Stripe from "stripe";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
 import { traceException } from "@langfuse/shared/src/server";
 
-const STRIPE_WEBHOOK_SIGNING_SECRET_DEV: string | null =
-  "whsec_12dc385262f1a5d0f4ba1507cc81f9b3a3e2d03fd99d4ad625b8e21c87dcfd37";
-
-const STRIPE_WEBHOOK_SIGNING_SECRET =
-  STRIPE_WEBHOOK_SIGNING_SECRET_DEV ?? env.STRIPE_WEBHOOK_SIGNING_SECRET;
-
 /*
  * Sign-up endpoint (email/password users), creates user in database.
  * SSO users are created by the NextAuth adapters.
@@ -34,7 +28,7 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
       { status: 500 },
     );
   }
-  if (!STRIPE_WEBHOOK_SIGNING_SECRET) {
+  if (!env.STRIPE_WEBHOOK_SIGNING_SECRET) {
     console.error("[Stripe Webhook] Stripe webhook signing key not found");
     return NextResponse.json(
       { message: "Stripe secret key not found" },
@@ -54,7 +48,7 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
     event = stripeClient.webhooks.constructEvent(
       await req.text(),
       sig,
-      STRIPE_WEBHOOK_SIGNING_SECRET,
+      env.STRIPE_WEBHOOK_SIGNING_SECRET,
     );
   } catch (err) {
     console.error("[Stripe Webhook] Error verifying signature", err);
