@@ -3,7 +3,6 @@ import Header from "@/src/components/layouts/header";
 import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { env } from "@/src/env.mjs";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
