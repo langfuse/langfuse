@@ -19,7 +19,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CommentObjectType } from "@langfuse/shared";
 import { ArrowUpToLine, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -89,12 +89,18 @@ export function CommentList({
     },
   });
 
+  useEffect(() => {
+    form.reset({ content: "", projectId, objectId, objectType });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objectId, objectType]);
+
   const utils = api.useUtils();
 
   const createCommentMutation = api.comments.create.useMutation({
     onError: (error) => form.setError("content", { message: error.message }),
     onSettled: async () => {
       await Promise.all([utils.comments.invalidate()]);
+      form.reset();
     },
   });
 
@@ -112,6 +118,7 @@ export function CommentList({
   }, [comments.data]);
 
   if (comments.isLoading || !hasReadAccess) return null;
+  if (!hasWriteAccess && comments.data?.length === 0) return null;
 
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
     createCommentMutation
@@ -126,50 +133,48 @@ export function CommentList({
   return (
     <div className={cn("rounded-md border", className)}>
       <div className="border-b px-3 py-1 text-sm font-medium">Comments</div>
-      <div className="mx-2 mb-2 mt-2 rounded-md border">
-        {hasWriteAccess && (
-          <>
-            <div className="border-b px-3 py-1 text-xs font-medium">
-              Write comment
-            </div>
-            <Form {...form}>
-              <form
-                // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                onSubmit={form.handleSubmit(onSubmit)}
-                className=""
-              >
-                <FormField
-                  control={form.control}
-                  name="content"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input
-                          placeholder="Add comment..."
-                          {...field}
-                          className="border-none text-xs"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    type="submit"
-                    size="xs"
-                    variant="outline"
-                    loading={createCommentMutation.isLoading}
-                    className="mb-1 mr-1"
-                  >
-                    <ArrowUpToLine className="h-4 w-4" />
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </>
-        )}
-      </div>
+      {hasWriteAccess && (
+        <div className="mx-2 mb-2 mt-2 rounded-md border">
+          <div className="border-b px-3 py-1 text-xs font-medium">
+            Write comment
+          </div>
+          <Form {...form}>
+            <form
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+              onSubmit={form.handleSubmit(onSubmit)}
+              className=""
+            >
+              <FormField
+                control={form.control}
+                name="content"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder="Add comment..."
+                        {...field}
+                        className="border-none text-xs"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  size="xs"
+                  variant="outline"
+                  loading={createCommentMutation.isLoading}
+                  className="mb-1 mr-1"
+                >
+                  <ArrowUpToLine className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </div>
+      )}
       <div className="mb-2">
         {commentsWithFormattedTimestamp?.map((comment) => (
           <div key={comment.id} className="grid grid-cols-[auto,1fr] gap-1 p-2">
