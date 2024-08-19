@@ -61,7 +61,7 @@ export const BillingSettings = () => {
 
 const OrganizationUsageChart = () => {
   const organization = useQueryOrganization();
-  const usage = api.cloudBilling.last30dUsage.useQuery(
+  const usage = api.cloudBilling.getUsage.useQuery(
     {
       orgId: organization!.id,
     },
@@ -84,16 +84,23 @@ const OrganizationUsageChart = () => {
       <Card className="p-4">
         {usage.data !== undefined ? (
           <>
-            <Text>Observations / last 30d</Text>
-            <Metric>{numberFormatter(usage.data, 0)}</Metric>
+            <Text>
+              {usage.data.billingPeriodStart
+                ? `Observations since start of billing period (${usage.data.billingPeriodStart.toLocaleDateString()})`
+                : "Observations / last 30d"}
+            </Text>
+            <Metric>{numberFormatter(usage.data.countObservations, 0)}</Metric>
             {plan === "cloud:hobby" && (
               <>
                 <Flex className="mt-4">
-                  <Text>{`${numberFormatter((usage.data / planLimit) * 100)}%`}</Text>
+                  <Text>{`${numberFormatter((usage.data.countObservations / planLimit) * 100)}%`}</Text>
                   <Text>Plan limit: {compactNumberFormatter(planLimit)}</Text>
                 </Flex>
                 <MarkerBar
-                  value={Math.min((usage.data / planLimit) * 100, 100)}
+                  value={Math.min(
+                    (usage.data.countObservations / planLimit) * 100,
+                    100,
+                  )}
                   className="mt-3"
                 />
               </>

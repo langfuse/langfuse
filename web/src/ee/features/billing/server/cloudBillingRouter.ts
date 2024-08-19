@@ -187,7 +187,7 @@ export const cloudBillingRouter = createTRPCRouter({
 
       return billingPortalSession.url;
     }),
-  last30dUsage: protectedOrganizationProcedure
+  getUsage: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
@@ -208,6 +208,35 @@ export const cloudBillingRouter = createTRPCRouter({
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
+      let billingPeriodStart: Date | null = null;
+
+      const organization = await ctx.prisma.organization.findUnique({
+        where: {
+          id: input.orgId,
+        },
+      });
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+      const parsedOrg = parseDbOrg(organization);
+
+      // For Stripe subscriptions, we can get usage from the Stripe Metered Billing API
+      if (
+        stripeClient &&
+        parsedOrg.cloudConfig?.stripe?.customerId &&
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId
+      ) {
+        const subscription = await stripeClient.subscriptions.retrieve(
+          parsedOrg.cloudConfig.stripe.activeSubscriptionId,
+        );
+        if (subscription)
+          billingPeriodStart = new Date(
+            subscription.current_period_start * 1000,
+          );
+      }
 
       const usage = await ctx.prisma.observation.count({
         where: {
@@ -215,11 +244,14 @@ export const cloudBillingRouter = createTRPCRouter({
             orgId: input.orgId,
           },
           startTime: {
-            gte: thirtyDaysAgo,
+            gte: billingPeriodStart ?? thirtyDaysAgo,
           },
         },
       });
 
-      return usage;
+      return {
+        countObservations: usage,
+        billingPeriodStart,
+      };
     }),
 });
