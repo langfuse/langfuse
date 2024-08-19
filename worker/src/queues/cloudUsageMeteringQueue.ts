@@ -45,7 +45,7 @@ export const cloudUsageMeteringJobExecutor =
               async () => {
                 logger.info("Executing Cloud Usage Metering Job", job.data);
                 try {
-                  return await handleCloudUsageMeteringJob();
+                  return await handleCloudUsageMeteringJob(job);
                 } catch (error) {
                   logger.error(
                     "Error executing Cloud Usage Metering Job",

@@ -13,10 +13,11 @@ import {
   recordGauge,
   traceException,
 } from "@langfuse/shared/src/server";
+import { Job } from "bullmq";
 
 const delayFromStartOfInterval = 3600000 + 5 * 60 * 1000; // 5 minutes after the end of the interval
 
-export const handleCloudUsageMeteringJob = async () => {
+export const handleCloudUsageMeteringJob = async (job: Job) => {
   if (!env.STRIPE_SECRET_KEY) {
     throw new Error("Stripe secret key not found");
   }
@@ -94,6 +95,9 @@ export const handleCloudUsageMeteringJob = async () => {
   let countProcessedOrgs = 0;
   let countProcessedObservations = 0;
   for (const org of organizations) {
+    // update progress to prevent job from beeing stalled
+    job.updateProgress(countProcessedOrgs / organizations.length);
+
     const stripeCustomerId = org.cloudConfig?.stripe?.customerId;
     if (!stripeCustomerId) {
       // should not happen
@@ -101,6 +105,7 @@ export const handleCloudUsageMeteringJob = async () => {
       logger.error(`Stripe customer id not found for org ${org.id}`);
       continue;
     }
+
     const countObservations = await prisma.observation.count({
       where: {
         project: {
@@ -115,6 +120,7 @@ export const handleCloudUsageMeteringJob = async () => {
     logger.info(
       `Cloud Usage Metering Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`
     );
+
     await stripe.billing.meterEvents.create({
       event_name: "tracing_observations",
       timestamp: meterIntervalEnd.getTime() / 1000,
@@ -123,6 +129,7 @@ export const handleCloudUsageMeteringJob = async () => {
         value: countObservations.toString(), // value is a string in stripe
       },
     });
+
     countProcessedOrgs++;
     countProcessedObservations += countObservations;
   }
