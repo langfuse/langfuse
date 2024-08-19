@@ -33,6 +33,7 @@ This page outlines our integration with **Stripe billing**. The integration supp
 3. **Cloud Config**:
    - Contains the **customer ID**, **activeSubscriptionId**, and **active product ID**.
    - All entitlements within the application are based on the **active product ID** and it's mapping to `Plan` in Langfuse (`stripeProducts.ts`).
+   - If a `plan` is included in the cloud config (legacy), no new subscription can be created for the organization. Organizations need to be migrated to the new system.
 
 ### Usage-Based Pricing
 
