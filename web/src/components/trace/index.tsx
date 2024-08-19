@@ -186,7 +186,7 @@ export function Trace(props: {
           setCurrentObservationId={setCurrentObservationId}
           showMetrics={metricsOnObservationTree}
           showScores={scoresOnObservationTree}
-          commentCounts={commentCounts.data ?? new Map()}
+          commentCounts={commentCounts.data}
           className="flex w-full flex-col overflow-y-auto"
         />
       </div>

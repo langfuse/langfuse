@@ -17,12 +17,12 @@ const CreateCommentData = z.object({
   objectType: z.nativeEnum(CommentObjectType),
 });
 
-const COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL = new Map<CommentObjectType, string>([
-  [CommentObjectType.TRACE, "trace"],
-  [CommentObjectType.OBSERVATION, "observation"],
-  [CommentObjectType.SESSION, "session"],
-  [CommentObjectType.PROMPT, "prompt"],
-]);
+const COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL = {
+  [CommentObjectType.TRACE]: "trace",
+  [CommentObjectType.OBSERVATION]: "observation",
+  [CommentObjectType.SESSION]: "session",
+  [CommentObjectType.PROMPT]: "prompt",
+} as const;
 
 const validateCommentReferenceObject = async ({
   ctx,
@@ -32,11 +32,14 @@ const validateCommentReferenceObject = async ({
   input: z.infer<typeof CreateCommentData>;
 }): Promise<void> => {
   const { objectId, objectType, projectId } = input;
-  const prismaModel = COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL.get(
-    objectType,
-  ) as string;
+  const prismaModel = COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL[objectType];
 
-  const object = await ctx.prisma[prismaModel].findFirst({
+  if (!prismaModel) {
+    throw new Error(`No prisma model for object type ${objectType}`);
+  }
+
+  const model = ctx.prisma[prismaModel];
+  const object = await model.findFirst({
     where: {
       id: objectId,
       projectId,

@@ -28,7 +28,7 @@ export const ObservationTree = (props: {
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics: boolean;
   showScores: boolean;
-  commentCounts: Map<string, number>;
+  commentCounts?: Map<string, number>;
   className?: string;
 }) => {
   const nestedObservations = nestObservations(props.observations);
