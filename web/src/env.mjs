@@ -167,6 +167,7 @@ export const env = createEnv({
       .positive()
       .default(60 * 10),
     STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
   },
 
   /**
@@ -190,7 +191,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     NEXT_PUBLIC_CRISP_WEBSITE_ID: z.string().optional(),
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   },
 
   /**
@@ -313,8 +313,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:
       process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
