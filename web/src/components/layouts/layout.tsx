@@ -511,7 +511,8 @@ export default function Layout(props: PropsWithChildren) {
           </Menu>
         </div>
         <div className="lg:pl-56">
-          {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          {env.NEXT_PUBLIC_DEMO_ORG_ID &&
+          env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (
             <div className="flex w-full items-center border-b border-dark-yellow  bg-light-yellow px-4 py-2 lg:sticky lg:top-0 lg:z-40">
