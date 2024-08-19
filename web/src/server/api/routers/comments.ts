@@ -1,4 +1,4 @@
-import { object, z } from "zod";
+import { z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
