@@ -8,7 +8,11 @@ import {
   CloudUsageMeteringDbCronJobStates,
 } from "./constants";
 import { cloudUsageMeteringQueue } from "../../queues/cloudUsageMeteringQueue";
-import { QueueJobs } from "@langfuse/shared/src/server";
+import {
+  QueueJobs,
+  recordGauge,
+  traceException,
+} from "@langfuse/shared/src/server";
 
 const delayFromStartOfInterval = 3600000 + 5 * 60 * 1000; // 5 minutes after the end of the interval
 
@@ -87,11 +91,15 @@ export const handleCloudUsageMeteringJob = async () => {
   const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
   // for each org, calculate the meter and push to stripe
+  let countProcessedOrgs = 0;
+  let countProcessedObservations = 0;
   for (const org of organizations) {
     const stripeCustomerId = org.cloudConfig?.stripe?.customerId;
     if (!stripeCustomerId) {
       // should not happen
-      throw new Error("Stripe customer id not found for org");
+      traceException(`Stripe customer id not found for org ${org.id}`);
+      logger.error(`Stripe customer id not found for org ${org.id}`);
+      continue;
     }
     const countObservations = await prisma.observation.count({
       where: {
@@ -115,7 +123,20 @@ export const handleCloudUsageMeteringJob = async () => {
         value: countObservations.toString(), // value is a string in stripe
       },
     });
+    countProcessedOrgs++;
+    countProcessedObservations += countObservations;
   }
+
+  recordGauge("cloud_usage_metering_processed_orgs", countProcessedOrgs, {
+    unit: "organizations",
+  });
+  recordGauge(
+    "cloud_usage_metering_processed_observations",
+    countProcessedObservations,
+    {
+      unit: "observations",
+    }
+  );
 
   // update cron job
   await prisma.cronJobs.update({
@@ -129,6 +150,9 @@ export const handleCloudUsageMeteringJob = async () => {
 
   if (meterIntervalEnd.getTime() + delayFromStartOfInterval < Date.now()) {
     logger.info(`Enqueueing next Cloud Usage Metering Job to catch up `);
+    recordGauge("cloud_usage_metering_scheduled_catchup_jobs", 1, {
+      unit: "jobs",
+    });
     await cloudUsageMeteringQueue?.add(QueueJobs.CloudUsageMeteringJob, {});
   }
 };
