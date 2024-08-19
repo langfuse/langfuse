@@ -5,6 +5,7 @@ export type AuditableResource =
   | "orgMembership"
   | "projectMembership"
   | "membershipInvitation"
+  | "comment"
   | "datasetItem"
   | "dataset"
   | "trace"

@@ -7,6 +7,7 @@ import {
 } from "@/src/server/api/trpc";
 import { CommentObjectType } from "../../../../../packages/shared/dist/prisma/generated/types";
 import { Prisma } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const CreateCommentData = z.object({
   projectId: z.string(),
@@ -70,6 +71,14 @@ export const commentsRouter = createTRPCRouter({
         },
       });
 
+      await auditLog({
+        session: ctx.session,
+        resourceType: "comment",
+        resourceId: comment.id,
+        action: "create",
+        after: comment,
+      });
+
       return comment;
     }),
   delete: protectedProjectProcedure
@@ -97,11 +106,19 @@ export const commentsRouter = createTRPCRouter({
         );
       }
 
-      return await ctx.prisma.comment.delete({
+      await ctx.prisma.comment.delete({
         where: {
           id: comment.id,
           projectId: input.projectId,
         },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "comment",
+        resourceId: comment.id,
+        action: "delete",
+        before: comment,
       });
     }),
   getByObjectId: protectedProjectProcedure
