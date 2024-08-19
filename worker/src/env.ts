@@ -30,19 +30,11 @@ const EnvSchema = z.object({
   LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
-    .default(100),
-  LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
-    .number()
-    .positive()
-    .default(1000),
+    .default(500),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce
     .number()
     .positive()
     .default(3000),
-  LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: z.coerce
-    .number()
-    .positive()
-    .default(3),
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .optional(),

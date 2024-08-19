@@ -21,19 +21,30 @@ import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit } from "@langfuse/shared";
 
+import { env } from "../../../env";
+
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+vi.mock("../../../env", async (importOriginal) => {
+  const original = (await importOriginal()) as {};
+
+  return {
+    ...original,
+    env: {
+      ...original.env,
+      LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: 100,
+    },
+  };
+});
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
-  let clickhouseWriter: ClickhouseWriter;
-
-  const mockIngestionFlushQueue = vi.fn() as any;
 
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
     await pruneDatabase();
 
-    clickhouseWriter = ClickhouseWriter.getInstance();
+    const clickhouseWriter = ClickhouseWriter.getInstance();
 
     ingestionService = new IngestionService(
       redis,
@@ -46,11 +57,6 @@ describe("Ingestion end-to-end tests", () => {
   afterEach(async () => {
     vi.restoreAllMocks();
     vi.useRealTimers();
-
-    // Reset singleton instance
-    await clickhouseWriter.shutdown();
-
-    ClickhouseWriter.instance = null;
   });
 
   it("should correctly ingest a trace", async () => {
@@ -75,7 +81,6 @@ describe("Ingestion end-to-end tests", () => {
       entityId: traceId,
       traceEventList: eventList,
     });
-    await clickhouseWriter.flushAll(true);
 
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
@@ -313,8 +318,6 @@ describe("Ingestion end-to-end tests", () => {
           scoreEventList,
         }),
       ]);
-
-      await clickhouseWriter.flushAll(true);
 
       const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
@@ -638,7 +641,6 @@ describe("Ingestion end-to-end tests", () => {
           observationEventList: generationEventList,
         }),
       ]);
-      await clickhouseWriter.flushAll(true);
 
       const generation = await getClickhouseRecord(
         TableName.Observations,
@@ -787,8 +789,6 @@ describe("Ingestion end-to-end tests", () => {
       }),
     ]);
 
-    await clickhouseWriter.flushAll(true);
-
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
     expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
@@ -856,8 +856,6 @@ describe("Ingestion end-to-end tests", () => {
       traceEventList: traceEventList1,
     });
 
-    await clickhouseWriter.flushAll(true);
-
     // Second flush
     const traceEventList2: TraceEventType[] = [
       {
@@ -878,12 +876,6 @@ describe("Ingestion end-to-end tests", () => {
       entityId: traceId,
       traceEventList: traceEventList2,
     });
-
-    await clickhouseWriter.flushAll(true);
-
-    vi.useRealTimers();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    vi.useFakeTimers();
 
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
@@ -966,24 +958,12 @@ describe("Ingestion end-to-end tests", () => {
       observationEventList: generationEventListWithCreate,
     });
 
-    await clickhouseWriter.flushAll(true);
-
-    vi.useRealTimers();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    vi.useFakeTimers();
-
     // Now the generation update should work
     await ingestionService.processObservationEventList({
       projectId,
       entityId: generationId,
       observationEventList: generationEventListNoCreate,
     });
-
-    await clickhouseWriter.flushAll(true);
-
-    vi.useRealTimers();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    vi.useFakeTimers();
 
     const generation = await getClickhouseRecord(
       TableName.Observations,
@@ -1039,8 +1019,6 @@ describe("Ingestion end-to-end tests", () => {
       traceEventList,
     });
 
-    await clickhouseWriter.flushAll(true);
-
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
     expect(trace.name).toBe("trace-name");
@@ -1084,8 +1062,6 @@ describe("Ingestion end-to-end tests", () => {
       entityId: generationId,
       observationEventList: generationEventList,
     });
-
-    await clickhouseWriter.flushAll(true);
 
     const generation = await getClickhouseRecord(
       TableName.Observations,
@@ -1151,8 +1127,6 @@ describe("Ingestion end-to-end tests", () => {
       }),
     ]);
 
-    await clickhouseWriter.flushAll(true);
-
     const generationEventList2: ObservationEvent[] = [
       {
         id: randomUUID(),
@@ -1189,8 +1163,6 @@ describe("Ingestion end-to-end tests", () => {
       entityId: generationId,
       observationEventList: generationEventList2,
     });
-
-    await clickhouseWriter.flushAll(true);
 
     const generation = await getClickhouseRecord(
       TableName.Observations,
@@ -1286,8 +1258,6 @@ describe("Ingestion end-to-end tests", () => {
         observationEventList: generationEventList,
       }),
     ]);
-
-    await clickhouseWriter.flushAll(true);
 
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
@@ -1385,8 +1355,6 @@ describe("Ingestion end-to-end tests", () => {
       }),
     ]);
 
-    await clickhouseWriter.flushAll(true);
-
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
     const observation = await getClickhouseRecord(
       TableName.Observations,
@@ -1445,8 +1413,6 @@ describe("Ingestion end-to-end tests", () => {
       entityId: traceId,
       traceEventList,
     });
-
-    await clickhouseWriter.flushAll(true);
 
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
@@ -1556,8 +1522,6 @@ describe("Ingestion end-to-end tests", () => {
           observationEventList: generationEventList,
         }),
       ]);
-
-      await clickhouseWriter.flushAll(true);
 
       const trace = await getClickhouseRecord(TableName.Traces, traceId);
 

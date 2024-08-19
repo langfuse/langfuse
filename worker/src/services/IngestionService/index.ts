@@ -183,7 +183,7 @@ export class IngestionService {
         scoreRecords,
       });
 
-    this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+    await this.clickHouseWriter.writeRecord(TableName.Scores, finalScoreRecord);
   }
 
   private async processTraceEventList(params: {
@@ -220,7 +220,7 @@ export class IngestionService {
       traceRecords,
     });
 
-    this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+    await this.clickHouseWriter.writeRecord(TableName.Traces, finalTraceRecord);
   }
 
   private async processObservationEventList(params: {
@@ -278,11 +278,14 @@ export class IngestionService {
         public: false,
       };
 
-      this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
+      await this.clickHouseWriter.writeRecord(
+        TableName.Traces,
+        wrapperTraceRecord
+      );
       finalObservationRecord.trace_id = traceId;
     }
 
-    this.clickHouseWriter.addToQueue(
+    await this.clickHouseWriter.writeRecord(
       TableName.Observations,
       finalObservationRecord
     );

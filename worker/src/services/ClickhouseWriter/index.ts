@@ -1,31 +1,33 @@
+import { EventEmitter } from "stream";
+
 import {
   clickhouseClient,
+  instrument,
   ObservationRecordInsertType,
   recordGauge,
   recordHistogram,
   ScoreRecordInsertType,
   TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
+import { SpanKind } from "@opentelemetry/api";
 
 import { env } from "../../env";
 import logger from "../../logger";
-import { instrument } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
   batchSize: number;
   writeInterval: number;
-  maxAttempts: number;
   queue: ClickhouseQueue;
+  eventEmitter: EventEmitter;
 
   isIntervalFlushInProgress: boolean;
   intervalId: NodeJS.Timeout | null = null;
 
   private constructor() {
-    this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
+    this.batchSize = env.LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
-    this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
+    this.eventEmitter = new EventEmitter();
 
     this.isIntervalFlushInProgress = false;
 
@@ -96,6 +98,7 @@ export class ClickhouseWriter {
   }
 
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
+    console.log("flush", tableName);
     const entityQueue = this.queue[tableName];
     if (entityQueue.length === 0) return;
 
@@ -141,44 +144,78 @@ export class ClickhouseWriter {
           entityType: tableName,
         }
       );
+
+      queueItems.forEach((item) => {
+        this.eventEmitter.removeAllListeners(
+          this.getEventName("error", tableName, item.data)
+        );
+
+        // Success listeners are automatically removed by the 'once' method
+        this.eventEmitter.emit(
+          this.getEventName("success", tableName, item.data)
+        );
+      });
     } catch (err) {
       logger.error(`ClickhouseWriter.flush ${tableName}`, err);
 
-      // Re-add the records to the queue with incremented attempts
       queueItems.forEach((item) => {
-        if (item.attempts < this.maxAttempts) {
-          entityQueue.push({
-            ...item,
-            attempts: item.attempts + 1,
-          });
-        } else {
-          // TODO - Add to a dead letter queue in Redis rather than dropping
-          logger.error(
-            `Max attempts reached for ${tableName} record. Dropping record ${item.data}.`
-          );
-        }
+        this.eventEmitter.removeAllListeners(
+          this.getEventName("success", tableName, item.data)
+        );
+
+        // The error listener is automatically removed by the 'once' method
+        this.eventEmitter.emit(
+          this.getEventName("error", tableName, item.data)
+        );
       });
     }
   }
 
-  public addToQueue<T extends TableName>(
+  public writeRecord<T extends TableName>(
     tableName: T,
     data: RecordInsertType<T>
-  ) {
-    const entityQueue = this.queue[tableName];
-    entityQueue.push({
-      createdAt: Date.now(),
-      attempts: 1,
-      data,
-    });
-
-    if (entityQueue.length >= this.batchSize) {
-      logger.debug(`Queue is full. Flushing ${tableName}...`);
-
-      this.flush(tableName).catch((err) => {
-        logger.error("ClickhouseWriter.addToQueue flush", err);
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const entityQueue = this.queue[tableName];
+      entityQueue.push({
+        createdAt: Date.now(),
+        attempts: 1,
+        data,
       });
-    }
+
+      console.log("entityQueue", entityQueue);
+
+      // Add event listeners for success and error
+      this.eventEmitter.once(
+        this.getEventName("success", tableName, data),
+        resolve
+      );
+      console.log(
+        "this.getEventName",
+        this.getEventName("error", tableName, data)
+      );
+
+      this.eventEmitter.once(
+        this.getEventName("error", tableName, data),
+        reject
+      );
+
+      if (entityQueue.length >= this.batchSize) {
+        logger.debug(`Queue is full. Flushing ${tableName}...`);
+
+        this.flush(tableName).catch((err) => {
+          logger.error("ClickhouseWriter.addToQueue flush", err);
+        });
+      }
+    });
+  }
+
+  private getEventName<T extends TableName>(
+    type: "success" | "error",
+    tableName: T,
+    record: RecordInsertType<T>
+  ) {
+    return `${type}:${tableName}:${record.project_id}:${record.id}`;
   }
 
   private async writeToClickhouse<T extends TableName>(params: {
