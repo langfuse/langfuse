@@ -18,11 +18,13 @@ export function CommentDrawerButton({
   objectId,
   objectType,
   count,
+  size = "icon",
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
   count?: number;
+  size?: "icon" | "sm";
 }) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const hasReadAccess = useHasProjectAccess({
@@ -41,7 +43,7 @@ export function CommentDrawerButton({
         <Button
           type="button"
           variant="secondary"
-          size="icon"
+          size={size}
           onClick={() => {
             setIsDrawerOpen(true);
           }}
