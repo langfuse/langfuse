@@ -66,7 +66,7 @@ export function CommentDrawerButton({
           <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
             <Header title="Comments" level="h3"></Header>
           </DrawerHeader>
-          <div className="px-4">
+          <div data-vaul-no-drag className="px-4">
             <CommentList
               projectId={projectId}
               objectId={objectId}

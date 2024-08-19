@@ -217,7 +217,7 @@ export function CommentList({
             <div className="relative rounded-md border">
               <div className="flex h-8 flex-row items-center justify-between border-b px-3 py-1 text-xs font-medium">
                 <div>
-                  {(comment.authorUserName || comment.authorUserId) ?? "User"}
+                  {comment.authorUserName ?? comment.authorUserId ?? "User"}
                 </div>
                 <div className="flex flex-row items-center gap-2">
                   <div>{comment.timestamp}</div>
@@ -226,7 +226,7 @@ export function CommentList({
                       <Button
                         type="button"
                         size="xs"
-                        variant="outline"
+                        variant="destructive-secondary"
                         title="Delete comment"
                         loading={deleteCommentMutation.isLoading}
                         className="-mr-2"
@@ -250,7 +250,7 @@ export function CommentList({
                   </div>
                 </div>
               </div>
-              <div className="mx-3 my-3 whitespace-pre-wrap text-xs">
+              <div className="mx-3 my-3 select-text whitespace-pre-wrap text-xs">
                 {comment.content}
               </div>
             </div>
