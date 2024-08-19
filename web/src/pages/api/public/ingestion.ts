@@ -13,6 +13,7 @@ import {
   type ingestionBatchEvent,
   handleBatch,
   recordIncrement,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
@@ -75,6 +76,23 @@ export default async function handler(
       "ingestion_event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
+
+    // add context of api call to the span
+    const currentSpan = getCurrentSpan();
+
+    // get x-langfuse-xxx headers and add them to the span
+    Object.keys(req.headers).forEach((header) => {
+      if (header.toLowerCase().startsWith("x-langfuse")) {
+        currentSpan?.setAttributes({
+          [header]: req.headers[header],
+        });
+      }
+    });
+
+    // add number of events to the span
+    parsedSchema.data
+      ? currentSpan?.setAttribute("event_count", parsedSchema.data.batch.length)
+      : undefined;
 
     await gaugePrismaStats();
 
