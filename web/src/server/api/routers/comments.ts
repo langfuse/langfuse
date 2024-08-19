@@ -6,16 +6,9 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { CommentObjectType } from "../../../../../packages/shared/dist/prisma/generated/types";
-import { Prisma } from "@langfuse/shared";
+import { Prisma, CreateCommentData } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
-
-const CreateCommentData = z.object({
-  projectId: z.string(),
-  content: z.string(),
-  objectId: z.string(),
-  objectType: z.nativeEnum(CommentObjectType),
-});
 
 const COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL = {
   [CommentObjectType.TRACE]: "trace",
