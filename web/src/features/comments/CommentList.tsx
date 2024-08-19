@@ -55,11 +55,13 @@ export function CommentList({
   projectId,
   objectId,
   objectType,
+  isVisible,
   className,
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
+  isVisible: boolean;
   className?: string;
 }) {
   const session = useSession();
@@ -73,11 +75,14 @@ export function CommentList({
     scope: "comments:CUD",
   });
 
-  const comments = api.comments.getByObjectId.useQuery({
-    projectId,
-    objectId,
-    objectType,
-  });
+  const comments = api.comments.getByObjectId.useQuery(
+    {
+      projectId,
+      objectId,
+      objectType,
+    },
+    { enabled: hasReadAccess && isVisible },
+  );
 
   const form = useForm<z.infer<typeof CreateCommentData>>({
     resolver: zodResolver(CreateCommentData),

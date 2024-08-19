@@ -155,7 +155,7 @@ export const commentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         objectIds: z.array(z.string()),
-        objectType: z.nativeEnum(CommentObjectType),
+        objectTypes: z.array(z.nativeEnum(CommentObjectType)),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -173,7 +173,7 @@ export const commentsRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           objectId: { in: input.objectIds },
-          objectType: input.objectType,
+          objectType: { in: input.objectTypes },
         },
       });
       const commentCountByObject = new Map<string, number>();

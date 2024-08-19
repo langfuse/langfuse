@@ -20,6 +20,8 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { api } from "@/src/utils/api";
 
 export const TracePreview = ({
   trace,
@@ -46,6 +48,12 @@ export const TracePreview = ({
     acc.get(score.source)?.push(score);
     return acc;
   }, new Map<ScoreSource, APIScore[]>());
+
+  const commentCounts = api.comments.getCountsByObjectIds.useQuery({
+    projectId: trace.projectId,
+    objectIds: [trace.id],
+    objectTypes: ["TRACE"],
+  });
 
   return (
     <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">
@@ -99,6 +107,12 @@ export const TracePreview = ({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <CommentDrawerButton
+              projectId={trace.projectId}
+              objectId={trace.id}
+              objectType="TRACE"
+              count={commentCounts.data?.get(trace.id)}
+            />
             <AnnotateDrawer
               projectId={trace.projectId}
               traceId={trace.id}

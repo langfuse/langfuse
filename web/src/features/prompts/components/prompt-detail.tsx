@@ -232,6 +232,7 @@ export const PromptDetail = () => {
             objectId={prompt.id}
             objectType="PROMPT"
             className="mt-10"
+            isVisible
           />
         </div>
         <div className="flex h-screen flex-col">
