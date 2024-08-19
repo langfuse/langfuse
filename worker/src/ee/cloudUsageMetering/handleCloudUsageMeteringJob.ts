@@ -95,7 +95,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   let countProcessedOrgs = 0;
   let countProcessedObservations = 0;
   for (const org of organizations) {
-    // update progress to prevent job from beeing stalled
+    // update progress to prevent job from being stalled
     job.updateProgress(countProcessedOrgs / organizations.length);
 
     const stripeCustomerId = org.cloudConfig?.stripe?.customerId;
