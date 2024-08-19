@@ -91,7 +91,7 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const returnUrl = `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings/billing`;
+      const returnUrl = `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings`;
       const session = await stripeClient.checkout.sessions.create({
         customer: stripeCustomerId,
         line_items: [

@@ -123,6 +123,7 @@ const BillingPortalOrPricingPageButton = () => {
       enabled: organization !== undefined,
     },
   );
+  if (billingPortalUrl.isLoading) return null;
   if (!billingPortalUrl.data) return <PricingPageButton />;
 
   return (
