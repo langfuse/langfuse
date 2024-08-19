@@ -222,6 +222,8 @@ export function CommentList({
                       deleteCommentMutation.mutateAsync({
                         id: comment.id,
                         projectId,
+                        objectId,
+                        objectType,
                       })
                     }
                     className="mb-1 mr-1"

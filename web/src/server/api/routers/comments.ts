@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { object, z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -6,7 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { CommentObjectType } from "../../../../../packages/shared/dist/prisma/generated/types";
-import { Prisma, CreateCommentData } from "@langfuse/shared";
+import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 
@@ -87,7 +87,7 @@ export const commentsRouter = createTRPCRouter({
       }
     }),
   delete: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), id: z.string() }))
+    .input(DeleteCommentData)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoProjectAccess({
@@ -100,6 +100,8 @@ export const commentsRouter = createTRPCRouter({
           where: {
             id: input.id,
             projectId: input.projectId,
+            objectId: input.objectId,
+            objectType: input.objectType,
           },
         });
         if (!comment) {
@@ -115,7 +117,9 @@ export const commentsRouter = createTRPCRouter({
         await ctx.prisma.comment.delete({
           where: {
             id: comment.id,
-            projectId: input.projectId,
+            projectId: comment.projectId,
+            objectId: comment.objectId,
+            objectType: comment.objectType,
           },
         });
 

@@ -13,3 +13,10 @@ export const CreateCommentData = z.object({
   objectId: z.string(),
   objectType: z.enum(COMMENT_OBJECT_TYPES),
 });
+
+export const DeleteCommentData = z.object({
+  projectId: z.string(),
+  id: z.string(),
+  objectId: z.string(),
+  objectType: z.enum(COMMENT_OBJECT_TYPES),
+});
