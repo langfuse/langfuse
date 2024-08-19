@@ -4,6 +4,7 @@ import { type Plan } from "@/src/features/entitlements/constants/plans";
 type StripeProduct = {
   stripeProductId: string;
   mappedPlan: Plan;
+  // include checkout if product can be subscribed to by new users
   checkout: {
     title: string;
     description: string;
