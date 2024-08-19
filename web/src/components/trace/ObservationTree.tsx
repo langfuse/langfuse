@@ -165,14 +165,16 @@ const ObservationTreeNode = (props: {
                     <ColorCodedObservationType
                       observationType={observation.type}
                     />
-                    <span className="flex-1 break-all text-sm">
-                      {observation.name}
-                    </span>
-                    {props.comments ? (
-                      <CommentCountIcon
-                        count={props.comments.get(observation.id)}
-                      />
-                    ) : null}
+                    <div className="grid flex-1 grid-cols-[auto,1fr] gap-2">
+                      <span className="break-all text-sm">
+                        {observation.name}
+                      </span>
+                      {props.comments ? (
+                        <CommentCountIcon
+                          count={props.comments.get(observation.id)}
+                        />
+                      ) : null}
+                    </div>
                     {observation.children.length === 0 ? null : (
                       <Toggle
                         onClick={(ev) => (

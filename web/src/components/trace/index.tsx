@@ -125,7 +125,7 @@ export function Trace(props: {
             trace={props.trace}
             observations={props.observations}
             scores={props.scores}
-            commentCounts={commentCounts.data ?? new Map()}
+            commentCounts={commentCounts.data}
           />
         ) : (
           <ObservationPreview
@@ -134,7 +134,7 @@ export function Trace(props: {
             projectId={props.projectId}
             currentObservationId={currentObservationId}
             traceId={props.trace.id}
-            commentCounts={commentCounts.data ?? new Map()}
+            commentCounts={commentCounts.data}
           />
         )}
       </div>

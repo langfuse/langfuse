@@ -31,7 +31,7 @@ export const ObservationPreview = (props: {
   scores: APIScore[];
   currentObservationId: string;
   traceId: string;
-  commentCounts: Map<string, number>;
+  commentCounts?: Map<string, number>;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -169,7 +169,7 @@ export const ObservationPreview = (props: {
               projectId={preloadedObservation.projectId}
               objectId={preloadedObservation.id}
               objectType="OBSERVATION"
-              count={props.commentCounts.get(preloadedObservation.id)}
+              count={props.commentCounts?.get(preloadedObservation.id)}
             />
             <AnnotateDrawer
               projectId={props.projectId}

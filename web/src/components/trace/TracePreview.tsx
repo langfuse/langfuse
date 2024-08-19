@@ -31,7 +31,7 @@ export const TracePreview = ({
   trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
   scores: APIScore[];
-  commentCounts: Map<string, number>;
+  commentCounts?: Map<string, number>;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -106,7 +106,7 @@ export const TracePreview = ({
               projectId={trace.projectId}
               objectId={trace.id}
               objectType="TRACE"
-              count={commentCounts.get(trace.id)}
+              count={commentCounts?.get(trace.id)}
             />
             <AnnotateDrawer
               projectId={trace.projectId}
