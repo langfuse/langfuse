@@ -85,6 +85,7 @@ export function AnnotateDrawer({
         ) : (
           <Button
             className="h-6 rounded-full px-3 text-xs"
+            disabled={!hasAccess}
             onClick={() => {
               setIsDrawerOpen(true);
               capture(
