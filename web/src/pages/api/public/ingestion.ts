@@ -40,6 +40,7 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "@/src/features/ingest/usage";
+import logger from "@/src/server/utils/logger";
 
 export const config = {
   api: {
@@ -54,7 +55,7 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   try {
-    console.log("Processing ingestion event - haha");
+    logger.info("Processing ingestion event - haha");
     await runMiddleware(req, res, cors);
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
@@ -98,7 +99,7 @@ export default async function handler(
     await gaugePrismaStats();
 
     if (!parsedSchema.success) {
-      console.log("Invalid request data", parsedSchema.error);
+      logger.info("Invalid request data", parsedSchema.error);
       return res.status(400).json({
         message: "Invalid request data",
         errors: parsedSchema.error.issues.map((issue) => issue.message),
@@ -137,7 +138,7 @@ export default async function handler(
       const queue = getLegacyIngestionQueue();
 
       if (queue) {
-        console.log("Returning http response early");
+        logger.info("Returning http response early");
 
         // still need to check auth scope for all events individually
 
@@ -213,7 +214,7 @@ export default async function handler(
       });
     }
     if (error instanceof z.ZodError) {
-      console.log(`Zod exception`, error.errors);
+      logger.info(`Zod exception`, error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
@@ -360,7 +361,7 @@ export const handleBatchResult = (
 
   if (returnedErrors.length > 0) {
     traceException(errors);
-    console.log("Error processing events", returnedErrors);
+    logger.info("Error processing events", returnedErrors);
   }
 
   results.forEach((result) => {

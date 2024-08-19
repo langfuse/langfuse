@@ -558,9 +558,6 @@ importers:
       next-auth:
         specifier: ^4.24.7
         version: 4.24.7(next@14.2.3(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      next-logger:
-        specifier: ^5.0.0
-        version: 5.0.0(next@14.2.3(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(pino@9.2.0)
       next-query-params:
         specifier: ^5.0.0
         version: 5.0.0(next@14.2.3(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(use-query-params@2.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
@@ -8287,10 +8284,6 @@ packages:
     resolution: {integrity: sha512-O18pf7nyvHTckunPWCV1XUNXU1piu01y2b7ATJ0ppkUkk8ocqVWBrYjJBCwHDjD/ZWcfyrA0P4gKhzWGi5EINQ==}
     engines: {node: '>=14'}
 
-  lilconfig@3.1.2:
-    resolution: {integrity: sha512-eop+wDAvpItUys0FWkHIKeC9ybYrTGbU41U5K7+bttZZeohvnY7M9dZ5kB21GNWiFT2q1OoPTvncPCgSOVO5ow==}
-    engines: {node: '>=14'}
-
   limiter@1.1.5:
     resolution: {integrity: sha512-FWWMIEOxz3GwUI4Ts/IvgVy6LPvoMPgjMdQ185nN6psJyBJ4yOpzqm695/h5umdLJg2vW3GR5iG11MAkR2AzJA==}
 
@@ -8822,18 +8815,6 @@ packages:
       react-dom: ^17.0.2 || ^18
     peerDependenciesMeta:
       nodemailer:
-        optional: true
-
-  next-logger@5.0.0:
-    resolution: {integrity: sha512-nhqW3gIzGsJOzJuG43BXL+KAgoTef0fhI15mrfFUyQ9OENHuoQN4von/OY/PXELOlNSO1hxBpD+HlUc2NM+qyw==}
-    peerDependencies:
-      next: '>=9.0.0'
-      pino: ^8.0.0 || ^9.0.0
-      winston: ^3.0.0
-    peerDependenciesMeta:
-      pino:
-        optional: true
-      winston:
         optional: true
 
   next-query-params@5.0.0:
@@ -21105,8 +21086,6 @@ snapshots:
 
   lilconfig@3.1.1: {}
 
-  lilconfig@3.1.2: {}
-
   limiter@1.1.5: {}
 
   lines-and-columns@1.2.4: {}
@@ -21824,13 +21803,6 @@ snapshots:
       uuid: 8.3.2
     optionalDependencies:
       nodemailer: 6.9.13
-
-  next-logger@5.0.0(next@14.2.3(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(pino@9.2.0):
-    dependencies:
-      lilconfig: 3.1.2
-      next: 14.2.3(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-    optionalDependencies:
-      pino: 9.2.0
 
   next-query-params@5.0.0(next@14.2.3(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(use-query-params@2.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)):
     dependencies:
