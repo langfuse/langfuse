@@ -1,9 +1,11 @@
 import { BatchExportStatus } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
-
 import logger from "../../logger";
-import { getBatchExportQueue, QueueJobs } from "@langfuse/shared/src/server";
+import {
+  traceException,
+  getBatchExportQueue,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
 
 /**
  * Enqueues batch export jobs from the database to the job queue.
@@ -44,6 +46,6 @@ export async function enqueueBatchExportJobs() {
       "Error while checking for QUEUED batch export jobs in postgres",
       error
     );
-    Sentry.captureException(error);
+    traceException(error);
   }
 }
