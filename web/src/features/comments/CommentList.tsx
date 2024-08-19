@@ -16,12 +16,12 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CommentObjectType } from "@langfuse/shared";
-import { ArrowUpToLine, Trash } from "lucide-react";
+import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
+import { ArrowUpToLine, LoaderCircle, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { type z } from "zod";
 
 const formatCommentTimestamp = (timestamp: Date): string => {
   const diffInMs = new Date().getTime() - timestamp.getTime();
@@ -43,13 +43,6 @@ const formatCommentTimestamp = (timestamp: Date): string => {
     });
   }
 };
-
-const CreateCommentData = z.object({
-  projectId: z.string(),
-  content: z.string(),
-  objectId: z.string(),
-  objectType: z.nativeEnum(CommentObjectType),
-});
 
 export function CommentList({
   projectId,
@@ -122,8 +115,8 @@ export function CommentList({
     }));
   }, [comments.data]);
 
-  if (comments.isLoading || !hasReadAccess) return null;
-  if (!hasWriteAccess && comments.data?.length === 0) return null;
+  if (!hasReadAccess || (!hasWriteAccess && comments.data?.length === 0))
+    return null;
 
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
     createCommentMutation
@@ -134,6 +127,21 @@ export function CommentList({
         console.error(error);
       });
   }
+
+  if (comments.isLoading)
+    return (
+      <div
+        className={cn(
+          "flex min-h-[9rem] items-center justify-center rounded border border-dashed p-2",
+          className,
+        )}
+      >
+        <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin text-muted-foreground" />
+        <span className="text-xs text-muted-foreground opacity-60">
+          Loading comments...
+        </span>
+      </div>
+    );
 
   return (
     <div className={cn("rounded-md border", className)}>
@@ -161,7 +169,7 @@ export function CommentList({
                         className="border-none text-xs"
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="ml-2 text-xs" />
                   </FormItem>
                 )}
               />
