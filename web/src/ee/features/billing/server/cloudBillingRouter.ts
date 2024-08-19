@@ -11,6 +11,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
@@ -131,6 +132,14 @@ export const cloudBillingRouter = createTRPCRouter({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to create checkout session",
         });
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "stripeCheckoutSession",
+        resourceId: session.id,
+        action: "create",
+      });
 
       return session.url;
     }),
