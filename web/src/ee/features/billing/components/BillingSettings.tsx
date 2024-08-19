@@ -63,7 +63,7 @@ const OrganizationUsageChart = () => {
   const organization = useQueryOrganization();
   const usage = api.cloudBilling.getUsage.useQuery(
     {
-      orgId: organization!.id,
+      orgId: organization?.id as string,
     },
     {
       enabled: organization !== undefined,
@@ -124,7 +124,7 @@ const BillingPortalOrPricingPageButton = () => {
   const organization = useQueryOrganization();
   const billingPortalUrl = api.cloudBilling.getStripeCustomerPortalUrl.useQuery(
     {
-      orgId: organization!.id,
+      orgId: organization?.id as string,
     },
     {
       enabled: organization !== undefined,
@@ -209,10 +209,11 @@ const PricingPageButton = () => {
                 </div>
                 <Button
                   onClick={() => {
-                    mutCreateCheckoutSession.mutate({
-                      orgId: organization!.id,
-                      stripeProductId: product.stripeProductId,
-                    });
+                    if (organization)
+                      mutCreateCheckoutSession.mutate({
+                        orgId: organization.id,
+                        stripeProductId: product.stripeProductId,
+                      });
                   }}
                   className="mt-4"
                 >
