@@ -10,7 +10,7 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type CommentObjectType } from "@langfuse/shared";
-import { MessageCircleIcon } from "lucide-react";
+import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
 import React, { useState } from "react";
 
 export function CommentDrawerButton({
@@ -35,7 +35,13 @@ export function CommentDrawerButton({
     projectId,
     scope: "comments:CUD",
   });
-  if (!hasReadAccess || (!hasWriteAccess && !count)) return null;
+
+  if (!hasReadAccess || (!hasWriteAccess && !count))
+    return (
+      <Button type="button" variant="secondary" disabled>
+        <MessageCircleOff className="h-4 w-4 text-muted-foreground" />
+      </Button>
+    );
 
   return (
     <Drawer onClose={() => setIsDrawerOpen(false)}>
