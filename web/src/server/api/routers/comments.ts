@@ -8,6 +8,7 @@ import {
 import { CommentObjectType } from "../../../../../packages/shared/dist/prisma/generated/types";
 import { Prisma } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { TRPCError } from "@trpc/server";
 
 const CreateCommentData = z.object({
   projectId: z.string(),
@@ -53,73 +54,89 @@ export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateCommentData)
     .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "comments:CUD",
-      });
-
-      validateCommentReferenceObject({ ctx, input });
-
-      const comment = await ctx.prisma.comment.create({
-        data: {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
           projectId: input.projectId,
-          content: input.content,
-          objectId: input.objectId,
-          objectType: input.objectType,
-          authorUserId: ctx.session.user.id,
-        },
-      });
+          scope: "comments:CUD",
+        });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "comment",
-        resourceId: comment.id,
-        action: "create",
-        after: comment,
-      });
+        validateCommentReferenceObject({ ctx, input });
 
-      return comment;
+        const comment = await ctx.prisma.comment.create({
+          data: {
+            projectId: input.projectId,
+            content: input.content,
+            objectId: input.objectId,
+            objectType: input.objectType,
+            authorUserId: ctx.session.user.id,
+          },
+        });
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "comment",
+          resourceId: comment.id,
+          action: "create",
+          after: comment,
+        });
+
+        return comment;
+      } catch (error) {
+        console.error(error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Creating comment failed.",
+        });
+      }
     }),
   delete: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "comments:CUD",
-      });
-
-      const comment = await ctx.prisma.comment.findFirst({
-        where: {
-          id: input.id,
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
           projectId: input.projectId,
-        },
-      });
-      if (!comment) {
-        throw new Error("No comment with this id in this project.");
+          scope: "comments:CUD",
+        });
+
+        const comment = await ctx.prisma.comment.findFirst({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
+        });
+        if (!comment) {
+          throw new Error("No comment with this id in this project.");
+        }
+
+        if (comment.authorUserId !== ctx.session.user.id) {
+          throw new Error(
+            "Comment author user id does not match provided user id",
+          );
+        }
+
+        await ctx.prisma.comment.delete({
+          where: {
+            id: comment.id,
+            projectId: input.projectId,
+          },
+        });
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "comment",
+          resourceId: comment.id,
+          action: "delete",
+          before: comment,
+        });
+      } catch (error) {
+        console.error(error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Deleting comment failed.",
+        });
       }
-
-      if (comment.authorUserId !== ctx.session.user.id) {
-        throw new Error(
-          "Comment author user id does not match provided user id",
-        );
-      }
-
-      await ctx.prisma.comment.delete({
-        where: {
-          id: comment.id,
-          projectId: input.projectId,
-        },
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "comment",
-        resourceId: comment.id,
-        action: "delete",
-        before: comment,
-      });
     }),
   getByObjectId: protectedProjectProcedure
     .input(
@@ -130,23 +147,24 @@ export const commentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "comments:read",
-      });
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
 
-      const comments = await ctx.prisma.$queryRaw<
-        Array<{
-          id: string;
-          content: string;
-          timestamp: Date;
-          authorUserId: string | null;
-          authorUserImage: string | null;
-          authorUserName: string | null;
-        }>
-      >(
-        Prisma.sql`
+        const comments = await ctx.prisma.$queryRaw<
+          Array<{
+            id: string;
+            content: string;
+            timestamp: Date;
+            authorUserId: string | null;
+            authorUserImage: string | null;
+            authorUserName: string | null;
+          }>
+        >(
+          Prisma.sql`
         SELECT
           c.id, 
           c.content, 
@@ -163,9 +181,16 @@ export const commentsRouter = createTRPCRouter({
         ORDER BY 
           timestamp DESC
         `,
-      );
+        );
 
-      return comments;
+        return comments;
+      } catch (error) {
+        console.error(error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching comments by object id failed.",
+        });
+      }
     }),
   getCountsByObjectIds: protectedProjectProcedure
     .input(
@@ -176,34 +201,42 @@ export const commentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "comments:read",
-      });
-
-      const comments = await ctx.prisma.comment.findMany({
-        select: {
-          id: true,
-          objectId: true,
-        },
-        where: {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
           projectId: input.projectId,
-          objectId: { in: input.objectIds },
-          objectType: { in: input.objectTypes },
-        },
-      });
-      const commentCountByObject = new Map<string, number>();
+          scope: "comments:read",
+        });
 
-      comments.forEach(({ objectId }) => {
-        const prevCount = commentCountByObject.get(objectId);
-        if (!!prevCount) {
-          commentCountByObject.set(objectId, prevCount + 1);
-        } else {
-          commentCountByObject.set(objectId, 1);
-        }
-      });
+        const comments = await ctx.prisma.comment.findMany({
+          select: {
+            id: true,
+            objectId: true,
+          },
+          where: {
+            projectId: input.projectId,
+            objectId: { in: input.objectIds },
+            objectType: { in: input.objectTypes },
+          },
+        });
+        const commentCountByObject = new Map<string, number>();
 
-      return commentCountByObject;
+        comments.forEach(({ objectId }) => {
+          const prevCount = commentCountByObject.get(objectId);
+          if (!!prevCount) {
+            commentCountByObject.set(objectId, prevCount + 1);
+          } else {
+            commentCountByObject.set(objectId, 1);
+          }
+        });
+
+        return commentCountByObject;
+      } catch (error) {
+        console.error(error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching comment count failed.",
+        });
+      }
     }),
 });
