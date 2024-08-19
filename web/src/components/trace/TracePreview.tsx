@@ -21,16 +21,17 @@ import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
-import { api } from "@/src/utils/api";
 
 export const TracePreview = ({
   trace,
   observations,
   scores,
+  commentCounts,
 }: {
   trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
   scores: APIScore[];
+  commentCounts: Map<string, number>;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -48,12 +49,6 @@ export const TracePreview = ({
     acc.get(score.source)?.push(score);
     return acc;
   }, new Map<ScoreSource, APIScore[]>());
-
-  const commentCounts = api.comments.getCountsByObjectIds.useQuery({
-    projectId: trace.projectId,
-    objectIds: [trace.id],
-    objectTypes: ["TRACE"],
-  });
 
   return (
     <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">
@@ -111,7 +106,7 @@ export const TracePreview = ({
               projectId={trace.projectId}
               objectId={trace.id}
               objectType="TRACE"
-              count={commentCounts.data?.get(trace.id)}
+              count={commentCounts.get(trace.id)}
             />
             <AnnotateDrawer
               projectId={trace.projectId}
