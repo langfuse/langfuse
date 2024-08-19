@@ -1,14 +1,16 @@
 import {
   clickhouseClient,
   ObservationRecordInsertType,
+  recordGauge,
+  recordHistogram,
   ScoreRecordInsertType,
   TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
-import * as Sentry from "@sentry/node";
 
 import { env } from "../../env";
 import logger from "../../logger";
-import { instrumentAsync } from "../../instrumentation";
+import { instrument } from "@langfuse/shared/src/server";
+import { SpanKind } from "@opentelemetry/api";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -76,15 +78,21 @@ export class ClickhouseWriter {
   }
 
   private async flushAll(fullQueue = false) {
-    return instrumentAsync({ name: "write-to-clickhouse" }, async () => {
-      await Promise.all([
-        this.flush(TableName.Traces, fullQueue),
-        this.flush(TableName.Scores, fullQueue),
-        this.flush(TableName.Observations, fullQueue),
-      ]).catch((err) => {
-        logger.error("ClickhouseWriter.flushAll", err);
-      });
-    });
+    return instrument(
+      {
+        name: "write-to-clickhouse",
+        spanKind: SpanKind.CONSUMER,
+      },
+      async () => {
+        await Promise.all([
+          this.flush(TableName.Traces, fullQueue),
+          this.flush(TableName.Scores, fullQueue),
+          this.flush(TableName.Observations, fullQueue),
+        ]).catch((err) => {
+          logger.error("ClickhouseWriter.flushAll", err);
+        });
+      }
+    );
   }
 
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
@@ -99,13 +107,9 @@ export class ClickhouseWriter {
     // Log wait time
     queueItems.forEach((item) => {
       const waitTime = Date.now() - item.createdAt;
-      Sentry.metrics.distribution(
-        "ingestion_clickhouse_insert_wait_time",
-        waitTime,
-        {
-          unit: "milliseconds",
-        }
-      );
+      recordHistogram("ingestion_clickhouse_insert_wait_time", waitTime, {
+        unit: "milliseconds",
+      });
     });
 
     try {
@@ -117,7 +121,7 @@ export class ClickhouseWriter {
       });
 
       // Log processing time
-      Sentry.metrics.distribution(
+      recordHistogram(
         "ingestion_clickhouse_insert_processing_time",
         Date.now() - processingStartTime,
         {
@@ -129,12 +133,12 @@ export class ClickhouseWriter {
         `Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`
       );
 
-      Sentry.metrics.gauge(
+      recordGauge(
         "ingestion_clickhouse_insert_queue_length",
         entityQueue.length,
         {
           unit: "records",
-          tags: { entityType: tableName },
+          entityType: tableName,
         }
       );
     } catch (err) {
@@ -199,10 +203,7 @@ export class ClickhouseWriter {
       `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`
     );
 
-    Sentry.metrics.increment(
-      "ingestion_clickhouse_insert",
-      params.records.length
-    );
+    recordGauge("ingestion_clickhouse_insert", params.records.length);
   }
 }
 

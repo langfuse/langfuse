@@ -12,7 +12,7 @@ import {
   validateDbScoreConfig,
 } from "@langfuse/shared";
 import { ScoreDataType } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
+import { traceException } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const ScoreConfigAllInput = z.object({
@@ -52,10 +52,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       });
 
       return {
-        configs: filterAndValidateDbScoreConfigList(
-          configs,
-          Sentry.captureException,
-        ),
+        configs: filterAndValidateDbScoreConfigList(configs, traceException),
         totalCount: configsCount,
       };
     }),

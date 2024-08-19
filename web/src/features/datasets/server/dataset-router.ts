@@ -473,6 +473,98 @@ export const datasetRouter = createTRPCRouter({
       });
       return deletedDataset;
     }),
+  duplicateDataset: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+        include: {
+          datasetItems: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+        },
+      });
+      if (!dataset) {
+        throw new Error("Dataset not found");
+      }
+
+      // find a unique name for the new dataset
+      // by appending a counter to the name in case of the name already exists
+      // e.g. "Copy of dataset" -> "Copy of dataset (1)"
+      const existingDatasetNames = (
+        await ctx.prisma.dataset.findMany({
+          select: {
+            name: true,
+          },
+          where: {
+            projectId: input.projectId,
+            name: {
+              startsWith: "Copy of " + dataset.name,
+            },
+          },
+        })
+      ).map((d) => d.name);
+      let counter: number = 0;
+      const duplicateDatasetName = (pCounter: number) =>
+        pCounter === 0
+          ? `Copy of ${dataset.name}`
+          : `Copy of ${dataset.name} (${counter})`;
+      while (true) {
+        if (!existingDatasetNames.includes(duplicateDatasetName(counter))) {
+          break;
+        }
+        counter++;
+      }
+
+      const newDataset = await ctx.prisma.dataset.create({
+        data: {
+          name: duplicateDatasetName(counter),
+          description: dataset.description,
+          projectId: input.projectId,
+          metadata: dataset.metadata ?? undefined,
+          datasetItems: {
+            createMany: {
+              data: dataset.datasetItems.map((item) => ({
+                // the items get new ids as they need to be unique on project level
+                input: item.input ?? undefined,
+                expectedOutput: item.expectedOutput ?? undefined,
+                metadata: item.metadata ?? undefined,
+                sourceTraceId: item.sourceTraceId,
+                sourceObservationId: item.sourceObservationId,
+                status: item.status,
+              })),
+            },
+          },
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "dataset",
+        resourceId: newDataset.id,
+        action: "create",
+        after: newDataset,
+      });
+
+      return { id: newDataset.id };
+    }),
   createDatasetItem: protectedProjectProcedure
     .input(
       z.object({
