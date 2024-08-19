@@ -123,17 +123,19 @@ export default api.withTRPC(MyApp);
 function UserTracking() {
   const session = useSession();
 
+  const sessionUser = session.data?.user;
+
   useEffect(() => {
-    if (session.status === "authenticated") {
+    if (sessionUser) {
       // PostHog
       if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST)
-        posthog.identify(session.data.user?.id ?? undefined, {
+        posthog.identify(sessionUser.id ?? undefined, {
           environment: process.env.NODE_ENV,
-          email: session.data.user?.email ?? undefined,
-          name: session.data.user?.name ?? undefined,
-          featureFlags: session.data.user?.featureFlags ?? undefined,
+          email: sessionUser.email ?? undefined,
+          name: sessionUser.name ?? undefined,
+          featureFlags: sessionUser.featureFlags ?? undefined,
           projects:
-            session.data.user?.organizations.flatMap((org) =>
+            sessionUser.organizations.flatMap((org) =>
               org.projects.map((project) => ({
                 ...project,
                 organization: org,
@@ -141,7 +143,7 @@ function UserTracking() {
             ) ?? undefined,
           LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
-      const emailDomain = session.data.user?.email?.split("@")[1];
+      const emailDomain = sessionUser.email?.split("@")[1];
       if (emailDomain)
         posthog.group("emailDomain", emailDomain, {
           domain: emailDomain,
@@ -149,21 +151,21 @@ function UserTracking() {
 
       // Sentry
       setUser({
-        email: session.data.user?.email ?? undefined,
-        id: session.data.user?.id ?? undefined,
+        email: sessionUser.email ?? undefined,
+        id: sessionUser.id ?? undefined,
       });
 
       // Chat
       chatSetUser({
-        name: session.data.user?.name ?? "undefined",
-        email: session.data.user?.email ?? "undefined",
+        name: sessionUser.name ?? "undefined",
+        email: sessionUser.email ?? "undefined",
         data: {
-          userId: session.data.user?.id ?? "undefined",
-          organizations: session.data.user?.organizations
-            ? JSON.stringify(session.data.user.organizations)
+          userId: sessionUser.id ?? "undefined",
+          organizations: sessionUser.organizations
+            ? JSON.stringify(sessionUser.organizations)
             : "undefined",
-          featureFlags: session.data.user?.featureFlags
-            ? JSON.stringify(session.data.user.featureFlags)
+          featureFlags: sessionUser.featureFlags
+            ? JSON.stringify(sessionUser.featureFlags)
             : "undefined",
         },
       });
@@ -176,7 +178,8 @@ function UserTracking() {
       // Sentry
       setUser(null);
     }
-  }, [session]);
+  }, [sessionUser]);
+
   return null;
 }
 
