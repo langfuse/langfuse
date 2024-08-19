@@ -16,7 +16,8 @@ type StripeProduct = {
 export const stripeProducts: StripeProduct[] = [
   {
     stripeProductId:
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
         ? "prod_QgDNYKXcBfvUQ3" // test
         : "prod_P47h5SDEr9vJZk", // live
     mappedPlan: "cloud:pro",
@@ -29,7 +30,8 @@ export const stripeProducts: StripeProduct[] = [
   },
   {
     stripeProductId:
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
         ? "prod_QgDOxTD64U6KDv" // test
         : "prod_PAo9J9pxepZQVe", // live
     mappedPlan: "cloud:team",
