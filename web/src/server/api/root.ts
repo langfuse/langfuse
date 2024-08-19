@@ -8,7 +8,7 @@ import { apiKeysRouter } from "@/src/features/public-api/server/apiKeyRouter";
 import { membersRouter } from "@/src/features/rbac/server/membersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
 import { datasetRouter } from "@/src/features/datasets/server/dataset-router";
-import { usageMeteringRouter } from "@/src/features/usage-metering/server/usageMeteringRouter";
+import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillingRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
@@ -43,7 +43,7 @@ export const appRouter = createTRPCRouter({
   apiKeys: apiKeysRouter,
   members: membersRouter,
   datasets: datasetRouter,
-  usageMetering: usageMeteringRouter,
+  cloudBilling: cloudBillingRouter,
   observations: observationsRouter,
   prompts: promptRouter,
   models: modelRouter,
