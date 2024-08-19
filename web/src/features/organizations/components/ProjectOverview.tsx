@@ -23,6 +23,10 @@ import {
   createOrganizationRoute,
   createProjectRoute,
 } from "@/src/features/setup/setupRoutes";
+import {
+  isCloudPlan,
+  planLabels,
+} from "@/src/features/entitlements/constants/plans";
 
 const SingleOrganizationProjectOverview = ({
   orgId,
@@ -82,6 +86,14 @@ const SingleOrganizationProjectOverview = ({
         title={org.name}
         level={level}
         status={orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
+        label={
+          isCloudPlan(org.plan)
+            ? {
+                text: planLabels[org.plan],
+                href: `/organization/${org.id}/settings/billing`,
+              }
+            : undefined
+        }
         actionButtons={
           <>
             <Button asChild variant="ghost">
