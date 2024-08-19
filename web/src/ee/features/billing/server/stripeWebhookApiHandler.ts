@@ -5,10 +5,10 @@ import {
 import { env } from "@/src/env.mjs";
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
 import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import type Stripe from "stripe";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
+import { traceException } from "@langfuse/shared/src/server";
 
 const STRIPE_WEBHOOK_SIGNING_SECRET_DEV: string | null =
   "whsec_12dc385262f1a5d0f4ba1507cc81f9b3a3e2d03fd99d4ad625b8e21c87dcfd37";
@@ -66,14 +66,8 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
 
   // Handle the event
   switch (event.type) {
-    case "checkout.session.completed":
-      // add customer id and subscription id to the organization that created the checkout session
-      const session = event.data.object;
-      console.log("[Stripe Webhook] Start checkout.session.completed", session);
-      await handleCheckoutSessionCompleted(session);
-      break;
     case "customer.subscription.created":
-      // update the active product id on the organization linked to the subscription
+      // update the active product id on the organization linked to the subscription + customer and subscription id (if null or same)
       const subscription = event.data.object;
       console.log(
         "[Stripe Webhook] Start customer.subscription.created",
@@ -81,23 +75,23 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
       );
       await handleSubscriptionChanged(subscription, "created");
       break;
-    case "customer.subscription.deleted":
-      // remove the active product id on the organization linked to the subscription
-      const deletedSubscription = event.data.object;
-      console.log(
-        "[Stripe Webhook] Start customer.subscription.deleted",
-        deletedSubscription,
-      );
-      await handleSubscriptionChanged(deletedSubscription, "deleted");
-      break;
     case "customer.subscription.updated":
-      // update the active product id on the organization linked to the subscription
+      // update the active product id on the organization linked to the subscription + customer and subscription id (if null or same)
       const updatedSubscription = event.data.object;
       console.log(
         "[Stripe Webhook] Start customer.subscription.updated",
         updatedSubscription,
       );
       await handleSubscriptionChanged(updatedSubscription, "updated");
+      break;
+    case "customer.subscription.deleted":
+      // remove the active product id on the organization linked to the subscription + subscription, keep customer id
+      const deletedSubscription = event.data.object;
+      console.log(
+        "[Stripe Webhook] Start customer.subscription.deleted",
+        deletedSubscription,
+      );
+      await handleSubscriptionChanged(deletedSubscription, "deleted");
       break;
     default:
       console.log(`Unhandled event type ${event.type}`);
@@ -106,11 +100,25 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
   return NextResponse.json({ received: true }, { status: 200 });
 }
 
-async function handleCheckoutSessionCompleted(
-  session: Stripe.Checkout.Session,
+async function handleSubscriptionChanged(
+  subscription: Stripe.Subscription,
+  action: "created" | "deleted" | "updated",
 ) {
+  const subscriptionId = subscription.id;
+
+  // get the checkout session from the subscription to retrieve the client reference for this subscription
+  const checkoutSessionsResponse = await stripeClient?.checkout.sessions.list({
+    subscription: subscriptionId,
+    limit: 1,
+  });
+  if (!checkoutSessionsResponse || checkoutSessionsResponse.data.length !== 1) {
+    console.error("[Stripe Webhook] No checkout session found");
+    return;
+  }
+  const checkoutSession = checkoutSessionsResponse.data[0];
+
   // the client reference is passed to the stripe checkout session via the pricing page
-  const clientReference = session.client_reference_id;
+  const clientReference = checkoutSession.client_reference_id;
   if (!clientReference) {
     console.error("[Stripe Webhook] No client reference");
     return NextResponse.json(
@@ -119,106 +127,37 @@ async function handleCheckoutSessionCompleted(
     );
   }
   if (!isStripeClientReferenceFromCurrentCloudRegion(clientReference)) {
-    console.error(
+    console.log(
       "[Stripe Webhook] Client reference not from current cloud region",
     );
     return;
   }
-
   const orgId = getOrgIdFromStripeClientReference(clientReference);
-  const subscriptionId = session.subscription; // Assuming subscription ID is in session.subscription
-
-  // check if org exists and that the customer and subscription IDs match
-  const organization = await prisma.organization.findUnique({
-    where: { id: orgId },
-  });
-  if (!organization) {
-    console.error("[Stripe Webhook] Organization not found");
-    Sentry.captureMessage("[Stripe Webhook] Organization not found", {
-      extra: {
-        stripeCheckoutSession: session,
-      },
-    });
-    return;
-  }
-
-  // check that checkout session includes customer and subscription IDs
-  const customerId = session.customer;
-  if (typeof customerId !== "string" || typeof subscriptionId !== "string") {
-    console.error(
-      "[Stripe Webhook] Checkout session missing customer ID or subscription ID",
-    );
-    Sentry.captureMessage(
-      "[Stripe Webhook] Checkout session missing customer ID or subscription ID",
-      {
-        extra: {
-          stripeCheckoutSession: session,
-        },
-      },
-    );
-    return;
-  }
-
-  const parsedOrg = parseDbOrg(organization);
-  if (parsedOrg.cloudConfig?.stripe) {
-    // check that there is not already a customer or subscription ID that does not match the checkout session
-    if (
-      (parsedOrg.cloudConfig?.stripe?.customerId &&
-        parsedOrg.cloudConfig?.stripe?.customerId !== customerId) ||
-      (parsedOrg.cloudConfig?.stripe?.activeSubscriptionId &&
-        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId !== subscriptionId)
-    ) {
-      Sentry.captureMessage(
-        "[Stripe Webhook] Customer or Subscription ID mismatch",
-        {
-          extra: {
-            cloudConfig: parsedOrg.cloudConfig,
-            stripeCheckoutSession: session,
-          },
-        },
-      );
-      return;
-    }
-  }
-
-  // update the cloud config with the customer and subscription IDs
-  await prisma.organization.update({
-    where: { id: orgId },
-    data: {
-      cloudConfig: {
-        ...parsedOrg.cloudConfig,
-        stripe: {
-          ...parsedOrg.cloudConfig?.stripe,
-          ...CloudConfigSchema.shape.stripe.parse({
-            customerId: customerId,
-            activeSubscriptionId: subscriptionId, // Update subscription ID
-          }),
-        },
-      },
-    },
-  });
-}
-
-async function handleSubscriptionChanged(
-  subscription: Stripe.Subscription,
-  action: "created" | "deleted" | "updated",
-) {
-  // wait for 3 seconds to ensure the subscription is fully created during the checkout session
-  await new Promise((resolve) => setTimeout(resolve, 3000));
-
-  const subscriptionId = subscription.id;
 
   // find the org with the customer ID
-  const organizations = await prisma.organization.findMany({
+  const organization = await prisma.organization.findUnique({
     where: {
-      cloudConfig: {
-        path: ["stripe", "activeSubscriptionId"],
-        equals: subscriptionId,
-      },
+      id: orgId,
     },
   });
-  if (organizations.length === 0) {
+  if (!organization) {
     console.error("[Stripe Webhook] No organization not found");
+    return;
+  }
+  const parsedOrg = parseDbOrg(organization);
+
+  // asert that no other stripe customer id is already set on the org
+  const customerId = subscription.customer;
+  if (!customerId || typeof customerId !== "string") {
+    console.error("[Stripe Webhook] Product ID not found");
+    traceException("[Stripe Webhook] Product ID not found");
+    return;
+  }
+  if (
+    parsedOrg.cloudConfig?.stripe?.customerId &&
+    parsedOrg.cloudConfig?.stripe?.customerId !== customerId
+  ) {
+    traceException("[Stripe Webhook] Another customer id already set on org");
     return;
   }
 
@@ -237,74 +176,61 @@ async function handleSubscriptionChanged(
 
   if (!productId || typeof productId !== "string") {
     console.error("[Stripe Webhook] Product ID not found");
-    Sentry.captureMessage("[Stripe Webhook] Product ID not found", {
-      extra: {
-        subscriptionItem,
-      },
-    });
+    traceException("[Stripe Webhook] Product ID not found");
     return;
   }
 
-  // assert that no other product is already set on the org
-  const parsedOrgs = organizations.map(parseDbOrg);
+  // assert that no other product is already set on the org if this is not an update
   if (
-    parsedOrgs.some(
-      (parsedOrg) =>
-        action !== "updated" &&
-        parsedOrg.cloudConfig?.stripe?.activeProductId &&
-        parsedOrg.cloudConfig?.stripe?.activeProductId !== productId,
-    )
+    action !== "updated" &&
+    parsedOrg.cloudConfig?.stripe?.activeProductId &&
+    parsedOrg.cloudConfig?.stripe?.activeProductId !== productId
   ) {
-    Sentry.captureMessage(
+    traceException(
       "[Stripe Webhook] Another active product id already set on (one of the) org with this active subscription id",
-      {
-        extra: {
-          parsedOrgs,
-          subscriptionItem,
-        },
-      },
     );
     return;
   }
 
   // update the cloud config with the product ID
-  for (const parsedOrg of parsedOrgs) {
-    if (action === "created" || action === "updated") {
-      await prisma.organization.update({
-        where: {
-          id: parsedOrg.id,
-        },
-        data: {
-          cloudConfig: {
-            ...parsedOrg.cloudConfig,
-            stripe: {
-              ...parsedOrg.cloudConfig?.stripe,
-              ...CloudConfigSchema.shape.stripe.parse({
-                activeProductId: productId,
-              }),
-            },
+  if (action === "created" || action === "updated") {
+    await prisma.organization.update({
+      where: {
+        id: parsedOrg.id,
+      },
+      data: {
+        cloudConfig: {
+          ...parsedOrg.cloudConfig,
+          stripe: {
+            ...parsedOrg.cloudConfig?.stripe,
+            ...CloudConfigSchema.shape.stripe.parse({
+              activeProductId: productId,
+              activeSubscriptionId: subscriptionId,
+              customerId: customerId,
+            }),
           },
         },
-      });
-    } else if (action === "deleted") {
-      await prisma.organization.update({
-        where: {
-          id: parsedOrg.id,
-        },
-        data: {
-          cloudConfig: {
-            ...parsedOrg.cloudConfig,
-            stripe: {
-              ...parsedOrg.cloudConfig?.stripe,
-              ...CloudConfigSchema.shape.stripe.parse({
-                activeProductId: undefined,
-                activeSubscriptionId: undefined,
-              }),
-            },
+      },
+    });
+  } else if (action === "deleted") {
+    await prisma.organization.update({
+      where: {
+        id: parsedOrg.id,
+      },
+      data: {
+        cloudConfig: {
+          ...parsedOrg.cloudConfig,
+          stripe: {
+            ...parsedOrg.cloudConfig?.stripe,
+            ...CloudConfigSchema.shape.stripe.parse({
+              activeProductId: undefined,
+              activeSubscriptionId: undefined,
+              customerId: customerId,
+            }),
           },
         },
-      });
-    }
+      },
+    });
   }
 
   return;
