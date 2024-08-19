@@ -5,7 +5,6 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
-import { withLogtail } from "@logtail/next";
 
 /**
  * CSP headers

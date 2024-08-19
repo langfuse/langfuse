@@ -54,9 +54,9 @@ class PinoLogger {
 
 const getLogger = (env: "development" | "production" | "test") => {
   if (env === "development") {
-    return new ConsoleLogLogger();
-  } else {
     return new PinoLogger();
+  } else {
+    return new ConsoleLogLogger();
   }
 };
 
