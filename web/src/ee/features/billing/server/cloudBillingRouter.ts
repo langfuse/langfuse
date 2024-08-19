@@ -108,18 +108,6 @@ export const cloudBillingRouter = createTRPCRouter({
         consent_collection: {
           terms_of_service: "required",
         },
-        custom_fields: [
-          {
-            key: "business_name",
-            label: {
-              type: "custom",
-              custom: "Business Name",
-            },
-            type: "text",
-            text: {},
-            optional: true,
-          },
-        ],
         ...(stripeCustomerId
           ? {
               customer_update: {
