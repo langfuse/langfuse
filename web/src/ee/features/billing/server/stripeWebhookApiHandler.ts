@@ -146,7 +146,7 @@ async function handleSubscriptionChanged(
   }
   const parsedOrg = parseDbOrg(organization);
 
-  // asert that no other stripe customer id is already set on the org
+  // assert that no other stripe customer id is already set on the org
   const customerId = subscription.customer;
   if (!customerId || typeof customerId !== "string") {
     console.error("[Stripe Webhook] Product ID not found");
