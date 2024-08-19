@@ -56,3 +56,6 @@ You can test webhooks via the `stripe` CLI. Step by step guide: https://dashboar
 
 1. `stripe login`
 2. `stripe listen --forward-to localhost:3000/api/billing/stripe-webhook`
+3. Add the API key from the Stripe test environment and the webhook signing secret from the CLI to the `.env` file.
+
+Upgrade/downgrade projects via the Langfuse billing settings.
