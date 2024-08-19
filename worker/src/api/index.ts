@@ -25,6 +25,7 @@ router.get<{}, { status: string }>("/health", async (_req, res) => {
   try {
     await checkContainerHealth(res);
   } catch (e) {
+    traceException(e);
     logger.error(e, "Health check failed");
     res.status(500).json({
       status: "error",
