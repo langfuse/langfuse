@@ -31,8 +31,15 @@ export const useModelParams = ({
   );
 
   const availableProviders = useMemo(() => {
-    return availableLLMApiKeys.data?.data.map((key) => key.provider) ?? [];
-  }, [availableLLMApiKeys]);
+    const adapter =
+      (evalModelsOnly
+        ? availableLLMApiKeys.data?.data.filter(
+            (p) => p.adapter === LLMAdapter.OpenAI,
+          ) // for evals, we only support OpenAI
+        : availableLLMApiKeys.data?.data) ?? [];
+
+    return adapter.map((key) => key.provider) ?? [];
+  }, [availableLLMApiKeys.data?.data, evalModelsOnly]);
 
   const selectedProviderApiKey = availableLLMApiKeys.data?.data.find(
     (key) => key.provider === modelParams.provider.value,
