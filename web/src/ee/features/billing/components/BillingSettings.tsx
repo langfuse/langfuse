@@ -112,6 +112,11 @@ const OrganizationUsageChart = () => {
       </Card>
       <div className="mt-4 flex flex-row items-center gap-2">
         <BillingPortalOrPricingPageButton />
+        <Button variant="secondary" asChild>
+          <Link href={"https://langfuse.com/pricing"} target="_blank">
+            Compare plans
+          </Link>
+        </Button>
         <div className="inline-block text-sm text-muted-foreground">
           Current plan: {planLabel}
         </div>
@@ -134,7 +139,7 @@ const BillingPortalOrPricingPageButton = () => {
   if (!billingPortalUrl.data) return <PricingPageButton />;
 
   return (
-    <Button variant="secondary" asChild>
+    <Button asChild>
       <Link href={billingPortalUrl.data}>Billing portal</Link>
     </Button>
   );
@@ -179,7 +184,7 @@ const PricingPageButton = () => {
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="secondary">Change plan</Button>
+        <Button>Change plan</Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
