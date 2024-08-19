@@ -1,7 +1,11 @@
 import { Queue, Worker } from "bullmq";
 import logger from "../logger";
-import { redis, QueueName, QueueJobs } from "@langfuse/shared/src/server";
-import { instrumentAsync } from "../instrumentation";
+import {
+  redis,
+  QueueName,
+  QueueJobs,
+  instrument,
+} from "@langfuse/shared/src/server";
 import { handleCloudUsageMeteringJob } from "../ee/cloudUsageMetering/handleCloudUsageMeteringJob";
 import { env } from "../env";
 
@@ -36,7 +40,7 @@ export const cloudUsageMeteringJobExecutor =
         QueueName.CloudUsageMeteringQueue,
         async (job) => {
           if (job.name === QueueJobs.CloudUsageMeteringJob) {
-            return instrumentAsync(
+            return instrument(
               { name: "cloudUsageMeteringJobExecutor" },
               async () => {
                 logger.info("Executing Cloud Usage Metering Job", job.data);
