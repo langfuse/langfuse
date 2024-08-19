@@ -611,6 +611,7 @@ function createObjects(
     const trace = {
       id: `trace-${v4()}`,
       timestamp: traceTs,
+      createdAt: traceTs,
       projectId: projectId,
       name: ["generate-outreach", "label-inbound", "draft-response"][
         i % 3
@@ -669,6 +670,7 @@ function createObjects(
               traceId: trace.id,
               name: annotationScoreName,
               timestamp: traceTs,
+              createdAt: traceTs,
               source: ScoreSource.ANNOTATION,
               projectId,
               authorUserId: `user-${i}`,
@@ -685,6 +687,7 @@ function createObjects(
               name: "sentiment",
               value: Math.floor(Math.random() * 10) - 5,
               timestamp: traceTs,
+              createdAt: traceTs,
               source: ScoreSource.API,
               projectId,
               dataType: ScoreDataType.NUMERIC,
@@ -697,6 +700,7 @@ function createObjects(
               traceId: trace.id,
               name: "Completeness",
               timestamp: traceTs,
+              createdAt: traceTs,
               source: ScoreSource.API,
               projectId,
               dataType: ScoreDataType.CATEGORICAL,
@@ -725,6 +729,7 @@ function createObjects(
         type: ObservationType.SPAN,
         id: `span-${v4()}`,
         startTime: spanTsStart,
+        createdAt: spanTsStart,
         endTime: spanTsEnd,
         name: `span-${i}-${j}`,
         metadata: {
@@ -796,6 +801,7 @@ function createObjects(
           type: ObservationType.GENERATION,
           id: `generation-${v4()}`,
           startTime: generationTsStart,
+          createdAt: generationTsStart,
           endTime: generationTsEnd,
           completionStartTime:
             Math.random() > 0.5 ? generationTsCompletionStart : undefined,
@@ -867,6 +873,7 @@ function createObjects(
             source: ScoreSource.API,
             projectId: trace.projectId,
             timestamp: generationTsEnd,
+            createdAt: traceTs,
           });
         if (Math.random() > 0.6)
           scores.push({
@@ -877,6 +884,7 @@ function createObjects(
             source: ScoreSource.API,
             projectId: trace.projectId,
             timestamp: generationTsEnd,
+            createdAt: traceTs,
           });
 
         for (let l = 0; l < Math.floor(Math.random() * 2); l++) {
@@ -892,6 +900,7 @@ function createObjects(
             type: ObservationType.EVENT,
             id: `event-${v4()}`,
             startTime: eventTs,
+            createdAt: eventTs,
             name: `event-${i}-${j}-${k}-${l}`,
             metadata: {
               user: `user-${i}@langfuse.com`,

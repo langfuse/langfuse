@@ -166,6 +166,8 @@ export const env = createEnv({
       .number()
       .positive()
       .default(60 * 10),
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
   },
 
   /**
@@ -176,6 +178,8 @@ export const env = createEnv({
    * WARNING: They do not work when used in Docker builds as NEXT_PUBLIC variables are not runtime but compile-time.
    */
   client: {
+    // WARNING: Also add these to web/Dockerfile
+
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
       .enum(["US", "EU", "STAGING", "DEV"])
@@ -309,6 +313,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:
       process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

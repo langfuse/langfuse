@@ -1,5 +1,5 @@
-import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
-import { type Organization } from "@langfuse/shared";
+import { type Organization } from "@prisma/client";
+import { CloudConfigSchema } from "./cloudConfigSchema";
 
 type parsedOrg = Omit<Organization, "cloudConfig"> & {
   cloudConfig: CloudConfigSchema | null;

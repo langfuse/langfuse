@@ -5,7 +5,7 @@ const entitlements = [
   "playground",
   "model-based-evaluations",
   "rbac-project-roles",
-  "cloud-usage-metering",
+  "cloud-billing",
   "integration-posthog",
   "batch-export",
 ] as const;
@@ -15,7 +15,7 @@ export type Entitlement = (typeof entitlements)[number];
 const cloudAllPlansEntitlements: Entitlement[] = [
   "playground",
   "model-based-evaluations",
-  "cloud-usage-metering",
+  "cloud-billing",
   "integration-posthog",
   "batch-export",
 ];
