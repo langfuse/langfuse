@@ -11,7 +11,6 @@ import {
 } from "@langfuse/shared/src/server";
 import type Redis from "ioredis";
 import { type NextApiResponse, type NextApiRequest } from "next";
-import { type RateLimiterRes } from "rate-limiter-flexible";
 import { type z } from "zod";
 
 export class AuthAndRateLimit {
@@ -37,7 +36,7 @@ export class AuthAndRateLimit {
       this.redis,
     ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
-    if (!authCheck.validKey) {
+    if (!authCheck.validKey || !authCheck.apiKey) {
       return { authCheck, rateLimitCheck: undefined };
     }
 

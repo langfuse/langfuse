@@ -35,7 +35,7 @@ export type AuthHeaderVerificationResult =
 export type AuthHeaderValidVerificationResult = {
   validKey: true;
   scope: ApiAccessScope;
-  apiKey: z.infer<typeof OrgEnrichedApiKey>;
+  apiKey?: z.infer<typeof OrgEnrichedApiKey>;
 };
 
 export type ApiAccessScope = {
