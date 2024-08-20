@@ -102,12 +102,10 @@ export class RateLimitService {
       duration: matchedConfig.duration, // Per second(s)
 
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
+      storeClient: this.redis,
     };
 
-    const rateLimiter = new RateLimiterRedis({
-      ...opts,
-      storeClient: this.redis,
-    });
+    const rateLimiter = new RateLimiterRedis(opts);
 
     let res: RateLimitResult | undefined = undefined;
     try {
