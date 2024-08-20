@@ -147,6 +147,23 @@ describe("Authenticate API calls", () => {
     it("should create new api key and read from cache", async () => {
       await createAPIKey();
 
+      // update the organization with a cloud config
+      await prisma.organization.update({
+        where: { id: "seed-org-id" },
+        data: {
+          cloudConfig: {
+            rateLimits: [
+              {
+                "public-api": {
+                  points: 1000,
+                  duration: 60,
+                },
+              },
+            ],
+          },
+        },
+      });
+
       // first auth will generate the fast hashed api key
       await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
@@ -181,6 +198,7 @@ describe("Authenticate API calls", () => {
         ...apiKey,
         orgId: "seed-org-id",
         plan: "cloud:hobby",
+        rateLimits: parsed.rateLimits,
         createdAt: apiKey?.createdAt.toISOString(),
       });
     });

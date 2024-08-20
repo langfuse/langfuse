@@ -7,7 +7,6 @@ import {
   type RateLimitConfig,
   type RateLimitResult,
   type RateLimitResource,
-  type CloudConfigRateLimitZod,
 } from "@langfuse/shared";
 
 // business logic to consider
