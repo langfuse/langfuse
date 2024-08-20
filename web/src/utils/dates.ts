@@ -56,3 +56,24 @@ export const getTimezoneDetails = () => {
   const utcDifference = -(new Date().getTimezoneOffset() / 60); // negative because TZ info is the opposite of UTC offset
   return `${location} (UTC${utcDifference >= 0 ? "+" : ""}${utcDifference})`;
 };
+
+export const getRelativeTimestampFromNow = (timestamp: Date): string => {
+  const diffInMs = new Date().getTime() - timestamp.getTime();
+  const diffInMinutes = diffInMs / (1000 * 60);
+  const diffInHours = diffInMinutes / 60;
+  const diffInDays = diffInHours / 24;
+
+  if (diffInHours < 1) {
+    return `${Math.floor(diffInMinutes)} minutes ago`;
+  } else if (diffInHours < 24) {
+    return `${Math.floor(diffInHours)} hours ago`;
+  } else if (diffInDays < 7) {
+    return `${Math.floor(diffInDays)} days ago`;
+  } else {
+    return timestamp.toLocaleDateString("en-US", {
+      year: "2-digit",
+      month: "numeric",
+      day: "numeric",
+    });
+  }
+};

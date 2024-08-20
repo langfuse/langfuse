@@ -6,6 +6,12 @@ import { Drawer as DrawerPrimitive } from "vaul";
 import { cn } from "@/src/utils/tailwind";
 import { useMediaQuery } from "react-responsive";
 
+type DrawerContentProps = React.ComponentPropsWithoutRef<
+  typeof DrawerPrimitive.Content
+> & {
+  overlayClassName?: string;
+};
+
 // https://tailwindcss.com/docs/responsive-design
 const TAILWIND_MD_MEDIA_QUERY = 768;
 
@@ -48,10 +54,10 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  DrawerContentProps
+>(({ className, children, overlayClassName, ...props }, ref) => (
   <DrawerPortal>
-    <DrawerOverlay />
+    <DrawerOverlay className={overlayClassName} />
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(

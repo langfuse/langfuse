@@ -85,8 +85,8 @@ const OrganizationUsageChart = () => {
         {usage.data !== undefined ? (
           <>
             <Text>
-              {usage.data.billingPeriodStart
-                ? `Observations since start of billing period (${usage.data.billingPeriodStart.toLocaleDateString()})`
+              {usage.data.billingPeriod
+                ? `Observations in billing period`
                 : "Observations / last 30d"}
             </Text>
             <Metric>{numberFormatter(usage.data.countObservations, 0)}</Metric>
@@ -110,6 +110,19 @@ const OrganizationUsageChart = () => {
           "Loading (might take a moment) ..."
         )}
       </Card>
+      <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
+        <p>Current plan: {planLabel}</p>
+        {usage.data?.billingPeriod && (
+          <p>
+            {`Billing period: ${usage.data.billingPeriod.start.toLocaleDateString()} - ${usage.data.billingPeriod.end.toLocaleDateString()}`}
+          </p>
+        )}
+        {usage.data?.upcomingInvoice && (
+          <p>
+            {`Next invoice (current usage): ${usage.data.upcomingInvoice.usdAmount} USD`}
+          </p>
+        )}
+      </div>
       <div className="mt-4 flex flex-row items-center gap-2">
         <BillingPortalOrPricingPageButton />
         <Button variant="secondary" asChild>
@@ -117,9 +130,6 @@ const OrganizationUsageChart = () => {
             Compare plans
           </Link>
         </Button>
-        <div className="inline-block text-sm text-muted-foreground">
-          Current plan: {planLabel}
-        </div>
       </div>
     </div>
   );

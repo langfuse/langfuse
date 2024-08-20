@@ -85,7 +85,9 @@ export function AnnotateDrawer({
         ) : (
           <Button
             className="h-6 rounded-full px-3 text-xs"
-            onClick={() =>
+            disabled={!hasAccess}
+            onClick={() => {
+              setIsDrawerOpen(true);
               capture(
                 Boolean(scores.length)
                   ? "score:update_form_open"
@@ -94,8 +96,8 @@ export function AnnotateDrawer({
                   type: type,
                   source: source,
                 },
-              )
-            }
+              );
+            }}
           >
             Annotate
           </Button>

@@ -37,6 +37,7 @@ export function SetupPage() {
   const { project, organization } = useQueryProjectOrOrganization();
   const router = useRouter();
   const [orgStep] = useQueryParam("orgstep", StringParam); // "invite-members" | "create-project"
+  const queryProjectId = router.query.projectId as string | undefined;
 
   // starts at 1 to align with breadcrumb
   const stepInt = !organization
@@ -49,9 +50,9 @@ export function SetupPage() {
 
   const hasAnyTrace =
     api.traces.hasAny.useQuery(
-      { projectId: project?.id ?? "no-project" },
+      { projectId: queryProjectId as string },
       {
-        enabled: !!project && stepInt === 4,
+        enabled: queryProjectId !== undefined && stepInt === 4,
         refetchInterval: 5000,
         trpc: {
           context: {
