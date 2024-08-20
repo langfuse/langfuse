@@ -121,13 +121,9 @@ export function CommentList({
     return null;
 
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
-    createCommentMutation
-      .mutateAsync({
-        ...values,
-      })
-      .catch((error) => {
-        console.error(error);
-      });
+    createCommentMutation.mutateAsync({
+      ...values,
+    });
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -237,7 +233,7 @@ export function CommentList({
                             )
                           )
                             deleteCommentMutation.mutateAsync({
-                              id: comment.id,
+                              commentId: comment.id,
                               projectId,
                               objectId,
                               objectType,

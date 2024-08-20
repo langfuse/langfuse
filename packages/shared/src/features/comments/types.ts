@@ -16,7 +16,7 @@ export const CreateCommentData = z.object({
 
 export const DeleteCommentData = z.object({
   projectId: z.string(),
-  id: z.string(),
+  commentId: z.string(),
   objectId: z.string(),
   objectType: z.enum(COMMENT_OBJECT_TYPES),
 });

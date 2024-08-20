@@ -5,7 +5,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { CommentObjectType } from "../../../../../packages/shared/dist/prisma/generated/types";
+import { CommentObjectType } from "@langfuse/shared";
 import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
@@ -28,7 +28,10 @@ const validateCommentReferenceObject = async ({
   const prismaModel = COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL[objectType];
 
   if (!prismaModel) {
-    throw new Error(`No prisma model for object type ${objectType}`);
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: `No prisma model for object type ${objectType}`,
+    });
   }
 
   const model = ctx.prisma[prismaModel];
@@ -40,9 +43,10 @@ const validateCommentReferenceObject = async ({
   });
 
   if (!object) {
-    throw new Error(
-      `No ${prismaModel} with id ${objectId} in project ${projectId}`,
-    );
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: `No ${prismaModel} with id ${objectId} in project ${projectId}`,
+    });
   }
 };
 
@@ -80,6 +84,9 @@ export const commentsRouter = createTRPCRouter({
         return comment;
       } catch (error) {
         console.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Creating comment failed.",
@@ -98,20 +105,24 @@ export const commentsRouter = createTRPCRouter({
 
         const comment = await ctx.prisma.comment.findFirst({
           where: {
-            id: input.id,
+            id: input.commentId,
             projectId: input.projectId,
             objectId: input.objectId,
             objectType: input.objectType,
           },
         });
         if (!comment) {
-          throw new Error("No comment with this id in this project.");
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "No comment with this id in this project.",
+          });
         }
 
         if (comment.authorUserId !== ctx.session.user.id) {
-          throw new Error(
-            "Comment author user id does not match provided user id",
-          );
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Comment author user id does not match provided user id",
+          });
         }
 
         await ctx.prisma.comment.delete({
@@ -132,6 +143,9 @@ export const commentsRouter = createTRPCRouter({
         });
       } catch (error) {
         console.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Deleting comment failed.",
@@ -186,6 +200,9 @@ export const commentsRouter = createTRPCRouter({
         return comments;
       } catch (error) {
         console.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Fetching comments by object id failed.",
@@ -233,6 +250,9 @@ export const commentsRouter = createTRPCRouter({
         return commentCountByObject;
       } catch (error) {
         console.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Fetching comment count failed.",
