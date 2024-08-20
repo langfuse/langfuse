@@ -14,6 +14,7 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
@@ -22,27 +23,6 @@ import { useSession } from "next-auth/react";
 import React, { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
-
-const formatCommentTimestamp = (timestamp: Date): string => {
-  const diffInMs = new Date().getTime() - timestamp.getTime();
-  const diffInMinutes = diffInMs / (1000 * 60);
-  const diffInHours = diffInMinutes / 60;
-  const diffInDays = diffInHours / 24;
-
-  if (diffInHours < 1) {
-    return `${Math.floor(diffInMinutes)} minutes ago`;
-  } else if (diffInHours < 24) {
-    return `${Math.floor(diffInHours)} hours ago`;
-  } else if (diffInDays < 7) {
-    return `${Math.floor(diffInDays)} days ago`;
-  } else {
-    return timestamp.toLocaleDateString("en-US", {
-      year: "2-digit",
-      month: "numeric",
-      day: "numeric",
-    });
-  }
-};
 
 export function CommentList({
   projectId,
@@ -113,7 +93,7 @@ export function CommentList({
   const commentsWithFormattedTimestamp = useMemo(() => {
     return comments.data?.map((comment) => ({
       ...comment,
-      timestamp: formatCommentTimestamp(comment.createdAt),
+      timestamp: getRelativeTimestampFromNow(comment.createdAt),
     }));
   }, [comments.data]);
 
