@@ -31,5 +31,6 @@ export const RateLimitConfig = z.record(
 );
 
 export const RateLimitConfigZod = z.record(z.string(), RateLimitConfig);
+export const CloudConfigRateLimitZod = z.array(RateLimitConfig);
 
 export type RateLimitConfig = z.infer<typeof RateLimitConfigZod>;

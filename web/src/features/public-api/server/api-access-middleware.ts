@@ -28,6 +28,7 @@ export class ApiAccessMiddleware {
     this.resource = resource;
   }
 
+  // this function first checks auth and then rate limits
   authAndRateLimit = async (req: NextApiRequest) => {
     const authCheck = await new ApiAuthService(
       this.prisma,

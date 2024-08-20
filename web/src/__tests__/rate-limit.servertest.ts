@@ -200,28 +200,45 @@ describe("RateLimitService", () => {
     });
   });
 
-  it("should not apply rate limits for oss plan", async () => {
+  it("should apply rate limits with override for specific resource", async () => {
     const apiKey = {
-      id: "oss-test-id",
-      note: "OSS Test API Key",
-      publicKey: "pk-oss-test-1234567890",
+      id: "override-test-id",
+      note: "Override Test API Key",
+      publicKey: "pk-override-test-1234567890",
       hashedSecretKey: "hashed-secret-key",
       fastHashedSecretKey: "fast-hashed-secret-key",
       displaySecretKey: "display-secret-key",
       createdAt: new Date().toISOString(),
       lastUsedAt: null,
       expiresAt: null,
-      projectId: "oss-test-project-id",
-      orgId: "oss-test-org",
-      plan: "oss",
+      projectId: "override-test-project-id",
+      orgId: "override-test-org",
+      plan: "default",
+      rateLimits: [
+        {
+          "public-api": {
+            points: 5,
+            duration: 10,
+          },
+        },
+      ],
     };
 
     const rateLimitService = new RateLimitService(redis!);
+
     const result = await rateLimitService.rateLimitRequest(
       apiKey,
       "public-api",
     );
 
-    expect(result).toBeUndefined();
+    expect(result).toEqual({
+      apiKey: apiKey,
+      resource: "public-api",
+      points: 5,
+      remainingPoints: 4,
+      msBeforeNext: expect.any(Number),
+      consumedPoints: 1,
+      isFirstInDuration: true,
+    });
   });
 });

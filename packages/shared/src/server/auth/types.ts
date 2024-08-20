@@ -1,5 +1,6 @@
 import z from "zod";
 import { plans } from "../../features/entitlements/plans";
+import { CloudConfigRateLimitZod } from "../../interfaces/rate-limits";
 
 export const OrgEnrichedApiKey = z.object({
   id: z.string(),
@@ -16,6 +17,7 @@ export const OrgEnrichedApiKey = z.object({
   // Best way to rate-limit API keys on a per-org basis.
   orgId: z.string(),
   plan: z.enum(plans as unknown as [string, ...string[]]),
+  rateLimits: CloudConfigRateLimitZod.nullish(),
 });
 
 export const API_KEY_NON_EXISTENT = "api-key-non-existent";

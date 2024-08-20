@@ -7,6 +7,7 @@ import {
   type RateLimitConfig,
   type RateLimitResult,
   type RateLimitResource,
+  type CloudConfigRateLimitZod,
 } from "@langfuse/shared";
 
 // business logic to consider
@@ -49,11 +50,6 @@ export class RateLimitService {
       return;
     }
 
-    // no rate limit for oss users
-    if (apiKey.plan === "oss") {
-      return;
-    }
-
     return await this.checkRateLimit(apiKey, resource);
   }
 
@@ -64,20 +60,35 @@ export class RateLimitService {
     // first get the organisation for an API key
     // add this to the key in redis, so that
 
-    const matchedConfig =
-      this.config[
-        ["default", "cloud:hobby", "cloud:pro"].includes(apiKey.plan)
-          ? "default"
-          : (apiKey.plan as keyof typeof rateLimitConfig)
-      ][resource];
+    const planKey = ["default", "cloud:hobby", "cloud:pro"].includes(
+      apiKey.plan,
+    )
+      ? "default"
+      : (apiKey.plan as keyof typeof rateLimitConfig);
 
-    if (!matchedConfig)
-      throw new Error("Rate limit not configured for this plan");
+    const planConfig = this.config[planKey];
+
+    if (!planConfig || !(resource in planConfig)) {
+      throw new Error(
+        `Rate limit config for resource ${resource} not found for plan ${apiKey.plan}`,
+      );
+    }
+
+    const planBasedConfig = planConfig[resource];
+
+    const customConfig =
+      apiKey.rateLimits?.find((config) => config[resource])?.[resource] ?? null;
+    const effectiveConfig = customConfig ?? planBasedConfig;
+
+    // returning early if no rate limit is set
+    if (!effectiveConfig) {
+      return;
+    }
 
     const opts = {
       // Basic options
-      points: matchedConfig.points, // Number of points
-      duration: matchedConfig.duration, // Per second(s)
+      points: effectiveConfig.points, // Number of points
+      duration: effectiveConfig.duration, // Per second(s)
 
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
       storeClient: this.redis,
@@ -92,7 +103,7 @@ export class RateLimitService {
       res = {
         apiKey,
         resource,
-        points: matchedConfig.points,
+        points: effectiveConfig.points,
         remainingPoints: libRes.remainingPoints,
         msBeforeNext: libRes.msBeforeNext,
         consumedPoints: libRes.consumedPoints,
@@ -104,7 +115,7 @@ export class RateLimitService {
         res = {
           apiKey,
           resource,
-          points: matchedConfig.points,
+          points: effectiveConfig.points,
           remainingPoints: err.remainingPoints,
           msBeforeNext: err.msBeforeNext,
           consumedPoints: err.consumedPoints,

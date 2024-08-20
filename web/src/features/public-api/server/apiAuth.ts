@@ -361,20 +361,21 @@ export const convertApiKeyAndOrg = (
     },
   } = apiKeyAndOrganisation;
 
-  const billingPlan = cloudConfig
-    ? getOrganizationPlan(CloudConfigSchema.parse(cloudConfig))
-    : "cloud:hobby";
+  const parsedCloudConfig = cloudConfig
+    ? CloudConfigSchema.parse(cloudConfig)
+    : undefined;
 
-  console.log("Billing plan", billingPlan);
+  console.log("parsed cloud config", parsedCloudConfig);
 
   const newApiKey = OrgEnrichedApiKey.parse({
     ...apiKeyAndOrganisation,
     createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,
-    plan: billingPlan,
+    plan: getOrganizationPlan(parsedCloudConfig),
+    rateLimit: parsedCloudConfig?.rateLimits,
   });
 
-  if (!orgId || !billingPlan) {
+  if (!orgId) {
     console.error("No organization found for key");
     throw new Error("Invalid credentials");
   }
