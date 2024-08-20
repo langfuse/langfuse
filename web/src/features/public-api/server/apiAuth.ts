@@ -29,6 +29,30 @@ export class ApiAuthService {
     this.redis = redis;
   }
 
+  // this function needs to be called, when the organisation is updated
+  // - when projects move across organisations, the orgId in the API key cache needs to be updated
+  // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
+  async invalidateAllApiKeys(orgId: string) {
+    const apiKeys = await this.prisma.apiKey.findMany({
+      where: {
+        project: {
+          orgId: orgId,
+        },
+      },
+    });
+
+    const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
+
+    if (this.redis) {
+      console.log(`Invalidating API keys in redis for org ${orgId}`);
+      await this.redis.del(
+        hashKeys
+          .filter((hash): hash is string => Boolean(hash))
+          .map((hash) => this.createRedisKey(hash)),
+      );
+    }
+  }
+
   async deleteApiKey(id: string, projectId: string) {
     // Make sure the API key exists and belongs to the project the user has access to
     const apiKey = await this.prisma.apiKey.findFirstOrThrow({
@@ -127,7 +151,7 @@ export class ApiAuthService {
           projectId = transformedKey.projectId;
         }
 
-        if (!projectId || !apiKey) {
+        if (!projectId) {
           console.log("No project id found for key", publicKey);
           throw new Error("Invalid credentials");
         }
@@ -140,7 +164,7 @@ export class ApiAuthService {
             projectId: projectId,
             accessLevel: "all",
           },
-          apiKey,
+          apiKey: apiKey ?? undefined,
         };
       }
       // Bearer auth, limited scope, only needs public key

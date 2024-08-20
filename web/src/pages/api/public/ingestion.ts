@@ -39,7 +39,7 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "@/src/features/ingest/usage";
-import { AuthAndRateLimit } from "@/src/features/public-api/server";
+import { AuthAndRateLimitMiddleware as AuthAndRateLimitService } from "@/src/features/public-api/server";
 
 export const config = {
   api: {
@@ -58,7 +58,11 @@ export default async function handler(
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
-    const authAndRateLimit = new AuthAndRateLimit("ingestion", prisma, redis);
+    const authAndRateLimit = new AuthAndRateLimitService(
+      "ingestion",
+      prisma,
+      redis,
+    );
 
     const { authCheck, rateLimitCheck } =
       await authAndRateLimit.authAndRateLimit(req);
@@ -66,10 +70,7 @@ export default async function handler(
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
     if (rateLimitCheck && rateLimitCheck.remainingPoints < 1) {
-      return authAndRateLimit.createAndSendRateLimitedResponse(
-        res,
-        rateLimitCheck,
-      );
+      return authAndRateLimit.sendRateLimitResponse(res, rateLimitCheck);
     }
 
     console.log("continuing execution");

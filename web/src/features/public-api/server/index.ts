@@ -13,7 +13,7 @@ import type Redis from "ioredis";
 import { type NextApiResponse, type NextApiRequest } from "next";
 import { type z } from "zod";
 
-export class AuthAndRateLimit {
+export class AuthAndRateLimitMiddleware {
   apiKey: z.infer<typeof OrgEnrichedApiKey> | undefined;
   prisma: PrismaClient;
   redis: Redis | null;
@@ -53,7 +53,7 @@ export class AuthAndRateLimit {
     return { authCheck, rateLimitCheck };
   };
 
-  createAndSendRateLimitedResponse = (
+  sendRateLimitResponse = (
     res: NextApiResponse,
     rateLimitRes: RateLimitResult,
   ) => {

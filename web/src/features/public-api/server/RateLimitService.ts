@@ -35,7 +35,7 @@ export type RateLimitRessource =
 
 const rateLimitConfig = {
   default: {
-    ingestion: { points: 10, duration: 60 },
+    ingestion: { points: 100, duration: 60 },
     prompts: null,
     "public-api": { points: 1000, duration: 60 },
     "public-api-metrics": { points: 10, duration: 60 },
@@ -83,9 +83,6 @@ export class RateLimitService {
     // first get the organisation for an API key
     // add this to the key in redis, so that
 
-    // get the rate limit key
-    const rateLimitKey = this.createRateLimitKey(apiKey);
-
     const config =
       rateLimitConfig[
         ["default", "cloud:hobby", "cloud:pro"].includes(apiKey.plan)
@@ -100,7 +97,7 @@ export class RateLimitService {
       points: config.points, // Number of points
       duration: config.duration, // Per second(s)
 
-      keyPrefix: ressource.toString(), // must be unique for limiters with different purpose
+      keyPrefix: this.rateLimitPrefix(ressource), // must be unique for limiters with different purpose
     };
 
     const rateLimiter = this.redis
@@ -112,7 +109,8 @@ export class RateLimitService {
 
     let res: RateLimitResult | undefined = undefined;
     try {
-      const libRes = await rateLimiter.consume(rateLimitKey);
+      // orgId used as key for different ressources
+      const libRes = await rateLimiter.consume(apiKey.orgId);
       res = {
         apiKey,
         ressource,
@@ -144,7 +142,7 @@ export class RateLimitService {
     return res;
   }
 
-  createRateLimitKey(apiKey: z.infer<typeof OrgEnrichedApiKey>) {
-    return `rate-limit:${apiKey.orgId}`;
+  rateLimitPrefix(ressource: string) {
+    return `rate-limit:${ressource}`;
   }
 }
