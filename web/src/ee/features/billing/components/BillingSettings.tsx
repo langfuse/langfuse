@@ -214,14 +214,15 @@ const PricingPageButton = () => {
           {stripeProducts
             .filter((product) => Boolean(product.checkout))
             .map((product) => (
-              <div key={product.stripeProductId}>
+              <div
+                key={product.stripeProductId}
+                className="flex flex-1 flex-col"
+              >
                 <div className="mb-2 text-lg font-semibold">
                   {product.checkout?.title}
                 </div>
-                <div>
-                  <p>{product.checkout?.description}</p>
-                  <p>{product.checkout?.price}</p>
-                </div>
+                <div>{product.checkout?.description}</div>
+                <div className="mb-6 mt-2">{product.checkout?.price}</div>
                 <Button
                   onClick={() => {
                     if (organization)
@@ -230,7 +231,7 @@ const PricingPageButton = () => {
                         stripeProductId: product.stripeProductId,
                       });
                   }}
-                  className="mt-4"
+                  className="mt-auto"
                 >
                   Select plan
                 </Button>
