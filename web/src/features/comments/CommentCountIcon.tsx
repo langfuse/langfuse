@@ -5,8 +5,11 @@ export function CommentCountIcon({ count }: { count?: number }) {
 
   return (
     <span className="relative mr-1 text-xs">
-      <MessageCircleMore className="h-5 w-5 text-muted-foreground" />
-      <span className="absolute -top-0.5 left-3 flex h-4 w-4 items-center justify-center rounded-full border border-muted-foreground bg-accent-light-blue text-xs">
+      <MessageCircleMore className="h-5 w-5" />
+      <span
+        className="absolute -top-0.5 left-3 flex items-center justify-center rounded-full border border-muted-foreground bg-accent-light-blue px-0.5"
+        style={{ fontSize: "0.6rem" }}
+      >
         {count}
       </span>
     </span>
