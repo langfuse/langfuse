@@ -99,7 +99,7 @@ export const SessionPage: React.FC<{
           />,
           <CommentDrawerButton
             key="comment"
-            size="sm"
+            variant="outline"
             projectId={projectId}
             objectId={sessionId}
             objectType="SESSION"
