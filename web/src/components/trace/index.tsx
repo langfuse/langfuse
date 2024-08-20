@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
@@ -55,6 +55,42 @@ export function Trace(props: {
 
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
+  );
+
+  const observationObjectIds: string[] = useMemo(() => {
+    return props.observations.map(({ id }) => id);
+  }, [props.observations]);
+
+  const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectIds: observationObjectIds,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+
+  const traceCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectIds: [props.trace.id],
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
   );
 
   const toggleCollapsedObservation = useCallback(
@@ -114,6 +150,7 @@ export function Trace(props: {
             trace={props.trace}
             observations={props.observations}
             scores={props.scores}
+            commentCounts={traceCommentCounts.data}
           />
         ) : (
           <ObservationPreview
@@ -122,6 +159,7 @@ export function Trace(props: {
             projectId={props.projectId}
             currentObservationId={currentObservationId}
             traceId={props.trace.id}
+            commentCounts={observationCommentCounts.data}
           />
         )}
       </div>
@@ -171,6 +209,8 @@ export function Trace(props: {
           setCurrentObservationId={setCurrentObservationId}
           showMetrics={metricsOnObservationTree}
           showScores={scoresOnObservationTree}
+          observationCommentCounts={observationCommentCounts.data}
+          traceCommentCounts={traceCommentCounts.data}
           className="flex w-full flex-col overflow-y-auto"
         />
       </div>
