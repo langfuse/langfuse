@@ -31,6 +31,14 @@ const rateLimitConfig: RateLimitConfig = {
   },
 };
 
+const planGroups = {
+  default: "default",
+  "cloud:hobby": "default",
+  "cloud:pro": "default",
+  "cloud:team": "team",
+  "self-hosted:enterprise": "team",
+} as const;
+
 export class RateLimitService {
   private redis: Redis;
   private config: RateLimitConfig;
@@ -59,11 +67,11 @@ export class RateLimitService {
     // first get the organisation for an API key
     // add this to the key in redis, so that
 
-    const planKey = ["default", "cloud:hobby", "cloud:pro"].includes(
-      apiKey.plan,
-    )
-      ? "default"
-      : (apiKey.plan as keyof typeof rateLimitConfig);
+    const planKey = planGroups[apiKey.plan as keyof typeof planGroups];
+
+    if (!planKey) {
+      throw new Error(`Plan ${apiKey.plan} not found`);
+    }
 
     const planConfig = this.config[planKey];
 
