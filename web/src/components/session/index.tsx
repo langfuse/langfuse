@@ -57,7 +57,7 @@ export const SessionPage: React.FC<{
     {
       projectId,
       objectIds: [sessionId],
-      objectTypes: ["SESSION"],
+      objectType: "SESSION",
     },
     { enabled: session.isSuccess },
   );

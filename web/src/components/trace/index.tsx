@@ -57,15 +57,20 @@ export function Trace(props: {
     [],
   );
 
-  const objectKeys: string[] = useMemo(() => {
-    const observationIds = props.observations.map(({ id }) => id);
-    return [...observationIds, props.trace.id];
-  }, [props.observations, props.trace]);
+  const observationObjectIds: string[] = useMemo(() => {
+    return props.observations.map(({ id }) => id);
+  }, [props.observations]);
 
-  const commentCounts = api.comments.getCountsByObjectIds.useQuery({
+  const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery({
     projectId: props.trace.projectId,
-    objectIds: objectKeys,
-    objectTypes: ["TRACE", "OBSERVATION"],
+    objectIds: observationObjectIds,
+    objectType: "OBSERVATION",
+  });
+
+  const traceCommentCounts = api.comments.getCountsByObjectIds.useQuery({
+    projectId: props.trace.projectId,
+    objectIds: [props.trace.id],
+    objectType: "TRACE",
   });
 
   const toggleCollapsedObservation = useCallback(
@@ -125,7 +130,7 @@ export function Trace(props: {
             trace={props.trace}
             observations={props.observations}
             scores={props.scores}
-            commentCounts={commentCounts.data}
+            commentCounts={traceCommentCounts.data}
             showComments
           />
         ) : (
@@ -135,7 +140,7 @@ export function Trace(props: {
             projectId={props.projectId}
             currentObservationId={currentObservationId}
             traceId={props.trace.id}
-            commentCounts={commentCounts.data}
+            commentCounts={observationCommentCounts.data}
             showComments
           />
         )}
@@ -186,7 +191,8 @@ export function Trace(props: {
           setCurrentObservationId={setCurrentObservationId}
           showMetrics={metricsOnObservationTree}
           showScores={scoresOnObservationTree}
-          commentCounts={commentCounts.data}
+          observationCommentCounts={observationCommentCounts.data}
+          traceCommentCounts={traceCommentCounts.data}
           className="flex w-full flex-col overflow-y-auto"
         />
       </div>

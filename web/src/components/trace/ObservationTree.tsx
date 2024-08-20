@@ -28,7 +28,8 @@ export const ObservationTree = (props: {
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics: boolean;
   showScores: boolean;
-  commentCounts?: Map<string, number>;
+  observationCommentCounts?: Map<string, number>;
+  traceCommentCounts?: Map<string, number>;
   className?: string;
 }) => {
   const nestedObservations = nestObservations(props.observations);
@@ -39,7 +40,7 @@ export const ObservationTree = (props: {
         collapseAll={props.collapseAll}
         trace={props.trace}
         scores={props.scores}
-        comments={props.commentCounts}
+        comments={props.traceCommentCounts}
         currentObservationId={props.currentObservationId}
         setCurrentObservationId={props.setCurrentObservationId}
         showMetrics={props.showMetrics}
@@ -50,7 +51,7 @@ export const ObservationTree = (props: {
         collapsedObservations={props.collapsedObservations}
         toggleCollapsedObservation={props.toggleCollapsedObservation}
         scores={props.scores}
-        comments={props.commentCounts}
+        comments={props.observationCommentCounts}
         indentationLevel={1}
         currentObservationId={props.currentObservationId}
         setCurrentObservationId={props.setCurrentObservationId}
