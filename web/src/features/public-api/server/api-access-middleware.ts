@@ -1,9 +1,5 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import {
-  type RateLimitResult,
-  type RateLimitresource,
-  RateLimitService,
-} from "@/src/features/public-api/server/RateLimitService";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   type OrgEnrichedApiKey,
@@ -12,17 +8,17 @@ import {
 import type Redis from "ioredis";
 import { type NextApiResponse, type NextApiRequest } from "next";
 import { type z } from "zod";
-
+import { type RateLimitResult, type RateLimitResource } from "@langfuse/shared";
 // this class is responsible for first checking auth and then rate limits
 // it also provides a helper to send out rest responses in case the request was rate limited
 export class ApiAccessMiddleware {
   apiKey: z.infer<typeof OrgEnrichedApiKey> | undefined;
   prisma: PrismaClient;
   redis: Redis | null;
-  resource: RateLimitresource;
+  resource: z.infer<typeof RateLimitResource>;
 
   constructor(
-    resource: RateLimitresource,
+    resource: z.infer<typeof RateLimitResource>,
     prisma: PrismaClient,
     redis: Redis | null,
   ) {

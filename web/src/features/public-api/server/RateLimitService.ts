@@ -3,6 +3,11 @@ import type Redis from "ioredis";
 import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
+import {
+  type RateLimitConfig,
+  type RateLimitResult,
+  type RateLimitResource,
+} from "@langfuse/shared";
 
 // business logic to consider
 // - not all orgs have a cloud config. Need to default to hobby plan within
@@ -10,33 +15,6 @@ import { env } from "@/src/env.mjs";
 // - only apply rate-limits if cloud config is present
 // - rate limits are per org. We pull the orgId and the plan into the API key stored in Redis to have fast rate limiting.
 // - if Redis is not available, we apply container level memory rate limiting.
-
-export type RateLimitResult = {
-  apiKey: z.infer<typeof OrgEnrichedApiKey>;
-  resource: RateLimitresource;
-  points: number;
-
-  // from rate-limiter-flexible
-  remainingPoints: number;
-  msBeforeNext: number;
-  consumedPoints: number;
-  isFirstInDuration: boolean;
-};
-
-export type RateLimitresource =
-  | "ingestion"
-  | "public-api"
-  | "public-api-metrics"
-  | "prompts";
-
-type RateLimitConfig = {
-  [plan: string]: {
-    [resource in RateLimitresource]?: {
-      points: number;
-      duration: number;
-    } | null;
-  };
-};
 
 const rateLimitConfig: RateLimitConfig = {
   default: {
@@ -64,7 +42,7 @@ export class RateLimitService {
 
   async rateLimitRequest(
     apiKey: z.infer<typeof OrgEnrichedApiKey>,
-    resource: RateLimitresource,
+    resource: z.infer<typeof RateLimitResource>,
   ) {
     // if cloud config is not present, we don't apply rate limits
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -81,7 +59,7 @@ export class RateLimitService {
 
   async checkRateLimit(
     apiKey: z.infer<typeof OrgEnrichedApiKey>,
-    resource: RateLimitresource,
+    resource: z.infer<typeof RateLimitResource>,
   ) {
     // first get the organisation for an API key
     // add this to the key in redis, so that

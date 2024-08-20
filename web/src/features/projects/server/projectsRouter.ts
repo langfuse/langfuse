@@ -169,8 +169,8 @@ export const projectsRouter = createTRPCRouter({
         }),
       ]);
 
-      // this has to be called after the transaction. Otherwise risk that concurrent API requests will
-      // add the keys back to the cache.
+      // API keys need to be deleted from cache. Otherwise, they will still be valid.
+      // It has to be called after the db is done to prevent new API keys from being cached.
       await new ApiAuthService(ctx.prisma, redis).deleteAllApiKeysForProject(
         input.projectId,
       );
