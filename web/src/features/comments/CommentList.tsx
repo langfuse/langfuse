@@ -113,7 +113,7 @@ export function CommentList({
   const commentsWithFormattedTimestamp = useMemo(() => {
     return comments.data?.map((comment) => ({
       ...comment,
-      timestamp: formatCommentTimestamp(comment.timestamp),
+      timestamp: formatCommentTimestamp(comment.createdAt),
     }));
   }, [comments.data]);
 

@@ -172,7 +172,7 @@ export const commentsRouter = createTRPCRouter({
           Array<{
             id: string;
             content: string;
-            timestamp: Date;
+            createdAt: Date;
             authorUserId: string | null;
             authorUserImage: string | null;
             authorUserName: string | null;
@@ -182,7 +182,7 @@ export const commentsRouter = createTRPCRouter({
         SELECT
           c.id, 
           c.content, 
-          c.timestamp,
+          c.created_at AS "createdAt",
           u.id AS "authorUserId",
           u.image AS "authorUserImage", 
           u.name AS "authorUserName"
@@ -193,7 +193,7 @@ export const commentsRouter = createTRPCRouter({
           AND c."object_id" = ${input.objectId}
           AND c."object_type"::text = ${input.objectType}
         ORDER BY 
-          timestamp DESC
+          created_at DESC
         `,
         );
 
