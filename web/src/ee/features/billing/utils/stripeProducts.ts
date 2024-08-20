@@ -19,7 +19,7 @@ export const stripeProducts: StripeProduct[] = [
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
         ? "prod_QgDNYKXcBfvUQ3" // test
-        : "prod_P47h5SDEr9vJZk", // live
+        : "prod_QhK7UMhrkVeF6R", // live
     mappedPlan: "cloud:pro",
     checkout: {
       title: "Pro",
@@ -33,7 +33,7 @@ export const stripeProducts: StripeProduct[] = [
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
         ? "prod_QgDOxTD64U6KDv" // test
-        : "prod_PAo9J9pxepZQVe", // live
+        : "prod_QhK9qKGH25BTcS", // live
     mappedPlan: "cloud:team",
     checkout: {
       title: "Team",
