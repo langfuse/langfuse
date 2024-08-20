@@ -217,7 +217,14 @@ export const cloudBillingRouter = createTRPCRouter({
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
-      let billingPeriodStart: Date | null = null;
+      let billingPeriod: {
+        start: Date;
+        end: Date;
+      } | null = null;
+      let upcomingInvoice: {
+        usdAmount: number;
+        date: Date;
+      } | null = null;
 
       const organization = await ctx.prisma.organization.findUnique({
         where: {
@@ -241,10 +248,19 @@ export const cloudBillingRouter = createTRPCRouter({
         const subscription = await stripeClient.subscriptions.retrieve(
           parsedOrg.cloudConfig.stripe.activeSubscriptionId,
         );
-        if (subscription)
-          billingPeriodStart = new Date(
-            subscription.current_period_start * 1000,
-          );
+        if (subscription) {
+          billingPeriod = {
+            start: new Date(subscription.current_period_start * 1000),
+            end: new Date(subscription.current_period_end * 1000),
+          };
+          const stripeInvoice = await stripeClient.invoices.retrieveUpcoming({
+            subscription: parsedOrg.cloudConfig.stripe.activeSubscriptionId,
+          });
+          upcomingInvoice = {
+            usdAmount: stripeInvoice.amount_due / 100,
+            date: new Date(stripeInvoice.period_end * 1000),
+          };
+        }
       }
 
       const usage = await ctx.prisma.observation.count({
@@ -253,14 +269,15 @@ export const cloudBillingRouter = createTRPCRouter({
             orgId: input.orgId,
           },
           startTime: {
-            gte: billingPeriodStart ?? thirtyDaysAgo,
+            gte: billingPeriod?.start ?? thirtyDaysAgo,
           },
         },
       });
 
       return {
         countObservations: usage,
-        billingPeriodStart,
+        billingPeriod,
+        upcomingInvoice,
       };
     }),
 });
