@@ -6,8 +6,6 @@ export const OrgEnrichedApiKey = z.object({
   id: z.string(),
   note: z.string().nullable(),
   publicKey: z.string(),
-  hashedSecretKey: z.string(),
-  fastHashedSecretKey: z.string().nullable(),
   displaySecretKey: z.string(),
   createdAt: z.string().datetime().nullable(),
   lastUsedAt: z.string().datetime().nullable(),
