@@ -15,7 +15,7 @@ export const OrgEnrichedApiKey = z.object({
   // orgId is added at write time to the redis cache.
   // Best way to rate-limit API keys on a per-org basis.
   orgId: z.string(),
-  plan: z.enum(plans),
+  plan: z.enum(plans as unknown as [string, ...string[]]),
 });
 
 export const API_KEY_NON_EXISTENT = "api-key-non-existent";

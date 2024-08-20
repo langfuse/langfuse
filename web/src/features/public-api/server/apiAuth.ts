@@ -15,10 +15,10 @@ import {
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis } from "ioredis";
-import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
+import { CloudConfigSchema } from "@langfuse/shared";
 
 export class ApiAuthService {
   prisma: PrismaClient;
@@ -163,6 +163,7 @@ export class ApiAuthService {
     } catch (error: unknown) {
       console.error(
         `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
+        error,
       );
 
       if (isPrismaException(error)) {
