@@ -34,10 +34,11 @@ function MarkdownOrJsonView({
   );
 
   const { isMarkdownEnabled } = useMarkdownContext();
+  const isPlaintext = typeof content === "string";
 
-  return validatedMarkdown.success && isMarkdownEnabled ? (
+  return isMarkdownEnabled && isPlaintext ? (
     <MarkdownView
-      markdown={validatedMarkdown.data}
+      markdown={validatedMarkdown.data ?? content}
       title={title}
       className={className}
       customCodeHeaderClassName={customCodeHeaderClassName}
@@ -45,7 +46,7 @@ function MarkdownOrJsonView({
   ) : (
     <JSONView
       json={content}
-      canEnableMarkdown={validatedMarkdown.success}
+      canEnableMarkdown={isPlaintext}
       title={title}
       className={className}
     />
