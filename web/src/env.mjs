@@ -166,12 +166,6 @@ export const env = createEnv({
       .number()
       .positive()
       .default(60 * 10),
-<<<<<<< Updated upstream
-=======
-    LANGFUSE_LOG_LEVEL: z
-      .enum(["trace", "debug", "info", "warn", "error", "fatal"])
-      .optional(),
->>>>>>> Stashed changes
   },
 
   /**
@@ -315,10 +309,6 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:
       process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
-<<<<<<< Updated upstream
-=======
-    LANGFUSE_LOG_LEVEL: process.env.LANGFUSE_LOG_LEVEL,
->>>>>>> Stashed changes
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

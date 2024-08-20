@@ -40,12 +40,6 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "@/src/features/ingest/usage";
-<<<<<<< Updated upstream
-=======
-import logger from "@/src/server/utils/logger";
-import { AuthAndRateLimit } from "@/src/features/public-api/server";
-import { createHttpHeaderFromRateLimit } from "@/src/features/public-api/server/RateLimitService";
->>>>>>> Stashed changes
 
 export const config = {
   api: {
