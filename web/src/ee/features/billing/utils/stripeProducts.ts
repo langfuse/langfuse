@@ -38,7 +38,7 @@ export const stripeProducts: StripeProduct[] = [
     checkout: {
       title: "Team",
       description:
-        "Dedicated solutions and support for your team. Contact us for pricing.",
+        "Dedicated solutions and support for your team. Contact us for additional add-ons listed on the pricing page.",
       price: "$499 / month + $10/100k observations",
     },
   },
