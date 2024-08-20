@@ -5,16 +5,35 @@ const OpenAITextContentPart = z.object({
   type: z.literal("text"),
   text: z.string(),
 });
-const OpenAIImageContentPart = z.object({
+
+export const OpenAIUrlImageUrl = z.string().regex(/^https?:/);
+
+const OpenAIBase64ImageUrl = z
+  .string()
+  .regex(/^data:image\/(png|jpeg|jpg|gif|webp);base64/);
+
+const OpenAIImageContentPartUrl = z.object({
   type: z.literal("image_url"),
   image_url: z.object({
-    url: z.string().regex(/^https?:/),
+    url: OpenAIUrlImageUrl,
+    detail: z.enum(["low", "high", "auto"]).optional(), // Controls how the model processes the image. Defaults to "auto". [https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding]
+  }),
+});
+
+const OpenAIImageContentPartBase64 = z.object({
+  type: z.literal("image_url"),
+  image_url: z.object({
+    url: OpenAIBase64ImageUrl,
     detail: z.enum(["low", "high", "auto"]).optional(), // Controls how the model processes the image. Defaults to "auto". [https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding]
   }),
 });
 
 export const OpenAIContentParts = z.array(
-  z.union([OpenAITextContentPart, OpenAIImageContentPart]),
+  z.union([
+    OpenAITextContentPart,
+    OpenAIImageContentPartUrl,
+    OpenAIImageContentPartBase64,
+  ]),
 );
 
 export const OpenAIContentSchema = z.union([z.string(), OpenAIContentParts]);

@@ -49,7 +49,7 @@ const ImageErrorDisplay = ({
   </div>
 );
 
-export const MarkdownImage: React.FC<{ src: string; alt: string }> = ({
+export const MarkdownImage: React.FC<{ src: string; alt?: string }> = ({
   src,
   alt,
 }) => {
@@ -61,10 +61,8 @@ export const MarkdownImage: React.FC<{ src: string; alt: string }> = ({
   if (!isPresent(src)) return null;
 
   const isValidImage = api.utilities.validateImgUrl.useQuery(src, {
-    enabled: session.status === "authenticated",
+    enabled: session.status === "authenticated" && isImageVisible,
   });
-
-  console.log({ isValidImage: isValidImage.data, src });
 
   if (session.status !== "authenticated") {
     return (
@@ -75,7 +73,7 @@ export const MarkdownImage: React.FC<{ src: string; alt: string }> = ({
     );
   }
 
-  if (isValidImage.isLoading) {
+  if (isValidImage.isLoading && isImageVisible) {
     return (
       <Skeleton className="h-8 w-1/2 items-center p-2 text-xs">
         <span className="opacity-80">Loading image...</span>
@@ -85,19 +83,19 @@ export const MarkdownImage: React.FC<{ src: string; alt: string }> = ({
 
   const displayError = `Cannot load image. ${src.includes("http") ? "Http images are not rendered in Langfuse for security reasons" : "Invalid image URL"}`;
 
-  if (isValidImage.data?.isValid) {
-    return (
-      <div>
-        {hasFetchError ? (
-          <ImageErrorDisplay src={src} displayError={displayError} />
-        ) : (
-          <div
-            className={cn(
-              "group relative w-full overflow-hidden",
-              isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full",
-            )}
-          >
-            {isImageVisible ? (
+  return (
+    <div>
+      {hasFetchError ? (
+        <ImageErrorDisplay src={src} displayError={displayError} />
+      ) : (
+        <div
+          className={cn(
+            "group relative w-full overflow-hidden",
+            isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full",
+          )}
+        >
+          {isImageVisible && isValidImage.data?.isValid ? (
+            <>
               <Image
                 loader={customLoader}
                 src={src}
@@ -112,32 +110,6 @@ export const MarkdownImage: React.FC<{ src: string; alt: string }> = ({
                   captureException(error);
                 }}
               />
-            ) : (
-              <div className="grid h-14 w-full grid-cols-[auto,1fr] items-center gap-2 rounded border border-dashed bg-muted/30 p-2 text-xs text-muted-foreground/60">
-                <Button
-                  title="Render image"
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setIsImageVisible(!isImageVisible)}
-                >
-                  <ImageIcon className="h-4 w-4" />
-                </Button>
-                <div className="flex items-center overflow-hidden">
-                  <Link
-                    href={src}
-                    title={src}
-                    className="overflow-hidden underline"
-                    target="_blank"
-                  >
-                    <div className="h-8 overflow-hidden overflow-ellipsis">
-                      {src}
-                    </div>
-                  </Link>
-                </div>
-              </div>
-            )}
-            {isImageVisible && (
               <Button
                 type="button"
                 className="absolute right-0 top-0 mr-1 mt-1 h-8 w-8 opacity-0 group-hover:!bg-accent/30 group-hover:opacity-100"
@@ -151,12 +123,34 @@ export const MarkdownImage: React.FC<{ src: string; alt: string }> = ({
                   <Minimize2 className="h-4 w-4"></Minimize2>
                 )}
               </Button>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return <ImageErrorDisplay src={src} displayError={displayError} />;
+            </>
+          ) : (
+            <div className="grid h-14 w-full grid-cols-[auto,1fr] items-center gap-2 rounded border border-dashed bg-muted/30 p-2 text-xs text-muted-foreground/60">
+              <Button
+                title="Render image"
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => setIsImageVisible(!isImageVisible)}
+              >
+                <ImageIcon className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center overflow-hidden">
+                <Link
+                  href={src}
+                  title={src}
+                  className="overflow-hidden underline"
+                  target="_blank"
+                >
+                  <div className="h-8 overflow-hidden overflow-ellipsis">
+                    {src}
+                  </div>
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };

@@ -16,13 +16,14 @@ import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { Button } from "@/src/components/ui/button";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, ImageOff } from "lucide-react";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import { MarkdownImage } from "@/src/components/ui/markdown-image";
 import {
+  OpenAIUrlImageUrl,
   type OpenAIContentParts,
   type OpenAIContentSchema,
 } from "@/src/components/schemas/ChatMlSchema";
@@ -84,10 +85,7 @@ function MarkdownRenderer({
 }) {
   return (
     <MemoizedReactMarkdown
-      className={cn(
-        "space-y-4 overflow-x-auto break-words p-3 text-sm",
-        className,
-      )}
+      className={cn("space-y-2 overflow-x-auto break-words text-sm", className)}
       remarkPlugins={[remarkGfm, remarkMath]}
       components={{
         p({ children, node }) {
@@ -296,30 +294,41 @@ export function MarkdownView({
           </div>
         </div>
       ) : null}
-      {typeof markdown === "string" ? (
-        <MarkdownRenderer
-          markdown={markdown}
-          theme={theme}
-          className={className}
-          customCodeHeaderClassName={customCodeHeaderClassName}
-        />
-      ) : (
-        markdown.map((content, index) =>
-          content.type === "text" ? (
-            <MarkdownRenderer
-              key={index}
-              markdown={content.text}
-              theme={theme}
-              className={className}
-              customCodeHeaderClassName={customCodeHeaderClassName}
-            />
-          ) : (
-            <div key={index} className="mb-3 px-3">
-              <MarkdownImage src={content.image_url.url} alt={""} />
-            </div>
-          ),
-        )
-      )}
+      <div className="grid grid-flow-row gap-2 p-3">
+        {typeof markdown === "string" ? (
+          <MarkdownRenderer
+            markdown={markdown}
+            theme={theme}
+            className={className}
+            customCodeHeaderClassName={customCodeHeaderClassName}
+          />
+        ) : (
+          markdown.map((content, index) =>
+            content.type === "text" ? (
+              <MarkdownRenderer
+                key={index}
+                markdown={content.text}
+                theme={theme}
+                className={className}
+                customCodeHeaderClassName={customCodeHeaderClassName}
+              />
+            ) : OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
+              <div key={index}>
+                <MarkdownImage src={content.image_url.url} />
+              </div>
+            ) : (
+              <div className="grid grid-cols-[auto,1fr] items-center gap-2">
+                <span title="No Base64 image support yet" className="h-4 w-4">
+                  <ImageOff className="h-4 w-4" />
+                </span>
+                <span className="truncate text-sm">
+                  {content.image_url.url}
+                </span>
+              </div>
+            ),
+          )
+        )}
+      </div>
     </div>
   );
 }
