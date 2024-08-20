@@ -8,6 +8,8 @@ import { organizationNameSchema } from "@/src/features/organizations/utils/organ
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { redis } from "@langfuse/shared/src/server";
 
 export const organizationsRouter = createTRPCRouter({
   create: protectedProcedure
@@ -114,6 +116,10 @@ export const organizationsRouter = createTRPCRouter({
           id: input.orgId,
         },
       });
+
+      await new ApiAuthService(ctx.prisma, redis).deleteAllApiKeysForOrg(
+        input.orgId,
+      );
 
       await auditLog({
         session: ctx.session,

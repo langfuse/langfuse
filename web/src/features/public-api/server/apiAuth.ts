@@ -32,7 +32,20 @@ export class ApiAuthService {
   // this function needs to be called, when the organisation is updated
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
-  async invalidateAllApiKeys(orgId: string) {
+  private async deleteApiKeys(apiKeys: ApiKey[], identifier: string) {
+    const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
+
+    if (this.redis) {
+      console.log(`Invalidating API keys in redis for ${identifier}`);
+      await this.redis.del(
+        hashKeys
+          .filter((hash): hash is string => Boolean(hash))
+          .map((hash) => this.createRedisKey(hash)),
+      );
+    }
+  }
+
+  async deleteAllApiKeysForOrg(orgId: string) {
     const apiKeys = await this.prisma.apiKey.findMany({
       where: {
         project: {
@@ -41,16 +54,17 @@ export class ApiAuthService {
       },
     });
 
-    const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
+    await this.deleteApiKeys(apiKeys, `org ${orgId}`);
+  }
 
-    if (this.redis) {
-      console.log(`Invalidating API keys in redis for org ${orgId}`);
-      await this.redis.del(
-        hashKeys
-          .filter((hash): hash is string => Boolean(hash))
-          .map((hash) => this.createRedisKey(hash)),
-      );
-    }
+  async deleteAllApiKeysForProject(projectId: string) {
+    const apiKeys = await this.prisma.apiKey.findMany({
+      where: {
+        projectId: projectId,
+      },
+    });
+
+    await this.deleteApiKeys(apiKeys, `project ${projectId}`);
   }
 
   async deleteApiKey(id: string, projectId: string) {
