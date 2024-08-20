@@ -642,9 +642,10 @@ model Comment {
     project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
     objectType   CommentObjectType @map("object_type")
     objectId     String            @map("object_id")
-    timestamp    DateTime          @default(now())
+    createdAt    DateTime          @default(now()) @map("created_at")
+    updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at")
     content      String
-    authorUserId String?           @map("author_user_id")
+    authorUserId String?           @map("author_user_id") // no fk constraint, user can be deleted
 
     @@index([projectId, objectType, objectId])
     @@map("comments")

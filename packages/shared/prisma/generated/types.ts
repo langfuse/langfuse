@@ -128,7 +128,8 @@ export type Comment = {
     project_id: string;
     object_type: CommentObjectType;
     object_id: string;
-    timestamp: Generated<Timestamp>;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
     content: string;
     author_user_id: string | null;
 };
