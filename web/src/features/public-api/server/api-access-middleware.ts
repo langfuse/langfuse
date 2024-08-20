@@ -13,7 +13,9 @@ import type Redis from "ioredis";
 import { type NextApiResponse, type NextApiRequest } from "next";
 import { type z } from "zod";
 
-export class AuthAndRateLimitMiddleware {
+// this class is responsible for first checking auth and then rate limits
+// it also provides a helper to send out rest responses in case the request was rate limited
+export class ApiAccessMiddleware {
   apiKey: z.infer<typeof OrgEnrichedApiKey> | undefined;
   prisma: PrismaClient;
   redis: Redis | null;

@@ -1,7 +1,5 @@
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { type prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { RateLimiterMemory, RateLimiterRedis } from "rate-limiter-flexible";
 
 describe("RateLimitService", () => {
   const orgId = "seed-org-id";

@@ -39,7 +39,7 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "@/src/features/ingest/usage";
-import { AuthAndRateLimitMiddleware as AuthAndRateLimitService } from "@/src/features/public-api/server";
+import { ApiAccessMiddleware as AuthAndRateLimitService } from "@/src/features/public-api/server/api-access-middleware";
 
 export const config = {
   api: {
