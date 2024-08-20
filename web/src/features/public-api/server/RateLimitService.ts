@@ -83,10 +83,19 @@ export class RateLimitService {
 
     const planBasedConfig = planConfig[resource];
 
-    const customConfig =
-      apiKey.rateLimits?.find((config) => config[resource])?.[resource] ?? null;
-    const effectiveConfig = customConfig ?? planBasedConfig;
+    const customConfig = apiKey.rateLimits?.find((config) =>
+      config.hasOwnProperty(resource),
+    );
+    const hasCustomConfig = customConfig !== undefined;
 
+    // If customConfig is explicitly set to null, it should prevail
+    const effectiveConfig = hasCustomConfig
+      ? customConfig?.[resource]
+      : planBasedConfig;
+
+    console.log("Api key", apiKey, "Resource", resource);
+    console.log("Custom config", customConfig);
+    console.log("Effective rate limit config", effectiveConfig);
     // returning early if no rate limit is set
     if (!effectiveConfig) {
       return;

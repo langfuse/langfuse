@@ -241,4 +241,56 @@ describe("RateLimitService", () => {
       isFirstInDuration: true,
     });
   });
+
+  it("should not apply rate limits for resource prompts", async () => {
+    const apiKey = {
+      id: "no-rate-limit-test-id",
+      note: "No Rate Limit Test API Key",
+      publicKey: "pk-no-rate-limit-test-1234567890",
+      hashedSecretKey: "hashed-secret-key",
+      fastHashedSecretKey: "fast-hashed-secret-key",
+      displaySecretKey: "display-secret-key",
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+      expiresAt: null,
+      projectId: "no-rate-limit-test-project-id",
+      orgId: "no-rate-limit-test-org",
+      plan: "default",
+      rateLimits: [],
+    };
+
+    const rateLimitService = new RateLimitService(redis!);
+
+    const result = await rateLimitService.rateLimitRequest(apiKey, "prompts");
+
+    expect(result).toBeUndefined();
+  });
+
+  it("should not apply rate limits for ingestion when overridden to null in API key", async () => {
+    const apiKey = {
+      id: "override-no-rate-limit-test-id",
+      note: "Override No Rate Limit Test API Key",
+      publicKey: "pk-override-no-rate-limit-test-1234567890",
+      hashedSecretKey: "hashed-secret-key",
+      fastHashedSecretKey: "fast-hashed-secret-key",
+      displaySecretKey: "display-secret-key",
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+      expiresAt: null,
+      projectId: "override-no-rate-limit-test-project-id",
+      orgId: "override-no-rate-limit-test-org",
+      plan: "default",
+      rateLimits: [
+        {
+          ingestion: null,
+        },
+      ],
+    };
+
+    const rateLimitService = new RateLimitService(redis!);
+
+    const result = await rateLimitService.rateLimitRequest(apiKey, "ingestion");
+
+    expect(result).toBeUndefined();
+  });
 });
