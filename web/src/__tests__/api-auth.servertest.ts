@@ -154,13 +154,12 @@ describe("Authenticate API calls", () => {
           cloudConfig: {
             rateLimits: [
               {
-                "public-api": {
-                  points: 1000,
-                  duration: 60,
-                },
+                resource: "public-api",
+                points: 1000,
+                duration: 60,
               },
               {
-                ingestion: undefined,
+                resource: "ingestion",
               },
             ],
           },
@@ -203,13 +202,12 @@ describe("Authenticate API calls", () => {
         plan: "cloud:hobby",
         rateLimits: [
           {
-            "public-api": {
-              points: 1000,
-              duration: 60,
-            },
+            resource: "public-api",
+            points: 1000,
+            duration: 60,
           },
           {
-            ingestion: undefined,
+            resource: "ingestion",
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),

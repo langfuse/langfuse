@@ -115,9 +115,8 @@ describe("RateLimitService", () => {
     };
 
     const customConfig = {
-      default: {
-        "public-api": { points: 100, duration: 1 },
-      },
+      default: [{ resource: "public-api" as const, points: 100, duration: 1 }],
+      team: [],
     };
 
     const rateLimitService = new RateLimitService(redis!, customConfig);
@@ -171,11 +170,9 @@ describe("RateLimitService", () => {
       orgId: "test-org",
       plan: "default",
     };
-
     const customConfig = {
-      default: {
-        "public-api": { points: 100, duration: 1 },
-      },
+      default: [{ resource: "public-api" as const, points: 100, duration: 1 }],
+      team: [],
     };
 
     const rateLimitService = new RateLimitService(redis!, customConfig);
@@ -216,10 +213,9 @@ describe("RateLimitService", () => {
       plan: "default",
       rateLimits: [
         {
-          "public-api": {
-            points: 5,
-            duration: 10,
-          },
+          resource: "public-api" as const,
+          points: 5,
+          duration: 10,
         },
       ],
     };
@@ -282,7 +278,7 @@ describe("RateLimitService", () => {
       plan: "default",
       rateLimits: [
         {
-          ingestion: null,
+          resource: "ingestion" as const,
         },
       ],
     };

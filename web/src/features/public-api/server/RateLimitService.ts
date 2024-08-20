@@ -4,9 +4,9 @@ import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 import {
-  type RateLimitConfig,
   type RateLimitResult,
   type RateLimitResource,
+  type RateLimitPlanConfig,
 } from "@langfuse/shared";
 
 // business logic to consider
@@ -16,19 +16,19 @@ import {
 // - rate limits are per org. We pull the orgId and the plan into the API key stored in Redis to have fast rate limiting.
 // - if Redis is not available, we apply container level memory rate limiting.
 
-const rateLimitConfig: RateLimitConfig = {
-  default: {
-    ingestion: { points: 100, duration: 60 },
-    prompts: null,
-    "public-api": { points: 1000, duration: 60 },
-    "public-api-metrics": { points: 10, duration: 60 },
-  },
-  team: {
-    ingestion: { points: 5000, duration: 60 },
-    prompts: null,
-    "public-api": { points: 1000, duration: 60 },
-    "public-api-metrics": { points: 10, duration: 60 },
-  },
+const rateLimitConfig: z.infer<typeof RateLimitPlanConfig> = {
+  default: [
+    { resource: "ingestion", points: 100, duration: 60 },
+    { resource: "prompts", points: null, duration: null },
+    { resource: "public-api", points: 1000, duration: 60 },
+    { resource: "public-api-metrics", points: 10, duration: 60 },
+  ],
+  team: [
+    { resource: "ingestion", points: 5000, duration: 60 },
+    { resource: "prompts", points: null, duration: null },
+    { resource: "public-api", points: 1000, duration: 60 },
+    { resource: "public-api-metrics", points: 10, duration: 60 },
+  ],
 };
 
 const planGroups = {
@@ -41,9 +41,12 @@ const planGroups = {
 
 export class RateLimitService {
   private redis: Redis;
-  private config: RateLimitConfig;
+  private config: z.infer<typeof RateLimitPlanConfig>;
 
-  constructor(redis: Redis, config: RateLimitConfig = rateLimitConfig) {
+  constructor(
+    redis: Redis,
+    config: z.infer<typeof RateLimitPlanConfig> = rateLimitConfig,
+  ) {
     this.redis = redis;
     this.config = config;
   }
@@ -70,31 +73,36 @@ export class RateLimitService {
       throw new Error(`Plan ${apiKey.plan} not found`);
     }
 
+    console.log("Plan key", planKey);
+
     const planConfig = this.config[planKey];
 
-    if (!planConfig || !(resource in planConfig)) {
+    if (!planConfig) {
       throw new Error(
         `Rate limit config for resource ${resource} not found for plan ${apiKey.plan}`,
       );
     }
 
-    const planBasedConfig = planConfig[resource];
-
-    const customConfig = apiKey.rateLimits?.find((config) =>
-      config.hasOwnProperty(resource),
+    const planBasedConfig = planConfig.find(
+      (config) => config.resource === resource,
     );
-    const hasCustomConfig = customConfig !== undefined;
 
-    // If customConfig is explicitly set to null, it should prevail
-    const effectiveConfig = hasCustomConfig
-      ? customConfig?.[resource]
-      : planBasedConfig;
+    const customConfig = apiKey.rateLimits?.find(
+      (config) => config.resource === resource,
+    );
+
+    const effectiveConfig = customConfig || planBasedConfig;
 
     console.log("Api key", apiKey, "Resource", resource);
     console.log("Custom config", customConfig);
     console.log("Effective rate limit config", effectiveConfig);
     // returning early if no rate limit is set
-    if (!effectiveConfig) {
+
+    if (
+      !effectiveConfig ||
+      !effectiveConfig.points ||
+      !effectiveConfig.duration
+    ) {
       return;
     }
 

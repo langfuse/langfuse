@@ -20,17 +20,15 @@ export const RateLimitResource = z.enum([
   "prompts",
 ]);
 
-export const RateLimitValue = z.object({
-  points: z.number(),
-  duration: z.number(),
+export const RateLimitConfig = z.object({
+  points: z.number().nullish(),
+  duration: z.number().nullish(),
+  resource: RateLimitResource,
 });
 
-export const RateLimitConfig = z.record(
-  RateLimitResource,
-  RateLimitValue.nullable()
-);
-
-export const RateLimitConfigZod = z.record(z.string(), RateLimitConfig);
 export const CloudConfigRateLimitZod = z.array(RateLimitConfig);
 
-export type RateLimitConfig = z.infer<typeof RateLimitConfigZod>;
+export const RateLimitPlanConfig = z.object({
+  default: z.array(RateLimitConfig),
+  team: z.array(RateLimitConfig),
+});
