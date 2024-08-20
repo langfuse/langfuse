@@ -12,28 +12,16 @@ const OpenAIBase64ImageUrl = z
   .string()
   .regex(/^data:image\/(png|jpeg|jpg|gif|webp);base64/);
 
-const OpenAIImageContentPartUrl = z.object({
+const OpenAIImageContentPart = z.object({
   type: z.literal("image_url"),
   image_url: z.object({
-    url: OpenAIUrlImageUrl,
-    detail: z.enum(["low", "high", "auto"]).optional(), // Controls how the model processes the image. Defaults to "auto". [https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding]
-  }),
-});
-
-const OpenAIImageContentPartBase64 = z.object({
-  type: z.literal("image_url"),
-  image_url: z.object({
-    url: OpenAIBase64ImageUrl,
+    url: z.union([OpenAIUrlImageUrl, OpenAIBase64ImageUrl]),
     detail: z.enum(["low", "high", "auto"]).optional(), // Controls how the model processes the image. Defaults to "auto". [https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding]
   }),
 });
 
 export const OpenAIContentParts = z.array(
-  z.union([
-    OpenAITextContentPart,
-    OpenAIImageContentPartUrl,
-    OpenAIImageContentPartBase64,
-  ]),
+  z.union([OpenAITextContentPart, OpenAIImageContentPart]),
 );
 
 export const OpenAIContentSchema = z.union([z.string(), OpenAIContentParts]);

@@ -39,11 +39,11 @@ const ImageErrorDisplay = ({
   src: string;
   displayError: string;
 }) => (
-  <div className="flex flex-row items-center gap-2">
+  <div className="grid grid-cols-[auto,1fr] items-center gap-2">
     <span title={displayError} className="h-4 w-4">
       <ImageOff className="h-4 w-4" />
     </span>
-    <Link href={src} className="underline" target="_blank">
+    <Link href={src} className="truncate text-sm underline" target="_blank">
       {src}
     </Link>
   </div>
