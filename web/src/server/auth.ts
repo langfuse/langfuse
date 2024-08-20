@@ -29,7 +29,7 @@ import {
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
 import { z } from "zod";
-import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
+import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,
   traceException,

@@ -129,6 +129,7 @@ model Project {
     Score              Score[]
     scoreConfig        ScoreConfig[]
     BatchExport        BatchExport[]
+    comment            Comment[]
 
     @@index([orgId])
     @@map("projects")
@@ -633,6 +634,28 @@ model Events {
 
     @@index(projectId)
     @@map("events")
+}
+
+model Comment {
+    id           String            @id @default(cuid())
+    projectId    String            @map("project_id")
+    project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    objectType   CommentObjectType @map("object_type")
+    objectId     String            @map("object_id")
+    createdAt    DateTime          @default(now()) @map("created_at")
+    updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at")
+    content      String
+    authorUserId String?           @map("author_user_id") // no fk constraint, user can be deleted
+
+    @@index([projectId, objectType, objectId])
+    @@map("comments")
+}
+
+enum CommentObjectType {
+    TRACE
+    OBSERVATION
+    SESSION
+    PROMPT
 }
 
 model Prompt {

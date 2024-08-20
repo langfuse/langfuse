@@ -43,6 +43,10 @@ export default function Header({
   title: string;
   breadcrumb?: { name: string; href?: string }[];
   status?: Status;
+  label?: {
+    text: string;
+    href: string;
+  };
   help?: { description: string; href?: string };
   featureBetaURL?: string;
   actionButtons?: React.ReactNode;
@@ -91,6 +95,11 @@ export default function Header({
             ) : null}
           </div>
           {props.status && <StatusBadge type={props.status} />}
+          {props.label && (
+            <Link href={props.label.href}>
+              <StatusBadge type={props.label.text} />
+            </Link>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {props.actionButtons ?? null}

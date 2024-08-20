@@ -9,8 +9,7 @@ import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
 import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
-import { CustomSSOProvider } from "@langfuse/shared/src/server";
-import * as Sentry from "@sentry/node";
+import { CustomSSOProvider, traceException } from "@langfuse/shared/src/server";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -52,7 +51,7 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
       );
     } catch (e) {
       console.error("Failed to load SSO configs from the database", e);
-      Sentry.captureException(e);
+      traceException(e);
       // empty array will be cached to prevent repeated DB queries
       failedToFetch = true;
     }
@@ -69,7 +68,7 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
             e,
           );
 
-          Sentry.captureException(e);
+          traceException(e);
           return null;
         }
       })
@@ -194,7 +193,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     console.error(
       `Unrecognized SSO provider for domain ${(provider as any).domain}`,
     );
-    Sentry.captureException(
+    traceException(
       new Error(
         `Unrecognized SSO provider for domain ${(provider as any).domain}`,
       ),

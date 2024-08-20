@@ -155,7 +155,7 @@ export const ScorePropsAgainstConfig = z.union([
 
 /**
  * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
- * All scores are expected to pass the validation. If a score fails validation, it will be logged to Sentry.
+ * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.
  * @param scores
  * @returns list of validated scores
  */

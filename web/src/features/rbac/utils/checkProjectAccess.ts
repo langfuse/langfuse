@@ -43,6 +43,7 @@ export const useHasProjectAccess = (p: {
   const { scope, projectId } = p;
   const session = useSession();
 
+  if (session.data?.user?.admin) return true;
   if (!projectId) return false;
 
   return hasProjectAccess({ session: session.data, scope, projectId });
