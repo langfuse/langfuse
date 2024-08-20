@@ -124,11 +124,7 @@ export class ApiAuthService {
             include: { project: { include: { organization: true } } },
           });
 
-          console.log("old API key from DB", dbKey);
-
           const transformedKey = dbKey ? convertApiKeyAndOrg(dbKey) : null;
-
-          console.log("transformed key", transformedKey);
 
           if (!transformedKey) {
             console.error("No key found for public key", publicKey);
@@ -268,7 +264,6 @@ export class ApiAuthService {
       include: { project: { include: { organization: true } } },
     });
 
-    console.log("API key from DB", apiKeyAndOrganisation);
     const transformedKey = apiKeyAndOrganisation
       ? convertApiKeyAndOrg(apiKeyAndOrganisation)
       : null;
@@ -361,13 +356,9 @@ export const convertApiKeyAndOrg = (
     },
   } = apiKeyAndOrganisation;
 
-  console.log(`HERE, ${JSON.stringify(cloudConfig)}`);
-
   const parsedCloudConfig = cloudConfig
     ? CloudConfigSchema.parse(cloudConfig)
     : undefined;
-
-  console.log("parsed cloud config", parsedCloudConfig);
 
   const newApiKey = OrgEnrichedApiKey.parse({
     ...apiKeyAndOrganisation,
@@ -376,8 +367,6 @@ export const convertApiKeyAndOrg = (
     plan: getOrganizationPlan(parsedCloudConfig),
     rateLimits: parsedCloudConfig?.rateLimits,
   });
-
-  console.log(`new API key ${newApiKey}`);
 
   if (!orgId) {
     console.error("No organization found for key");

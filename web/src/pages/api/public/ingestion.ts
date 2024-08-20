@@ -73,8 +73,6 @@ export default async function handler(
       return authAndRateLimit.sendRateLimitResponse(res, rateLimitCheck);
     }
 
-    console.log("continuing execution");
-
     const batchType = z.object({
       batch: z.array(z.unknown()),
       metadata: jsonSchema.nullish(),

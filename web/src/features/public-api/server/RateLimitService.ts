@@ -73,8 +73,6 @@ export class RateLimitService {
       throw new Error(`Plan ${apiKey.plan} not found`);
     }
 
-    console.log("Plan key", planKey);
-
     const planConfig = this.config[planKey];
 
     if (!planConfig) {
@@ -93,11 +91,7 @@ export class RateLimitService {
 
     const effectiveConfig = customConfig || planBasedConfig;
 
-    console.log("Api key", apiKey, "Resource", resource);
-    console.log("Custom config", customConfig);
-    console.log("Effective rate limit config", effectiveConfig);
     // returning early if no rate limit is set
-
     if (
       !effectiveConfig ||
       !effectiveConfig.points ||
