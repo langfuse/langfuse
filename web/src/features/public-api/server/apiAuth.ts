@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 import {
   addUserToSpan,
-  ApiKeyZod,
+  OrgEnrichedApiKey,
   createShaHash,
   recordIncrement,
   verifySecretKey,
@@ -244,7 +244,7 @@ export class ApiAuthService {
 
   async addApiKeyToRedis(
     hash: string,
-    newApiKey: z.infer<typeof ApiKeyZod> | typeof API_KEY_NON_EXISTENT,
+    newApiKey: z.infer<typeof OrgEnrichedApiKey> | typeof API_KEY_NON_EXISTENT,
   ) {
     if (!this.redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") {
       return;
@@ -328,7 +328,7 @@ export const convertApiKeyAndOrg = (
 
   console.log("Billing plan", billingPlan);
 
-  const newApiKey = ApiKeyZod.parse({
+  const newApiKey = OrgEnrichedApiKey.parse({
     ...apiKeyAndOrganisation,
     createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,

@@ -1,7 +1,7 @@
 import z from "zod";
 import { plans } from "../entitlements/plans";
 
-export const ApiKeyZod = z.object({
+export const OrgEnrichedApiKey = z.object({
   id: z.string(),
   note: z.string().nullable(),
   publicKey: z.string(),
@@ -21,7 +21,7 @@ export const ApiKeyZod = z.object({
 export const API_KEY_NON_EXISTENT = "api-key-non-existent";
 
 export const CachedApiKey = z.union([
-  ApiKeyZod,
+  OrgEnrichedApiKey,
   z.literal(API_KEY_NON_EXISTENT),
 ]);
 
@@ -35,7 +35,7 @@ export type AuthHeaderVerificationResult =
 export type AuthHeaderValidVerificationResult = {
   validKey: true;
   scope: ApiAccessScope;
-  apiKey: z.infer<typeof ApiKeyZod>;
+  apiKey: z.infer<typeof OrgEnrichedApiKey>;
 };
 
 export type ApiAccessScope = {

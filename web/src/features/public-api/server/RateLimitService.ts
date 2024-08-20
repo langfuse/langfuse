@@ -1,8 +1,31 @@
-import { type ApiKeyZod } from "@langfuse/shared/src/server";
+import { type OrgEnrichedApiKey } from "@langfuse/shared/src/server";
 import type Redis from "ioredis";
 import { type z } from "zod";
-import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
-import { type NextApiResponse } from "next";
+import {
+  RateLimiterMemory,
+  RateLimiterRedis,
+  RateLimiterRes,
+} from "rate-limiter-flexible";
+import { env } from "@/src/env.mjs";
+
+// business logic to consider
+// - not all orgs have a cloud config. Need to default to hobby plan within
+// - we have the oss plan which is used for self-hosters.
+// - only apply rate-limits if cloud config is present
+// - rate limits are per org. We pull the orgId and the plan into the API key stored in Redis to have fast rate limiting.
+// - if Redis is not available, we apply container level memory rate limiting.
+
+export type RateLimitResult = {
+  apiKey: z.infer<typeof OrgEnrichedApiKey>;
+  ressource: RateLimitRessource;
+  points: number;
+
+  // from rate-limiter-flexible
+  remainingPoints: number;
+  msBeforeNext: number;
+  consumedPoints: number;
+  isFirstInDuration: boolean;
+};
 
 export type RateLimitRessource =
   | "ingestion"
@@ -25,26 +48,26 @@ const rateLimitConfig = {
   },
 };
 
-export type RateLimitResponse = {
-  res: RateLimiterRes;
-  opts: {
-    points: number;
-    duration: number;
-    keyPrefix: string;
-  };
-};
-
 export class RateLimitService {
-  private redis: Redis;
+  private redis: Redis | undefined;
 
-  constructor(redis: Redis) {
+  constructor(redis: Redis | undefined) {
     this.redis = redis;
+
+    if (!redis) {
+      console.error("RateLimitService: Redis is not available, using memory");
+    }
   }
 
   async rateLimitRequest(
-    apiKey: z.infer<typeof ApiKeyZod>,
+    apiKey: z.infer<typeof OrgEnrichedApiKey>,
     ressource: RateLimitRessource,
   ) {
+    // if cloud config is not present, we don't apply rate limits
+    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      return;
+    }
+
     // no rate limit for oss users
     if (apiKey.plan === "oss") {
       return;
@@ -54,7 +77,7 @@ export class RateLimitService {
   }
 
   async checkRateLimit(
-    apiKey: z.infer<typeof ApiKeyZod>,
+    apiKey: z.infer<typeof OrgEnrichedApiKey>,
     ressource: RateLimitRessource,
   ) {
     // first get the organisation for an API key
@@ -74,22 +97,43 @@ export class RateLimitService {
 
     const opts = {
       // Basic options
-      storeClient: this.redis,
       points: config.points, // Number of points
       duration: config.duration, // Per second(s)
 
       keyPrefix: ressource.toString(), // must be unique for limiters with different purpose
     };
 
-    const rateLimiterRedis = new RateLimiterRedis(opts);
+    const rateLimiter = this.redis
+      ? new RateLimiterRedis({
+          ...opts,
+          storeClient: this.redis,
+        })
+      : new RateLimiterMemory(opts);
 
-    let res = undefined;
+    let res: RateLimitResult | undefined = undefined;
     try {
-      res = await rateLimiterRedis.consume(rateLimitKey);
+      const libRes = await rateLimiter.consume(rateLimitKey);
+      res = {
+        apiKey,
+        ressource,
+        points: config.points,
+        remainingPoints: libRes.remainingPoints,
+        msBeforeNext: libRes.msBeforeNext,
+        consumedPoints: libRes.consumedPoints,
+        isFirstInDuration: libRes.isFirstInDuration,
+      };
     } catch (err) {
       if (err instanceof RateLimiterRes) {
         // No points available or key is blocked
-        res = err;
+        res = {
+          apiKey,
+          ressource,
+          points: config.points,
+          remainingPoints: err.remainingPoints,
+          msBeforeNext: err.msBeforeNext,
+          consumedPoints: err.consumedPoints,
+          isFirstInDuration: err.isFirstInDuration,
+        };
       } else {
         // Some other error occurred, rethrow it
         console.log("Internal Rate limit error", err);
@@ -97,10 +141,10 @@ export class RateLimitService {
       }
     }
 
-    return { res, opts };
+    return res;
   }
 
-  createRateLimitKey(apiKey: z.infer<typeof ApiKeyZod>) {
+  createRateLimitKey(apiKey: z.infer<typeof OrgEnrichedApiKey>) {
     return `rate-limit:${apiKey.orgId}`;
   }
 }

@@ -1,4 +1,3 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
@@ -62,11 +61,11 @@ export default async function handler(
     const authAndRateLimit = new AuthAndRateLimit("ingestion", prisma, redis);
 
     const { authCheck, rateLimitCheck } =
-      await authAndRateLimit.authAndRateLimit(req, res);
+      await authAndRateLimit.authAndRateLimit(req);
 
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
-    if (rateLimitCheck && rateLimitCheck?.res.remainingPoints < 1) {
+    if (rateLimitCheck && rateLimitCheck.remainingPoints < 1) {
       return authAndRateLimit.createAndSendRateLimitedResponse(
         res,
         rateLimitCheck,

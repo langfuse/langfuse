@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
 import { JobExecutionStatus, prisma } from "@langfuse/shared/src/db";
-import { ApiKeyZod, redis } from "@langfuse/shared/src/server";
+import { OrgEnrichedApiKey, redis } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
 const generateAuth = (username: string, password: string) => {
@@ -117,7 +117,7 @@ describe("Ingestion Pipeline", () => {
       expect(redisKeys?.length).toBe(1);
       const redisValue = await redis?.get(redisKeys![0]);
 
-      const llmApiKey = ApiKeyZod.parse(JSON.parse(redisValue!));
+      const llmApiKey = OrgEnrichedApiKey.parse(JSON.parse(redisValue!));
       expect(llmApiKey.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     });
 

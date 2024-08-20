@@ -1,18 +1,21 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
-  type RateLimitResponse,
+  type RateLimitResult,
   type RateLimitRessource,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
 import { type PrismaClient } from "@langfuse/shared/src/db";
-import { type ApiKeyZod, recordIncrement } from "@langfuse/shared/src/server";
+import {
+  type OrgEnrichedApiKey,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import type Redis from "ioredis";
 import { type NextApiResponse, type NextApiRequest } from "next";
 import { type RateLimiterRes } from "rate-limiter-flexible";
 import { type z } from "zod";
 
 export class AuthAndRateLimit {
-  apiKey: z.infer<typeof ApiKeyZod> | undefined;
+  apiKey: z.infer<typeof OrgEnrichedApiKey> | undefined;
   prisma: PrismaClient;
   redis: Redis | null;
   ressource: RateLimitRessource;
@@ -28,7 +31,7 @@ export class AuthAndRateLimit {
     this.ressource = resource;
   }
 
-  authAndRateLimit = async (req: NextApiRequest, res: NextApiResponse) => {
+  authAndRateLimit = async (req: NextApiRequest) => {
     const authCheck = await new ApiAuthService(
       this.prisma,
       this.redis,
@@ -53,7 +56,7 @@ export class AuthAndRateLimit {
 
   createAndSendRateLimitedResponse = (
     res: NextApiResponse,
-    rateLimitRes: RateLimitResponse,
+    rateLimitRes: RateLimitResult,
   ) => {
     if (!this.apiKey) {
       throw new Error("No api key found for rate limit exceeded response");
@@ -65,10 +68,7 @@ export class AuthAndRateLimit {
       ressource: this.ressource,
     });
 
-    const httpHeader = this.createHttpHeaderFromRateLimit(
-      rateLimitRes.res,
-      rateLimitRes.opts.points,
-    );
+    const httpHeader = this.createHttpHeaderFromRateLimit(rateLimitRes);
 
     for (const [header, value] of Object.entries(httpHeader)) {
       res.setHeader(header, value);
@@ -77,10 +77,10 @@ export class AuthAndRateLimit {
     return res.status(429).end();
   };
 
-  createHttpHeaderFromRateLimit = (res: RateLimiterRes, points: number) => {
+  createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
     return {
       "Retry-After": res.msBeforeNext / 1000,
-      "X-RateLimit-Limit": points,
+      "X-RateLimit-Limit": res.points,
       "X-RateLimit-Remaining": res.remainingPoints,
       "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
     };
