@@ -201,6 +201,13 @@ describe("Authenticate API calls", () => {
         rateLimits: parsed.rateLimits,
         createdAt: apiKey?.createdAt.toISOString(),
       });
+
+      await prisma.organization.update({
+        where: { id: "seed-org-id" },
+        data: {
+          cloudConfig: undefined,
+        },
+      });
     });
 
     it("searching for non-existing key stores flag in redis and fails auth", async () => {
