@@ -1,4 +1,4 @@
-const plans = [
+export const plans = [
   "oss",
   "cloud:hobby",
   "cloud:pro",

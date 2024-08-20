@@ -1,35 +1,24 @@
 import { env } from "@/src/env.mjs";
 import {
   addUserToSpan,
+  ApiKeyZod,
   createShaHash,
   recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
+  CachedApiKey,
 } from "@langfuse/shared/src/server";
-import { type PrismaClient, type ApiKey } from "@langfuse/shared/src/db";
+import {
+  type PrismaClient,
+  type ApiKey,
+  type Prisma,
+} from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis } from "ioredis";
-import { z } from "zod";
-
-export const ApiKeyZod = z.object({
-  id: z.string(),
-  note: z.string().nullable(),
-  publicKey: z.string(),
-  hashedSecretKey: z.string(),
-  fastHashedSecretKey: z.string().nullable(),
-  displaySecretKey: z.string(),
-  createdAt: z.string().datetime().nullable(),
-  lastUsedAt: z.string().datetime().nullable(),
-  expiresAt: z.string().datetime().nullable(),
-  projectId: z.string(),
-});
-
-const API_KEY_NON_EXISTENT = "api-key-non-existent";
-
-export const CachedApiKey = z.union([
-  ApiKeyZod,
-  z.literal(API_KEY_NON_EXISTENT),
-]);
+import { CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
+import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
+import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
+import { type z } from "zod";
 
 export class ApiAuthService {
   prisma: PrismaClient;
@@ -94,9 +83,12 @@ export class ApiAuthService {
         if (!apiKey || !apiKey.fastHashedSecretKey) {
           const dbKey = await this.prisma.apiKey.findUnique({
             where: { publicKey },
+            include: { project: { include: { organization: true } } },
           });
 
-          if (!dbKey) {
+          const transformedKey = dbKey ? convertApiKeyAndOrg(dbKey) : null;
+
+          if (!transformedKey) {
             console.error("No key found for public key", publicKey);
             if (this.redis) {
               console.log(
@@ -112,7 +104,7 @@ export class ApiAuthService {
 
           const isValid = await verifySecretKey(
             secretKey,
-            dbKey.hashedSecretKey,
+            transformedKey.hashedSecretKey,
           );
 
           if (!isValid) {
@@ -128,10 +120,10 @@ export class ApiAuthService {
               fastHashedSecretKey: shaKey,
             },
           });
-          projectId = dbKey.projectId;
+          projectId = transformedKey.projectId;
         }
 
-        if (!projectId) {
+        if (!projectId || !apiKey) {
           console.log("No project id found for key", publicKey);
           throw new Error("Invalid credentials");
         }
@@ -144,6 +136,7 @@ export class ApiAuthService {
             projectId: projectId,
             accessLevel: "all",
           },
+          apiKey,
         };
       }
       // Bearer auth, limited scope, only needs public key
@@ -160,6 +153,7 @@ export class ApiAuthService {
             projectId: dbKey.projectId,
             accessLevel: "scores",
           },
+          apiKey: convertApiKeyAndOrg(dbKey),
         };
       }
     } catch (error: unknown) {
@@ -199,6 +193,7 @@ export class ApiAuthService {
   async findDbKeyOrThrow(publicKey: string) {
     const dbKey = await this.prisma.apiKey.findUnique({
       where: { publicKey },
+      include: { project: { include: { organization: true } } },
     });
     if (!dbKey) {
       console.log("No api key found for public key:", publicKey);
@@ -225,21 +220,26 @@ export class ApiAuthService {
     recordIncrement("api_key_cache_miss", 1);
 
     // if redis not available or object not found, try the database
-    const apiKey = await this.prisma.apiKey.findUnique({
+    const apiKeyAndOrganisation = await this.prisma.apiKey.findUnique({
       where: { fastHashedSecretKey: hash },
+      include: { project: { include: { organization: true } } },
     });
+
+    const transformedKey = apiKeyAndOrganisation
+      ? convertApiKeyAndOrg(apiKeyAndOrganisation)
+      : null;
 
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.
-    if (apiKey && apiKey.fastHashedSecretKey) {
-      await this.addApiKeyToRedis(hash, apiKey);
+    if (transformedKey && transformedKey.fastHashedSecretKey) {
+      await this.addApiKeyToRedis(hash, transformedKey);
     }
-    return apiKey;
+    return transformedKey;
   }
 
   async addApiKeyToRedis(
     hash: string,
-    apiKey: ApiKey | typeof API_KEY_NON_EXISTENT,
+    newApiKey: z.infer<typeof ApiKeyZod> | typeof API_KEY_NON_EXISTENT,
   ) {
     if (!this.redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") {
       return;
@@ -248,7 +248,7 @@ export class ApiAuthService {
     try {
       await this.redis.set(
         this.createRedisKey(hash),
-        JSON.stringify(apiKey),
+        JSON.stringify(newApiKey),
         "EX",
         env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
       );
@@ -296,3 +296,39 @@ export class ApiAuthService {
     return `api-key:${hash}`;
   }
 }
+
+export const convertApiKeyAndOrg = (
+  apiKeyAndOrganisation: ApiKey & {
+    project: {
+      id: string;
+      organization: {
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        cloudConfig: Prisma.JsonValue;
+      };
+    };
+  },
+) => {
+  const {
+    project: {
+      organization: { id: orgId, cloudConfig: cloudConfig },
+    },
+  } = apiKeyAndOrganisation;
+
+  const billingPlan = getOrganizationPlan(CloudConfigSchema.parse(cloudConfig));
+
+  const newApiKey = ApiKeyZod.parse({
+    ...apiKeyAndOrganisation,
+    orgId,
+    plan: billingPlan,
+  });
+
+  if (!orgId || !billingPlan) {
+    console.error("No organization found for key");
+    throw new Error("Invalid credentials");
+  }
+
+  return newApiKey;
+};
