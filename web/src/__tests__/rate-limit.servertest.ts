@@ -1,8 +1,20 @@
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { redis } from "@langfuse/shared/src/server";
+
+import Redis from "ioredis";
 
 describe("RateLimitService", () => {
   const orgId = "seed-org-id";
+  let redis: Redis;
+
+  beforeAll(() => {
+    redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
+      maxRetriesPerRequest: null,
+    });
+  });
+
+  afterAll(async () => {
+    redis.disconnect();
+  });
 
   beforeEach(async () => {
     expect(redis).toBeDefined();
@@ -17,10 +29,6 @@ describe("RateLimitService", () => {
     if (keys && keys.length > 0) {
       await redis?.del(keys);
     }
-  });
-
-  afterAll(async () => {
-    redis?.disconnect();
   });
 
   it("should create a new rate limit entry", async () => {
@@ -39,7 +47,7 @@ describe("RateLimitService", () => {
       plan: "default",
     };
 
-    const rateLimitService = new RateLimitService(redis ?? undefined);
+    const rateLimitService = new RateLimitService(redis!);
     const result = await rateLimitService.rateLimitRequest(
       apiKey,
       "public-api",
@@ -72,7 +80,7 @@ describe("RateLimitService", () => {
       plan: "default",
     };
 
-    const rateLimitService = new RateLimitService(redis ?? undefined);
+    const rateLimitService = new RateLimitService(redis!);
     await rateLimitService.rateLimitRequest(apiKey, "public-api");
 
     const result = await rateLimitService.rateLimitRequest(
@@ -113,10 +121,7 @@ describe("RateLimitService", () => {
       },
     };
 
-    const rateLimitService = new RateLimitService(
-      redis ?? undefined,
-      customConfig,
-    );
+    const rateLimitService = new RateLimitService(redis!, customConfig);
     await rateLimitService.rateLimitRequest(apiKey, "public-api");
 
     const firstResult = await rateLimitService.rateLimitRequest(
@@ -174,10 +179,7 @@ describe("RateLimitService", () => {
       },
     };
 
-    const rateLimitService = new RateLimitService(
-      redis ?? undefined,
-      customConfig,
-    );
+    const rateLimitService = new RateLimitService(redis!, customConfig);
 
     for (let i = 0; i < 100; i++) {
       await rateLimitService.rateLimitRequest(apiKey, "public-api");
@@ -215,7 +217,7 @@ describe("RateLimitService", () => {
       plan: "oss",
     };
 
-    const rateLimitService = new RateLimitService(redis ?? undefined);
+    const rateLimitService = new RateLimitService(redis!);
     const result = await rateLimitService.rateLimitRequest(
       apiKey,
       "public-api",
