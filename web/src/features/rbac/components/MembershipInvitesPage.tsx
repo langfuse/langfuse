@@ -11,11 +11,11 @@ import { api } from "@/src/utils/api";
 import type { RouterOutput } from "@/src/utils/types";
 import { Trash } from "lucide-react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { type Role } from "@langfuse/shared";
+import { type Organization, type Role } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Header from "@/src/components/layouts/header";
 
+export type tmp = Organization;
 export type InvitesTableRow = {
   email: string;
   createdAt: Date;
@@ -192,14 +192,7 @@ export function MembershipInvitesPage({
   };
 
   if (projectId ? !hasProjectViewAccess : !hasOrgViewAccess) {
-    return (
-      <Alert>
-        <AlertTitle>Access Denied</AlertTitle>
-        <AlertDescription>
-          You do not have permission to view invites of this organization.
-        </AlertDescription>
-      </Alert>
-    );
+    return null;
   }
 
   if (totalCount === 0) return null;

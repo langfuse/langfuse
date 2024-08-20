@@ -10,6 +10,7 @@ import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
 import { legacyIngestionExecutor } from "../queues/legacyIngestionQueue";
+import { cloudUsageMeteringJobExecutor } from "../queues/cloudUsageMeteringQueue";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
@@ -27,6 +28,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
     ingestionQueueExecutor,
     repeatQueueExecutor,
     legacyIngestionExecutor,
+    cloudUsageMeteringJobExecutor,
   ];
 
   await Promise.all(workers.map((worker) => worker?.close()));
