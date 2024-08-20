@@ -160,6 +160,9 @@ export function CommentList({
                   size="xs"
                   variant="outline"
                   loading={createCommentMutation.isLoading}
+                  onClick={() => {
+                    form.handleSubmit(onSubmit)();
+                  }}
                   className="absolute bottom-2 right-2"
                 >
                   <ArrowUpToLine className="h-4 w-4" />
