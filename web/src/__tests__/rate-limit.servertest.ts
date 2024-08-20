@@ -198,4 +198,29 @@ describe("RateLimitService", () => {
       isFirstInDuration: false,
     });
   });
+
+  it("should not apply rate limits for oss plan", async () => {
+    const apiKey = {
+      id: "oss-test-id",
+      note: "OSS Test API Key",
+      publicKey: "pk-oss-test-1234567890",
+      hashedSecretKey: "hashed-secret-key",
+      fastHashedSecretKey: "fast-hashed-secret-key",
+      displaySecretKey: "display-secret-key",
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+      expiresAt: null,
+      projectId: "oss-test-project-id",
+      orgId: "oss-test-org",
+      plan: "oss",
+    };
+
+    const rateLimitService = new RateLimitService(redis ?? undefined);
+    const result = await rateLimitService.rateLimitRequest(
+      apiKey,
+      "public-api",
+    );
+
+    expect(result).toBeUndefined();
+  });
 });
