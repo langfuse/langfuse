@@ -40,6 +40,7 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "@/src/features/ingest/usage";
+import { AuthAndRateLimit } from "@/src/features/public-api/server";
 
 export const config = {
   api: {
@@ -71,6 +72,8 @@ export default async function handler(
         rateLimitCheck,
       );
     }
+
+    console.log("continuing execution");
 
     const batchType = z.object({
       batch: z.array(z.unknown()),

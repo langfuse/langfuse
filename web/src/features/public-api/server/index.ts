@@ -45,7 +45,6 @@ export class AuthAndRateLimit {
       ? await new RateLimitService(this.redis).rateLimitRequest(
           authCheck.apiKey,
           this.ressource,
-          res,
         )
       : undefined;
 
@@ -66,13 +65,16 @@ export class AuthAndRateLimit {
       ressource: this.ressource,
     });
 
-    return res.writeHead(
-      429,
-      this.createHttpHeaderFromRateLimit(
-        rateLimitRes.res,
-        rateLimitRes.opts.points,
-      ),
+    const httpHeader = this.createHttpHeaderFromRateLimit(
+      rateLimitRes.res,
+      rateLimitRes.opts.points,
     );
+
+    for (const [header, value] of Object.entries(httpHeader)) {
+      res.setHeader(header, value);
+    }
+
+    return res.status(429).end();
   };
 
   createHttpHeaderFromRateLimit = (res: RateLimiterRes, points: number) => {

@@ -1,7 +1,7 @@
 import { type ApiKeyZod } from "@langfuse/shared/src/server";
 import type Redis from "ioredis";
 import { type z } from "zod";
-import { RateLimiterRedis, type RateLimiterRes } from "rate-limiter-flexible";
+import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { type NextApiResponse } from "next";
 
 export type RateLimitRessource =
@@ -44,7 +44,6 @@ export class RateLimitService {
   async rateLimitRequest(
     apiKey: z.infer<typeof ApiKeyZod>,
     ressource: RateLimitRessource,
-    res: NextApiResponse,
   ) {
     // no rate limit for oss users
     if (apiKey.plan === "oss") {
@@ -84,7 +83,19 @@ export class RateLimitService {
 
     const rateLimiterRedis = new RateLimiterRedis(opts);
 
-    const res = await rateLimiterRedis.consume(rateLimitKey);
+    let res = undefined;
+    try {
+      res = await rateLimiterRedis.consume(rateLimitKey);
+    } catch (err) {
+      if (err instanceof RateLimiterRes) {
+        // No points available or key is blocked
+        res = err;
+      } else {
+        // Some other error occurred, rethrow it
+        console.log("Internal Rate limit error", err);
+        throw err;
+      }
+    }
 
     return { res, opts };
   }

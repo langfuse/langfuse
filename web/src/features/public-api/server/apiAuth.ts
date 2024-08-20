@@ -86,7 +86,11 @@ export class ApiAuthService {
             include: { project: { include: { organization: true } } },
           });
 
+          console.log("old API key from DB", dbKey);
+
           const transformedKey = dbKey ? convertApiKeyAndOrg(dbKey) : null;
+
+          console.log("transformed key", transformedKey);
 
           if (!transformedKey) {
             console.error("No key found for public key", publicKey);
@@ -225,6 +229,7 @@ export class ApiAuthService {
       include: { project: { include: { organization: true } } },
     });
 
+    console.log("API key from DB", apiKeyAndOrganisation);
     const transformedKey = apiKeyAndOrganisation
       ? convertApiKeyAndOrg(apiKeyAndOrganisation)
       : null;
@@ -317,10 +322,15 @@ export const convertApiKeyAndOrg = (
     },
   } = apiKeyAndOrganisation;
 
-  const billingPlan = getOrganizationPlan(CloudConfigSchema.parse(cloudConfig));
+  const billingPlan = cloudConfig
+    ? getOrganizationPlan(CloudConfigSchema.parse(cloudConfig))
+    : "cloud:hobby";
+
+  console.log("Billing plan", billingPlan);
 
   const newApiKey = ApiKeyZod.parse({
     ...apiKeyAndOrganisation,
+    createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,
     plan: billingPlan,
   });
