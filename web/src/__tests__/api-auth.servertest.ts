@@ -3,7 +3,7 @@ import {
   hashSecretKey,
   OrgEnrichedApiKey,
 } from "@langfuse/shared/src/server";
-import { type PrismaClient, prisma } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { Redis } from "ioredis";
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
@@ -159,6 +159,9 @@ describe("Authenticate API calls", () => {
                   duration: 60,
                 },
               },
+              {
+                ingestion: undefined,
+              },
             ],
           },
         },
@@ -198,14 +201,24 @@ describe("Authenticate API calls", () => {
         ...apiKey,
         orgId: "seed-org-id",
         plan: "cloud:hobby",
-        rateLimits: parsed.rateLimits,
+        rateLimits: [
+          {
+            "public-api": {
+              points: 1000,
+              duration: 60,
+            },
+          },
+          {
+            ingestion: undefined,
+          },
+        ],
         createdAt: apiKey?.createdAt.toISOString(),
       });
 
       await prisma.organization.update({
         where: { id: "seed-org-id" },
         data: {
-          cloudConfig: undefined,
+          cloudConfig: Prisma.JsonNull,
         },
       });
     });

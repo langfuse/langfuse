@@ -60,27 +60,36 @@ export class ApiAccessMiddleware {
       throw new Error("No api key found for rate limit exceeded response");
     }
 
-    recordIncrement("rate-limit-exceeded", 1, {
-      orgId: this.apiKey?.orgId,
-      plan: this.apiKey.plan,
-      resource: this.resource,
-    });
-
-    const httpHeader = this.createHttpHeaderFromRateLimit(rateLimitRes);
-
-    for (const [header, value] of Object.entries(httpHeader)) {
-      res.setHeader(header, value);
-    }
-
-    return res.status(429).end();
-  };
-
-  createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
-    return {
-      "Retry-After": res.msBeforeNext / 1000,
-      "X-RateLimit-Limit": res.points,
-      "X-RateLimit-Remaining": res.remainingPoints,
-      "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
-    };
+    return sendRateLimitResponse(res, rateLimitRes, this.apiKey, this.resource);
   };
 }
+
+export const sendRateLimitResponse = (
+  res: NextApiResponse,
+  rateLimitRes: RateLimitResult,
+  apiKey: z.infer<typeof OrgEnrichedApiKey>,
+  resource: z.infer<typeof RateLimitResource>,
+) => {
+  recordIncrement("rate-limit-exceeded", 1, {
+    orgId: apiKey?.orgId,
+    plan: apiKey.plan,
+    resource: resource,
+  });
+
+  const httpHeader = createHttpHeaderFromRateLimit(rateLimitRes);
+
+  for (const [header, value] of Object.entries(httpHeader)) {
+    res.setHeader(header, value);
+  }
+
+  return res.status(429).end();
+};
+
+const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
+  return {
+    "Retry-After": res.msBeforeNext / 1000,
+    "X-RateLimit-Limit": res.points,
+    "X-RateLimit-Remaining": res.remainingPoints,
+    "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
+  };
+};

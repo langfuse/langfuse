@@ -361,6 +361,8 @@ export const convertApiKeyAndOrg = (
     },
   } = apiKeyAndOrganisation;
 
+  console.log(`HERE, ${JSON.stringify(cloudConfig)}`);
+
   const parsedCloudConfig = cloudConfig
     ? CloudConfigSchema.parse(cloudConfig)
     : undefined;
@@ -372,8 +374,10 @@ export const convertApiKeyAndOrg = (
     createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,
     plan: getOrganizationPlan(parsedCloudConfig),
-    rateLimit: parsedCloudConfig?.rateLimits,
+    rateLimits: parsedCloudConfig?.rateLimits,
   });
+
+  console.log(`new API key ${newApiKey}`);
 
   if (!orgId) {
     console.error("No organization found for key");

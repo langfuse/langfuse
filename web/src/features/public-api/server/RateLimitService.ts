@@ -52,7 +52,7 @@ export class RateLimitService {
     apiKey: z.infer<typeof OrgEnrichedApiKey>,
     resource: z.infer<typeof RateLimitResource>,
   ) {
-    // if cloud config is not present, we don't apply rate limits
+    // if cloud config is not present, we don't apply rate limits and just return
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       return;
     }
@@ -64,9 +64,6 @@ export class RateLimitService {
     apiKey: z.infer<typeof OrgEnrichedApiKey>,
     resource: z.infer<typeof RateLimitResource>,
   ) {
-    // first get the organisation for an API key
-    // add this to the key in redis, so that
-
     const planKey = planGroups[apiKey.plan as keyof typeof planGroups];
 
     if (!planKey) {
