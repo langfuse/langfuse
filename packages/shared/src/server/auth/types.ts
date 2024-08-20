@@ -13,7 +13,7 @@ export const OrgEnrichedApiKey = z.object({
   expiresAt: z.string().datetime().nullable(),
   projectId: z.string(),
   // orgId is added at write time to the redis cache.
-  // It is required for rate limits to work efficiently.
+  // Best way to rate-limit API keys on a per-org basis.
   orgId: z.string(),
   plan: z.enum(plans),
 });
