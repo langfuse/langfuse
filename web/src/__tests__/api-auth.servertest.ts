@@ -179,6 +179,8 @@ describe("Authenticate API calls", () => {
 
       expect(parsed).toEqual({
         ...apiKey,
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
       });
     });
@@ -286,6 +288,8 @@ describe("Authenticate API calls", () => {
         lastUsedAt: null,
         expiresAt: null,
         projectId: expect.any(String),
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
       });
     });
 
@@ -374,6 +378,8 @@ describe("Authenticate API calls", () => {
 
       expect(parsed).toEqual({
         ...apiKey,
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
       });
 
