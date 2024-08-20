@@ -26,13 +26,11 @@ export const TracePreview = ({
   trace,
   observations,
   scores,
-  showComments,
   commentCounts,
 }: {
   trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
   scores: APIScore[];
-  showComments?: boolean;
   commentCounts?: Map<string, number>;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
@@ -104,14 +102,12 @@ export const TracePreview = ({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {showComments && (
-              <CommentDrawerButton
-                projectId={trace.projectId}
-                objectId={trace.id}
-                objectType="TRACE"
-                count={commentCounts?.get(trace.id)}
-              />
-            )}
+            <CommentDrawerButton
+              projectId={trace.projectId}
+              objectId={trace.id}
+              objectType="TRACE"
+              count={commentCounts?.get(trace.id)}
+            />
             <AnnotateDrawer
               projectId={trace.projectId}
               traceId={trace.id}

@@ -31,7 +31,6 @@ export const ObservationPreview = (props: {
   scores: APIScore[];
   currentObservationId: string;
   traceId: string;
-  showComments?: boolean;
   commentCounts?: Map<string, number>;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
@@ -166,14 +165,12 @@ export const ObservationPreview = (props: {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {props.showComments && (
-              <CommentDrawerButton
-                projectId={preloadedObservation.projectId}
-                objectId={preloadedObservation.id}
-                objectType="OBSERVATION"
-                count={props.commentCounts?.get(preloadedObservation.id)}
-              />
-            )}
+            <CommentDrawerButton
+              projectId={preloadedObservation.projectId}
+              objectId={preloadedObservation.id}
+              objectType="OBSERVATION"
+              count={props.commentCounts?.get(preloadedObservation.id)}
+            />
             <AnnotateDrawer
               projectId={props.projectId}
               traceId={preloadedObservation.traceId}
