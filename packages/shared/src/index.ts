@@ -15,6 +15,7 @@ export * from "./utils/zod";
 export * from "./utils/json";
 export * from "./utils/objects";
 export * from "./utils/typeChecks";
+export * from "./features/entitlements/plans";
 export { env } from "./env";
 
 // llm api

@@ -1,5 +1,5 @@
 import z from "zod";
-import { plans } from "../entitlements/plans";
+import { plans } from "../../features/entitlements/plans";
 
 export const OrgEnrichedApiKey = z.object({
   id: z.string(),

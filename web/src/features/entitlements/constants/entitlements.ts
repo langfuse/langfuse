@@ -1,4 +1,4 @@
-import { type Plan } from "@langfuse/shared/src/server";
+import { type Plan } from "@langfuse/shared";
 
 const entitlements = [
   // features
