@@ -1,14 +1,12 @@
 import {
   getDisplaySecretKey,
   hashSecretKey,
+  OrgEnrichedApiKey,
 } from "@langfuse/shared/src/server";
-import {
-  ApiAuthService,
-  ApiKeyZod,
-} from "@/src/features/public-api/server/apiAuth";
 import { type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { Redis } from "ioredis";
 import { env } from "@/src/env.mjs";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 describe("Authenticate API calls", () => {
   beforeEach(async () => {
@@ -177,7 +175,7 @@ describe("Authenticate API calls", () => {
 
       expect(cachedKey2).not.toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey2!));
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey2!));
 
       expect(parsed).toEqual({
         ...apiKey,
@@ -275,7 +273,7 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
 
       expect(parsed).toEqual({
         id: expect.any(String),
@@ -372,7 +370,7 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
 
       expect(parsed).toEqual({
         ...apiKey,

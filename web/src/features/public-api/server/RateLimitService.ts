@@ -33,7 +33,16 @@ export type RateLimitRessource =
   | "public-api-metrics"
   | "prompts";
 
-const rateLimitConfig = {
+type RateLimitConfig = {
+  [plan: string]: {
+    [ressource in RateLimitRessource]?: {
+      points: number;
+      duration: number;
+    } | null;
+  };
+};
+
+const rateLimitConfig: RateLimitConfig = {
   default: {
     ingestion: { points: 100, duration: 60 },
     prompts: null,
@@ -50,9 +59,14 @@ const rateLimitConfig = {
 
 export class RateLimitService {
   private redis: Redis | undefined;
+  private config: RateLimitConfig;
 
-  constructor(redis: Redis | undefined) {
+  constructor(
+    redis: Redis | undefined,
+    config: RateLimitConfig = rateLimitConfig,
+  ) {
     this.redis = redis;
+    this.config = config;
 
     if (!redis) {
       console.error("RateLimitService: Redis is not available, using memory");
@@ -83,19 +97,20 @@ export class RateLimitService {
     // first get the organisation for an API key
     // add this to the key in redis, so that
 
-    const config =
-      rateLimitConfig[
+    const matchedConfig =
+      this.config[
         ["default", "cloud:hobby", "cloud:pro"].includes(apiKey.plan)
           ? "default"
           : (apiKey.plan as keyof typeof rateLimitConfig)
       ][ressource];
 
-    if (!config) throw new Error("Rate limit not configured for this plan");
+    if (!matchedConfig)
+      throw new Error("Rate limit not configured for this plan");
 
     const opts = {
       // Basic options
-      points: config.points, // Number of points
-      duration: config.duration, // Per second(s)
+      points: matchedConfig.points, // Number of points
+      duration: matchedConfig.duration, // Per second(s)
 
       keyPrefix: this.rateLimitPrefix(ressource), // must be unique for limiters with different purpose
     };
@@ -114,7 +129,7 @@ export class RateLimitService {
       res = {
         apiKey,
         ressource,
-        points: config.points,
+        points: matchedConfig.points,
         remainingPoints: libRes.remainingPoints,
         msBeforeNext: libRes.msBeforeNext,
         consumedPoints: libRes.consumedPoints,
@@ -126,7 +141,7 @@ export class RateLimitService {
         res = {
           apiKey,
           ressource,
-          points: config.points,
+          points: matchedConfig.points,
           remainingPoints: err.remainingPoints,
           msBeforeNext: err.msBeforeNext,
           consumedPoints: err.consumedPoints,
