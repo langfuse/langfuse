@@ -1,7 +1,7 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
   type RateLimitResult,
-  type RateLimitRessource,
+  type RateLimitresource,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
 import { type PrismaClient } from "@langfuse/shared/src/db";
@@ -19,17 +19,17 @@ export class ApiAccessMiddleware {
   apiKey: z.infer<typeof OrgEnrichedApiKey> | undefined;
   prisma: PrismaClient;
   redis: Redis | null;
-  ressource: RateLimitRessource;
+  resource: RateLimitresource;
 
   constructor(
-    resource: RateLimitRessource,
+    resource: RateLimitresource,
     prisma: PrismaClient,
     redis: Redis | null,
   ) {
     this.apiKey = undefined;
     this.prisma = prisma;
     this.redis = redis;
-    this.ressource = resource;
+    this.resource = resource;
   }
 
   authAndRateLimit = async (req: NextApiRequest) => {
@@ -48,7 +48,7 @@ export class ApiAccessMiddleware {
     const rateLimitCheck = this.redis
       ? await new RateLimitService(this.redis).rateLimitRequest(
           authCheck.apiKey,
-          this.ressource,
+          this.resource,
         )
       : undefined;
 
@@ -66,7 +66,7 @@ export class ApiAccessMiddleware {
     recordIncrement("rate-limit-exceeded", 1, {
       orgId: this.apiKey?.orgId,
       plan: this.apiKey.plan,
-      ressource: this.ressource,
+      resource: this.resource,
     });
 
     const httpHeader = this.createHttpHeaderFromRateLimit(rateLimitRes);

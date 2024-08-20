@@ -17,7 +17,7 @@ import { env } from "@/src/env.mjs";
 
 export type RateLimitResult = {
   apiKey: z.infer<typeof OrgEnrichedApiKey>;
-  ressource: RateLimitRessource;
+  resource: RateLimitresource;
   points: number;
 
   // from rate-limiter-flexible
@@ -27,7 +27,7 @@ export type RateLimitResult = {
   isFirstInDuration: boolean;
 };
 
-export type RateLimitRessource =
+export type RateLimitresource =
   | "ingestion"
   | "public-api"
   | "public-api-metrics"
@@ -35,7 +35,7 @@ export type RateLimitRessource =
 
 type RateLimitConfig = {
   [plan: string]: {
-    [ressource in RateLimitRessource]?: {
+    [resource in RateLimitresource]?: {
       points: number;
       duration: number;
     } | null;
@@ -75,7 +75,7 @@ export class RateLimitService {
 
   async rateLimitRequest(
     apiKey: z.infer<typeof OrgEnrichedApiKey>,
-    ressource: RateLimitRessource,
+    resource: RateLimitresource,
   ) {
     // if cloud config is not present, we don't apply rate limits
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -87,12 +87,12 @@ export class RateLimitService {
       return;
     }
 
-    return await this.checkRateLimit(apiKey, ressource);
+    return await this.checkRateLimit(apiKey, resource);
   }
 
   async checkRateLimit(
     apiKey: z.infer<typeof OrgEnrichedApiKey>,
-    ressource: RateLimitRessource,
+    resource: RateLimitresource,
   ) {
     // first get the organisation for an API key
     // add this to the key in redis, so that
@@ -102,7 +102,7 @@ export class RateLimitService {
         ["default", "cloud:hobby", "cloud:pro"].includes(apiKey.plan)
           ? "default"
           : (apiKey.plan as keyof typeof rateLimitConfig)
-      ][ressource];
+      ][resource];
 
     if (!matchedConfig)
       throw new Error("Rate limit not configured for this plan");
@@ -112,7 +112,7 @@ export class RateLimitService {
       points: matchedConfig.points, // Number of points
       duration: matchedConfig.duration, // Per second(s)
 
-      keyPrefix: this.rateLimitPrefix(ressource), // must be unique for limiters with different purpose
+      keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
     };
 
     const rateLimiter = this.redis
@@ -124,11 +124,11 @@ export class RateLimitService {
 
     let res: RateLimitResult | undefined = undefined;
     try {
-      // orgId used as key for different ressources
+      // orgId used as key for different resources
       const libRes = await rateLimiter.consume(apiKey.orgId);
       res = {
         apiKey,
-        ressource,
+        resource,
         points: matchedConfig.points,
         remainingPoints: libRes.remainingPoints,
         msBeforeNext: libRes.msBeforeNext,
@@ -140,7 +140,7 @@ export class RateLimitService {
         // No points available or key is blocked
         res = {
           apiKey,
-          ressource,
+          resource,
           points: matchedConfig.points,
           remainingPoints: err.remainingPoints,
           msBeforeNext: err.msBeforeNext,
@@ -157,7 +157,7 @@ export class RateLimitService {
     return res;
   }
 
-  rateLimitPrefix(ressource: string) {
-    return `rate-limit:${ressource}`;
+  rateLimitPrefix(resource: string) {
+    return `rate-limit:${resource}`;
   }
 }

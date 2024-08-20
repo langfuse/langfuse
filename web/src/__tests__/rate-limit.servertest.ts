@@ -47,7 +47,7 @@ describe("RateLimitService", () => {
 
     expect(result).toEqual({
       apiKey: apiKey,
-      ressource: "public-api",
+      resource: "public-api",
       points: 1000,
       remainingPoints: 999,
       msBeforeNext: expect.any(Number),
@@ -82,7 +82,7 @@ describe("RateLimitService", () => {
 
     expect(result).toEqual({
       apiKey: apiKey,
-      ressource: "public-api",
+      resource: "public-api",
       points: 1000,
       remainingPoints: 998,
       msBeforeNext: expect.any(Number),
@@ -126,7 +126,7 @@ describe("RateLimitService", () => {
 
     expect(firstResult).toEqual({
       apiKey: apiKey,
-      ressource: "public-api",
+      resource: "public-api",
       points: 100,
       remainingPoints: 98,
       msBeforeNext: expect.any(Number),
@@ -143,7 +143,7 @@ describe("RateLimitService", () => {
 
     expect(secondResult).toEqual({
       apiKey: apiKey,
-      ressource: "public-api",
+      resource: "public-api",
       points: 100,
       remainingPoints: 99,
       msBeforeNext: expect.any(Number),
@@ -190,7 +190,7 @@ describe("RateLimitService", () => {
 
     expect(result).toEqual({
       apiKey: apiKey,
-      ressource: "public-api",
+      resource: "public-api",
       points: 100,
       remainingPoints: 0,
       msBeforeNext: expect.any(Number),
