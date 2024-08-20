@@ -29,6 +29,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
+import { CommentList } from "@/src/features/comments/CommentList";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -226,6 +227,13 @@ export const PromptDetail = () => {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
+          <CommentList
+            projectId={prompt.projectId}
+            objectId={prompt.id}
+            objectType="PROMPT"
+            className="mt-10"
+            cardView
+          />
         </div>
         <div className="flex h-screen flex-col">
           <div className="text-m px-3 font-medium">
