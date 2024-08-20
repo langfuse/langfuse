@@ -2,6 +2,8 @@ export * from "./constants";
 export * from "./queries";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
+export * from "./interfaces/cloudConfigSchema";
+export * from "./interfaces/parseDbOrg";
 export * from "./tableDefinitions";
 export * from "./types";
 export * from "./filterToPrisma";

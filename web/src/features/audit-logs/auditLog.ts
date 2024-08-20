@@ -22,6 +22,7 @@ export type AuditableResource =
   | "posthogIntegration"
   | "llmApiKey"
   | "batchExport"
+  | "stripeCheckoutSession"
   // legacy resources
   | "membership";
 

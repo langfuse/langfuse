@@ -1,6 +1,7 @@
+import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { type Plan } from "@/src/features/entitlements/constants/plans";
-import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloudConfigSchema";
+import { type CloudConfigSchema } from "@langfuse/shared";
 
 /**
  * Get the plan of the organization based on the cloud configuration. Used to add this plan to the organization object in JWT via NextAuth.
@@ -8,18 +9,30 @@ import { type CloudConfigSchema } from "@/src/features/organizations/utils/cloud
 export function getOrganizationPlan(cloudConfig?: CloudConfigSchema): Plan {
   if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     // in dev, grant team plan to all organizations
-    if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
-      return "cloud:team";
-    }
+    // if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
+    //   return "cloud:team";
+    // }
     if (cloudConfig) {
-      switch (cloudConfig.plan) {
-        case "Hobby":
-          return "cloud:hobby";
-        case "Pro":
-          return "cloud:pro";
-        case "Team":
-        case "Enterprise":
-          return "cloud:team";
+      // manual plan override
+      if (cloudConfig.plan) {
+        switch (cloudConfig.plan) {
+          case "Hobby":
+            return "cloud:hobby";
+          case "Pro":
+            return "cloud:pro";
+          case "Team":
+          case "Enterprise":
+            return "cloud:team";
+        }
+      }
+      // stripe plan via product id
+      if (cloudConfig.stripe?.activeProductId) {
+        const stripePlan = mapStripeProductIdToPlan(
+          cloudConfig.stripe.activeProductId,
+        );
+        if (stripePlan) {
+          return stripePlan;
+        }
       }
     }
     return "cloud:hobby";

@@ -11,28 +11,32 @@ const statusCategories = {
 export type Status =
   (typeof statusCategories)[keyof typeof statusCategories][number];
 
-export const StatusBadge = (props: { className?: string; type: Status }) => {
+export const StatusBadge = (props: {
+  className?: string;
+  type: Status | (string & {});
+}) => {
   let badgeColor = "bg-muted-gray text-primary";
   let dotColor = "bg-muted-foreground";
   let dotPingColor = "bg-muted-foreground";
-  let showDot = true;
+  let showDot = false;
 
   if (statusCategories.active.includes(props.type)) {
     badgeColor = "bg-light-green text-dark-green";
     dotColor = "animate-ping bg-dark-green";
     dotPingColor = "bg-dark-green";
+    showDot = true;
   } else if (statusCategories.pending.includes(props.type)) {
     badgeColor = "bg-light-yellow text-dark-yellow";
     dotColor = "animate-ping bg-dark-yellow";
     dotPingColor = "bg-dark-yellow";
+    showDot = true;
   } else if (statusCategories.error.includes(props.type)) {
     badgeColor = "bg-light-red text-dark-red";
     dotColor = "animate-ping bg-dark-red";
     dotPingColor = "bg-dark-red";
-    showDot = false;
+    showDot = true;
   } else if (statusCategories.completed.includes(props.type)) {
     badgeColor = "bg-light-green text-dark-green";
-    showDot = false;
   }
 
   return (
