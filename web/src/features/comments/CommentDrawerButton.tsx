@@ -11,7 +11,7 @@ import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type CommentObjectType } from "@langfuse/shared";
 import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
-import React, { useState } from "react";
+import React from "react";
 
 export function CommentDrawerButton({
   projectId,
@@ -26,7 +26,6 @@ export function CommentDrawerButton({
   count?: number;
   size?: "icon" | "sm";
 }) {
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -44,16 +43,9 @@ export function CommentDrawerButton({
     );
 
   return (
-    <Drawer onClose={() => setIsDrawerOpen(false)}>
+    <Drawer>
       <DrawerTrigger asChild>
-        <Button
-          type="button"
-          variant="secondary"
-          size={size}
-          onClick={() => {
-            setIsDrawerOpen(true);
-          }}
-        >
+        <Button type="button" variant="secondary" size={size}>
           {!!count ? (
             <CommentCountIcon count={count} />
           ) : (
@@ -71,7 +63,6 @@ export function CommentDrawerButton({
               projectId={projectId}
               objectId={objectId}
               objectType={objectType}
-              isVisible={isDrawerOpen}
             />
           </div>
         </div>

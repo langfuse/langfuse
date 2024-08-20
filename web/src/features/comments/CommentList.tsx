@@ -28,14 +28,12 @@ export function CommentList({
   projectId,
   objectId,
   objectType,
-  isVisible,
   cardView = false,
   className,
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
-  isVisible: boolean;
   cardView?: boolean;
   className?: string;
 }) {
@@ -56,7 +54,7 @@ export function CommentList({
       objectId,
       objectType,
     },
-    { enabled: hasReadAccess && isVisible },
+    { enabled: hasReadAccess },
   );
 
   const form = useForm<z.infer<typeof CreateCommentData>>({
@@ -77,15 +75,14 @@ export function CommentList({
   const utils = api.useUtils();
 
   const createCommentMutation = api.comments.create.useMutation({
-    onError: (error) => form.setError("content", { message: error.message }),
-    onSettled: async () => {
+    onSuccess: async () => {
       await Promise.all([utils.comments.invalidate()]);
       form.reset();
     },
   });
 
   const deleteCommentMutation = api.comments.delete.useMutation({
-    onSettled: async () => {
+    onSuccess: async () => {
       await Promise.all([utils.comments.invalidate()]);
     },
   });

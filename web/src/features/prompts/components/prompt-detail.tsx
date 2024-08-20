@@ -233,7 +233,6 @@ export const PromptDetail = () => {
             objectType="PROMPT"
             className="mt-10"
             cardView
-            isVisible
           />
         </div>
         <div className="flex h-screen flex-col">
