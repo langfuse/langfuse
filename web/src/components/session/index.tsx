@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -52,6 +53,15 @@ export const SessionPage: React.FC<{
     string[]
   >("emptySelectedConfigIds", []);
 
+  const commentCounts = api.comments.getCountsByObjectIds.useQuery(
+    {
+      projectId,
+      objectIds: [sessionId],
+      objectType: "SESSION",
+    },
+    { enabled: session.isSuccess },
+  );
+
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
 
@@ -86,6 +96,14 @@ export const SessionPage: React.FC<{
               `/project/${projectId}/sessions/${encodeURIComponent(id)}`
             }
             listKey="sessions"
+          />,
+          <CommentDrawerButton
+            key="comment"
+            size="sm"
+            projectId={projectId}
+            objectId={sessionId}
+            objectType="SESSION"
+            count={commentCounts.data?.get(sessionId)}
           />,
         ]}
       />

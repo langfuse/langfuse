@@ -132,24 +132,25 @@ export default function Layout(props: PropsWithChildren) {
 
     // Feature Flags
     if (
-      !(
-        route.featureFlag === undefined ||
-        enableExperimentalFeatures ||
-        session.data?.user?.featureFlags[route.featureFlag]
-      )
+      route.featureFlag !== undefined &&
+      !enableExperimentalFeatures &&
+      session.data?.user?.admin !== true &&
+      session.data?.user?.featureFlags[route.featureFlag] !== true
     )
       return null;
 
     // check entitlements
     if (
       route.entitlement !== undefined &&
-      !entitlements.includes(route.entitlement)
+      !entitlements.includes(route.entitlement) &&
+      session.data?.user?.admin !== true
     )
       return null;
 
     // RBAC
     if (
       route.projectRbacScope !== undefined &&
+      session.data?.user?.admin !== true &&
       (!project ||
         !organization ||
         !hasProjectAccess({
