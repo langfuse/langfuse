@@ -1,6 +1,5 @@
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 
 describe("RateLimitService", () => {
   const orgId = "seed-org-id";
