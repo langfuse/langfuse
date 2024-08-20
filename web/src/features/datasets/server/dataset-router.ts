@@ -15,7 +15,7 @@ import { DB } from "@/src/server/db";
 import { filterAndValidateDbScoreList, paginationZod } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { type ScoreSimplified } from "@/src/features/scores/lib/types";
-import * as Sentry from "@sentry/node";
+import { traceException } from "@langfuse/shared/src/server";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -739,11 +739,11 @@ export const datasetRouter = createTRPCRouter({
 
       const validatedTraceScores = filterAndValidateDbScoreList(
         traceScores,
-        Sentry.captureException,
+        traceException,
       );
       const validatedObservationScores = filterAndValidateDbScoreList(
         observationScores,
-        Sentry.captureException,
+        traceException,
       );
 
       const items = runItems.map((ri) => {

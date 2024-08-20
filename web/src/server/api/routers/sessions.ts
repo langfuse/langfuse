@@ -16,10 +16,10 @@ import {
   singleFilter,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
 import { TRPCError } from "@trpc/server";
 
 import type Decimal from "decimal.js";
+import { traceException } from "@langfuse/shared/src/server";
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
@@ -141,7 +141,7 @@ export const sessionRouter = createTRPCRouter({
 
         const validatedScores = filterAndValidateDbScoreList(
           scores,
-          Sentry.captureException,
+          traceException,
         );
 
         const totalCostQuery = Prisma.sql`
