@@ -61,17 +61,37 @@ export function Trace(props: {
     return props.observations.map(({ id }) => id);
   }, [props.observations]);
 
-  const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery({
-    projectId: props.trace.projectId,
-    objectIds: observationObjectIds,
-    objectType: "OBSERVATION",
-  });
+  const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectIds: observationObjectIds,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
 
-  const traceCommentCounts = api.comments.getCountsByObjectIds.useQuery({
-    projectId: props.trace.projectId,
-    objectIds: [props.trace.id],
-    objectType: "TRACE",
-  });
+  const traceCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectIds: [props.trace.id],
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
 
   const toggleCollapsedObservation = useCallback(
     (id: string) => {

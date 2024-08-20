@@ -310,17 +310,37 @@ export function TraceTimelineView({
     [nestedObservations],
   );
 
-  const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery({
-    projectId: trace.projectId,
-    objectIds: nestedObservationIds,
-    objectType: "OBSERVATION",
-  });
+  const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+    {
+      projectId: trace.projectId,
+      objectIds: nestedObservationIds,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
 
-  const traceCommentCounts = api.comments.getCountsByObjectIds.useQuery({
-    projectId: trace.projectId,
-    objectIds: [trace.id],
-    objectType: "TRACE",
-  });
+  const traceCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+    {
+      projectId: trace.projectId,
+      objectIds: [trace.id],
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
 
   if (!latency) return null;
 
