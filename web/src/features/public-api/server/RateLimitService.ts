@@ -1,11 +1,7 @@
 import { type OrgEnrichedApiKey } from "@langfuse/shared/src/server";
 import type Redis from "ioredis";
 import { type z } from "zod";
-import {
-  RateLimiterMemory,
-  RateLimiterRedis,
-  RateLimiterRes,
-} from "rate-limiter-flexible";
+import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 
 // business logic to consider
@@ -58,19 +54,12 @@ const rateLimitConfig: RateLimitConfig = {
 };
 
 export class RateLimitService {
-  private redis: Redis | undefined;
+  private redis: Redis;
   private config: RateLimitConfig;
 
-  constructor(
-    redis: Redis | undefined,
-    config: RateLimitConfig = rateLimitConfig,
-  ) {
+  constructor(redis: Redis, config: RateLimitConfig = rateLimitConfig) {
     this.redis = redis;
     this.config = config;
-
-    if (!redis) {
-      console.error("RateLimitService: Redis is not available, using memory");
-    }
   }
 
   async rateLimitRequest(
@@ -115,12 +104,10 @@ export class RateLimitService {
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
     };
 
-    const rateLimiter = this.redis
-      ? new RateLimiterRedis({
-          ...opts,
-          storeClient: this.redis,
-        })
-      : new RateLimiterMemory(opts);
+    const rateLimiter = new RateLimiterRedis({
+      ...opts,
+      storeClient: this.redis,
+    });
 
     let res: RateLimitResult | undefined = undefined;
     try {
