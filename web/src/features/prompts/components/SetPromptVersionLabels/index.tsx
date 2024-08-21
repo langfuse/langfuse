@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 
-import { FlagIcon, PlusIcon } from "lucide-react";
+import { PlusIcon, TagIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -101,7 +101,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
           aria-label="Set prompt labels"
           title="Set prompt labels"
         >
-          <FlagIcon className="h-4 w-4" />
+          <TagIcon className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>
