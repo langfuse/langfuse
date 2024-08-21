@@ -99,7 +99,7 @@ export const SessionPage: React.FC<{
           />,
           <CommentDrawerButton
             key="comment"
-            size="sm"
+            variant="outline"
             projectId={projectId}
             objectId={sessionId}
             objectType="SESSION"
@@ -196,7 +196,7 @@ const SessionIO = ({
     },
   );
   return (
-    <div className="col-span-2 flex flex-col gap-2 p-0">
+    <div className="col-span-2 grid grid-flow-row gap-2 p-0">
       {!trace.data ? (
         <JsonSkeleton
           className="h-full w-full overflow-hidden px-2 py-1"

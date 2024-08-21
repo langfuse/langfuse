@@ -108,7 +108,7 @@ export function ScoreAnalytics(props: {
             return (
               <div key={scoreKey}>
                 <div>{`${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`}</div>
-                <div className="mt-2 grid grid-cols-2 gap-4">
+                <div className="mt-2 grid gap-2 lg:grid-cols-2 lg:gap-4">
                   {/* aggregate */}
                   <div>
                     <div className="mb-2 text-sm text-muted-foreground">
