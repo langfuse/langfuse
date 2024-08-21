@@ -19,7 +19,7 @@ export const getTraceUpsertQueue = () => {
         connection: redis,
         defaultJobOptions: {
           removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
-          removeOnFail: 1000,
+          removeOnFail: 1_000,
         },
       })
     : null;
@@ -54,7 +54,7 @@ export function convertTraceUpsertEventsToRedisEvents(
           name: QueueJobs.TraceUpsert as const,
         },
         opts: {
-          removeOnFail: 10000,
+          removeOnFail: 1_000,
           removeOnComplete: true,
           attempts: 5,
           backoff: {
