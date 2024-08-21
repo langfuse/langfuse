@@ -180,15 +180,6 @@ export default function Dashboard() {
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <button
-          type="button"
-          onClick={() => {
-            throw new Error("Sentry Test Error");
-          }}
-        >
-          Break the world
-        </button>
-        ;
         {!disableExpensiveDashboardComponents && (
           <MetricTable
             className="col-span-1 xl:col-span-2"
