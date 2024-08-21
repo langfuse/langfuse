@@ -136,8 +136,6 @@ export default async function handler(
       const queue = getLegacyIngestionQueue();
 
       if (queue) {
-        console.log("Returning http response early");
-
         // still need to check auth scope for all events individually
 
         const failedAccessScope = accessCheckPerEvent(sortedBatch, authCheck);
