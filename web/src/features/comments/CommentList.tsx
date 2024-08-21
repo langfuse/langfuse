@@ -135,7 +135,7 @@ export function CommentList({
       {hasWriteAccess && (
         <div className="mx-2 mb-2 mt-2 rounded-md border">
           <div className="flex flex-row border-b px-3 py-1 text-xs">
-            <div className="flex-1  font-medium">New comment</div>
+            <div className="flex-1 font-medium">New comment</div>
             <div className="text-muted-foreground"> supports markdown</div>
             <BsMarkdown className="ml-2 h-4 w-4 text-muted-foreground" />
           </div>
