@@ -11,7 +11,7 @@ import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { MarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import {
   ChatMlArraySchema,
-  ChatMlMessageSchema,
+  type ChatMlMessageSchema,
   OpenAIContentSchema,
 } from "@/src/components/schemas/ChatMlSchema";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
@@ -157,10 +157,12 @@ export const IOPreview: React.FC<{
                       role: m.role ?? "assistant",
                     }))
                   : [
-                      ChatMlMessageSchema.parse({
+                      {
                         role: "assistant",
-                        content: outputClean,
-                      }),
+                        ...(typeof outputClean === "string"
+                          ? { content: outputClean }
+                          : { json: outputClean }),
+                      } as ChatMlMessageSchema,
                     ]),
               ]}
               shouldRenderMarkdown
