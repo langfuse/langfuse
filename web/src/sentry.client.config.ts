@@ -16,7 +16,6 @@ Sentry.init({
   // plus for 100% of sessions with an error
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
-  debug: true,
 
   beforeSend(event, _hint) {
     if (event.exception) {
