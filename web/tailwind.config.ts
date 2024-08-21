@@ -157,6 +157,9 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontSize: {
+        xs: "0.65rem",
+        sm: "0.8rem",
+        base: "0.9rem",
         "tremor-label": ["0.75rem", { lineHeight: "1rem" }],
         "tremor-default": ["0.875rem", { lineHeight: "1.25rem" }],
         "tremor-title": ["1.125rem", { lineHeight: "1.75rem" }],
