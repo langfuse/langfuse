@@ -15,7 +15,7 @@ export const SettingsDangerZone: React.FC<{
         {items.map((item, index) => (
           <div
             key={index}
-            className="flex items-center justify-between gap-4 border-b p-4 last:border-b-0"
+            className="flex items-center justify-between gap-4 border-b p-3 last:border-b-0"
           >
             <div>
               <h4 className="font-semibold">{item.title}</h4>

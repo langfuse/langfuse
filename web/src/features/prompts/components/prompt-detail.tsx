@@ -124,7 +124,7 @@ export const PromptDetail = () => {
                   <Link
                     href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
                   >
-                    <Pencil className="h-5 w-5" />
+                    <Pencil className="h-4 w-4" />
                   </Link>
                 </Button>
 

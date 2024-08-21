@@ -13,13 +13,13 @@ export function StarToggle({
   value,
   disabled = false,
   onClick,
-  size = "sm",
+  size = "icon",
   isLoading,
 }: {
   value: boolean;
   disabled?: boolean;
   onClick: (value: boolean) => Promise<unknown>;
-  size?: "sm" | "xs";
+  size?: "icon" | "icon-xs";
   isLoading: boolean;
 }) {
   return (
@@ -45,13 +45,13 @@ export function StarTraceToggle({
   projectId,
   traceId,
   value,
-  size = "sm",
+  size = "icon",
 }: {
   tracesFilter: RouterInput["traces"]["all"];
   projectId: string;
   traceId: string;
   value: boolean;
-  size?: "sm" | "xs";
+  size?: "icon" | "icon-xs";
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
@@ -134,12 +134,12 @@ export function StarTraceDetailsToggle({
   projectId,
   traceId,
   value,
-  size = "sm",
+  size = "icon",
 }: {
   projectId: string;
   traceId: string;
   value: boolean;
-  size?: "sm" | "xs";
+  size?: "icon" | "icon-xs";
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
@@ -212,12 +212,12 @@ export function StarSessionToggle({
   projectId,
   sessionId,
   value,
-  size = "sm",
+  size = "icon",
 }: {
   projectId: string;
   sessionId: string;
   value: boolean;
-  size?: "sm" | "xs";
+  size?: "icon" | "icon-xs";
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({

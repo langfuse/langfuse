@@ -157,7 +157,7 @@ export function CommentList({
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  size="xs"
+                  size="icon-xs"
                   variant="outline"
                   loading={createCommentMutation.isLoading}
                   onClick={() => {
@@ -201,7 +201,7 @@ export function CommentList({
                     {session.data?.user?.id === comment.authorUserId && (
                       <Button
                         type="button"
-                        size="xs"
+                        size="icon-xs"
                         variant="destructive-secondary"
                         title="Delete comment"
                         loading={deleteCommentMutation.isLoading}

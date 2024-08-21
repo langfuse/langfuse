@@ -35,7 +35,7 @@ export default function SettingsPage() {
             title: "General",
             slug: "index",
             content: (
-              <div className="flex flex-col gap-10">
+              <div className="flex flex-col gap-6">
                 <HostNameProject />
                 <RenameProject />
                 <div>
@@ -71,7 +71,7 @@ export default function SettingsPage() {
             title: "API Keys",
             slug: "api-keys",
             content: (
-              <div className="flex flex-col gap-10">
+              <div className="flex flex-col gap-6">
                 <ApiKeyList projectId={project.id} />
                 <LlmApiKeyList projectId={project.id} />
               </div>
