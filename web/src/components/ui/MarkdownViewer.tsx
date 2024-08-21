@@ -21,13 +21,13 @@ import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
-import { MarkdownImage } from "@/src/components/ui/markdown-image";
 import {
   OpenAIUrlImageUrl,
   type OpenAIContentParts,
   type OpenAIContentSchema,
 } from "@/src/components/schemas/ChatMlSchema";
 import { type z } from "zod";
+import { ResizableImage } from "@/src/components/ui/resizable-image";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -170,7 +170,9 @@ function MarkdownRenderer({
             </blockquote>
           );
         },
-        img: MarkdownImage as Components["img"],
+        img({ src, alt }) {
+          return <ResizableImage src={src} alt={alt} />;
+        },
         hr() {
           return <hr className="my-4" />;
         },
@@ -316,7 +318,7 @@ export function MarkdownView({
               />
             ) : OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
               <div key={index}>
-                <MarkdownImage src={content.image_url.url} />
+                <ResizableImage src={content.image_url.url} />
               </div>
             ) : (
               <div className="grid grid-cols-[auto,1fr] items-center gap-2">

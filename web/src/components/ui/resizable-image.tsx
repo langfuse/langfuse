@@ -49,9 +49,12 @@ const ImageErrorDisplay = ({
   </div>
 );
 
-export const MarkdownImage: React.FC<{ src: string; alt?: string }> = ({
+export const ResizableImage = ({
   src,
   alt,
+}: {
+  src?: string;
+  alt?: string;
 }) => {
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
