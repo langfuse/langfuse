@@ -43,8 +43,8 @@ export const evalJobCreator = redis
 
               const waitTime = Date.now() - job.timestamp;
 
-              recordIncrement("eval_creation_queue_request");
-              recordHistogram("eval_creation_queue_wait_time", waitTime, {
+              recordIncrement("trace_upsert_queue_request");
+              recordHistogram("trace_upsert_queue_wait_time", waitTime, {
                 unit: "milliseconds",
               });
 
@@ -54,14 +54,14 @@ export const evalJobCreator = redis
                 ?.count()
                 .then((count) => {
                   logger.info(`Eval creation queue length: ${count}`);
-                  recordGauge("eval_creation_queue_length", count, {
+                  recordGauge("trace_upsert_queue_length", count, {
                     unit: "records",
                   });
                   return count;
                 })
                 .catch();
               recordHistogram(
-                "eval_creation_queue_processing_time",
+                "trace_upsert_queue_processing_time",
                 Date.now() - startTime,
                 { unit: "milliseconds" }
               );
