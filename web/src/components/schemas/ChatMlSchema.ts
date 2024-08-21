@@ -1,11 +1,42 @@
 import { z } from "zod";
 
+// OpenAI API Content Schema defined as per https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages, 20.08.2024
+const OpenAITextContentPart = z.object({
+  type: z.literal("text"),
+  text: z.string(),
+});
+
+export const OpenAIUrlImageUrl = z.string().regex(/^https?:/);
+
+const OpenAIBase64ImageUrl = z
+  .string()
+  .regex(/^data:image\/(png|jpeg|jpg|gif|webp);base64,/);
+
+const OpenAIImageContentPart = z.object({
+  type: z.literal("image_url"),
+  image_url: z.object({
+    url: z.union([OpenAIUrlImageUrl, OpenAIBase64ImageUrl]),
+    detail: z.enum(["low", "high", "auto"]).optional(), // Controls how the model processes the image. Defaults to "auto". [https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding]
+  }),
+});
+
+export const OpenAIContentParts = z.array(
+  z.union([OpenAITextContentPart, OpenAIImageContentPart]),
+);
+
+export const OpenAIContentSchema = z.union([z.string(), OpenAIContentParts]);
+
 export const ChatMlMessageSchema = z
   .object({
     role: z.string().optional(),
     name: z.string().optional(),
     content: z
-      .union([z.record(z.any()), z.string(), z.array(z.any())])
+      .union([
+        z.record(z.any()),
+        z.string(),
+        z.array(z.any()),
+        OpenAIContentSchema,
+      ])
       .nullish(),
     additional_kwargs: z.record(z.any()).optional(),
   })
