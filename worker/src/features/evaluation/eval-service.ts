@@ -246,7 +246,9 @@ export const evaluate = async ({
     ),
   });
 
-  logger.info(`Compiled prompt ${prompt}`);
+  logger.info(
+    `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`
+  );
 
   const parsedOutputSchema = z
     .object({
