@@ -12,8 +12,17 @@ import { MarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import {
   ChatMlArraySchema,
   ChatMlMessageSchema,
+  OpenAIContentSchema,
 } from "@/src/components/schemas/ChatMlSchema";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+
+const isSupportedMarkdownFormat = (
+  content: unknown,
+  contentValidation: z.SafeParseReturnType<
+    string,
+    z.infer<typeof OpenAIContentSchema>
+  >,
+): content is z.infer<typeof OpenAIContentSchema> => contentValidation.success;
 
 // MarkdownOrJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
 // otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
@@ -32,12 +41,20 @@ function MarkdownOrJsonView({
     () => MarkdownSchema.safeParse(content),
     [content],
   );
+  const validatedOpenAIContent = useMemo(
+    () => OpenAIContentSchema.safeParse(content),
+    [content],
+  );
 
   const { isMarkdownEnabled } = useMarkdownContext();
+  const canEnableMarkdown = isSupportedMarkdownFormat(
+    content,
+    validatedOpenAIContent,
+  );
 
-  return validatedMarkdown.success && isMarkdownEnabled ? (
+  return isMarkdownEnabled && canEnableMarkdown ? (
     <MarkdownView
-      markdown={validatedMarkdown.data}
+      markdown={validatedMarkdown.data ?? content}
       title={title}
       className={className}
       customCodeHeaderClassName={customCodeHeaderClassName}
@@ -45,7 +62,7 @@ function MarkdownOrJsonView({
   ) : (
     <JSONView
       json={content}
-      canEnableMarkdown={validatedMarkdown.success}
+      canEnableMarkdown={canEnableMarkdown}
       title={title}
       className={className}
     />

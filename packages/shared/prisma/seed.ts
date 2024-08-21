@@ -832,6 +832,8 @@ function createObjects(
             )
           ];
 
+        const { input, output } = getGenerationInputOutput();
+
         const generation = {
           type: ObservationType.GENERATION,
           id: `generation-${v4()}`,
@@ -843,35 +845,8 @@ function createObjects(
           name: `generation-${i}-${j}-${k}`,
           projectId: trace.projectId,
           promptId: promptId,
-          input:
-            Math.random() > 0.5
-              ? [
-                  {
-                    role: "system",
-                    content: "Be a helpful assistant",
-                  },
-                  {
-                    role: "user",
-                    content: "How can i create a *React* component?",
-                  },
-                ]
-              : {
-                  input: "How can i create a React component?",
-                  retrievedDocuments: [
-                    {
-                      title: "How to create a React component",
-                      url: "https://www.google.com",
-                      description: "A guide to creating React components",
-                    },
-                    {
-                      title: "React component creation",
-                      url: "https://www.google.com",
-                      description: "A guide to creating React components",
-                    },
-                  ],
-                },
-          output:
-            "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.\n\n**Image**\n\n![Languse Example Image](https://static.langfuse.com/langfuse-dev/langfuse-example-image.jpeg)\n\n1.  **Functional Component**:\n\nA functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:\n\n```javascript\nimport React from 'react';\nfunction Greeting(props) {\n  return <h1>Hello, {props.name}</h1>;\n}\nexport default Greeting;\n```\n\nTo use this component in another file, you can do:\n\n```javascript\nimport Greeting from './Greeting';\nfunction App() {\n  return (\n    <div>\n      <Greeting name=\"John\" />\n    </div>\n  );\n}\nexport default App;\n```\n\n2.  **Class Component**:\n\nYou can also define components as classes in React. These have some additional features compared to functional components:\n\n```javascript\nimport React, { Component } from 'react';\nclass Greeting extends Component {\n  render() {\n    return <h1>Hello, {this.props.name}</h1>;\n  }\n}\nexport default Greeting;\n```\n\nAnd here's how to use this component:\n\n```javascript\nimport Greeting from './Greeting';\nclass App extends Component {\n  render() {\n    return (\n      <div>\n        <Greeting name=\"John\" />\n      </div>\n    );\n  }\n}\nexport default App;\n```\n\nWith the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.\n\nRemember to import React at the top of your file whenever you're creating a component, because JSX transpiles to `React.createElement` calls under the hood.",
+          input,
+          output,
           model: model,
           internalModel: model,
           modelParameters: {
@@ -1242,4 +1217,64 @@ async function generateConfigs(project: Project) {
   }
 
   return configNameAndId;
+}
+function getGenerationInputOutput(): {
+  input: Prisma.InputJsonValue;
+  output: Prisma.InputJsonValue;
+} {
+  if (Math.random() > 0.9) {
+    const input = [
+      {
+        role: "user",
+        content: [
+          { text: "What’s depicted in this image?", type: "text" },
+          {
+            type: "image_url",
+            image_url: {
+              url: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
+            },
+          },
+          { text: "Describe the scene in detail.", type: "text" },
+        ],
+      },
+    ];
+
+    const output =
+      "The image depicts a serene landscape featuring a wooden pathway or boardwalk that winds through a lush green field. The field is filled with tall grass and surrounded by trees and shrubs. Above, the sky is bright with scattered clouds, suggesting a clear and pleasant day. The scene conveys a sense of tranquility and natural beauty.";
+
+    return { input, output };
+  }
+
+  const input =
+    Math.random() > 0.5
+      ? [
+          {
+            role: "system",
+            content: "Be a helpful assistant",
+          },
+          {
+            role: "user",
+            content: "How can i create a *React* component?",
+          },
+        ]
+      : {
+          input: "How can i create a React component?",
+          retrievedDocuments: [
+            {
+              title: "How to create a React component",
+              url: "https://www.google.com",
+              description: "A guide to creating React components",
+            },
+            {
+              title: "React component creation",
+              url: "https://www.google.com",
+              description: "A guide to creating React components",
+            },
+          ],
+        };
+
+  const output =
+    "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both.\n\n**Image**\n\n![Languse Example Image](https://static.langfuse.com/langfuse-dev/langfuse-example-image.jpeg)\n\n1.  **Functional Component**:\n\nA functional component is just a plain JavaScript function that accepts props as an argument, and returns a React element. Here's how you can create one:\n\n```javascript\nimport React from 'react';\nfunction Greeting(props) {\n  return <h1>Hello, {props.name}</h1>;\n}\nexport default Greeting;\n```\n\nTo use this component in another file, you can do:\n\n```javascript\nimport Greeting from './Greeting';\nfunction App() {\n  return (\n    <div>\n      <Greeting name=\"John\" />\n    </div>\n  );\n}\nexport default App;\n```\n\n2.  **Class Component**:\n\nYou can also define components as classes in React. These have some additional features compared to functional components:\n\n```javascript\nimport React, { Component } from 'react';\nclass Greeting extends Component {\n  render() {\n    return <h1>Hello, {this.props.name}</h1>;\n  }\n}\nexport default Greeting;\n```\n\nAnd here's how to use this component:\n\n```javascript\nimport Greeting from './Greeting';\nclass App extends Component {\n  render() {\n    return (\n      <div>\n        <Greeting name=\"John\" />\n      </div>\n    );\n  }\n}\nexport default App;\n```\n\nWith the advent of hooks in React, functional components can do everything that class components can do and hence, the community has been favoring functional components over class components.\n\nRemember to import React at the top of your file whenever you're creating a component, because JSX transpiles to `React.createElement` calls under the hood.";
+
+  return { input, output };
 }
