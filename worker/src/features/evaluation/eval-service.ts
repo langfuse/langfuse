@@ -280,8 +280,7 @@ export const evaluate = async ({
   if (!parsedKey.success) {
     // this will fail the eval execution if a user deletes the API key.
     logger.error(
-      `API key for provider ${template.provider} and project ${event.projectId} not
-      found. Eval will fail. ${parsedKey.error}`
+      `Evaluating job ${event.jobExecutionId} did not find API key for provider ${template.provider} and project ${event.projectId}. Eval will fail. ${parsedKey.error}`
     );
     throw new LangfuseNotFoundError(
       `API key for provider ${template.provider} and project ${event.projectId} not found.`
