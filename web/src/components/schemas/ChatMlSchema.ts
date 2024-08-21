@@ -10,7 +10,7 @@ export const OpenAIUrlImageUrl = z.string().regex(/^https?:/);
 
 const OpenAIBase64ImageUrl = z
   .string()
-  .regex(/^data:image\/(png|jpeg|jpg|gif|webp);base64/);
+  .regex(/^data:image\/(png|jpeg|jpg|gif|webp);base64,/);
 
 const OpenAIImageContentPart = z.object({
   type: z.literal("image_url"),
