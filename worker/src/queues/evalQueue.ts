@@ -10,18 +10,19 @@ import {
   TQueueJobTypes,
   traceException,
   instrument,
+  recordIncrement,
+  recordHistogram,
+  recordGauge,
+  getTraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
+import { env } from "../env";
 
 export const evalQueue = redis
   ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
       QueueName.EvaluationExecution,
       {
         connection: redis,
-        defaultJobOptions: {
-          removeOnComplete: true, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
-          removeOnFail: 1000,
-        },
       }
     )
   : null;
@@ -38,7 +39,32 @@ export const evalJobCreator = redis
           },
           async () => {
             try {
+              const startTime = Date.now();
+
+              const waitTime = Date.now() - job.timestamp;
+
+              recordIncrement("trace_upsert_queue_request");
+              recordHistogram("trace_upsert_queue_wait_time", waitTime, {
+                unit: "milliseconds",
+              });
+
               await createEvalJobs({ event: job.data.payload });
+
+              await getTraceUpsertQueue()
+                ?.count()
+                .then((count) => {
+                  logger.info(`Eval creation queue length: ${count}`);
+                  recordGauge("trace_upsert_queue_length", count, {
+                    unit: "records",
+                  });
+                  return count;
+                })
+                .catch();
+              recordHistogram(
+                "trace_upsert_queue_processing_time",
+                Date.now() - startTime,
+                { unit: "milliseconds" }
+              );
               return true;
             } catch (e) {
               logger.error(
@@ -53,12 +79,7 @@ export const evalJobCreator = redis
       },
       {
         connection: redis,
-        concurrency: 20,
-        limiter: {
-          // execute 75 calls in 1000ms
-          max: 75,
-          duration: 1000,
-        },
+        concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
       }
     )
   : null;
@@ -75,7 +96,33 @@ export const evalJobExecutor = redis
           async () => {
             try {
               logger.info("Executing Evaluation Execution Job", job.data);
+              const startTime = Date.now();
+
+              const waitTime = Date.now() - job.timestamp;
+
+              recordIncrement("eval_execution_queue_request");
+              recordHistogram("eval_execution_queue_wait_time", waitTime, {
+                unit: "milliseconds",
+              });
+
               await evaluate({ event: job.data.payload });
+
+              await evalQueue
+                ?.count()
+                .then((count) => {
+                  logger.info(`Eval execution queue length: ${count}`);
+                  recordGauge("eval_execution_queue_length", count, {
+                    unit: "records",
+                  });
+                  return count;
+                })
+                .catch();
+              recordHistogram(
+                "eval_execution_queue_processing_time",
+                Date.now() - startTime,
+                { unit: "milliseconds" }
+              );
+
               return true;
             } catch (e) {
               const displayError =
@@ -100,12 +147,13 @@ export const evalJobExecutor = redis
                   e.message.includes("API key for provider")
                 )
               ) {
+                traceException(e);
                 logger.error(
                   e,
                   `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`
                 );
               }
-              traceException(e);
+
               throw e;
             }
           }
@@ -113,12 +161,7 @@ export const evalJobExecutor = redis
       },
       {
         connection: redis,
-        concurrency: 10,
-        limiter: {
-          // execute 20 llm calls in 5 seconds
-          max: 20,
-          duration: 5_000,
-        },
+        concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
       }
     )
   : null;

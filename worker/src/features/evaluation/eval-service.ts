@@ -149,7 +149,7 @@ export const createEvalJobs = async ({
           },
           delay: config.delay, // milliseconds
           removeOnComplete: true,
-          removeOnFail: 10_000,
+          removeOnFail: 1_000,
         }
       );
     } else {

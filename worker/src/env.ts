@@ -66,6 +66,14 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(25),
+  LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(25),
+  LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
 });
 
