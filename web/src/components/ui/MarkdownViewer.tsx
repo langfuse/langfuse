@@ -296,6 +296,7 @@ export function MarkdownView({
       ) : null}
       <div className="grid grid-flow-row gap-2 p-3">
         {typeof markdown === "string" ? (
+          // plain string
           <MarkdownRenderer
             markdown={markdown}
             theme={theme}
@@ -303,6 +304,7 @@ export function MarkdownView({
             customCodeHeaderClassName={customCodeHeaderClassName}
           />
         ) : (
+          // content parts (multi-modal)
           markdown.map((content, index) =>
             content.type === "text" ? (
               <MarkdownRenderer
