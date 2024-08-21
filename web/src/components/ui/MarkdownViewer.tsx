@@ -9,7 +9,7 @@ import {
   Children,
   createElement,
 } from "react";
-import ReactMarkdown, { type Components, type Options } from "react-markdown";
+import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
