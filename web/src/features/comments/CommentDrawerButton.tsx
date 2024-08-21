@@ -18,13 +18,13 @@ export function CommentDrawerButton({
   objectId,
   objectType,
   count,
-  size = "icon",
+  variant = "secondary",
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
   count?: number;
-  size?: "icon" | "sm";
+  variant?: "secondary" | "outline";
 }) {
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -45,7 +45,7 @@ export function CommentDrawerButton({
   return (
     <Drawer>
       <DrawerTrigger asChild>
-        <Button type="button" variant="secondary" size={size}>
+        <Button type="button" variant={variant} size="icon">
           {!!count ? (
             <CommentCountIcon count={count} />
           ) : (
