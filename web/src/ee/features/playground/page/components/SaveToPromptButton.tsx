@@ -25,6 +25,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export const SaveToPromptButton: React.FC = () => {
   const available = useHasOrgEntitlement("playground");
@@ -102,7 +103,10 @@ export const SaveToPromptButton: React.FC = () => {
         <Divider />
         <Command className="min-h-[8rem]">
           <CommandInput placeholder="Search chat prompts..." />
-          <CommandEmpty>No chat prompt found.</CommandEmpty>
+          <CommandEmpty>
+            No chat prompt found
+            <DocPopup description="Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages." />
+          </CommandEmpty>
           <CommandGroup className="mt-2">
             <CommandList>
               {allPromptNames.map((promptName) => (
