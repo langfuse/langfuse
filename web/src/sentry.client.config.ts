@@ -1,30 +1,30 @@
 import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  dsn: "https://44c5a8d22f44a2d2a7d6c780c6377a5c@o4505408450789376.ingest.us.sentry.io/4505408525565952",
   // Replay may only be enabled for the client-side
-  integrations: [Sentry.replayIntegration()],
+  integrations: [
+    Sentry.replayIntegration(),
+    Sentry.replayIntegration({
+      // Additional SDK configuration goes in here, for example:
+      maskAllText: true,
+      blockAllMedia: true,
+    }),
+  ],
 
   // Set tracesSampleRate to 1.0 to capture 100%
-  // of transactions for performance monitoring.
+  // of transactions for tracing.
   // We recommend adjusting this value in production
-  tracesSampleRate: process.env.NEXT_LANGFUSE_TRACING_SAMPLE_RATE
-    ? Number(process.env.NEXT_LANGFUSE_TRACING_SAMPLE_RATE)
-    : 0.1,
+  tracesSampleRate: 1.0,
 
-  // Capture Replay for 100% of all sessions,
+  // Capture Replay for 10% of all sessions,
   // plus for 100% of sessions with an error
-  replaysSessionSampleRate: 0,
+  replaysSessionSampleRate: 1,
   replaysOnErrorSampleRate: 1.0,
+  debug: true,
 
-  beforeSend(event, _hint) {
-    // Check if it is an exception, and if so, show the report dialog
-    if (event.exception) {
-      Sentry.showReportDialog({ eventId: event.event_id });
-    }
-    return event;
-  },
-
+  // If the entire session is not sampled, use the below sample rate to sample
+  // sessions when an error occurs.
   // ...
 
   // Note: if you want to override the automatic release value, do not set a
