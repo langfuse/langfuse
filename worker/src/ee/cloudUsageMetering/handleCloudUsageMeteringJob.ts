@@ -121,14 +121,16 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       `Cloud Usage Metering Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`
     );
 
-    await stripe.billing.meterEvents.create({
-      event_name: "tracing_observations",
-      timestamp: meterIntervalEnd.getTime() / 1000,
-      payload: {
-        stripe_customer_id: stripeCustomerId,
-        value: countObservations.toString(), // value is a string in stripe
-      },
-    });
+    if (countObservations > 0) {
+      await stripe.billing.meterEvents.create({
+        event_name: "tracing_observations",
+        timestamp: meterIntervalEnd.getTime() / 1000,
+        payload: {
+          stripe_customer_id: stripeCustomerId,
+          value: countObservations.toString(), // value is a string in stripe
+        },
+      });
+    }
 
     countProcessedOrgs++;
     countProcessedObservations += countObservations;
