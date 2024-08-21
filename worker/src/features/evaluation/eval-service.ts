@@ -37,9 +37,6 @@ export const createEvalJobs = async ({
 }: {
   event: z.infer<typeof TraceUpsertEventSchema>;
 }) => {
-  logger.info(
-    `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`
-  );
   const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
@@ -152,7 +149,7 @@ export const createEvalJobs = async ({
           },
           delay: config.delay, // milliseconds
           removeOnComplete: true,
-          removeOnFail: 10_000,
+          removeOnFail: 1_000,
         }
       );
     } else {
