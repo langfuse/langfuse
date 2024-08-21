@@ -158,7 +158,7 @@ const sentryOptions = {
   //     - excludeServerRoutes
   //   'Configure Tunneling':
   //     - tunnelRoute
-  // tunnelRoute: "/api/monitoring-tunnel",
+  tunnelRoute: "/api/monitoring-tunnel",
 };
 
 export default withSentryConfig(nextConfig, sentryOptions);
