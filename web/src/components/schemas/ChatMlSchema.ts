@@ -25,6 +25,7 @@ export const OpenAIContentParts = z.array(
 );
 
 export const OpenAIContentSchema = z.union([z.string(), OpenAIContentParts]);
+export type OpenAIContentSchema = z.infer<typeof OpenAIContentSchema>;
 
 export const ChatMlMessageSchema = z
   .object({
@@ -52,5 +53,7 @@ export const ChatMlMessageSchema = z
     content,
     json: Object.keys(other).length === 0 ? undefined : other,
   }));
+export type ChatMlMessageSchema = z.infer<typeof ChatMlMessageSchema>;
 
 export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
+export type ChatMlArraySchema = z.infer<typeof ChatMlArraySchema>;
