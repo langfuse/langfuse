@@ -198,33 +198,36 @@ export const promptRouter = createTRPCRouter({
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const names = await ctx.prisma.prompt.groupBy({
-        where: {
-          projectId: input.projectId,
-        },
-        by: ["name"],
-        // limiting to 1k prompt names to avoid performance issues.
-        // some users have unique names for large amounts of prompts
-        // sending all prompt names to the FE exceeds the cloud function return size limit
-        take: 1000,
-        orderBy: {
-          name: "asc",
-        },
-      });
-      const tags: { value: string }[] = await ctx.prisma.$queryRaw`
-        SELECT tags.tag as value
-        FROM prompts, UNNEST(prompts.tags) AS tags(tag)
-        WHERE prompts.project_id = ${input.projectId}
-        GROUP BY tags.tag
-        ORDER BY tags.tag ASC;
-      `;
-      const labels: { value: string }[] = await ctx.prisma.$queryRaw`
-      SELECT labels.label as value
-      FROM prompts, UNNEST(prompts.labels) AS labels(label)
-      WHERE prompts.project_id = ${input.projectId}
-      GROUP BY labels.label
-      ORDER BY labels.label ASC;
-    `;
+      const [names, tags, labels] = await Promise.all([
+        ctx.prisma.prompt.groupBy({
+          where: {
+            projectId: input.projectId,
+          },
+          by: ["name"],
+          // limiting to 1k prompt names to avoid performance issues.
+          // some users have unique names for large amounts of prompts
+          // sending all prompt names to the FE exceeds the cloud function return size limit
+          take: 1000,
+          orderBy: {
+            name: "asc",
+          },
+        }),
+        ctx.prisma.$queryRaw<{ value: string }[]>`
+          SELECT tags.tag as value
+          FROM prompts, UNNEST(prompts.tags) AS tags(tag)
+          WHERE prompts.project_id = ${input.projectId}
+          GROUP BY tags.tag
+          ORDER BY tags.tag ASC;
+        `,
+        ctx.prisma.$queryRaw<{ value: string }[]>`
+          SELECT labels.label as value
+          FROM prompts, UNNEST(prompts.labels) AS labels(label)
+          WHERE prompts.project_id = ${input.projectId}
+          GROUP BY labels.label
+          ORDER BY labels.label ASC;
+        `,
+      ]);
+
       const res = {
         name: names
           .filter((n) => n.name !== null)
