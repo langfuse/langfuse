@@ -31,7 +31,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
     cloudUsageMeteringJobExecutor,
   ];
 
-  await Promise.all(workers.map((worker) => worker?.close()));
+  await Promise.all(workers.map(async (worker) => await worker?.close()));
   logger.info("All workers have been closed.");
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
