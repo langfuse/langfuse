@@ -7,7 +7,6 @@ import {
   sessionsViewCols,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
-import { useState } from "react";
 import {
   useQueryParam,
   encodeDelimitedArray,
@@ -104,11 +103,6 @@ export const useQueryFilterState = (
   };
 
   return [filterState, setFilterStateWithSession] as const;
-};
-
-export const useMemoryFilterState = (initialState: FilterState = []) => {
-  const [filterState, setFilterState] = useState(initialState);
-  return [filterState, setFilterState] as const;
 };
 
 const tableCols = {
