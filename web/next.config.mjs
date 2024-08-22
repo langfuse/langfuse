@@ -181,6 +181,7 @@ const sentryOptions = {
 
   // An auth token is required for uploading source maps.
   authToken: env.SENTRY_AUTH_TOKEN,
+  tunnelRoute: "/api/monitoring-tunnel",
 };
 
 export default withSentryConfig(nextConfig, sentryOptions);

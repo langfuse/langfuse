@@ -188,16 +188,6 @@ export default function Dashboard() {
             globalFilterState={mergedFilterState}
           />
         )}
-        <button
-          type="button"
-          onClick={() => {
-            throw new Error("Sentry Test Error");
-          }}
-        >
-          Break the world
-          <ErrorPage title="Error" message="This is a test error" />
-        </button>
-        ;
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
