@@ -26,7 +26,7 @@ import {
   Prisma,
   type Trace,
 } from "@langfuse/shared/src/db";
-import { traceException, instrument } from "@langfuse/shared/src/server";
+import { traceException } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 import type Decimal from "decimal.js";
@@ -120,28 +120,7 @@ export const traceRouter = createTRPCRouter({
         orderByCondition,
       );
 
-      const traces = await instrument(
-        { name: "get-all-traces" },
-        async () =>
-          await ctx.prisma.$queryRaw<
-            Array<
-              Trace & {
-                promptTokens: bigint;
-                completionTokens: bigint;
-                totalTokens: bigint;
-                totalCount: number;
-                latency: number | null;
-                level: ObservationLevel;
-                observationCount: number;
-                calculatedTotalCost: Decimal | null;
-                calculatedInputCost: Decimal | null;
-                calculatedOutputCost: Decimal | null;
-              }
-            >
-          >(tracesQuery),
-      );
-
-      const countQyery = createTracesQuery(
+      const countQuery = createTracesQuery(
         Prisma.sql`count(*)`,
         input.projectId,
         observationTimeseriesFilter,
@@ -152,8 +131,25 @@ export const traceRouter = createTRPCRouter({
         Prisma.empty,
       );
 
-      const totalTraces =
-        await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQyery);
+      const [traces, totalTraces] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          Array<
+            Trace & {
+              promptTokens: bigint;
+              completionTokens: bigint;
+              totalTokens: bigint;
+              totalCount: number;
+              latency: number | null;
+              level: ObservationLevel;
+              observationCount: number;
+              calculatedTotalCost: Decimal | null;
+              calculatedInputCost: Decimal | null;
+              calculatedOutputCost: Decimal | null;
+            }
+          >
+        >(tracesQuery),
+        ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQuery),
+      ]);
 
       // get scores for each trace individually to increase
       // performance of the query above
