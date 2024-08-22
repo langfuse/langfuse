@@ -32,44 +32,44 @@ export const userRouter = createTRPCRouter({
         "users",
       );
 
-      const totalUsers = (
-        await ctx.prisma.$queryRaw<
+      const [users, totalUsers] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          Array<{
+            userId: string;
+            totalTraces: bigint;
+          }>
+        >`
+          SELECT
+            t.user_id AS "userId",
+            COUNT(t.id)::bigint AS "totalTraces"
+          FROM
+            traces t
+          WHERE
+            t.user_id IS NOT NULL
+            AND t.user_id != ''
+            AND t.project_id = ${input.projectId}
+            ${filterCondition}
+          GROUP BY
+            t.user_id
+          ORDER BY
+            "totalTraces" DESC
+          LIMIT
+            ${input.limit} OFFSET ${input.page * input.limit};
+        `,
+        ctx.prisma.$queryRaw<
           Array<{
             totalCount: bigint;
           }>
         >`
-        SELECT COUNT(DISTINCT t.user_id)::bigint AS "totalCount"
-        FROM traces t
-        WHERE t.project_id = ${input.projectId}
-        ${filterCondition}
-      `
-      )[0].totalCount;
-
-      const users = await ctx.prisma.$queryRaw<
-        Array<{
-          userId: string;
-          totalTraces: bigint;
-        }>
-      >`
-        SELECT
-          t.user_id AS "userId",
-          COUNT(t.id)::bigint AS "totalTraces"
-        FROM
-          traces t
-        WHERE
-          t.user_id IS NOT NULL
-          AND t.user_id != ''
-          AND t.project_id = ${input.projectId}
+          SELECT COUNT(DISTINCT t.user_id)::bigint AS "totalCount"
+          FROM traces t
+          WHERE t.project_id = ${input.projectId}
           ${filterCondition}
-        GROUP BY
-          t.user_id
-        ORDER BY
-          "totalTraces" DESC
-        LIMIT
-          ${input.limit} OFFSET ${input.page * input.limit};
-      `;
+        `,
+      ]);
+
       return {
-        totalUsers,
+        totalUsers: totalUsers[0].totalCount,
         users,
       };
     }),
@@ -212,6 +212,7 @@ export const userRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const [agg, lastScoresOfUsers] = await Promise.all([
+        // agg
         ctx.prisma.$queryRaw<
           {
             userId: string;
@@ -249,6 +250,7 @@ export const userRouter = createTRPCRouter({
           ORDER BY "totalTokens" DESC
           LIMIT 50
         `,
+        // lastScoresOfUsers
         ctx.prisma.$queryRaw<Array<LastUserScore>>`
         WITH ranked_scores AS (
           SELECT
