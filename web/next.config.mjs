@@ -31,6 +31,11 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     instrumentationHook: true,
+    serverComponentsExternalPackages: [
+      "dd-trace",
+      "@opentelemetry/auto-instrumentations-node",
+      "@opentelemetry/api",
+    ],
   },
   poweredByHeader: false,
 
@@ -81,22 +86,22 @@ const nextConfig = {
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
-          {
-            source: "/api/auth/session",
-            headers: [
-              {
-                key: "Access-Control-Allow-Origin",
-                value: "https://langfuse.com",
-              },
-              { key: "Access-Control-Allow-Credentials", value: "true" },
-              { key: "Access-Control-Allow-Methods", value: "GET,POST" },
-              {
-                key: "Access-Control-Allow-Headers",
-                value: "Content-Type, Authorization",
-              },
-            ],
-          },
-        ]
+            {
+              source: "/api/auth/session",
+              headers: [
+                {
+                  key: "Access-Control-Allow-Origin",
+                  value: "https://langfuse.com",
+                },
+                { key: "Access-Control-Allow-Credentials", value: "true" },
+                { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+                {
+                  key: "Access-Control-Allow-Headers",
+                  value: "Content-Type, Authorization",
+                },
+              ],
+            },
+          ]
         : []),
       // all files in /public/generated are public and can be accessed from any origin, e.g. to render an API reference based on our openapi schema
       {
@@ -117,10 +122,6 @@ const nextConfig = {
 
   // webassembly support for @dqbd/tiktoken
   webpack(config, { isServer }) {
-    if (isServer) {
-      // https://github.com/open-telemetry/opentelemetry-js/issues/4173
-      config.ignoreWarnings = [{ module: /opentelemetry/ }];
-    }
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,
