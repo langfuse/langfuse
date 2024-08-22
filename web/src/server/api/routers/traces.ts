@@ -277,57 +277,59 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const trace = await ctx.prisma.trace.findFirstOrThrow({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-      });
-      const observations = await ctx.prisma.observationView.findMany({
-        select: {
-          id: true,
-          traceId: true,
-          projectId: true,
-          type: true,
-          startTime: true,
-          endTime: true,
-          name: true,
-          parentObservationId: true,
-          level: true,
-          statusMessage: true,
-          version: true,
-          createdAt: true,
-          model: true,
-          modelParameters: true,
-          promptTokens: true,
-          completionTokens: true,
-          totalTokens: true,
-          unit: true,
-          completionStartTime: true,
-          timeToFirstToken: true,
-          promptId: true,
-          modelId: true,
-          inputPrice: true,
-          outputPrice: true,
-          totalPrice: true,
-          calculatedInputCost: true,
-          calculatedOutputCost: true,
-          calculatedTotalCost: true,
-        },
-        where: {
-          traceId: {
-            equals: input.traceId,
-            not: null,
+      const [trace, observations, scores] = await Promise.all([
+        ctx.prisma.trace.findFirstOrThrow({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
           },
-          projectId: trace.projectId,
-        },
-      });
-      const scores = await ctx.prisma.score.findMany({
-        where: {
-          traceId: input.traceId,
-          projectId: trace.projectId,
-        },
-      });
+        }),
+        ctx.prisma.observationView.findMany({
+          select: {
+            id: true,
+            traceId: true,
+            projectId: true,
+            type: true,
+            startTime: true,
+            endTime: true,
+            name: true,
+            parentObservationId: true,
+            level: true,
+            statusMessage: true,
+            version: true,
+            createdAt: true,
+            model: true,
+            modelParameters: true,
+            promptTokens: true,
+            completionTokens: true,
+            totalTokens: true,
+            unit: true,
+            completionStartTime: true,
+            timeToFirstToken: true,
+            promptId: true,
+            modelId: true,
+            inputPrice: true,
+            outputPrice: true,
+            totalPrice: true,
+            calculatedInputCost: true,
+            calculatedOutputCost: true,
+            calculatedTotalCost: true,
+          },
+          where: {
+            traceId: {
+              equals: input.traceId,
+              not: null,
+            },
+            projectId: input.projectId,
+          },
+        }),
+        ctx.prisma.score.findMany({
+          where: {
+            traceId: input.traceId,
+            projectId: input.projectId,
+          },
+        }),
+      ]);
       const validatedScores = filterAndValidateDbScoreList(
         scores,
         traceException,
