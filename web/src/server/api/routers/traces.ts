@@ -213,11 +213,7 @@ export const traceRouter = createTRPCRouter({
           dataType: { in: ["NUMERIC", "BOOLEAN"] },
         },
         take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
-          },
-        },
+        orderBy: { name: "asc" },
         by: ["name"],
       });
       const names = await ctx.prisma.trace.groupBy({
@@ -230,14 +226,7 @@ export const traceRouter = createTRPCRouter({
         // some users have unique names for large amounts of traces
         // sending all trace names to the FE exceeds the cloud function return size limit
         take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
-          },
-        },
-        _count: {
-          id: true,
-        },
+        orderBy: { name: "asc" },
       });
 
       const rawTimestampFilter =
@@ -249,12 +238,12 @@ export const traceRouter = createTRPCRouter({
             )
           : Prisma.empty;
 
-      const tags: { count: number; value: string }[] = await ctx.prisma
-        .$queryRaw`
-        SELECT COUNT(*)::integer AS "count", tags.tag as value
+      const tags: { value: string }[] = await ctx.prisma.$queryRaw`
+        SELECT tags.tag as value
         FROM traces, UNNEST(traces.tags) AS tags(tag)
         WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
         GROUP BY tags.tag
+        ORDER BY tags.tag ASC
         LIMIT 1000
       `;
       const res: TraceOptions = {
@@ -263,7 +252,6 @@ export const traceRouter = createTRPCRouter({
           .filter((n) => n.name !== null)
           .map((name) => ({
             value: name.name ?? "undefined",
-            count: name._count.id,
           })),
         tags: tags,
       };
