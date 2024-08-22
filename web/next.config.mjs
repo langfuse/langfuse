@@ -13,7 +13,7 @@ import { env } from "./src/env.mjs";
 const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.posthog.com https://*.sentry.io wss://*.crisp.chat https://*.crisp.chat;
   script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://*.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
-  style-src 'self' 'unsafe-inline' https://*.crisp.chat;
+  style-src 'self' https://*.crisp.chat;
   img-src 'self' https: blob: data:;
   font-src 'self' https://*.crisp.chat;
   frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com;
@@ -23,7 +23,23 @@ const cspHeader = `
   form-action 'self';
   frame-ancestors 'none';
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
+  report-uri https://o4505408450789376.ingest.us.sentry.io/api/4505408525565952/security/?sentry_key=44c5a8d22f44a2d2a7d6c780c6377a5c;
+  report-to csp-endpoint
 `;
+
+const reportToHeader = {
+  key: "Report-To",
+  value: JSON.stringify({
+    group: "csp-endpoint",
+    max_age: 10886400,
+    endpoints: [
+      {
+        url: "https://o4505408450789376.ingest.us.sentry.io/api/4505408525565952/security/?sentry_key=44c5a8d22f44a2d2a7d6c780c6377a5c",
+      },
+    ],
+    include_subdomains: true,
+  }),
+};
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
