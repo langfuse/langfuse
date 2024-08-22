@@ -266,11 +266,7 @@ export default function Layout(props: PropsWithChildren) {
       </Head>
       <div>
         <Transition.Root show={sidebarOpen} as={Fragment}>
-          <Dialog
-            as="div"
-            className="relative z-50 lg:hidden"
-            onClose={setSidebarOpen}
-          >
+          <Dialog as="div" className="relative z-50" onClose={setSidebarOpen}>
             <Transition.Child
               as={Fragment}
               enter="transition-opacity ease-linear duration-300"
@@ -332,97 +328,11 @@ export default function Layout(props: PropsWithChildren) {
         </Transition.Root>
 
         {/* Static sidebar for desktop */}
-        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
-          {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col border-r border-border bg-background">
-            <nav className="flex h-full flex-1 flex-col overflow-y-auto px-4 py-3">
-              <ul role="list" className="flex h-full flex-col">
-                <EnvLabel className="my-2" />
-                <MainNavigation nav={topNavigation} />
-                <MainNavigation nav={bottomNavigation} className="mt-auto" />
-                <FeedbackButtonWrapper
-                  className="space-y-1"
-                  title="Provide feedback"
-                  description="What do you think about this project? What can be improved?"
-                  type="feedback"
-                >
-                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-1.5 text-sm font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent">
-                    <MessageSquarePlus
-                      className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
-                      aria-hidden="true"
-                    />
-                    Feedback
-                  </li>
-                </FeedbackButtonWrapper>
-              </ul>
-            </nav>
 
-            <Menu as="div" className="relative">
-              <Menu.Button className="flex w-full items-center gap-x-2 overflow-hidden p-1.5 py-3 pl-3 pr-4 text-sm font-semibold text-primary hover:bg-primary-foreground">
-                <span className="sr-only">Open user menu</span>
-                <Avatar className="h-7 w-7">
-                  <AvatarImage src={session.data?.user?.image ?? undefined} />
-                  <AvatarFallback>
-                    {session.data?.user?.name
-                      ? session.data.user.name
-                          .split(" ")
-                          .map((word) => word[0])
-                          .slice(0, 2)
-                          .concat("")
-                      : null}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="flex-shrink truncate text-sm font-semibold text-primary">
-                  {session.data?.user?.name}
-                </span>
-                <div className="flex-1" />
-                <ChevronDownIcon
-                  className="h-5 w-5 text-muted-foreground"
-                  aria-hidden="true"
-                />
-              </Menu.Button>
-              <Transition
-                as={Fragment}
-                enter="transition ease-out duration-100"
-                enterFrom="transform opacity-0 scale-95"
-                enterTo="transform opacity-100 scale-100"
-                leave="transition ease-in duration-75"
-                leaveFrom="transform opacity-100 scale-100"
-                leaveTo="transform opacity-0 scale-95"
-              >
-                <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
-                  <span
-                    className="block max-w-56 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
-                    title={session.data?.user?.email ?? undefined}
-                  >
-                    {session.data?.user?.email}
-                  </span>
-                  {userNavigation.map((item) => (
-                    <Menu.Item key={item.name}>
-                      {({ active }) => (
-                        <a
-                          onClick={() => void item.onClick()}
-                          className={cn(
-                            active ? "bg-primary-foreground" : "",
-                            "flex cursor-pointer items-center justify-between px-2 py-0.5 text-sm leading-6 text-primary",
-                          )}
-                        >
-                          {item.name}
-                          {item.content}
-                        </a>
-                      )}
-                    </Menu.Item>
-                  ))}
-                </Menu.Items>
-              </Transition>
-            </Menu>
-          </div>
-        </div>
-
-        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-background px-4 py-4 shadow-sm sm:px-6 lg:hidden">
+        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-background px-4 py-4 shadow-sm sm:px-6">
           <button
             type="button"
-            className="-m-2.5 p-2.5 text-primary lg:hidden"
+            className="-m-2.5 p-2.5 text-primary"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
@@ -485,7 +395,7 @@ export default function Layout(props: PropsWithChildren) {
             </Transition>
           </Menu>
         </div>
-        <div className="lg:pl-56">
+        <div className="">
           {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (

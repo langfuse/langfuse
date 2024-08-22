@@ -31,9 +31,7 @@ export const LangfuseLogo = ({
   version?: boolean;
   showEnvLabel?: boolean;
 }) => (
-  <div
-    className={cn("flex flex-wrap gap-4 lg:flex-col lg:items-start", className)}
-  >
+  <div className={cn("flex flex-wrap gap-4", className)}>
     {/* Environment Labeling for Langfuse Maintainers */}
     {showEnvLabel && <EnvLabel />}
     {/* Langfuse Logo */}

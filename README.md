@@ -4,6 +4,9 @@
 <div align="center"><h2> Debug and improve your LLM app</h4></div>
 <div align="center"><h3> LLM Observability, Prompt Management, LLM Evaluations, Datasets, LLM Metrics and Prompt Playground</h4></div>
 
+TODO marc: remove
+pnpm run dev
+
 <div align="center">
    <div>
       <h3>
@@ -49,24 +52,24 @@ https://github.com/langfuse/langfuse/assets/2834609/a94062e9-c782-4ee9-af59-dee6
 
 ### Develop
 
-- **LLM Observability:** Instrument your app and start ingesting traces to Langfuse ([Quickstart](https://langfuse.com/docs/get-started), [Integrations](https://langfuse.com/docs/integrations) [Tracing](https://langfuse.com/docs/tracing))
-- **Langfuse UI:** Inspect and debug complex logs ([Demo](https://langfuse.com/docs/demo), [Tracing](https://langfuse.com/docs/tracing))
-- **Prompt Management:** Manage, version and deploy prompts from within Langfuse ([Prompt Management](https://langfuse.com/docs/prompts/get-started))
-- **Prompt Engineering:** Test and iterate on your prompts with the [LLM Playground](https://langfuse.com/docs/playground)
+-   **LLM Observability:** Instrument your app and start ingesting traces to Langfuse ([Quickstart](https://langfuse.com/docs/get-started), [Integrations](https://langfuse.com/docs/integrations) [Tracing](https://langfuse.com/docs/tracing))
+-   **Langfuse UI:** Inspect and debug complex logs ([Demo](https://langfuse.com/docs/demo), [Tracing](https://langfuse.com/docs/tracing))
+-   **Prompt Management:** Manage, version and deploy prompts from within Langfuse ([Prompt Management](https://langfuse.com/docs/prompts/get-started))
+-   **Prompt Engineering:** Test and iterate on your prompts with the [LLM Playground](https://langfuse.com/docs/playground)
 
 ### Monitor
 
-- **LLM Analytics:** Track metrics (cost, latency, quality) and gain insights from dashboards & data exports ([Analytics](https://langfuse.com/docs/analytics))
-- **LLM Evaluations:** Collect and calculate scores for your LLM completions ([Scores & Evaluations](https://langfuse.com/docs/scores))
-  - Run ([Model-based evaluations](https://langfuse.com/docs/scores/model-based-evals)) and LLM-as-a-Judge within Langfuse
-  - Collect user feedback ([User Feedback](https://langfuse.com/docs/scores/user-feedback))
-  - Manually score LLM outputs in Langfuse ([Manual Scores](https://langfuse.com/docs/scores/manually))
+-   **LLM Analytics:** Track metrics (cost, latency, quality) and gain insights from dashboards & data exports ([Analytics](https://langfuse.com/docs/analytics))
+-   **LLM Evaluations:** Collect and calculate scores for your LLM completions ([Scores & Evaluations](https://langfuse.com/docs/scores))
+    -   Run ([Model-based evaluations](https://langfuse.com/docs/scores/model-based-evals)) and LLM-as-a-Judge within Langfuse
+    -   Collect user feedback ([User Feedback](https://langfuse.com/docs/scores/user-feedback))
+    -   Manually score LLM outputs in Langfuse ([Manual Scores](https://langfuse.com/docs/scores/manually))
 
 ### Test
 
-- **Experiments:** Track and test app behaviour before deploying a new version
-  - Datasets let you test expected in and output pairs and benchmark performance before deploying ([Datasets](https://langfuse.com/docs/datasets))
-  - Track versions and releases in your application ([Experimentation](https://langfuse.com/docs/experimentation), [Prompt Management](https://langfuse.com/docs/prompts))
+-   **Experiments:** Track and test app behaviour before deploying a new version
+    -   Datasets let you test expected in and output pairs and benchmark performance before deploying ([Datasets](https://langfuse.com/docs/datasets))
+    -   Track versions and releases in your application ([Experimentation](https://langfuse.com/docs/experimentation), [Prompt Management](https://langfuse.com/docs/prompts))
 
 ## Get started
 
@@ -138,23 +141,23 @@ Packages that integrate with Langfuse:
 
 ### Ideas and roadmap
 
-- [Roadmap](https://langfuse.com/roadmap)
-- [GitHub Discussions](https://github.com/orgs/langfuse/discussions)
-- [Feature Requests](https://langfuse.com/idea
+-   [Roadmap](https://langfuse.com/roadmap)
+-   [GitHub Discussions](https://github.com/orgs/langfuse/discussions)
+-   [Feature Requests](https://langfuse.com/idea
 
 ### Support and feedback
 
 In order of preference the best way to communicate with us:
 
-- [GitHub Discussions](https://github.com/orgs/langfuse/discussions): Contribute [ideas](https://langfuse.com/idea) [support requests](https://github.com/orgs/langfuse/discussions/categories/support) and [report bugs](https://github.com/langfuse/langfuse/issues/new?labels=%F0%9F%90%9E%E2%9D%94+unconfirmed+bug&projects=&template=bug_report.yml&title=bug%3A+) (preferred as we create a permanent, indexed artifact for other community members)
-- [Discord](https://langfuse.com/discord): community support
-- Privately: contact at langfuse dot com
+-   [GitHub Discussions](https://github.com/orgs/langfuse/discussions): Contribute [ideas](https://langfuse.com/idea) [support requests](https://github.com/orgs/langfuse/discussions/categories/support) and [report bugs](https://github.com/langfuse/langfuse/issues/new?labels=%F0%9F%90%9E%E2%9D%94+unconfirmed+bug&projects=&template=bug_report.yml&title=bug%3A+) (preferred as we create a permanent, indexed artifact for other community members)
+-   [Discord](https://langfuse.com/discord): community support
+-   Privately: contact at langfuse dot com
 
 ## Contributing to Langfuse
 
-- Vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas)
-- Raise and comment on [Issues](https://github.com/langfuse/langfuse/issues)
-- Open a PR - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
+-   Vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas)
+-   Raise and comment on [Issues](https://github.com/langfuse/langfuse/issues)
+-   Open a PR - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
 
 ## License
 
