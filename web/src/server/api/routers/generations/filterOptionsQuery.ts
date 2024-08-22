@@ -115,6 +115,26 @@ export const filterOptionsQuery = protectedProjectProcedure
         LIMIT 1000;
       `);
 
+    const tags = await ctx.prisma.$queryRaw<
+      Array<{
+        tag: string | null;
+        count: number;
+      }>
+    >(Prisma.sql`
+        SELECT
+          tag,
+          count(*)::int AS count
+        FROM traces t
+        JOIN observations o ON o.trace_id = t.id,
+        UNNEST(t.tags) AS tag
+        WHERE o.type = 'GENERATION'
+          AND o.project_id = ${input.projectId}
+          AND t.project_id = ${input.projectId}
+          ${rawStartTimeFilter}
+        GROUP BY tag
+        LIMIT 1000;
+      `);
+
     // typecheck filter options, needs to include all columns with options
     const res: ObservationOptions = {
       model: model
@@ -141,6 +161,12 @@ export const filterOptionsQuery = protectedProjectProcedure
         .filter((i) => i.promptName !== null)
         .map((i) => ({
           value: i.promptName as string,
+          count: i.count,
+        })),
+      tags: tags
+        .filter((i) => i.tag !== null)
+        .map((i) => ({
+          value: i.tag as string,
           count: i.count,
         })),
     };
