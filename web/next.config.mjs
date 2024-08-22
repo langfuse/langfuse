@@ -23,8 +23,7 @@ const cspHeader = `
   form-action 'self';
   frame-ancestors 'none';
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
-  report-uri https://o4505408450789376.ingest.us.sentry.io/api/4505408525565952/security/?sentry_key=44c5a8d22f44a2d2a7d6c780c6377a5c;
-  report-to csp-endpoint
+  ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
 `;
 
 const reportToHeader = {
@@ -34,7 +33,7 @@ const reportToHeader = {
     max_age: 10886400,
     endpoints: [
       {
-        url: "https://o4505408450789376.ingest.us.sentry.io/api/4505408525565952/security/?sentry_key=44c5a8d22f44a2d2a7d6c780c6377a5c",
+        url: env.SENTRY_CSP_REPORT_URI,
       },
     ],
     include_subdomains: true,
@@ -88,18 +87,18 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "autoplay=*, fullscreen=*, microphone=*",
           },
-          reportToHeader,
+          ...(env.SENTRY_CSP_REPORT_URI ? [reportToHeader] : []),
         ],
       },
-      // {
-      //   source: "/:path((?!api).*)*",
-      //   headers: [
-      //     {
-      //       key: "Content-Security-Policy",
-      //       value: cspHeader.replace(/\n/g, ""),
-      //     },
-      //   ],
-      // },
+      {
+        source: "/:path((?!api).*)*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: cspHeader.replace(/\n/g, ""),
+          },
+        ],
+      },
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
@@ -168,7 +167,7 @@ const sentryOptions = {
   //     - disableServerWebpackPlugin
   //     - disableClientWebpackPlugin
   //     - hideSourceMaps
-  hideSourceMaps: true,
+  hideSourceMaps: false,
   //     - widenClientFileUpload
   //   'Configure Legacy Browser Support':
   //     - transpileClientSDK
@@ -180,10 +179,10 @@ const sentryOptions = {
 
   org: "langfuse",
   project: "langfuse",
+  silent: true, // Can be used to suppress logs
 
   // An auth token is required for uploading source maps.
-  authToken:
-    "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",
+  authToken: env.SENTRY_AUTH_TOKEN,
 };
 
 export default withSentryConfig(nextConfig, sentryOptions);
