@@ -92,7 +92,7 @@ export const useQueryFilterState = (
 ) => {
   const [sessionFilterState, setSessionFilterState] =
     useSessionStorage<FilterState>(
-      `${table}FilterState-${projectId}`,
+      !!projectId ? `${table}FilterState-${projectId}` : `${table}FilterState`,
       initialState,
     );
 
