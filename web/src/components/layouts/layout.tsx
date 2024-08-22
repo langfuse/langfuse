@@ -119,7 +119,8 @@ export default function Layout(props: PropsWithChildren) {
   const uiCustomization = useUiCustomization();
 
   const cloudAdmin =
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && session.data?.user?.admin;
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+    session.data?.user?.admin === true;
 
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
