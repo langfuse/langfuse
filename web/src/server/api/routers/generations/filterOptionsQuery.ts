@@ -112,12 +112,10 @@ export const filterOptionsQuery = protectedProjectProcedure
     const tags = await ctx.prisma.$queryRaw<
       Array<{
         tag: string | null;
-        count: number;
       }>
     >(Prisma.sql`
         SELECT
-          tag,
-          count(*)::int AS count
+          tag
         FROM traces t
         JOIN observations o ON o.trace_id = t.id,
         UNNEST(t.tags) AS tag
@@ -152,7 +150,6 @@ export const filterOptionsQuery = protectedProjectProcedure
         .filter((i) => i.tag !== null)
         .map((i) => ({
           value: i.tag as string,
-          count: i.count,
         })),
     };
 
