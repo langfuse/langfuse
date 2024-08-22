@@ -155,12 +155,12 @@ export function StarTraceDetailsToggle({
     onMutate: async () => {
       // Cancel any outgoing refetches
       // (so they don't overwrite our optimistic update)
-      await utils.traces.byIdWithContext.cancel();
+      await utils.traces.byIdWithObservationsAndScores.cancel();
 
       setIsLoading(true);
 
       // Snapshot the previous value
-      const prevData = utils.traces.byIdWithContext.getData({
+      const prevData = utils.traces.byIdWithObservationsAndScores.getData({
         traceId,
         projectId,
       });
@@ -171,7 +171,7 @@ export function StarTraceDetailsToggle({
       setIsLoading(false);
       trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
-      utils.traces.byIdWithContext.setData(
+      utils.traces.byIdWithObservationsAndScores.setData(
         { traceId, projectId },
         context?.prevData,
       );
@@ -179,10 +179,12 @@ export function StarTraceDetailsToggle({
     onSettled: () => {
       setIsLoading(false);
 
-      utils.traces.byIdWithContext.setData(
+      utils.traces.byIdWithObservationsAndScores.setData(
         { traceId, projectId },
         (
-          oldQueryData: RouterOutput["traces"]["byIdWithContext"] | undefined,
+          oldQueryData:
+            | RouterOutput["traces"]["byIdWithObservationsAndScores"]
+            | undefined,
         ) => {
           return oldQueryData
             ? {
@@ -192,7 +194,7 @@ export function StarTraceDetailsToggle({
             : undefined;
         },
       );
-      void utils.traces.byIdWithContext.invalidate();
+      void utils.traces.byIdWithObservationsAndScores.invalidate();
       void utils.traces.all.invalidate();
     },
   });

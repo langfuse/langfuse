@@ -285,7 +285,7 @@ export const traceRouter = createTRPCRouter({
       });
       return trace;
     }),
-  byIdWithContext: protectedGetTraceProcedure
+  byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(
       z.object({
         traceId: z.string(), // used for security check
