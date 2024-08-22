@@ -17,6 +17,7 @@ Sentry.init({
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
 
+  debug: true,
   beforeSend(event, _hint) {
     // Check if it is an exception, and if so, show the report dialog
     if (event.exception) {
