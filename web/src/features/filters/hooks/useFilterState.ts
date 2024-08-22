@@ -16,6 +16,7 @@ import {
 } from "use-query-params";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -89,12 +90,20 @@ export const useQueryFilterState = (
   initialState: FilterState = [],
   table: TableName,
 ) => {
+  const [sessionFilterState, setSessionFilterState] =
+    useSessionStorage<FilterState>(`${table}-filterState`, initialState);
+
   const [filterState, setFilterState] = useQueryParam(
     "filter",
-    withDefault(getCommaArrayParam(table), initialState),
+    withDefault(getCommaArrayParam(table), sessionFilterState),
   );
 
-  return [filterState, setFilterState] as const;
+  const setFilterStateWithSession = (newState: FilterState) => {
+    setFilterState(newState);
+    setSessionFilterState(newState);
+  };
+
+  return [filterState, setFilterStateWithSession] as const;
 };
 
 export const useMemoryFilterState = (initialState: FilterState = []) => {
