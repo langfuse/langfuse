@@ -162,8 +162,8 @@ importers:
         specifier: ^2.4.3
         version: 2.4.3
       bullmq:
-        specifier: ^5.4.2
-        version: 5.4.3
+        specifier: ^5.12.10
+        version: 5.12.10
       dd-trace:
         specifier: ^5.19.0
         version: 5.19.0
@@ -281,7 +281,7 @@ importers:
         version: 0.0.4
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.7.1
-        version: 0.7.1(bullmq@5.4.3)
+        version: 0.7.1(bullmq@5.12.10)
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.8.0)(@trpc/server@10.45.2)
@@ -493,8 +493,8 @@ importers:
         specifier: ^2.4.3
         version: 2.4.3
       bullmq:
-        specifier: ^5.4.2
-        version: 5.4.3
+        specifier: ^5.12.10
+        version: 5.12.10
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.0
@@ -5589,9 +5589,6 @@ packages:
 
   bullmq@5.12.10:
     resolution: {integrity: sha512-lXH8Caj+FvYHiBS0QBEpQOq57RcVuEPziBC5cBlWguCVNfn1UMSri22bRrynDKuof8o9XB43ctmYASUpoa0DeQ==}
-
-  bullmq@5.4.3:
-    resolution: {integrity: sha512-JWzwAjX2LLn969W2R4ExoftOV646YX5rpB4q117vDaKYKT8cgAx+n94virnlLKVPK+X4WO8qSDJHzsiIepF2OA==}
 
   bundle-name@4.1.0:
     resolution: {integrity: sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q==}
@@ -11388,17 +11385,6 @@ snapshots:
       flat: 5.0.2
     optionalDependencies:
       bullmq: 5.12.10
-    transitivePeerDependencies:
-      - supports-color
-
-  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.1(bullmq@5.4.3)':
-    dependencies:
-      '@opentelemetry/api': 1.8.0
-      '@opentelemetry/instrumentation': 0.34.0(@opentelemetry/api@1.8.0)
-      '@opentelemetry/semantic-conventions': 1.25.1
-      flat: 5.0.2
-    optionalDependencies:
-      bullmq: 5.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -17736,18 +17722,6 @@ snapshots:
       node-abort-controller: 3.1.1
       semver: 7.6.3
       tslib: 2.6.3
-      uuid: 9.0.1
-    transitivePeerDependencies:
-      - supports-color
-
-  bullmq@5.4.3:
-    dependencies:
-      cron-parser: 4.9.0
-      ioredis: 5.4.1
-      msgpackr: 1.10.1
-      node-abort-controller: 3.1.1
-      semver: 7.6.0
-      tslib: 2.6.2
       uuid: 9.0.1
     transitivePeerDependencies:
       - supports-color
