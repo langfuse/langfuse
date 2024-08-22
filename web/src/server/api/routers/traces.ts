@@ -206,40 +206,6 @@ export const traceRouter = createTRPCRouter({
                   : {}
           : {};
 
-      const scores = await ctx.prisma.score.groupBy({
-        where: {
-          projectId: input.projectId,
-          timestamp: prismaTimestampFilter,
-          dataType: { in: ["NUMERIC", "BOOLEAN"] },
-        },
-        take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
-          },
-        },
-        by: ["name"],
-      });
-      const names = await ctx.prisma.trace.groupBy({
-        where: {
-          projectId: input.projectId,
-          timestamp: prismaTimestampFilter,
-        },
-        by: ["name"],
-        // limiting to 1k trace names to avoid performance issues.
-        // some users have unique names for large amounts of traces
-        // sending all trace names to the FE exceeds the cloud function return size limit
-        take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
-          },
-        },
-        _count: {
-          id: true,
-        },
-      });
-
       const rawTimestampFilter =
         timestampFilter && timestampFilter.type === "datetime"
           ? datetimeFilterToPrismaSql(
@@ -249,27 +215,66 @@ export const traceRouter = createTRPCRouter({
             )
           : Prisma.empty;
 
-      const tags: { count: number; value: string }[] = await ctx.prisma
-        .$queryRaw`
-        SELECT COUNT(*)::integer AS "count", tags.tag as value
-        FROM traces, UNNEST(traces.tags) AS tags(tag)
-        WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
-        GROUP BY tags.tag
-        LIMIT 1000
-      `;
+      const [scores, names, tags] = await Promise.all([
+        ctx.prisma.score.groupBy({
+          where: {
+            projectId: input.projectId,
+            timestamp: prismaTimestampFilter,
+            dataType: { in: ["NUMERIC", "BOOLEAN"] },
+          },
+          take: 1000,
+          orderBy: { name: "asc" },
+          by: ["name"],
+        }),
+        ctx.prisma.trace.groupBy({
+          where: {
+            projectId: input.projectId,
+            timestamp: prismaTimestampFilter,
+          },
+          by: ["name"],
+          // limiting to 1k trace names to avoid performance issues.
+          // some users have unique names for large amounts of traces
+          // sending all trace names to the FE exceeds the cloud function return size limit
+          take: 1000,
+          orderBy: { name: "asc" },
+        }),
+        ctx.prisma.$queryRaw<{ value: string }[]>`
+          SELECT tags.tag as value
+          FROM traces, UNNEST(traces.tags) AS tags(tag)
+          WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
+          GROUP BY tags.tag
+          ORDER BY tags.tag ASC
+          LIMIT 1000
+        `,
+      ]);
       const res: TraceOptions = {
         scores_avg: scores.map((score) => score.name),
         name: names
           .filter((n) => n.name !== null)
           .map((name) => ({
             value: name.name ?? "undefined",
-            count: name._count.id,
           })),
         tags: tags,
       };
       return res;
     }),
   byId: protectedGetTraceProcedure
+    .input(
+      z.object({
+        traceId: z.string(), // used for security check
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const trace = await ctx.prisma.trace.findFirstOrThrow({
+        where: {
+          id: input.traceId,
+          projectId: input.projectId,
+        },
+      });
+      return trace;
+    }),
+  byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(
       z.object({
         traceId: z.string(), // used for security check
