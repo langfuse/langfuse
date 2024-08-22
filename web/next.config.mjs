@@ -154,10 +154,10 @@ const sentryOptions = {
   //   release, url, authToken, configFile, stripPrefix,
   //   urlPrefix, include, ignore
 
-  // org: process.env.SENTRY_ORG,
-  // project: process.env.SENTRY_PROJECT,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
 
-  // silent: true, // Suppresses all logs
+  silent: true, // Suppresses all logs
 
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options.
@@ -176,10 +176,6 @@ const sentryOptions = {
   //     - excludeServerRoutes
   //   'Configure Tunneling':
   //     - tunnelRoute
-
-  org: "langfuse",
-  project: "langfuse",
-  silent: true, // Can be used to suppress logs
 
   // An auth token is required for uploading source maps.
   authToken: env.SENTRY_AUTH_TOKEN,
