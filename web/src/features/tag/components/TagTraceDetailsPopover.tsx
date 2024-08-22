@@ -50,7 +50,9 @@ export function TagTraceDetailsPopover({
       utils.traces.byIdWithObservationsAndScores.setData(
         { traceId, projectId },
         (
-          oldQueryData: RouterOutput["traces"]["byIdWithContext"] | undefined,
+          oldQueryData:
+            | RouterOutput["traces"]["byIdWithObservationsAndScores"]
+            | undefined,
         ) => {
           return oldQueryData
             ? {
