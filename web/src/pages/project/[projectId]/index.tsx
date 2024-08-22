@@ -26,6 +26,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { ErrorPage } from "@/src/components/error-page";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -194,6 +195,7 @@ export default function Dashboard() {
           }}
         >
           Break the world
+          <ErrorPage title="Error" message="This is a test error" />
         </button>
         ;
         <ScoresTable
