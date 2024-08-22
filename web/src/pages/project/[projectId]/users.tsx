@@ -41,6 +41,7 @@ export default function UsersPage() {
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "users",
+    projectId,
   );
 
   const { setDetailPageList } = useDetailPageLists();

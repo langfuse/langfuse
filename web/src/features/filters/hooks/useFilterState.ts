@@ -88,9 +88,13 @@ const getCommaArrayParam = (table: TableName) => ({
 export const useQueryFilterState = (
   initialState: FilterState = [],
   table: TableName,
+  projectId?: string,
 ) => {
   const [sessionFilterState, setSessionFilterState] =
-    useSessionStorage<FilterState>(`${table}-filterState`, initialState);
+    useSessionStorage<FilterState>(
+      `${table}FilterState-${projectId}`,
+      initialState,
+    );
 
   const [filterState, setFilterState] = useQueryParam(
     "filter",

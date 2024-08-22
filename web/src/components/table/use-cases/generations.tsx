@@ -118,6 +118,7 @@ export default function GenerationsTable({
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [],
     "generations",
+    projectId,
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
