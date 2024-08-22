@@ -208,23 +208,22 @@ export const promptRouter = createTRPCRouter({
         // sending all prompt names to the FE exceeds the cloud function return size limit
         take: 1000,
         orderBy: {
-          _count: {
-            id: "desc",
-          },
-        },
-        _count: {
-          id: true,
+          name: "asc",
         },
       });
       const tags: { value: string }[] = await ctx.prisma.$queryRaw`
         SELECT tags.tag as value
         FROM prompts, UNNEST(prompts.tags) AS tags(tag)
-        WHERE prompts.project_id = ${input.projectId};
+        WHERE prompts.project_id = ${input.projectId}
+        GROUP BY tags.tag
+        ORDER BY tags.tag ASC;
       `;
       const labels: { value: string }[] = await ctx.prisma.$queryRaw`
       SELECT labels.label as value
       FROM prompts, UNNEST(prompts.labels) AS labels(label)
-      WHERE prompts.project_id = ${input.projectId};
+      WHERE prompts.project_id = ${input.projectId}
+      GROUP BY labels.label
+      ORDER BY labels.label ASC;
     `;
       const res = {
         name: names

@@ -83,8 +83,8 @@ export const sessionRouter = createTRPCRouter({
           traces.session_id IS NOT NULL
           AND traces.user_id IS NOT NULL
           AND traces.project_id = ${input.projectId}
-        GROUP BY
-          traces.user_id
+        GROUP BY traces.user_id 
+        ORDER BY traces.user_id ASC
         LIMIT 1000;
       `);
 
