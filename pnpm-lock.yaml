@@ -162,8 +162,8 @@ importers:
         specifier: ^2.4.3
         version: 2.4.3
       bullmq:
-        specifier: ^5.4.2
-        version: 5.4.3
+        specifier: ^5.12.10
+        version: 5.12.10
       dd-trace:
         specifier: ^5.19.0
         version: 5.19.0
@@ -281,7 +281,7 @@ importers:
         version: 0.0.4
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.7.1
-        version: 0.7.1(bullmq@5.4.3)
+        version: 0.7.1(bullmq@5.12.10)
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.8.0)(@trpc/server@10.45.2)
@@ -493,8 +493,8 @@ importers:
         specifier: ^2.4.3
         version: 2.4.3
       bullmq:
-        specifier: ^5.4.2
-        version: 5.4.3
+        specifier: ^5.12.10
+        version: 5.12.10
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.0
@@ -748,7 +748,7 @@ importers:
         version: 0.0.4
       '@appsignal/opentelemetry-instrumentation-bullmq':
         specifier: ^0.7.1
-        version: 0.7.1(bullmq@5.4.3)
+        version: 0.7.1(bullmq@5.12.10)
       '@clickhouse/client':
         specifier: ^1.4.0
         version: 1.4.0
@@ -792,8 +792,8 @@ importers:
         specifier: ^2.5.0
         version: 2.5.0
       bullmq:
-        specifier: ^5.4.2
-        version: 5.4.3
+        specifier: ^5.12.10
+        version: 5.12.10
       cors:
         specifier: ^2.8.5
         version: 2.8.5
@@ -5587,8 +5587,8 @@ packages:
   builtins@5.1.0:
     resolution: {integrity: sha512-SW9lzGTLvWTP1AY8xeAMZimqDrIaSdLQUcVr9DMef51niJ022Ri87SwRRKYm4A6iHfkPaiVUu/Duw2Wc4J7kKg==}
 
-  bullmq@5.4.3:
-    resolution: {integrity: sha512-JWzwAjX2LLn969W2R4ExoftOV646YX5rpB4q117vDaKYKT8cgAx+n94virnlLKVPK+X4WO8qSDJHzsiIepF2OA==}
+  bullmq@5.12.10:
+    resolution: {integrity: sha512-lXH8Caj+FvYHiBS0QBEpQOq57RcVuEPziBC5cBlWguCVNfn1UMSri22bRrynDKuof8o9XB43ctmYASUpoa0DeQ==}
 
   bundle-name@4.1.0:
     resolution: {integrity: sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q==}
@@ -9648,7 +9648,7 @@ packages:
 
   puppeteer@19.11.1:
     resolution: {integrity: sha512-39olGaX2djYUdhaQQHDZ0T0GwEp+5f9UB9HmEP0qHfdQHIq0xGQZuAZ5TLnJIc/88SrPLpEflPC+xUqOTv3c5g==}
-    deprecated: < 22.6.4 is no longer supported
+    deprecated: < 22.8.2 is no longer supported
 
   pure-rand@6.0.4:
     resolution: {integrity: sha512-LA0Y9kxMYv47GIPJy6MI84fqTd2HmYZI83W/kM/SkKfDlajnZYfmXFTxkbY+xSBPkLJxltMa9hIkmdc29eguMA==}
@@ -11377,14 +11377,14 @@ snapshots:
       '@types/node': 18.19.25
       tiktoken: 1.0.15
 
-  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.1(bullmq@5.4.3)':
+  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.1(bullmq@5.12.10)':
     dependencies:
       '@opentelemetry/api': 1.8.0
       '@opentelemetry/instrumentation': 0.34.0(@opentelemetry/api@1.8.0)
       '@opentelemetry/semantic-conventions': 1.25.1
       flat: 5.0.2
     optionalDependencies:
-      bullmq: 5.4.3
+      bullmq: 5.12.10
     transitivePeerDependencies:
       - supports-color
 
@@ -16935,7 +16935,7 @@ snapshots:
       '@typescript-eslint/types': 6.21.0
       '@typescript-eslint/typescript-estree': 6.21.0(typescript@5.4.5)
       eslint: 8.57.0
-      semver: 7.6.0
+      semver: 7.6.3
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -17714,14 +17714,14 @@ snapshots:
     dependencies:
       semver: 7.6.3
 
-  bullmq@5.4.3:
+  bullmq@5.12.10:
     dependencies:
       cron-parser: 4.9.0
       ioredis: 5.4.1
       msgpackr: 1.10.1
       node-abort-controller: 3.1.1
-      semver: 7.6.0
-      tslib: 2.6.2
+      semver: 7.6.3
+      tslib: 2.6.3
       uuid: 9.0.1
     transitivePeerDependencies:
       - supports-color
