@@ -76,17 +76,17 @@ export const sessionRouter = createTRPCRouter({
         const userIds = await ctx.prisma.$queryRaw<
           Array<{ value: string }>
         >(Prisma.sql`
-        SELECT 
-          traces.user_id AS value
-        FROM traces
-        WHERE 
-          traces.session_id IS NOT NULL
-          AND traces.user_id IS NOT NULL
-          AND traces.project_id = ${input.projectId}
-        GROUP BY traces.user_id 
-        ORDER BY traces.user_id ASC
-        LIMIT 1000;
-      `);
+          SELECT 
+            traces.user_id AS value
+          FROM traces
+          WHERE 
+            traces.session_id IS NOT NULL
+            AND traces.user_id IS NOT NULL
+            AND traces.project_id = ${input.projectId}
+          GROUP BY traces.user_id 
+          ORDER BY traces.user_id ASC
+          LIMIT 1000;
+        `);
 
         const res: SessionOptions = {
           userIds: userIds,
