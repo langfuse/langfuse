@@ -206,6 +206,15 @@ export const traceRouter = createTRPCRouter({
                   : {}
           : {};
 
+      const sqlTimestampFilter =
+        timestampFilter && timestampFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "timestamp",
+              timestampFilter.operator,
+              timestampFilter.value,
+            )
+          : Prisma.empty;
+
       const scores = await ctx.prisma.score.groupBy({
         where: {
           projectId: input.projectId,
@@ -220,25 +229,14 @@ export const traceRouter = createTRPCRouter({
         },
         by: ["name"],
       });
-      const names = await ctx.prisma.trace.groupBy({
-        where: {
-          projectId: input.projectId,
-          timestamp: prismaTimestampFilter,
-        },
-        by: ["name"],
-        // limiting to 1k trace names to avoid performance issues.
-        // some users have unique names for large amounts of traces
-        // sending all trace names to the FE exceeds the cloud function return size limit
-        take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
-          },
-        },
-        _count: {
-          id: true,
-        },
-      });
+
+      const names = await ctx.prisma.$queryRaw<Array<{ name: string | null }>>`
+        SELECT distinct name
+        FROM traces
+        WHERE project_id = ${input.projectId} ${sqlTimestampFilter}
+        GROUP BY name
+        LIMIT 1000
+      `;
 
       const rawTimestampFilter =
         timestampFilter && timestampFilter.type === "datetime"
@@ -263,7 +261,6 @@ export const traceRouter = createTRPCRouter({
           .filter((n) => n.name !== null)
           .map((name) => ({
             value: name.name ?? "undefined",
-            count: name._count.id,
           })),
         tags: tags,
       };
