@@ -445,10 +445,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             env.AUTH_GOOGLE_ALLOWED_DOMAINS?.split(",").map((domain) =>
               domain.trim().toLowerCase(),
             ) ?? [];
+          
           if (allowedDomains.length > 0) {
             return await Promise.resolve(
               allowedDomains.includes(
-                (profile as GoogleProfile).hd.toLowerCase(),
+                (profile as GoogleProfile).hd?.toLowerCase(),
               ),
             );
           }
