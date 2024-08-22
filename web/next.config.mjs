@@ -47,6 +47,11 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     instrumentationHook: true,
+    serverComponentsExternalPackages: [
+      "dd-trace",
+      "@opentelemetry/auto-instrumentations-node",
+      "@opentelemetry/api",
+    ],
   },
   poweredByHeader: false,
 
@@ -134,10 +139,6 @@ const nextConfig = {
 
   // webassembly support for @dqbd/tiktoken
   webpack(config, { isServer }) {
-    if (isServer) {
-      // https://github.com/open-telemetry/opentelemetry-js/issues/4173
-      config.ignoreWarnings = [{ module: /opentelemetry/ }];
-    }
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,
