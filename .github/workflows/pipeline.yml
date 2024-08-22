@@ -94,7 +94,7 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          grep -v '^REDIS_HOST=' .env.dev.example > web/.env
+          grep -v -e '^REDIS_HOST=' .env.dev.example > .env
 
       - name: Run + migrate
         run: |
@@ -219,10 +219,62 @@ jobs:
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
 
+  e2e-server-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9.5.0
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+
+      - name: install dependencies
+        run: |
+          pnpm install
+
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+          echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
+          echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
+          echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
+
+      - name: Run + migrate
+        run: |
+          docker compose -f docker-compose.dev.yml up -d
+          docker compose ps
+          sleep 5 # Wait for PostgreSQL to accept connections
+
+      - name: Seed DB
+        run: |
+          pnpm run db:migrate
+          pnpm run db:seed:examples
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Run server
+        run: (pnpm run start&)
+
+      - name: Run e2e tests
+        run: pnpm --filter=web run test:e2e:server
+
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
     runs-on: ubuntu-latest
-    needs: [lint, tests-web, tests-worker, e2e-tests, test-docker-build]
+    needs:
+      [
+        lint,
+        tests-web,
+        tests-worker,
+        e2e-tests,
+        test-docker-build,
+        e2e-server-tests,
+      ]
     if: always()
     steps:
       - name: Successful deploy

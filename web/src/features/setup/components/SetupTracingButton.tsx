@@ -5,14 +5,18 @@ import { api } from "@/src/utils/api";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { LockIcon } from "lucide-react";
+import { useRouter } from "next/router";
 
 const SetupTracingButton = () => {
   const { project } = useQueryProjectOrOrganization();
 
+  const router = useRouter();
+  const queryProjectId = router.query.projectId as string | undefined;
+
   const { data: hasAnyTrace, isLoading } = api.traces.hasAny.useQuery(
-    { projectId: project?.id ?? "no-project" },
+    { projectId: queryProjectId as string },
     {
-      enabled: project !== undefined,
+      enabled: queryProjectId !== undefined,
       trpc: {
         context: {
           skipBatch: true,

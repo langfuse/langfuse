@@ -2,23 +2,24 @@ import { randomUUID } from "crypto";
 import Handlebars from "handlebars";
 import { sql } from "kysely";
 import { z } from "zod";
-
+import {
+  QueueJobs,
+  QueueName,
+  EvalExecutionEvent,
+  TraceUpsertEventSchema,
+} from "@langfuse/shared/src/server";
 import {
   ApiError,
   availableEvalVariables,
   ChatMessageRole,
-  EvalExecutionEvent,
   evalTableCols,
   fetchLLMCompletion,
   ForbiddenError,
   LangfuseNotFoundError,
   LLMApiKeySchema,
   Prisma,
-  QueueJobs,
-  QueueName,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
-  TraceUpsertEventSchema,
   InvalidRequestError,
   variableMappingList,
   ZodModelConfig,
@@ -36,9 +37,6 @@ export const createEvalJobs = async ({
 }: {
   event: z.infer<typeof TraceUpsertEventSchema>;
 }) => {
-  logger.info(
-    `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`
-  );
   const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
@@ -151,7 +149,7 @@ export const createEvalJobs = async ({
           },
           delay: config.delay, // milliseconds
           removeOnComplete: true,
-          removeOnFail: 10_000,
+          removeOnFail: 1_000,
         }
       );
     } else {
@@ -248,7 +246,9 @@ export const evaluate = async ({
     ),
   });
 
-  logger.info(`Compiled prompt ${prompt}`);
+  logger.info(
+    `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`
+  );
 
   const parsedOutputSchema = z
     .object({
@@ -280,8 +280,7 @@ export const evaluate = async ({
   if (!parsedKey.success) {
     // this will fail the eval execution if a user deletes the API key.
     logger.error(
-      `API key for provider ${template.provider} and project ${event.projectId} not
-      found. Eval will fail. ${parsedKey.error}`
+      `Evaluating job ${event.jobExecutionId} did not find API key for provider ${template.provider} and project ${event.projectId}. Eval will fail. ${parsedKey.error}`
     );
     throw new LangfuseNotFoundError(
       `API key for provider ${template.provider} and project ${event.projectId} not found.`

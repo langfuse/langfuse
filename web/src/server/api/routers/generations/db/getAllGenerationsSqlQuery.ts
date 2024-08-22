@@ -9,7 +9,7 @@ import {
 import { type ObservationView, Prisma, prisma } from "@langfuse/shared/src/db";
 
 import { type GetAllGenerationsInput } from "../getAllQuery";
-import * as Sentry from "@sentry/node";
+import { traceException } from "@langfuse/shared/src/server";
 
 type AdditionalObservationFields = {
   traceName: string | null;
@@ -151,10 +151,7 @@ export async function getAllGenerations({
       },
     },
   });
-  const validatedScores = filterAndValidateDbScoreList(
-    scores,
-    Sentry.captureException,
-  );
+  const validatedScores = filterAndValidateDbScoreList(scores, traceException);
 
   const fullGenerations = generations.map((generation) => {
     const filteredScores = aggregateScores(

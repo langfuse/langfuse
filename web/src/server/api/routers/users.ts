@@ -211,47 +211,45 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const agg = await ctx.prisma.$queryRaw<
-        {
-          userId: string;
-          firstTrace: Date;
-          lastTrace: Date;
-          totalTraces: bigint;
-          totalPromptTokens: bigint;
-          totalCompletionTokens: bigint;
-          totalTokens: bigint;
-          firstObservation: Date;
-          lastObservation: Date;
-          totalObservations: bigint;
-          sumCalculatedTotalCost: number;
-        }[]
-      >`
-        SELECT 
-          t.user_id "userId",
-          min(t."timestamp") "firstTrace",
-          max(t."timestamp") "lastTrace",
-          COUNT(distinct t.id)::bigint "totalTraces",
-          COALESCE(SUM(o.prompt_tokens),0)::bigint "totalPromptTokens",
-          COALESCE(SUM(o.completion_tokens),0)::bigint "totalCompletionTokens",
-          COALESCE(SUM(o.total_tokens),0)::bigint "totalTokens",
-          MIN(o.start_time) "firstObservation",
-          MAX(o.start_time) "lastObservation",
-          COUNT(distinct o.id)::bigint "totalObservations",
-          SUM(COALESCE(o.calculated_total_cost, 0)) AS "sumCalculatedTotalCost"
-        FROM traces t
-        LEFT JOIN observations_view o on o.trace_id = t.id
-        WHERE t.user_id is not null
-        AND t.project_id = ${input.projectId}
-        AND o.project_id = ${input.projectId}
-        AND t.user_id = ${input.userId}
-        GROUP BY 1
-        ORDER BY "totalTokens" DESC
-        LIMIT 50
-      `;
-
-      const lastScoresOfUsers = await ctx.prisma.$queryRaw<
-        Array<LastUserScore>
-      >`
+      const [agg, lastScoresOfUsers] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          {
+            userId: string;
+            firstTrace: Date;
+            lastTrace: Date;
+            totalTraces: bigint;
+            totalPromptTokens: bigint;
+            totalCompletionTokens: bigint;
+            totalTokens: bigint;
+            firstObservation: Date;
+            lastObservation: Date;
+            totalObservations: bigint;
+            sumCalculatedTotalCost: number;
+          }[]
+        >`
+          SELECT 
+            t.user_id "userId",
+            min(t."timestamp") "firstTrace",
+            max(t."timestamp") "lastTrace",
+            COUNT(distinct t.id)::bigint "totalTraces",
+            COALESCE(SUM(o.prompt_tokens),0)::bigint "totalPromptTokens",
+            COALESCE(SUM(o.completion_tokens),0)::bigint "totalCompletionTokens",
+            COALESCE(SUM(o.total_tokens),0)::bigint "totalTokens",
+            MIN(o.start_time) "firstObservation",
+            MAX(o.start_time) "lastObservation",
+            COUNT(distinct o.id)::bigint "totalObservations",
+            SUM(COALESCE(o.calculated_total_cost, 0)) AS "sumCalculatedTotalCost"
+          FROM traces t
+          LEFT JOIN observations_view o on o.trace_id = t.id
+          WHERE t.user_id is not null
+          AND t.project_id = ${input.projectId}
+          AND o.project_id = ${input.projectId}
+          AND t.user_id = ${input.userId}
+          GROUP BY 1
+          ORDER BY "totalTokens" DESC
+          LIMIT 50
+        `,
+        ctx.prisma.$queryRaw<Array<LastUserScore>>`
         WITH ranked_scores AS (
           SELECT
             t.user_id,
@@ -282,7 +280,8 @@ export const userRouter = createTRPCRouter({
         FROM
           ranked_scores
         WHERE rn = 1
-      `;
+        `,
+      ]);
 
       return {
         userId: input.userId,

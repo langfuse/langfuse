@@ -32,6 +32,7 @@ import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { EnvLabel } from "@/src/components/EnvLabel";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -77,7 +78,7 @@ const publishablePaths: string[] = [
  * though the user is signed in.
  */
 function useSessionWithRetryOnUnauthenticated() {
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 2;
   const [retryCount, setRetryCount] = useState(0);
   const session = useSession();
 
@@ -115,6 +116,8 @@ export default function Layout(props: PropsWithChildren) {
 
   const entitlements = useOrgEntitlements();
 
+  const uiCustomization = useUiCustomization();
+
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
 
@@ -129,24 +132,25 @@ export default function Layout(props: PropsWithChildren) {
 
     // Feature Flags
     if (
-      !(
-        route.featureFlag === undefined ||
-        enableExperimentalFeatures ||
-        session.data?.user?.featureFlags[route.featureFlag]
-      )
+      route.featureFlag !== undefined &&
+      !enableExperimentalFeatures &&
+      session.data?.user?.admin !== true &&
+      session.data?.user?.featureFlags[route.featureFlag] !== true
     )
       return null;
 
     // check entitlements
     if (
       route.entitlement !== undefined &&
-      !entitlements.includes(route.entitlement)
+      !entitlements.includes(route.entitlement) &&
+      session.data?.user?.admin !== true
     )
       return null;
 
     // RBAC
     if (
       route.projectRbacScope !== undefined &&
+      session.data?.user?.admin !== true &&
       (!project ||
         !organization ||
         !hasProjectAccess({
@@ -161,11 +165,22 @@ export default function Layout(props: PropsWithChildren) {
     const children: (NavigationItem | null)[] =
       route.children?.map((child) => mapNavigation(child)).filter(Boolean) ??
       [];
+
+    const href = (
+      route.customizableHref
+        ? uiCustomization?.[route.customizableHref] ?? route.pathname
+        : route.pathname
+    )
+      ?.replace("[projectId]", routerProjectId ?? "")
+      .replace("[organizationId]", routerOrganizationId ?? "");
+
     return {
       ...route,
-      href: route.pathname
-        ?.replace("[projectId]", routerProjectId ?? "")
-        .replace("[organizationId]", routerOrganizationId ?? ""),
+      href,
+      newTab:
+        route.customizableHref && uiCustomization?.[route.customizableHref]
+          ? true
+          : route.newTab,
       current: router.pathname === route.pathname,
       children:
         children.length > 0
@@ -174,10 +189,9 @@ export default function Layout(props: PropsWithChildren) {
     };
   };
 
-  const navigationMapped: (NavigationItem | null)[] = ROUTES.map((route) =>
-    mapNavigation(route),
-  ).filter(Boolean);
-  const navigation = navigationMapped.filter(Boolean) as NavigationItem[]; // does not include null due to filter
+  const navigation = ROUTES.map((route) => mapNavigation(route)).filter(
+    (item): item is NavigationItem => Boolean(item),
+  );
   const topNavigation = navigation.filter(({ bottom }) => !bottom);
   const bottomNavigation = navigation.filter(({ bottom }) => bottom);
 
@@ -396,7 +410,8 @@ export default function Layout(props: PropsWithChildren) {
           </Menu>
         </div>
         <div className="">
-          {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          {env.NEXT_PUBLIC_DEMO_ORG_ID &&
+          env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (
             <div className="flex w-full items-center border-b border-dark-yellow  bg-light-yellow px-4 py-2 lg:sticky lg:top-0 lg:z-40">

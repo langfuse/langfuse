@@ -39,7 +39,9 @@ export const env = createEnv({
     }),
     // Add newly signed up users to default org and/or project with role
     LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
-    LANGFUSE_DEFAULT_ORG_ROLE: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]).optional(),
+    LANGFUSE_DEFAULT_ORG_ROLE: z
+      .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"])
+      .optional(),
     LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
@@ -109,12 +111,16 @@ export const env = createEnv({
     LANGFUSE_WORKER_HOST: z.string().optional(),
     LANGFUSE_WORKER_PASSWORD: z.string().optional(),
     TURNSTILE_SECRET_KEY: z.string().optional(),
-    // DB event log
-    ENABLE_EVENT_LOG: z.enum(["true", "false"]).optional().default("true"),
+
     // clickhouse
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
     CLICKHOUSE_PASSWORD: z.string().optional(),
+    // EE ui customization
+    LANGFUSE_UI_API_HOST: z.string().optional(),
+    LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
+    LANGFUSE_UI_SUPPORT_HREF: z.string().url().optional(),
+    LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
     ADMIN_API_KEY: z.string().optional(),
@@ -143,14 +149,25 @@ export const env = createEnv({
     LANGFUSE_ASYNC_INGESTION_PROCESSING: z
       .enum(["true", "false"])
       .default("false"),
-    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z.string().optional().refine((value) => {
-      if (!value) return true;
+    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
+      .string()
+      .optional()
+      .refine((value) => {
+        if (!value) return true;
 
-      const creators = value.split(",");
-      const emailSchema = z.string().email()
-      return creators.every((creator) => emailSchema.safeParse(creator).success);
-    }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses")
+        const creators = value.split(",");
+        const emailSchema = z.string().email();
+        return creators.every(
+          (creator) => emailSchema.safeParse(creator).success,
+        );
+      }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses")
       .transform((v) => (v === "" || v === undefined ? undefined : v)),
+    LANGFUSE_INGESTION_BUFFER_TTL_SECONDS: z.coerce
+      .number()
+      .positive()
+      .default(60 * 10),
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
   },
 
   /**
@@ -161,6 +178,8 @@ export const env = createEnv({
    * WARNING: They do not work when used in Docker builds as NEXT_PUBLIC variables are not runtime but compile-time.
    */
   client: {
+    // WARNING: Also add these to web/Dockerfile
+
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
       .enum(["US", "EU", "STAGING", "DEV"])
@@ -267,12 +286,15 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     // Other
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
-    // db event log
-    ENABLE_EVENT_LOG: process.env.ENABLE_EVENT_LOG,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
+    // EE ui customization
+    LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
+    LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
+    LANGFUSE_UI_SUPPORT_HREF: process.env.LANGFUSE_UI_SUPPORT_HREF,
+    LANGFUSE_UI_FEEDBACK_HREF: process.env.LANGFUSE_UI_FEEDBACK_HREF,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
@@ -287,7 +309,12 @@ export const env = createEnv({
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
     LANGFUSE_ASYNC_INGESTION_PROCESSING:
       process.env.LANGFUSE_ASYNC_INGESTION_PROCESSING,
-    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
+    LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
+      process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
+    LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:
+      process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

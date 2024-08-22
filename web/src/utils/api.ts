@@ -52,7 +52,12 @@ export const api = createTRPCNext<AppRouter>({
         splitLink({
           condition(op) {
             // check for context property `skipBatch`
-            return op.context.skipBatch === true;
+            const skipBatch = op.context.skipBatch === true;
+
+            // Manually skip batching, perf experiment
+            const alwaysSkipBatch = true;
+
+            return skipBatch || alwaysSkipBatch;
           },
           // when condition is true, use normal request
           true: httpLink({

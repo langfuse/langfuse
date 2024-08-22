@@ -187,7 +187,7 @@ export default function TracesTable({
     useIndividualScoreColumns<TracesTableRow>({
       projectId,
       scoreColumnKey: "scores",
-      selectedTimeOption: selectedOption,
+      selectedFilterOption: selectedOption,
     });
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
@@ -464,6 +464,7 @@ export default function TracesTable({
         return (
           <TracesDynamicCell
             traceId={traceId}
+            projectId={projectId}
             col="input"
             singleLine={rowHeight === "s"}
           />
@@ -482,6 +483,7 @@ export default function TracesTable({
         return (
           <TracesDynamicCell
             traceId={traceId}
+            projectId={projectId}
             col="output"
             singleLine={rowHeight === "s"}
           />
@@ -503,6 +505,7 @@ export default function TracesTable({
         return (
           <TracesDynamicCell
             traceId={traceId}
+            projectId={projectId}
             col="metadata"
             singleLine={rowHeight === "s"}
           />
@@ -669,6 +672,7 @@ export default function TracesTable({
         }}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
+        columnsWithCustomSelect={["name", "tags"]}
         actionButtons={
           Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),
@@ -728,15 +732,17 @@ export default function TracesTable({
 
 const TracesDynamicCell = ({
   traceId,
+  projectId,
   col,
   singleLine = false,
 }: {
   traceId: string;
+  projectId: string;
   col: "input" | "output" | "metadata";
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId: traceId },
+    { traceId, projectId },
     {
       enabled: typeof traceId === "string",
       trpc: {

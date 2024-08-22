@@ -38,10 +38,8 @@ describe("Ingestion end-to-end tests", () => {
     ingestionService = new IngestionService(
       redis,
       prisma,
-      mockIngestionFlushQueue,
       clickhouseWriter,
-      clickhouseClient,
-      30
+      clickhouseClient
     );
   });
 
@@ -898,6 +896,110 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.tags.length).toBe(4);
   });
 
+  it("should fail if no create event AND no existing record in CH", async () => {
+    const traceId = randomUUID();
+    const generationId = randomUUID();
+
+    // First flush
+    const traceEventList1: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: traceId,
+          name: "trace-name",
+          userId: "user-1",
+          metadata: { key: "value" },
+          release: "1.0.0",
+          version: "2.0.0",
+          tags: ["tag-1", "tag-2", "tag-2"],
+        },
+      },
+    ];
+
+    const generationEventListNoCreate: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "observation-update",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          traceId: traceId,
+          type: "GENERATION",
+          output: { key: "this is a great gpt output" },
+        },
+      },
+    ];
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      traceEventList: traceEventList1,
+    });
+
+    expect(
+      ingestionService.processObservationEventList({
+        projectId,
+        entityId: generationId,
+        observationEventList: generationEventListNoCreate,
+      })
+    ).rejects.toThrow();
+
+    const generationEventListWithCreate: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "observation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          traceId: traceId,
+          type: "GENERATION",
+          input: "This is a great prompt",
+        },
+      },
+    ];
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: generationId,
+      observationEventList: generationEventListWithCreate,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    vi.useRealTimers();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    vi.useFakeTimers();
+
+    // Now the generation update should work
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: generationId,
+      observationEventList: generationEventListNoCreate,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    vi.useRealTimers();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    vi.useFakeTimers();
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId
+    );
+
+    expect(generation.id).toBe(generationId);
+    expect(generation.trace_id).toBe(traceId);
+    expect(generation.output).toEqual(
+      JSON.stringify({
+        key: "this is a great gpt output",
+      })
+    );
+    expect(generation.input).toEqual("This is a great prompt");
+  });
+
   it("should upsert traces in the right order", async () => {
     const traceId = randomUUID();
 
@@ -1000,6 +1102,118 @@ describe("Ingestion end-to-end tests", () => {
     expect(generation.output).toEqual(
       JSON.stringify({ key: "this is a great gpt output" })
     );
+  });
+
+  it("should correctly set tokens if usage provided as null", async () => {
+    const generationId = randomUUID();
+    const traceId = randomUUID();
+
+    const timestamp = new Date().toISOString();
+    const traceEventList: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp,
+        body: {
+          id: traceId,
+          timestamp,
+          name: "trace-name",
+          userId: "user-1",
+        },
+      },
+    ];
+
+    const generationEventList1: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "observation-create",
+        timestamp,
+        body: {
+          type: "GENERATION",
+          id: generationId,
+          traceId,
+          name: "LiteLLM.run",
+          // usage: null,
+        },
+      },
+    ];
+
+    await Promise.all([
+      ingestionService.processTraceEventList({
+        projectId,
+        entityId: traceId,
+        traceEventList,
+      }),
+      ingestionService.processObservationEventList({
+        projectId,
+        entityId: generationId,
+        observationEventList: generationEventList1,
+      }),
+    ]);
+
+    await clickhouseWriter.flushAll(true);
+
+    const generationEventList2: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "observation-update",
+        timestamp,
+        body: {
+          traceId,
+          type: "GENERATION",
+          id: generationId,
+          endTime: new Date().toISOString(),
+          model: "azure/gpt35turbo0125",
+          modelParameters: {
+            model: "azure/gpt35turbo0125",
+            max_tokens: 2000,
+            temperature: 0,
+            n: 1,
+            stream: false,
+          },
+          usage: {
+            input: 1285,
+            output: 513,
+            total: 1798,
+            unit: "TOKENS" as any,
+            inputCost: 0.0006425,
+            outputCost: 0.0007695,
+            totalCost: 0.001412,
+          },
+        },
+      },
+    ];
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: generationId,
+      observationEventList: generationEventList2,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId
+    );
+
+    expect(generation.provided_input_usage_units).toEqual(1285);
+    expect(generation.provided_output_usage_units).toEqual(513);
+    expect(generation.provided_total_usage_units).toEqual(1798);
+
+    expect(generation.input_usage_units).toEqual(1285);
+    expect(generation.output_usage_units).toEqual(513);
+    expect(generation.total_usage_units).toEqual(1798);
+
+    expect(generation.provided_input_cost).toEqual(0.0006425);
+    expect(generation.provided_output_cost).toEqual(0.0007695);
+    expect(generation.provided_total_cost).toEqual(0.001412);
+
+    expect(generation.provided_input_cost).toEqual(0.0006425);
+    expect(generation.provided_output_cost).toEqual(0.0007695);
+    expect(generation.provided_total_cost).toEqual(0.001412);
+
+    expect(generation.unit).toEqual("TOKENS");
   });
 
   it("should update all token counts if update does not contain model name", async () => {

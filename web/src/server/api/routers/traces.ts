@@ -8,7 +8,6 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { instrumentAsync } from "@/src/utils/instrumentation";
 import {
   datetimeFilterToPrismaSql,
   filterAndValidateDbScoreList,
@@ -27,7 +26,7 @@ import {
   Prisma,
   type Trace,
 } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
+import { traceException, instrument } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 import type Decimal from "decimal.js";
@@ -121,7 +120,7 @@ export const traceRouter = createTRPCRouter({
         orderByCondition,
       );
 
-      const traces = await instrumentAsync(
+      const traces = await instrument(
         { name: "get-all-traces" },
         async () =>
           await ctx.prisma.$queryRaw<
@@ -168,7 +167,7 @@ export const traceRouter = createTRPCRouter({
       });
       const validatedScores = filterAndValidateDbScoreList(
         scores,
-        Sentry.captureException,
+        traceException,
       );
 
       const totalTraceCount = totalTraces[0]?.count;
@@ -207,40 +206,6 @@ export const traceRouter = createTRPCRouter({
                   : {}
           : {};
 
-      const scores = await ctx.prisma.score.groupBy({
-        where: {
-          projectId: input.projectId,
-          timestamp: prismaTimestampFilter,
-          dataType: { in: ["NUMERIC", "BOOLEAN"] },
-        },
-        take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
-          },
-        },
-        by: ["name"],
-      });
-      const names = await ctx.prisma.trace.groupBy({
-        where: {
-          projectId: input.projectId,
-          timestamp: prismaTimestampFilter,
-        },
-        by: ["name"],
-        // limiting to 1k trace names to avoid performance issues.
-        // some users have unique names for large amounts of traces
-        // sending all trace names to the FE exceeds the cloud function return size limit
-        take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
-          },
-        },
-        _count: {
-          id: true,
-        },
-      });
-
       const rawTimestampFilter =
         timestampFilter && timestampFilter.type === "datetime"
           ? datetimeFilterToPrismaSql(
@@ -250,21 +215,44 @@ export const traceRouter = createTRPCRouter({
             )
           : Prisma.empty;
 
-      const tags: { count: number; value: string }[] = await ctx.prisma
-        .$queryRaw`
-        SELECT COUNT(*)::integer AS "count", tags.tag as value
-        FROM traces, UNNEST(traces.tags) AS tags(tag)
-        WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
-        GROUP BY tags.tag
-        LIMIT 1000
-      `;
+      const [scores, names, tags] = await Promise.all([
+        ctx.prisma.score.groupBy({
+          where: {
+            projectId: input.projectId,
+            timestamp: prismaTimestampFilter,
+            dataType: { in: ["NUMERIC", "BOOLEAN"] },
+          },
+          take: 1000,
+          orderBy: { name: "asc" },
+          by: ["name"],
+        }),
+        ctx.prisma.trace.groupBy({
+          where: {
+            projectId: input.projectId,
+            timestamp: prismaTimestampFilter,
+          },
+          by: ["name"],
+          // limiting to 1k trace names to avoid performance issues.
+          // some users have unique names for large amounts of traces
+          // sending all trace names to the FE exceeds the cloud function return size limit
+          take: 1000,
+          orderBy: { name: "asc" },
+        }),
+        ctx.prisma.$queryRaw<{ value: string }[]>`
+          SELECT tags.tag as value
+          FROM traces, UNNEST(traces.tags) AS tags(tag)
+          WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
+          GROUP BY tags.tag
+          ORDER BY tags.tag ASC
+          LIMIT 1000
+        `,
+      ]);
       const res: TraceOptions = {
         scores_avg: scores.map((score) => score.name),
         name: names
           .filter((n) => n.name !== null)
           .map((name) => ({
             value: name.name ?? "undefined",
-            count: name._count.id,
           })),
         tags: tags,
       };
@@ -273,63 +261,83 @@ export const traceRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure
     .input(
       z.object({
-        traceId: z.string(),
+        traceId: z.string(), // used for security check
+        projectId: z.string(), // used for security check
       }),
     )
     .query(async ({ input, ctx }) => {
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input.traceId,
+          projectId: input.projectId,
         },
       });
-      const observations = await ctx.prisma.observationView.findMany({
-        select: {
-          id: true,
-          traceId: true,
-          projectId: true,
-          type: true,
-          startTime: true,
-          endTime: true,
-          name: true,
-          parentObservationId: true,
-          level: true,
-          statusMessage: true,
-          version: true,
-          createdAt: true,
-          model: true,
-          modelParameters: true,
-          promptTokens: true,
-          completionTokens: true,
-          totalTokens: true,
-          unit: true,
-          completionStartTime: true,
-          timeToFirstToken: true,
-          promptId: true,
-          modelId: true,
-          inputPrice: true,
-          outputPrice: true,
-          totalPrice: true,
-          calculatedInputCost: true,
-          calculatedOutputCost: true,
-          calculatedTotalCost: true,
-        },
-        where: {
-          traceId: {
-            equals: input.traceId,
-            not: null,
+      return trace;
+    }),
+  byIdWithObservationsAndScores: protectedGetTraceProcedure
+    .input(
+      z.object({
+        traceId: z.string(), // used for security check
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const [trace, observations, scores] = await Promise.all([
+        ctx.prisma.trace.findFirstOrThrow({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
           },
-          projectId: trace.projectId,
-        },
-      });
-      const scores = await ctx.prisma.score.findMany({
-        where: {
-          traceId: input.traceId,
-          projectId: trace.projectId,
-        },
-      });
+        }),
+        ctx.prisma.observationView.findMany({
+          select: {
+            id: true,
+            traceId: true,
+            projectId: true,
+            type: true,
+            startTime: true,
+            endTime: true,
+            name: true,
+            parentObservationId: true,
+            level: true,
+            statusMessage: true,
+            version: true,
+            createdAt: true,
+            model: true,
+            modelParameters: true,
+            promptTokens: true,
+            completionTokens: true,
+            totalTokens: true,
+            unit: true,
+            completionStartTime: true,
+            timeToFirstToken: true,
+            promptId: true,
+            modelId: true,
+            inputPrice: true,
+            outputPrice: true,
+            totalPrice: true,
+            calculatedInputCost: true,
+            calculatedOutputCost: true,
+            calculatedTotalCost: true,
+          },
+          where: {
+            traceId: {
+              equals: input.traceId,
+              not: null,
+            },
+            projectId: input.projectId,
+          },
+        }),
+        ctx.prisma.score.findMany({
+          where: {
+            traceId: input.traceId,
+            projectId: input.projectId,
+          },
+        }),
+      ]);
       const validatedScores = filterAndValidateDbScoreList(
         scores,
-        Sentry.captureException,
+        traceException,
       );
 
       const obsStartTimes = observations

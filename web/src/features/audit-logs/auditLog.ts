@@ -5,12 +5,14 @@ export type AuditableResource =
   | "orgMembership"
   | "projectMembership"
   | "membershipInvitation"
+  | "comment"
   | "datasetItem"
   | "dataset"
   | "trace"
   | "project"
   | "observation"
   | "score"
+  | "scoreConfig"
   | "model"
   | "prompt"
   | "session"
@@ -20,6 +22,7 @@ export type AuditableResource =
   | "posthogIntegration"
   | "llmApiKey"
   | "batchExport"
+  | "stripeCheckoutSession"
   // legacy resources
   | "membership";
 

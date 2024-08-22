@@ -4,11 +4,13 @@ import { redis } from "@langfuse/shared/src/server";
 
 import { evalJobCreator, evalJobExecutor } from "../queues/evalQueue";
 import { batchExportJobExecutor } from "../queues/batchExportQueue";
-import { flushIngestionQueueExecutor } from "../queues/ingestionFlushQueue";
+import { ingestionQueueExecutor } from "../queues/ingestionFlushQueueExecutor";
 import { repeatQueueExecutor } from "../queues/repeatQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
+import { legacyIngestionExecutor } from "../queues/legacyIngestionQueue";
+import { cloudUsageMeteringJobExecutor } from "../queues/cloudUsageMeteringQueue";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
@@ -23,11 +25,13 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
     evalJobCreator,
     evalJobExecutor,
     batchExportJobExecutor,
-    flushIngestionQueueExecutor,
+    ingestionQueueExecutor,
     repeatQueueExecutor,
+    legacyIngestionExecutor,
+    cloudUsageMeteringJobExecutor,
   ];
 
-  await Promise.all(workers.map((worker) => worker?.close()));
+  await Promise.all(workers.map(async (worker) => await worker?.close()));
   logger.info("All workers have been closed.");
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it

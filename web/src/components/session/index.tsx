@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -52,6 +53,15 @@ export const SessionPage: React.FC<{
     string[]
   >("emptySelectedConfigIds", []);
 
+  const commentCounts = api.comments.getCountsByObjectIds.useQuery(
+    {
+      projectId,
+      objectIds: [sessionId],
+      objectType: "SESSION",
+    },
+    { enabled: session.isSuccess },
+  );
+
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
 
@@ -87,6 +97,14 @@ export const SessionPage: React.FC<{
             }
             listKey="sessions"
           />,
+          <CommentDrawerButton
+            key="comment"
+            variant="outline"
+            projectId={projectId}
+            objectId={sessionId}
+            objectType="SESSION"
+            count={commentCounts.data?.get(sessionId)}
+          />,
         ]}
       />
       <div className="flex flex-wrap gap-2">
@@ -113,7 +131,7 @@ export const SessionPage: React.FC<{
             className="group grid gap-3 border-border p-2 shadow-none hover:border-ring md:grid-cols-3"
             key={trace.id}
           >
-            <SessionIO traceId={trace.id} />
+            <SessionIO traceId={trace.id} projectId={projectId} />
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
@@ -158,9 +176,15 @@ export const SessionPage: React.FC<{
   );
 };
 
-const SessionIO = ({ traceId }: { traceId: string }) => {
+const SessionIO = ({
+  traceId,
+  projectId,
+}: {
+  traceId: string;
+  projectId: string;
+}) => {
   const trace = api.traces.byId.useQuery(
-    { traceId: traceId },
+    { traceId, projectId },
     {
       enabled: typeof traceId === "string",
       trpc: {
@@ -172,7 +196,7 @@ const SessionIO = ({ traceId }: { traceId: string }) => {
     },
   );
   return (
-    <div className="col-span-2 flex flex-col gap-2 p-0">
+    <div className="col-span-2 grid grid-flow-row gap-2 p-0">
       {!trace.data ? (
         <JsonSkeleton
           className="h-full w-full overflow-hidden px-2 py-1"

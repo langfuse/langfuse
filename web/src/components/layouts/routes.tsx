@@ -18,6 +18,7 @@ import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { type ReactNode } from "react";
 import { VersionLabel } from "@/src/components/VersionLabel";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
+import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
 
 export type Route = {
   name: string;
@@ -30,6 +31,7 @@ export type Route = {
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
   entitlement?: Entitlement; // entitlement required
+  customizableHref?: UiCustomizationOption; // key of useUiCustomization object to use to replace the href
 };
 
 export const ROUTES: Route[] = [
@@ -141,11 +143,13 @@ export const ROUTES: Route[] = [
     icon: LibraryBig,
     bottom: true,
     newTab: true,
+    customizableHref: "documentationHref",
   },
   {
     name: "Support",
     pathname: "/support",
     icon: LifeBuoy,
     bottom: true,
+    customizableHref: "supportHref",
   },
 ];

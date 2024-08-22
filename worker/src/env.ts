@@ -4,7 +4,6 @@ const EnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
-  SENTRY_DSN: z.string().url().optional(),
   DATABASE_URL: z.string(),
   PORT: z.coerce
     .number({
@@ -28,15 +27,6 @@ const EnvSchema = z.object({
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
-  LANGFUSE_INGESTION_BUFFER_TTL_SECONDS: z.coerce
-    .number()
-    .positive()
-    .default(60 * 10),
-  LANGFUSE_INGESTION_FLUSH_DELAY_MS: z.coerce
-    .number()
-    .nonnegative()
-    .default(10000),
-  LANGFUSE_INGESTION_FLUSH_ATTEMPTS: z.coerce.number().positive().default(3),
   LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -72,6 +62,19 @@ const EnvSchema = z.object({
   CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_PASSWORD: z.string().optional(),
   LANGFUSE_WORKER_BETTERSTACK_TOKEN: z.string().optional(),
+  LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(25),
+  LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(25),
+  LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
+  STRIPE_SECRET_KEY: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);
