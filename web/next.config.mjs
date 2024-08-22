@@ -91,15 +91,15 @@ const nextConfig = {
           reportToHeader,
         ],
       },
-      {
-        source: "/:path((?!api).*)*",
-        headers: [
-          {
-            key: "Content-Security-Policy",
-            value: cspHeader.replace(/\n/g, ""),
-          },
-        ],
-      },
+      // {
+      //   source: "/:path((?!api).*)*",
+      //   headers: [
+      //     {
+      //       key: "Content-Security-Policy",
+      //       value: cspHeader.replace(/\n/g, ""),
+      //     },
+      //   ],
+      // },
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
@@ -155,10 +155,10 @@ const sentryOptions = {
   //   release, url, authToken, configFile, stripPrefix,
   //   urlPrefix, include, ignore
 
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
+  // org: process.env.SENTRY_ORG,
+  // project: process.env.SENTRY_PROJECT,
 
-  silent: true, // Suppresses all logs
+  // silent: true, // Suppresses all logs
 
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options.
@@ -177,7 +177,13 @@ const sentryOptions = {
   //     - excludeServerRoutes
   //   'Configure Tunneling':
   //     - tunnelRoute
-  tunnelRoute: "/api/monitoring-tunnel",
+
+  org: "langfuse",
+  project: "langfuse",
+
+  // An auth token is required for uploading source maps.
+  authToken:
+    "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",
 };
 
 export default withSentryConfig(nextConfig, sentryOptions);
