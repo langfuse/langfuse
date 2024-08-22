@@ -130,34 +130,33 @@ export const sessionRouter = createTRPCRouter({
           });
         }
 
-        const scores = await ctx.prisma.score.findMany({
-          where: {
-            traceId: {
-              in: session.traces.map((t) => t.id),
+        const totalCostQuery = Prisma.sql`
+          SELECT
+            SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
+          FROM observations_view o
+          JOIN traces t ON t.id = o.trace_id
+          WHERE
+            t."session_id" = ${input.sessionId}
+            AND t."project_id" = ${input.projectId}
+        `;
+
+        const [scores, costData] = await Promise.all([
+          ctx.prisma.score.findMany({
+            where: {
+              traceId: {
+                in: session.traces.map((t) => t.id),
+              },
+              projectId: input.projectId,
             },
-            projectId: input.projectId,
-          },
-        });
+          }),
+          // costData
+          ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(totalCostQuery),
+        ]);
 
         const validatedScores = filterAndValidateDbScoreList(
           scores,
           traceException,
         );
-
-        const totalCostQuery = Prisma.sql`
-        SELECT
-          SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
-        FROM observations_view o
-        JOIN traces t ON t.id = o.trace_id
-        WHERE
-          t."session_id" = ${input.sessionId}
-          AND t."project_id" = ${input.projectId}
-      `;
-
-        const [costData] =
-          await ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(
-            totalCostQuery,
-          );
 
         return {
           ...session,
@@ -165,7 +164,7 @@ export const sessionRouter = createTRPCRouter({
             ...t,
             scores: validatedScores.filter((s) => s.traceId === t.id),
           })),
-          totalCost: costData?.totalCost ?? 0,
+          totalCost: costData[0].totalCost ?? 0,
           users: [
             ...new Set(
               session.traces.map((t) => t.userId).filter((t) => t !== null),
