@@ -14,7 +14,7 @@ const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.posthog.com https://*.sentry.io wss://*.crisp.chat https://*.crisp.chat;
   script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://client.crisp.chat https://settings.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
   style-src 'self' 'unsafe-inline' https://client.crisp.chat;
-  img-src 'self' https: data:data: https://client.crisp.chat https://image.crisp.chat https://storage.crisp.chat;
+  img-src 'self' https: blob: data: https://client.crisp.chat https://image.crisp.chat https://storage.crisp.chat;
   font-src 'self' https://client.crisp.chat;
   frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com https://game.crisp.chat;
   worker-src 'self' blob:;
