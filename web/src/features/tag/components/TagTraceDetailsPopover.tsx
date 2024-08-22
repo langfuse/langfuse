@@ -26,10 +26,13 @@ export function TagTraceDetailsPopover({
   const utils = api.useUtils();
   const mutTags = api.traces.updateTags.useMutation({
     onMutate: async () => {
-      await utils.traces.byId.cancel();
+      await utils.traces.byIdWithObservationsAndScores.cancel();
       setIsLoading(true);
       // Snapshot the previous value
-      const prev = utils.traces.byId.getData({ traceId, projectId });
+      const prev = utils.traces.byIdWithObservationsAndScores.getData({
+        traceId,
+        projectId,
+      });
 
       return { prev };
     },
@@ -37,13 +40,20 @@ export function TagTraceDetailsPopover({
       setIsLoading(false);
       trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
-      utils.traces.byId.setData({ traceId, projectId }, context?.prev);
+      utils.traces.byIdWithObservationsAndScores.setData(
+        { traceId, projectId },
+        context?.prev,
+      );
     },
     onSettled: (data, error, { traceId, tags }) => {
       setIsLoading(false);
-      utils.traces.byId.setData(
+      utils.traces.byIdWithObservationsAndScores.setData(
         { traceId, projectId },
-        (oldQueryData: RouterOutput["traces"]["byId"] | undefined) => {
+        (
+          oldQueryData:
+            | RouterOutput["traces"]["byIdWithObservationsAndScores"]
+            | undefined,
+        ) => {
           return oldQueryData
             ? {
                 ...oldQueryData,
@@ -53,7 +63,7 @@ export function TagTraceDetailsPopover({
         },
       );
       void utils.traces.all.invalidate();
-      void utils.traces.byId.invalidate();
+      void utils.traces.byIdWithObservationsAndScores.invalidate();
       void utils.traces.filterOptions.invalidate();
     },
   });
