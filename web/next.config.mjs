@@ -167,7 +167,7 @@ const sentryOptions = {
   //     - disableServerWebpackPlugin
   //     - disableClientWebpackPlugin
   //     - hideSourceMaps
-  hideSourceMaps: false,
+  hideSourceMaps: true,
   //     - widenClientFileUpload
   //   'Configure Legacy Browser Support':
   //     - transpileClientSDK
