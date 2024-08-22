@@ -118,6 +118,10 @@ export default function Layout(props: PropsWithChildren) {
 
   const uiCustomization = useUiCustomization();
 
+  const cloudAdmin =
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+    session.data?.user?.admin === true;
+
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
 
@@ -134,7 +138,7 @@ export default function Layout(props: PropsWithChildren) {
     if (
       route.featureFlag !== undefined &&
       !enableExperimentalFeatures &&
-      session.data?.user?.admin !== true &&
+      !cloudAdmin &&
       session.data?.user?.featureFlags[route.featureFlag] !== true
     )
       return null;
@@ -143,14 +147,14 @@ export default function Layout(props: PropsWithChildren) {
     if (
       route.entitlement !== undefined &&
       !entitlements.includes(route.entitlement) &&
-      session.data?.user?.admin !== true
+      !cloudAdmin
     )
       return null;
 
     // RBAC
     if (
       route.projectRbacScope !== undefined &&
-      session.data?.user?.admin !== true &&
+      !cloudAdmin &&
       (!project ||
         !organization ||
         !hasProjectAccess({
