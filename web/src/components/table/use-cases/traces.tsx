@@ -672,6 +672,7 @@ export default function TracesTable({
         }}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
+        columnsWithCustomSelect={["name", "tags"]}
         actionButtons={
           Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),
