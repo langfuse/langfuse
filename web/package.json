@@ -94,7 +94,7 @@
     "@uiw/react-codemirror": "^4.21.25",
     "ai": "^3.0.23",
     "bcryptjs": "^2.4.3",
-    "bullmq": "^5.4.2",
+    "bullmq": "^5.12.10",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
