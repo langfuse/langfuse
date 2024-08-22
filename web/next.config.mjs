@@ -83,6 +83,7 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "autoplay=*, fullscreen=*, microphone=*",
           },
+          reportToHeader,
         ],
       },
       {
