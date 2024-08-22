@@ -41,7 +41,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       },
       take: 1000,
       orderBy: {
-        name: "desc",
+        name: "asc",
       },
       by: ["name"],
     });
