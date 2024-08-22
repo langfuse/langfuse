@@ -216,26 +216,21 @@ export const promptRouter = createTRPCRouter({
           id: true,
         },
       });
-      const tags: { count: number; value: string }[] = await ctx.prisma
-        .$queryRaw`
-        SELECT COUNT(*)::integer AS "count", tags.tag as value
+      const tags: { value: string }[] = await ctx.prisma.$queryRaw`
+        SELECT tags.tag as value
         FROM prompts, UNNEST(prompts.tags) AS tags(tag)
-        WHERE prompts.project_id = ${input.projectId}
-        GROUP BY tags.tag;
+        WHERE prompts.project_id = ${input.projectId};
       `;
-      const labels: { count: number; value: string }[] = await ctx.prisma
-        .$queryRaw`
-      SELECT COUNT(*)::integer AS "count", labels.label as value
+      const labels: { value: string }[] = await ctx.prisma.$queryRaw`
+      SELECT labels.label as value
       FROM prompts, UNNEST(prompts.labels) AS labels(label)
-      WHERE prompts.project_id = ${input.projectId}
-      GROUP BY labels.label;
+      WHERE prompts.project_id = ${input.projectId};
     `;
       const res = {
         name: names
           .filter((n) => n.name !== null)
           .map((name) => ({
             value: name.name ?? "undefined",
-            count: name._count.id,
           })),
         labels: labels,
         tags: tags,
