@@ -277,6 +277,22 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      const trace = await ctx.prisma.trace.findFirstOrThrow({
+        where: {
+          id: input.traceId,
+          projectId: input.projectId,
+        },
+      });
+      return trace;
+    }),
+  byIdWithObservationsAndScores: protectedGetTraceProcedure
+    .input(
+      z.object({
+        traceId: z.string(), // used for security check
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input, ctx }) => {
       const [trace, observations, scores] = await Promise.all([
         ctx.prisma.trace.findFirstOrThrow({
           where: {
