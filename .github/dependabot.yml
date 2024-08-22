@@ -25,7 +25,7 @@ updates:
       prisma:
         patterns:
           - "prisma"
-          - "@prisma/*"
+          - "@prisma/client"
       next:
         patterns:
           - "eslint-config-next"
