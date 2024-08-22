@@ -151,6 +151,13 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "number",
     internal: "p.version",
   },
+  {
+    name: "Trace Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: "t.tags",
+    options: [], // to be added at runtime
+  },
 ];
 
 // to be used client side, insert options for use in filter-builder
@@ -161,6 +168,7 @@ export type ObservationOptions = {
   traceName: Array<OptionsDefinition>;
   scores_avg: Array<string>;
   promptName: Array<OptionsDefinition>;
+  tags: Array<OptionsDefinition>;
 };
 
 export function observationsTableColsWithOptions(
@@ -181,6 +189,9 @@ export function observationsTableColsWithOptions(
     }
     if (col.id === "promptName") {
       return { ...col, options: options?.promptName ?? [] };
+    }
+    if (col.id === "tags") {
+      return { ...col, options: options?.tags ?? [] };
     }
     return col;
   });
