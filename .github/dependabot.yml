@@ -30,6 +30,3 @@ updates:
         patterns:
           - "eslint-config-next"
           - "next"
-      patches:
-        update-types:
-          - "patch"
