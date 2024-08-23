@@ -19,7 +19,10 @@ type GetSessionTableSQLParams = z.infer<typeof GetSessionTableSQLParamsSchema>;
 export const createSessionsAllQuery = (
   select: Prisma.Sql,
   params: GetSessionTableSQLParams,
-  useOrderBy: boolean = true
+  options?: {
+    ignoreOrderBy?: boolean; // used by session.metrics and session.all.totalCount
+    sessionIdList?: string[]; // used by session.metrics
+  }
 ): Prisma.Sql => {
   const { projectId, filter, orderBy, page, limit } =
     GetSessionTableSQLParamsSchema.parse(params);
@@ -30,6 +33,10 @@ export const createSessionsAllQuery = (
     "sessions"
   );
   const orderByCondition = orderByToPrismaSql(orderBy, sessionsViewCols);
+
+  const sessionIdFilter = options?.sessionIdList
+    ? Prisma.sql`AND s.id IN (${Prisma.join(options?.sessionIdList)})`
+    : Prisma.sql``;
 
   const sql = Prisma.sql`
       SELECT
@@ -68,7 +75,8 @@ export const createSessionsAllQuery = (
       WHERE
         s. "project_id" = ${projectId}
         ${filterCondition}
-      ${useOrderBy ? orderByCondition : Prisma.sql``}
+        ${sessionIdFilter}
+      ${options?.ignoreOrderBy ? Prisma.sql`` : orderByCondition}
       LIMIT ${limit}
       OFFSET ${page * limit}
     `;
