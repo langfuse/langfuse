@@ -5,7 +5,6 @@ import { kyselyPrisma } from "@langfuse/shared/src/db";
 import logger from "../logger";
 import { sql } from "kysely";
 import {
-  redis,
   createNewRedisInstance,
   QueueName,
   TQueueJobTypes,
@@ -39,8 +38,10 @@ export const getEvalQueue = () => {
   return evalQueue;
 };
 
-export const evalJobCreator = redis
-  ? new Worker<TQueueJobTypes[QueueName.TraceUpsert]>(
+const createEvalJobCreator = () => {
+  const redisInstance = createNewRedisInstance();
+  if (redisInstance) {
+    return new Worker<TQueueJobTypes[QueueName.TraceUpsert]>(
       QueueName.TraceUpsert,
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
         return instrument(
@@ -90,14 +91,20 @@ export const evalJobCreator = redis
         );
       },
       {
-        connection: redis,
+        connection: redisInstance,
         concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
       }
-    )
-  : null;
+    );
+  }
+  return null;
+};
 
-export const evalJobExecutor = redis
-  ? new Worker<TQueueJobTypes[QueueName.EvaluationExecution]>(
+export const evalJobCreator = createEvalJobCreator();
+
+const createEvalJobExecutor = () => {
+  const redisInstance = createNewRedisInstance();
+  if (redisInstance) {
+    return new Worker<TQueueJobTypes[QueueName.EvaluationExecution]>(
       QueueName.EvaluationExecution,
       async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
         return instrument(
@@ -172,8 +179,12 @@ export const evalJobExecutor = redis
         );
       },
       {
-        connection: redis,
+        connection: redisInstance,
         concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
       }
-    )
-  : null;
+    );
+  }
+  return null;
+};
+
+export const evalJobExecutor = createEvalJobExecutor();
