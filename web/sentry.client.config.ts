@@ -18,7 +18,7 @@ Sentry.init({
     ? Number(process.env.NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE)
     : 0.5,
   replaysOnErrorSampleRate: 1.0,
-  debug: true,
+  debug: false,
 
   beforeSend(event, _hint) {
     // Check if it is an exception, and if so, show the report dialog
