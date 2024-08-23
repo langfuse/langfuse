@@ -6,7 +6,8 @@ import {
   BatchExportStatus,
   exportOptions,
   FilterCondition,
-  getSessionTableSQL,
+  createSessionsAllQuery,
+  Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -70,15 +71,33 @@ export const handleBatchExportJob = async (
 
   const dbReadStream = new DatabaseReadStream<unknown>(
     async (pageSize: number, offset: number) => {
-      const query = getSessionTableSQL({
-        projectId,
-        filter: filter
-          ? [...filter, createdAtCutoffFilter]
-          : [createdAtCutoffFilter],
-        orderBy,
-        limit: pageSize,
-        page: Math.floor(offset / pageSize),
-      });
+      const query = createSessionsAllQuery(
+        Prisma.sql`
+          s.id,
+          s. "created_at" AS "createdAt",
+          s.bookmarked,
+          s.public,
+          t. "userIds",
+          t. "countTraces",
+          o. "sessionDuration",
+          o. "totalCost" AS "totalCost",
+          o. "inputCost" AS "inputCost",
+          o. "outputCost" AS "outputCost",
+          o. "promptTokens" AS "promptTokens",
+          o. "completionTokens" AS "completionTokens",
+          o. "totalTokens" AS "totalTokens",
+          (count(*) OVER ())::int AS "totalCount"
+        `,
+        {
+          projectId,
+          filter: filter
+            ? [...filter, createdAtCutoffFilter]
+            : [createdAtCutoffFilter],
+          orderBy,
+          limit: pageSize,
+          page: Math.floor(offset / pageSize),
+        }
+      );
 
       const chunk = await prisma.$queryRaw<unknown[]>(query);
 
