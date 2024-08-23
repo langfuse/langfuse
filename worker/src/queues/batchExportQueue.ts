@@ -68,6 +68,7 @@ const createBatchExportJobExecutor = () => {
       }
     );
   }
+
   return null;
 };
 
