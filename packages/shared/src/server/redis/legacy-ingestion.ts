@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import { redis } from "./redis";
+import { createNewRedisInstance } from "./redis";
 
 let legacyIngestionQueue: Queue<
   TQueueJobTypes[QueueName.LegacyIngestionQueue]
@@ -9,11 +9,13 @@ let legacyIngestionQueue: Queue<
 export const getLegacyIngestionQueue = () => {
   if (legacyIngestionQueue) return legacyIngestionQueue;
 
-  legacyIngestionQueue = redis
+  const newRedis = createNewRedisInstance();
+
+  legacyIngestionQueue = newRedis
     ? new Queue<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
         QueueName.LegacyIngestionQueue,
         {
-          connection: redis,
+          connection: newRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

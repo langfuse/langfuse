@@ -28,7 +28,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 
 import logger from "../../logger";
-import { evalQueue } from "../../queues/evalQueue";
+import { getEvalQueue } from "../../queues/evalQueue";
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
@@ -130,7 +130,7 @@ export const createEvalJobs = async ({
       });
 
       // add the job to the next queue so that eval can be executed
-      evalQueue?.add(
+      getEvalQueue()?.add(
         QueueName.EvaluationExecution,
         {
           name: QueueJobs.EvaluationExecution,

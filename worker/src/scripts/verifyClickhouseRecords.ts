@@ -205,6 +205,7 @@ async function main(params: MainParams) {
             return;
           }
           totalScoreCount += 1;
+
           checkedScoreSet.add(id);
 
           await verifyClickhouseScore(score);

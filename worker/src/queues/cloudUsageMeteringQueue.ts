@@ -5,6 +5,7 @@ import {
   QueueName,
   QueueJobs,
   instrument,
+  createNewRedisInstance,
 } from "@langfuse/shared/src/server";
 import { handleCloudUsageMeteringJob } from "../ee/cloudUsageMetering/handleCloudUsageMeteringJob";
 import { env } from "../env";
@@ -34,32 +35,35 @@ if (cloudUsageMeteringQueue) {
   });
 }
 
-export const cloudUsageMeteringJobExecutor =
-  redis && env.STRIPE_SECRET_KEY
-    ? new Worker(
-        QueueName.CloudUsageMeteringQueue,
-        async (job) => {
-          if (job.name === QueueJobs.CloudUsageMeteringJob) {
-            return instrument(
-              { name: "cloudUsageMeteringJobExecutor" },
-              async () => {
-                logger.info("Executing Cloud Usage Metering Job", job.data);
-                try {
-                  return await handleCloudUsageMeteringJob(job);
-                } catch (error) {
-                  logger.error(
-                    "Error executing Cloud Usage Metering Job",
-                    error
-                  );
-                  throw error;
-                }
+const createCloudUsageMeteringJobExecutor = () => {
+  const redisInstance = createNewRedisInstance();
+  if (env.STRIPE_SECRET_KEY && redisInstance) {
+    return new Worker(
+      QueueName.CloudUsageMeteringQueue,
+      async (job) => {
+        if (job.name === QueueJobs.CloudUsageMeteringJob) {
+          return instrument(
+            { name: "cloudUsageMeteringJobExecutor" },
+            async () => {
+              logger.info("Executing Cloud Usage Metering Job", job.data);
+              try {
+                return await handleCloudUsageMeteringJob(job);
+              } catch (error) {
+                logger.error("Error executing Cloud Usage Metering Job", error);
+                throw error;
               }
-            );
-          }
-        },
-        {
-          connection: redis,
-          concurrency: 1,
+            }
+          );
         }
-      )
-    : null;
+      },
+      {
+        connection: redisInstance,
+        concurrency: 1,
+      }
+    );
+  }
+  return null;
+};
+
+export const cloudUsageMeteringJobExecutor =
+  createCloudUsageMeteringJobExecutor();
