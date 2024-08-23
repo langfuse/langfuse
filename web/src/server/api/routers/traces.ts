@@ -162,9 +162,6 @@ export const traceRouter = createTRPCRouter({
         filterCondition: Prisma.sql`AND t.id IN (${Prisma.join(input.traceIds)})`,
       });
 
-      // wait for 5 seconds
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
       const [traceMetrics, scores] = await Promise.all([
         // traceMetrics
         ctx.prisma.$queryRaw<
