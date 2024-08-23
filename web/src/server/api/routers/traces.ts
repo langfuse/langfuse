@@ -95,11 +95,59 @@ export const traceRouter = createTRPCRouter({
       )`
         : Prisma.empty;
 
-      const tracesQuery = createTracesQuery(
-        Prisma.sql`t.*,
+      const tracesQuery = createTracesQuery({
+        select: Prisma.sql`
+          t.*,
           t."user_id" AS "userId",
-          t.session_id AS "sessionId",
-          t."bookmarked" AS "bookmarked",
+          t.session_id AS "sessionId"
+          `,
+        projectId: input.projectId,
+        observationTimeseriesFilter,
+        page: input.page,
+        limit: input.limit,
+        searchCondition,
+        filterCondition,
+        orderByCondition,
+      });
+
+      const countQuery = createTracesQuery({
+        select: Prisma.sql`count(*)`,
+        projectId: input.projectId,
+        observationTimeseriesFilter,
+        page: 0,
+        limit: 1,
+        searchCondition,
+        filterCondition,
+      });
+
+      const [traces, totalTraces] = await Promise.all([
+        ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery),
+        ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQuery),
+      ]);
+
+      const totalTraceCount = totalTraces[0]?.count;
+      return {
+        traces: traces.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ input, output, metadata, ...trace }) => ({
+            ...trace,
+          }),
+        ),
+        totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
+      };
+    }),
+  metrics: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (input.traceIds.length === 0) return [];
+      const tracesQuery = createTracesQuery({
+        select: Prisma.sql`
+          t.id,
           COALESCE(tm."promptTokens", 0)::bigint AS "promptTokens",
           COALESCE(tm."completionTokens", 0)::bigint AS "completionTokens",
           COALESCE(tm."totalTokens", 0)::bigint AS "totalTokens",
@@ -109,76 +157,50 @@ export const traceRouter = createTRPCRouter({
           COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
           COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
           tm."level" AS "level"
-          `,
+        `,
+        projectId: input.projectId,
+        filterCondition: Prisma.sql`AND t.id IN (${Prisma.join(input.traceIds)})`,
+      });
 
-        input.projectId,
-        observationTimeseriesFilter,
-        input.page,
-        input.limit,
-        searchCondition,
-        filterCondition,
-        orderByCondition,
-      );
-
-      const countQuery = createTracesQuery(
-        Prisma.sql`count(*)`,
-        input.projectId,
-        observationTimeseriesFilter,
-        0,
-        1,
-        searchCondition,
-        filterCondition,
-        Prisma.empty,
-      );
-
-      const [traces, totalTraces] = await Promise.all([
+      const [traceMetrics, scores] = await Promise.all([
+        // traceMetrics
         ctx.prisma.$queryRaw<
-          Array<
-            Trace & {
-              promptTokens: bigint;
-              completionTokens: bigint;
-              totalTokens: bigint;
-              totalCount: number;
-              latency: number | null;
-              level: ObservationLevel;
-              observationCount: number;
-              calculatedTotalCost: Decimal | null;
-              calculatedInputCost: Decimal | null;
-              calculatedOutputCost: Decimal | null;
-            }
-          >
+          Array<{
+            id: string;
+            promptTokens: bigint;
+            completionTokens: bigint;
+            totalTokens: bigint;
+            totalCount: number;
+            latency: number | null;
+            level: ObservationLevel;
+            observationCount: number;
+            calculatedTotalCost: Decimal | null;
+            calculatedInputCost: Decimal | null;
+            calculatedOutputCost: Decimal | null;
+          }>
         >(tracesQuery),
-        ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQuery),
+        // scores
+        ctx.prisma.score.findMany({
+          where: {
+            projectId: input.projectId,
+            traceId: {
+              in: input.traceIds,
+            },
+          },
+        }),
       ]);
 
-      // get scores for each trace individually to increase
-      // performance of the query above
-      const scores = await ctx.prisma.score.findMany({
-        where: {
-          projectId: input.projectId,
-          traceId: {
-            in: traces.map((t) => t.id),
-          },
-        },
-      });
       const validatedScores = filterAndValidateDbScoreList(
         scores,
         traceException,
       );
 
-      const totalTraceCount = totalTraces[0]?.count;
-      return {
-        traces: traces.map(
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          ({ input, output, metadata, ...trace }) => ({
-            ...trace,
-            scores: aggregateScores(
-              validatedScores.filter((s) => s.traceId === trace.id),
-            ),
-          }),
+      return traceMetrics.map((row) => ({
+        ...row,
+        scores: aggregateScores(
+          validatedScores.filter((s) => s.traceId === row.id),
         ),
-        totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
-      };
+      }));
     }),
   filterOptions: protectedProjectProcedure
     .input(
@@ -548,16 +570,25 @@ export const traceRouter = createTRPCRouter({
     }),
 });
 
-function createTracesQuery(
-  select: Prisma.Sql,
-  projectId: string,
-  observationTimeseriesFilter: Prisma.Sql,
-  page: number,
-  limit: number,
-  searchCondition: Prisma.Sql,
-  filterCondition: Prisma.Sql,
-  orderByCondition: Prisma.Sql,
-) {
+function createTracesQuery({
+  select,
+  projectId,
+  observationTimeseriesFilter = Prisma.empty,
+  page,
+  limit,
+  searchCondition = Prisma.empty,
+  filterCondition = Prisma.empty,
+  orderByCondition = Prisma.empty,
+}: {
+  select: Prisma.Sql;
+  projectId: string;
+  observationTimeseriesFilter?: Prisma.Sql;
+  page?: number;
+  limit?: number;
+  searchCondition?: Prisma.Sql;
+  filterCondition?: Prisma.Sql;
+  orderByCondition?: Prisma.Sql;
+}) {
   return Prisma.sql`
   SELECT
       ${select}
@@ -617,7 +648,7 @@ function createTracesQuery(
     ${searchCondition}
     ${filterCondition}
   ${orderByCondition}
-  LIMIT ${limit}
-  OFFSET ${page * limit}
+  ${limit ? Prisma.sql`LIMIT ${limit}` : Prisma.empty}
+  ${page && limit ? Prisma.sql`OFFSET ${page * limit}` : Prisma.empty}
 `;
 }
