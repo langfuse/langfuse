@@ -114,19 +114,19 @@ export default function SessionsTable({
     },
   );
 
-  const totalCount = sessions.data?.slice(1)[0]?.totalCount ?? 0;
+  const totalCount = sessions.data?.totalCount ?? 0;
   useEffect(() => {
     if (sessions.isSuccess) {
       setDetailPageList(
         "sessions",
-        sessions.data.map((t) => t.id),
+        sessions.data.sessions.map((t) => t.id),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions.isSuccess, sessions.data]);
 
   const convertToTableRow = (
-    session: RouterOutput["sessions"]["all"][0],
+    session: RouterOutput["sessions"]["all"]["sessions"][0],
   ): SessionTableRow => {
     return {
       id: session.id,
@@ -396,7 +396,7 @@ export default function SessionsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: sessions.data.map((t) => convertToTableRow(t)),
+                  data: sessions.data.sessions.map((t) => convertToTableRow(t)),
                 }
         }
         pagination={{

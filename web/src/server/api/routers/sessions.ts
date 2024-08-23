@@ -9,7 +9,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreList,
-  getSessionTableSQL,
+  createSessionsAllQuery,
   orderBy,
   paginationZod,
   type SessionOptions,
@@ -32,31 +32,75 @@ export const sessionRouter = createTRPCRouter({
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
       try {
-        const query = getSessionTableSQL(input);
+        const inputForTotal: z.infer<typeof SessionFilterOptions> = {
+          filter: input.filter,
+          projectId: input.projectId,
+          orderBy: null,
+          limit: 1,
+          page: 0,
+        };
 
-        const sessions = await ctx.prisma.$queryRaw<
-          Array<{
-            id: string;
-            createdAt: Date;
-            bookmarked: boolean;
-            public: boolean;
-            countTraces: number;
-            userIds: (string | null)[] | null;
-            totalCount: number;
-            sessionDuration: number | null;
-            inputCost: Decimal;
-            outputCost: Decimal;
-            totalCost: Decimal;
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
-          }>
-        >(query);
+        const [sessions, totalCount] = await Promise.all([
+          // sessions
+          ctx.prisma.$queryRaw<
+            Array<{
+              id: string;
+              createdAt: Date;
+              bookmarked: boolean;
+              public: boolean;
+              countTraces: number;
+              userIds: (string | null)[] | null;
+              sessionDuration: number | null;
+              inputCost: Decimal;
+              outputCost: Decimal;
+              totalCost: Decimal;
+              promptTokens: number;
+              completionTokens: number;
+              totalTokens: number;
+            }>
+          >(
+            createSessionsAllQuery(
+              Prisma.sql`
+              s.id,
+              s."created_at" AS "createdAt",
+              s.bookmarked,
+              s.public,
+              t."userIds",
+              t."countTraces",
+              o."sessionDuration",
+              o."totalCost" AS "totalCost",
+              o."inputCost" AS "inputCost",
+              o."outputCost" AS "outputCost",
+              o."promptTokens" AS "promptTokens",
+              o."completionTokens" AS "completionTokens",
+              o."totalTokens" AS "totalTokens"
+            `,
+              input,
+            ),
+          ),
+          // totalCount
+          ctx.prisma.$queryRaw<
+            Array<{
+              totalCount: number;
+            }>
+          >(
+            createSessionsAllQuery(
+              Prisma.sql`
+                count(*)::int as "totalCount"
+              `,
+              inputForTotal,
+              false,
+            ),
+          ),
+        ]);
 
-        return sessions.map((s) => ({
-          ...s,
-          userIds: (s.userIds?.filter((t) => t !== null) ?? []) as string[],
-        }));
+        return {
+          sessions: sessions.map((s) => ({
+            ...s,
+            userIds: (s.userIds?.filter((t) => t !== null) ?? []) as string[],
+          })),
+          totalCount: totalCount[0].totalCount,
+        };
       } catch (e) {
         console.error(e);
         throw new TRPCError({
