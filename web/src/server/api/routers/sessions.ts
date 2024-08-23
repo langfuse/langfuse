@@ -48,15 +48,6 @@ export const sessionRouter = createTRPCRouter({
               createdAt: Date;
               bookmarked: boolean;
               public: boolean;
-              countTraces: number;
-              userIds: (string | null)[] | null;
-              sessionDuration: number | null;
-              inputCost: Decimal;
-              outputCost: Decimal;
-              totalCost: Decimal;
-              promptTokens: number;
-              completionTokens: number;
-              totalTokens: number;
             }>
           >(
             createSessionsAllQuery(
@@ -64,16 +55,7 @@ export const sessionRouter = createTRPCRouter({
               s.id,
               s."created_at" AS "createdAt",
               s.bookmarked,
-              s.public,
-              t."userIds",
-              t."countTraces",
-              o."sessionDuration",
-              o."totalCost" AS "totalCost",
-              o."inputCost" AS "inputCost",
-              o."outputCost" AS "outputCost",
-              o."promptTokens" AS "promptTokens",
-              o."completionTokens" AS "completionTokens",
-              o."totalTokens" AS "totalTokens"
+              s.public
             `,
               input,
             ),
@@ -89,16 +71,15 @@ export const sessionRouter = createTRPCRouter({
                 count(*)::int as "totalCount"
               `,
               inputForTotal,
-              false,
+              {
+                ignoreOrderBy: true,
+              },
             ),
           ),
         ]);
 
         return {
-          sessions: sessions.map((s) => ({
-            ...s,
-            userIds: (s.userIds?.filter((t) => t !== null) ?? []) as string[],
-          })),
+          sessions,
           totalCount: totalCount[0].totalCount,
         };
       } catch (e) {
@@ -106,6 +87,70 @@ export const sessionRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get sessions",
+        });
+      }
+    }),
+  metrics: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const inputForMetrics: z.infer<typeof SessionFilterOptions> = {
+          filter: [],
+          projectId: input.projectId,
+          orderBy: null,
+          limit: 10000, // no limit
+          page: 0,
+        };
+
+        const metrics = await ctx.prisma.$queryRaw<
+          Array<{
+            id: string;
+            countTraces: number;
+            userIds: (string | null)[] | null;
+            sessionDuration: number | null;
+            inputCost: Decimal;
+            outputCost: Decimal;
+            totalCost: Decimal;
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
+          }>
+        >(
+          createSessionsAllQuery(
+            Prisma.sql`
+              s.id,
+              t."userIds",
+              t."countTraces",
+              o."sessionDuration",
+              o."totalCost" AS "totalCost",
+              o."inputCost" AS "inputCost",
+              o."outputCost" AS "outputCost",
+              o."promptTokens" AS "promptTokens",
+              o."completionTokens" AS "completionTokens",
+              o."totalTokens" AS "totalTokens"
+            `,
+            inputForMetrics,
+            {
+              ignoreOrderBy: true,
+              sessionIdList: input.sessionIds,
+            },
+          ),
+        );
+
+        return metrics.map((row) => ({
+          ...row,
+          userIds: (row.userIds?.filter((t) => t !== null) ?? []) as string[],
+        }));
+      } catch (e) {
+        console.error(e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "unable to get session metrics",
         });
       }
     }),
