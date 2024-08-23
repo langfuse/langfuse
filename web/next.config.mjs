@@ -12,18 +12,35 @@ import { env } from "./src/env.mjs";
  */
 const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.posthog.com https://*.sentry.io wss://*.crisp.chat https://*.crisp.chat;
-  script-src 'self' 'unsafe-eval' https://*.langfuse.com https://*.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
-  style-src 'self' 'unsafe-inline' https://*.crisp.chat;
-  img-src 'self' https: blob: data:;
-  font-src 'self' https://*.crisp.chat;
-  frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://client.crisp.chat https://settings.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
+  style-src 'self' 'unsafe-inline' https://client.crisp.chat;
+  img-src 'self' https: blob: data: https://client.crisp.chat https://image.crisp.chat https://storage.crisp.chat;
+  font-src 'self' https://client.crisp.chat;
+  frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com https://game.crisp.chat;
   worker-src 'self' blob:;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
   frame-ancestors 'none';
+  connect-src 'self' https://client.crisp.chat https://storage.crisp.chat wss://client.relay.crisp.chat wss://stream.relay.crisp.chat https://*.ingest.us.sentry.io;
+  media-src 'self' https://client.crisp.chat;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
+  ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
 `;
+
+const reportToHeader = {
+  key: "Report-To",
+  value: JSON.stringify({
+    group: "csp-endpoint",
+    max_age: 10886400,
+    endpoints: [
+      {
+        url: env.SENTRY_CSP_REPORT_URI,
+      },
+    ],
+    include_subdomains: true,
+  }),
+};
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
@@ -72,6 +89,7 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "autoplay=*, fullscreen=*, microphone=*",
           },
+          ...(env.SENTRY_CSP_REPORT_URI ? [reportToHeader] : []),
         ],
       },
       {
@@ -160,6 +178,9 @@ const sentryOptions = {
   //     - excludeServerRoutes
   //   'Configure Tunneling':
   //     - tunnelRoute
+
+  // An auth token is required for uploading source maps.
+  authToken: env.SENTRY_AUTH_TOKEN,
   tunnelRoute: "/api/monitoring-tunnel",
 };
 
