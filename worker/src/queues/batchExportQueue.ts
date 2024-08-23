@@ -3,14 +3,20 @@ import { Job, Worker } from "bullmq";
 import { BaseError, BatchExportStatus } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
-import { traceException, instrument } from "@langfuse/shared/src/server";
+import {
+  traceException,
+  instrument,
+  createNewRedisInstance,
+} from "@langfuse/shared/src/server";
 import logger from "../logger";
-import { redis, QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
+import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 import { SpanKind } from "@opentelemetry/api";
 
-export const batchExportJobExecutor = redis
-  ? new Worker<TQueueJobTypes[QueueName.BatchExport]>(
+const createBatchExportJobExecutor = () => {
+  const redisInstance = createNewRedisInstance();
+  if (redisInstance) {
+    return new Worker<TQueueJobTypes[QueueName.BatchExport]>(
       QueueName.BatchExport,
       async (job: Job<TQueueJobTypes[QueueName.BatchExport]>) => {
         return instrument(
@@ -52,7 +58,7 @@ export const batchExportJobExecutor = redis
         );
       },
       {
-        connection: redis,
+        connection: redisInstance,
         concurrency: 1, // only 1 job at a time
         limiter: {
           // execute 1 batch export in 5 seconds to avoid overloading the DB
@@ -60,5 +66,10 @@ export const batchExportJobExecutor = redis
           duration: 5_000,
         },
       }
-    )
-  : null;
+    );
+  }
+
+  return null;
+};
+
+export const batchExportJobExecutor = createBatchExportJobExecutor();

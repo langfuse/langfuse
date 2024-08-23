@@ -16,6 +16,7 @@ const EnvSchema = z.object({
     .nullable(),
   REDIS_AUTH: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
+  REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
   ENCRYPTION_KEY: z
     .string()
     .length(
