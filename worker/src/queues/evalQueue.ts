@@ -6,6 +6,7 @@ import logger from "../logger";
 import { sql } from "kysely";
 import {
   redis,
+  createNewRedisInstance,
   QueueName,
   TQueueJobTypes,
   traceException,
@@ -18,14 +19,25 @@ import {
 import { SpanKind } from "@opentelemetry/api";
 import { env } from "../env";
 
-export const evalQueue = redis
-  ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
-      QueueName.EvaluationExecution,
-      {
-        connection: redis,
-      }
-    )
-  : null;
+let evalQueue: Queue<TQueueJobTypes[QueueName.EvaluationExecution]> | null =
+  null;
+
+export const getEvalQueue = () => {
+  if (evalQueue) return evalQueue;
+
+  const connection = createNewRedisInstance();
+
+  evalQueue = connection
+    ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
+        QueueName.EvaluationExecution,
+        {
+          connection: connection,
+        }
+      )
+    : null;
+
+  return evalQueue;
+};
 
 export const evalJobCreator = redis
   ? new Worker<TQueueJobTypes[QueueName.TraceUpsert]>(
@@ -107,7 +119,7 @@ export const evalJobExecutor = redis
 
               await evaluate({ event: job.data.payload });
 
-              await evalQueue
+              await getEvalQueue()
                 ?.count()
                 .then((count) => {
                   logger.info(`Eval execution queue length: ${count}`);
