@@ -147,16 +147,16 @@ export const traceRouter = createTRPCRouter({
       if (input.traceIds.length === 0) return [];
       const tracesQuery = createTracesQuery({
         select: Prisma.sql`
-        t.id,
-        COALESCE(tm."promptTokens", 0)::bigint AS "promptTokens",
-        COALESCE(tm."completionTokens", 0)::bigint AS "completionTokens",
-        COALESCE(tm."totalTokens", 0)::bigint AS "totalTokens",
-        tl.latency AS "latency",
-        tl."observationCount" AS "observationCount",
-        COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
-        COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
-        COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
-        tm."level" AS "level"
+          t.id,
+          COALESCE(tm."promptTokens", 0)::bigint AS "promptTokens",
+          COALESCE(tm."completionTokens", 0)::bigint AS "completionTokens",
+          COALESCE(tm."totalTokens", 0)::bigint AS "totalTokens",
+          tl.latency AS "latency",
+          tl."observationCount" AS "observationCount",
+          COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
+          COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
+          COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
+          tm."level" AS "level"
         `,
         projectId: input.projectId,
         filterCondition: Prisma.sql`AND t.id IN (${Prisma.join(input.traceIds)})`,
