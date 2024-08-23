@@ -47,7 +47,6 @@ export const env = createEnv({
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
-    LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -168,6 +167,8 @@ export const env = createEnv({
       .default(60 * 10),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+    SENTRY_AUTH_TOKEN: z.string().optional(),
+    SENTRY_CSP_REPORT_URI: z.string().optional(),
   },
 
   /**
@@ -218,7 +219,6 @@ export const env = createEnv({
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
-    LANGFUSE_TRACING_SAMPLE_RATE: process.env.LANGFUSE_TRACING_SAMPLE_RATE,
     // Default org, project and role
     LANGFUSE_DEFAULT_ORG_ID: process.env.LANGFUSE_DEFAULT_ORG_ID,
     LANGFUSE_DEFAULT_ORG_ROLE: process.env.LANGFUSE_DEFAULT_ORG_ROLE,
@@ -315,6 +315,8 @@ export const env = createEnv({
       process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
+    SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
+    SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
