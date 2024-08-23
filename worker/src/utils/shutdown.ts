@@ -43,7 +43,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info("Redis connection has been closed.");
 
   freeAllTokenizers();
-  logger.info("All tokenizers are cleande up from memory.");
+  logger.info("All tokenizers are cleaned up from memory.");
 
   logger.info("Shutdown complete, exiting process...");
 };
