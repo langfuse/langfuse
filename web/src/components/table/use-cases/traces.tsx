@@ -207,6 +207,7 @@ export default function TracesTable({
       projectId,
       scoreColumnKey: "scores",
       selectedFilterOption: selectedOption,
+      cellsLoading: !traceMetrics.data,
     });
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
@@ -417,7 +418,7 @@ export default function TracesTable({
     },
     {
       ...getScoreGroupColumnProps(isColumnLoading || !traceMetrics.data),
-      columns: !traceMetrics.data ? undefined : scoreColumns,
+      columns: scoreColumns,
     },
     {
       accessorKey: "inputCost",
