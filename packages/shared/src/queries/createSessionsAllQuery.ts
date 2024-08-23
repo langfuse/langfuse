@@ -16,8 +16,10 @@ const GetSessionTableSQLParamsSchema = z.object({
 });
 type GetSessionTableSQLParams = z.infer<typeof GetSessionTableSQLParamsSchema>;
 
-export const getSessionTableSQL = (
-  params: GetSessionTableSQLParams
+export const createSessionsAllQuery = (
+  select: Prisma.Sql,
+  params: GetSessionTableSQLParams,
+  useOrderBy: boolean = true
 ): Prisma.Sql => {
   const { projectId, filter, orderBy, page, limit } =
     GetSessionTableSQLParamsSchema.parse(params);
@@ -31,20 +33,7 @@ export const getSessionTableSQL = (
 
   const sql = Prisma.sql`
       SELECT
-        s.id,
-        s. "created_at" AS "createdAt",
-        s.bookmarked,
-        s.public,
-        t. "userIds",
-        t. "countTraces",
-        o. "sessionDuration",
-        o. "totalCost" AS "totalCost",
-        o. "inputCost" AS "inputCost",
-        o. "outputCost" AS "outputCost",
-        o. "promptTokens" AS "promptTokens",
-        o. "completionTokens" AS "completionTokens",
-        o. "totalTokens" AS "totalTokens",
-        (count(*) OVER ())::int AS "totalCount"
+        ${select}
       FROM
         trace_sessions AS s
         LEFT JOIN LATERAL (
@@ -79,7 +68,7 @@ export const getSessionTableSQL = (
       WHERE
         s. "project_id" = ${projectId}
         ${filterCondition}
-      ${orderByCondition}
+      ${useOrderBy ? orderByCondition : Prisma.sql``}
       LIMIT ${limit}
       OFFSET ${page * limit}
     `;
