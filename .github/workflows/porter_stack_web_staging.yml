@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - improve-redis-performance
+      - main
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:

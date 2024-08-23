@@ -49,7 +49,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   registerInstrumentations({
     instrumentations: [
-      new IORedisInstrumentation({}),
+      new IORedisInstrumentation(),
       new HttpInstrumentation(),
       new PrismaInstrumentation(),
       getNodeAutoInstrumentations(),
