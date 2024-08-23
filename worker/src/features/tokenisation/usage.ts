@@ -174,7 +174,10 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
     encoding = get_encoding("cl100k_base");
   }
   const cleandedText = unicodeToBytesInString(text);
-  return encoding?.encode(cleandedText).length;
+  const res = encoding?.encode(cleandedText).length;
+
+  encoding?.free();
+  return res;
 };
 
 interface Tokenizer {
