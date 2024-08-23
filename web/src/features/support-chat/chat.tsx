@@ -34,7 +34,13 @@ export const chatSetUser = ({
 type Trigger = "after-project-creation";
 
 export const chatRunTrigger = (trigger: Trigger) => {
-  if (chatAvailable) Crisp.trigger.run(trigger);
+  if (chatAvailable) {
+    try {
+      Crisp.trigger.run(trigger);
+    } catch (e) {
+      console.error("Failed to run Crisp trigger", e);
+    }
+  }
 };
 
 export const sendUserChatMessage = (message: string) => {
