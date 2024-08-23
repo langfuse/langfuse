@@ -99,6 +99,7 @@ export const sessionRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
+        if (input.sessionIds.length === 0) return [];
         const inputForMetrics: z.infer<typeof SessionFilterOptions> = {
           filter: [],
           projectId: input.projectId,

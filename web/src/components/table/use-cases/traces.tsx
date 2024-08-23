@@ -11,7 +11,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { type RouterInput } from "@/src/utils/types";
+import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -44,6 +44,8 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -51,10 +53,10 @@ export type TracesTableRow = {
   timestamp: string;
   name: string;
   userId: string;
-  level: ObservationLevel;
-  observationCount: number;
+  level?: ObservationLevel;
+  observationCount?: number;
   // scores holds grouped column with individual scores
-  scores: ScoreAggregate;
+  scores?: ScoreAggregate;
   latency?: number;
   release?: string;
   version?: string;
@@ -65,9 +67,9 @@ export type TracesTableRow = {
   metadata?: unknown;
   tags: string[];
   usage: {
-    promptTokens: bigint;
-    completionTokens: bigint;
-    totalTokens: bigint;
+    promptTokens?: bigint;
+    completionTokens?: bigint;
+    totalTokens?: bigint;
   };
   inputCost?: Decimal;
   outputCost?: Decimal;
@@ -142,6 +144,23 @@ export default function TracesTable({
     orderBy: orderByState,
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
+  const traceMetrics = api.traces.metrics.useQuery(
+    {
+      projectId,
+      traceIds: traces.data?.traces.map((t) => t.id) ?? [],
+    },
+    {
+      enabled: traces.data !== undefined,
+    },
+  );
+
+  type TracesCoreOutput = RouterOutput["traces"]["all"]["traces"][number];
+  type TraceMetricOutput = RouterOutput["traces"]["metrics"][number];
+
+  const traceRowData = joinTableCoreAndMetrics<
+    TracesCoreOutput,
+    TraceMetricOutput
+  >(traces.data?.traces, traceMetrics.data);
 
   const totalCount = traces.data?.totalCount ?? 0;
   useEffect(() => {
@@ -188,6 +207,7 @@ export default function TracesTable({
       projectId,
       scoreColumnKey: "scores",
       selectedFilterOption: selectedOption,
+      cellsLoading: !traceMetrics.data,
     });
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
@@ -328,6 +348,7 @@ export default function TracesTable({
       // add seconds to the end of the latency
       cell: ({ row }) => {
         const value: TracesTableRow["latency"] = row.getValue("latency");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         return value !== undefined ? formatIntervalSeconds(value) : undefined;
       },
       enableHiding: true,
@@ -340,6 +361,7 @@ export default function TracesTable({
       size: 110,
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         return <span>{numberFormatter(value.promptTokens, 0)}</span>;
       },
       enableHiding: true,
@@ -353,6 +375,7 @@ export default function TracesTable({
       size: 110,
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         return <span>{numberFormatter(value.completionTokens, 0)}</span>;
       },
       enableHiding: true,
@@ -366,6 +389,7 @@ export default function TracesTable({
       size: 110,
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         return <span>{numberFormatter(value.totalTokens, 0)}</span>;
       },
       enableHiding: true,
@@ -379,11 +403,12 @@ export default function TracesTable({
       size: 220,
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         return (
           <TokenUsageBadge
-            promptTokens={value.promptTokens}
-            completionTokens={value.completionTokens}
-            totalTokens={value.totalTokens}
+            promptTokens={value.promptTokens ?? 0}
+            completionTokens={value.completionTokens ?? 0}
+            totalTokens={value.totalTokens ?? 0}
             inline
           />
         );
@@ -391,7 +416,10 @@ export default function TracesTable({
       enableSorting: true,
       enableHiding: true,
     },
-    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
+    {
+      ...getScoreGroupColumnProps(isColumnLoading || !traceMetrics.data),
+      columns: scoreColumns,
+    },
     {
       accessorKey: "inputCost",
       id: "inputCost",
@@ -399,6 +427,7 @@ export default function TracesTable({
       size: 100,
       cell: ({ row }) => {
         const cost: TracesTableRow["inputCost"] = row.getValue("inputCost");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         return (
           <div>
             {cost ? (
@@ -420,6 +449,7 @@ export default function TracesTable({
       size: 100,
       cell: ({ row }) => {
         const cost: TracesTableRow["outputCost"] = row.getValue("outputCost");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         return (
           <div>
             {cost ? (
@@ -441,6 +471,7 @@ export default function TracesTable({
       size: 100,
       cell: ({ row }) => {
         const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         return (
           <div>
             {cost ? (
@@ -521,7 +552,8 @@ export default function TracesTable({
       size: 75,
       cell: ({ row }) => {
         const value: TracesTableRow["level"] = row.getValue("level");
-        return (
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        return value ? (
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
@@ -531,6 +563,8 @@ export default function TracesTable({
           >
             {value}
           </span>
+        ) : (
+          <span>-</span>
         );
       },
       enableHiding: true,
@@ -547,6 +581,12 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      cell: ({ row }) => {
+        const value: TracesTableRow["observationCount"] =
+          row.getValue("observationCount");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+        return <span>{value}</span>;
+      },
     },
     {
       accessorKey: "version",
@@ -629,7 +669,7 @@ export default function TracesTable({
 
   const rows = useMemo(() => {
     return traces.isSuccess
-      ? traces.data.traces.map((trace) => {
+      ? traceRowData?.rows?.map((trace) => {
           return {
             bookmarked: trace.bookmarked,
             id: trace.id,
@@ -648,17 +688,19 @@ export default function TracesTable({
               completionTokens: trace.completionTokens,
               totalTokens: trace.totalTokens,
             },
-            scores: verifyAndPrefixScoreDataAgainstKeys(
-              scoreKeysAndProps,
-              trace.scores,
-            ),
+            scores: trace.scores
+              ? verifyAndPrefixScoreDataAgainstKeys(
+                  scoreKeysAndProps,
+                  trace.scores,
+                )
+              : undefined,
             inputCost: trace.calculatedInputCost ?? undefined,
             outputCost: trace.calculatedOutputCost ?? undefined,
             totalCost: trace.calculatedTotalCost ?? undefined,
           };
-        })
+        }) ?? []
       : [];
-  }, [traces, scoreKeysAndProps]);
+  }, [traces, traceRowData, scoreKeysAndProps]);
 
   return (
     <>
