@@ -67,9 +67,24 @@ export const traceException = (
 
   const exception = {
     code: code,
-    message: ex instanceof Error ? ex.message : String(ex),
-    name: ex instanceof Error ? ex.name : "Error",
-    stack: ex instanceof Error ? ex.stack : undefined,
+    message:
+      ex instanceof Error
+        ? ex.message
+        : typeof ex === "object" && ex !== null && "message" in ex
+          ? JSON.stringify(ex.message)
+          : JSON.stringify(ex),
+    name:
+      ex instanceof Error
+        ? ex.name
+        : typeof ex === "object" && ex !== null && "name" in ex
+          ? JSON.stringify(ex.name)
+          : "Error",
+    stack:
+      ex instanceof Error
+        ? JSON.stringify(ex.stack)
+        : typeof ex === "object" && ex !== null && "stack" in ex
+          ? JSON.stringify(ex.stack)
+          : undefined,
   };
 
   // adds an otel event

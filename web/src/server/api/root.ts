@@ -8,7 +8,7 @@ import { apiKeysRouter } from "@/src/features/public-api/server/apiKeyRouter";
 import { membersRouter } from "@/src/features/rbac/server/membersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
 import { datasetRouter } from "@/src/features/datasets/server/dataset-router";
-import { usageMeteringRouter } from "@/src/features/usage-metering/server/usageMeteringRouter";
+import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillingRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
@@ -23,6 +23,7 @@ import { credentialsRouter } from "@/src/features/auth-credentials/server/creden
 import { batchExportRouter } from "@/src/server/api/routers/batchExport";
 import { utilsRouter } from "@/src/server/api/routers/utilities";
 import { uiCustomizationRouter } from "@/src/ee/features/ui-customization/uiCustomizationRouter";
+import { commentsRouter } from "@/src/server/api/routers/comments";
 
 /**
  * This is the primary router for your server.
@@ -43,7 +44,7 @@ export const appRouter = createTRPCRouter({
   apiKeys: apiKeysRouter,
   members: membersRouter,
   datasets: datasetRouter,
-  usageMetering: usageMeteringRouter,
+  cloudBilling: cloudBillingRouter,
   observations: observationsRouter,
   prompts: promptRouter,
   models: modelRouter,
@@ -54,6 +55,7 @@ export const appRouter = createTRPCRouter({
   credentials: credentialsRouter,
   utilities: utilsRouter,
   uiCustomization: uiCustomizationRouter,
+  comments: commentsRouter,
 });
 
 // export type definition of API

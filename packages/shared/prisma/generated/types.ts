@@ -42,6 +42,13 @@ export const DatasetStatus = {
     ARCHIVED: "ARCHIVED"
 } as const;
 export type DatasetStatus = (typeof DatasetStatus)[keyof typeof DatasetStatus];
+export const CommentObjectType = {
+    TRACE: "TRACE",
+    OBSERVATION: "OBSERVATION",
+    SESSION: "SESSION",
+    PROMPT: "PROMPT"
+} as const;
+export type CommentObjectType = (typeof CommentObjectType)[keyof typeof CommentObjectType];
 export const JobType = {
     EVAL: "EVAL"
 } as const;
@@ -115,6 +122,16 @@ export type BatchExport = {
     format: string;
     url: string | null;
     log: string | null;
+};
+export type Comment = {
+    id: string;
+    project_id: string;
+    object_type: CommentObjectType;
+    object_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    content: string;
+    author_user_id: string | null;
 };
 export type CronJobs = {
     name: string;
@@ -491,6 +508,7 @@ export type DB = {
     api_keys: ApiKey;
     audit_logs: AuditLog;
     batch_exports: BatchExport;
+    comments: Comment;
     cron_jobs: CronJobs;
     dataset_items: DatasetItem;
     dataset_run_items: DatasetRunItems;

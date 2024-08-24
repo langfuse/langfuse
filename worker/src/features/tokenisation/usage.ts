@@ -182,6 +182,12 @@ interface Tokenizer {
 }
 const cachedTokenizerByModel: Tokenizer = {};
 
+export function freeAllTokenizers() {
+  Object.values(cachedTokenizerByModel).forEach((tokenizer) => {
+    tokenizer.free();
+  });
+}
+
 function isString(value: unknown): value is string {
   return typeof value === "string";
 }

@@ -6,6 +6,7 @@ export enum EventName {
   BatchExport = "BatchExport",
   EvaluationExecution = "EvaluationExecution",
   LegacyIngestion = "LegacyIngestion",
+  CloudUsageMetering = "CloudUsageMetering",
 }
 
 export const LegacyIngestionEvent = z.object({
@@ -60,6 +61,7 @@ export enum QueueName {
   RepeatQueue = "repeat-queue",
   IngestionFlushQueue = "ingestion-flush-queue",
   LegacyIngestionQueue = "legacy-ingestion-queue",
+  CloudUsageMeteringQueue = "cloud-usage-metering-queue",
 }
 
 export enum QueueJobs {
@@ -69,6 +71,7 @@ export enum QueueJobs {
   EnqueueBatchExportJobs = "enqueue-batch-export-jobs",
   FlushIngestionEntity = "flush-ingestion-entity",
   LegacyIngestionJob = "legacy-ingestion-job",
+  CloudUsageMeteringJob = "cloud-usage-metering-job",
 }
 
 export type TQueueJobTypes = {

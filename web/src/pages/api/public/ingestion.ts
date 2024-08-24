@@ -13,6 +13,7 @@ import {
   type ingestionBatchEvent,
   handleBatch,
   recordIncrement,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
@@ -76,7 +77,22 @@ export default async function handler(
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
 
-    await gaugePrismaStats();
+    // add context of api call to the span
+    const currentSpan = getCurrentSpan();
+
+    // get x-langfuse-xxx headers and add them to the span
+    Object.keys(req.headers).forEach((header) => {
+      if (header.toLowerCase().startsWith("x-langfuse")) {
+        currentSpan?.setAttributes({
+          [header]: req.headers[header],
+        });
+      }
+    });
+
+    // add number of events to the span
+    parsedSchema.data
+      ? currentSpan?.setAttribute("event_count", parsedSchema.data.batch.length)
+      : undefined;
 
     if (!parsedSchema.success) {
       console.log("Invalid request data", parsedSchema.error);
@@ -118,8 +134,6 @@ export default async function handler(
       const queue = getLegacyIngestionQueue();
 
       if (queue) {
-        console.log("Returning http response early");
-
         // still need to check auth scope for all events individually
 
         const failedAccessScope = accessCheckPerEvent(sortedBatch, authCheck);
@@ -427,16 +441,4 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;
-};
-
-const gaugePrismaStats = async () => {
-  // execute with a 50% probability
-  if (Math.random() > 0.5) {
-    return;
-  }
-  // const metrics = await prisma.$metrics.json();
-
-  // metrics.gauges.forEach((gauge) => {
-  //   Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
-  // });
 };

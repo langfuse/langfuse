@@ -43,6 +43,7 @@ export const useHasOrganizationAccess = (p: {
   const { scope, organizationId } = p;
   const session = useSession();
 
+  if (session.data?.user?.admin) return true;
   if (!organizationId) return false;
 
   return hasOrganizationAccess({

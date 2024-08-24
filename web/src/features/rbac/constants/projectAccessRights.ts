@@ -42,6 +42,9 @@ const projectScopes = [
   "llmApiKeys:read",
   "llmApiKeys:create",
   "llmApiKeys:delete",
+
+  "comments:CUD",
+  "comments:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -78,6 +81,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmApiKeys:create",
     "llmApiKeys:delete",
     "batchExport:create",
+    "comments:CUD",
+    "comments:read",
   ],
   ADMIN: [
     "project:read",
@@ -108,6 +113,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmApiKeys:create",
     "llmApiKeys:delete",
     "batchExport:create",
+    "comments:CUD",
+    "comments:read",
   ],
   MEMBER: [
     "project:read",
@@ -129,6 +136,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalJobExecution:read",
     "llmApiKeys:read",
     "batchExport:create",
+    "comments:CUD",
+    "comments:read",
   ],
   VIEWER: [
     "project:read",
@@ -138,6 +147,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalJob:read",
     "evalJobExecution:read",
     "llmApiKeys:read",
+    "comments:read",
   ],
   NONE: [],
 };

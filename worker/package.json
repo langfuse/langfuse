@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.71.0",
+  "version": "2.74.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -34,7 +34,7 @@
     "@opentelemetry/instrumentation-undici": "^0.4.0",
     "@prisma/instrumentation": "^5.13.0",
     "backoff": "^2.5.0",
-    "bullmq": "^5.4.2",
+    "bullmq": "^5.12.10",
     "cors": "^2.8.5",
     "dd-trace": "^5.21.0",
     "decimal.js": "^10.4.3",
@@ -51,6 +51,7 @@
     "pino": "^9.2.0",
     "pino-http": "^9.0.0",
     "pino-pretty": "^10.3.1",
+    "stripe": "^16.8.0",
     "tiktoken": "^1.0.15",
     "uuid": "^9.0.1",
     "zod": "^3.23.8"

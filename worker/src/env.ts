@@ -26,7 +26,6 @@ const EnvSchema = z.object({
     .default(24),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
-  LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
   LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -58,6 +57,7 @@ const EnvSchema = z.object({
     .nullable(),
   REDIS_AUTH: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
+  REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
   CLICKHOUSE_URL: z.string().url().optional(),
   CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_PASSWORD: z.string().optional(),
@@ -66,6 +66,15 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(25),
+  LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(25),
+  LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
+  STRIPE_SECRET_KEY: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);

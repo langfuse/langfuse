@@ -6,7 +6,7 @@ import {
   TraceUpsertEventType,
 } from "../queues";
 import { Queue } from "bullmq";
-import { redis } from "./redis";
+import { createNewRedisInstance } from "./redis";
 
 let traceUpsertQueue: Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null =
   null;
@@ -14,9 +14,15 @@ let traceUpsertQueue: Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null =
 export const getTraceUpsertQueue = () => {
   if (traceUpsertQueue) return traceUpsertQueue;
 
-  traceUpsertQueue = redis
+  const connection = createNewRedisInstance();
+
+  traceUpsertQueue = connection
     ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
-        connection: redis,
+        connection: connection,
+        defaultJobOptions: {
+          removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
+          removeOnFail: 1_000,
+        },
       })
     : null;
 
@@ -50,7 +56,7 @@ export function convertTraceUpsertEventsToRedisEvents(
           name: QueueJobs.TraceUpsert as const,
         },
         opts: {
-          removeOnFail: 10000,
+          removeOnFail: 1_000,
           removeOnComplete: true,
           attempts: 5,
           backoff: {
