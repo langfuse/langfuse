@@ -16,7 +16,6 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
   opentelemetry.context.setGlobalContextManager(contextManager);
 
   const tracer = dd.init({
-    profiling: false,
     runtimeMetrics: true,
   });
 
