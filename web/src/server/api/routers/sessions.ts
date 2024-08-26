@@ -32,6 +32,40 @@ export const sessionRouter = createTRPCRouter({
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
       try {
+        const sessions = await ctx.prisma.$queryRaw<
+          Array<{
+            id: string;
+            createdAt: Date;
+            bookmarked: boolean;
+            public: boolean;
+          }>
+        >(
+          createSessionsAllQuery(
+            Prisma.sql`
+              s.id,
+              s."created_at" AS "createdAt",
+              s.bookmarked,
+              s.public
+            `,
+            input,
+          ),
+        );
+
+        return {
+          sessions,
+        };
+      } catch (e) {
+        console.error(e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "unable to get sessions",
+        });
+      }
+    }),
+  countAll: protectedProjectProcedure
+    .input(SessionFilterOptions)
+    .query(async ({ input, ctx }) => {
+      try {
         const inputForTotal: z.infer<typeof SessionFilterOptions> = {
           filter: input.filter,
           projectId: input.projectId,
@@ -40,53 +74,30 @@ export const sessionRouter = createTRPCRouter({
           page: 0,
         };
 
-        const [sessions, totalCount] = await Promise.all([
-          // sessions
-          ctx.prisma.$queryRaw<
-            Array<{
-              id: string;
-              createdAt: Date;
-              bookmarked: boolean;
-              public: boolean;
-            }>
-          >(
-            createSessionsAllQuery(
-              Prisma.sql`
-              s.id,
-              s."created_at" AS "createdAt",
-              s.bookmarked,
-              s.public
-            `,
-              input,
-            ),
-          ),
-          // totalCount
-          ctx.prisma.$queryRaw<
-            Array<{
-              totalCount: number;
-            }>
-          >(
-            createSessionsAllQuery(
-              Prisma.sql`
+        const totalCount = await ctx.prisma.$queryRaw<
+          Array<{
+            totalCount: number;
+          }>
+        >(
+          createSessionsAllQuery(
+            Prisma.sql`
                 count(*)::int as "totalCount"
               `,
-              inputForTotal,
-              {
-                ignoreOrderBy: true,
-              },
-            ),
+            inputForTotal,
+            {
+              ignoreOrderBy: true,
+            },
           ),
-        ]);
+        );
 
         return {
-          sessions,
           totalCount: totalCount[0].totalCount,
         };
       } catch (e) {
         console.error(e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "unable to get sessions",
+          message: "unable to get session count",
         });
       }
     }),
