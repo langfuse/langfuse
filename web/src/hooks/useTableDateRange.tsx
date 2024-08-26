@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { addMinutes } from "date-fns";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
   type TableDateRangeOptions,
-  tableDateRangeAggregationSettings,
   isValidTableDateRangeAggregationOption,
   type TableDateRangeAggregationOption,
   type TableDateRange,
-  DEFAULT_AGGREGATION_SELECTION,
+  getDateFromOption,
 } from "@/src/utils/date-range-utils";
 
 export interface UseTableDateRangeOutput {
@@ -35,17 +33,16 @@ export function useTableDateRange(
   const [selectedOption, setSelectedOption] = useState<TableDateRangeOptions>(
     validatedInitialRangeOption,
   );
-  const initialDateRange =
-    selectedOption !== DEFAULT_AGGREGATION_SELECTION
-      ? {
-          from: addMinutes(
-            new Date(),
-            -tableDateRangeAggregationSettings[
-              validatedInitialRangeOption as keyof typeof tableDateRangeAggregationSettings
-            ],
-          ),
-        }
-      : undefined;
+
+  const dateFromOption = getDateFromOption({
+    filterSource: "TABLE",
+    option: validatedInitialRangeOption,
+  });
+
+  const initialDateRange = !!dateFromOption
+    ? { from: dateFromOption }
+    : undefined;
+
   const [dateRange, setDateRange] = useState<TableDateRange | undefined>(
     initialDateRange,
   );
