@@ -95,19 +95,21 @@ export const scoresRouter = createTRPCRouter({
         scoresTableCols,
       );
 
-      const scores = await ctx.prisma.$queryRaw<
-        Array<
-          Score & {
-            traceName: string | null;
-            traceUserId: string | null;
-            jobConfigurationId: string | null;
-            authorUserImage: string | null;
-            authorUserName: string | null;
-          }
-        >
-      >(
-        generateScoresQuery(
-          Prisma.sql` 
+      const [scores, scoresCount] = await Promise.all([
+        // scores
+        ctx.prisma.$queryRaw<
+          Array<
+            Score & {
+              traceName: string | null;
+              traceUserId: string | null;
+              jobConfigurationId: string | null;
+              authorUserImage: string | null;
+              authorUserName: string | null;
+            }
+          >
+        >(
+          generateScoresQuery(
+            Prisma.sql` 
           s.id,
           s.name,
           s.value,
@@ -125,28 +127,27 @@ export const scoresRouter = createTRPCRouter({
           u.image AS "authorUserImage", 
           u.name AS "authorUserName"
           `,
-          input.projectId,
-          ctx.session.orgId,
-          filterCondition,
-          orderByCondition,
-          input.limit,
-          input.page,
+            input.projectId,
+            ctx.session.orgId,
+            filterCondition,
+            orderByCondition,
+            input.limit,
+            input.page,
+          ),
         ),
-      );
-
-      const scoresCount = await ctx.prisma.$queryRaw<
-        Array<{ totalCount: bigint }>
-      >(
-        generateScoresQuery(
-          Prisma.sql` count(*) AS "totalCount"`,
-          input.projectId,
-          ctx.session.orgId,
-          filterCondition,
-          Prisma.empty,
-          1, // limit
-          0, // page
+        // scoresCount
+        await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+          generateScoresQuery(
+            Prisma.sql` count(*) AS "totalCount"`,
+            input.projectId,
+            ctx.session.orgId,
+            filterCondition,
+            Prisma.empty,
+            1, // limit
+            0, // page
+          ),
         ),
-      );
+      ]);
 
       return {
         scores,
