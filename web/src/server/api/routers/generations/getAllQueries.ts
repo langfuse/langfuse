@@ -35,9 +35,6 @@ export const getAllQueries = {
       const { searchCondition, filterCondition, datetimeFilter } =
         parseGetAllGenerationsInput(input);
 
-      // wait 5 seconds
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
       const totalGenerations = await ctx.prisma.$queryRaw<
         Array<{ count: bigint }>
       >(
