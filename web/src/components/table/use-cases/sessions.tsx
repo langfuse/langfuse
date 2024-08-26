@@ -134,7 +134,7 @@ export default function SessionsTable({
     },
   );
 
-  const totalCount = sessions.data?.totalCount ?? 0;
+  const totalCount = sessions.data?.totalCount ?? null;
   useEffect(() => {
     if (sessions.isSuccess) {
       setDetailPageList(
@@ -453,7 +453,7 @@ export default function SessionsTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

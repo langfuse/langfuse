@@ -106,7 +106,9 @@ export default function UsersPage() {
     })),
   );
 
-  const totalCount = users.data?.totalUsers ?? 0;
+  const totalCount = users.data?.totalUsers
+    ? Number(users.data.totalUsers)
+    : null;
 
   useEffect(() => {
     if (users.isSuccess) {
@@ -294,7 +296,7 @@ export default function UsersPage() {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

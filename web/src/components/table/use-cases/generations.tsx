@@ -173,7 +173,7 @@ export default function GenerationsTable({
     searchQuery,
   });
 
-  const totalCount = generations.data?.totalCount ?? 0;
+  const totalCount = generations.data?.totalCount ?? null;
 
   const startTimeFilter = filterState.find((f) => f.column === "Start Time");
   const filterOptions = api.generations.filterOptions.useQuery(
@@ -767,7 +767,7 @@ export default function GenerationsTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

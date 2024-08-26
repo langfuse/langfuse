@@ -127,7 +127,7 @@ export default function ScoresTable({
     filter: filterState,
     orderBy: orderByState,
   });
-  const totalCount = scores.data?.totalCount ?? 0;
+  const totalCount = scores.data?.totalCount ?? null;
 
   const filterOptions = api.scores.filterOptions.useQuery(
     {
@@ -401,7 +401,7 @@ export default function ScoresTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

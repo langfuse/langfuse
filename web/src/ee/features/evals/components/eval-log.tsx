@@ -41,7 +41,7 @@ export default function EvalLogTable({
     jobConfigurationId,
     projectId,
   });
-  const totalCount = logs.data?.totalCount ?? 0;
+  const totalCount = logs.data?.totalCount ?? null;
 
   const columnHelper = createColumnHelper<JobExecutionRow>();
   const columns = [
@@ -199,7 +199,7 @@ export default function EvalLogTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

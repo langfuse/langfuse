@@ -135,7 +135,7 @@ export function PromptTable() {
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
   const capture = usePostHogClientCapture();
-  const totalCount = prompts.data?.totalCount ?? 0;
+  const totalCount = prompts.data?.totalCount ?? null;
 
   useEffect(() => {
     if (prompts.isSuccess) {
@@ -312,7 +312,7 @@ export function PromptTable() {
         orderBy={orderByState}
         setOrderBy={setOrderByState}
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}
