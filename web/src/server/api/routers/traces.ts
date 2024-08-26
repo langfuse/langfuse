@@ -102,9 +102,6 @@ export const traceRouter = createTRPCRouter({
       const { filterCondition, observationTimeseriesFilter, searchCondition } =
         parseTraceAllFilters(input);
 
-      // wait 5 seconds
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
       const countQuery = createTracesQuery({
         select: Prisma.sql`count(*)`,
         projectId: input.projectId,
