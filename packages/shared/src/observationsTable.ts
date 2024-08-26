@@ -18,6 +18,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: 'o."name"',
     options: [], // to be added at runtime
+    nullable: true,
   },
   { name: "Trace ID", id: "traceId", type: "string", internal: 't."id"' },
   {
@@ -26,8 +27,15 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: 't."name"',
     options: [], // to be added at runtime
+    nullable: true,
   },
-  { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
+  {
+    name: "User ID",
+    id: "userId",
+    type: "string",
+    internal: 't."user_id"',
+    nullable: true,
+  },
   {
     name: "Start Time",
     id: "startTime",
@@ -45,6 +53,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     id: "timeToFirstToken",
     type: "number",
     internal: 'o."completion_start_time" - o."start_time"',
+    nullable: true,
   },
   {
     name: "Latency (s)",
@@ -57,24 +66,28 @@ export const observationsTableCols: ColumnDefinition[] = [
     id: "timePerOutputToken",
     type: "number",
     internal: '"latency" / o."completion_tokens"',
+    nullable: true,
   },
   {
     name: "Input Cost ($)",
     id: "inputCost",
     type: "number",
     internal: 'o."calculated_input_cost"',
+    nullable: true,
   },
   {
     name: "Output Cost ($)",
     id: "outputCost",
     type: "number",
     internal: 'o."calculated_output_cost"',
+    nullable: true,
   },
   {
     name: "Total Cost ($)",
     id: "totalCost",
     type: "number",
     internal: 'o."calculated_total_cost"',
+    nullable: true,
   },
   {
     name: "Level",
@@ -88,6 +101,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     id: "statusMessage",
     type: "string",
     internal: 'o."status_message"',
+    nullable: true,
   },
   {
     name: "Model",
@@ -95,24 +109,28 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: 'o."model"',
     options: [], // to be added at runtime
+    nullable: true,
   },
   {
     name: "Input Tokens",
     id: "inputTokens",
     type: "number",
     internal: 'o."prompt_tokens"',
+    nullable: true,
   },
   {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
     internal: 'o."completion_tokens"',
+    nullable: true,
   },
   {
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
     internal: 'o."total_tokens"',
+    nullable: true,
   },
   {
     name: "Usage",
@@ -137,6 +155,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     id: "version",
     type: "string",
     internal: 'o."version"',
+    nullable: true,
   },
   {
     name: "Prompt Name",
@@ -144,12 +163,14 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: "p.name",
     options: [], // to be added at runtime
+    nullable: true,
   },
   {
     name: "Prompt Version",
     id: "promptVersion",
     type: "number",
     internal: "p.version",
+    nullable: true,
   },
 ];
 
