@@ -95,6 +95,7 @@ export default function ScoresTable({
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "scores",
+    projectId,
   );
 
   const dateRangeFilter: FilterState = dateRange

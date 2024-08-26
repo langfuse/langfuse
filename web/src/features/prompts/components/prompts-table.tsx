@@ -45,7 +45,11 @@ export function PromptTable() {
     scope: "prompts:CUD",
   });
 
-  const [filterState, setFilterState] = useQueryFilterState([], "prompts");
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "prompts",
+    projectId,
+  );
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange("All time");
