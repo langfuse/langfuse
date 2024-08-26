@@ -96,6 +96,7 @@ export const useQueryFilterState = (
       initialState,
     );
 
+  // Note: `use-query-params` library does not automatically update the URL with the default value
   const [filterState, setFilterState] = useQueryParam(
     "filter",
     withDefault(getCommaArrayParam(table), sessionFilterState),
