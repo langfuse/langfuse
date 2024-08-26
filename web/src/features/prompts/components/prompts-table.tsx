@@ -263,6 +263,7 @@ export function PromptTable() {
         setFilterState={useDebounce(setFilterState)}
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
+        columnsWithCustomSelect={["labels", "tags"]}
         actionButtons={
           <Link href={`/project/${projectId}/prompts/new`}>
             <Button
