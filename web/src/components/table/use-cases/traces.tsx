@@ -102,6 +102,7 @@ export default function TracesTable({
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "traces",
+    projectId,
   );
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
