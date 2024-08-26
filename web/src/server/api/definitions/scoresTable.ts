@@ -59,10 +59,18 @@ export const scoresTableCols: ColumnDefinition[] = [
     type: "string",
     internal: 'je."job_configuration_id"',
   },
+  {
+    name: "Trace Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: 't."tags"',
+    options: [], // to be added at runtime
+  },
 ];
 
 export type ScoreOptions = {
   name: Array<OptionsDefinition>;
+  tags: Array<OptionsDefinition>;
 };
 
 export function scoresTableColsWithOptions(
@@ -71,6 +79,9 @@ export function scoresTableColsWithOptions(
   return scoresTableCols.map((col) => {
     if (col.id === "name") {
       return { ...col, options: options?.name ?? [] };
+    }
+    if (col.id === "tags") {
+      return { ...col, options: options?.tags ?? [] };
     }
     return col;
   });
