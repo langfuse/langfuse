@@ -15,6 +15,7 @@ const tracesOnlyCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: 't."name"',
     options: [], // to be filled in at runtime
+    nullable: true,
   },
   {
     name: "Timestamp",
@@ -22,12 +23,19 @@ const tracesOnlyCols: ColumnDefinition[] = [
     type: "datetime",
     internal: 't."timestamp"',
   },
-  { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
+  {
+    name: "User ID",
+    id: "userId",
+    type: "string",
+    internal: 't."user_id"',
+    nullable: true,
+  },
   {
     name: "Session ID",
     id: "sessionId",
     type: "string",
     internal: 't."session_id"',
+    nullable: true,
   },
   {
     name: "Metadata",
@@ -40,12 +48,14 @@ const tracesOnlyCols: ColumnDefinition[] = [
     id: "version",
     type: "string",
     internal: 't."version"',
+    nullable: true,
   },
   {
     name: "Release",
     id: "release",
     type: "string",
     internal: 't."release"',
+    nullable: true,
   },
   {
     name: "Level",
@@ -69,24 +79,28 @@ export const tracesTableCols: ColumnDefinition[] = [
     id: "inputTokens",
     type: "number",
     internal: 'tm."promptTokens"',
+    nullable: true,
   },
   {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
     internal: 'tm."completionTokens"',
+    nullable: true,
   },
   {
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
     internal: 'tm."totalTokens"',
+    nullable: true,
   },
   {
     name: "Usage",
     id: "usage",
     type: "number",
     internal: 'tm."totalTokens"',
+    nullable: true,
   },
 
   {
@@ -106,18 +120,21 @@ export const tracesTableCols: ColumnDefinition[] = [
     id: "inputCost",
     type: "number",
     internal: '"calculatedInputCost"',
+    nullable: true,
   },
   {
     name: "Output Cost ($)",
     id: "outputCost",
     type: "number",
     internal: '"calculatedOutputCost"',
+    nullable: true,
   },
   {
     name: "Total Cost ($)",
     id: "totalCost",
     type: "number",
     internal: '"calculatedTotalCost"',
+    nullable: true,
   },
 ];
 

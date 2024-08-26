@@ -37,6 +37,7 @@ const TraceFilterOptions = z.object({
   orderBy: orderBy,
   ...paginationZod,
 });
+type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
 
 export type ObservationReturnType = Omit<
   ObservationView,
@@ -62,38 +63,12 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter ?? [],
-        tracesTableCols,
-        "traces",
-      );
-      const orderByCondition = orderByToPrismaSql(
-        input.orderBy,
-        tracesTableCols,
-      );
-
-      // to improve query performance, add timeseries filter to observation queries as well
-      const timeseriesFilter = input.filter?.find(
-        (f) => f.column === "Timestamp" && f.type === "datetime",
-      );
-
-      const observationTimeseriesFilter =
-        timeseriesFilter && timeseriesFilter.type === "datetime"
-          ? datetimeFilterToPrismaSql(
-              "start_time",
-              timeseriesFilter.operator,
-              timeseriesFilter.value,
-            )
-          : Prisma.empty;
-
-      const searchCondition = input.searchQuery
-        ? Prisma.sql`AND (
-        t."id" ILIKE ${`%${input.searchQuery}%`} OR 
-        t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
-        t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
-        t."name" ILIKE ${`%${input.searchQuery}%`}
-      )`
-        : Prisma.empty;
+      const {
+        filterCondition,
+        orderByCondition,
+        observationTimeseriesFilter,
+        searchCondition,
+      } = parseTraceAllFilters(input);
 
       const tracesQuery = createTracesQuery({
         select: Prisma.sql`
@@ -110,6 +85,23 @@ export const traceRouter = createTRPCRouter({
         orderByCondition,
       });
 
+      const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
+
+      return {
+        traces: traces.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ input, output, metadata, ...trace }) => ({
+            ...trace,
+          }),
+        ),
+      };
+    }),
+  countAll: protectedProjectProcedure
+    .input(TraceFilterOptions)
+    .query(async ({ input, ctx }) => {
+      const { filterCondition, observationTimeseriesFilter, searchCondition } =
+        parseTraceAllFilters(input);
+
       const countQuery = createTracesQuery({
         select: Prisma.sql`count(*)`,
         projectId: input.projectId,
@@ -120,19 +112,11 @@ export const traceRouter = createTRPCRouter({
         filterCondition,
       });
 
-      const [traces, totalTraces] = await Promise.all([
-        ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery),
-        ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQuery),
-      ]);
+      const totalTraces =
+        await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQuery);
 
       const totalTraceCount = totalTraces[0]?.count;
       return {
-        traces: traces.map(
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          ({ input, output, metadata, ...trace }) => ({
-            ...trace,
-          }),
-        ),
         totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
       };
     }),
@@ -569,6 +553,45 @@ export const traceRouter = createTRPCRouter({
       }
     }),
 });
+
+function parseTraceAllFilters(input: TraceFilterOptions) {
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    input.filter ?? [],
+    tracesTableCols,
+    "traces",
+  );
+  const orderByCondition = orderByToPrismaSql(input.orderBy, tracesTableCols);
+
+  // to improve query performance, add timeseries filter to observation queries as well
+  const timeseriesFilter = input.filter?.find(
+    (f) => f.column === "Timestamp" && f.type === "datetime",
+  );
+
+  const observationTimeseriesFilter =
+    timeseriesFilter && timeseriesFilter.type === "datetime"
+      ? datetimeFilterToPrismaSql(
+          "start_time",
+          timeseriesFilter.operator,
+          timeseriesFilter.value,
+        )
+      : Prisma.empty;
+
+  const searchCondition = input.searchQuery
+    ? Prisma.sql`AND (
+    t."id" ILIKE ${`%${input.searchQuery}%`} OR 
+    t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
+    t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
+    t."name" ILIKE ${`%${input.searchQuery}%`}
+  )`
+    : Prisma.empty;
+
+  return {
+    filterCondition,
+    orderByCondition,
+    observationTimeseriesFilter,
+    searchCondition,
+  };
+}
 
 function createTracesQuery({
   select,

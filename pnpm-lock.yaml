@@ -502,8 +502,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0(@types/react-dom@18.2.25)(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       core-js:
-        specifier: ^3.36.1
-        version: 3.36.1
+        specifier: ^3.38.1
+        version: 3.38.1
       cors:
         specifier: ^2.8.5
         version: 2.8.5
@@ -6012,8 +6012,8 @@ packages:
   core-js-compat@3.36.1:
     resolution: {integrity: sha512-Dk997v9ZCt3X/npqzyGdTlq6t7lDBhZwGvV94PKzDArjp7BTRm7WlDAXYd/OWdeFHO8OChQYRJNJvUCqCbrtKA==}
 
-  core-js@3.36.1:
-    resolution: {integrity: sha512-BTvUrwxVBezj5SZ3f10ImnX2oRByMxql3EimVqMysepbC9EeMUOpLwdy6Eoili2x6E4kf+ZUB5k/+Jv55alPfA==}
+  core-js@3.38.1:
+    resolution: {integrity: sha512-OP35aUorbU3Zvlx7pjsFdu1rGNnD4pgw/CWoYzRY3t2EzoVT7shKHY1dlAy3f41cGIO7ZDPQimhGFTlEYkG/Hw==}
 
   core-util-is@1.0.3:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
@@ -18258,7 +18258,7 @@ snapshots:
     dependencies:
       browserslist: 4.23.0
 
-  core-js@3.36.1: {}
+  core-js@3.38.1: {}
 
   core-util-is@1.0.3: {}
 
