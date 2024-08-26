@@ -37,6 +37,7 @@ export const getSessionTableSQL = (
         s.public,
         t. "userIds",
         t. "countTraces",
+        COALESCE(t."tags", '{}') AS "tags",
         o. "sessionDuration",
         o. "totalCost" AS "totalCost",
         o. "inputCost" AS "inputCost",
@@ -54,9 +55,12 @@ export const getSessionTableSQL = (
             MIN(t. "timestamp") AS "min_timestamp",
             array_agg(t.id) AS "traceIds",
             array_agg(DISTINCT t.user_id) AS "userIds",
-            count(t.id)::int AS "countTraces"
+            count(t.id)::int AS "countTraces",
+            array_agg(DISTINCT u.tag) AS "tags"
           FROM
             traces t
+          LEFT JOIN LATERAL (
+            SELECT DISTINCT UNNEST(t.tags) AS tag) AS u ON TRUE
           WHERE
             t.project_id = ${projectId}
             AND t.session_id = s.id
