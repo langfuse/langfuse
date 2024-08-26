@@ -136,15 +136,24 @@ export default function TracesTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const tracesAllQueryFilter = {
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+  const tracesAllCountFilter = {
     projectId,
     filter: filterState,
     searchQuery,
+    // "empty" values as they do not matter for total count
+    page: 0,
+    limit: 0,
+    orderBy: null,
+  };
+
+  const tracesAllQueryFilter = {
+    ...tracesAllCountFilter,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
     orderBy: orderByState,
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
+  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter);
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -163,7 +172,8 @@ export default function TracesTable({
     TraceMetricOutput
   >(traces.data?.traces, traceMetrics.data);
 
-  const totalCount = traces.data?.totalCount ?? 0;
+  const totalCount = totalCountQuery.data?.totalCount ?? null;
+
   useEffect(() => {
     if (traces.isSuccess) {
       setDetailPageList(
@@ -757,7 +767,7 @@ export default function TracesTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

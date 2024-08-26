@@ -44,12 +44,11 @@ export function TagTracePopover({
         (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
           return oldQueryData
             ? {
-                totalCount: oldQueryData.totalCount,
                 traces: oldQueryData.traces.map((trace) => {
                   return trace.id === traceId ? { ...trace, tags } : trace;
                 }),
               }
-            : { totalCount: undefined, traces: [] };
+            : { traces: [] };
         },
       );
       setIsLoading(false);
