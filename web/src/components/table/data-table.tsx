@@ -36,7 +36,7 @@ interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   pagination?: {
-    pageCount: number;
+    totalCount: number | null; // null if loading
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
     options?: number[];
@@ -90,7 +90,13 @@ export function DataTable<TData extends object, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
     manualPagination: pagination !== undefined,
-    pageCount: pagination?.pageCount ?? 0,
+    pageCount:
+      pagination?.totalCount === null ||
+      pagination?.state.pageSize === undefined
+        ? -1
+        : Math.ceil(
+            Number(pagination?.totalCount) / pagination?.state.pageSize,
+          ),
     onPaginationChange: pagination?.onChange,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: onColumnVisibilityChange,

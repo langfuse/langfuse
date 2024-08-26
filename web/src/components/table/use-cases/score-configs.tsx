@@ -97,7 +97,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     limit: paginationState.pageSize,
   });
 
-  const totalCount = configs.data?.totalCount ?? 0;
+  const totalCount = configs.data?.totalCount ?? null;
 
   const columns: LangfuseColumnDef<ScoreConfigTableRow>[] = [
     {
@@ -272,7 +272,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                   }
           }
           pagination={{
-            pageCount: Math.ceil(totalCount / paginationState.pageSize),
+            totalCount,
             onChange: setPaginationState,
             state: paginationState,
           }}
