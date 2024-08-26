@@ -96,13 +96,23 @@ export default function SessionsTable({
     order: "DESC",
   });
 
-  const sessions = api.sessions.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+  const payloadCount = {
     projectId,
     filter: filterState,
+    orderBy: null,
+    page: 0,
+    limit: 1,
+  };
+
+  const payloadGetAll = {
+    ...payloadCount,
     orderBy: orderByState,
-  });
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+  };
+
+  const sessions = api.sessions.all.useQuery(payloadGetAll);
+  const sessionCountQuery = api.sessions.countAll.useQuery(payloadCount);
 
   const sessionMetrics = api.sessions.metrics.useQuery(
     {
@@ -135,7 +145,7 @@ export default function SessionsTable({
     },
   );
 
-  const totalCount = sessions.data?.totalCount ?? null;
+  const totalCount = sessionCountQuery.data?.totalCount ?? null;
   useEffect(() => {
     if (sessions.isSuccess) {
       setDetailPageList(
