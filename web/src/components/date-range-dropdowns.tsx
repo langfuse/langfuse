@@ -17,7 +17,7 @@ import {
   type TableDateRangeOptions,
   DASHBOARD_AGGREGATION_OPTIONS,
   type DashboardDateRange,
-  TABLE_RANGE_DROPDOWN_OPTIONS,
+  TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { Clock } from "lucide-react";
 
@@ -118,7 +118,7 @@ export const TableDateRangeDropdown: React.FC<TableDateRangeDropdownProps> = ({
   return (
     <BaseDateRangeDropdown
       selectedOption={selectedOption}
-      options={TABLE_RANGE_DROPDOWN_OPTIONS}
+      options={TABLE_AGGREGATION_OPTIONS}
       onSelectionChange={onDropDownSelection}
     />
   );

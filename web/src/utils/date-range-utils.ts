@@ -1,4 +1,6 @@
 import { type DateRange } from "react-day-picker";
+import { z } from "zod";
+import { addMinutes } from "date-fns";
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "24 hours" as const;
 export const DASHBOARD_AGGREGATION_PLACEHOLDER = "Custom" as const;
@@ -26,11 +28,7 @@ export const TABLE_AGGREGATION_OPTIONS = [
   "14 days",
   "1 month",
   "3 months",
-] as const;
-
-export const TABLE_RANGE_DROPDOWN_OPTIONS = [
-  ...TABLE_AGGREGATION_OPTIONS,
-  DEFAULT_AGGREGATION_SELECTION,
+  "All time",
 ] as const;
 
 export type DashboardDateRangeAggregationOption =
@@ -75,7 +73,6 @@ export type TableDateRangeAggregationSettings = Record<
 export const dateTimeAggregationOptions = [
   ...TABLE_AGGREGATION_OPTIONS,
   ...DASHBOARD_AGGREGATION_OPTIONS,
-  DEFAULT_AGGREGATION_SELECTION,
 ] as const;
 
 export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregationSettings =
@@ -117,6 +114,47 @@ export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregatio
       minutes: 5,
     },
   };
+
+export const SelectedTimeOptionSchema = z
+  .discriminatedUnion("filterSource", [
+    z.object({
+      filterSource: z.literal("TABLE"),
+      option: z.enum(TABLE_AGGREGATION_OPTIONS),
+    }),
+    z.object({
+      filterSource: z.literal("DASHBOARD"),
+      option: z.enum(DASHBOARD_AGGREGATION_OPTIONS),
+    }),
+  ])
+  .optional();
+
+type SelectedTimeOption = z.infer<typeof SelectedTimeOptionSchema>;
+
+export const getDateFromOption = (
+  selectedTimeOption: SelectedTimeOption,
+): Date | undefined => {
+  if (!selectedTimeOption) return undefined;
+
+  const { filterSource, option } = selectedTimeOption;
+  if (filterSource === "TABLE") {
+    const setting =
+      tableDateRangeAggregationSettings[
+        option as keyof typeof tableDateRangeAggregationSettings
+      ];
+
+    return option !== DEFAULT_AGGREGATION_SELECTION
+      ? addMinutes(new Date(), -setting)
+      : undefined;
+  } else if (filterSource === "DASHBOARD") {
+    const setting =
+      dashboardDateRangeAggregationSettings[
+        option as keyof typeof dashboardDateRangeAggregationSettings
+      ];
+
+    return addMinutes(new Date(), -setting.minutes);
+  }
+  return undefined;
+};
 
 export const tableDateRangeAggregationSettings: TableDateRangeAggregationSettings =
   {
