@@ -22,8 +22,6 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { type FilterState } from "@langfuse/shared";
 import { useDebounce } from "@/src/hooks/useDebounce";
 
 type PromptTableRow = {
@@ -51,9 +49,6 @@ export function PromptTable() {
     projectId,
   );
 
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange("All time");
-
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
     order: "DESC",
@@ -63,24 +58,12 @@ export function PromptTable() {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const dateRangeFilter: FilterState = dateRange
-    ? [
-        {
-          column: "createdAt",
-          type: "datetime",
-          operator: ">=",
-          value: dateRange.from,
-        },
-      ]
-    : [];
-
-  const combinedFilterState = filterState.concat(dateRangeFilter);
   const prompts = api.prompts.all.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      filter: combinedFilterState,
+      filter: filterState,
       orderBy: orderByState,
     },
     {
@@ -233,7 +216,7 @@ export function PromptTable() {
             promptsFilter={{
               ...filterOptionTags,
               projectId: projectId as string,
-              filter: combinedFilterState,
+              filter: filterState,
               orderBy: orderByState,
             }}
           />
@@ -261,8 +244,6 @@ export function PromptTable() {
         )}
         filterState={filterState}
         setFilterState={useDebounce(setFilterState)}
-        selectedOption={selectedOption}
-        setDateRangeAndOption={setDateRangeAndOption}
         columnsWithCustomSelect={["labels", "tags"]}
         actionButtons={
           <Link href={`/project/${projectId}/prompts/new`}>

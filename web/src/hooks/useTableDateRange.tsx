@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { addMinutes } from "date-fns";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
   type TableDateRangeOptions,
-  tableDateRangeAggregationSettings,
   isValidTableDateRangeAggregationOption,
   type TableDateRangeAggregationOption,
   type TableDateRange,
-  DEFAULT_AGGREGATION_SELECTION,
+  getDateFromOption,
 } from "@/src/utils/date-range-utils";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 export interface UseTableDateRangeOutput {
   selectedOption: TableDateRangeOptions;
@@ -19,33 +18,33 @@ export interface UseTableDateRangeOutput {
   ) => void;
 }
 
-export function useTableDateRange(
-  defaultDateRange: TableDateRangeOptions = "24 hours",
-): UseTableDateRangeOutput {
+export function useTableDateRange(projectId: string): UseTableDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
     dateRange: withDefault(StringParam, "Select a date range"),
   });
 
+  const defaultDateRange: TableDateRangeOptions = "24 hours";
   const validatedInitialRangeOption = isValidTableDateRangeAggregationOption(
     queryParams.dateRange,
   )
     ? (queryParams.dateRange as TableDateRangeAggregationOption)
     : defaultDateRange;
 
-  const [selectedOption, setSelectedOption] = useState<TableDateRangeOptions>(
-    validatedInitialRangeOption,
-  );
-  const initialDateRange =
-    selectedOption !== DEFAULT_AGGREGATION_SELECTION
-      ? {
-          from: addMinutes(
-            new Date(),
-            -tableDateRangeAggregationSettings[
-              validatedInitialRangeOption as keyof typeof tableDateRangeAggregationSettings
-            ],
-          ),
-        }
-      : undefined;
+  const [selectedOption, setSelectedOption] =
+    useSessionStorage<TableDateRangeOptions>(
+      `tableDateRangeState-${projectId}`,
+      validatedInitialRangeOption,
+    );
+
+  const dateFromOption = getDateFromOption({
+    filterSource: "TABLE",
+    option: selectedOption,
+  });
+
+  const initialDateRange = !!dateFromOption
+    ? { from: dateFromOption }
+    : undefined;
+
   const [dateRange, setDateRange] = useState<TableDateRange | undefined>(
     initialDateRange,
   );

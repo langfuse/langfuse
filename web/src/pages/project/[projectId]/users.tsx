@@ -52,7 +52,7 @@ export default function UsersPage() {
   });
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange();
+    useTableDateRange(projectId);
 
   const dateRangeFilter: FilterState = dateRange
     ? [
