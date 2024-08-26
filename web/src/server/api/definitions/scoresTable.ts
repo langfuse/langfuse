@@ -17,6 +17,7 @@ export const scoresTableCols: ColumnDefinition[] = [
     id: "traceName",
     type: "string",
     internal: 't."name"',
+    nullable: true,
   },
   {
     name: "Observation ID",
@@ -52,12 +53,19 @@ export const scoresTableCols: ColumnDefinition[] = [
     options: [], // to be added at runtime
   },
   { name: "Value", id: "value", type: "number", internal: 's."value"' },
-  { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
+  {
+    name: "User ID",
+    id: "userId",
+    type: "string",
+    internal: 't."user_id"',
+    nullable: true,
+  },
   {
     name: "Eval Configuration ID",
     id: "jobConfigurationId",
     type: "string",
     internal: 'je."job_configuration_id"',
+    nullable: true,
   },
   {
     name: "Trace Tags",
@@ -65,6 +73,7 @@ export const scoresTableCols: ColumnDefinition[] = [
     type: "arrayOptions",
     internal: 't."tags"',
     options: [], // to be added at runtime
+    nullable: true,
   },
 ];
 
