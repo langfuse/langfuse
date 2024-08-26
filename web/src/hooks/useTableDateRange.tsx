@@ -38,7 +38,7 @@ export function useTableDateRange(projectId: string): UseTableDateRangeOutput {
 
   const dateFromOption = getDateFromOption({
     filterSource: "TABLE",
-    option: validatedInitialRangeOption,
+    option: selectedOption,
   });
 
   const initialDateRange = !!dateFromOption
