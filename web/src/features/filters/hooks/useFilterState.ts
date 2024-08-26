@@ -101,7 +101,7 @@ export const useQueryFilterState = (
     withDefault(getCommaArrayParam(table), sessionFilterState),
   );
 
-  const setFilterStateWithSession = (newState: FilterState) => {
+  const setFilterStateWithSession = (newState: FilterState): void => {
     setFilterState(newState);
     setSessionFilterState(newState);
   };
