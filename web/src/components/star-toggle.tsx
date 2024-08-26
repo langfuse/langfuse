@@ -90,7 +90,6 @@ export function StarTraceToggle({
         tracesFilter,
         (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
           return {
-            totalCount: oldQueryData?.totalCount,
             traces: oldQueryData?.traces
               ? oldQueryData.traces.map((trace) => {
                   return {

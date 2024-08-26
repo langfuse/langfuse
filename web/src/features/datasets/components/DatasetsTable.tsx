@@ -209,9 +209,7 @@ export function DatasetsTable(props: { projectId: string }) {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(
-            (datasets.data?.totalDatasets ?? 0) / paginationState.pageSize,
-          ),
+          totalCount: datasets.data?.totalDatasets ?? null,
           onChange: setPaginationState,
           state: paginationState,
         }}
