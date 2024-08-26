@@ -42,40 +42,41 @@ export const filterOptionsQuery = protectedProjectProcedure
         : Prisma.empty;
 
     // Score names
-    const [scores, model, name, promptNames, traceNames] = await Promise.all([
-      // scores
-      ctx.prisma.score.groupBy({
-        where: {
-          projectId: input.projectId,
-          timestamp: prismaStartTimeFilter,
-          dataType: { in: ["NUMERIC", "BOOLEAN"] },
-        },
-        take: 1000,
-        orderBy: {
-          name: "asc",
-        },
-        by: ["name"],
-      }),
-      // model
-      ctx.prisma.observation.groupBy({
-        by: ["model"],
-        where: { ...queryFilter, startTime: prismaStartTimeFilter },
-        take: 1000,
-        orderBy: { model: "asc" },
-      }),
-      // name
-      ctx.prisma.observation.groupBy({
-        by: ["name"],
-        where: { ...queryFilter, startTime: prismaStartTimeFilter },
-        take: 1000,
-        orderBy: { name: "asc" },
-      }),
-      // promptNames
-      ctx.prisma.$queryRaw<
-        Array<{
-          promptName: string | null;
-        }>
-      >(Prisma.sql`
+    const [scores, model, name, promptNames, traceNames, tags] =
+      await Promise.all([
+        // scores
+        ctx.prisma.score.groupBy({
+          where: {
+            projectId: input.projectId,
+            timestamp: prismaStartTimeFilter,
+            dataType: { in: ["NUMERIC", "BOOLEAN"] },
+          },
+          take: 1000,
+          orderBy: {
+            name: "asc",
+          },
+          by: ["name"],
+        }),
+        // model
+        ctx.prisma.observation.groupBy({
+          by: ["model"],
+          where: { ...queryFilter, startTime: prismaStartTimeFilter },
+          take: 1000,
+          orderBy: { model: "asc" },
+        }),
+        // name
+        ctx.prisma.observation.groupBy({
+          by: ["name"],
+          where: { ...queryFilter, startTime: prismaStartTimeFilter },
+          take: 1000,
+          orderBy: { name: "asc" },
+        }),
+        // promptNames
+        ctx.prisma.$queryRaw<
+          Array<{
+            promptName: string | null;
+          }>
+        >(Prisma.sql`
         SELECT
           p.name "promptName"
         FROM prompts p
@@ -89,12 +90,12 @@ export const filterOptionsQuery = protectedProjectProcedure
         ORDER BY p.name ASC
         LIMIT 1000;
       `),
-      // traceNames
-      ctx.prisma.$queryRaw<
-        Array<{
-          traceName: string | null;
-        }>
-      >(Prisma.sql`
+        // traceNames
+        ctx.prisma.$queryRaw<
+          Array<{
+            traceName: string | null;
+          }>
+        >(Prisma.sql`
         SELECT
           t.name "traceName"
         FROM traces t
@@ -107,25 +108,25 @@ export const filterOptionsQuery = protectedProjectProcedure
         ORDER BY t.name ASC
         LIMIT 1000;
       `),
-    ]);
-
-    const tags = await ctx.prisma.$queryRaw<
-      Array<{
-        tag: string | null;
-      }>
-    >(Prisma.sql`
-        SELECT
-          tag
-        FROM traces t
-        JOIN observations o ON o.trace_id = t.id,
-        UNNEST(t.tags) AS tag
-        WHERE o.type = 'GENERATION'
-          AND o.project_id = ${input.projectId}
-          AND t.project_id = ${input.projectId}
-          ${rawStartTimeFilter}
-        GROUP BY tag
-        LIMIT 1000;
-      `);
+        // traceTags
+        ctx.prisma.$queryRaw<
+          Array<{
+            tag: string | null;
+          }>
+        >(Prisma.sql`
+          SELECT
+            tag
+          FROM traces t
+          JOIN observations o ON o.trace_id = t.id,
+          UNNEST(t.tags) AS tag
+          WHERE o.type = 'GENERATION'
+            AND o.project_id = ${input.projectId}
+            AND t.project_id = ${input.projectId}
+            ${rawStartTimeFilter}
+          GROUP BY tag
+          LIMIT 1000;
+      `),
+      ]);
 
     // typecheck filter options, needs to include all columns with options
     const res: ObservationOptions = {

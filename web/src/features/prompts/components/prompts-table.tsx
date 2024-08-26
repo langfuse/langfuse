@@ -22,8 +22,6 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { type FilterState } from "@langfuse/shared";
 import { useDebounce } from "@/src/hooks/useDebounce";
 
 type PromptTableRow = {
@@ -45,10 +43,11 @@ export function PromptTable() {
     scope: "prompts:CUD",
   });
 
-  const [filterState, setFilterState] = useQueryFilterState([], "prompts");
-
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange("All time");
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "prompts",
+    projectId,
+  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
@@ -59,24 +58,12 @@ export function PromptTable() {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const dateRangeFilter: FilterState = dateRange
-    ? [
-        {
-          column: "createdAt",
-          type: "datetime",
-          operator: ">=",
-          value: dateRange.from,
-        },
-      ]
-    : [];
-
-  const combinedFilterState = filterState.concat(dateRangeFilter);
   const prompts = api.prompts.all.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      filter: combinedFilterState,
+      filter: filterState,
       orderBy: orderByState,
     },
     {
@@ -135,7 +122,7 @@ export function PromptTable() {
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
   const capture = usePostHogClientCapture();
-  const totalCount = prompts.data?.totalCount ?? 0;
+  const totalCount = prompts.data?.totalCount ?? null;
 
   useEffect(() => {
     if (prompts.isSuccess) {
@@ -229,7 +216,7 @@ export function PromptTable() {
             promptsFilter={{
               ...filterOptionTags,
               projectId: projectId as string,
-              filter: combinedFilterState,
+              filter: filterState,
               orderBy: orderByState,
             }}
           />
@@ -257,8 +244,6 @@ export function PromptTable() {
         )}
         filterState={filterState}
         setFilterState={useDebounce(setFilterState)}
-        selectedOption={selectedOption}
-        setDateRangeAndOption={setDateRangeAndOption}
         columnsWithCustomSelect={["labels", "tags"]}
         actionButtons={
           <Link href={`/project/${projectId}/prompts/new`}>
@@ -312,7 +297,7 @@ export function PromptTable() {
         orderBy={orderByState}
         setOrderBy={setOrderByState}
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

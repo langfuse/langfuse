@@ -17,6 +17,7 @@ export const sessionsViewCols: ColumnDefinition[] = [
     type: "arrayOptions",
     internal: 't."userIds"',
     options: [], // to be filled in at runtime
+    nullable: true,
   },
   {
     name: "Session Duration (s)",

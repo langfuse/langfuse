@@ -298,9 +298,7 @@ export function DatasetItemsTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(
-            (items.data?.totalDatasetItems ?? 0) / paginationState.pageSize,
-          ),
+          totalCount: items.data?.totalDatasetItems ?? null,
           onChange: setPaginationState,
           state: paginationState,
         }}

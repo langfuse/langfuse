@@ -31,7 +31,9 @@ interface DataTableToolbarProps<TData, TValue> {
   searchConfig?: SearchConfig;
   actionButtons?: React.ReactNode;
   filterState?: FilterState;
-  setFilterState?: Dispatch<SetStateAction<FilterState>>;
+  setFilterState?:
+    | Dispatch<SetStateAction<FilterState>>
+    | ((newState: FilterState) => void);
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
   rowHeight?: RowHeight;

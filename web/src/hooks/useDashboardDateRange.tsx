@@ -26,7 +26,7 @@ export function useDashboardDateRange(): UseDashboardDateRangeOutput {
     to: StringParam,
   });
 
-  const initialRangeOption = "24 hours";
+  const initialRangeOption: DashboardDateRangeAggregationOption = "24 hours";
 
   const initialRange: DashboardDateRange | undefined =
     queryParams.dateRange !== "Select a date range" &&

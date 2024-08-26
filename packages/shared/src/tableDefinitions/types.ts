@@ -9,6 +9,7 @@ export type ColumnDefinition =
       id: string;
       type: "number" | "string" | "datetime" | "boolean";
       internal: string;
+      nullable?: boolean;
     }
   | {
       name: string;
@@ -16,6 +17,7 @@ export type ColumnDefinition =
       type: "stringOptions";
       options: Array<OptionsDefinition>;
       internal: string;
+      nullable?: boolean;
     }
   | {
       name: string;
@@ -23,6 +25,7 @@ export type ColumnDefinition =
       type: "arrayOptions";
       options: Array<OptionsDefinition>;
       internal: string;
+      nullable?: boolean;
     }
   | {
       name: string;
@@ -30,6 +33,7 @@ export type ColumnDefinition =
       type: "stringObject" | "numberObject";
       internal: string;
       keyOptions?: Array<string>;
+      nullable?: boolean;
     };
 
 export const tableNames = [
