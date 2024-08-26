@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { LoaderCircle } from "lucide-react";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -26,6 +27,7 @@ export function DataTablePagination<TData>({
   paginationOptions = [10, 20, 30, 40, 50],
 }: DataTablePaginationProps<TData>) {
   const capture = usePostHogClientCapture();
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex-1 text-sm text-muted-foreground">
@@ -63,7 +65,11 @@ export function DataTablePagination<TData>({
         </div>
         <div className="flex items-center justify-center whitespace-nowrap text-sm font-medium">
           Page {table.getState().pagination.pageIndex + 1} of{" "}
-          {Math.max(table.getPageCount(), 1)}
+          {table.getPageCount() === -1 ? (
+            <LoaderCircle className="ml-1 h-3 w-3 animate-spin text-muted-foreground" />
+          ) : (
+            table.getPageCount()
+          )}
         </div>
         <div className="flex items-center space-x-2">
           <Button
