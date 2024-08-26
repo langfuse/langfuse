@@ -88,7 +88,7 @@ const getCommaArrayParam = (table: TableName) => ({
 export const useQueryFilterState = (
   initialState: FilterState = [],
   table: TableName,
-  projectId?: string,
+  projectId?: string, // Passing projectId is expected as filters might differ across projects. However, we can't call hooks conditionally. There is a case in the prompts table where this will only be used if projectId is defined, but it's not defined in all cases.
 ) => {
   const [sessionFilterState, setSessionFilterState] =
     useSessionStorage<FilterState>(
