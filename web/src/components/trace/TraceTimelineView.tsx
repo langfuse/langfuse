@@ -30,6 +30,7 @@ import { TracePreview } from "@/src/components/trace/TracePreview";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
+import { useSession } from "next-auth/react";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 800;
@@ -310,6 +311,8 @@ export function TraceTimelineView({
     [nestedObservations],
   );
 
+  const session = useSession();
+
   const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery(
     {
       projectId: trace.projectId,
@@ -323,6 +326,7 @@ export function TraceTimelineView({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      enabled: session.status === "authenticated",
     },
   );
 
@@ -339,6 +343,7 @@ export function TraceTimelineView({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      enabled: session.status === "authenticated",
     },
   );
 
