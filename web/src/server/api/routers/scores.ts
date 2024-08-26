@@ -178,8 +178,18 @@ export const scoresRouter = createTRPCRouter({
         },
       });
 
+      const tags = await ctx.prisma.$queryRaw<{ value: string }[]>`
+          SELECT tags.tag as value
+          FROM traces, UNNEST(traces.tags) AS tags(tag)
+          WHERE traces.project_id = ${input.projectId}
+          GROUP BY tags.tag
+          ORDER BY tags.tag ASC
+          LIMIT 1000
+        `;
+
       const res: ScoreOptions = {
         name: names.map((i) => ({ value: i.name, count: i._count._all })),
+        tags: tags,
       };
 
       return res;
