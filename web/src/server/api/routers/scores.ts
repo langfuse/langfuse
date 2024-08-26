@@ -161,30 +161,31 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const names = await ctx.prisma.score.groupBy({
-        where: {
-          projectId: input.projectId,
-        },
-        by: ["name"],
-        _count: {
-          _all: true,
-        },
-        take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
+      const [names, tags] = await Promise.all([
+        ctx.prisma.score.groupBy({
+          where: {
+            projectId: input.projectId,
           },
-        },
-      });
-
-      const tags = await ctx.prisma.$queryRaw<{ value: string }[]>`
+          by: ["name"],
+          _count: {
+            _all: true,
+          },
+          take: 1000,
+          orderBy: {
+            _count: {
+              id: "desc",
+            },
+          },
+        }),
+        ctx.prisma.$queryRaw<{ value: string }[]>`
           SELECT tags.tag as value
           FROM traces, UNNEST(traces.tags) AS tags(tag)
           WHERE traces.project_id = ${input.projectId}
           GROUP BY tags.tag
           ORDER BY tags.tag ASC
           LIMIT 1000
-        `;
+        `,
+      ]);
 
       const res: ScoreOptions = {
         name: names.map((i) => ({ value: i.name, count: i._count._all })),
