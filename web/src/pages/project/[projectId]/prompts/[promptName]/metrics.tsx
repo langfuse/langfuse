@@ -345,7 +345,7 @@ export default function PromptVersionTable() {
       columns,
     );
 
-  const totalCount = promptVersions?.data?.totalCount ?? 0;
+  const totalCount = promptVersions?.data?.totalCount ?? null;
 
   const { combinedData } = joinPromptCoreAndMetricData(
     promptVersions.data,
@@ -446,7 +446,7 @@ export default function PromptVersionTable() {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

@@ -95,7 +95,7 @@ export function MembersTable({
   );
   const members = project ? membersViaProject : membersViaOrg;
 
-  const totalCount = members.data?.totalCount ?? 0;
+  const totalCount = members.data?.totalCount ?? null;
 
   const utils = api.useUtils();
 
@@ -359,7 +359,7 @@ export function MembersTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

@@ -95,6 +95,7 @@ export default function ScoresTable({
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "scores",
+    projectId,
   );
 
   const dateRangeFilter: FilterState = dateRange
@@ -120,14 +121,24 @@ export default function ScoresTable({
     order: "DESC",
   });
 
-  const scores = api.scores.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+  const getCountPayload = {
     projectId,
     filter: filterState,
+    page: 0,
+    limit: 1,
+    orderBy: null,
+  };
+
+  const getAllPayload = {
+    ...getCountPayload,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
     orderBy: orderByState,
-  });
-  const totalCount = scores.data?.totalCount ?? 0;
+  };
+
+  const scores = api.scores.all.useQuery(getAllPayload);
+  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload);
+  const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
   const filterOptions = api.scores.filterOptions.useQuery(
     {
@@ -401,7 +412,7 @@ export default function ScoresTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

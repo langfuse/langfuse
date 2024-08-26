@@ -59,6 +59,7 @@ export default function SessionsTable({
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "sessions",
+    projectId,
   );
 
   const userIdFilter: FilterState = userId
@@ -95,13 +96,23 @@ export default function SessionsTable({
     order: "DESC",
   });
 
-  const sessions = api.sessions.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+  const payloadCount = {
     projectId,
     filter: filterState,
+    orderBy: null,
+    page: 0,
+    limit: 1,
+  };
+
+  const payloadGetAll = {
+    ...payloadCount,
     orderBy: orderByState,
-  });
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+  };
+
+  const sessions = api.sessions.all.useQuery(payloadGetAll);
+  const sessionCountQuery = api.sessions.countAll.useQuery(payloadCount);
 
   const sessionMetrics = api.sessions.metrics.useQuery(
     {
@@ -134,7 +145,7 @@ export default function SessionsTable({
     },
   );
 
-  const totalCount = sessions.data?.totalCount ?? 0;
+  const totalCount = sessionCountQuery.data?.totalCount ?? null;
   useEffect(() => {
     if (sessions.isSuccess) {
       setDetailPageList(
@@ -453,7 +464,7 @@ export default function SessionsTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}
