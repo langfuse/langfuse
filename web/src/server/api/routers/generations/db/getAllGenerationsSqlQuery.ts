@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared";
 import { type ObservationView, Prisma, prisma } from "@langfuse/shared/src/db";
 
-import { type GetAllGenerationsInput } from "../getAllQuery";
+import { type GetAllGenerationsInput } from "../getAllQueries";
 import { traceException } from "@langfuse/shared/src/server";
 
 type AdditionalObservationFields = {
@@ -26,13 +26,7 @@ export type IOAndMetadataOmittedObservations = Array<
     AdditionalObservationFields
 >;
 
-export async function getAllGenerations({
-  input,
-  selectIOAndMetadata,
-}: {
-  input: GetAllGenerationsInput;
-  selectIOAndMetadata: boolean;
-}) {
+export function parseGetAllGenerationsInput(input: GetAllGenerationsInput) {
   const searchCondition = input.searchQuery
     ? Prisma.sql`AND (
         o."id" ILIKE ${`%${input.searchQuery}%`} OR
@@ -65,6 +59,24 @@ export async function getAllGenerations({
           startTimeFilter.value,
         )
       : Prisma.empty;
+
+  return {
+    searchCondition,
+    filterCondition,
+    orderByCondition,
+    datetimeFilter,
+  };
+}
+
+export async function getAllGenerations({
+  input,
+  selectIOAndMetadata,
+}: {
+  input: GetAllGenerationsInput;
+  selectIOAndMetadata: boolean;
+}) {
+  const { searchCondition, filterCondition, orderByCondition, datetimeFilter } =
+    parseGetAllGenerationsInput(input);
 
   const query = Prisma.sql`
       WITH scores_avg AS (
