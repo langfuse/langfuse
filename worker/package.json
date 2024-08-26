@@ -34,7 +34,7 @@
     "@opentelemetry/instrumentation-undici": "^0.4.0",
     "@prisma/instrumentation": "^5.13.0",
     "backoff": "^2.5.0",
-    "bullmq": "^5.4.2",
+    "bullmq": "^5.12.10",
     "cors": "^2.8.5",
     "dd-trace": "^5.21.0",
     "decimal.js": "^10.4.3",

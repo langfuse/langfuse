@@ -94,8 +94,6 @@ export default async function handler(
       ? currentSpan?.setAttribute("event_count", parsedSchema.data.batch.length)
       : undefined;
 
-    await gaugePrismaStats();
-
     if (!parsedSchema.success) {
       console.log("Invalid request data", parsedSchema.error);
       return res.status(400).json({
@@ -443,16 +441,4 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;
-};
-
-const gaugePrismaStats = async () => {
-  // execute with a 50% probability
-  if (Math.random() > 0.5) {
-    return;
-  }
-  // const metrics = await prisma.$metrics.json();
-
-  // metrics.gauges.forEach((gauge) => {
-  //   Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
-  // });
 };

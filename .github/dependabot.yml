@@ -25,11 +25,8 @@ updates:
       prisma:
         patterns:
           - "prisma"
-          - "@prisma/*"
+          - "@prisma/client"
       next:
         patterns:
           - "eslint-config-next"
           - "next"
-      patches:
-        update-types:
-          - "patch"
