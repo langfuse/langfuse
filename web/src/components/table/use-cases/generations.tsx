@@ -113,7 +113,7 @@ export default function GenerationsTable({
   );
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange();
+    useTableDateRange(projectId);
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [],
