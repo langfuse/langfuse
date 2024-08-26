@@ -121,14 +121,24 @@ export default function ScoresTable({
     order: "DESC",
   });
 
-  const scores = api.scores.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+  const getCountPayload = {
     projectId,
     filter: filterState,
+    page: 0,
+    limit: 1,
+    orderBy: null,
+  };
+
+  const getAllPayload = {
+    ...getCountPayload,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
     orderBy: orderByState,
-  });
-  const totalCount = scores.data?.totalCount ?? null;
+  };
+
+  const scores = api.scores.all.useQuery(getAllPayload);
+  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload);
+  const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
   const filterOptions = api.scores.filterOptions.useQuery(
     {
