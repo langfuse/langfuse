@@ -38,7 +38,9 @@ export function PopoverFilterBuilder({
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
-  onChange: Dispatch<SetStateAction<FilterState>>;
+  onChange:
+    | Dispatch<SetStateAction<FilterState>>
+    | ((newState: FilterState) => void);
   columnsWithCustomSelect?: string[];
 }) {
   const capture = usePostHogClientCapture();

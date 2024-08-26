@@ -59,6 +59,7 @@ export default function SessionsTable({
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "sessions",
+    projectId,
   );
 
   const userIdFilter: FilterState = userId
