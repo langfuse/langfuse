@@ -4,7 +4,6 @@ import { addMinutes } from "date-fns";
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "24 hours" as const;
 export const DASHBOARD_AGGREGATION_PLACEHOLDER = "Custom" as const;
-export const DEFAULT_AGGREGATION_SELECTION = "All time" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
   "5 min",
