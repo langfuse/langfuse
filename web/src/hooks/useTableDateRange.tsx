@@ -7,6 +7,7 @@ import {
   type TableDateRange,
   getDateFromOption,
 } from "@/src/utils/date-range-utils";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 export interface UseTableDateRangeOutput {
   selectedOption: TableDateRangeOptions;
@@ -17,22 +18,23 @@ export interface UseTableDateRangeOutput {
   ) => void;
 }
 
-export function useTableDateRange(
-  defaultDateRange: TableDateRangeOptions = "24 hours",
-): UseTableDateRangeOutput {
+export function useTableDateRange(projectId: string): UseTableDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
     dateRange: withDefault(StringParam, "Select a date range"),
   });
 
+  const defaultDateRange: TableDateRangeOptions = "24 hours";
   const validatedInitialRangeOption = isValidTableDateRangeAggregationOption(
     queryParams.dateRange,
   )
     ? (queryParams.dateRange as TableDateRangeAggregationOption)
     : defaultDateRange;
 
-  const [selectedOption, setSelectedOption] = useState<TableDateRangeOptions>(
-    validatedInitialRangeOption,
-  );
+  const [selectedOption, setSelectedOption] =
+    useSessionStorage<TableDateRangeOptions>(
+      `tableDateRangeState-${projectId}`,
+      validatedInitialRangeOption,
+    );
 
   const dateFromOption = getDateFromOption({
     filterSource: "TABLE",

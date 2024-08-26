@@ -54,7 +54,7 @@ export default function SessionsTable({
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange();
+    useTableDateRange(projectId);
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],

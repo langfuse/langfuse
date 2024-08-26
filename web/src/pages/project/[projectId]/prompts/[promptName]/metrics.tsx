@@ -91,7 +91,7 @@ export default function PromptVersionTable() {
     "s",
   );
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange("7 days");
+    useTableDateRange(projectId);
 
   const dateRangeFilter: FilterState | null = dateRange?.from
     ? [
