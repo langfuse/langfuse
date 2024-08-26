@@ -31,7 +31,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
-import { instrument } from "@langfuse/shared/src/server";
+import { instrumentAsync } from "@langfuse/shared/src/server";
 import logger from "../../logger";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
@@ -598,7 +598,7 @@ export class IngestionService {
     };
     const { projectId, entityId, table } = params;
 
-    return await instrument({ name: `get-${table}` }, async () => {
+    return await instrumentAsync({ name: `get-${table}` }, async () => {
       const queryResult = await this.clickhouseClient.query({
         query: `SELECT * FROM ${table} WHERE project_id = '${projectId}' AND id = '${entityId}' ORDER BY updated_at DESC LIMIT 1`,
         format: "JSONEachRow",

@@ -34,7 +34,7 @@ import {
   CustomSSOProvider,
   traceException,
   sendResetPasswordVerificationRequest,
-  instrument,
+  instrumentAsync,
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
@@ -303,7 +303,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     },
     callbacks: {
       async session({ session, token }): Promise<Session> {
-        return instrument({ name: "next-auth-session" }, async () => {
+        return instrumentAsync({ name: "next-auth-session" }, async () => {
           const dbUser = await prisma.user.findUnique({
             where: {
               // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -401,7 +401,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         });
       },
       async signIn({ user, account, profile }) {
-        return instrument({ name: "next-auth-sign-in" }, async () => {
+        return instrumentAsync({ name: "next-auth-sign-in" }, async () => {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
           if (!email) {
