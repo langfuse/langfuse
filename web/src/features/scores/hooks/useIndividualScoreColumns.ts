@@ -12,12 +12,14 @@ export function useIndividualScoreColumns<
   selectedFilterOption,
   showAggregateViewOnly = false,
   scoreColumnPrefix,
+  cellsLoading = false,
 }: {
   projectId: string;
   scoreColumnKey: keyof T & string;
   selectedFilterOption?: TableDateRangeOptions;
   showAggregateViewOnly?: boolean;
   scoreColumnPrefix?: "Trace" | "Generation";
+  cellsLoading?: boolean;
 }) {
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
     {
@@ -47,12 +49,14 @@ export function useIndividualScoreColumns<
       scoreColumnKey,
       scoreColumnPrefix,
       showAggregateViewOnly,
+      cellsLoading,
     });
   }, [
     scoreKeysAndProps.data,
     scoreColumnKey,
     showAggregateViewOnly,
     scoreColumnPrefix,
+    cellsLoading,
   ]);
 
   return {

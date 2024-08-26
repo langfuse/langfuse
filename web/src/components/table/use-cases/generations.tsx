@@ -709,6 +709,7 @@ export default function GenerationsTable({
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
+        columnsWithCustomSelect={["model", "name", "traceName", "promptName"]}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibilityState}
         rowHeight={rowHeight}

@@ -1,6 +1,10 @@
 import { Queue, Worker } from "bullmq";
 
-import { QueueJobs, QueueName } from "@langfuse/shared/src/server";
+import {
+  createNewRedisInstance,
+  QueueJobs,
+  QueueName,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
@@ -9,7 +13,6 @@ import {
   recordIncrement,
   recordGauge,
   recordHistogram,
-  redis,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import logger from "../logger";
@@ -19,8 +22,10 @@ import { SpanKind } from "@opentelemetry/api";
 
 const ingestionFlushQueue = getIngestionFlushQueue();
 
-export const ingestionQueueExecutor = redis
-  ? new Worker(
+const createIngestionQueueExecutor = () => {
+  const redisInstance = createNewRedisInstance();
+  if (redisInstance) {
+    return new Worker(
       QueueName.IngestionFlushQueue,
       async (job) => {
         return instrument(
@@ -48,7 +53,7 @@ export const ingestionQueueExecutor = redis
 
               try {
                 // Check dependencies
-                if (!redis) throw new Error("Redis not available");
+                if (!redisInstance) throw new Error("Redis not available");
                 if (!prisma) throw new Error("Prisma not available");
                 if (!ingestionFlushQueue)
                   throw new Error("Ingestion flush queue not available");
@@ -57,7 +62,7 @@ export const ingestionQueueExecutor = redis
                 const processingStartTime = Date.now();
 
                 await new IngestionService(
-                  redis,
+                  redisInstance,
                   prisma,
                   ClickhouseWriter.getInstance(),
                   clickhouseClient
@@ -98,8 +103,12 @@ export const ingestionQueueExecutor = redis
         );
       },
       {
-        connection: redis,
+        connection: redisInstance,
         concurrency: env.LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY,
       }
-    )
-  : null;
+    );
+  }
+  return null;
+};
+
+export const ingestionQueueExecutor = createIngestionQueueExecutor();
