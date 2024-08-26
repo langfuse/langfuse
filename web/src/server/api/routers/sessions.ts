@@ -88,8 +88,27 @@ export const sessionRouter = createTRPCRouter({
           LIMIT 1000;
         `);
 
+        const tags = await ctx.prisma.$queryRaw<
+          Array<{
+            value: string;
+            count: undefined;
+          }>
+        >(Prisma.sql`
+            SELECT
+              tag AS value
+            FROM traces t
+            JOIN observations o ON o.trace_id = t.id,
+            UNNEST(t.tags) AS tag
+            WHERE o.type = 'GENERATION'
+              AND o.project_id = ${input.projectId}
+              AND t.project_id = ${input.projectId}
+            GROUP BY tag
+            LIMIT 1000;
+          `);
+
         const res: SessionOptions = {
           userIds: userIds,
+          tags: tags,
         };
         return res;
       } catch (e) {
