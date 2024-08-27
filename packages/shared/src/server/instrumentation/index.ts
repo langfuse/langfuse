@@ -22,9 +22,9 @@ export async function instrumentAsync<T>(
       root: ctx.rootSpan,
       kind: ctx.spanKind,
     },
-    (span) => {
+    async (span) => {
       try {
-        const result = callback();
+        const result = await callback();
         span.end();
         return result;
       } catch (ex) {
