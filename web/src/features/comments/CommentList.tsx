@@ -170,7 +170,7 @@ export function CommentList({
                   }}
                   className="absolute bottom-2 right-2"
                 >
-                  <ArrowUpToLine className="h-4 w-4" />
+                  <ArrowUpToLine className="h-3 w-3" />
                 </Button>
               </div>
             </form>
