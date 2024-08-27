@@ -1,5 +1,4 @@
 import { DataTable } from "@/src/components/table/data-table";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -22,6 +21,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 
 export type ModelTableRow = {
@@ -82,6 +82,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       accessorKey: "maintainer",
       id: "maintainer",
       header: "Maintainer",
+      enableColumnFilter: true,
       enableSorting: true,
       size: 100,
     },
