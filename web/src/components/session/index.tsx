@@ -53,10 +53,10 @@ export const SessionPage: React.FC<{
     string[]
   >("emptySelectedConfigIds", []);
 
-  const commentCounts = api.comments.getCountsByObjectIds.useQuery(
+  const commentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId,
-      objectIds: [sessionId],
+      objectId: sessionId,
       objectType: "SESSION",
     },
     { enabled: session.isSuccess },
