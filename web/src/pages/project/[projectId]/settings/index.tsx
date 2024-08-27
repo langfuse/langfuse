@@ -129,7 +129,7 @@ const Integrations = (props: { projectId: string }) => {
   return (
     <div>
       <Header title="Integrations" level="h3" />
-      <Card className="p-4">
+      <Card className="p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <PostHogLogo className="mb-4 w-40 text-foreground" />
         <p className="mb-4 text-sm text-primary">

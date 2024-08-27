@@ -8,7 +8,7 @@ export function HostNameProject() {
   return (
     <div>
       <Header title="Host Name" level="h3" />
-      <Card className="mb-4 p-4">
+      <Card className="mb-4 p-3">
         <div className="">
           <div className="mb-2 text-sm">
             When connecting to Langfuse, use this hostname / baseurl.

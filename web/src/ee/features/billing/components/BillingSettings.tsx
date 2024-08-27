@@ -81,7 +81,7 @@ const OrganizationUsageChart = () => {
 
   return (
     <div>
-      <Card className="p-4">
+      <Card className="p-3">
         {usage.data !== undefined ? (
           <>
             <Text>

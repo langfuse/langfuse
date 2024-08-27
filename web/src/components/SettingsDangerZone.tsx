@@ -11,7 +11,7 @@ export const SettingsDangerZone: React.FC<{
   return (
     <div className="space-y-3">
       <Header title="Danger Zone" level="h3" />
-      <div className="rounded border">
+      <div className="rounded-lg border">
         {items.map((item, index) => (
           <div
             key={index}
