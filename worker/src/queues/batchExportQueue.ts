@@ -5,7 +5,7 @@ import { kyselyPrisma } from "@langfuse/shared/src/db";
 
 import {
   traceException,
-  instrument,
+  instrumentAsync,
   createNewRedisInstance,
 } from "@langfuse/shared/src/server";
 import logger from "../logger";
@@ -19,7 +19,7 @@ const createBatchExportJobExecutor = () => {
     return new Worker<TQueueJobTypes[QueueName.BatchExport]>(
       QueueName.BatchExport,
       async (job: Job<TQueueJobTypes[QueueName.BatchExport]>) => {
-        return instrument(
+        return instrumentAsync(
           {
             name: "batchExportJobExecutor",
             spanKind: SpanKind.CONSUMER,

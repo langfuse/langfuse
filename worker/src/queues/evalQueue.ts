@@ -9,7 +9,7 @@ import {
   QueueName,
   TQueueJobTypes,
   traceException,
-  instrument,
+  instrumentAsync,
   recordIncrement,
   recordHistogram,
   recordGauge,
@@ -44,7 +44,7 @@ const createEvalJobCreator = () => {
     return new Worker<TQueueJobTypes[QueueName.TraceUpsert]>(
       QueueName.TraceUpsert,
       async (job: Job<TQueueJobTypes[QueueName.TraceUpsert]>) => {
-        return instrument(
+        return instrumentAsync(
           {
             name: "evalJobCreator",
             rootSpan: true,
@@ -107,7 +107,7 @@ const createEvalJobExecutor = () => {
     return new Worker<TQueueJobTypes[QueueName.EvaluationExecution]>(
       QueueName.EvaluationExecution,
       async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
-        return instrument(
+        return instrumentAsync(
           {
             name: "evalJobExecutor",
             spanKind: SpanKind.CONSUMER,
