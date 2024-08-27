@@ -43,32 +43,40 @@ export const modelRouter = createTRPCRouter({
       );
 
       const [models, totalAmount] = await Promise.all([
-        ctx.prisma.model.findMany({
-          where: {
-            OR: [{ projectId: input.projectId }, { projectId: null }],
-          },
-          skip: input.page * input.limit,
-          orderBy: [
-            { modelName: "asc" },
-            { unit: "asc" },
-            {
-              startDate: {
-                sort: "desc",
-                nulls: "last",
-              },
-            },
-          ],
-          take: input.limit,
-        }),
-        ctx.prisma.model.count({
-          where: {
-            OR: [{ projectId: input.projectId }, { projectId: null }],
-          },
-        }),
+        ctx.prisma.$queryRaw<Array<Model>>(
+          generateModelsQuery(
+            Prisma.sql` 
+            m.id,
+            m.project_id as "projectId",
+            m.model_name as "modelName",
+            m.match_pattern as "matchPattern",
+            m.start_date as "startDate",
+            m.input_price as "inputPrice",
+            m.output_price as "outputPrice",
+            m.total_price as "totalPrice",
+            m.unit,
+            m.tokenizer_id as "tokenizerId"`,
+            input.projectId,
+            filterCondition,
+            orderByCondition,
+            input.limit,
+            input.page,
+          ),
+        ),
+        ctx.prisma.$queryRaw<Array<{ totalCount: number }>>(
+          generateModelsQuery(
+            Prisma.sql` count(*) AS "totalCount"`,
+            input.projectId,
+            filterCondition,
+            Prisma.empty,
+            1, // limit
+            0, // page
+          ),
+        ),
       ]);
       return {
         models,
-        totalCount: totalAmount,
+        totalCount: totalAmount[0].totalCount,
       };
     }),
   modelNames: protectedProjectProcedure
