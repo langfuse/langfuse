@@ -1,21 +1,30 @@
-import { prisma as _prisma } from "@langfuse/shared/src/db";
-import { type MembershipRole } from "@langfuse/shared";
+import { prisma as _prisma, type Role } from "@langfuse/shared/src/db";
 
 export type AuditableResource =
-  | "membership"
+  | "organization"
+  | "orgMembership"
+  | "projectMembership"
   | "membershipInvitation"
+  | "comment"
   | "datasetItem"
   | "dataset"
   | "trace"
   | "project"
   | "observation"
   | "score"
+  | "scoreConfig"
   | "model"
   | "prompt"
   | "session"
   | "apiKey"
   | "evalTemplate"
-  | "job";
+  | "job"
+  | "posthogIntegration"
+  | "llmApiKey"
+  | "batchExport"
+  | "stripeCheckoutSession"
+  // legacy resources
+  | "membership";
 
 type AuditLog = {
   resourceType: AuditableResource;
@@ -25,30 +34,46 @@ type AuditLog = {
   after?: unknown;
 } & (
   | {
-      projectId: string;
       userId: string;
-      userProjectRole: MembershipRole;
+      orgId: string;
+      orgRole: Role;
+      projectId?: string;
+      projectRole?: Role;
     }
   | {
       session: {
         user: {
           id: string;
         };
-        projectRole: MembershipRole;
-        projectId: string;
+        orgId: string;
+        orgRole: Role;
+        projectId?: string;
+        projectRole?: Role;
       };
     }
 );
 
 export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
+  const meta =
+    "session" in log
+      ? {
+          userId: log.session.user.id,
+          orgId: log.session.orgId,
+          userOrgRole: log.session.orgRole,
+          projectId: log.session.projectId,
+          userProjectRole: log.session.projectRole,
+        }
+      : {
+          userId: log.userId,
+          orgId: log.orgId,
+          userOrgRole: log.orgRole,
+          projectId: log.projectId,
+          userProjectRole: log.projectRole,
+        };
+
   await (prisma ?? _prisma).auditLog.create({
     data: {
-      projectId: "projectId" in log ? log.projectId : log.session.projectId,
-      userId: "userId" in log ? log.userId : log.session.user.id,
-      userProjectRole:
-        "userProjectRole" in log
-          ? log.userProjectRole
-          : log.session.projectRole,
+      ...meta,
       resourceType: log.resourceType,
       resourceId: log.resourceId,
       action: log.action,

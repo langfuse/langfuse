@@ -7,9 +7,8 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { usePostHog } from "posthog-js/react";
 
 import {
   Dialog,
@@ -20,6 +19,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function TraceTableMultiSelectAction({
   selectedTraceIds,
@@ -32,13 +32,16 @@ export function TraceTableMultiSelectAction({
 }) {
   const utils = api.useUtils();
   const [open, setOpen] = useState(false);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
-  const hasDeleteAccess = useHasAccess({ projectId, scope: "traces:delete" });
+  const hasDeleteAccess = useHasProjectAccess({
+    projectId,
+    scope: "traces:delete",
+  });
   const mutDeleteTraces = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       onDeleteSuccess();
-      void utils.traces.invalidate();
+      void utils.traces.all.invalidate();
     },
   });
 
@@ -46,11 +49,7 @@ export function TraceTableMultiSelectAction({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className="bg-white p-2 font-medium text-black"
-            disabled={selectedTraceIds.length < 1}
-          >
+          <Button disabled={selectedTraceIds.length < 1}>
             Actions ({selectedTraceIds.length} selected)
             <ChevronDown className="h-5 w-5" />
           </Button>
@@ -59,6 +58,10 @@ export function TraceTableMultiSelectAction({
           <DropdownMenuItem
             disabled={!hasDeleteAccess}
             onClick={() => {
+              capture("trace:delete_form_open", {
+                count: selectedTraceIds.length,
+                source: "table-multi-select",
+              });
               setOpen(true);
             }}
           >
@@ -98,7 +101,7 @@ export function TraceTableMultiSelectAction({
                   .then(() => {
                     setOpen(false);
                   });
-                posthog.capture("trace:delete", {
+                capture("trace:delete_form_submit", {
                   count: selectedTraceIds.length,
                   source: "table-multi-select",
                 });

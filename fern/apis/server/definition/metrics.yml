@@ -29,6 +29,12 @@ service:
             type: optional<string>
             allow-multiple: true
             docs: Optional filter for metrics where traces include all of these tags
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include traces on or after a certain datetime (ISO 8601)
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include traces before a certain datetime (ISO 8601)
       response: DailyMetrics
 types:
   DailyMetrics:
@@ -41,12 +47,26 @@ types:
     properties:
       date: date
       countTraces: integer
-      totalCost: double
+      countObservations: integer
+      totalCost:
+        type: double
+        docs: Total model cost in USD
       usage: list<UsageByModel>
   UsageByModel:
     docs: Daily usage of a given model. Usage corresponds to the unit set for the specific model (e.g. tokens).
     properties:
-      model: string
-      inputUsage: integer
-      outputUsage: integer
-      totalUsage: integer
+      model: optional<string>
+      inputUsage:
+        type: integer
+        docs: Total number of generation input units (e.g. tokens)
+      outputUsage:
+        type: integer
+        docs: Total number of generation output units (e.g. tokens)
+      totalUsage:
+        type: integer
+        docs: Total number of generation total units (e.g. tokens)
+      countTraces: integer
+      countObservations: integer
+      totalCost:
+        type: double
+        docs: Total model cost in USD

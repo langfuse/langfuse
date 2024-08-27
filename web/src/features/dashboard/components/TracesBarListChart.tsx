@@ -91,7 +91,7 @@ export const TracesBarListChart = ({
             <BarList
               data={adjustedData}
               valueFormatter={(number: number) =>
-                Intl.NumberFormat("us").format(number).toString()
+                Intl.NumberFormat("en-US").format(number).toString()
               }
               className="mt-6"
               showAnimation={true}
@@ -102,7 +102,7 @@ export const TracesBarListChart = ({
           <NoData noDataText="No data">
             <DocPopup
               description="Traces contain details about LLM applications and can be created using the SDK."
-              href="https://langfuse.com/docs/integrations/sdk#1-backend-tracing"
+              href="https://langfuse.com/docs/get-started"
             />
           </NoData>
         )}

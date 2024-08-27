@@ -10,24 +10,16 @@ export const observationsRouter = createTRPCRouter({
       z.object({
         observationId: z.string(),
         traceId: z.string(), // required for protectedGetTraceProcedure
+        projectId: z.string(), // required for protectedGetTraceProcedure
       }),
     )
     .query(async ({ input, ctx }) => {
-      // also works for other observations
-      const generation = await ctx.prisma.observation.findFirstOrThrow({
+      return ctx.prisma.observation.findFirstOrThrow({
         where: {
           id: input.observationId,
           traceId: input.traceId,
+          projectId: input.projectId,
         },
       });
-      const scores = generation.traceId
-        ? await ctx.prisma.score.findMany({
-            where: {
-              traceId: generation.traceId,
-            },
-          })
-        : [];
-
-      return { ...generation, scores };
     }),
 });

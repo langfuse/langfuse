@@ -2,13 +2,75 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import Notification, {
+import {
+  Notification,
   type TNotification,
 } from "@/src/features/notifications/Notification";
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+
+const ButtonWithPosthog = ({
+  children,
+  className,
+  notificationId,
+  href,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  notificationId: string;
+  href: string;
+}) => {
+  const capture = usePostHogClientCapture();
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      className={className}
+      onClick={() => {
+        capture("notification:click_link"),
+          { notificationId: notificationId, href: href };
+      }}
+      asChild
+    >
+      <Link href={href}>{children}</Link>
+    </Button>
+  );
+};
 
 export const NOTIFICATIONS: TNotification[] = [
+  // {
+  //   id: 3,
+  //   releaseDate: new Date("2024-04-26"),
+  //   message: "Langfuse 2.0 is live on ProductHunt",
+  // },
+  {
+    id: 2,
+    releaseDate: new Date("2024-04-24"),
+    message: "Langfuse Launch Week #1 is in Full Swing",
+    description: (
+      <div>
+        <p>
+          {
+            "We're launching a new feature every day this week. We already launched:"
+          }
+        </p>
+        <ul className="ms-4 mt-2 list-outside list-disc">
+          <li>Langfuse x Posthog integration</li>
+          <li>Python decorator integration</li>
+          <li>LLM Playground</li>
+          <li>More to come every day until Friday</li>
+        </ul>
+        <ButtonWithPosthog
+          className="mt-3"
+          notificationId="2"
+          href="https://langfuse.com/launch"
+        >
+          Follow along
+        </ButtonWithPosthog>
+      </div>
+    ),
+  },
   {
     id: 1,
     releaseDate: new Date("2024-01-29"),
@@ -32,11 +94,12 @@ export const NOTIFICATIONS: TNotification[] = [
             the post for details.
           </p>
         )}
-        <Button size="sm" variant="secondary" className="mt-3">
-          <Link href="https://langfuse.com/changelog/2024-01-29-custom-model-prices">
-            Changelog post
-          </Link>
-        </Button>
+        <ButtonWithPosthog
+          notificationId="1"
+          href="https://langfuse.com/changelog/2024-01-29-custom-model-prices"
+        >
+          Changelog post
+        </ButtonWithPosthog>
       </div>
     ),
   },

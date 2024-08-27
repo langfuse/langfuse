@@ -32,9 +32,9 @@ export const ProjectNavigation: React.FC<ProjectNavigationProps> = ({
         router.push(`/project/${value}`);
       }}
     >
-      <SelectTrigger className="text-gray-700 ring-transparent focus:ring-0 focus:ring-offset-0">
+      <SelectTrigger className="h-8 text-primary ring-transparent focus:ring-0 focus:ring-offset-0">
         <SelectValue
-          className="text-sm font-semibold text-gray-700"
+          className="text-sm font-semibold text-primary"
           placeholder={currentProjectId}
         />
       </SelectTrigger>
@@ -46,8 +46,8 @@ export const ProjectNavigation: React.FC<ProjectNavigationProps> = ({
                 className={cn(
                   "truncate",
                   currentProjectId === project.id
-                    ? "border-gray-700 text-gray-700"
-                    : "text-gray-400",
+                    ? "border-primary text-primary"
+                    : "text-muted-foreground",
                 )}
               >
                 {project.name}
@@ -57,8 +57,8 @@ export const ProjectNavigation: React.FC<ProjectNavigationProps> = ({
                   className={cn(
                     "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                     currentProjectId === project.id
-                      ? "border-gray-700 text-gray-700"
-                      : "border-gray-200 text-gray-400 group-hover:border-gray-700 group-hover:text-gray-700",
+                      ? "border-primary text-primary"
+                      : "border-border text-muted-foreground group-hover:border-primary group-hover:text-primary",
                   )}
                 >
                   view-only

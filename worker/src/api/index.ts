@@ -1,63 +1,66 @@
 import express from "express";
-import emojis from "./emojis";
-import { z } from "zod";
-import logger from "../logger";
-import { Queue } from "bullmq";
-import { redis } from "../redis/consumer";
-import { randomUUID } from "crypto";
 import basicAuth from "express-basic-auth";
+import {
+  traceException,
+  clickhouseClient,
+  convertTraceUpsertEventsToRedisEvents,
+  getTraceUpsertQueue,
+  getBatchExportQueue,
+  EventBodySchema,
+  EventName,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
+
 import { env } from "../env";
-import { QueueJobs, QueueName, TQueueJobTypes } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { checkContainerHealth } from "../features/health";
+import logger from "../logger";
 
 const router = express.Router();
 
-export const evalQueue = redis
-  ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
-      connection: redis,
-    })
-  : null;
-
-const eventBody = z.array(
-  z.object({
-    traceId: z.string(),
-    projectId: z.string(),
-  })
-);
-
 type EventsResponse = {
-  status: "success";
+  status: "success" | "error";
 };
 
 router.get<{}, { status: string }>("/health", async (_req, res) => {
   try {
-    //check database health
-    await prisma.$queryRaw`SELECT 1;`;
-
-    if (!redis) {
-      throw new Error("Redis connection not available");
-    }
-
-    await Promise.race([
-      redis?.ping(),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Redis ping timeout after 2 seconds")),
-          2000
-        )
-      ),
-    ]);
-
-    res.json({
-      status: "ok",
-    });
+    await checkContainerHealth(res);
   } catch (e) {
-    logger.error("Health check failed", e);
+    traceException(e);
+    logger.error(e, "Health check failed");
     res.status(500).json({
       status: "error",
     });
   }
 });
+
+router
+  .use(basicAuth({ users: { admin: env.LANGFUSE_WORKER_PASSWORD } }))
+  .get<
+    {},
+    { status: "success" | "error"; message?: string }
+  >("/clickhouse", async (req, res) => {
+    try {
+      // check if clickhouse is healthy
+      try {
+        const response = await clickhouseClient.query({
+          query: "SELECT 1",
+          format: "CSV",
+        });
+
+        logger.info(
+          `Clickhouse health check response: ${JSON.stringify(await response.text())}`
+        );
+
+        res.json({ status: "success" });
+      } catch (e) {
+        logger.error(e, "Clickhouse health check failed");
+        res.status(500).json({ status: "error", message: JSON.stringify(e) });
+      }
+    } catch (e) {
+      logger.error(e, "Unexpected error during Clickhouse health check");
+      res.status(500).json({ status: "error", message: JSON.stringify(e) });
+    }
+  });
 
 router
   .use(
@@ -66,40 +69,70 @@ router
     })
   )
   .post<{}, EventsResponse>("/events", async (req, res) => {
-    const { body } = req;
-    logger.info(`Received events, ${JSON.stringify(body)}`);
+    try {
+      const { body } = req;
+      logger.info(`Received events, ${JSON.stringify(body)}`);
 
-    const events = eventBody.parse(body);
+      const event = EventBodySchema.safeParse(body);
 
-    const jobs = events.map((event) => ({
-      name: QueueJobs.TraceUpsert,
-      data: {
-        payload: {
-          id: randomUUID(),
-          timestamp: new Date().toISOString(),
-          data: {
-            projectId: event.projectId,
-            traceId: event.traceId,
-          },
-        },
-        name: QueueJobs.TraceUpsert as const,
-        opts: {
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
-        },
-      },
-    }));
+      if (!event.success) {
+        logger.error("Invalid event body", event.error);
+        return res.status(400).json({
+          status: "error",
+        });
+      }
 
-    await evalQueue?.addBulk(jobs); // add all jobs as bulk
+      if (event.data.name === EventName.TraceUpsert) {
+        // Find set of traces per project. There might be two events for the same trace in one API call.
+        // If we don't deduplicate, we will end up processing the same trace twice on two different workers in parallel.
+        const jobs = convertTraceUpsertEventsToRedisEvents(event.data.payload);
+        const traceUpsertQueue = getTraceUpsertQueue();
 
-    res.json({
-      status: "success",
-    });
+        await traceUpsertQueue?.addBulk(jobs); // add all jobs as bulk
+
+        if (traceUpsertQueue) {
+          logger.info(
+            `Added ${jobs.length} trace upsert jobs to the queue`,
+            jobs
+          );
+        }
+
+        return res.json({
+          status: "success",
+        });
+      }
+
+      if (event.data.name === EventName.BatchExport) {
+        await getBatchExportQueue()?.add(event.data.name, {
+          id: event.data.payload.batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
+          name: QueueJobs.BatchExportJob,
+          timestamp: new Date(),
+          payload: event.data.payload,
+        });
+
+        return res.json({
+          status: "success",
+        });
+      }
+
+      return res.status(400).send();
+    } catch (e) {
+      logger.error(e, "Error processing events");
+      traceException(e);
+      return res.status(500).json({
+        status: "error",
+      });
+    }
   });
 
-router.use("/emojis", emojis);
+router
+  .use(
+    basicAuth({
+      users: { admin: env.LANGFUSE_WORKER_PASSWORD },
+    })
+  )
+  .post("/ingestion", async (req, res) => {
+    return res.status(200).send(); // Not implemented, Send 200 to acknowledge the request for web containers to not throw
+  });
 
 export default router;

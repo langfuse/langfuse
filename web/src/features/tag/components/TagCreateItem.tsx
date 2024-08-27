@@ -23,11 +23,11 @@ const TagItemCreate = ({
   return (
     <CommandItem
       key={inputValue}
-      value={inputValue}
+      value={inputValue.trim()}
       className="flex cursor-pointer items-center rounded-sm px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/80"
       onSelect={onSelect}
     >
-      Create new tag: &quot;{inputValue}&quot;
+      Create new tag: &quot;{inputValue.trim()}&quot;
     </CommandItem>
   );
 };

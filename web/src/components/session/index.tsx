@@ -1,24 +1,32 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import Header from "@/src/components/layouts/header";
-import { NoAccessError } from "@/src/components/no-access";
+import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
+import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
-import { ManualScoreButton } from "@/src/features/manual-scoring/components/ManualScoreButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { Button } from "@/src/components/ui/button";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+
+// some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
+const PAGE_SIZE = 50;
 
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const { setDetailPageList } = useDetailPageLists();
+  const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const session = api.sessions.byId.useQuery(
     {
       sessionId,
@@ -41,7 +49,21 @@ export const SessionPage: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isSuccess, session.data]);
 
-  if (session.error?.data?.code === "UNAUTHORIZED") return <NoAccessError />;
+  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
+    string[]
+  >("emptySelectedConfigIds", []);
+
+  const commentCounts = api.comments.getCountsByObjectIds.useQuery(
+    {
+      projectId,
+      objectIds: [sessionId],
+      objectType: "SESSION",
+    },
+    { enabled: session.isSuccess },
+  );
+
+  if (session.error?.data?.code === "UNAUTHORIZED")
+    return <ErrorPage message="You do not have access to this session." />;
 
   return (
     <div className="flex flex-col overflow-hidden xl:container">
@@ -75,6 +97,14 @@ export const SessionPage: React.FC<{
             }
             listKey="sessions"
           />,
+          <CommentDrawerButton
+            key="comment"
+            variant="outline"
+            projectId={projectId}
+            objectId={sessionId}
+            objectType="SESSION"
+            count={commentCounts.data?.get(sessionId)}
+          />,
         ]}
       />
       <div className="flex flex-wrap gap-2">
@@ -96,25 +126,12 @@ export const SessionPage: React.FC<{
         )}
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
-        {session.data?.traces.map((trace) => (
+        {session.data?.traces.slice(0, visibleTraces).map((trace) => (
           <Card
-            className="border-border-gray-150 group grid gap-3 p-2 shadow-none hover:border-gray-300 md:grid-cols-3"
+            className="group grid gap-3 border-border p-2 shadow-none hover:border-ring md:grid-cols-3"
             key={trace.id}
           >
-            <div className="col-span-2 flex flex-col gap-2 p-0">
-              {trace.input || trace.output ? (
-                <IOPreview
-                  key={trace.id}
-                  input={trace.input}
-                  output={trace.output}
-                  hideIfNull
-                />
-              ) : (
-                <div className="p-2 text-xs text-gray-500">
-                  This trace has no input or output.
-                </div>
-              )}
-            </div>
+            <SessionIO traceId={trace.id} projectId={projectId} />
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
@@ -122,23 +139,81 @@ export const SessionPage: React.FC<{
               >
                 Trace: {trace.name} ({trace.id})&nbsp;↗
               </Link>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted-foreground">
                 {trace.timestamp.toLocaleString()}
               </div>
-              <div className="mb-1 mt-2 text-xs text-gray-500">Scores</div>
-              <div className="flex flex-wrap content-start items-start gap-1">
+              <div className="mb-1 mt-2 text-xs text-muted-foreground">
+                Scores
+              </div>
+              <div className="mb-1 flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>
-              <ManualScoreButton
+              <AnnotateDrawer
                 projectId={projectId}
                 traceId={trace.id}
                 scores={trace.scores}
+                emptySelectedConfigIds={emptySelectedConfigIds}
+                setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                 variant="badge"
+                type="session"
+                source="SessionDetail"
+                key={"annotation-drawer" + trace.id}
               />
             </div>
           </Card>
         ))}
+        {session.data?.traces && session.data.traces.length > visibleTraces && (
+          <Button
+            onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
+            variant="ghost"
+            className="self-center"
+          >
+            {`Load ${Math.min(session.data.traces.length - visibleTraces, PAGE_SIZE)} More`}
+          </Button>
+        )}
       </div>
+    </div>
+  );
+};
+
+const SessionIO = ({
+  traceId,
+  projectId,
+}: {
+  traceId: string;
+  projectId: string;
+}) => {
+  const trace = api.traces.byId.useQuery(
+    { traceId, projectId },
+    {
+      enabled: typeof traceId === "string",
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+  return (
+    <div className="col-span-2 grid grid-flow-row gap-2 p-0">
+      {!trace.data ? (
+        <JsonSkeleton
+          className="h-full w-full overflow-hidden px-2 py-1"
+          numRows={4}
+        />
+      ) : trace.data.input || trace.data.output ? (
+        <IOPreview
+          key={traceId}
+          input={trace.data.input}
+          output={trace.data.output}
+          hideIfNull
+        />
+      ) : (
+        <div className="p-2 text-xs text-muted-foreground">
+          This trace has no input or output.
+        </div>
+      )}
     </div>
   );
 };

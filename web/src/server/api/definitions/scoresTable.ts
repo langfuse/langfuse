@@ -1,6 +1,8 @@
 import {
   type OptionsDefinition,
   type ColumnDefinition,
+  ScoreSource,
+  ScoreDataType,
 } from "@langfuse/shared";
 
 export const scoresTableCols: ColumnDefinition[] = [
@@ -29,6 +31,20 @@ export const scoresTableCols: ColumnDefinition[] = [
     internal: 's."timestamp"',
   },
   {
+    name: "Source",
+    id: "source",
+    type: "stringOptions",
+    internal: 's."source"::text',
+    options: Object.values(ScoreSource).map((value) => ({ value })),
+  },
+  {
+    name: "Data Type",
+    id: "dataType",
+    type: "stringOptions",
+    internal: 's."data_type"::text',
+    options: Object.values(ScoreDataType).map((value) => ({ value })),
+  },
+  {
     name: "Name",
     id: "name",
     type: "stringOptions",
@@ -37,6 +53,12 @@ export const scoresTableCols: ColumnDefinition[] = [
   },
   { name: "Value", id: "value", type: "number", internal: 's."value"' },
   { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
+  {
+    name: "Eval Configuration ID",
+    id: "jobConfigurationId",
+    type: "string",
+    internal: 'je."job_configuration_id"',
+  },
 ];
 
 export type ScoreOptions = {

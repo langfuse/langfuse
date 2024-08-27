@@ -27,9 +27,9 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
           title={showPassword ? "Hide password" : "Show password"}
         >
           {showPassword ? (
-            <EyeOff className="h-5 w-5 text-gray-400" />
+            <EyeOff className="h-5 w-5 text-muted-foreground" />
           ) : (
-            <Eye className="h-5 w-5 text-gray-400" />
+            <Eye className="h-5 w-5 text-muted-foreground" />
           )}
         </button>
       </div>

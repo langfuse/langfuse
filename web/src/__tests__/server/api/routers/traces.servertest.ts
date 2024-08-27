@@ -14,11 +14,18 @@ describe("Traces TRPC Router", () => {
     user: {
       id: "clgb17vnp000008jjere5g15i",
       name: "John Doe",
-      projects: [
+      organizations: [
         {
-          id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          role: "ADMIN",
-          name: "test",
+          id: "seed-org-id",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          projects: [
+            {
+              id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+              role: "ADMIN",
+            },
+          ],
         },
       ],
       featureFlags: {
@@ -26,6 +33,7 @@ describe("Traces TRPC Router", () => {
       },
       admin: true,
     },
+    environment: {} as any,
   };
 
   const ctx = createInnerTRPCContext({ session });
@@ -35,7 +43,6 @@ describe("Traces TRPC Router", () => {
     const trace = {
       name: "trace-name",
       userId: "user-1",
-      metadata: { key: "value" },
       release: "1.0.0",
       version: "2.0.0",
     };
@@ -56,11 +63,42 @@ describe("Traces TRPC Router", () => {
     expect(traces).toMatchObject({ traces: [trace] });
   });
 
+  test("traces.all RPC must not return input, output, metadata", async () => {
+    const trace = {
+      name: "trace-name",
+      userId: "user-1",
+      input: { a: 1 },
+      output: { b: 2 },
+      metadata: { c: 3 },
+      release: "1.0.0",
+      version: "2.0.0",
+    };
+    await prisma.trace.create({
+      data: { ...trace, projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+    });
+
+    const traces = await caller.traces.all({
+      page: 0,
+      limit: 10,
+      // projectId from `seed.ts`
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      filter: null,
+      searchQuery: "",
+      orderBy: null,
+    });
+    expect(traces.traces).toBeDefined();
+    expect(traces.traces).toHaveLength(1);
+
+    const returnedTrace = traces.traces[0];
+    expect(returnedTrace).not.toHaveProperty("input");
+    expect(returnedTrace).not.toHaveProperty("output");
+    expect(returnedTrace).not.toHaveProperty("metadata");
+  });
+
   test("traces.all RPC orders traces by userId", async () => {
     const traceTmpl = {
       name: "trace-name",
       userId: "user-1",
-      metadata: { key: "value" },
       release: "1.0.0",
       version: "2.0.0",
     };

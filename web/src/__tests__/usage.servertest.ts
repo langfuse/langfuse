@@ -1,5 +1,5 @@
+import { tokenCount } from "@/src/features/ingest/usage";
 import { ModelUsageUnit } from "@langfuse/shared";
-import { tokenCount } from "@/src/features/ingest/lib/usage";
 
 describe("Token Count Functions", () => {
   const generateModel = (model: string, tokenizer: string) => {
@@ -33,6 +33,7 @@ describe("Token Count Functions", () => {
       { model: "claude", tokenizer: "claude", tokens: 118 },
       { model: "claude-instant-1.2", tokenizer: "claude", tokens: 118 },
       { model: "gpt-3.5-turbo-1106", tokenizer: "openai", tokens: 114 },
+      { model: "gpt-4o-2024-05-13", tokenizer: "openai", tokens: 112 },
     ].forEach(({ model, tokens, tokenizer }) => {
       it(`should return token count ${tokens} for ${model}`, () => {
         const result = tokenCount({

@@ -12,8 +12,10 @@ import {
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { usePostHog } from "posthog-js/react";
 import { Input } from "@/src/components/ui/input";
+import { JsonEditor } from "@/src/components/json-editor";
+import { type Prisma } from "@langfuse/shared";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
@@ -36,6 +38,7 @@ interface UpdateDatasetFormProps extends BaseDatasetFormProps {
   datasetId: string;
   datasetName: string;
   datasetDescription?: string;
+  datasetMetadata?: Prisma.JsonValue;
 }
 
 type DatasetFormProps =
@@ -51,11 +54,26 @@ const formSchema = z.object({
       message: "Input should not be only whitespace",
     }),
   description: z.string(),
+  metadata: z.string().refine(
+    (value) => {
+      if (value === "") return true;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
+  ),
 });
 
 export const DatasetForm = (props: DatasetFormProps) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues:
@@ -63,10 +81,14 @@ export const DatasetForm = (props: DatasetFormProps) => {
         ? {
             name: props.datasetName,
             description: props.datasetDescription ?? "",
+            metadata: props.datasetMetadata
+              ? JSON.stringify(props.datasetMetadata, null, 2)
+              : "",
           }
         : {
             name: "",
             description: "",
+            metadata: "",
           },
   });
 
@@ -82,7 +104,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
       description: values.description !== "" ? values.description.trim() : null,
     };
     if (props.mode === "create") {
-      posthog.capture("datasets:new_dataset_form_submit");
+      capture("datasets:new_form_submit");
       createMutation
         .mutateAsync({
           ...trimmedValues,
@@ -98,7 +120,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
           console.error(error);
         });
     } else if (props.mode === "update") {
-      posthog.capture("datasets:update_dataset_form_submit");
+      capture("datasets:update_form_submit");
       renameMutation
         .mutateAsync({
           ...trimmedValues,
@@ -119,7 +141,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
 
   const handleDelete = () => {
     if (props.mode !== "delete") return;
-    posthog.capture("datasets:delete_dataset_form_submit");
+    capture("datasets:delete_form_submit");
     deleteMutation
       .mutateAsync({
         projectId: props.projectId,
@@ -168,6 +190,24 @@ export const DatasetForm = (props: DatasetFormProps) => {
                     <FormLabel>Description (optional)</FormLabel>
                     <FormControl>
                       <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="metadata"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Metadata (optional)</FormLabel>
+                    <FormControl>
+                      <JsonEditor
+                        defaultValue={field.value}
+                        onChange={(v) => {
+                          field.onChange(v);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

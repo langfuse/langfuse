@@ -1,8 +1,7 @@
-import { AlertTriangle } from "lucide-react";
-
-import { VERSION } from "@/src/constants";
-import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
+import Link from "next/link";
+import { EnvLabel } from "./EnvLabel";
+import { VersionLabel } from "./VersionLabel";
 
 export const LangfuseIcon = ({
   size = 32,
@@ -36,45 +35,21 @@ export const LangfuseLogo = ({
     className={cn("flex flex-wrap gap-4 lg:flex-col lg:items-start", className)}
   >
     {/* Environment Labeling for Langfuse Maintainers */}
-    {showEnvLabel && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && (
-      <div
-        className={cn(
-          "flex items-center gap-2 self-stretch rounded-md px-3 py-2 text-xs ring-1 lg:-mx-2",
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-            ? "bg-blue-100 text-blue-500 ring-blue-500"
-            : "bg-red-100 text-red-500 ring-red-500",
-        )}
-      >
-        <AlertTriangle size={16} />
-        <span className="whitespace-nowrap">
-          {["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-            ? `PROD-${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
-            : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
-        </span>
-      </div>
-    )}
+    {showEnvLabel && <EnvLabel />}
     {/* Langfuse Logo */}
     <div className="flex items-center">
-      <LangfuseIcon size={size === "sm" ? 16 : 20} />
-      <span
-        className={cn(
-          "ml-2 font-mono font-semibold",
-          size === "sm" ? "text-sm" : "text-xl",
-        )}
-      >
-        Langfuse
-      </span>
-      {version && (
-        <a
-          href="https://github.com/langfuse/langfuse/releases"
-          target="_blank"
-          rel="noopener"
-          title="View releases on GitHub"
-          className="ml-2 text-xs text-gray-400"
+      <Link href="/" className="flex items-center">
+        <LangfuseIcon size={size === "sm" ? 16 : 20} />
+        <span
+          className={cn(
+            "ml-2 font-mono font-semibold",
+            size === "sm" ? "text-sm" : "text-xl",
+          )}
         >
-          {VERSION}
-        </a>
-      )}
+          Langfuse
+        </span>
+      </Link>
+      {version && <VersionLabel className="ml-2" />}
     </div>
   </div>
 );

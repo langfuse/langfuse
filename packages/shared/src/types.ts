@@ -31,4 +31,5 @@ export type TableName =
   | "scores"
   | "models"
   | "prompts"
-  | "dashboard";
+  | "dashboard"
+  | "users";

@@ -1,21 +1,29 @@
-import { createPrompt } from "@/src/features/prompts/server/createPrompt";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
-  CreatePromptSchema,
+  LegacyCreatePromptSchema,
   GetPromptSchema,
-} from "@/src/features/prompts/server/validation";
+} from "@/src/features/prompts/server/utils/validation";
 import {
   UnauthorizedError,
-  NotFoundError,
+  LangfuseNotFoundError,
   BaseError,
   MethodNotAllowedError,
   ForbiddenError,
-} from "@/src/server/errors";
+  type Prompt,
+} from "@langfuse/shared";
+import {
+  PromptService,
+  redis,
+  recordIncrement,
+  traceException,
+} from "@langfuse/shared/src/server";
+import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 
 export default async function handler(
   req: NextApiRequest,
@@ -25,9 +33,11 @@ export default async function handler(
 
   try {
     // Authentication and authorization
-    const authCheck = await verifyAuthHeaderAndReturnScope(
-      req.headers.authorization,
-    );
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
     if (authCheck.scope.accessLevel !== "all")
       throw new ForbiddenError(
@@ -37,37 +47,62 @@ export default async function handler(
     // Handle GET requests
     if (req.method === "GET") {
       const searchParams = GetPromptSchema.parse(req.query);
-      const prompt = await prisma.prompt.findFirst({
-        where: {
-          projectId: authCheck.scope.projectId,
-          name: searchParams.name,
-          version: searchParams.version ?? undefined, // if no version is given, we take the latest active prompt
-          isActive: !searchParams.version ? true : undefined, // if no prompt is active, there will be no prompt available
-        },
+      const projectId = authCheck.scope.projectId;
+      const promptName = searchParams.name;
+      const version = searchParams.version ?? undefined;
+
+      const promptService = new PromptService(prisma, redis, recordIncrement);
+
+      let prompt: Prompt | null = null;
+
+      if (version) {
+        prompt = await promptService.getPrompt({
+          projectId,
+          promptName,
+          version,
+          label: undefined,
+        });
+      } else {
+        prompt = await promptService.getPrompt({
+          projectId,
+          promptName,
+          label: PRODUCTION_LABEL,
+          version: undefined,
+        });
+      }
+
+      if (!prompt) throw new LangfuseNotFoundError("Prompt not found");
+
+      return res.status(200).json({
+        ...prompt,
+        isActive: prompt.labels.includes(PRODUCTION_LABEL),
       });
-
-      if (!prompt) throw new NotFoundError("Prompt not found");
-
-      return res.status(200).json(prompt);
     }
 
     // Handle POST requests
     if (req.method === "POST") {
-      const input = CreatePromptSchema.parse(req.body);
+      const input = LegacyCreatePromptSchema.parse(req.body);
       const prompt = await createPrompt({
         ...input,
+        labels: input.isActive
+          ? [...new Set([...input.labels, PRODUCTION_LABEL])] // Ensure labels are unique
+          : input.labels, // If production label is already present, this will still promote the prompt
         config: input.config ?? {}, // Config can be null in which case zod default value is not used
         projectId: authCheck.scope.projectId,
         createdBy: "API",
         prisma: prisma,
       });
 
-      return res.status(201).json(prompt);
+      return res.status(201).json({
+        ...prompt,
+        isActive: prompt.labels.includes(PRODUCTION_LABEL),
+      });
     }
 
     throw new MethodNotAllowedError();
   } catch (error: unknown) {
     console.error(error);
+    traceException(error);
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({

@@ -2,10 +2,12 @@ import { StarIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 export function StarToggle({
   value,
@@ -31,13 +33,14 @@ export function StarToggle({
       <StarIcon
         className={cn(
           "h-4 w-4",
-          value ? "fill-current text-yellow-500" : "text-gray-500",
+          value ? "fill-current text-yellow-500" : "text-muted-foreground",
         )}
       />
     </Button>
   );
 }
 
+// use by the trace table
 export function StarTraceToggle({
   tracesFilter,
   projectId,
@@ -52,8 +55,11 @@ export function StarTraceToggle({
   size?: "sm" | "xs";
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
-
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "objects:bookmark",
+  });
+  const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
@@ -75,7 +81,7 @@ export function StarTraceToggle({
     onError: (err, _newTodo, context) => {
       setIsLoading(false);
       // Rollback to the previous value if mutation fails
-      console.log("error", err);
+      trpcErrorToast(err);
       utils.traces.all.setData(tracesFilter, context?.prev);
     },
     onSettled: () => {
@@ -84,7 +90,6 @@ export function StarTraceToggle({
         tracesFilter,
         (oldQueryData: RouterOutput["traces"]["all"] | undefined) => {
           return {
-            totalCount: oldQueryData?.totalCount,
             traces: oldQueryData?.traces
               ? oldQueryData.traces.map((trace) => {
                   return {
@@ -109,17 +114,23 @@ export function StarTraceToggle({
       size={size}
       disabled={!hasAccess}
       isLoading={isLoading}
-      onClick={(value) =>
-        mutBookmarkTrace.mutateAsync({
+      onClick={(value) => {
+        capture("table:bookmark_button_click", {
+          table: "traces",
+          id: traceId,
+          value: value,
+        });
+        return mutBookmarkTrace.mutateAsync({
           projectId,
           traceId,
           bookmarked: value,
-        })
-      }
+        });
+      }}
     />
   );
 }
 
+// use by the single trace view
 export function StarTraceDetailsToggle({
   projectId,
   traceId,
@@ -132,35 +143,48 @@ export function StarTraceDetailsToggle({
   size?: "sm" | "xs";
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
-
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "objects:bookmark",
+  });
+  const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
     onMutate: async () => {
       // Cancel any outgoing refetches
       // (so they don't overwrite our optimistic update)
-      await utils.traces.byId.cancel();
+      await utils.traces.byIdWithObservationsAndScores.cancel();
 
       setIsLoading(true);
 
       // Snapshot the previous value
-      const prevData = utils.traces.byId.getData({ traceId });
+      const prevData = utils.traces.byIdWithObservationsAndScores.getData({
+        traceId,
+        projectId,
+      });
 
       return { prevData };
     },
     onError: (err, _newTodo, context) => {
       setIsLoading(false);
-      console.log("error", err);
+      trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
-      utils.traces.byId.setData({ traceId }, context?.prevData);
+      utils.traces.byIdWithObservationsAndScores.setData(
+        { traceId, projectId },
+        context?.prevData,
+      );
     },
     onSettled: () => {
       setIsLoading(false);
 
-      utils.traces.byId.setData(
-        { traceId },
-        (oldQueryData: RouterOutput["traces"]["byId"] | undefined) => {
+      utils.traces.byIdWithObservationsAndScores.setData(
+        { traceId, projectId },
+        (
+          oldQueryData:
+            | RouterOutput["traces"]["byIdWithObservationsAndScores"]
+            | undefined,
+        ) => {
           return oldQueryData
             ? {
                 ...oldQueryData,
@@ -169,7 +193,7 @@ export function StarTraceDetailsToggle({
             : undefined;
         },
       );
-      void utils.traces.byId.invalidate();
+      void utils.traces.byIdWithObservationsAndScores.invalidate();
       void utils.traces.all.invalidate();
     },
   });
@@ -180,13 +204,17 @@ export function StarTraceDetailsToggle({
       size={size}
       disabled={!hasAccess}
       isLoading={isLoading}
-      onClick={(value) =>
-        mutBookmarkTrace.mutateAsync({
+      onClick={(value) => {
+        capture("trace_detail:bookmark_button_click", {
+          id: traceId,
+          value: value,
+        });
+        return mutBookmarkTrace.mutateAsync({
           projectId,
           traceId,
           bookmarked: value,
-        })
-      }
+        });
+      }}
     />
   );
 }
@@ -203,7 +231,11 @@ export function StarSessionToggle({
   size?: "sm" | "xs";
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasAccess({ projectId, scope: "objects:bookmark" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "objects:bookmark",
+  });
+  const capture = usePostHogClientCapture();
   const mutBookmarkSession = api.sessions.bookmark.useMutation({
     onSuccess: () => {
       void utils.sessions.invalidate();
@@ -216,13 +248,18 @@ export function StarSessionToggle({
       size={size}
       isLoading={mutBookmarkSession.isLoading}
       disabled={!hasAccess}
-      onClick={(value) =>
-        mutBookmarkSession.mutateAsync({
+      onClick={(value) => {
+        capture("table:bookmark_button_click", {
+          table: "sessions",
+          id: sessionId,
+          value: value,
+        });
+        return mutBookmarkSession.mutateAsync({
           projectId,
           sessionId,
           bookmarked: value,
-        })
-      }
+        });
+      }}
     />
   );
 }

@@ -9,13 +9,15 @@
     "start": {
       "dependsOn": ["^start"]
     },
-    "db:migrate": {},
+    "db:migrate": {
+      "cache": false
+    },
     "db:deploy": {},
     "db:reset": {},
     "db:push": {},
     "db:seed": {},
     "models:migrate": {
-      "dependsOn": ["db:generate"]
+      "dependsOn": ["db:generate", "@langfuse/shared#build"]
     },
     "db:seed:examples": {},
     "dev": {

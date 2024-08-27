@@ -1,3 +1,4 @@
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useState, useMemo } from "react";
 
 type UseTagManagerProps = {
@@ -12,8 +13,15 @@ export function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
     () => allTags.filter((value) => !selectedTags.includes(value)),
     [allTags, selectedTags],
   );
+  const capture = usePostHogClientCapture();
   const handleItemCreate = () => {
-    setSelectedTags([...selectedTags, inputValue]);
+    setSelectedTags((prevSelectedTags) => [
+      // dedupe
+      ...new Set([...prevSelectedTags, inputValue]),
+    ]);
+    capture("tag:create_new_button_click", {
+      name: inputValue,
+    });
     availableTags.push(inputValue);
     setInputValue("");
   };

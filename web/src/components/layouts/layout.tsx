@@ -1,28 +1,25 @@
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
-import { Fragment, type PropsWithChildren, useState } from "react";
+import { Fragment, type PropsWithChildren, useEffect, useState } from "react";
 import { Dialog, Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-
 import Link from "next/link";
 import { useRouter } from "next/router";
 import clsx from "clsx";
 import { MessageSquarePlus, Info, ChevronRightIcon } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+import { getSession, signOut, useSession } from "next-auth/react";
 import { cn } from "@/src/utils/tailwind";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
-import { api } from "@/src/utils/api";
-import { NewProjectButton } from "@/src/features/projects/components/NewProjectButton";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { Button } from "@/src/components/ui/button";
 import Head from "next/head";
 import { env } from "@/src/env.mjs";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
-import { hasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Toaster } from "@/src/components/ui/sonner";
 import {
   NOTIFICATIONS,
@@ -30,58 +27,139 @@ import {
 } from "@/src/features/notifications/checkNotifications";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { ProjectNavigation } from "@/src/components/projectNavigation";
+import DOMPurify from "dompurify";
+import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import { EnvLabel } from "@/src/components/EnvLabel";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+
+const signOutUser = async () => {
+  localStorage.clear();
+  sessionStorage.clear();
+
+  await signOut({
+    callbackUrl: "/auth/sign-in",
+  });
+};
 
 const userNavigation = [
   {
+    name: "Theme",
+    onClick: () => {},
+    content: <ThemeToggle />,
+  },
+  {
     name: "Sign out",
-    onClick: () =>
-      signOut({
-        callbackUrl: "/auth/sign-in",
-      }),
+    onClick: signOutUser,
   },
 ];
 
-const pathsWithoutNavigation: string[] = ["/onboarding"];
-const unauthenticatedPaths: string[] = ["/auth/sign-in", "/auth/sign-up"];
+const pathsWithoutNavigation: string[] = [
+  "/onboarding",
+  "/auth/reset-password",
+];
+const unauthenticatedPaths: string[] = [
+  "/auth/sign-in",
+  "/auth/sign-up",
+  "/auth/error",
+];
+// auth or unauthed
 const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
+  "/auth/reset-password",
 ];
+
+/**
+ * Patched version of useSession that retries fetching the session if the user
+ * is unauthenticated. This is useful to mitigate exceptions on the
+ * /api/auth/session endpoint which cause the session to be unauthenticated even
+ * though the user is signed in.
+ */
+function useSessionWithRetryOnUnauthenticated() {
+  const MAX_RETRIES = 2;
+  const [retryCount, setRetryCount] = useState(0);
+  const session = useSession();
+
+  useEffect(() => {
+    if (session.status === "unauthenticated" && retryCount < MAX_RETRIES) {
+      const fetchSession = async () => {
+        await getSession({ broadcast: true });
+        setRetryCount((prevCount) => prevCount + 1);
+      };
+      fetchSession();
+    }
+    if (session.status === "authenticated" && retryCount > 0) {
+      setRetryCount(0);
+    }
+  }, [session.status, retryCount]);
+
+  return session.status !== "unauthenticated" || retryCount >= MAX_RETRIES
+    ? session
+    : { ...session, status: "loading" };
+}
 
 export default function Layout(props: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
-  const session = useSession();
+  const routerProjectId = router.query.projectId as string | undefined;
+  const routerOrganizationId = router.query.organizationId as
+    | string
+    | undefined;
+  const session = useSessionWithRetryOnUnauthenticated();
 
   useCheckNotification(NOTIFICATIONS, session.status === "authenticated");
 
   const enableExperimentalFeatures =
-    api.environment.enableExperimentalFeatures.useQuery().data ?? false;
+    session.data?.environment.enableExperimentalFeatures ?? false;
 
-  const projectId = router.query.projectId as string | undefined;
+  const entitlements = useOrgEntitlements();
+
+  const uiCustomization = useUiCustomization();
+
+  const cloudAdmin =
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+    session.data?.user?.admin === true;
+
+  // project info based on projectId in the URL
+  const { project, organization } = useQueryProjectOrOrganization();
 
   const mapNavigation = (route: Route): NavigationItem | null => {
     // Project-level routes
-    if (!projectId && route.pathname?.includes("[projectId]")) return null;
+    if (!routerProjectId && route.pathname?.includes("[projectId]"))
+      return null;
+
+    // Organization-level routes
+    if (!routerOrganizationId && route.pathname?.includes("[organizationId]"))
+      return null;
 
     // Feature Flags
     if (
-      !(
-        route.featureFlag === undefined ||
-        enableExperimentalFeatures ||
-        session.data?.user?.featureFlags[route.featureFlag]
-      )
+      route.featureFlag !== undefined &&
+      !enableExperimentalFeatures &&
+      !cloudAdmin &&
+      session.data?.user?.featureFlags[route.featureFlag] !== true
+    )
+      return null;
+
+    // check entitlements
+    if (
+      route.entitlement !== undefined &&
+      !entitlements.includes(route.entitlement) &&
+      !cloudAdmin
     )
       return null;
 
     // RBAC
     if (
-      route.rbacScope !== undefined &&
-      (!projectId ||
-        !hasAccess({
-          projectId,
-          scope: route.rbacScope,
+      route.projectRbacScope !== undefined &&
+      !cloudAdmin &&
+      (!project ||
+        !organization ||
+        !hasProjectAccess({
+          projectId: project.id,
+          scope: route.projectRbacScope,
           session: session.data,
         }))
     )
@@ -91,9 +169,22 @@ export default function Layout(props: PropsWithChildren) {
     const children: (NavigationItem | null)[] =
       route.children?.map((child) => mapNavigation(child)).filter(Boolean) ??
       [];
+
+    const href = (
+      route.customizableHref
+        ? uiCustomization?.[route.customizableHref] ?? route.pathname
+        : route.pathname
+    )
+      ?.replace("[projectId]", routerProjectId ?? "")
+      .replace("[organizationId]", routerOrganizationId ?? "");
+
     return {
       ...route,
-      href: route.pathname?.replace("[projectId]", projectId ?? ""),
+      href,
+      newTab:
+        route.customizableHref && uiCustomization?.[route.customizableHref]
+          ? true
+          : route.newTab,
       current: router.pathname === route.pathname,
       children:
         children.length > 0
@@ -102,16 +193,13 @@ export default function Layout(props: PropsWithChildren) {
     };
   };
 
-  const navigationMapped: (NavigationItem | null)[] = ROUTES.map((route) =>
-    mapNavigation(route),
-  ).filter(Boolean);
-  const navigation = navigationMapped.filter(Boolean) as NavigationItem[]; // does not include null due to filter
+  const navigation = ROUTES.map((route) => mapNavigation(route)).filter(
+    (item): item is NavigationItem => Boolean(item),
+  );
   const topNavigation = navigation.filter(({ bottom }) => !bottom);
   const bottomNavigation = navigation.filter(({ bottom }) => bottom);
 
   const currentPathName = navigation.find(({ current }) => current)?.name;
-
-  const projects = session.data?.user?.projects ?? [];
 
   if (session.status === "loading") return <Spinner message="Loading" />;
 
@@ -123,9 +211,9 @@ export default function Layout(props: PropsWithChildren) {
     !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void signOut({
-      callbackUrl: "/auth/sign-in",
-    });
+    console.warn("Layout: User was signed out as db user was not found");
+    signOutUser();
+
     return <Spinner message="Redirecting" />;
   }
 
@@ -135,7 +223,14 @@ export default function Layout(props: PropsWithChildren) {
     !publishablePaths.includes(router.pathname) &&
     !router.pathname.startsWith("/public/")
   ) {
-    void router.replace("/auth/sign-in");
+    const newTargetPath = router.asPath;
+    if (newTargetPath && newTargetPath !== "/") {
+      void router.replace(
+        `/auth/sign-in?targetPath=${encodeURIComponent(newTargetPath)}`,
+      );
+    } else {
+      void router.replace(`/auth/sign-in`);
+    }
     return <Spinner message="Redirecting" />;
   }
 
@@ -143,18 +238,23 @@ export default function Layout(props: PropsWithChildren) {
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
   ) {
-    void router.replace("/");
+    const targetPath = router.query.targetPath as string | undefined;
+
+    const sanitizedTargetPath = targetPath
+      ? DOMPurify.sanitize(targetPath)
+      : undefined;
+
+    void router.replace(sanitizedTargetPath ?? "/");
     return <Spinner message="Redirecting" />;
   }
 
   const hideNavigation =
     session.status === "unauthenticated" ||
-    projects.length === 0 ||
     pathsWithoutNavigation.includes(router.pathname) ||
     router.pathname.startsWith("/public/");
   if (hideNavigation)
     return (
-      <main className="min-h-screen bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-primary-foreground px-4 py-4 sm:px-6 lg:px-8">
         {props.children}
       </main>
     );
@@ -198,7 +298,7 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="opacity-100"
               leaveTo="opacity-0"
             >
-              <div className="fixed inset-0 bg-gray-900/80" />
+              <div className="fixed inset-0 bg-primary/80" />
             </Transition.Child>
 
             <div className="fixed inset-0 flex">
@@ -229,35 +329,18 @@ export default function Layout(props: PropsWithChildren) {
                       >
                         <span className="sr-only">Close sidebar</span>
                         <XMarkIcon
-                          className="h-6 w-6 text-white"
+                          className="h-5 w-5 text-background"
                           aria-hidden="true"
                         />
                       </button>
                     </div>
                   </Transition.Child>
                   {/* Sidebar component, swap this element with another sidebar if you like */}
-                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 py-4">
-                    <LangfuseLogo
-                      version
-                      size="xl"
-                      showEnvLabel={session.data?.user?.email?.endsWith(
-                        "@langfuse.com",
-                      )}
-                    />
+                  <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background px-4 py-3">
                     <nav className="flex flex-1 flex-col">
                       <ul role="list">
                         <MainNavigation nav={navigation} />
                       </ul>
-                      <div className="mb-2 flex flex-row place-content-between items-center">
-                        <div className="text-xs font-semibold leading-6 text-gray-400">
-                          Project
-                        </div>
-                        <NewProjectButton size="xs" />
-                      </div>
-                      <ProjectNavigation
-                        currentProjectId={projectId ?? ""}
-                        projects={projects}
-                      />
                     </nav>
                   </div>
                 </Dialog.Panel>
@@ -267,52 +350,47 @@ export default function Layout(props: PropsWithChildren) {
         </Transition.Root>
 
         {/* Static sidebar for desktop */}
-        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-60 lg:flex-col">
+        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
-          <div className="flex h-screen grow flex-col border-r border-gray-200 bg-white pt-7">
-            <LangfuseLogo
-              version
-              size="xl"
-              className="mb-8 px-6"
-              showEnvLabel={session.data?.user?.email?.endsWith(
-                "@langfuse.com",
-              )}
-            />
-            <nav className="flex h-full flex-1 flex-col overflow-y-auto px-6 pb-3">
+          <div className="flex h-screen grow flex-col border-r border-border bg-background">
+            <nav className="flex h-full flex-1 flex-col overflow-y-auto px-4 py-3">
               <ul role="list" className="flex h-full flex-col">
+                <EnvLabel className="my-2" />
                 <MainNavigation nav={topNavigation} />
                 <MainNavigation nav={bottomNavigation} className="mt-auto" />
-                <FeedbackButtonWrapper
-                  className="space-y-1"
-                  title="Provide feedback"
-                  description="What do you think about this project? What can be improved?"
-                  type="feedback"
-                >
-                  <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50 hover:text-indigo-600">
-                    <MessageSquarePlus
-                      className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
-                      aria-hidden="true"
-                    />
-                    Feedback
-                  </li>
-                </FeedbackButtonWrapper>
-                <div className="mb-2 flex flex-row place-content-between items-center">
-                  <div className="text-xs font-semibold leading-6 text-gray-400">
-                    Project
-                  </div>
-                  <NewProjectButton size="xs" />
-                </div>
-                <ProjectNavigation
-                  currentProjectId={projectId ?? ""}
-                  projects={projects}
-                />
+                {uiCustomization?.feedbackHref ? (
+                  <Link href={uiCustomization.feedbackHref}>
+                    <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-1.5 text-sm font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent">
+                      <MessageSquarePlus
+                        className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
+                        aria-hidden="true"
+                      />
+                      Feedback
+                    </li>
+                  </Link>
+                ) : (
+                  <FeedbackButtonWrapper
+                    className="space-y-1"
+                    title="Provide feedback"
+                    description="What do you think about this project? What can be improved?"
+                    type="feedback"
+                  >
+                    <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-1.5 text-sm font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent">
+                      <MessageSquarePlus
+                        className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
+                        aria-hidden="true"
+                      />
+                      Feedback
+                    </li>
+                  </FeedbackButtonWrapper>
+                )}
               </ul>
             </nav>
 
             <Menu as="div" className="relative">
-              <Menu.Button className="flex w-full items-center gap-x-4 overflow-hidden p-1.5 py-3 pl-6 pr-10 text-sm font-semibold leading-6 text-gray-900 hover:bg-gray-50">
+              <Menu.Button className="flex w-full items-center gap-x-2 overflow-hidden p-1.5 py-3 pl-3 pr-4 text-sm font-semibold text-primary hover:bg-primary-foreground">
                 <span className="sr-only">Open user menu</span>
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-7 w-7">
                   <AvatarImage src={session.data?.user?.image ?? undefined} />
                   <AvatarFallback>
                     {session.data?.user?.name
@@ -324,12 +402,12 @@ export default function Layout(props: PropsWithChildren) {
                       : null}
                   </AvatarFallback>
                 </Avatar>
-                <span className="flex-shrink truncate text-sm font-semibold leading-6 text-gray-900">
+                <span className="flex-shrink truncate text-sm font-semibold text-primary">
                   {session.data?.user?.name}
                 </span>
                 <div className="flex-1" />
                 <ChevronDownIcon
-                  className="h-5 w-5 text-gray-400"
+                  className="h-5 w-5 text-muted-foreground"
                   aria-hidden="true"
                 />
               </Menu.Button>
@@ -342,8 +420,11 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                  <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+                <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
+                  <span
+                    className="block max-w-56 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
+                    title={session.data?.user?.email ?? undefined}
+                  >
                     {session.data?.user?.email}
                   </span>
                   {userNavigation.map((item) => (
@@ -352,11 +433,12 @@ export default function Layout(props: PropsWithChildren) {
                         <a
                           onClick={() => void item.onClick()}
                           className={cn(
-                            active ? "bg-gray-50" : "",
-                            "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                            active ? "bg-primary-foreground" : "",
+                            "flex cursor-pointer items-center justify-between px-2 py-0.5 text-sm leading-6 text-primary",
                           )}
                         >
                           {item.name}
+                          {item.content}
                         </a>
                       )}
                     </Menu.Item>
@@ -367,14 +449,14 @@ export default function Layout(props: PropsWithChildren) {
           </div>
         </div>
 
-        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 lg:hidden">
+        <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-background px-4 py-4 shadow-sm sm:px-6 lg:hidden">
           <button
             type="button"
-            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+            className="-m-2.5 p-2.5 text-primary lg:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
-            <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+            <Bars3Icon className="h-5 w-5" aria-hidden="true" />
           </button>
           <LangfuseLogo
             version
@@ -382,7 +464,7 @@ export default function Layout(props: PropsWithChildren) {
             showEnvLabel={session.data?.user?.email?.endsWith("@langfuse.com")}
           />
           <Menu as="div" className="relative">
-            <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold leading-6 text-gray-900">
+            <Menu.Button className="flex items-center gap-x-4 text-sm font-semibold text-primary">
               <span className="sr-only">Open user menu</span>
               <Avatar className="h-8 w-8">
                 <AvatarImage src={session.data?.user?.image ?? undefined} />
@@ -406,8 +488,11 @@ export default function Layout(props: PropsWithChildren) {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                <span className="mb-1 block border-b px-3 pb-2 text-sm leading-6 text-gray-500">
+              <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-background py-2 pb-1 shadow-lg ring-1 ring-border focus:outline-none">
+                <span
+                  className="mb-1 block max-w-56 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
+                  title={session.data?.user?.email ?? undefined}
+                >
                   {session.data?.user?.email}
                 </span>
                 {userNavigation.map((item) => (
@@ -416,11 +501,12 @@ export default function Layout(props: PropsWithChildren) {
                       <a
                         onClick={() => void item.onClick()}
                         className={cn(
-                          active ? "bg-gray-50" : "",
-                          "block cursor-pointer px-3 py-1 text-sm leading-6 text-gray-900",
+                          active ? "bg-primary-foreground" : "",
+                          "flex cursor-pointer items-center justify-between px-2 py-1 text-sm leading-6 text-primary",
                         )}
                       >
                         {item.name}
+                        {item.content}
                       </a>
                     )}
                   </Menu.Item>
@@ -429,13 +515,12 @@ export default function Layout(props: PropsWithChildren) {
             </Transition>
           </Menu>
         </div>
-        <div className="lg:pl-60">
-          {env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-          (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING" ||
-            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU") &&
-          !session.data?.user?.email?.endsWith("@langfuse.com") ? (
-            <div className="flex w-full items-center border-b border-yellow-500  bg-yellow-100 px-4 py-2 lg:sticky lg:top-0 lg:z-40">
+        <div className="lg:pl-56">
+          {env.NEXT_PUBLIC_DEMO_ORG_ID &&
+          env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+          Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (
+            <div className="flex w-full items-center border-b border-dark-yellow  bg-light-yellow px-4 py-2 lg:sticky lg:top-0 lg:z-40">
               <div className="flex flex-1 flex-wrap gap-1">
                 <div className="flex items-center gap-1">
                   <Info className="h-4 w-4" />
@@ -445,17 +530,8 @@ export default function Layout(props: PropsWithChildren) {
               </div>
 
               <Button size="sm" asChild className="ml-2">
-                <Link
-                  href={
-                    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                      ? "https://langfuse.com/docs/demo"
-                      : "https://docs-staging.langfuse.com/docs/demo"
-                  }
-                  target="_blank"
-                >
-                  {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU"
-                    ? "Use Chat ↗"
-                    : "Use Chat (staging) ↗"}
+                <Link href={"https://langfuse.com/docs/demo"} target="_blank">
+                  Use Chat ↗
                 </Link>
               </Button>
             </div>
@@ -482,9 +558,9 @@ const MainNavigation: React.FC<{
   onNavitemClick?: () => void;
   className?: string;
 }> = ({ nav, onNavitemClick, className }) => {
-  const [isOpen, setIsOpen] = useLocalStorage(
-    "sidebar-tracing-default-open",
-    false,
+  const [isOpen, setIsOpen] = useLocalStorage<Record<string, boolean>>(
+    "sidebar-item-default-open",
+    {},
   );
 
   return (
@@ -497,9 +573,9 @@ const MainNavigation: React.FC<{
                 href={item.href}
                 className={clsx(
                   item.current
-                    ? "bg-gray-50 text-indigo-600"
-                    : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                  "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6",
+                    ? "bg-primary-foreground text-primary-accent"
+                    : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
+                  "group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold",
                 )}
                 onClick={onNavitemClick}
                 target={item.newTab ? "_blank" : undefined}
@@ -508,43 +584,53 @@ const MainNavigation: React.FC<{
                   <item.icon
                     className={clsx(
                       item.current
-                        ? "text-indigo-600"
-                        : "text-gray-400 group-hover:text-indigo-600",
-                      "h-6 w-6 shrink-0",
+                        ? "text-primary-accent"
+                        : "text-muted-foreground group-hover:text-primary-accent",
+                      "h-5 w-5 shrink-0",
                     )}
                     aria-hidden="true"
                   />
                 )}
                 {item.name}
-                {item.label && (
-                  <span
-                    className={cn(
-                      "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                      item.current
-                        ? "border-indigo-600 text-indigo-600"
-                        : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                )}
+                {item.label &&
+                  (typeof item.label === "string" ? (
+                    <span
+                      className={cn(
+                        "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                        item.current
+                          ? "border-primary-accent text-primary-accent"
+                          : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
+                      )}
+                    >
+                      {item.label}
+                    </span>
+                  ) : (
+                    // ReactNode
+                    item.label
+                  ))}
               </Link>
             ) : item.children && item.children.length > 0 ? (
               <Disclosure
                 as="div"
                 defaultOpen={
-                  item.children.some((child) => child.current) || isOpen
+                  item.children.some((child) => child.current) ||
+                  isOpen[item.name]
                 }
               >
                 {({ open }) => (
                   <>
                     <Disclosure.Button
-                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold leading-6 hover:bg-gray-50 hover:text-indigo-600"
-                      onClick={() => setIsOpen(!isOpen)}
+                      className="group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm font-semibold hover:bg-primary-foreground hover:text-primary-accent"
+                      onClick={() =>
+                        setIsOpen((prev) => ({
+                          ...prev,
+                          [item.name]: !prev[item.name],
+                        }))
+                      }
                     >
                       {item.icon && (
                         <item.icon
-                          className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+                          className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
                           aria-hidden="true"
                         />
                       )}
@@ -552,10 +638,10 @@ const MainNavigation: React.FC<{
                       {item.label && (
                         <span
                           className={cn(
-                            "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                            "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                             item.current
-                              ? "border-indigo-600 text-indigo-600"
-                              : "border-gray-200 text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600",
+                              ? "border-primary-accent text-primary-accent"
+                              : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
                           )}
                         >
                           {item.label}
@@ -563,13 +649,15 @@ const MainNavigation: React.FC<{
                       )}
                       <ChevronRightIcon
                         className={clsx(
-                          open ? "rotate-90 text-gray-500" : "text-gray-400",
+                          open
+                            ? "rotate-90 text-muted-foreground"
+                            : "text-muted-foreground",
                           "ml-auto h-5 w-5 shrink-0",
                         )}
                         aria-hidden="true"
                       />
                     </Disclosure.Button>
-                    <Disclosure.Panel as="ul" className="mt-1 px-2">
+                    <Disclosure.Panel as="ul" className="mt-1 space-y-1 px-2">
                       {item.children?.map((subItem) => (
                         <li key={subItem.name}>
                           {/* 44px */}
@@ -577,15 +665,15 @@ const MainNavigation: React.FC<{
                             href={subItem.href ?? "#"}
                             className={clsx(
                               subItem.current
-                                ? "bg-gray-50 text-indigo-600"
-                                : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600",
-                              "flex w-full items-center gap-x-3 rounded-md py-2 pl-9 pr-2 text-sm leading-6",
+                                ? "bg-primary-foreground text-primary-accent"
+                                : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
+                              "ml-0.5 flex w-full items-center gap-x-3 rounded-md p-1.5 pl-7 pr-2 text-sm",
                             )}
                             target={subItem.newTab ? "_blank" : undefined}
                           >
                             {subItem.name}
                             {subItem.label && (
-                              <span className="self-center whitespace-nowrap break-keep rounded-sm border border-gray-200 px-1 py-0.5 text-xs text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
+                              <span className="self-center whitespace-nowrap break-keep rounded-sm border border-border px-1 py-0.5 text-xs text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent">
                                 {subItem.label}
                               </span>
                             )}

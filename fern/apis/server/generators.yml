@@ -6,7 +6,7 @@ groups:
         version: 0.0.28
         output:
           location: local-file-system
-          path: ../../../web/generated/openapi-server
+          path: ../../../web/public/generated/api
         config:
           namespaceExport: Langfuse
           allowCustomFetcher: true
@@ -33,7 +33,7 @@ groups:
         version: 0.0.45
         output:
           location: local-file-system
-          path: ../../../generated/postman
+          path: ../../../web/public/generated/postman
   # published:
   #   generators:
   #     - name: fernapi/fern-python-sdk

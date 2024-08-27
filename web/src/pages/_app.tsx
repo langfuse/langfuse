@@ -18,6 +18,7 @@ import { useRouter } from "next/router";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { CrispWidget, chatSetUser } from "@/src/features/support-chat";
+import prexit from "prexit";
 
 // Custom polyfills not yet available in `next-core`:
 // https://github.com/vercel/next.js/issues/58242
@@ -29,6 +30,10 @@ import "core-js/features/array/to-sorted";
 // Other CSS
 import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
+import { env } from "@/src/env.mjs";
+import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
+import { shutdown } from "@/src/utils/shutdown";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 const setProjectInPosthog = () => {
   // project
@@ -51,10 +56,12 @@ if (
   setProjectInPosthog();
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
+    ui_host: "https://eu.posthog.com",
     // Enable debug mode in development
     loaded: (posthog) => {
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
+    autocapture: false,
   });
 }
 
@@ -66,10 +73,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
-    if (
-      process.env.NEXT_PUBLIC_POSTHOG_KEY &&
-      process.env.NEXT_PUBLIC_POSTHOG_HOST
-    ) {
+    if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
       const handleRouteChange = () => {
         setProjectInPosthog();
         posthog.capture("$pageview");
@@ -87,12 +91,24 @@ const MyApp: AppType<{ session: Session | null }> = ({
     <QueryParamProvider adapter={NextAdapterPages}>
       <TooltipProvider>
         <PostHogProvider client={posthog}>
-          <SessionProvider session={session} refetchOnWindowFocus={true}>
+          <SessionProvider
+            session={session}
+            refetchOnWindowFocus={true}
+            refetchInterval={5 * 60} // 5 minutes
+          >
             <DetailPageListsProvider>
-              <Layout>
-                <Component {...pageProps} />
-                <UserTracking />
-              </Layout>
+              <MarkdownContextProvider>
+                <ThemeProvider
+                  attribute="class"
+                  enableSystem
+                  disableTransitionOnChange
+                >
+                  <Layout>
+                    <Component {...pageProps} />
+                    <UserTracking />
+                  </Layout>
+                </ThemeProvider>
+              </MarkdownContextProvider>
               <CrispWidget />
             </DetailPageListsProvider>
           </SessionProvider>
@@ -107,22 +123,27 @@ export default api.withTRPC(MyApp);
 function UserTracking() {
   const session = useSession();
 
+  const sessionUser = session.data?.user;
+
   useEffect(() => {
-    if (session.status === "authenticated") {
+    if (sessionUser) {
       // PostHog
-      if (
-        process.env.NEXT_PUBLIC_POSTHOG_KEY &&
-        process.env.NEXT_PUBLIC_POSTHOG_HOST
-      )
-        posthog.identify(session.data.user?.id ?? undefined, {
+      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST)
+        posthog.identify(sessionUser.id ?? undefined, {
           environment: process.env.NODE_ENV,
-          email: session.data.user?.email ?? undefined,
-          name: session.data.user?.name ?? undefined,
-          featureFlags: session.data.user?.featureFlags ?? undefined,
-          projects: session.data.user?.projects ?? undefined,
-          LANGFUSE_CLOUD_REGION: process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          email: sessionUser.email ?? undefined,
+          name: sessionUser.name ?? undefined,
+          featureFlags: sessionUser.featureFlags ?? undefined,
+          projects:
+            sessionUser.organizations.flatMap((org) =>
+              org.projects.map((project) => ({
+                ...project,
+                organization: org,
+              })),
+            ) ?? undefined,
+          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
-      const emailDomain = session.data.user?.email?.split("@")[1];
+      const emailDomain = sessionUser.email?.split("@")[1];
       if (emailDomain)
         posthog.group("emailDomain", emailDomain, {
           domain: emailDomain,
@@ -130,35 +151,41 @@ function UserTracking() {
 
       // Sentry
       setUser({
-        email: session.data.user?.email ?? undefined,
-        id: session.data.user?.id ?? undefined,
+        email: sessionUser.email ?? undefined,
+        id: sessionUser.id ?? undefined,
       });
+
       // Chat
       chatSetUser({
-        name: session.data.user?.name ?? "undefined",
-        email: session.data.user?.email ?? "undefined",
+        name: sessionUser.name ?? "undefined",
+        email: sessionUser.email ?? "undefined",
         data: {
-          userId: session.data.user?.id ?? "undefined",
-          projects: session.data.user?.projects
-            ? JSON.stringify(session.data.user.projects)
+          userId: sessionUser.id ?? "undefined",
+          organizations: sessionUser.organizations
+            ? JSON.stringify(sessionUser.organizations)
             : "undefined",
-          featureFlags: session.data.user?.featureFlags
-            ? JSON.stringify(session.data.user.featureFlags)
+          featureFlags: sessionUser.featureFlags
+            ? JSON.stringify(sessionUser.featureFlags)
             : "undefined",
         },
       });
     } else {
       // PostHog
-      if (
-        process.env.NEXT_PUBLIC_POSTHOG_KEY &&
-        process.env.NEXT_PUBLIC_POSTHOG_HOST
-      ) {
+      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
         posthog.reset();
         posthog.resetGroups();
       }
       // Sentry
       setUser(null);
     }
-  }, [session]);
+  }, [sessionUser]);
+
   return null;
+}
+
+if (process.env.NEXT_MANUAL_SIG_HANDLE) {
+  prexit(async (signal) => {
+    console.log("Signal: ", signal);
+    return await shutdown(signal);
+  });
 }

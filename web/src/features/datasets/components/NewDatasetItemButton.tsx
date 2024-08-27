@@ -4,12 +4,12 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const NewDatasetItemButton = (props: {
   projectId: string;
@@ -17,10 +17,11 @@ export const NewDatasetItemButton = (props: {
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
   });
+  const capture = usePostHogClientCapture();
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -28,6 +29,7 @@ export const NewDatasetItemButton = (props: {
           variant="secondary"
           className={props.className}
           disabled={!hasAccess}
+          onClick={() => capture("dataset_item:new_form_open")}
         >
           {hasAccess ? (
             <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
@@ -37,14 +39,13 @@ export const NewDatasetItemButton = (props: {
           New item
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="mb-5">Create new dataset item</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none items-start">
+        <DialogHeader>Create new dataset item</DialogHeader>
         <NewDatasetItemForm
           projectId={props.projectId}
           datasetId={props.datasetId}
           onFormSuccess={() => setOpen(false)}
+          className="h-full overflow-y-auto"
         />
       </DialogContent>
     </Dialog>

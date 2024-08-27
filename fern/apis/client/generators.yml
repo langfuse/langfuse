@@ -15,7 +15,7 @@ groups:
         version: 0.0.26
         output:
           location: local-file-system
-          path: ../../../web/generated/openapi-client
+          path: ../../../web/public/generated/api-client
         config:
           namespaceExport: Langfuse
           allowCustomFetcher: true

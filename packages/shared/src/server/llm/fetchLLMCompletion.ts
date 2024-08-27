@@ -4,6 +4,7 @@ import {
   HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
+import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import {
   BytesOutputParser,
   StringOutputParser,
@@ -16,7 +17,7 @@ import {
   ChatMessageRole,
   LLMFunctionCall,
   ModelParams,
-  ModelProvider,
+  LLMAdapter,
 } from "./types";
 import zodToJsonSchema from "zod-to-json-schema";
 import { JsonOutputFunctionsParser } from "langchain/output_parsers";
@@ -25,6 +26,10 @@ type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
   functionCall?: LLMFunctionCall;
+  callbacks?: BaseCallbackHandler[];
+  baseURL?: string;
+  apiKey?: string;
+  maxRetries?: number;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -34,14 +39,12 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
-    functionCall: undefined;
   }
 ): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
-    functionCall: undefined;
   }
 ): Promise<string>;
 
@@ -55,7 +58,17 @@ export async function fetchLLMCompletion(
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams
 ): Promise<string | IterableReadableStream<Uint8Array> | unknown> {
-  const { messages, modelParams, streaming } = params;
+  // the apiKey must never be printed to the console
+  const {
+    messages,
+    modelParams,
+    streaming,
+    callbacks,
+    apiKey,
+    baseURL,
+    maxRetries,
+  } = params;
+
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
       return new HumanMessage(message.content);
@@ -66,22 +79,46 @@ export async function fetchLLMCompletion(
   });
 
   let chatModel: ChatOpenAI | ChatAnthropic;
-  if (modelParams.provider === ModelProvider.Anthropic) {
+  if (modelParams.adapter === LLMAdapter.Anthropic) {
     chatModel = new ChatAnthropic({
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      anthropicApiKey: apiKey,
+      anthropicApiUrl: baseURL,
       modelName: modelParams.model,
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
+      callbacks,
+      clientOptions: { maxRetries },
+    });
+  } else if (modelParams.adapter === LLMAdapter.OpenAI) {
+    chatModel = new ChatOpenAI({
+      openAIApiKey: apiKey,
+      modelName: modelParams.model,
+      temperature: modelParams.temperature,
+      maxTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      callbacks,
+      maxRetries,
+      configuration: {
+        baseURL,
+      },
+    });
+  } else if (modelParams.adapter === LLMAdapter.Azure) {
+    chatModel = new ChatOpenAI({
+      azureOpenAIApiKey: apiKey,
+      azureOpenAIBasePath: baseURL,
+      azureOpenAIApiDeploymentName: modelParams.model,
+      azureOpenAIApiVersion: "2024-02-01",
+      temperature: modelParams.temperature,
+      maxTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      callbacks,
+      maxRetries,
     });
   } else {
-    chatModel = new ChatOpenAI({
-      openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: modelParams.model,
-      temperature: modelParams.temperature,
-      maxTokens: modelParams.max_tokens,
-      topP: modelParams.top_p,
-    });
+    // eslint-disable-next-line no-unused-vars
+    const _exhaustiveCheck: never = modelParams.adapter;
+    throw new Error("This model provider is not supported.");
   }
 
   if (params.functionCall) {

@@ -17,7 +17,7 @@ export const NoData = ({
       justifyContent="center"
       className={cn(
         className,
-        "min-h-[9rem] w-full flex-1 rounded-tremor-default border border-dashed border-tremor-border",
+        "min-h-[9rem] w-full flex-1 rounded-tremor-default border border-dashed",
       )}
     >
       <Text className="text-tremor-content">{noDataText}</Text>

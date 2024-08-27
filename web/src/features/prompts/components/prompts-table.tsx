@@ -8,7 +8,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -19,13 +19,16 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 type PromptTableRow = {
   name: string;
   version: number;
-  id: string;
   createdAt: Date;
-  isActive: boolean;
+  labels: string[];
   type: string;
   numberOfObservations: number;
   tags: string[];
@@ -35,12 +38,16 @@ export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
-  const hasCUDAccess = useHasAccess({
+  const hasCUDAccess = useHasProjectAccess({
     projectId,
     scope: "prompts:CUD",
   });
 
-  const [filterState, setFilterState] = useQueryFilterState([], "prompts");
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "prompts",
+    projectId,
+  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
@@ -59,8 +66,47 @@ export function PromptTable() {
       filter: filterState,
       orderBy: orderByState,
     },
-    { enabled: Boolean(projectId) },
+    {
+      enabled: Boolean(projectId),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
   );
+  const promptMetrics = api.prompts.metrics.useQuery(
+    {
+      projectId: projectId as string,
+      promptNames: prompts.data?.prompts.map((p) => p.name) ?? [],
+    },
+    {
+      enabled:
+        Boolean(projectId) && prompts.data && prompts.data.totalCount > 0,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  type CoreOutput = RouterOutput["prompts"]["all"]["prompts"][number];
+  type MetricsOutput = RouterOutput["prompts"]["metrics"][number];
+
+  type CoreType = Omit<CoreOutput, "name"> & { id: string };
+  type MetricType = Omit<MetricsOutput, "promptName"> & { id: string };
+
+  const promptsRowData = joinTableCoreAndMetrics<CoreType, MetricType>(
+    prompts.data?.prompts.map((p) => ({
+      ...p,
+      id: p.name,
+    })),
+    promptMetrics.data?.map((pm) => ({
+      ...pm,
+      id: pm.promptName,
+    })),
+  );
+
   const promptFilterOptions = api.prompts.filterOptions.useQuery(
     {
       projectId: projectId as string,
@@ -75,8 +121,8 @@ export function PromptTable() {
   );
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
-
-  const totalCount = prompts.data?.totalCount ?? 0;
+  const capture = usePostHogClientCapture();
+  const totalCount = prompts.data?.totalCount ?? null;
 
   useEffect(() => {
     if (prompts.isSuccess) {
@@ -94,21 +140,22 @@ export function PromptTable() {
       header: "Name",
       id: "name",
       enableSorting: true,
+      size: 250,
       cell: (row) => {
         const name = row.getValue();
         return name ? (
           <TableLink
             path={`/project/${projectId}/prompts/${encodeURIComponent(name)}`}
             value={name}
-            truncateAt={50}
           />
         ) : undefined;
       },
     }),
     columnHelper.accessor("version", {
-      header: "Latest Version",
+      header: "Versions",
       id: "version",
       enableSorting: true,
+      size: 70,
       cell: (row) => {
         return row.getValue();
       },
@@ -117,6 +164,7 @@ export function PromptTable() {
       header: "Type",
       id: "type",
       enableSorting: true,
+      size: 60,
       cell: (row) => {
         return row.getValue();
       },
@@ -125,6 +173,7 @@ export function PromptTable() {
       header: "Latest Version Created At",
       id: "createdAt",
       enableSorting: true,
+      size: 200,
       cell: (row) => {
         const createdAt = row.getValue();
         return createdAt.toLocaleString();
@@ -132,12 +181,16 @@ export function PromptTable() {
     }),
     columnHelper.accessor("numberOfObservations", {
       header: "Number of Generations",
+      size: 170,
       cell: (row) => {
         const numberOfObservations = row.getValue();
         const name = row.row.original.name;
         const filter = encodeURIComponent(
           `promptName;stringOptions;;any of;${name}`,
         );
+        if (!promptMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
         return (
           <TableLink
             path={`/project/${projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
@@ -150,6 +203,7 @@ export function PromptTable() {
       header: "Tags",
       id: "tags",
       enableSorting: true,
+      size: 120,
       cell: (row) => {
         const tags = row.getValue();
         const promptName: string = row.row.original.name;
@@ -173,27 +227,13 @@ export function PromptTable() {
     columnHelper.display({
       id: "actions",
       header: "Actions",
+      size: 70,
       cell: (row) => {
         const name = row.row.original.name;
         return <DeletePrompt promptName={name} />;
       },
     }),
   ] as LangfuseColumnDef<PromptTableRow>[];
-
-  const convertToTableRow = (
-    item: RouterOutput["prompts"]["all"]["prompts"][number],
-  ): PromptTableRow => {
-    return {
-      id: item.id,
-      name: item.name,
-      version: item.version,
-      createdAt: item.createdAt,
-      type: item.type,
-      isActive: item.isActive,
-      numberOfObservations: Number(item.observationCount),
-      tags: item.tags,
-    };
-  };
 
   return (
     <div>
@@ -203,7 +243,30 @@ export function PromptTable() {
           promptFilterOptions.data,
         )}
         filterState={filterState}
-        setFilterState={setFilterState}
+        setFilterState={useDebounce(setFilterState)}
+        columnsWithCustomSelect={["labels", "tags"]}
+        actionButtons={
+          <Link href={`/project/${projectId}/prompts/new`}>
+            <Button
+              variant="secondary"
+              disabled={!hasCUDAccess}
+              aria-label="Create New Prompt"
+              onClick={() => {
+                capture("prompts:new_form_open");
+              }}
+            >
+              {hasCUDAccess ? (
+                <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+              ) : (
+                <LockIcon
+                  className="-ml-0.5 mr-1.5 h-3 w-3"
+                  aria-hidden="true"
+                />
+              )}
+              New prompt
+            </Button>
+          </Link>
+        }
       />
       <DataTable
         columns={promptColumns}
@@ -219,32 +282,26 @@ export function PromptTable() {
               : {
                   isLoading: false,
                   isError: false,
-                  data: prompts.data.prompts.map((t) => convertToTableRow(t)),
+                  data: promptsRowData.rows?.map((item) => ({
+                    id: item.id,
+                    name: item.id, // was renamed to id to match the core and metrics
+                    version: item.version,
+                    createdAt: item.createdAt,
+                    type: item.type,
+                    labels: item.labels,
+                    numberOfObservations: Number(item.observationCount ?? 0),
+                    tags: item.tags,
+                  })),
                 }
         }
         orderBy={orderByState}
         setOrderBy={setOrderByState}
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}
       />
-      <Link href={`/project/${projectId}/prompts/new`}>
-        <Button
-          variant="secondary"
-          className="mt-4"
-          disabled={!hasCUDAccess}
-          aria-label="Promote Prompt to Production"
-        >
-          {hasCUDAccess ? (
-            <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
-          ) : (
-            <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
-          )}
-          New prompt
-        </Button>
-      </Link>
     </div>
   );
 }

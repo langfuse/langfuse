@@ -4,26 +4,76 @@ imports:
   pagination: ./utils/pagination.yml
 service:
   auth: true
-  base-path: /api/public
+  base-path: /api/public/v2
   endpoints:
     get:
       docs: Get a prompt
       method: GET
+      path: /prompts/{promptName}
+      path-parameters:
+        promptName:
+          type: string
+          docs: The name of the prompt
+      request:
+        name: GetPromptRequest
+        query-parameters:
+          version:
+            type: optional<integer>
+            docs: Version of the prompt to be retrieved.
+          label:
+            type: optional<string>
+            docs: Label of the prompt to be retrieved. Defaults to "production" if no label or version is set.
+      response: Prompt
+
+    list:
+      docs: Get a list of prompt names with versions and labels
+      method: GET
       path: /prompts
       request:
-        name: GetParameterRequest
+        name: ListPromptsMetaRequest
         query-parameters:
-          name: string
-          version: optional<integer>
-      response: Prompt
+          name: optional<string>
+          label: optional<string>
+          tag: optional<string>
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+          fromUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated on or after a certain datetime (ISO 8601)
+          toUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated before a certain datetime (ISO 8601)
+
+      response: PromptMetaListResponse
+
     create:
-      docs: Create a prompt
+      docs: Create a new version for the prompt with the given `name`
       method: POST
       path: /prompts
       request: CreatePromptRequest
       response: Prompt
 
 types:
+  PromptMetaListResponse:
+    properties:
+      data: list<PromptMeta>
+      meta: pagination.MetaResponse
+
+  PromptMeta:
+    properties:
+      name: string
+      versions: list<integer>
+      labels: list<string>
+      tags: list<string>
+      lastUpdatedAt: datetime
+      lastConfig:
+        type: unknown
+        docs: Config object of the most recent prompt version that matches the filters (if any are provided)
+
   CreatePromptRequest:
     union:
       chat: CreateChatPromptRequest
@@ -32,20 +82,26 @@ types:
   CreateChatPromptRequest:
     properties:
       name: string
-      isActive:
-        docs: Should the prompt be promoted to production immediately?
-        type: boolean
       prompt: list<ChatMessage>
       config: optional<unknown>
+      labels:
+        type: optional<list<string>>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: optional<list<string>>
+        docs: List of tags to apply to all versions of this prompt.
 
   CreateTextPromptRequest:
     properties:
       name: string
-      isActive:
-        docs: Should the prompt be promoted to production immediately?
-        type: boolean
       prompt: string
       config: optional<unknown>
+      labels:
+        type: optional<list<string>>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: optional<list<string>>
+        docs: List of tags to apply to all versions of this prompt.
 
   Prompt:
     union:
@@ -57,6 +113,12 @@ types:
       name: string
       version: integer
       config: unknown
+      labels:
+        type: list<string>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: list<string>
+        docs: List of tags. Used to filter via UI and API. The same across versions of a prompt.
 
   ChatMessage:
     properties:

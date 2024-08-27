@@ -51,7 +51,7 @@ export const AutoComplete = ({
         setOpen(true);
       }
 
-      // This is not a default behaviour of the <input /> field
+      // This is not a default behavior of the <input /> field
       if (event.key === "Enter" && input.value !== "") {
         const optionToSelect = options.find(
           (option) => option.label === input.value,
@@ -105,8 +105,8 @@ export const AutoComplete = ({
       </div>
       <div className="relative mt-1">
         {isOpen ? (
-          <div className="absolute top-0 z-10 w-full rounded-xl bg-stone-50 outline-none animate-in fade-in-0 zoom-in-95">
-            <CommandList className="rounded-lg ring-1 ring-slate-200">
+          <div className="absolute top-0 z-10 w-full rounded-xl bg-background outline-none animate-in fade-in-0 zoom-in-95">
+            <CommandList className="rounded-lg ring-1 ring-border">
               {options.length > 0 ? (
                 <CommandGroup>
                   {options.map((option) => {
@@ -145,7 +145,9 @@ export const AutoComplete = ({
               />
             </CommandList>
           </div>
-        ) : null}
+        ) : (
+          <CommandList /> // CommandPrimitive expects a CommandList child, fix to prevent errors introduced in cmdk v1.0.0
+        )}
       </div>
     </CommandPrimitive>
   );

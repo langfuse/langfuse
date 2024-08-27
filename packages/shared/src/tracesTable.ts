@@ -1,8 +1,13 @@
 import { ObservationLevel } from "@prisma/client";
 import { ColumnDefinition, OptionsDefinition } from ".";
 
-export const tracesTableCols: ColumnDefinition[] = [
-  { name: "⭐️", id: "bookmarked", type: "boolean", internal: "t.bookmarked" },
+const tracesOnlyCols: ColumnDefinition[] = [
+  {
+    name: "⭐️",
+    id: "bookmarked",
+    type: "boolean",
+    internal: "t.bookmarked",
+  },
   { name: "ID", id: "id", type: "string", internal: "t.id" },
   {
     name: "Name",
@@ -10,6 +15,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: 't."name"',
     options: [], // to be filled in at runtime
+    nullable: true,
   },
   {
     name: "Timestamp",
@@ -17,36 +23,19 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "datetime",
     internal: 't."timestamp"',
   },
-  { name: "User ID", id: "userId", type: "string", internal: 't."user_id"' },
+  {
+    name: "User ID",
+    id: "userId",
+    type: "string",
+    internal: 't."user_id"',
+    nullable: true,
+  },
   {
     name: "Session ID",
     id: "sessionId",
     type: "string",
     internal: 't."session_id"',
-  },
-  {
-    name: "Input Tokens",
-    id: "inputTokens",
-    type: "number",
-    internal: 'tm."promptTokens"',
-  },
-  {
-    name: "Output Tokens",
-    id: "outputTokens",
-    type: "number",
-    internal: 'tm."completionTokens"',
-  },
-  {
-    name: "Total Tokens",
-    id: "totalTokens",
-    type: "number",
-    internal: 'tm."totalTokens"',
-  },
-  {
-    name: "Usage",
-    id: "usage",
-    type: "number",
-    internal: 'tm."totalTokens"',
+    nullable: true,
   },
   {
     name: "Metadata",
@@ -54,6 +43,66 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "stringObject",
     internal: 't."metadata"',
   },
+  {
+    name: "Version",
+    id: "version",
+    type: "string",
+    internal: 't."version"',
+    nullable: true,
+  },
+  {
+    name: "Release",
+    id: "release",
+    type: "string",
+    internal: 't."release"',
+    nullable: true,
+  },
+  {
+    name: "Level",
+    id: "level",
+    type: "stringOptions",
+    internal: '"level"',
+    options: Object.values(ObservationLevel).map((value) => ({ value })),
+  },
+  {
+    name: "Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: 't."tags"',
+    options: [], // to be filled in at runtime
+  },
+];
+export const tracesTableCols: ColumnDefinition[] = [
+  ...tracesOnlyCols,
+  {
+    name: "Input Tokens",
+    id: "inputTokens",
+    type: "number",
+    internal: 'tm."promptTokens"',
+    nullable: true,
+  },
+  {
+    name: "Output Tokens",
+    id: "outputTokens",
+    type: "number",
+    internal: 'tm."completionTokens"',
+    nullable: true,
+  },
+  {
+    name: "Total Tokens",
+    id: "totalTokens",
+    type: "number",
+    internal: 'tm."totalTokens"',
+    nullable: true,
+  },
+  {
+    name: "Usage",
+    id: "usage",
+    type: "number",
+    internal: 'tm."totalTokens"',
+    nullable: true,
+  },
+
   {
     name: "Scores",
     id: "scores_avg",
@@ -71,46 +120,25 @@ export const tracesTableCols: ColumnDefinition[] = [
     id: "inputCost",
     type: "number",
     internal: '"calculatedInputCost"',
+    nullable: true,
   },
   {
     name: "Output Cost ($)",
     id: "outputCost",
     type: "number",
     internal: '"calculatedOutputCost"',
+    nullable: true,
   },
   {
     name: "Total Cost ($)",
     id: "totalCost",
     type: "number",
     internal: '"calculatedTotalCost"',
-  },
-  {
-    name: "Version",
-    id: "version",
-    type: "string",
-    internal: 't."version"',
-  },
-  {
-    name: "Release",
-    id: "release",
-    type: "string",
-    internal: 't."release"',
-  },
-  {
-    name: "Level",
-    id: "level",
-    type: "stringOptions",
-    internal: '"level"',
-    options: Object.values(ObservationLevel).map((value) => ({ value })),
-  },
-  {
-    name: "Tags",
-    id: "tags",
-    type: "arrayOptions",
-    internal: 't."tags"',
-    options: [], // to be filled in at runtime
+    nullable: true,
   },
 ];
+
+export const evalTableCols: ColumnDefinition[] = tracesOnlyCols;
 
 export type TraceOptions = {
   scores_avg: Array<string>;
@@ -119,9 +147,10 @@ export type TraceOptions = {
 };
 
 export function tracesTableColsWithOptions(
-  options?: TraceOptions
+  options?: TraceOptions,
+  cols: ColumnDefinition[] = tracesTableCols
 ): ColumnDefinition[] {
-  return tracesTableCols.map((col) => {
+  return cols.map((col) => {
     if (col.id === "scores_avg") {
       return { ...col, keyOptions: options?.scores_avg ?? [] };
     }

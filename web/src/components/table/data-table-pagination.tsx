@@ -14,6 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { LoaderCircle } from "lucide-react";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -24,18 +26,28 @@ export function DataTablePagination<TData>({
   table,
   paginationOptions = [10, 20, 30, 40, 50],
 }: DataTablePaginationProps<TData>) {
+  const capture = usePostHogClientCapture();
+
   return (
-    <div className="mt-3 flex items-center justify-between overflow-x-auto px-2">
+    <div className="flex items-center justify-between">
       <div className="flex-1 text-sm text-muted-foreground">
         {/* {table.getFilteredSelectedRowModel().rows.length} of{" "}
         {table.getFilteredRowModel().rows.length} row(s) selected. */}
       </div>
-      <div className="flex items-center space-x-6 lg:space-x-8">
+      <div className="flex flex-wrap items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
-          <p className="whitespace-nowrap text-sm font-medium">Rows per page</p>
+          <p className="whitespace-nowrap text-sm font-medium md:hidden">
+            Rows
+          </p>
+          <p className="hidden whitespace-nowrap text-sm font-medium md:block">
+            Rows per page
+          </p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
+              capture("table:pagination_page_size_select", {
+                pageSize: value,
+              });
               table.setPageSize(Number(value));
             }}
           >
@@ -51,15 +63,24 @@ export function DataTablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex w-[100px] items-center justify-center whitespace-nowrap text-sm font-medium">
+        <div className="flex items-center justify-center whitespace-nowrap text-sm font-medium">
           Page {table.getState().pagination.pageIndex + 1} of{" "}
-          {table.getPageCount()}
+          {table.getPageCount() === -1 ? (
+            <LoaderCircle className="ml-1 h-3 w-3 animate-spin text-muted-foreground" />
+          ) : (
+            table.getPageCount()
+          )}
         </div>
         <div className="flex items-center space-x-2">
           <Button
             variant="outline"
             className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(0)}
+            onClick={() => {
+              table.setPageIndex(0);
+              capture("table:pagination_button_click", {
+                type: "firstPage",
+              });
+            }}
             disabled={!table.getCanPreviousPage()}
           >
             <span className="sr-only">Go to first page</span>
@@ -68,7 +89,12 @@ export function DataTablePagination<TData>({
           <Button
             variant="outline"
             className="h-8 w-8 p-0"
-            onClick={() => table.previousPage()}
+            onClick={() => {
+              table.previousPage();
+              capture("table:pagination_button_click", {
+                type: "previousPage",
+              });
+            }}
             disabled={!table.getCanPreviousPage()}
           >
             <span className="sr-only">Go to previous page</span>
@@ -77,7 +103,12 @@ export function DataTablePagination<TData>({
           <Button
             variant="outline"
             className="h-8 w-8 p-0"
-            onClick={() => table.nextPage()}
+            onClick={() => {
+              table.nextPage();
+              capture("table:pagination_button_click", {
+                type: "nextPage",
+              });
+            }}
             disabled={!table.getCanNextPage()}
           >
             <span className="sr-only">Go to next page</span>
@@ -86,8 +117,13 @@ export function DataTablePagination<TData>({
           <Button
             variant="outline"
             className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
+            onClick={() => {
+              table.setPageIndex(table.getPageCount() - 1);
+              capture("table:pagination_button_click", {
+                type: "lastPage",
+              });
+            }}
+            disabled={!table.getCanNextPage() || table.getPageCount() === -1}
           >
             <span className="sr-only">Go to last page</span>
             <DoubleArrowRightIcon className="h-4 w-4" />

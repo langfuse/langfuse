@@ -18,7 +18,10 @@ import { useState, useEffect } from "react";
  *
  * @throws Will throw an error if the stringifying the value or accessing local storage fails.
  */
-function useLocalStorage<T>(localStorageKey: string, initialValue: T) {
+function useLocalStorage<T>(
+  localStorageKey: string,
+  initialValue: T,
+): [T, React.Dispatch<React.SetStateAction<T>>, () => void] {
   const [value, setValue] = useState<T>(() => {
     if (typeof window === "undefined") {
       return initialValue;
@@ -49,11 +52,7 @@ function useLocalStorage<T>(localStorageKey: string, initialValue: T) {
     }
   }, [localStorageKey, value]);
 
-  return [value, setValue, clearValue] as [
-    T,
-    React.Dispatch<React.SetStateAction<T>>,
-    () => void,
-  ];
+  return [value, setValue, clearValue] as const;
 }
 
 export default useLocalStorage;

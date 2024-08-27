@@ -50,7 +50,7 @@ describe("Build valid SQL queries", () => {
         table: "traces_scores",
         values: ["project-id"],
         strings: [
-          ' FROM  traces t JOIN scores s ON t.id = s.trace_id  WHERE  t."project_id" = ',
+          ` FROM  traces t JOIN scores s ON t.id = s.trace_id AND t.project_id = s.project_id  WHERE  t."project_id" = `,
           ";",
         ],
       } as const,
@@ -182,13 +182,19 @@ describe("Build valid SQL queries", () => {
 
   describe("should retrieve data", () => {
     it("should get a simple trace", async () => {
+      await prisma.organization.upsert({
+        where: { id: "other-org" },
+        create: { id: "other-org", name: "other-org" },
+        update: {},
+      });
       await prisma.project.upsert({
         where: { id: "different-project-id" },
         create: {
           id: "different-project-id",
           name: "test-project",
+          orgId: "other-org",
         },
-        update: {},
+        update: { name: "test-project", orgId: "other-org" },
       });
 
       await prisma.trace.createMany({

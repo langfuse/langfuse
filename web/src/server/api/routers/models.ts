@@ -1,23 +1,25 @@
 import { z } from "zod";
 
 import {
-  Model,
+  type Model,
   ModelUsageUnit,
   Prisma,
   orderBy,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { ModelUsageUnit } from "@langfuse/shared";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
 import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
+import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
@@ -73,6 +75,30 @@ export const modelRouter = createTRPCRouter({
           0, // page
         ),
       );
+      const [models, totalAmount] = await Promise.all([
+        ctx.prisma.model.findMany({
+          where: {
+            OR: [{ projectId: input.projectId }, { projectId: null }],
+          },
+          skip: input.page * input.limit,
+          orderBy: [
+            { modelName: "asc" },
+            { unit: "asc" },
+            {
+              startDate: {
+                sort: "desc",
+                nulls: "last",
+              },
+            },
+          ],
+          take: input.limit,
+        }),
+        ctx.prisma.model.count({
+          where: {
+            OR: [{ projectId: input.projectId }, { projectId: null }],
+          },
+        }),
+      ]);
       return {
         models,
         totalCount:
@@ -103,7 +129,7 @@ export const modelRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "models:CUD",
@@ -120,7 +146,6 @@ export const modelRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "model",
         resourceId: input.modelId,
-        projectId: input.projectId,
         action: "delete",
         before: deletedModel,
       });
@@ -143,7 +168,7 @@ export const modelRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "models:CUD",
@@ -151,11 +176,12 @@ export const modelRouter = createTRPCRouter({
 
       // Check if regex is valid POSIX regex
       // Use DB to check, because JS regex is not POSIX compliant
-      try {
-        await ctx.prisma.$queryRaw(
-          Prisma.sql`SELECT 'test_string' ~ ${input.matchPattern}`,
-        );
-      } catch (error) {
+
+      const isValidRegex = await isValidPostgresRegex(
+        input.matchPattern,
+        ctx.prisma,
+      );
+      if (!isValidRegex) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Invalid regex, needs to be Postgres syntax",
@@ -181,7 +207,6 @@ export const modelRouter = createTRPCRouter({
         session: ctx.session,
         resourceType: "model",
         resourceId: createdModel.id,
-        projectId: input.projectId,
         action: "create",
         after: createdModel,
       });

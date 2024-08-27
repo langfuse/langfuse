@@ -3,17 +3,22 @@ import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import ModelTable from "@/src/components/table/use-cases/models";
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Lock } from "lucide-react";
 import Link from "next/link";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function ModelsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const hasWriteAccess = useHasAccess({ projectId, scope: "models:CUD" });
-
+  const hasWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "models:CUD",
+  });
+  const capture = usePostHogClientCapture();
   return (
-    <div>
+    <FullScreenPage>
       <Header
         title="Models"
         help={{
@@ -22,7 +27,12 @@ export default function ModelsPage() {
           href: "https://langfuse.com/docs/model-usage-and-cost",
         }}
         actionButtons={
-          <Button disabled={!hasWriteAccess} asChild>
+          <Button
+            variant="secondary"
+            disabled={!hasWriteAccess}
+            onClick={() => capture("models:new_form_open")}
+            asChild
+          >
             <Link
               href={hasWriteAccess ? `/project/${projectId}/models/new` : "#"}
             >
@@ -33,6 +43,6 @@ export default function ModelsPage() {
         }
       />
       <ModelTable projectId={projectId} />
-    </div>
+    </FullScreenPage>
   );
 }

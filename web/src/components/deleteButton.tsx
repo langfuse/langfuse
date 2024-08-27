@@ -7,16 +7,16 @@ import {
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 import { TrashIcon } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type Scope } from "@/src/features/rbac/constants/roleAccessRights";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { api } from "@/src/utils/api";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface DeleteButtonProps {
   itemId: string;
   projectId: string;
   isTableAction?: boolean;
-  scope: Scope;
+  scope: ProjectScope;
   invalidateFunc: () => void;
   type: "trace" | "dataset";
   redirectUrl?: string;
@@ -33,9 +33,9 @@ export function DeleteButton({
 }: DeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
 
-  const hasAccess = useHasAccess({ projectId, scope: scope });
+  const hasAccess = useHasProjectAccess({ projectId, scope: scope });
   const traceMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       setIsDeleted(true);
@@ -53,16 +53,22 @@ export function DeleteButton({
     },
   });
 
-  if (!hasAccess) {
-    return null;
-  }
-
   return (
     <Popover key={itemId}>
       <PopoverTrigger asChild>
         <Button
           variant={isTableAction ? "ghost" : "outline"}
           size={isTableAction ? "xs" : "icon"}
+          disabled={!hasAccess}
+          onClick={() =>
+            type === "trace"
+              ? capture("trace:delete_form_open", {
+                  source: isTableAction ? "table-single-row" : "trace detail",
+                })
+              : capture("datasets:delete_form_open", {
+                  source: "dataset",
+                })
+          }
         >
           <TrashIcon className="h-4 w-4" />
         </Button>
@@ -84,7 +90,7 @@ export function DeleteButton({
                   traceIds: [itemId],
                   projectId,
                 });
-                posthog.capture("trace:delete", {
+                capture("trace:delete", {
                   source: isTableAction ? "table-single-row" : "trace",
                 });
               }}
@@ -101,7 +107,7 @@ export function DeleteButton({
                   projectId,
                   datasetId: itemId,
                 });
-                posthog.capture("dataset:delete", {
+                capture("datasets:delete_dataset_button_click", {
                   source: isTableAction ? "table-single-row" : "dataset",
                 });
               }}

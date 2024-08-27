@@ -17,6 +17,7 @@ import superjson from "superjson";
 
 import { type AppRouter } from "@/src/server/api/root";
 import { setUpSuperjson } from "@/src/utils/superjson";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 setUpSuperjson();
 
@@ -51,7 +52,12 @@ export const api = createTRPCNext<AppRouter>({
         splitLink({
           condition(op) {
             // check for context property `skipBatch`
-            return op.context.skipBatch === true;
+            const skipBatch = op.context.skipBatch === true;
+
+            // Manually skip batching, perf experiment
+            const alwaysSkipBatch = true;
+
+            return skipBatch || alwaysSkipBatch;
           },
           // when condition is true, use normal request
           true: httpLink({
@@ -60,9 +66,24 @@ export const api = createTRPCNext<AppRouter>({
           // when condition is false, use batching
           false: httpBatchLink({
             url: `${getBaseUrl()}/api/trpc`,
+            maxURLLength: 2083, // avoid too large batches
           }),
         }),
       ],
+      queryClientConfig: {
+        defaultOptions: {
+          queries: {
+            onError: (error) => trpcErrorToast(error),
+            // react query defaults to `online`, but we want to disable it as it caused issues for some users
+            networkMode: "always",
+          },
+          mutations: {
+            onError: (error) => trpcErrorToast(error),
+            // react query defaults to `online`, but we want to disable it as it caused issues for some users
+            networkMode: "always",
+          },
+        },
+      },
     };
   },
   /**
@@ -87,6 +108,7 @@ export const directApi = createTRPCProxyClient<AppRouter>({
     }),
     httpBatchLink({
       url: `${getBaseUrl()}/api/trpc`,
+      maxURLLength: 2083, // avoid too large batches
     }),
   ],
 });

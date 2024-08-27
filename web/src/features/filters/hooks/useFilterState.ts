@@ -4,11 +4,10 @@ import {
   observationsTableCols,
   tracesTableCols,
   singleFilter,
+  sessionsViewCols,
 } from "@langfuse/shared";
 import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
-import { sessionsViewCols } from "@/src/server/api/definitions/sessionsView";
-import { useState } from "react";
 import {
   useQueryParam,
   encodeDelimitedArray,
@@ -16,6 +15,8 @@ import {
   withDefault,
 } from "use-query-params";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
+import { usersTableCols } from "@/src/server/api/definitions/usersTable";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -32,7 +33,7 @@ const getCommaArrayParam = (table: TableName) => ({
           f.type === "numberObject" || f.type === "stringObject" ? f.key : ""
         };${f.operator};${encodeURIComponent(
           f.type === "datetime"
-            ? f.value.toISOString()
+            ? new Date(f.value).toISOString()
             : f.type === "stringOptions"
               ? f.value.join("|")
               : f.type === "arrayOptions"
@@ -88,18 +89,26 @@ const getCommaArrayParam = (table: TableName) => ({
 export const useQueryFilterState = (
   initialState: FilterState = [],
   table: TableName,
+  projectId?: string, // Passing projectId is expected as filters might differ across projects. However, we can't call hooks conditionally. There is a case in the prompts table where this will only be used if projectId is defined, but it's not defined in all cases.
 ) => {
+  const [sessionFilterState, setSessionFilterState] =
+    useSessionStorage<FilterState>(
+      !!projectId ? `${table}FilterState-${projectId}` : `${table}FilterState`,
+      initialState,
+    );
+
+  // Note: `use-query-params` library does not automatically update the URL with the default value
   const [filterState, setFilterState] = useQueryParam(
     "filter",
-    withDefault(getCommaArrayParam(table), initialState),
+    withDefault(getCommaArrayParam(table), sessionFilterState),
   );
 
-  return [filterState, setFilterState] as const;
-};
+  const setFilterStateWithSession = (newState: FilterState): void => {
+    setFilterState(newState);
+    setSessionFilterState(newState);
+  };
 
-export const useMemoryFilterState = (initialState: FilterState = []) => {
-  const [filterState, setFilterState] = useState(initialState);
-  return [filterState, setFilterState] as const;
+  return [filterState, setFilterStateWithSession] as const;
 };
 
 const tableCols = {
@@ -109,9 +118,13 @@ const tableCols = {
   scores: scoresTableCols,
   models: modelsTableCols,
   prompts: promptsTableCols,
+  users: usersTableCols,
   dashboard: [
     { id: "traceName", name: "Trace Name" },
     { id: "tags", name: "Tags" },
+    { id: "release", name: "Release" },
+    { id: "user", name: "User" },
+    { id: "version", name: "Version" },
   ],
 };
 

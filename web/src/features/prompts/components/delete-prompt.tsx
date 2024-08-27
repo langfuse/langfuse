@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { useState } from "react";
 import {
   Popover,
@@ -14,7 +14,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
-  const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
 
   const mutDeletePrompt = api.prompts.delete.useMutation({
     onSuccess: () => {
@@ -22,15 +22,11 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
     },
   });
 
-  if (!hasAccess) {
-    return null;
-  }
-
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="xs">
-          <Trash2 className="h-4 w-4" />
+        <Button variant="ghost" size="xs" disabled={!hasAccess}>
+          <Trash className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>

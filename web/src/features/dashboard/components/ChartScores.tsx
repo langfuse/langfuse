@@ -1,11 +1,8 @@
 import { api } from "@/src/utils/api";
-import {
-  dateTimeAggregationSettings,
-  type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
+
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { type FilterState } from "@langfuse/shared";
+import { type ScoreDataType, type FilterState } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
@@ -14,10 +11,15 @@ import {
 import { NoData } from "@/src/features/dashboard/components/NoData";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
+import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 
 export function ChartScores(props: {
   className?: string;
-  agg: DateTimeAggregationOption;
+  agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
   projectId: string;
 }) {
@@ -25,18 +27,34 @@ export function ChartScores(props: {
     {
       projectId: props.projectId,
       from: "traces_scores",
-      select: [{ column: "scoreName" }, { column: "value", agg: "AVG" }],
-      filter: createTracesTimeFilter(props.globalFilterState),
+      select: [
+        { column: "scoreName" },
+        { column: "scoreDataType" },
+        { column: "scoreSource" },
+        { column: "value", agg: "AVG" },
+      ],
+      filter: [
+        ...createTracesTimeFilter(props.globalFilterState, "scoreTimestamp"),
+        {
+          type: "stringOptions",
+          column: "scoreDataType",
+          value: ["NUMERIC", "BOOLEAN"],
+          operator: "any of",
+        },
+      ],
       groupBy: [
         {
           type: "datetime",
-          column: "timestamp",
-          temporalUnit: dateTimeAggregationSettings[props.agg].date_trunc,
+          column: "scoreTimestamp",
+          temporalUnit:
+            dashboardDateRangeAggregationSettings[props.agg].date_trunc,
         },
         {
           type: "string",
           column: "scoreName",
         },
+        { type: "string", column: "scoreDataType" },
+        { type: "string", column: "scoreSource" },
       ],
     },
     {
@@ -50,9 +68,20 @@ export function ChartScores(props: {
 
   const extractedScores = scores.data
     ? fillMissingValuesAndTransform(
-        extractTimeSeriesData(scores.data, "timestamp", [
+        extractTimeSeriesData(scores.data, "scoreTimestamp", [
           {
-            labelColumn: "scoreName",
+            uniqueIdentifierColumns: [
+              {
+                accessor: "scoreDataType",
+                formatFct: (value) =>
+                  getScoreDataTypeIcon(value as ScoreDataType),
+              },
+              { accessor: "scoreName" },
+              {
+                accessor: "scoreSource",
+                formatFct: (value) => `(${value.toLowerCase()})`,
+              },
+            ],
             valueColumn: "avgValue",
           },
         ]),
@@ -63,10 +92,10 @@ export function ChartScores(props: {
     <DashboardCard
       className={props.className}
       title="Scores"
-      description="Average score per name"
+      description="Moving average per score"
       isLoading={scores.isLoading}
     >
-      {!isEmptyTimeSeries(extractedScores) ? (
+      {!isEmptyTimeSeries({ data: extractedScores }) ? (
         <BaseTimeSeriesChart
           agg={props.agg}
           data={extractedScores}

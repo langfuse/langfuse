@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { extractVariables } from "@/src/utils/string";
-import { PromptType } from "@/src/features/prompts/server/validation";
+import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { ChatMessageRole } from "@langfuse/shared";
 
 const ChatMessageSchema = z.object({
@@ -9,13 +8,7 @@ const ChatMessageSchema = z.object({
 });
 
 export const ChatMessageListSchema = z.array(ChatMessageSchema);
-export const TextPromptSchema = z
-  .string()
-  .min(1, "Enter a prompt")
-  .refine(
-    validateVariables,
-    "Variables must only contain letters and underscores (_)",
-  );
+export const TextPromptSchema = z.string().min(1, "Enter a prompt");
 
 const NewPromptBaseSchema = z.object({
   name: z.string().min(1, "Enter a name"),
@@ -30,9 +23,6 @@ const NewChatPromptSchema = NewPromptBaseSchema.extend({
   chatPrompt: ChatMessageListSchema.refine(
     (messages) => messages.every((message) => message.content.length > 0),
     "Enter a chat message or remove the empty message",
-  ).refine(
-    (messages) => validateVariables(messages.map((m) => m.content).join("\n")),
-    "Variables must only contain letters and underscores (_)",
   ),
   textPrompt: z.string(),
 });
@@ -60,13 +50,6 @@ export const PromptContentSchema = z.union([
   }),
 ]);
 export type PromptContentType = z.infer<typeof PromptContentSchema>;
-
-function validateVariables(content: string): boolean {
-  const variables = extractVariables(content);
-  const charOrUnderscore = /^[A-Za-z_]+$/;
-
-  return variables.every((variable) => charOrUnderscore.test(variable));
-}
 
 function validateJson(content: string): boolean {
   try {

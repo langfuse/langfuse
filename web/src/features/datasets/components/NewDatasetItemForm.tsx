@@ -19,9 +19,10 @@ import {
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { usePostHog } from "posthog-js/react";
-import { Textarea } from "@/src/components/ui/textarea";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { JsonEditor } from "@/src/components/json-editor";
+import { type Prisma } from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const formSchema = z.object({
   datasetId: z.string().min(1, "Select a dataset"),
@@ -37,7 +38,7 @@ const formSchema = z.object({
     },
     {
       message:
-        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+        "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
   expectedOutput: z.string().refine(
@@ -52,7 +53,22 @@ const formSchema = z.object({
     },
     {
       message:
-        "Invalid input. Please provide a JSON object or a string value enclosed in double quotes.",
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
+  ),
+  metadata: z.string().refine(
+    (value) => {
+      if (value === "") return true;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
     },
   ),
 });
@@ -63,17 +79,20 @@ export const NewDatasetItemForm = (props: {
   observationId?: string;
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  metadata?: Prisma.JsonValue;
   datasetId?: string;
+  className?: string;
   onFormSuccess?: () => void;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       datasetId: props.datasetId ?? "",
       input: props.input ? JSON.stringify(props.input, null, 2) : "",
       expectedOutput: props.output ? JSON.stringify(props.output, null, 2) : "",
+      metadata: props.metadata ? JSON.stringify(props.metadata, null, 2) : "",
     },
   });
 
@@ -88,10 +107,13 @@ export const NewDatasetItemForm = (props: {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    posthog.capture("datasets:new_dataset_item_form_submit", {
-      hasSourceTrace: !!props.traceId,
-      hasSourceObservation: !!props.observationId,
-    });
+    if (props.traceId) {
+      capture("dataset_item:new_from_trace_form_submit", {
+        object: props.observationId ? "observation" : "trace",
+      });
+    } else {
+      capture("dataset_item:new_form_submit");
+    }
     createDatasetItemMutation
       .mutateAsync({
         ...values,
@@ -113,7 +135,7 @@ export const NewDatasetItemForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-6"
+        className={cn("flex flex-col gap-6", props.className)}
       >
         <FormField
           control={form.control}
@@ -139,7 +161,7 @@ export const NewDatasetItemForm = (props: {
             </FormItem>
           )}
         />
-        <div className="grid flex-1 content-stretch gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           <FormField
             control={form.control}
             name="input"
@@ -147,9 +169,9 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Input</FormLabel>
                 <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />
@@ -163,9 +185,9 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Expected output</FormLabel>
                 <FormControl>
-                  <Textarea
-                    {...field}
-                    className="min-h-[150px] flex-1 font-mono text-xs"
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />
@@ -173,10 +195,26 @@ export const NewDatasetItemForm = (props: {
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="metadata"
+          render={({ field }) => (
+            <FormItem className="flex flex-col gap-2">
+              <FormLabel>Metadata</FormLabel>
+              <FormControl>
+                <JsonEditor
+                  defaultValue={field.value}
+                  onChange={field.onChange}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <Button
           type="submit"
           loading={createDatasetItemMutation.isLoading}
-          className="w-full"
+          className="mt-auto w-full"
         >
           Add to dataset
         </Button>

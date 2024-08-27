@@ -10,16 +10,11 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     },
     "strictNullChecks": true
   },
-  "exclude": [
-    "node_modules",
-    "sdk"
-  ],
+  "exclude": ["node_modules", "sdk"],
   "include": [
     "src",
     "next-env.d.ts",
@@ -30,7 +25,6 @@
     "**/*.tsx",
     "**/*.cjs",
     "**/*.mjs",
-    "src/features/navigate-detail-pages",
     "types/global.d.ts"
   ]
 }

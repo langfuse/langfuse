@@ -11,9 +11,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Textarea } from "@/src/components/ui/textarea";
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { JsonEditor } from "@/src/components/json-editor";
+import { type RouterOutput } from "@/src/utils/types";
 
 const formSchema = z.object({
   input: z.string().refine(
@@ -26,7 +27,10 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
   ),
   expectedOutput: z.string().refine(
     (value) => {
@@ -38,51 +42,69 @@ const formSchema = z.object({
         return false;
       }
     },
-    { message: "Invalid JSON" },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
+  ),
+  metadata: z.string().refine(
+    (value) => {
+      if (value === "") return true;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid input. Please provide a JSON object or double-quoted string.",
+    },
   ),
 });
 
 export const EditDatasetItem = ({
   projectId,
-  datasetId,
-  itemId,
+  datasetItem,
 }: {
   projectId: string;
-  datasetId: string;
-  itemId: string;
+  datasetItem: RouterOutput["datasets"]["itemById"];
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "datasets:CUD",
   });
   const utils = api.useUtils();
-  const item = api.datasets.itemById.useQuery({
-    datasetId,
-    projectId,
-    datasetItemId: itemId,
-  });
 
   useEffect(() => {
     form.setValue(
       "input",
-      item.data?.input ? JSON.stringify(item.data.input, null, 2) : "",
+      datasetItem?.input ? JSON.stringify(datasetItem.input, null, 2) : "",
     );
     form.setValue(
       "expectedOutput",
-      item.data?.expectedOutput
-        ? JSON.stringify(item.data.expectedOutput, null, 2)
+      datasetItem?.expectedOutput
+        ? JSON.stringify(datasetItem.expectedOutput, null, 2)
+        : "",
+    );
+    form.setValue(
+      "metadata",
+      datasetItem?.metadata
+        ? JSON.stringify(datasetItem.metadata, null, 2)
         : "",
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.data]);
+  }, [datasetItem]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       input: "",
       expectedOutput: "",
+      metadata: "",
     },
   });
 
@@ -92,12 +114,14 @@ export const EditDatasetItem = ({
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!!!datasetItem) return;
     updateDatasetItemMutation.mutate({
       projectId: projectId,
-      datasetId: datasetId,
-      datasetItemId: itemId,
+      datasetId: datasetItem.datasetId,
+      datasetItemId: datasetItem.id,
       input: values.input,
       expectedOutput: values.expectedOutput,
+      metadata: values.metadata,
     });
     setHasChanges(false);
   }
@@ -119,10 +143,14 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Input</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
+                    <JsonEditor
+                      defaultValue={field.value}
+                      onChange={(v) => {
+                        setHasChanges(true);
+                        field.onChange(v);
+                      }}
+                      editable={hasAccess}
+                      className="max-h-[600px] overflow-y-auto"
                     />
                   </FormControl>
                   <FormMessage />
@@ -136,10 +164,14 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Expected output</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
-                      className="min-h-[200px] font-mono text-xs"
-                      disabled={!hasAccess}
+                    <JsonEditor
+                      defaultValue={field.value}
+                      onChange={(v) => {
+                        setHasChanges(true);
+                        field.onChange(v);
+                      }}
+                      editable={hasAccess}
+                      className="max-h-[600px] overflow-y-auto"
                     />
                   </FormControl>
                   <FormMessage />
@@ -147,6 +179,27 @@ export const EditDatasetItem = ({
               )}
             />
           </div>
+          <FormField
+            control={form.control}
+            name="metadata"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Metadata</FormLabel>
+                <FormControl>
+                  <JsonEditor
+                    defaultValue={field.value}
+                    onChange={(v) => {
+                      setHasChanges(true);
+                      field.onChange(v);
+                    }}
+                    editable={hasAccess}
+                    className="max-h-[300px] overflow-y-auto"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <div className="flex justify-end">
             <Button
               type="submit"
