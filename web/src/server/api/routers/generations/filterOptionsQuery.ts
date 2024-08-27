@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import {
-  datetimeFilterToPrismaSql,
+  datetimeFilterToRawSql,
   timeFilter,
   type ObservationOptions,
 } from "@langfuse/shared";
@@ -34,7 +34,7 @@ export const filterOptionsQuery = protectedProjectProcedure
 
     const rawStartTimeFilter =
       startTimeFilter && startTimeFilter.type === "datetime"
-        ? datetimeFilterToPrismaSql(
+        ? datetimeFilterToRawSql(
             "start_time",
             startTimeFilter.operator,
             startTimeFilter.value,
