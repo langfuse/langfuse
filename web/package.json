@@ -158,7 +158,7 @@
     "@types/react-dom": "^18.2.25",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/uuid": "^9.0.8",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/eslint-plugin": "^8.3.0",
     "@typescript-eslint/parser": "^7.12.0",
     "autoprefixer": "^10.4.19",
     "dotenv-cli": "^7.4.2",
