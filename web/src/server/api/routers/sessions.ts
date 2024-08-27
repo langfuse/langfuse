@@ -14,6 +14,8 @@ import {
   paginationZod,
   type SessionOptions,
   singleFilter,
+  timeFilter,
+  datetimeFilterToPrismaSql,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -170,10 +172,20 @@ export const sessionRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        timestampFilter: timeFilter.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
       try {
+        const { timestampFilter } = input;
+        const rawTimestampFilter =
+          timestampFilter && timestampFilter.type === "datetime"
+            ? datetimeFilterToPrismaSql(
+                "timestamp",
+                timestampFilter.operator,
+                timestampFilter.value,
+              )
+            : Prisma.empty;
         const [userIds, tags] = await Promise.all([
           ctx.prisma.$queryRaw<Array<{ value: string }>>(Prisma.sql`
             SELECT 
@@ -182,7 +194,7 @@ export const sessionRouter = createTRPCRouter({
             WHERE 
               traces.session_id IS NOT NULL
               AND traces.user_id IS NOT NULL
-              AND traces.project_id = ${input.projectId}
+              AND traces.project_id = ${input.projectId} ${rawTimestampFilter}
             GROUP BY traces.user_id 
             ORDER BY traces.user_id ASC
             LIMIT 1000;
@@ -199,7 +211,7 @@ export const sessionRouter = createTRPCRouter({
             UNNEST(t.tags) AS tag
             WHERE o.type = 'GENERATION'
               AND o.project_id = ${input.projectId}
-              AND t.project_id = ${input.projectId}
+              AND t.project_id = ${input.projectId} ${rawTimestampFilter}
             GROUP BY tag
             LIMIT 1000;
           `),
