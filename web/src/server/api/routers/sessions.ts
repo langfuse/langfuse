@@ -204,15 +204,13 @@ export const sessionRouter = createTRPCRouter({
               value: string;
             }>
           >(Prisma.sql`
-            SELECT
-              tag AS value
+            SELECT DISTINCT tag AS value
             FROM traces t
             JOIN observations o ON o.trace_id = t.id,
             UNNEST(t.tags) AS tag
             WHERE o.type = 'GENERATION'
               AND o.project_id = ${input.projectId}
               AND t.project_id = ${input.projectId} ${rawTimestampFilter}
-            GROUP BY tag
             LIMIT 1000;
           `),
         ]);
