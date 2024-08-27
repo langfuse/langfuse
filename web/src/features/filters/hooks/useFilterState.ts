@@ -32,7 +32,7 @@ const getCommaArrayParam = (table: TableName) => ({
           f.type === "numberObject" || f.type === "stringObject" ? f.key : ""
         };${f.operator};${encodeURIComponent(
           f.type === "datetime"
-            ? f.value.toISOString()
+            ? new Date(f.value).toISOString()
             : f.type === "stringOptions"
               ? f.value.join("|")
               : f.type === "arrayOptions"

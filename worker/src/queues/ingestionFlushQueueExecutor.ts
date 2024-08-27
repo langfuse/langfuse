@@ -9,7 +9,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
   getIngestionFlushQueue,
-  instrument,
+  instrumentAsync,
   recordIncrement,
   recordGauge,
   recordHistogram,
@@ -28,7 +28,7 @@ const createIngestionQueueExecutor = () => {
     return new Worker(
       QueueName.IngestionFlushQueue,
       async (job) => {
-        return instrument(
+        return instrumentAsync(
           {
             name: "flush-ingestion-consumer",
             spanKind: SpanKind.CONSUMER,

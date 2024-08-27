@@ -2,7 +2,7 @@ import { Job, Worker } from "bullmq";
 import {
   traceException,
   getLegacyIngestionQueue,
-  instrument,
+  instrumentAsync,
   QueueName,
   recordIncrement,
   recordGauge,
@@ -26,7 +26,7 @@ const createLegacyIngestionExecutor = () => {
     return new Worker<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
       QueueName.LegacyIngestionQueue,
       async (job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>) => {
-        return instrument(
+        return instrumentAsync(
           {
             name: "legacyIngestion",
             spanKind: SpanKind.CONSUMER,
