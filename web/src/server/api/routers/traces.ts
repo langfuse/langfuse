@@ -9,7 +9,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  dateTimeFilterToPrisma,
+  datetimeFilterToPrisma,
   datetimeFilterToRawSql,
   filterAndValidateDbScoreList,
   orderBy,
@@ -197,7 +197,7 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const { timestampFilter } = input;
       const prismaTimestampFilter = timestampFilter
-        ? dateTimeFilterToPrisma(timestampFilter)
+        ? datetimeFilterToPrisma(timestampFilter)
         : {};
 
       const rawTimestampFilter =
