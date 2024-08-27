@@ -154,7 +154,7 @@ export const membersRouter = createTRPCRouter({
         });
         if (!entitled)
           throw new TRPCError({
-            code: "BAD_REQUEST",
+            code: "FORBIDDEN",
             message:
               "Organization does not have the required entitlement to set project roles",
           });
@@ -231,7 +231,7 @@ export const membersRouter = createTRPCRouter({
             return;
           } else {
             throw new TRPCError({
-              code: "FORBIDDEN",
+              code: "BAD_REQUEST",
               message: "User is already a member of this organization",
             });
           }
@@ -332,7 +332,11 @@ export const membersRouter = createTRPCRouter({
           ProjectMemberships: true,
         },
       });
-      if (!orgMembership) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!orgMembership)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization membership not found",
+        });
 
       // Check if user has access, either by having the correct role, or being the user themselves that is being deleted
       const hasAccess = hasOrganizationAccess({
@@ -341,7 +345,10 @@ export const membersRouter = createTRPCRouter({
         scope: "organizationMembers:CUD",
       });
       if (!hasAccess && orgMembership.userId !== ctx.session.user.id)
-        throw new TRPCError({ code: "FORBIDDEN" });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have access to delete organization members",
+        });
 
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
