@@ -259,6 +259,7 @@ export const commentsRouter = createTRPCRouter({
           scope: "comments:read",
         });
 
+        // latency of query to be improved
         const commentCounts = await ctx.prisma.comment.groupBy({
           by: ["objectId"],
           where: {
