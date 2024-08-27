@@ -1,6 +1,6 @@
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
-  datetimeFilterToPrismaSql,
+  datetimeFilterToRawSql,
   filterAndValidateDbScoreList,
   observationsTableCols,
   orderByToPrismaSql,
@@ -53,7 +53,7 @@ export function parseGetAllGenerationsInput(input: GetAllGenerationsInput) {
   );
   const datetimeFilter =
     startTimeFilter && startTimeFilter.type === "datetime"
-      ? datetimeFilterToPrismaSql(
+      ? datetimeFilterToRawSql(
           "start_time",
           startTimeFilter.operator,
           startTimeFilter.value,
