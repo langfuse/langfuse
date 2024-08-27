@@ -158,7 +158,7 @@ module.exports = {
       },
       fontSize: {
         xs: "0.7rem",
-        sm: "0.8rem",
+        sm: "0.825rem",
         base: "0.9rem",
         "tremor-label": ["0.75rem", { lineHeight: "1rem" }],
         "tremor-default": ["0.875rem", { lineHeight: "1.25rem" }],

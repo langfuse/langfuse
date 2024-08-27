@@ -377,7 +377,7 @@ export default function Layout(props: PropsWithChildren) {
                   >
                     <li className="group -mx-2 my-1 flex cursor-pointer gap-x-3 rounded-md p-1.5 text-sm font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent">
                       <MessageSquarePlus
-                        className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary-accent"
+                        className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
                         aria-hidden="true"
                       />
                       Feedback
@@ -586,7 +586,7 @@ const MainNavigation: React.FC<{
                       item.current
                         ? "text-primary-accent"
                         : "text-muted-foreground group-hover:text-primary-accent",
-                      "h-4 w-4 shrink-0",
+                      "h-5 w-5 shrink-0",
                     )}
                     aria-hidden="true"
                   />
@@ -630,7 +630,7 @@ const MainNavigation: React.FC<{
                     >
                       {item.icon && (
                         <item.icon
-                          className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary-accent"
+                          className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary-accent"
                           aria-hidden="true"
                         />
                       )}
@@ -667,7 +667,7 @@ const MainNavigation: React.FC<{
                               subItem.current
                                 ? "bg-primary-foreground text-primary-accent"
                                 : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
-                              "ml-0.5 flex w-full items-center gap-x-3 rounded-md p-1.5 pl-7 pr-2 text-sm",
+                              "ml-0.5 flex w-full items-center gap-x-3 rounded-md p-1 pl-7 pr-2 text-sm",
                             )}
                             target={subItem.newTab ? "_blank" : undefined}
                           >
