@@ -133,7 +133,7 @@
     "sonner": "^1.4.41",
     "stripe": "^16.8.0",
     "superjson": "2.2.1",
-    "tailwind-merge": "^2.2.1",
+    "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "use-query-params": "^2.2.1",
     "uuid": "^9.0.1",
