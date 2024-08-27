@@ -74,7 +74,7 @@ export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregatio
       minutes: 365 * 24 * 60,
     },
     "3 months": {
-      date_trunc: "month",
+      date_trunc: "week",
       minutes: 3 * 28 * 24 * 60,
     },
     "1 month": {
