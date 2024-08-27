@@ -17,6 +17,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LoaderCircle } from "lucide-react";
 import { Input } from "@/src/components/ui/input";
+import { useEffect, useState } from "react";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -28,6 +29,13 @@ export function DataTablePagination<TData>({
   paginationOptions = [10, 20, 30, 40, 50],
 }: DataTablePaginationProps<TData>) {
   const capture = usePostHogClientCapture();
+
+  const currentPage = table.getState().pagination.pageIndex + 1;
+  const [inputState, setInputState] = useState<number | string>(currentPage);
+
+  useEffect(() => {
+    setInputState(currentPage);
+  }, [currentPage]);
 
   return (
     <div className="flex items-center justify-between">
@@ -70,19 +78,44 @@ export function DataTablePagination<TData>({
               Page
               <Input
                 type="number"
-                // min={1}
+                min={1}
                 max={table.getPageCount()}
-                value={table.getState().pagination.pageIndex + 1}
+                value={inputState} // Ensure the value is within bounds
                 onChange={(e) => {
-                  const newPageIndex = Number(e.target.value) - 1;
-                  if (
-                    newPageIndex >= 0 &&
-                    newPageIndex < table.getPageCount()
-                  ) {
-                    table.setPageIndex(newPageIndex);
+                  setInputState(e.target.value);
+                }}
+                onBlur={(e) => {
+                  const newValue = e.target.value;
+                  if (newValue === "") {
+                    table.setPageIndex(0);
+                    setInputState(1);
+                    return;
                   }
+
+                  // if nan, reset to current page
+                  if (isNaN(Number(newValue))) {
+                    setInputState(currentPage);
+                    return;
+                  }
+
+                  const newPageIndex = Number(newValue) - 1;
+                  if (
+                    newPageIndex < 0 ||
+                    newPageIndex >= table.getPageCount()
+                  ) {
+                    setInputState(currentPage);
+                    return;
+                  }
+
+                  table.setPageIndex(newPageIndex);
+                  setInputState(newPageIndex + 1);
                 }}
                 className="h-8 appearance-none"
+                style={{
+                  width: `${
+                    3 + Math.max(1, table.getPageCount().toString().length)
+                  }ch`,
+                }}
               />
             </>
           ) : (
