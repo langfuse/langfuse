@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { ColumnDefinition, type TableNames } from "./tableDefinitions";
 import { FilterState } from "./types";
-import { filterOperators } from "./interfaces/filters";
+import { filterOperators, timeFilter } from "./interfaces/filters";
+import { z } from "zod";
 
 const operatorReplacements = {
   "any of": "IN",
@@ -163,7 +164,7 @@ const castValueToPostgresTypes = (
 
 const dateOperators = filterOperators["datetime"];
 
-export const datetimeFilterToPrismaSql = (
+export const datetimeFilterToRawSql = (
   safeColumn: string,
   operator: (typeof dateOperators)[number],
   value: Date
@@ -178,4 +179,20 @@ export const datetimeFilterToPrismaSql = (
   return Prisma.sql`AND ${Prisma.raw(safeColumn)} ${Prisma.raw(
     operator
   )} ${value}::timestamp with time zone at time zone 'UTC'`;
+};
+
+export const dateTimeFilterToPrisma = (
+  timestampFilter: z.infer<typeof timeFilter>
+) => {
+  const prismaTimestampFilter =
+    timestampFilter.operator === ">="
+      ? { gte: timestampFilter.value }
+      : timestampFilter.operator === ">"
+        ? { gt: timestampFilter.value }
+        : timestampFilter.operator === "<="
+          ? { lte: timestampFilter.value }
+          : timestampFilter.operator === "<"
+            ? { lt: timestampFilter.value }
+            : {};
+  return prismaTimestampFilter;
 };
