@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import Decimal from "decimal.js";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
@@ -57,16 +57,11 @@ export function Trace(props: {
     [],
   );
 
-  const observationObjectIds: string[] = useMemo(() => {
-    return props.observations.map(({ id }) => id);
-  }, [props.observations]);
-
   const session = useSession();
 
-  const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
     {
       projectId: props.trace.projectId,
-      objectIds: observationObjectIds,
       objectType: "OBSERVATION",
     },
     {
@@ -80,10 +75,10 @@ export function Trace(props: {
     },
   );
 
-  const traceCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId: props.trace.projectId,
-      objectIds: [props.trace.id],
+      objectId: props.trace.id,
       objectType: "TRACE",
     },
     {

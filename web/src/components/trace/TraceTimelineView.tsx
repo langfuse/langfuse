@@ -46,14 +46,12 @@ const PREDEFINED_STEP_SIZES = [
 
 const getNestedObservationKeys = (
   observations: NestedObservation[],
-): { keys: string[]; ids: string[] } => {
+): string[] => {
   const keys: string[] = [];
-  const ids: string[] = [];
 
   const collectKeys = (obs: NestedObservation[]) => {
     obs.forEach((observation) => {
       keys.push(`observation-${observation.id}`);
-      ids.push(observation.id);
       if (observation.children) {
         collectKeys(observation.children);
       }
@@ -61,7 +59,7 @@ const getNestedObservationKeys = (
   };
 
   collectKeys(observations);
-  return { keys, ids };
+  return keys;
 };
 
 const calculateStepSize = (latency: number, scaleWidth: number) => {
@@ -306,17 +304,16 @@ export function TraceTimelineView({
     () => nestObservations(observations),
     [observations],
   );
-  const { keys: nestedObservationKeys, ids: nestedObservationIds } = useMemo(
+  const nestedObservationKeys = useMemo(
     () => getNestedObservationKeys(nestedObservations),
     [nestedObservations],
   );
 
   const session = useSession();
 
-  const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
     {
       projectId: trace.projectId,
-      objectIds: nestedObservationIds,
       objectType: "OBSERVATION",
     },
     {
@@ -330,10 +327,10 @@ export function TraceTimelineView({
     },
   );
 
-  const traceCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId: trace.projectId,
-      objectIds: [trace.id],
+      objectId: trace.id,
       objectType: "TRACE",
     },
     {
