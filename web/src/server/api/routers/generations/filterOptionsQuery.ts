@@ -115,7 +115,7 @@ export const filterOptionsQuery = protectedProjectProcedure
           }>
         >(Prisma.sql`
           SELECT
-            tag
+            DISTINCT tag
           FROM traces t
           JOIN observations o ON o.trace_id = t.id,
           UNNEST(t.tags) AS tag
@@ -123,7 +123,6 @@ export const filterOptionsQuery = protectedProjectProcedure
             AND o.project_id = ${input.projectId}
             AND t.project_id = ${input.projectId}
             ${rawStartTimeFilter}
-          GROUP BY tag
           LIMIT 1000;
       `),
       ]);
