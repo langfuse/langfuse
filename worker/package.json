@@ -20,7 +20,7 @@
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.7.1",
-    "@clickhouse/client": "^1.4.0",
+    "@clickhouse/client": "^1.5.0",
     "@langfuse/shared": "workspace:*",
     "@logtail/pino": "^0.5.0",
     "@opentelemetry/api": "^1.8.0",

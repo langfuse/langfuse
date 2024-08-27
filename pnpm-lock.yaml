@@ -129,8 +129,8 @@ importers:
         specifier: ^3.554.0
         version: 3.614.0
       '@clickhouse/client':
-        specifier: ^1.4.0
-        version: 1.4.0
+        specifier: ^1.5.0
+        version: 1.5.0
       '@langchain/anthropic':
         specifier: ^0.1.21
         version: 0.1.21(langchain@0.2.9(@aws-sdk/client-s3@3.627.0)(@aws-sdk/credential-provider-node@3.624.0(@aws-sdk/client-sso-oidc@3.624.0(@aws-sdk/client-sts@3.624.0))(@aws-sdk/client-sts@3.624.0))(axios@1.6.8)(fast-xml-parser@4.4.1)(handlebars@4.7.8)(html-to-text@9.0.5)(ignore@5.3.2)(ioredis@5.4.1)(jsdom@20.0.3)(openai@4.52.0)(playwright@1.43.1)(puppeteer@19.11.1(typescript@5.4.5))(ws@8.16.0))(openai@4.52.0)
@@ -747,8 +747,8 @@ importers:
         specifier: ^0.7.1
         version: 0.7.1(bullmq@5.12.10)
       '@clickhouse/client':
-        specifier: ^1.4.0
-        version: 1.4.0
+        specifier: ^1.5.0
+        version: 1.5.0
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
@@ -1409,11 +1409,11 @@ packages:
   '@chevrotain/utils@10.5.0':
     resolution: {integrity: sha512-hBzuU5+JjB2cqNZyszkDHZgOSrUUT8V3dhgRl8Q9Gp6dAj/H5+KILGjbhDpc3Iy9qmqlm/akuOI2ut9VUtzJxQ==}
 
-  '@clickhouse/client-common@1.4.0':
-    resolution: {integrity: sha512-kglG8YyWnR1K24RckUf5ZdNTN0U0s+a1j/bpCO4ZjzjO87ICgWlXFVD22pZqSACW7/2IIi1IkzbwtxKI2s/MOw==}
+  '@clickhouse/client-common@1.5.0':
+    resolution: {integrity: sha512-U3vDp+PDnNVEv6kia+Mq5ygnlMZzsYU+3TX+0da3XvL926jzYLMBlIvFUxe2+/5k47ySvnINRC/2QxVK7PC2/A==}
 
-  '@clickhouse/client@1.4.0':
-    resolution: {integrity: sha512-O4mbFPM/wQtFck01ghYI2mnNHv9jSFEiQBsTCH4t6MKeGHNAPkJGaFGv+KycLTv6zjnQNjiUGdXDMVRema5SyA==}
+  '@clickhouse/client@1.5.0':
+    resolution: {integrity: sha512-Udwyoec+AHHS1TiLxDiWiJWcm2BvhZEqGjmUnvzL54NyT8D8eh2mxn5RR/W5ie64JDnsKLeZFlPYKRRhZMhkxA==}
     engines: {node: '>=16'}
 
   '@codemirror/autocomplete@6.17.0':
@@ -12360,11 +12360,11 @@ snapshots:
 
   '@chevrotain/utils@10.5.0': {}
 
-  '@clickhouse/client-common@1.4.0': {}
+  '@clickhouse/client-common@1.5.0': {}
 
-  '@clickhouse/client@1.4.0':
+  '@clickhouse/client@1.5.0':
     dependencies:
-      '@clickhouse/client-common': 1.4.0
+      '@clickhouse/client-common': 1.5.0
 
   '@codemirror/autocomplete@6.17.0(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.28.0)(@lezer/common@1.2.1)':
     dependencies:
