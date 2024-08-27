@@ -19,9 +19,6 @@ updates:
       - dependency-name: "@types/node"
       - dependency-name: "@trpc/*"
     groups:
-      sentry:
-        patterns:
-          - "@sentry/*"
       prisma:
         patterns:
           - "prisma"
@@ -30,3 +27,10 @@ updates:
         patterns:
           - "eslint-config-next"
           - "next"
+      observability:
+        patterns:
+          - "dd-trace"
+          - "@opentelemetry/"
+          - "@appsignal/opentelemetry-instrumentation-bullmq"
+          - "@prisma/instrumentation"
+          - "@sentry/*"
