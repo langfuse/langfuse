@@ -1,4 +1,4 @@
-import { ColumnDefinition } from "@langfuse/shared";
+import { type ColumnDefinition } from "@langfuse/shared";
 
 export const modelsTableCols: ColumnDefinition[] = [
   {
