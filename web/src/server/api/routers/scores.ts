@@ -18,7 +18,7 @@ import {
 import {
   CreateAnnotationScoreData,
   datetimeFilterToRawSql,
-  dateTimeFilterToPrisma,
+  datetimeFilterToPrisma,
   orderBy,
   orderByToPrismaSql,
   paginationZod,
@@ -124,7 +124,7 @@ export const scoresRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const { timestampFilter } = input;
       const prismaTimestampFilter = timestampFilter
-        ? dateTimeFilterToPrisma(timestampFilter)
+        ? datetimeFilterToPrisma(timestampFilter)
         : {};
 
       const rawTimestampFilter =
