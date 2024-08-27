@@ -5,10 +5,10 @@ import {
   ModelUsageUnit,
   Prisma,
   orderBy,
+  orderByToPrismaSql,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
-import { ModelUsageUnit } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -18,7 +18,6 @@ import { paginationZod } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { modelsTableCols } from "@/src/server/api/definitions/modelsTable";
-import { orderByToPrismaSql } from "@/src/features/orderBy/server/orderByToPrisma";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 
 const ModelAllOptions = z.object({
@@ -43,38 +42,6 @@ export const modelRouter = createTRPCRouter({
         modelsTableCols,
       );
 
-      const models = await ctx.prisma.$queryRaw<Array<Model>>(
-        generateModelsQuery(
-          Prisma.sql` 
-          m.id,
-          m.project_id as "projectId",
-          m.model_name as "modelName",
-          m.match_pattern as "matchPattern",
-          m.start_date as "startDate",
-          m.input_price as "inputPrice",
-          m.output_price as "outputPrice",
-          m.total_price as "totalPrice",
-          m.unit,
-          m.tokenizer_id as "tokenizerId"`,
-          input.projectId,
-          filterCondition,
-          orderByCondition,
-          input.limit,
-          input.page,
-        ),
-      );
-      const totalAmount = await ctx.prisma.$queryRaw<
-        Array<{ totalCount: bigint }>
-      >(
-        generateModelsQuery(
-          Prisma.sql` count(*) AS "totalCount"`,
-          input.projectId,
-          filterCondition,
-          Prisma.empty,
-          1, // limit
-          0, // page
-        ),
-      );
       const [models, totalAmount] = await Promise.all([
         ctx.prisma.model.findMany({
           where: {
@@ -101,8 +68,7 @@ export const modelRouter = createTRPCRouter({
       ]);
       return {
         models,
-        totalCount:
-          totalAmount.length > 0 ? Number(totalAmount[0]?.totalCount) : 0,
+        totalCount: totalAmount,
       };
     }),
   modelNames: protectedProjectProcedure
