@@ -33,27 +33,28 @@ export const scoreConfigsRouter = createTRPCRouter({
         scope: "scoreConfigs:read",
       });
 
-      const configs = await ctx.prisma.scoreConfig.findMany({
-        where: {
-          projectId: input.projectId,
-        },
-        ...(input.limit !== undefined && input.page !== undefined
-          ? { take: input.limit, skip: input.page * input.limit }
-          : undefined),
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-
-      const configsCount = await ctx.prisma.scoreConfig.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
+      const [configs, totalCount] = await Promise.all([
+        ctx.prisma.scoreConfig.findMany({
+          where: {
+            projectId: input.projectId,
+          },
+          ...(input.limit !== undefined && input.page !== undefined
+            ? { take: input.limit, skip: input.page * input.limit }
+            : undefined),
+          orderBy: {
+            createdAt: "desc",
+          },
+        }),
+        ctx.prisma.scoreConfig.count({
+          where: {
+            projectId: input.projectId,
+          },
+        }),
+      ]);
 
       return {
         configs: filterAndValidateDbScoreConfigList(configs, traceException),
-        totalCount: configsCount,
+        totalCount,
       };
     }),
   create: protectedProjectProcedure

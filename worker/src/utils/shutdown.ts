@@ -11,6 +11,7 @@ import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
 import { legacyIngestionExecutor } from "../queues/legacyIngestionQueue";
 import { cloudUsageMeteringJobExecutor } from "../queues/cloudUsageMeteringQueue";
+import { freeAllTokenizers } from "../features/tokenisation/usage";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
@@ -31,7 +32,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
     cloudUsageMeteringJobExecutor,
   ];
 
-  await Promise.all(workers.map((worker) => worker?.close()));
+  await Promise.all(workers.map(async (worker) => await worker?.close()));
   logger.info("All workers have been closed.");
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
@@ -40,6 +41,9 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
 
   redis?.disconnect();
   logger.info("Redis connection has been closed.");
+
+  freeAllTokenizers();
+  logger.info("All tokenizers are cleaned up from memory.");
 
   logger.info("Shutdown complete, exiting process...");
 };

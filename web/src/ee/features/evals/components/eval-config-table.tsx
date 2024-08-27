@@ -30,7 +30,7 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
     limit: paginationState.pageSize,
     projectId,
   });
-  const totalCount = templates.data?.totalCount ?? 0;
+  const totalCount = templates.data?.totalCount ?? null;
 
   const columnHelper = createColumnHelper<EvalConfigRow>();
   const columns = [
@@ -120,7 +120,7 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
               }
       }
       pagination={{
-        pageCount: Math.ceil(totalCount / paginationState.pageSize),
+        totalCount,
         onChange: setPaginationState,
         state: paginationState,
       }}

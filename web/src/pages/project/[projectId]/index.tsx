@@ -92,6 +92,7 @@ export default function Dashboard() {
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "dashboard",
+    projectId,
   );
 
   const agg = useMemo(

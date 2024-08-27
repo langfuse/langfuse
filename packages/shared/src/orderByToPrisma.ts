@@ -16,7 +16,7 @@ export function orderByToPrismaSql(
   tableColumns: ColumnDefinition[]
 ): Prisma.Sql {
   if (!orderBy) {
-    return Prisma.sql`ORDER BY t.timestamp DESC NULLS LAST`;
+    return Prisma.sql`ORDER BY t.timestamp DESC`;
   }
   // Get column definition to map column to internal name, e.g. "t.id"
   const col = tableColumns.find(
@@ -40,6 +40,6 @@ export function orderByToPrismaSql(
 
   // Both column and order are safe, can use raw SQL
   return Prisma.raw(
-    `ORDER BY ${col.internal} ${order.data} ${orderBy.order === "DESC" ? "NULLS LAST" : "NULLS FIRST"}`
+    `ORDER BY ${col.internal} ${order.data} ${col.nullable ? (orderBy.order === "DESC" ? "NULLS LAST" : "NULLS FIRST") : ""}`
   );
 }

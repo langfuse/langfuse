@@ -62,6 +62,8 @@ export function Trace(props: {
     return props.observations.map(({ id }) => id);
   }, [props.observations]);
 
+  const session = useSession();
+
   const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery(
     {
       projectId: props.trace.projectId,
@@ -75,6 +77,7 @@ export function Trace(props: {
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      enabled: session.status === "authenticated",
     },
   );
 
@@ -91,6 +94,7 @@ export function Trace(props: {
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      enabled: session.status === "authenticated",
     },
   );
 
@@ -224,7 +228,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   const router = useRouter();
   const utils = api.useUtils();
   const session = useSession();
-  const trace = api.traces.byId.useQuery(
+  const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     { traceId, projectId: router.query.projectId as string },
     {
       retry(failureCount, error) {
