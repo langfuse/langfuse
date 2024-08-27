@@ -113,11 +113,12 @@ export default function GenerationsTable({
   );
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange();
+    useTableDateRange(projectId);
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [],
     "generations",
+    projectId,
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -164,16 +165,26 @@ export default function GenerationsTable({
     ...promptVersionFilter,
   ]);
 
-  const generations = api.generations.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+  const getCountPayload = {
     projectId,
     filter: filterState,
-    orderBy: orderByState,
     searchQuery,
-  });
+    page: 0,
+    limit: 0,
+    orderBy: null,
+  };
 
-  const totalCount = generations.data?.totalCount ?? 0;
+  const getAllPayload = {
+    ...getCountPayload,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+    orderBy: orderByState,
+  };
+
+  const generations = api.generations.all.useQuery(getAllPayload);
+  const totalCountQuery = api.generations.countAll.useQuery(getCountPayload);
+
+  const totalCount = totalCountQuery.data?.totalCount ?? null;
 
   const startTimeFilter = filterState.find((f) => f.column === "Start Time");
   const filterOptions = api.generations.filterOptions.useQuery(
@@ -767,7 +778,7 @@ export default function GenerationsTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

@@ -276,9 +276,7 @@ export function DatasetRunItemsTable(
                 }
         }
         pagination={{
-          pageCount: Math.ceil(
-            (runItems.data?.totalRunItems ?? 0) / paginationState.pageSize,
-          ),
+          totalCount: runItems.data?.totalRunItems ?? null,
           onChange: setPaginationState,
           state: paginationState,
         }}

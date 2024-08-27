@@ -28,7 +28,7 @@ export default function EvalsTemplateTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
-  const totalCount = templates.data?.totalCount ?? 0;
+  const totalCount = templates.data?.totalCount ?? null;
 
   const columnHelper = createColumnHelper<EvalsTemplateRow>();
 
@@ -104,7 +104,7 @@ export default function EvalsTemplateTable({
               }
       }
       pagination={{
-        pageCount: Math.ceil(totalCount / paginationState.pageSize),
+        totalCount,
         onChange: setPaginationState,
         state: paginationState,
       }}
