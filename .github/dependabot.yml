@@ -30,7 +30,7 @@ updates:
       observability:
         patterns:
           - "dd-trace"
-          - "@opentelemetry/"
+          - "@opentelemetry/*"
           - "@appsignal/opentelemetry-instrumentation-bullmq"
           - "@prisma/instrumentation"
           - "@sentry/*"
