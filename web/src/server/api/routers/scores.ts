@@ -135,6 +135,9 @@ export const scoresRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const { filterCondition } = parseScoresGetAllOptions(input);
 
+      // wait 10 seconds
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+
       const scoresCount = await ctx.prisma.$queryRaw<
         Array<{ totalCount: bigint }>
       >(

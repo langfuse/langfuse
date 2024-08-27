@@ -16,6 +16,7 @@ import {
 } from "@/src/components/ui/select";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LoaderCircle } from "lucide-react";
+import { Input } from "@/src/components/ui/input";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -63,14 +64,40 @@ export function DataTablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-center whitespace-nowrap text-sm font-medium">
-          Page {table.getState().pagination.pageIndex + 1} of{" "}
-          {table.getPageCount() === -1 ? (
-            <LoaderCircle className="ml-1 h-3 w-3 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center gap-1 whitespace-nowrap text-sm font-medium">
+          {table.getPageCount() !== -1 ? (
+            <>
+              Page
+              <Input
+                type="number"
+                // min={1}
+                max={table.getPageCount()}
+                value={table.getState().pagination.pageIndex + 1}
+                onChange={(e) => {
+                  const newPageIndex = Number(e.target.value) - 1;
+                  if (
+                    newPageIndex >= 0 &&
+                    newPageIndex < table.getPageCount()
+                  ) {
+                    table.setPageIndex(newPageIndex);
+                  }
+                }}
+                className="h-8 appearance-none"
+              />
+            </>
           ) : (
-            table.getPageCount()
+            `Page ${table.getState().pagination.pageIndex + 1}`
+          )}
+          {table.getPageCount() !== -1 ? (
+            <span>of {table.getPageCount()}</span>
+          ) : (
+            <span>
+              of{" "}
+              <LoaderCircle className="ml-1 inline-block h-3 w-3 animate-spin text-muted-foreground" />
+            </span>
           )}
         </div>
+
         <div className="flex items-center space-x-2">
           <Button
             variant="outline"
