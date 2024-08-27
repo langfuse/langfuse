@@ -123,7 +123,7 @@ export function DataTablePagination<TData>({
                 type: "lastPage",
               });
             }}
-            disabled={!table.getCanNextPage()}
+            disabled={!table.getCanNextPage() || table.getPageCount() === -1}
           >
             <span className="sr-only">Go to last page</span>
             <DoubleArrowRightIcon className="h-4 w-4" />
