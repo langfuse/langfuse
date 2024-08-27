@@ -10,12 +10,38 @@ export type SpanCtx = {
   traceScope?: string;
 };
 
-type CallbackFn<T> = () => T | Promise<T>;
+type AsyncCallbackFn<T> = () => Promise<T>;
 
-export function instrument<T>(
+export async function instrumentAsync<T>(
   ctx: SpanCtx,
-  callback: CallbackFn<T>
-): T extends Promise<any> ? Promise<T> : T {
+  callback: AsyncCallbackFn<T>
+): Promise<T> {
+  return await getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
+    ctx.name,
+    {
+      root: ctx.rootSpan,
+      kind: ctx.spanKind,
+    },
+    (span) => {
+      try {
+        const result = callback();
+        span.end();
+        return result;
+      } catch (ex) {
+        traceException(ex as opentelemetry.Exception, span);
+        span.end();
+        throw ex;
+      }
+    }
+  );
+}
+
+type SyncCallbackFn<T> = () => T;
+
+export function instrumentSync<T>(
+  ctx: SpanCtx,
+  callback: SyncCallbackFn<T>
+): T {
   return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
     {
@@ -23,30 +49,14 @@ export function instrument<T>(
       kind: ctx.spanKind,
     },
     (span) => {
-      const handleResult = (result: T) => {
+      try {
+        const result = callback();
         span.end();
         return result;
-      };
-
-      const handleError = (ex: unknown) => {
+      } catch (ex) {
         traceException(ex as opentelemetry.Exception, span);
         span.end();
         throw ex;
-      };
-
-      try {
-        const result = callback();
-        if (result instanceof Promise) {
-          return result
-            .then(handleResult)
-            .catch(handleError) as T extends Promise<any> ? Promise<T> : T;
-        } else {
-          return handleResult(result) as T extends Promise<any>
-            ? Promise<T>
-            : T;
-        }
-      } catch (ex) {
-        return handleError(ex) as T extends Promise<any> ? Promise<T> : T;
       }
     }
   );
