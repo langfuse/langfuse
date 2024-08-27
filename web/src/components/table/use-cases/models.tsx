@@ -22,7 +22,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 
 export type ModelTableRow = {
   modelId: string;
@@ -303,6 +303,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         columnVisibility={columnVisibility}
         filterColumnDefinition={modelsTableCols}
         filterState={filterState}
+        setFilterState={setFilterState}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
