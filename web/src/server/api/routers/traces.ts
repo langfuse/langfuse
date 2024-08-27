@@ -9,7 +9,8 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  datetimeFilterToPrismaSql,
+  dateTimeFilterToPrisma,
+  datetimeFilterToRawSql,
   filterAndValidateDbScoreList,
   orderBy,
   orderByToPrismaSql,
@@ -195,22 +196,13 @@ export const traceRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { timestampFilter } = input;
-      const prismaTimestampFilter =
-        timestampFilter?.type === "datetime"
-          ? timestampFilter?.operator === ">="
-            ? { gte: timestampFilter.value }
-            : timestampFilter?.operator === ">"
-              ? { gt: timestampFilter.value }
-              : timestampFilter?.operator === "<="
-                ? { lte: timestampFilter.value }
-                : timestampFilter?.operator === "<"
-                  ? { lt: timestampFilter.value }
-                  : {}
-          : {};
+      const prismaTimestampFilter = timestampFilter
+        ? dateTimeFilterToPrisma(timestampFilter)
+        : {};
 
       const rawTimestampFilter =
         timestampFilter && timestampFilter.type === "datetime"
-          ? datetimeFilterToPrismaSql(
+          ? datetimeFilterToRawSql(
               "timestamp",
               timestampFilter.operator,
               timestampFilter.value,
@@ -569,7 +561,7 @@ function parseTraceAllFilters(input: TraceFilterOptions) {
 
   const observationTimeseriesFilter =
     timeseriesFilter && timeseriesFilter.type === "datetime"
-      ? datetimeFilterToPrismaSql(
+      ? datetimeFilterToRawSql(
           "start_time",
           timeseriesFilter.operator,
           timeseriesFilter.value,
