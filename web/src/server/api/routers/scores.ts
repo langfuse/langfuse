@@ -17,11 +17,14 @@ import {
 } from "@/src/server/api/trpc";
 import {
   CreateAnnotationScoreData,
+  datetimeFilterToRawSql,
+  dateTimeFilterToPrisma,
   orderBy,
   orderByToPrismaSql,
   paginationZod,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
+  timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
 } from "@langfuse/shared";
@@ -115,13 +118,28 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        timestampFilter: timeFilter.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
+      const { timestampFilter } = input;
+      const prismaTimestampFilter = timestampFilter
+        ? dateTimeFilterToPrisma(timestampFilter)
+        : {};
+
+      const rawTimestampFilter =
+        timestampFilter && timestampFilter.type === "datetime"
+          ? datetimeFilterToRawSql(
+              "timestamp",
+              timestampFilter.operator,
+              timestampFilter.value,
+            )
+          : Prisma.empty;
       const [names, tags] = await Promise.all([
         ctx.prisma.score.groupBy({
           where: {
             projectId: input.projectId,
+            timestamp: prismaTimestampFilter,
           },
           by: ["name"],
           _count: {
@@ -137,7 +155,7 @@ export const scoresRouter = createTRPCRouter({
         ctx.prisma.$queryRaw<{ value: string }[]>`
           SELECT tags.tag as value
           FROM traces, UNNEST(traces.tags) AS tags(tag)
-          WHERE traces.project_id = ${input.projectId}
+          WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
           GROUP BY tags.tag
           ORDER BY tags.tag ASC
           LIMIT 1000
