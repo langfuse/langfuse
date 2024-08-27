@@ -181,7 +181,7 @@ export const datetimeFilterToRawSql = (
   )} ${value}::timestamp with time zone at time zone 'UTC'`;
 };
 
-export const dateTimeFilterToPrisma = (
+export const datetimeFilterToPrisma = (
   timestampFilter: z.infer<typeof timeFilter>
 ) => {
   const prismaTimestampFilter =
