@@ -1,10 +1,6 @@
 import { toast } from "sonner";
 import { ErrorNotification } from "@/src/features/notifications/ErrorNotification";
 
-const isServerError = (httpStatus: number): boolean => {
-  return httpStatus >= 500 && httpStatus < 600;
-};
-
 const toastErrorStyleProps = {
   border: "1px solid hsl(var(--destructive))",
   backgroundColor: "hsl(var(--destructive))",
@@ -18,18 +14,16 @@ const toastWarningStyleProps = {
 export const showErrorToast = (
   error: string,
   description: string,
-  httpStatus: number,
+  type: "WARNING" | "ERROR" = "ERROR",
   cause?: string,
   path?: string,
 ) => {
-  const isError = isServerError(httpStatus);
-
   toast.custom(
     (t) => (
       <ErrorNotification
         error={error}
         description={description}
-        type={isError ? "ERROR" : "WARNING"}
+        type={type}
         cause={cause}
         path={path}
         dismissToast={toast.dismiss}
@@ -41,7 +35,7 @@ export const showErrorToast = (
       style: {
         padding: "1rem",
         borderRadius: "0.5rem",
-        ...(isError ? toastErrorStyleProps : toastWarningStyleProps),
+        ...(type === "ERROR" ? toastErrorStyleProps : toastWarningStyleProps),
       },
     },
   );

@@ -49,12 +49,18 @@ export const trpcErrorToast = (error: unknown) => {
     const description = error.message;
 
     const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
-    showErrorToast(errorTitle, description, httpStatus, cause, path);
+    showErrorToast(
+      errorTitle,
+      description,
+      httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
+      cause,
+      path,
+    );
   } else {
     showErrorToast(
       "Unexpected Error",
-      "An unexpected error occurred. Please try again.",
-      400,
+      "An unexpected error occurred.",
+      "ERROR",
     );
   }
 };
