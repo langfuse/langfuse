@@ -4,12 +4,17 @@ import { TagButton } from "@/src/features/tag/components/TagButton";
 type TagListProps = {
   selectedTags: string[];
   isLoading: boolean;
+  viewOnly?: boolean;
 };
 
-const TagList = ({ selectedTags, isLoading }: TagListProps) => {
-  return selectedTags.length > 0 ? (
+const TagList = ({
+  selectedTags,
+  isLoading,
+  viewOnly = false,
+}: TagListProps) => {
+  return selectedTags.length > 0 || viewOnly ? (
     selectedTags.map((tag) => (
-      <TagButton key={tag} tag={tag} loading={isLoading} />
+      <TagButton key={tag} tag={tag} loading={isLoading} viewOnly={viewOnly} />
     ))
   ) : (
     <Button
