@@ -15,6 +15,7 @@ type AdditionalObservationFields = {
   traceName: string | null;
   promptName: string | null;
   promptVersion: string | null;
+  traceTags: Array<string>;
 };
 
 export type FullObservations = Array<
@@ -135,7 +136,8 @@ export async function getAllGenerations({
         o."latency",
         o.prompt_id as "promptId",
         p.name as "promptName",
-        p.version as "promptVersion"
+        p.version as "promptVersion",
+        t.tags as "traceTags"
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = ${input.projectId}
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
