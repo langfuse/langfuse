@@ -5,6 +5,7 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
+import { v4 as uuidv4 } from "uuid";
 
 /**
  * CSP headers
@@ -55,6 +56,10 @@ const nextConfig = {
     ],
   },
   poweredByHeader: false,
+
+  generateBuildId: async () => {
+    return process.env.NEXT_JS_BUILD_ID ?? uuidv4();
+  },
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config

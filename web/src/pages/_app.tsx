@@ -70,6 +70,18 @@ const MyApp: AppType<{ session: Session | null }> = ({
   pageProps: { session, ...pageProps },
 }) => {
   const router = useRouter();
+  const buildId = api.versions.buildId.useQuery();
+
+  useEffect(() => {
+    const clientBuildId = process.env.NEXT_JS_BUILD_ID;
+
+    if (!!buildId.data && clientBuildId !== buildId.data) {
+      console.log(
+        `Client build ID (${clientBuildId}) does not match server build ID (${buildId.data}). Reloading...`,
+      );
+      window.location.reload(); // Force a full page reload to get the latest version
+    }
+  }, [buildId.data]);
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
