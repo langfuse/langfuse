@@ -49,7 +49,7 @@ export const BillingSettings = () => {
       </Alert>
     );
   return (
-    <div className="p-4">
+    <div>
       <Header title="Usage & Billing" level="h3" />
       <OrganizationUsageChart />
     </div>
