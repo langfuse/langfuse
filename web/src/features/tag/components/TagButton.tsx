@@ -11,6 +11,7 @@ export const TagButton: React.FC<{
     key={tag}
     variant="secondary"
     size="xs"
+    disabled={viewOnly}
     className={cn(
       "text-xs font-semibold",
       !viewOnly && "hover:bg-background",
