@@ -15,7 +15,7 @@ import {
   type SessionOptions,
   singleFilter,
   timeFilter,
-  datetimeFilterToRawSql,
+  datetimeFilterToPrismaSql,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -184,7 +184,7 @@ export const sessionRouter = createTRPCRouter({
         const { timestampFilter } = input;
         const rawTimestampFilter =
           timestampFilter && timestampFilter.type === "datetime"
-            ? datetimeFilterToRawSql(
+            ? datetimeFilterToPrismaSql(
                 "timestamp",
                 timestampFilter.operator,
                 timestampFilter.value,

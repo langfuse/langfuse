@@ -164,7 +164,7 @@ const castValueToPostgresTypes = (
 
 const dateOperators = filterOperators["datetime"];
 
-export const datetimeFilterToRawSql = (
+export const datetimeFilterToPrismaSql = (
   safeColumn: string,
   operator: (typeof dateOperators)[number],
   value: Date
