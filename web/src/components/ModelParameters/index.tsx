@@ -48,7 +48,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
       <p className="font-semibold">Model</p>
       {availableProviders.length === 0 ? (
         <>
-          <p className="text-sm">
+          <p className="text-xs">
             No LLM API key set in project. For evals, we only support OpenAI so
             far.
           </p>

@@ -96,7 +96,7 @@ export const ApiKeyRender = ({
     <>
       <div className="mb-4">
         <div className="text-md font-semibold">Secret Key</div>
-        <div className="my-2">
+        <div className="my-2 text-sm">
           This key can only be viewed once. You can always create new keys in
           the project settings.
         </div>

@@ -350,7 +350,7 @@ export default function Layout(props: PropsWithChildren) {
         </Transition.Root>
 
         {/* Static sidebar for desktop */}
-        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
+        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-52 lg:flex-col">
           {/* Sidebar component, swap this element with another sidebar if you like */}
           <div className="flex h-screen grow flex-col border-r border-border bg-background">
             <nav className="flex h-full flex-1 flex-col overflow-y-auto px-4 py-3">
@@ -422,7 +422,7 @@ export default function Layout(props: PropsWithChildren) {
               >
                 <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
                   <span
-                    className="block max-w-56 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
+                    className="block max-w-52 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
                     title={session.data?.user?.email ?? undefined}
                   >
                     {session.data?.user?.email}
@@ -490,7 +490,7 @@ export default function Layout(props: PropsWithChildren) {
             >
               <Menu.Items className="absolute right-0 z-10 mt-2.5 rounded-md bg-background py-2 pb-1 shadow-lg ring-1 ring-border focus:outline-none">
                 <span
-                  className="mb-1 block max-w-56 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
+                  className="mb-1 block max-w-52 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
                   title={session.data?.user?.email ?? undefined}
                 >
                   {session.data?.user?.email}
@@ -515,7 +515,7 @@ export default function Layout(props: PropsWithChildren) {
             </Transition>
           </Menu>
         </div>
-        <div className="lg:pl-56">
+        <div className="lg:pl-52">
           {env.NEXT_PUBLIC_DEMO_ORG_ID &&
           env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
           routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
@@ -536,7 +536,7 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
-          <main className="p-4">{props.children}</main>
+          <main className="p-3">{props.children}</main>
           <Toaster visibleToasts={1} />
         </div>
       </div>
@@ -638,7 +638,7 @@ const MainNavigation: React.FC<{
                       {item.label && (
                         <span
                           className={cn(
-                            "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                            "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 text-xs",
                             item.current
                               ? "border-primary-accent text-primary-accent"
                               : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
@@ -652,7 +652,7 @@ const MainNavigation: React.FC<{
                           open
                             ? "rotate-90 text-muted-foreground"
                             : "text-muted-foreground",
-                          "ml-auto h-5 w-5 shrink-0",
+                          "ml-auto h-4 w-4 shrink-0",
                         )}
                         aria-hidden="true"
                       />
@@ -667,7 +667,7 @@ const MainNavigation: React.FC<{
                               subItem.current
                                 ? "bg-primary-foreground text-primary-accent"
                                 : "text-primary hover:bg-primary-foreground hover:text-primary-accent",
-                              "ml-0.5 flex w-full items-center gap-x-3 rounded-md p-1.5 pl-7 pr-2 text-sm",
+                              "ml-0.5 flex w-full items-center gap-x-3 rounded-md p-1 pl-7 pr-2 text-sm",
                             )}
                             target={subItem.newTab ? "_blank" : undefined}
                           >

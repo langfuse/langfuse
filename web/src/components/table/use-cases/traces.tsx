@@ -270,7 +270,7 @@ export default function TracesTable({
             traceId={traceId}
             projectId={projectId}
             value={bookmarked}
-            size="xs"
+            size="icon-xs"
           />
         ) : undefined;
       },
