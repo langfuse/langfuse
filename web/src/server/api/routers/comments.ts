@@ -13,7 +13,7 @@ import { TRPCError } from "@trpc/server";
 const COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL = {
   [CommentObjectType.TRACE]: "trace",
   [CommentObjectType.OBSERVATION]: "observation",
-  [CommentObjectType.SESSION]: "session",
+  [CommentObjectType.SESSION]: "traceSession",
   [CommentObjectType.PROMPT]: "prompt",
 } as const;
 
