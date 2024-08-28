@@ -25,6 +25,9 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import TagList from "@/src/features/tag/components/TagList";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { cn } from "@/src/utils/tailwind";
 
 export type SessionTableRow = {
   id: string;
@@ -39,6 +42,7 @@ export type SessionTableRow = {
   inputTokens: number | undefined;
   outputTokens: number | undefined;
   totalTokens: number | undefined;
+  traceTags: string[] | undefined;
 };
 
 export type SessionTableProps = {
@@ -90,6 +94,8 @@ export default function SessionsTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("sessions", "s");
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
@@ -406,6 +412,32 @@ export default function SessionsTable({
         );
       },
     },
+    {
+      accessorKey: "traceTags",
+      id: "traceTags",
+      header: "Trace Tags",
+      size: 250,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: SessionTableRow["traceTags"] = row.getValue("traceTags");
+        if (!sessionMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return (
+          value && (
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
+              <TagList selectedTags={value} isLoading={false} viewOnly />
+            </div>
+          )
+        );
+      },
+    },
   ];
 
   const transformFilterOptions = () => {
@@ -436,6 +468,8 @@ export default function SessionsTable({
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         columnsWithCustomSelect={["userIds"]}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
       />
       <DataTable
         columns={columns}
@@ -464,6 +498,7 @@ export default function SessionsTable({
                     inputTokens: session.promptTokens,
                     outputTokens: session.completionTokens,
                     totalTokens: session.totalTokens,
+                    traceTags: session.traceTags,
                   })),
                 }
         }
@@ -481,6 +516,7 @@ export default function SessionsTable({
             "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
           href: "https://langfuse.com/docs/tracing-features/sessions",
         }}
+        rowHeight={rowHeight}
       />
     </>
   );

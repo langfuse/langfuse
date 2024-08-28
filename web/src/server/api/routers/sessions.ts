@@ -133,6 +133,7 @@ export const sessionRouter = createTRPCRouter({
             promptTokens: number;
             completionTokens: number;
             totalTokens: number;
+            traceTags: string[];
           }>
         >(
           createSessionsAllQuery(
@@ -146,7 +147,8 @@ export const sessionRouter = createTRPCRouter({
               o."outputCost" AS "outputCost",
               o."promptTokens" AS "promptTokens",
               o."completionTokens" AS "completionTokens",
-              o."totalTokens" AS "totalTokens"
+              o."totalTokens" AS "totalTokens",
+              t."tags" AS "traceTags"
             `,
             inputForMetrics,
             {
@@ -159,6 +161,8 @@ export const sessionRouter = createTRPCRouter({
         return metrics.map((row) => ({
           ...row,
           userIds: (row.userIds?.filter((t) => t !== null) ?? []) as string[],
+          traceTags: (row.traceTags?.filter((t) => t !== null) ??
+            []) as string[],
         }));
       } catch (e) {
         console.error(e);
