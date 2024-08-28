@@ -52,6 +52,7 @@ export const scoresRouter = createTRPCRouter({
           Score & {
             traceName: string | null;
             traceUserId: string | null;
+            traceTags: Array<string> | null;
             jobConfigurationId: string | null;
             authorUserImage: string | null;
             authorUserName: string | null;
@@ -73,6 +74,7 @@ export const scoresRouter = createTRPCRouter({
           s.author_user_id AS "authorUserId",
           t.user_id AS "traceUserId",
           t.name AS "traceName",
+          t.tags AS "traceTags",
           je.job_configuration_id AS "jobConfigurationId",
           u.image AS "authorUserImage", 
           u.name AS "authorUserName"
