@@ -225,7 +225,8 @@ export const commentsRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "comments:read",
         });
-        return new Map([]);
+
+        return new Map();
       } catch (error) {
         console.error(error);
         if (error instanceof TRPCError) {
