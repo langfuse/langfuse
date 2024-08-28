@@ -1,17 +1,5 @@
 import z from "zod";
-import { OrgEnrichedApiKey } from "../server";
-
-export type RateLimitResult = {
-  apiKey: z.infer<typeof OrgEnrichedApiKey>;
-  resource: z.infer<typeof RateLimitResource>;
-  points: number;
-
-  // from rate-limiter-flexible
-  remainingPoints: number;
-  msBeforeNext: number;
-  consumedPoints: number;
-  isFirstInDuration: boolean;
-};
+import { ApiAccessScope } from "../server";
 
 export const RateLimitResource = z.enum([
   "ingestion",
@@ -20,15 +8,23 @@ export const RateLimitResource = z.enum([
   "prompts",
 ]);
 
+// result of the rate limit check.
+export type RateLimitResult = {
+  resource: z.infer<typeof RateLimitResource>;
+  points: number;
+  scope: ApiAccessScope;
+
+  // from rate-limiter-flexible
+  remainingPoints: number;
+  msBeforeNext: number;
+  consumedPoints: number;
+  isFirstInDuration: boolean;
+};
+
 export const RateLimitConfig = z.object({
   points: z.number().nullish(),
   duration: z.number().nullish(),
   resource: RateLimitResource,
 });
 
-export const CloudConfigRateLimitZod = z.array(RateLimitConfig);
-
-export const RateLimitPlanConfig = z.object({
-  default: z.array(RateLimitConfig),
-  team: z.array(RateLimitConfig),
-});
+export const CloudConfigRateLimit = z.array(RateLimitConfig);

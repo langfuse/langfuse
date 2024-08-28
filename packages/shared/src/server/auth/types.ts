@@ -1,6 +1,6 @@
 import z from "zod";
-import { plans } from "../../features/entitlements/plans";
-import { CloudConfigRateLimitZod } from "../../interfaces/rate-limits";
+import { Plan, plans } from "../../features/entitlements/plans";
+import { CloudConfigRateLimit } from "../../interfaces/rate-limits";
 
 export const OrgEnrichedApiKey = z.object({
   id: z.string(),
@@ -11,22 +11,17 @@ export const OrgEnrichedApiKey = z.object({
   lastUsedAt: z.string().datetime().nullable(),
   expiresAt: z.string().datetime().nullable(),
   projectId: z.string(),
-  // orgId is added at write time to the redis cache.
-  // Best way to rate-limit API keys on a per-org basis.
-  orgId: z.string(),
-  plan: z.enum(plans as unknown as [string, ...string[]]),
-  rateLimits: CloudConfigRateLimitZod.nullish(),
-});
-
-export const OrgAndAPIKeyEnrichedApiKey = OrgEnrichedApiKey.extend({
   fastHashedSecretKey: z.string(),
   hashedSecretKey: z.string(),
+  orgId: z.string(),
+  plan: z.enum(plans as unknown as [string, ...string[]]),
+  rateLimits: CloudConfigRateLimit.nullish(),
 });
 
 export const API_KEY_NON_EXISTENT = "api-key-non-existent";
 
 export const CachedApiKey = z.union([
-  OrgAndAPIKeyEnrichedApiKey,
+  OrgEnrichedApiKey,
   z.literal(API_KEY_NON_EXISTENT),
 ]);
 
@@ -40,10 +35,12 @@ export type AuthHeaderVerificationResult =
 export type AuthHeaderValidVerificationResult = {
   validKey: true;
   scope: ApiAccessScope;
-  apiKey?: z.infer<typeof OrgEnrichedApiKey>;
 };
 
 export type ApiAccessScope = {
   projectId: string;
   accessLevel: "all" | "scores";
+  orgId: string;
+  plan: Plan;
+  rateLimits: z.infer<typeof CloudConfigRateLimit>;
 };

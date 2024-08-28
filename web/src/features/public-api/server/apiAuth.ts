@@ -1,12 +1,12 @@
 import { env } from "@/src/env.mjs";
 import {
   addUserToSpan,
-  OrgAndAPIKeyEnrichedApiKey,
   createShaHash,
   recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
   CachedApiKey,
+  OrgEnrichedApiKey,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -18,7 +18,7 @@ import { type Redis } from "ioredis";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
-import { CloudConfigSchema } from "@langfuse/shared";
+import { CloudConfigSchema, isPlan } from "@langfuse/shared";
 
 export class ApiAuthService {
   prisma: PrismaClient;
@@ -167,16 +167,22 @@ export class ApiAuthService {
 
         addUserToSpan({ projectId: finalApiKey.projectId });
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { fastHashedSecretKey, hashedSecretKey, ...remainingApiKey } =
-          finalApiKey;
+        const plan = finalApiKey.plan;
+
+        if (!isPlan(plan)) {
+          console.error("Invalid plan type for key", finalApiKey.plan);
+          throw new Error("Invalid credentials");
+        }
+
         return {
           validKey: true,
           scope: {
             projectId: finalApiKey.projectId,
             accessLevel: "all",
+            orgId: finalApiKey.orgId,
+            plan: plan,
+            rateLimits: finalApiKey.rateLimits ?? [],
           },
-          apiKey: remainingApiKey,
         };
       }
       // Bearer auth, limited scope, only needs public key
@@ -187,13 +193,19 @@ export class ApiAuthService {
 
         addUserToSpan({ projectId: dbKey.projectId });
 
+        const cloudConfig = CloudConfigSchema.parse(
+          dbKey.project.organization.cloudConfig,
+        );
+
         return {
           validKey: true,
           scope: {
             projectId: dbKey.projectId,
             accessLevel: "scores",
+            orgId: dbKey.project.organization.id,
+            plan: getOrganizationPlan(cloudConfig),
+            rateLimits: cloudConfig.rateLimits ?? [],
           },
-          apiKey: convertToRedisRepresentation(dbKey),
         };
       }
     } catch (error: unknown) {
@@ -281,9 +293,7 @@ export class ApiAuthService {
 
   async addApiKeyToRedis(
     hash: string,
-    newApiKey:
-      | z.infer<typeof OrgAndAPIKeyEnrichedApiKey>
-      | typeof API_KEY_NON_EXISTENT,
+    newApiKey: z.infer<typeof OrgEnrichedApiKey> | typeof API_KEY_NON_EXISTENT,
   ) {
     if (!this.redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") {
       return;
@@ -365,7 +375,7 @@ export const convertToRedisRepresentation = (
     ? CloudConfigSchema.parse(cloudConfig)
     : undefined;
 
-  const newApiKey = OrgAndAPIKeyEnrichedApiKey.parse({
+  const newApiKey = OrgEnrichedApiKey.parse({
     ...apiKeyAndOrganisation,
     createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,

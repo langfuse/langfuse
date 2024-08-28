@@ -31,29 +31,19 @@ describe("RateLimitService", () => {
   });
 
   it("should create a new rate limit entry", async () => {
-    const apiKey = {
-      id: "test-api-key-id",
-      note: "Test API Key",
-      publicKey: "pk-test-1234567890",
-      hashedSecretKey: "hashed-secret-key",
-      fastHashedSecretKey: "fast-hashed-secret-key",
-      displaySecretKey: "display-secret-key",
-      createdAt: new Date().toISOString(),
-      lastUsedAt: null,
-      expiresAt: null,
-      projectId: "test-project-id",
+    const scope = {
       orgId: orgId,
-      plan: "default",
+      plan: "cloud:hobby" as const,
+      projectId: "test-project-id",
+      accessLevel: "all" as const,
+      rateLimits: [],
     };
 
     const rateLimitService = new RateLimitService(redis!);
-    const result = await rateLimitService.rateLimitRequest(
-      apiKey,
-      "public-api",
-    );
+    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
     expect(result).toEqual({
-      apiKey: apiKey,
+      scope: scope,
       resource: "public-api",
       points: 1000,
       remainingPoints: 999,
@@ -64,31 +54,21 @@ describe("RateLimitService", () => {
   });
 
   it("should increment the rate limit count", async () => {
-    const apiKey = {
-      id: "test-api-key-id",
-      note: "Test API Key",
-      publicKey: "pk-test-1234567890",
-      hashedSecretKey: "hashed-secret-key",
-      fastHashedSecretKey: "fast-hashed-secret-key",
-      displaySecretKey: "display-secret-key",
-      createdAt: new Date().toISOString(),
-      lastUsedAt: null,
-      expiresAt: null,
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      orgId: "test-org",
-      plan: "default",
+      accessLevel: "all" as const,
+      rateLimits: [],
     };
 
     const rateLimitService = new RateLimitService(redis!);
-    await rateLimitService.rateLimitRequest(apiKey, "public-api");
+    await rateLimitService.rateLimitRequest(scope, "public-api");
 
-    const result = await rateLimitService.rateLimitRequest(
-      apiKey,
-      "public-api",
-    );
+    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
     expect(result).toEqual({
-      apiKey: apiKey,
+      scope: scope,
       resource: "public-api",
       points: 1000,
       remainingPoints: 998,
@@ -99,36 +79,26 @@ describe("RateLimitService", () => {
   });
 
   it("should reset the rate limit count after the window expires", async () => {
-    const apiKey = {
-      id: "test-api-key-id",
-      note: "Test API Key",
-      publicKey: "pk-test-1234567890",
-      hashedSecretKey: "hashed-secret-key",
-      fastHashedSecretKey: "fast-hashed-secret-key",
-      displaySecretKey: "display-secret-key",
-      createdAt: new Date().toISOString(),
-      lastUsedAt: null,
-      expiresAt: null,
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      orgId: "test-org",
-      plan: "default",
+      accessLevel: "all" as const,
+      rateLimits: [
+        { resource: "public-api" as const, points: 100, duration: 1 },
+      ],
     };
 
-    const customConfig = {
-      default: [{ resource: "public-api" as const, points: 100, duration: 1 }],
-      team: [],
-    };
-
-    const rateLimitService = new RateLimitService(redis!, customConfig);
-    await rateLimitService.rateLimitRequest(apiKey, "public-api");
+    const rateLimitService = new RateLimitService(redis!);
+    await rateLimitService.rateLimitRequest(scope, "public-api");
 
     const firstResult = await rateLimitService.rateLimitRequest(
-      apiKey,
+      scope,
       "public-api",
     );
 
     expect(firstResult).toEqual({
-      apiKey: apiKey,
+      scope: scope,
       resource: "public-api",
       points: 100,
       remainingPoints: 98,
@@ -140,12 +110,12 @@ describe("RateLimitService", () => {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const secondResult = await rateLimitService.rateLimitRequest(
-      apiKey,
+      scope,
       "public-api",
     );
 
     expect(secondResult).toEqual({
-      apiKey: apiKey,
+      scope: scope,
       resource: "public-api",
       points: 100,
       remainingPoints: 99,
@@ -156,79 +126,50 @@ describe("RateLimitService", () => {
   });
 
   it("should return false when rate limit is exceeded", async () => {
-    const apiKey = {
-      id: "test-id",
-      note: null,
-      publicKey: "test-public-key",
-      hashedSecretKey: "test-hashed-secret-key",
-      fastHashedSecretKey: null,
-      displaySecretKey: "test-display-secret-key",
-      createdAt: null,
-      lastUsedAt: null,
-      expiresAt: null,
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
       projectId: "test-project-id",
-      orgId: "test-org",
-      plan: "default",
-    };
-    const customConfig = {
-      default: [{ resource: "public-api" as const, points: 100, duration: 1 }],
-      team: [],
+      accessLevel: "all" as const,
+      rateLimits: [{ resource: "public-api" as const, points: 5, duration: 1 }],
     };
 
-    const rateLimitService = new RateLimitService(redis!, customConfig);
+    const rateLimitService = new RateLimitService(redis!);
 
-    for (let i = 0; i < 100; i++) {
-      await rateLimitService.rateLimitRequest(apiKey, "public-api");
+    for (let i = 0; i < 5; i++) {
+      await rateLimitService.rateLimitRequest(scope, "public-api");
     }
 
-    const result = await rateLimitService.rateLimitRequest(
-      apiKey,
-      "public-api",
-    );
+    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
     expect(result).toEqual({
-      apiKey: apiKey,
+      scope: scope,
       resource: "public-api",
-      points: 100,
+      points: 5,
       remainingPoints: 0,
       msBeforeNext: expect.any(Number),
-      consumedPoints: 101,
+      consumedPoints: 6,
       isFirstInDuration: false,
     });
   });
 
   it("should apply rate limits with override for specific resource", async () => {
-    const apiKey = {
-      id: "override-test-id",
-      note: "Override Test API Key",
-      publicKey: "pk-override-test-1234567890",
-      hashedSecretKey: "hashed-secret-key",
-      fastHashedSecretKey: "fast-hashed-secret-key",
-      displaySecretKey: "display-secret-key",
-      createdAt: new Date().toISOString(),
-      lastUsedAt: null,
-      expiresAt: null,
-      projectId: "override-test-project-id",
-      orgId: "override-test-org",
-      plan: "default",
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId: "test-project-id",
+      accessLevel: "all" as const,
       rateLimits: [
-        {
-          resource: "public-api" as const,
-          points: 5,
-          duration: 10,
-        },
+        { resource: "public-api" as const, points: 5, duration: 10 },
       ],
     };
 
     const rateLimitService = new RateLimitService(redis!);
 
-    const result = await rateLimitService.rateLimitRequest(
-      apiKey,
-      "public-api",
-    );
+    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
     expect(result).toEqual({
-      apiKey: apiKey,
+      scope: scope,
       resource: "public-api",
       points: 5,
       remainingPoints: 4,
@@ -239,53 +180,37 @@ describe("RateLimitService", () => {
   });
 
   it("should not apply rate limits for resource prompts", async () => {
-    const apiKey = {
-      id: "no-rate-limit-test-id",
-      note: "No Rate Limit Test API Key",
-      publicKey: "pk-no-rate-limit-test-1234567890",
-      hashedSecretKey: "hashed-secret-key",
-      fastHashedSecretKey: "fast-hashed-secret-key",
-      displaySecretKey: "display-secret-key",
-      createdAt: new Date().toISOString(),
-      lastUsedAt: null,
-      expiresAt: null,
-      projectId: "no-rate-limit-test-project-id",
-      orgId: "no-rate-limit-test-org",
-      plan: "default",
-      rateLimits: [],
-    };
-
-    const rateLimitService = new RateLimitService(redis!);
-
-    const result = await rateLimitService.rateLimitRequest(apiKey, "prompts");
-
-    expect(result).toBeUndefined();
-  });
-
-  it("should not apply rate limits for ingestion when overridden to null in API key", async () => {
-    const apiKey = {
-      id: "override-no-rate-limit-test-id",
-      note: "Override No Rate Limit Test API Key",
-      publicKey: "pk-override-no-rate-limit-test-1234567890",
-      hashedSecretKey: "hashed-secret-key",
-      fastHashedSecretKey: "fast-hashed-secret-key",
-      displaySecretKey: "display-secret-key",
-      createdAt: new Date().toISOString(),
-      lastUsedAt: null,
-      expiresAt: null,
-      projectId: "override-no-rate-limit-test-project-id",
-      orgId: "override-no-rate-limit-test-org",
-      plan: "default",
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId: "test-project-id",
+      accessLevel: "all" as const,
       rateLimits: [
-        {
-          resource: "ingestion" as const,
-        },
+        { resource: "public-api" as const, points: 5, duration: 10 },
       ],
     };
 
     const rateLimitService = new RateLimitService(redis!);
 
-    const result = await rateLimitService.rateLimitRequest(apiKey, "ingestion");
+    const result = await rateLimitService.rateLimitRequest(scope, "prompts");
+
+    expect(result).toBeUndefined();
+  });
+
+  it("should not apply rate limits for ingestion when overridden to null in API key", async () => {
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId: "test-project-id",
+      accessLevel: "all" as const,
+      rateLimits: [
+        { resource: "ingestion" as const, points: null, duration: null },
+      ],
+    };
+
+    const rateLimitService = new RateLimitService(redis!);
+
+    const result = await rateLimitService.rateLimitRequest(scope, "ingestion");
 
     expect(result).toBeUndefined();
   });

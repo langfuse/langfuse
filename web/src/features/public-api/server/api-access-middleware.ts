@@ -2,7 +2,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
-  type OrgEnrichedApiKey,
+  type ApiAccessScope,
   recordIncrement,
 } from "@langfuse/shared/src/server";
 import type Redis from "ioredis";
@@ -12,7 +12,7 @@ import { type RateLimitResult, type RateLimitResource } from "@langfuse/shared";
 // this class is responsible for first checking auth and then rate limits
 // it also provides a helper to send out rest responses in case the request was rate limited
 export class ApiAccessMiddleware {
-  apiKey: z.infer<typeof OrgEnrichedApiKey> | undefined;
+  scope: ApiAccessScope | undefined;
   prisma: PrismaClient;
   redis: Redis | null;
   resource: z.infer<typeof RateLimitResource>;
@@ -22,7 +22,7 @@ export class ApiAccessMiddleware {
     prisma: PrismaClient,
     redis: Redis | null,
   ) {
-    this.apiKey = undefined;
+    this.scope = undefined;
     this.prisma = prisma;
     this.redis = redis;
     this.resource = resource;
@@ -35,16 +35,16 @@ export class ApiAccessMiddleware {
       this.redis,
     ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
-    if (!authCheck.validKey || !authCheck.apiKey) {
+    if (!authCheck.validKey) {
       return { authCheck, rateLimitCheck: undefined };
     }
 
-    this.apiKey = authCheck.apiKey;
+    this.scope = authCheck.scope;
 
     // returns http response in case of rate limit exceeded
     const rateLimitCheck = this.redis
       ? await new RateLimitService(this.redis).rateLimitRequest(
-          authCheck.apiKey,
+          authCheck.scope,
           this.resource,
         )
       : undefined;
@@ -56,23 +56,22 @@ export class ApiAccessMiddleware {
     res: NextApiResponse,
     rateLimitRes: RateLimitResult,
   ) => {
-    if (!this.apiKey) {
+    if (!this.scope) {
       throw new Error("No api key found for rate limit exceeded response");
     }
 
-    return sendRateLimitResponse(res, rateLimitRes, this.apiKey, this.resource);
+    return sendRateLimitResponse(res, rateLimitRes, this.resource);
   };
 }
 
 export const sendRateLimitResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
-  apiKey: z.infer<typeof OrgEnrichedApiKey>,
   resource: z.infer<typeof RateLimitResource>,
 ) => {
   recordIncrement("rate-limit-exceeded", 1, {
-    orgId: apiKey?.orgId,
-    plan: apiKey.plan,
+    orgId: rateLimitRes.scope.orgId,
+    plan: rateLimitRes.scope.plan,
     resource: resource,
   });
 

@@ -1,4 +1,3 @@
-import { type OrgEnrichedApiKey } from "@langfuse/shared/src/server";
 import type Redis from "ioredis";
 import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
@@ -6,8 +5,11 @@ import { env } from "@/src/env.mjs";
 import {
   type RateLimitResult,
   type RateLimitResource,
-  type RateLimitPlanConfig,
+  type RateLimitConfig,
+  type Plan,
+  type CloudConfigRateLimit,
 } from "@langfuse/shared";
+import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
 // business logic to consider
 // - not all orgs have a cloud config. Need to default to hobby plan within
@@ -16,43 +18,73 @@ import {
 // - rate limits are per org. We pull the orgId and the plan into the API key stored in Redis to have fast rate limiting.
 // - if Redis is not available, we apply container level memory rate limiting.
 
-const rateLimitConfig: z.infer<typeof RateLimitPlanConfig> = {
-  default: [
-    { resource: "ingestion", points: 100, duration: 60 },
-    { resource: "prompts", points: null, duration: null },
-    { resource: "public-api", points: 1000, duration: 60 },
-    { resource: "public-api-metrics", points: 10, duration: 60 },
-  ],
-  team: [
-    { resource: "ingestion", points: 5000, duration: 60 },
-    { resource: "prompts", points: null, duration: null },
-    { resource: "public-api", points: 1000, duration: 60 },
-    { resource: "public-api-metrics", points: 10, duration: 60 },
-  ],
-};
+const getRateLimitConfig = (
+  plan: Plan,
+  resource: z.infer<typeof RateLimitResource>,
+): z.infer<typeof RateLimitConfig> => {
+  let planConfig: z.infer<typeof CloudConfigRateLimit> = [];
 
-const planGroups = {
-  default: "default",
-  "cloud:hobby": "default",
-  "cloud:pro": "default",
-  "cloud:team": "team",
-  "self-hosted:enterprise": "team",
-} as const;
+  switch (plan) {
+    case "oss":
+      planConfig = [];
+      break;
+    case "cloud:hobby":
+      planConfig = [
+        { resource: "ingestion", points: 100, duration: 60 },
+        { resource: "prompts", points: null, duration: null },
+        { resource: "public-api", points: 1000, duration: 60 },
+        { resource: "public-api-metrics", points: 10, duration: 60 },
+      ];
+      break;
+    case "cloud:pro":
+      planConfig = [
+        { resource: "ingestion", points: 2000, duration: 60 },
+        { resource: "prompts", points: null, duration: null },
+        { resource: "public-api", points: 5000, duration: 60 },
+        { resource: "public-api-metrics", points: 50, duration: 60 },
+      ];
+      break;
+    case "cloud:team":
+      planConfig = [
+        { resource: "ingestion", points: 5000, duration: 60 },
+        { resource: "prompts", points: null, duration: null },
+        { resource: "public-api", points: 10000, duration: 60 },
+        { resource: "public-api-metrics", points: 100, duration: 60 },
+      ];
+      break;
+    case "self-hosted:enterprise":
+      planConfig = [
+        { resource: "ingestion", points: 10000, duration: 60 },
+        { resource: "prompts", points: null, duration: null },
+        { resource: "public-api", points: 20000, duration: 60 },
+        { resource: "public-api-metrics", points: 200, duration: 60 },
+      ];
+      break;
+    default:
+      // typescript type error if we don't handle all plans in the switch
+      const exhaustiveCheck: never = plan;
+      throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);
+  }
+
+  const config = planConfig.find((config) => config.resource === resource);
+
+  if (!config) {
+    throw new Error(
+      `Rate limit config for resource ${resource} not found for plan ${plan}`,
+    );
+  }
+  return config;
+};
 
 export class RateLimitService {
   private redis: Redis;
-  private config: z.infer<typeof RateLimitPlanConfig>;
 
-  constructor(
-    redis: Redis,
-    config: z.infer<typeof RateLimitPlanConfig> = rateLimitConfig,
-  ) {
+  constructor(redis: Redis) {
     this.redis = redis;
-    this.config = config;
   }
 
   async rateLimitRequest(
-    apiKey: z.infer<typeof OrgEnrichedApiKey>,
+    scope: ApiAccessScope,
     resource: z.infer<typeof RateLimitResource>,
   ) {
     // if cloud config is not present, we don't apply rate limits and just return
@@ -60,32 +92,16 @@ export class RateLimitService {
       return;
     }
 
-    return await this.checkRateLimit(apiKey, resource);
+    return await this.checkRateLimit(scope, resource);
   }
 
   async checkRateLimit(
-    apiKey: z.infer<typeof OrgEnrichedApiKey>,
+    scope: ApiAccessScope,
     resource: z.infer<typeof RateLimitResource>,
   ) {
-    const planKey = planGroups[apiKey.plan as keyof typeof planGroups];
+    const planBasedConfig = getRateLimitConfig(scope.plan, resource);
 
-    if (!planKey) {
-      throw new Error(`Plan ${apiKey.plan} not found`);
-    }
-
-    const planConfig = this.config[planKey];
-
-    if (!planConfig) {
-      throw new Error(
-        `Rate limit config for resource ${resource} not found for plan ${apiKey.plan}`,
-      );
-    }
-
-    const planBasedConfig = planConfig.find(
-      (config) => config.resource === resource,
-    );
-
-    const customConfig = apiKey.rateLimits?.find(
+    const customConfig = scope.rateLimits?.find(
       (config) => config.resource === resource,
     );
 
@@ -114,10 +130,10 @@ export class RateLimitService {
     let res: RateLimitResult | undefined = undefined;
     try {
       // orgId used as key for different resources
-      const libRes = await rateLimiter.consume(apiKey.orgId);
+      const libRes = await rateLimiter.consume(scope.orgId);
       res = {
-        apiKey,
         resource,
+        scope,
         points: effectiveConfig.points,
         remainingPoints: libRes.remainingPoints,
         msBeforeNext: libRes.msBeforeNext,
@@ -128,8 +144,8 @@ export class RateLimitService {
       if (err instanceof RateLimiterRes) {
         // No points available or key is blocked
         res = {
-          apiKey,
           resource,
+          scope,
           points: effectiveConfig.points,
           remainingPoints: err.remainingPoints,
           msBeforeNext: err.msBeforeNext,
