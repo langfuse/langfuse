@@ -24,6 +24,7 @@ import {
   type ScoreDataType,
 } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import TagList from "@/src/features/tag/components/TagList";
 
 export type ScoresTableRow = {
   id: string;
@@ -43,6 +44,7 @@ export type ScoresTableRow = {
   traceName?: string;
   userId?: string;
   jobConfigurationId?: string;
+  traceTags?: string[];
 };
 
 export type ScoreFilterInput = Omit<
@@ -338,6 +340,24 @@ export default function ScoresTable({
         ) : undefined;
       },
     },
+    {
+      accessorKey: "traceTags",
+      id: "traceTags",
+      header: "Trace Tags",
+      size: 150,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const traceTags: string[] | undefined = row.getValue("traceTags");
+        return (
+          traceTags && (
+            <div className="flex gap-x-2 gap-y-1">
+              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
+            </div>
+          )
+        );
+      },
+    },
   ];
 
   const columns = rawColumns.filter(
@@ -373,6 +393,7 @@ export default function ScoresTable({
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
+      traceTags: score.traceTags ?? undefined,
     };
   };
 
