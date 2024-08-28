@@ -76,9 +76,9 @@ const MyApp: AppType<{ session: Session | null }> = ({
   });
 
   useEffect(() => {
-    const clientBuildId = process.env.NEXT_JS_BUILD_ID;
+    const clientBuildId = env.NEXT_JS_BUILD_ID;
 
-    if (!!buildId.data && clientBuildId !== buildId.data) {
+    if (!!buildId.data && clientBuildId && clientBuildId !== buildId.data) {
       console.log(
         `Client build ID (${clientBuildId}) does not match server build ID (${buildId.data}). Reloading...`,
       );

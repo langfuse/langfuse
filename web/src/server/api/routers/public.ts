@@ -92,6 +92,6 @@ export const publicRouter = createTRPCRouter({
     };
   }),
   buildId: publicProcedure.query(async () => {
-    return process.env.NEXT_JS_BUILD_ID ?? null;
+    return env.NEXT_JS_BUILD_ID ?? null;
   }),
 });
