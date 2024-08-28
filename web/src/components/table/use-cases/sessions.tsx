@@ -25,6 +25,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import TagList from "@/src/features/tag/components/TagList";
 
 export type SessionTableRow = {
   id: string;
@@ -39,6 +40,7 @@ export type SessionTableRow = {
   inputTokens: number | undefined;
   outputTokens: number | undefined;
   totalTokens: number | undefined;
+  traceTags: string[] | undefined;
 };
 
 export type SessionTableProps = {
@@ -406,6 +408,27 @@ export default function SessionsTable({
         );
       },
     },
+    {
+      accessorKey: "traceTags",
+      id: "traceTags",
+      header: "Trace Tags",
+      size: 150,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: SessionTableRow["traceTags"] = row.getValue("traceTags");
+        if (!sessionMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return (
+          value && (
+            <div className="flex gap-x-2 gap-y-1">
+              <TagList selectedTags={value} isLoading={false} viewOnly />
+            </div>
+          )
+        );
+      },
+    },
   ];
 
   const transformFilterOptions = () => {
@@ -464,6 +487,7 @@ export default function SessionsTable({
                     inputTokens: session.promptTokens,
                     outputTokens: session.completionTokens,
                     totalTokens: session.totalTokens,
+                    traceTags: session.traceTags,
                   })),
                 }
         }
