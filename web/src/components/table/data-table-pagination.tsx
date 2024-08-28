@@ -16,6 +16,8 @@ import {
 } from "@/src/components/ui/select";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LoaderCircle } from "lucide-react";
+import { Input } from "@/src/components/ui/input";
+import { useEffect, useState } from "react";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -27,6 +29,13 @@ export function DataTablePagination<TData>({
   paginationOptions = [10, 20, 30, 40, 50],
 }: DataTablePaginationProps<TData>) {
   const capture = usePostHogClientCapture();
+
+  const currentPage = table.getState().pagination.pageIndex + 1;
+  const [inputState, setInputState] = useState<number | string>(currentPage);
+
+  useEffect(() => {
+    setInputState(currentPage);
+  }, [currentPage]);
 
   return (
     <div className="flex items-center justify-between">
@@ -63,14 +72,65 @@ export function DataTablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-center whitespace-nowrap text-sm font-medium">
-          Page {table.getState().pagination.pageIndex + 1} of{" "}
-          {table.getPageCount() === -1 ? (
-            <LoaderCircle className="ml-1 h-3 w-3 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center gap-1 whitespace-nowrap text-sm font-medium">
+          {table.getPageCount() !== -1 ? (
+            <>
+              Page
+              <Input
+                type="number"
+                min={1}
+                max={table.getPageCount()}
+                value={inputState} // Ensure the value is within bounds
+                onChange={(e) => {
+                  setInputState(e.target.value);
+                }}
+                onBlur={(e) => {
+                  const newValue = e.target.value;
+                  if (newValue === "") {
+                    table.setPageIndex(0);
+                    setInputState(1);
+                    return;
+                  }
+
+                  // if nan, reset to current page
+                  if (isNaN(Number(newValue))) {
+                    setInputState(currentPage);
+                    return;
+                  }
+
+                  const newPageIndex = Number(newValue) - 1;
+                  if (
+                    newPageIndex < 0 ||
+                    newPageIndex >= table.getPageCount()
+                  ) {
+                    setInputState(currentPage);
+                    return;
+                  }
+
+                  table.setPageIndex(newPageIndex);
+                  setInputState(newPageIndex + 1);
+                }}
+                className="h-8 appearance-none"
+                style={{
+                  width: `${
+                    3 + Math.max(1, table.getPageCount().toString().length)
+                  }ch`,
+                }}
+              />
+            </>
           ) : (
-            table.getPageCount()
+            `Page ${table.getState().pagination.pageIndex + 1}`
+          )}
+          {table.getPageCount() !== -1 ? (
+            <span>of {table.getPageCount()}</span>
+          ) : (
+            <span>
+              of{" "}
+              <LoaderCircle className="ml-1 inline-block h-3 w-3 animate-spin text-muted-foreground" />
+            </span>
           )}
         </div>
+
         <div className="flex items-center space-x-2">
           <Button
             variant="outline"

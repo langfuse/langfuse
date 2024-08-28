@@ -143,6 +143,10 @@ export default function ScoresTable({
   const filterOptions = api.scores.filterOptions.useQuery(
     {
       projectId,
+      timestampFilter:
+        dateRangeFilter[0]?.type === "datetime"
+          ? dateRangeFilter[0]
+          : undefined,
     },
     {
       trpc: {
