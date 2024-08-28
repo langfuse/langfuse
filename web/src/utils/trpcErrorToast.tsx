@@ -23,23 +23,44 @@ const errorTitleMap = {
   INTERNAL_SERVER_ERROR: "Internal Server Error",
 } as const;
 
+const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {
+  const httpStatus: number =
+    typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
+
+  if (httpStatus in httpStatusOverride) {
+    return {
+      errorTitle: errorTitleMap[httpStatusOverride[httpStatus]],
+      httpStatus,
+    };
+  }
+
+  const errorTitle =
+    error.data?.code in errorTitleMap
+      ? errorTitleMap[error.data?.code as keyof typeof errorTitleMap]
+      : "Unexpected Error";
+
+  return { errorTitle, httpStatus };
+};
+
 export const trpcErrorToast = (error: unknown) => {
   if (error instanceof TRPCClientError) {
     const path = error.data?.path;
     const cause = error.data?.cause;
     const description = error.message;
-    const errorTitle =
-      error.data?.httpStatus in httpStatusOverride
-        ? errorTitleMap[httpStatusOverride[error.data?.httpStatus]]
-        : error.data?.code in errorTitleMap
-          ? errorTitleMap[error.data?.code as keyof typeof errorTitleMap]
-          : "Unexpected Error";
 
-    showErrorToast(errorTitle, description, cause, path);
+    const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
+    showErrorToast(
+      errorTitle,
+      description,
+      httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
+      cause,
+      path,
+    );
   } else {
     showErrorToast(
       "Unexpected Error",
-      "An unexpected error occurred. Please try again.",
+      "An unexpected error occurred.",
+      "ERROR",
     );
   }
 };

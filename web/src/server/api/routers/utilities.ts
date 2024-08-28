@@ -80,12 +80,6 @@ const isValidImageUrl = async (url: string): Promise<boolean> => {
     }
 
     const contentType = response.headers.get("content-type");
-    const contentLength = response.headers.get("content-length");
-
-    // ensure image is not larger than 1MB in size
-    if (!contentLength || parseInt(contentLength, 10) > 1 * 1024 * 1024) {
-      return false;
-    }
 
     return !!contentType && contentType.startsWith("image/");
   } catch (error) {

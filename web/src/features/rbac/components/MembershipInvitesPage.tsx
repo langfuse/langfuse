@@ -75,7 +75,7 @@ export function MembershipInvitesPage({
         },
       );
 
-  const totalCount = invites.data?.totalCount ?? 0;
+  const totalCount = invites.data?.totalCount ?? null;
 
   const utils = api.useUtils();
 
@@ -226,7 +226,7 @@ export function MembershipInvitesPage({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

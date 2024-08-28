@@ -514,8 +514,11 @@ export const InnerEvalConfigForm = (props: {
                       <span>0%</span>
                       <span>100%</span>
                     </FormDescription>
-                    <FormDescription>
-                      Percentage of traces to evaluate.
+                    <FormDescription className="mt-1 flex flex-row gap-1">
+                      <span>Percentage of traces to evaluate.</span>
+                      <span>
+                        Currently set to {(field.value * 100).toFixed(0)}%.
+                      </span>
                     </FormDescription>
                   </div>
                   <FormMessage />

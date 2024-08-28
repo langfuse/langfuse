@@ -8,17 +8,13 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import {
-  DASHBOARD_AGGREGATION_OPTIONS,
-  DEFAULT_AGGREGATION_SELECTION,
-  TABLE_RANGE_DROPDOWN_OPTIONS,
-  dashboardDateRangeAggregationSettings,
+  getDateFromOption,
+  SelectedTimeOptionSchema,
 } from "@/src/utils/date-range-utils";
-import { addMinutes } from "date-fns";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { tableDateRangeAggregationSettings } from "@/src/utils/date-range-utils";
 import {
   CreateAnnotationScoreData,
   orderBy,
@@ -31,19 +27,6 @@ import {
 } from "@langfuse/shared";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
 
-const SelectedTimeOption = z
-  .discriminatedUnion("filterSource", [
-    z.object({
-      filterSource: z.literal("TABLE"),
-      option: z.enum(TABLE_RANGE_DROPDOWN_OPTIONS),
-    }),
-    z.object({
-      filterSource: z.literal("DASHBOARD"),
-      option: z.enum(DASHBOARD_AGGREGATION_OPTIONS),
-    }),
-  ])
-  .optional();
-
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
@@ -54,46 +37,12 @@ const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
 });
 
-const getDateFromOption = (
-  selectedTimeOption: z.infer<typeof SelectedTimeOption>,
-): Date | undefined => {
-  if (!selectedTimeOption) return undefined;
-
-  const { filterSource, option } = selectedTimeOption;
-  if (filterSource === "TABLE") {
-    const setting =
-      tableDateRangeAggregationSettings[
-        option as keyof typeof tableDateRangeAggregationSettings
-      ];
-
-    return option !== DEFAULT_AGGREGATION_SELECTION
-      ? addMinutes(new Date(), -setting)
-      : undefined;
-  } else if (filterSource === "DASHBOARD") {
-    const setting =
-      dashboardDateRangeAggregationSettings[
-        option as keyof typeof dashboardDateRangeAggregationSettings
-      ];
-
-    return addMinutes(new Date(), -setting.minutes);
-  }
-  return undefined;
-};
-
 export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
-      const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
-        scoresTableCols,
-        "traces_scores",
-      );
-
-      const orderByCondition = orderByToPrismaSql(
-        input.orderBy,
-        scoresTableCols,
-      );
+      const { filterCondition, orderByCondition } =
+        parseScoresGetAllOptions(input);
 
       const scores = await ctx.prisma.$queryRaw<
         Array<
@@ -134,6 +83,15 @@ export const scoresRouter = createTRPCRouter({
         ),
       );
 
+      return {
+        scores,
+      };
+    }),
+  countAll: protectedProjectProcedure
+    .input(ScoreAllOptions)
+    .query(async ({ input, ctx }) => {
+      const { filterCondition } = parseScoresGetAllOptions(input);
+
       const scoresCount = await ctx.prisma.$queryRaw<
         Array<{ totalCount: bigint }>
       >(
@@ -149,7 +107,6 @@ export const scoresRouter = createTRPCRouter({
       );
 
       return {
-        scores,
         totalCount:
           scoresCount.length > 0 ? Number(scoresCount[0]?.totalCount) : 0,
       };
@@ -342,7 +299,7 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        selectedTimeOption: SelectedTimeOption,
+        selectedTimeOption: SelectedTimeOptionSchema,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -371,6 +328,17 @@ export const scoresRouter = createTRPCRouter({
       }));
     }),
 });
+
+const parseScoresGetAllOptions = (input: z.infer<typeof ScoreAllOptions>) => {
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    input.filter,
+    scoresTableCols,
+    "traces_scores",
+  );
+
+  const orderByCondition = orderByToPrismaSql(input.orderBy, scoresTableCols);
+  return { filterCondition, orderByCondition };
+};
 
 const generateScoresQuery = (
   select: Prisma.Sql,

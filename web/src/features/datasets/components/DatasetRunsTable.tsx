@@ -203,9 +203,7 @@ export function DatasetRunsTable(props: {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(
-            (runs.data?.totalRuns ?? 0) / paginationState.pageSize,
-          ),
+          totalCount: runs.data?.totalRuns ?? null,
           onChange: setPaginationState,
           state: paginationState,
         }}

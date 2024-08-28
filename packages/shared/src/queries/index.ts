@@ -1,1 +1,1 @@
-export { getSessionTableSQL } from "./getSessionTableSQL";
+export { createSessionsAllQuery } from "./createSessionsAllQuery";
