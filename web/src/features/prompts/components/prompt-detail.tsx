@@ -124,7 +124,7 @@ export const PromptDetail = () => {
                   <Link
                     href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
                   >
-                    <Pencil className="h-5 w-5" />
+                    <Pencil className="h-4 w-4" />
                   </Link>
                 </Button>
 
@@ -178,11 +178,11 @@ export const PromptDetail = () => {
           ) : (
             <JSONView json={prompt.prompt} title="Prompt" />
           )}
-          <div className="mx-auto mt-5 w-full rounded-lg border text-base leading-7">
+          <div className="mx-auto mt-5 w-full rounded-lg border text-base">
             <div className="border-b px-3 py-1 text-xs font-medium">
               Variables
             </div>
-            <div className="flex flex-wrap gap-2 p-3">
+            <div className="flex flex-wrap gap-2 p-2">
               {extractedVariables.length > 0 ? (
                 extractedVariables.map((variable) => (
                   <Badge key={variable} variant="outline">

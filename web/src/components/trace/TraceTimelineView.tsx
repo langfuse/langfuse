@@ -46,14 +46,12 @@ const PREDEFINED_STEP_SIZES = [
 
 const getNestedObservationKeys = (
   observations: NestedObservation[],
-): { keys: string[]; ids: string[] } => {
+): string[] => {
   const keys: string[] = [];
-  const ids: string[] = [];
 
   const collectKeys = (obs: NestedObservation[]) => {
     obs.forEach((observation) => {
       keys.push(`observation-${observation.id}`);
-      ids.push(observation.id);
       if (observation.children) {
         collectKeys(observation.children);
       }
@@ -61,7 +59,7 @@ const getNestedObservationKeys = (
   };
 
   collectKeys(observations);
-  return { keys, ids };
+  return keys;
 };
 
 const calculateStepSize = (latency: number, scaleWidth: number) => {
@@ -98,7 +96,7 @@ function TreeItemInner({
   const customLabelWidth = cardWidth - SCALE_WIDTH - CARD_PADDING;
 
   return (
-    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
+    <div className="group my-0.5 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
       <div
         className="flex flex-row items-center gap-2"
         style={{
@@ -107,7 +105,10 @@ function TreeItemInner({
         }}
       >
         <span
-          className={cn("rounded-sm p-1 text-xs", treeItemColors.get(type))}
+          className={cn(
+            "rounded-sm px-1 py-0.5 text-xs",
+            treeItemColors.get(type),
+          )}
         >
           {type}
         </span>
@@ -306,17 +307,16 @@ export function TraceTimelineView({
     () => nestObservations(observations),
     [observations],
   );
-  const { keys: nestedObservationKeys, ids: nestedObservationIds } = useMemo(
+  const nestedObservationKeys = useMemo(
     () => getNestedObservationKeys(nestedObservations),
     [nestedObservations],
   );
 
   const session = useSession();
 
-  const observationCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
     {
       projectId: trace.projectId,
-      objectIds: nestedObservationIds,
       objectType: "OBSERVATION",
     },
     {
@@ -330,10 +330,10 @@ export function TraceTimelineView({
     },
   );
 
-  const traceCommentCounts = api.comments.getCountsByObjectIds.useQuery(
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId: trace.projectId,
-      objectIds: [trace.id],
+      objectId: trace.id,
       objectType: "TRACE",
     },
     {
@@ -365,7 +365,7 @@ export function TraceTimelineView({
               minWidth: `${MIN_LABEL_WIDTH}px`,
             }}
           >
-            <h3 className="text-2xl font-semibold tracking-tight">
+            <h3 className="text-xl font-semibold tracking-tight">
               Trace Timeline
             </h3>
             <div className="flex h-full items-center">

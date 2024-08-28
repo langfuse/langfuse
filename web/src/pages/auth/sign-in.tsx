@@ -357,7 +357,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
           </div>
         )}
 
-        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
             <CloudRegionSwitch />
             {authProviders.credentials ? (

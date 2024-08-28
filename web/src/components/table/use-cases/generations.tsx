@@ -49,6 +49,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
+import TagList from "@/src/features/tag/components/TagList";
 
 export type GenerationsTableRow = {
   id: string;
@@ -80,6 +81,7 @@ export type GenerationsTableRow = {
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
+  traceTags?: string[];
 };
 
 export type GenerationsTableProps = {
@@ -664,6 +666,30 @@ export default function GenerationsTable({
         );
       },
     },
+    {
+      accessorKey: "traceTags",
+      id: "traceTags",
+      header: "Trace Tags",
+      size: 250,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const traceTags: string[] | undefined = row.getValue("traceTags");
+        console.log(traceTags);
+        return (
+          traceTags && (
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
+              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
+            </div>
+          )
+        );
+      },
+    },
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
@@ -703,6 +729,7 @@ export default function GenerationsTable({
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,
             promptVersion: generation.promptVersion ?? undefined,
+            traceTags: generation.traceTags ?? undefined,
           };
         })
       : [];

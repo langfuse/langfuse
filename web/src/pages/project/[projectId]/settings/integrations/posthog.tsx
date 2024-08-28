@@ -84,7 +84,7 @@ export default function PosthogIntegrationSettings() {
       {hasAccess && (
         <>
           <Header level="h3" title="Configuration" />
-          <Card className="p-4">
+          <Card className="p-3">
             <PostHogLogo className="mb-4 w-36 text-foreground" />
             <PostHogIntegrationSettings
               state={state.data}

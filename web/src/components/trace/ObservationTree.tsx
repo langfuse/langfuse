@@ -84,7 +84,9 @@ const ObservationTreeTraceNode = (props: {
     onClick={() => props.setCurrentObservationId(undefined)}
   >
     <div className="flex gap-2">
-      <span className={cn("rounded-sm bg-input p-1 text-xs")}>TRACE</span>
+      <span className={cn("rounded-sm bg-input px-1 py-0.5 text-xs")}>
+        TRACE
+      </span>
       <span className="break-all text-sm">{props.trace.name}</span>
       {props.comments ? (
         <CommentCountIcon count={props.comments.get(props.trace.id)} />
@@ -191,7 +193,7 @@ const ObservationTreeNode = (props: {
                         variant="default"
                         pressed={collapsed}
                         size="xs"
-                        className="w-7"
+                        className="-m-1 h-6 w-6"
                         title={
                           collapsed ? "Expand children" : "Collapse children"
                         }
@@ -284,7 +286,7 @@ const ColorCodedObservationType = (props: {
   return (
     <span
       className={cn(
-        "self-start rounded-sm p-1 text-xs",
+        "self-start rounded-sm px-1 py-0.5 text-xs",
         treeItemColors.get(props.observationType),
       )}
     >
