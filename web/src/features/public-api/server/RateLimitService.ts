@@ -125,16 +125,16 @@ export class RateLimitService {
       return;
     }
 
-    const opts = {
+    const rateLimiter = new RateLimiterRedis({
       // Basic options
       points: effectiveConfig.points, // Number of points
       duration: effectiveConfig.duration, // Per second(s)
 
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
       storeClient: this.redis,
-    };
+    });
 
-    const rateLimiter = new RateLimiterRedis(opts);
+    console.log("Rate limiting for resource", resource, "with config");
 
     let res: RateLimitResult | undefined = undefined;
     try {
@@ -177,14 +177,20 @@ export class RateLimitService {
 }
 
 export class RateLimitHelper {
-  private res: RateLimitResult | undefined;
+  res: RateLimitResult | undefined;
 
   constructor(res: RateLimitResult | undefined) {
     this.res = res;
   }
 
   isRateLimited() {
-    return this.res && this.res.remainingPoints < 1;
+    console.log(
+      "Rate limit result",
+      this.res,
+      "is rate limited",
+      this.res?.remainingPoints,
+    );
+    return this.res ? this.res.remainingPoints < 1 : false;
   }
 
   sendRestResponseIfLimited(nextResponse: NextApiResponse) {

@@ -30,7 +30,7 @@ describe("RateLimitService", () => {
     }
   });
 
-  it("should create a new rate limit entry", async () => {
+  it("should rate limit", async () => {
     const scope = {
       orgId: orgId,
       plan: "cloud:hobby" as const,
@@ -42,7 +42,7 @@ describe("RateLimitService", () => {
     const rateLimitService = new RateLimitService(redis!);
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
-    expect(result).toEqual({
+    expect(result?.res).toEqual({
       scope: scope,
       resource: "public-api",
       points: 1000,
@@ -51,6 +51,14 @@ describe("RateLimitService", () => {
       consumedPoints: 1,
       isFirstInDuration: true,
     });
+
+    expect(result?.isRateLimited()).toBe(false);
+
+    // check redis for the rate limit key
+    const value = await redis.get("rate-limit:public-api:seed-org-id");
+
+    expect(value).toBeDefined();
+    expect(parseInt(value ?? "0")).toBeGreaterThan(0);
   });
 
   it("should increment the rate limit count", async () => {
@@ -67,7 +75,7 @@ describe("RateLimitService", () => {
 
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
-    expect(result).toEqual({
+    expect(result?.res).toEqual({
       scope: scope,
       resource: "public-api",
       points: 1000,
@@ -76,6 +84,7 @@ describe("RateLimitService", () => {
       consumedPoints: 2,
       isFirstInDuration: false,
     });
+    expect(result?.isRateLimited()).toBe(false);
   });
 
   it("should reset the rate limit count after the window expires", async () => {
@@ -96,8 +105,9 @@ describe("RateLimitService", () => {
       scope,
       "public-api",
     );
+    expect(firstResult?.isRateLimited()).toBe(false);
 
-    expect(firstResult).toEqual({
+    expect(firstResult?.res).toEqual({
       scope: scope,
       resource: "public-api",
       points: 100,
@@ -114,7 +124,7 @@ describe("RateLimitService", () => {
       "public-api",
     );
 
-    expect(secondResult).toEqual({
+    expect(secondResult?.res).toEqual({
       scope: scope,
       resource: "public-api",
       points: 100,
@@ -123,6 +133,8 @@ describe("RateLimitService", () => {
       consumedPoints: 1,
       isFirstInDuration: true,
     });
+
+    expect(secondResult?.isRateLimited()).toBe(false);
   });
 
   it("should return false when rate limit is exceeded", async () => {
@@ -142,7 +154,7 @@ describe("RateLimitService", () => {
 
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
-    expect(result).toEqual({
+    expect(result?.res).toEqual({
       scope: scope,
       resource: "public-api",
       points: 5,
@@ -151,6 +163,7 @@ describe("RateLimitService", () => {
       consumedPoints: 6,
       isFirstInDuration: false,
     });
+    expect(result?.isRateLimited()).toBe(true);
   });
 
   it("should apply rate limits with override for specific resource", async () => {
@@ -168,7 +181,7 @@ describe("RateLimitService", () => {
 
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
-    expect(result).toEqual({
+    expect(result?.res).toEqual({
       scope: scope,
       resource: "public-api",
       points: 5,
@@ -194,7 +207,8 @@ describe("RateLimitService", () => {
 
     const result = await rateLimitService.rateLimitRequest(scope, "prompts");
 
-    expect(result).toBeUndefined();
+    expect(result?.res).toBeUndefined();
+    expect(result?.isRateLimited()).toBe(false);
   });
 
   it("should not apply rate limits for ingestion when overridden to null in API key", async () => {
@@ -212,6 +226,6 @@ describe("RateLimitService", () => {
 
     const result = await rateLimitService.rateLimitRequest(scope, "ingestion");
 
-    expect(result).toBeUndefined();
+    expect(result?.res).toBeUndefined();
   });
 });
