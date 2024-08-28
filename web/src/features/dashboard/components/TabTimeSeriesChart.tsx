@@ -35,7 +35,7 @@ export const BaseTabTimeseriesChart = (props: BaseTabTimeseriesChartProps) => {
         onIndexChange={(i) => setSelectedIndex(i)}
         defaultIndex={0}
       >
-        <TabList className="h-10">
+        <TabList className="h-8">
           {props.data.map((data, index) => (
             <Tab tabIndex={index} key={index}>
               {data.tabTitle}

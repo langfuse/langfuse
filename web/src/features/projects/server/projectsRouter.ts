@@ -141,7 +141,11 @@ export const projectsRouter = createTRPCRouter({
           id: input.projectId,
         },
       });
-      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!project)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
 
       await auditLog({
         session: ctx.session,

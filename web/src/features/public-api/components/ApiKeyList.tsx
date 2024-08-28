@@ -92,7 +92,7 @@ export function ApiKeyList(props: { projectId: string }) {
                   {/* <TableCell>{apiKey.note ?? ""}</TableCell> */}
                   <TableCell className="font-mono">
                     <CodeView
-                      className="inline-block"
+                      className="inline-block text-xs"
                       content={apiKey.publicKey}
                     />
                   </TableCell>

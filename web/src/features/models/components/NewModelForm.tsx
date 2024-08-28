@@ -149,7 +149,7 @@ export const NewModelForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-2"
       >
         <Header level="h3" title="Name" />
         <FormField
@@ -183,7 +183,7 @@ export const NewModelForm = (props: {
             </FormItem>
           )}
         />
-        <Header level="h3" title="Scope" />
+        <Header level="h3" title="Scope" className="mt-3" />
         <FormField
           control={form.control}
           name="matchPattern"
@@ -224,7 +224,7 @@ export const NewModelForm = (props: {
             </FormItem>
           )}
         />
-        <Header level="h3" title="Pricing" />
+        <Header level="h3" title="Pricing" className="mt-3" />
         <FormField
           control={form.control}
           name="unit"
@@ -364,7 +364,7 @@ export const NewModelForm = (props: {
             )}
           />
         </div>
-        <Header level="h3" title="Tokenization" />
+        <Header level="h3" title="Tokenization" className="mt-3" />
         <FormField
           control={form.control}
           name="tokenizerId"
@@ -441,7 +441,7 @@ export const NewModelForm = (props: {
         <Button
           type="submit"
           loading={createModelMutation.isLoading}
-          className="mt-3"
+          className="mt-6"
         >
           Save
         </Button>

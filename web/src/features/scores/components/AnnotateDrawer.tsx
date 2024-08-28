@@ -76,9 +76,9 @@ export function AnnotateDrawer({
             }}
           >
             {!hasAccess ? (
-              <LockIcon className="mr-2 h-3 w-3" />
+              <LockIcon className="mr-1.5 h-3 w-3" />
             ) : (
-              <SquarePen className="mr-2 h-5 w-5" />
+              <SquarePen className="mr-1.5 h-4 w-4" />
             )}
             <span>Annotate</span>
           </Button>

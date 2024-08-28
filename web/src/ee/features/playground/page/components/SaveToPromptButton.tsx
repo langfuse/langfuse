@@ -91,7 +91,7 @@ export const SaveToPromptButton: React.FC = () => {
       <PopoverTrigger asChild>
         <Button variant={"outline"} title="Save to prompt" asChild>
           <Link href={`/project/${projectId}/playground`}>
-            <FileInput className="mr-1 h-5 w-5" />
+            <FileInput className="mr-1 h-4 w-4" />
             <span>Save as prompt</span>
           </Link>
         </Button>
@@ -155,7 +155,7 @@ export const SaveToPromptButton: React.FC = () => {
 
 export function Divider() {
   return (
-    <div className="my-6 flex flex-row justify-center align-middle">
+    <div className="my-3 flex flex-row justify-center align-middle">
       <div className="flex flex-1 flex-col">
         <div className="flex-1 border-b-2 border-gray-200" />
         <div className="flex-1" />
