@@ -337,7 +337,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           control={form.control}
           name="isActive"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+            <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
               <FormControl>
                 <Checkbox
                   checked={field.value}

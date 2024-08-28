@@ -1,3 +1,4 @@
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
 import { ResetPlaygroundButton } from "@/src/ee/features/playground/page/components/ResetPlaygroundButton";
 import { SaveToPromptButton } from "@/src/ee/features/playground/page/components/SaveToPromptButton";
@@ -10,7 +11,7 @@ export default function PlaygroundPage() {
   if (!available) return null;
   return (
     <PlaygroundProvider>
-      <div className="flex h-[95vh] flex-col">
+      <FullScreenPage>
         <Header
           title="Playground"
           help={{
@@ -27,7 +28,7 @@ export default function PlaygroundPage() {
         <div className="flex-1 overflow-auto">
           <Playground />
         </div>
-      </div>
+      </FullScreenPage>
     </PlaygroundProvider>
   );
 }

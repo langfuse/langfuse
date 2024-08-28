@@ -81,7 +81,7 @@ export function DataTableToolbar<TData, TValue>({
                 searchConfig.updateQuery(searchString);
               }
             }}
-            className="h-10 w-[150px] rounded-r-none @6xl:w-[250px]"
+            className="w-[150px] rounded-r-none @6xl:w-[250px]"
           />
           <Button
             variant="outline"

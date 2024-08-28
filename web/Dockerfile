@@ -103,4 +103,4 @@ ENV PORT 3000
 ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
 
 # startup command
-CMD ["node", "./web/server.js"]
+CMD ["node", "./web/server.js", "--keepAliveTimeout", "110000"]

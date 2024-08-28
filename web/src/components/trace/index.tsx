@@ -34,6 +34,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore } from "@langfuse/shared";
 import { useSession } from "next-auth/react";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -172,7 +173,7 @@ export function Trace(props: {
               });
               setScoresOnObservationTree(e);
             }}
-            size="sm"
+            size="xs"
             title="Show scores"
           >
             <Award className="h-4 w-4" />
@@ -185,7 +186,7 @@ export function Trace(props: {
               });
               setMetricsOnObservationTree(e);
             }}
-            size="sm"
+            size="xs"
             title="Show metrics"
           >
             {metricsOnObservationTree ? (
@@ -263,7 +264,7 @@ export function TracePage({ traceId }: { traceId: string }) {
     return <ErrorPage message="You do not have access to this trace." />;
   if (!trace.data) return <div>loading...</div>;
   return (
-    <div className="flex flex-col overflow-hidden 2xl:container md:h-[calc(100vh-2rem)]">
+    <FullScreenPage mobile={false} className="2xl:container">
       <Header
         title="Trace Detail"
         breadcrumb={[
@@ -396,7 +397,7 @@ export function TracePage({ traceId }: { traceId: string }) {
           />
         </div>
       )}
-    </div>
+    </FullScreenPage>
   );
 }
 

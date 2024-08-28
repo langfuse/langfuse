@@ -29,7 +29,7 @@ const OrgSettingsPage = () => {
             title: "General",
             slug: "index",
             content: (
-              <div className="flex flex-col gap-10">
+              <div className="flex flex-col gap-6">
                 <RenameOrganization />
                 <div>
                   <Header title="Debug Information" level="h3" />
@@ -55,7 +55,7 @@ const OrgSettingsPage = () => {
             title: "Members",
             slug: "members",
             content: (
-              <div className="flex flex-col gap-10">
+              <div className="flex flex-col gap-6">
                 <div>
                   <Header title="Organization Members" level="h3" />
                   <MembersTable orgId={organization.id} />

@@ -157,10 +157,17 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontSize: {
-        "tremor-label": ["0.75rem", { lineHeight: "1rem" }],
-        "tremor-default": ["0.875rem", { lineHeight: "1.25rem" }],
-        "tremor-title": ["1.125rem", { lineHeight: "1.75rem" }],
-        "tremor-metric": ["1.875rem", { lineHeight: "2.25rem" }],
+        xs: "0.7rem",
+        sm: "0.825rem",
+        base: "0.9rem",
+        lg: "1.1rem",
+        xl: "1.2rem",
+        "2xl": "1.3rem",
+        "3xl": "1.5rem",
+        "tremor-label": ["0.7rem", { lineHeight: "1rem" }],
+        "tremor-default": ["0.825rem", { lineHeight: "1.25rem" }],
+        "tremor-title": ["0.9rem", { lineHeight: "1.75rem" }],
+        "tremor-metric": ["1.5rem", { lineHeight: "2.25rem" }],
       },
       keyframes: {
         "accordion-down": {
