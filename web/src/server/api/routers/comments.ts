@@ -13,7 +13,7 @@ import { TRPCError } from "@trpc/server";
 const COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL = {
   [CommentObjectType.TRACE]: "trace",
   [CommentObjectType.OBSERVATION]: "observation",
-  [CommentObjectType.SESSION]: "session",
+  [CommentObjectType.SESSION]: "traceSession",
   [CommentObjectType.PROMPT]: "prompt",
 } as const;
 
@@ -206,6 +206,35 @@ export const commentsRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Fetching comments by object id failed.",
+        });
+      }
+    }),
+  // deprecated procedure, returns empty map, kept to prevent caching issues
+  getCountsByObjectIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        objectIds: z.array(z.string()),
+        objectType: z.nativeEnum(CommentObjectType),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
+
+        return new Map();
+      } catch (error) {
+        console.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching comment count by object id failed.",
         });
       }
     }),
