@@ -96,7 +96,7 @@ function TreeItemInner({
   const customLabelWidth = cardWidth - SCALE_WIDTH - CARD_PADDING;
 
   return (
-    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
+    <div className="group my-0.5 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
       <div
         className="flex flex-row items-center gap-2"
         style={{
@@ -105,7 +105,10 @@ function TreeItemInner({
         }}
       >
         <span
-          className={cn("rounded-sm p-1 text-xs", treeItemColors.get(type))}
+          className={cn(
+            "rounded-sm px-1 py-0.5 text-xs",
+            treeItemColors.get(type),
+          )}
         >
           {type}
         </span>
@@ -362,7 +365,7 @@ export function TraceTimelineView({
               minWidth: `${MIN_LABEL_WIDTH}px`,
             }}
           >
-            <h3 className="text-2xl font-semibold tracking-tight">
+            <h3 className="text-xl font-semibold tracking-tight">
               Trace Timeline
             </h3>
             <div className="flex h-full items-center">
