@@ -70,7 +70,10 @@ const MyApp: AppType<{ session: Session | null }> = ({
   pageProps: { session, ...pageProps },
 }) => {
   const router = useRouter();
-  const buildId = api.versions.buildId.useQuery();
+  const buildId = api.public.buildId.useQuery(undefined, {
+    refetchOnMount: false,
+    onError: (error) => console.error("buildId error", error), // do not render default error message
+  });
 
   useEffect(() => {
     const clientBuildId = process.env.NEXT_JS_BUILD_ID;

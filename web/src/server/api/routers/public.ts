@@ -91,4 +91,7 @@ export const publicRouter = createTRPCRouter({
       url: langfuseRelease.url,
     };
   }),
+  buildId: publicProcedure.query(async () => {
+    return process.env.NEXT_JS_BUILD_ID ?? null;
+  }),
 });
