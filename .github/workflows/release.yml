@@ -17,5 +17,3 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
       - name: Push to production
         run: git push origin +main:production
-      - name: Set Commit Hash Environment Variable
-        run: echo "NEXT_JS_BUILD_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV

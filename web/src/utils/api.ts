@@ -10,6 +10,7 @@ import {
   httpLink,
   loggerLink,
   splitLink,
+  TRPCClientError,
 } from "@trpc/client";
 import { createTRPCNext } from "@trpc/next";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
@@ -18,13 +19,34 @@ import superjson from "superjson";
 import { type AppRouter } from "@/src/server/api/root";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
 
 setUpSuperjson();
+
+const CLIENT_STALE_CACHE_CODES = [404, 400];
 
 const getBaseUrl = () => {
   if (typeof window !== "undefined") return ""; // browser should use relative url
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`; // SSR should use vercel url
   return `http://localhost:${process.env.PORT ?? 3000}`; // dev SSR should use localhost
+};
+
+let buildVersion: string | null = null;
+
+const handleTrpcError = (error: unknown) => {
+  if (error instanceof TRPCClientError) {
+    const httpStatus: number =
+      typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
+
+    if (CLIENT_STALE_CACHE_CODES.includes(httpStatus)) {
+      if (!!buildVersion && buildVersion !== process.env.NEXT_PUBLIC_BUILD_ID) {
+        showVersionUpdateToast();
+        return;
+      }
+    }
+  }
+
+  trpcErrorToast(error);
 };
 
 /** A set of type-safe react-query hooks for your tRPC API. */
@@ -62,23 +84,33 @@ export const api = createTRPCNext<AppRouter>({
           // when condition is true, use normal request
           true: httpLink({
             url: `${getBaseUrl()}/api/trpc`,
+            async fetch(url, options) {
+              const response = await fetch(url, options);
+              buildVersion = response.headers.get("x-build-version");
+              return response;
+            },
           }),
           // when condition is false, use batching
           false: httpBatchLink({
             url: `${getBaseUrl()}/api/trpc`,
             maxURLLength: 2083, // avoid too large batches
+            async fetch(url, options) {
+              const response = await fetch(url, options);
+              buildVersion = response.headers.get("x-build-version");
+              return response;
+            },
           }),
         }),
       ],
       queryClientConfig: {
         defaultOptions: {
           queries: {
-            onError: (error) => trpcErrorToast(error),
+            onError: (error) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
           mutations: {
-            onError: (error) => trpcErrorToast(error),
+            onError: (error) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
