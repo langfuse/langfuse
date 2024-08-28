@@ -24,13 +24,21 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
   }, [scrollAreaRef, messages.length]);
 
   return (
-    <div className="h-full overflow-auto scroll-smooth" ref={scrollAreaRef}>
-      <div className="mb-4 flex-1 space-y-4">
-        {props.messages.map((message) => {
-          return (
-            <ChatMessageComponent {...{ message, ...props }} key={message.id} />
-          );
-        })}
+    <div className="flex h-full flex-col">
+      <div className="mb-2 font-semibold">Messages</div>
+      <div className="flex-1 overflow-auto scroll-smooth" ref={scrollAreaRef}>
+        <div className="mb-4 flex-1 space-y-3">
+          {props.messages.map((message) => {
+            return (
+              <ChatMessageComponent
+                {...{ message, ...props }}
+                key={message.id}
+              />
+            );
+          })}
+        </div>
+      </div>
+      <div className="py-3">
         <AddMessageButton {...props} />
       </div>
     </div>
@@ -52,10 +60,10 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
     <Button
       type="button" // prevents submitting a form if this button is inside a form
       variant="outline"
-      className="w-full space-x-2 py-6"
+      className="w-full"
       onClick={() => addMessage(nextMessageRole)}
     >
-      <PlusCircleIcon size={16} />
+      <PlusCircleIcon size={14} className="mr-2" />
       <p>Add message</p>
     </Button>
   );
