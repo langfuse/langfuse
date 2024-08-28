@@ -23,7 +23,7 @@ export type RateLimitResult = {
 
 export const RateLimitConfig = z.object({
   points: z.number().nullish(),
-  duration: z.number().nullish(),
+  durationInMin: z.number().nullish(),
   resource: RateLimitResource,
 });
 

@@ -26,58 +26,87 @@ const getRateLimitConfig = (
   plan: Plan,
   resource: z.infer<typeof RateLimitResource>,
 ): z.infer<typeof RateLimitConfig> => {
-  let planConfig: z.infer<typeof CloudConfigRateLimit> = [];
-
   switch (plan) {
     case "oss":
-      planConfig = [];
-      break;
+      return { resource, points: null, durationInMin: null };
     case "cloud:hobby":
-      planConfig = [
-        { resource: "ingestion", points: 100, duration: 60 },
-        { resource: "prompts", points: null, duration: null },
-        { resource: "public-api", points: 1000, duration: 60 },
-        { resource: "public-api-metrics", points: 10, duration: 60 },
-      ];
-      break;
+      switch (resource) {
+        case "ingestion":
+          return { resource: "ingestion", points: 100, durationInMin: 60 };
+        case "prompts":
+          return { resource: "prompts", points: null, durationInMin: null };
+        case "public-api":
+          return { resource: "public-api", points: 1000, durationInMin: 60 };
+        case "public-api-metrics":
+          return {
+            resource: "public-api-metrics",
+            points: 10,
+            durationInMin: 60,
+          };
+        default:
+          const exhaustiveCheckHobby: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheckHobby}`);
+      }
     case "cloud:pro":
-      planConfig = [
-        { resource: "ingestion", points: 2000, duration: 60 },
-        { resource: "prompts", points: null, duration: null },
-        { resource: "public-api", points: 5000, duration: 60 },
-        { resource: "public-api-metrics", points: 50, duration: 60 },
-      ];
-      break;
+      switch (resource) {
+        case "ingestion":
+          return { resource: "ingestion", points: 2000, durationInMin: 60 };
+        case "prompts":
+          return { resource: "prompts", points: null, durationInMin: null };
+        case "public-api":
+          return { resource: "public-api", points: 5000, durationInMin: 60 };
+        case "public-api-metrics":
+          return {
+            resource: "public-api-metrics",
+            points: 50,
+            durationInMin: 60,
+          };
+        default:
+          const exhaustiveCheckPro: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheckPro}`);
+      }
     case "cloud:team":
-      planConfig = [
-        { resource: "ingestion", points: 5000, duration: 60 },
-        { resource: "prompts", points: null, duration: null },
-        { resource: "public-api", points: 10000, duration: 60 },
-        { resource: "public-api-metrics", points: 100, duration: 60 },
-      ];
-      break;
+      switch (resource) {
+        case "ingestion":
+          return { resource: "ingestion", points: 5000, durationInMin: 60 };
+        case "prompts":
+          return { resource: "prompts", points: null, durationInMin: null };
+        case "public-api":
+          return { resource: "public-api", points: 10000, durationInMin: 60 };
+        case "public-api-metrics":
+          return {
+            resource: "public-api-metrics",
+            points: 100,
+            durationInMin: 60,
+          };
+        default:
+          const exhaustiveCheckTeam: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheckTeam}`);
+      }
     case "self-hosted:enterprise":
-      planConfig = [
-        { resource: "ingestion", points: 10000, duration: 60 },
-        { resource: "prompts", points: null, duration: null },
-        { resource: "public-api", points: 20000, duration: 60 },
-        { resource: "public-api-metrics", points: 200, duration: 60 },
-      ];
-      break;
+      switch (resource) {
+        case "ingestion":
+          return { resource: "ingestion", points: 10000, durationInMin: 60 };
+        case "prompts":
+          return { resource: "prompts", points: null, durationInMin: null };
+        case "public-api":
+          return { resource: "public-api", points: 20000, durationInMin: 60 };
+        case "public-api-metrics":
+          return {
+            resource: "public-api-metrics",
+            points: 200,
+            durationInMin: 60,
+          };
+        default:
+          const exhaustiveCheckEnterprise: never = resource;
+          throw new Error(
+            `Unhandled resource case: ${exhaustiveCheckEnterprise}`,
+          );
+      }
     default:
-      // typescript type error if we don't handle all plans in the switch
       const exhaustiveCheck: never = plan;
       throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);
   }
-
-  const config = planConfig.find((config) => config.resource === resource);
-
-  if (!config) {
-    throw new Error(
-      `Rate limit config for resource ${resource} not found for plan ${plan}`,
-    );
-  }
-  return config;
 };
 
 export class RateLimitService {
@@ -120,7 +149,7 @@ export class RateLimitService {
     if (
       !effectiveConfig ||
       !effectiveConfig.points ||
-      !effectiveConfig.duration
+      !effectiveConfig.durationInMin
     ) {
       return;
     }
@@ -128,7 +157,7 @@ export class RateLimitService {
     const rateLimiter = new RateLimiterRedis({
       // Basic options
       points: effectiveConfig.points, // Number of points
-      duration: effectiveConfig.duration, // Per second(s)
+      duration: effectiveConfig.durationInMin, // Per second(s)
 
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
       storeClient: this.redis,

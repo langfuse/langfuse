@@ -94,7 +94,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "public-api" as const, points: 100, duration: 1 },
+        { resource: "public-api" as const, points: 100, durationInMin: 1 },
       ],
     };
 
@@ -143,7 +143,9 @@ describe("RateLimitService", () => {
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [{ resource: "public-api" as const, points: 5, duration: 1 }],
+      rateLimits: [
+        { resource: "public-api" as const, points: 5, durationInMin: 1 },
+      ],
     };
 
     const rateLimitService = new RateLimitService(redis!);
@@ -173,7 +175,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "public-api" as const, points: 5, duration: 10 },
+        { resource: "public-api" as const, points: 5, durationInMin: 10 },
       ],
     };
 
@@ -199,7 +201,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "public-api" as const, points: 5, duration: 10 },
+        { resource: "public-api" as const, points: 5, durationInMin: 10 },
       ],
     };
 
@@ -218,7 +220,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "ingestion" as const, points: null, duration: null },
+        { resource: "ingestion" as const, points: null, durationInMin: null },
       ],
     };
 
