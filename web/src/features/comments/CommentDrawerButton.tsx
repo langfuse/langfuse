@@ -49,7 +49,7 @@ export function CommentDrawerButton({
           {!!count ? (
             <CommentCountIcon count={count} />
           ) : (
-            <MessageCircleIcon className="h-5 w-5" />
+            <MessageCircleIcon className="h-4 w-4" />
           )}
         </Button>
       </DrawerTrigger>
@@ -58,7 +58,7 @@ export function CommentDrawerButton({
           <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
             <Header title="Comments" level="h3"></Header>
           </DrawerHeader>
-          <div data-vaul-no-drag className="px-4">
+          <div data-vaul-no-drag className="px-2">
             <CommentList
               projectId={projectId}
               objectId={objectId}

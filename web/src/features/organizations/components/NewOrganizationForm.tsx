@@ -55,7 +55,7 @@ export const NewOrganizationForm = ({
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-4"
+        className="space-y-3"
         data-testid="new-org-form"
       >
         <FormField

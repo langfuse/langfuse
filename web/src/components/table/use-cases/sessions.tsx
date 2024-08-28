@@ -177,7 +177,7 @@ export default function SessionsTable({
             sessionId={sessionId}
             projectId={projectId}
             value={bookmarked}
-            size="xs"
+            size="icon-xs"
           />
         ) : undefined;
       },

@@ -64,7 +64,7 @@ export function DeletePromptVersion({
           size="icon"
           disabled={!hasAccess}
         >
-          <Trash className="h-5 w-5" />
+          <Trash className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>
