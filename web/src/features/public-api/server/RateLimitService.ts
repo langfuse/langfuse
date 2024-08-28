@@ -9,7 +9,11 @@ import {
   type Plan,
   type CloudConfigRateLimit,
 } from "@langfuse/shared";
-import { type ApiAccessScope } from "@langfuse/shared/src/server";
+import {
+  recordIncrement,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
+import { type NextApiResponse } from "next";
 
 // business logic to consider
 // - not all orgs have a cloud config. Need to default to hobby plan within
@@ -77,9 +81,9 @@ const getRateLimitConfig = (
 };
 
 export class RateLimitService {
-  private redis: Redis;
+  private redis: Redis | null;
 
-  constructor(redis: Redis) {
+  constructor(redis: Redis | null) {
     this.redis = redis;
   }
 
@@ -92,7 +96,12 @@ export class RateLimitService {
       return;
     }
 
-    return await this.checkRateLimit(scope, resource);
+    if (!this.redis) {
+      console.log("Rate limiting not available without Redis");
+      return;
+    }
+
+    return new RateLimitHelper(await this.checkRateLimit(scope, resource));
   }
 
   async checkRateLimit(
@@ -166,3 +175,50 @@ export class RateLimitService {
     return `rate-limit:${resource}`;
   }
 }
+
+export class RateLimitHelper {
+  private res: RateLimitResult | undefined;
+
+  constructor(res: RateLimitResult | undefined) {
+    this.res = res;
+  }
+
+  isRateLimited() {
+    return this.res && this.res.remainingPoints < 1;
+  }
+
+  sendRestResponseIfLimited(nextResponse: NextApiResponse) {
+    if (!this.res || !this.isRateLimited()) {
+      return;
+    }
+    return sendRateLimitResponse(nextResponse, this.res);
+  }
+}
+
+export const sendRateLimitResponse = (
+  res: NextApiResponse,
+  rateLimitRes: RateLimitResult,
+) => {
+  recordIncrement("rate-limit-exceeded", 1, {
+    orgId: rateLimitRes.scope.orgId,
+    plan: rateLimitRes.scope.plan,
+    resource: rateLimitRes.resource,
+  });
+
+  const httpHeader = createHttpHeaderFromRateLimit(rateLimitRes);
+
+  for (const [header, value] of Object.entries(httpHeader)) {
+    res.setHeader(header, value);
+  }
+
+  res.status(429).end();
+};
+
+const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
+  return {
+    "Retry-After": res.msBeforeNext / 1000,
+    "X-RateLimit-Limit": res.points,
+    "X-RateLimit-Remaining": res.remainingPoints,
+    "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
+  };
+};

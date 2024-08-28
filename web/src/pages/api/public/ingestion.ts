@@ -39,7 +39,8 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "@/src/features/ingest/usage";
-import { ApiAccessMiddleware as AuthAndRateLimitService } from "@/src/features/public-api/server/api-access-middleware";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 export const config = {
   api: {
@@ -58,19 +59,20 @@ export default async function handler(
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
-    const authAndRateLimit = new AuthAndRateLimitService(
-      "ingestion",
+    const authCheck = await new ApiAuthService(
       prisma,
       redis,
-    );
-
-    const { authCheck, rateLimitCheck } =
-      await authAndRateLimit.authAndRateLimit(req);
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
-    if (rateLimitCheck && rateLimitCheck.remainingPoints < 1) {
-      return authAndRateLimit.sendRateLimitResponse(res, rateLimitCheck);
+    const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+      authCheck.scope,
+      "ingestion",
+    );
+
+    if (rateLimitCheck?.isRateLimited()) {
+      return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
     const batchType = z.object({

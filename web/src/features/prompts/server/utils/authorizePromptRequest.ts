@@ -14,5 +14,6 @@ export async function authorizePromptRequestOrThrow(req: NextApiRequest) {
     throw new ForbiddenError(
       `Access denied - need to use basic auth with secret key to ${req.method} prompts`,
     );
+
   return authCheck;
 }

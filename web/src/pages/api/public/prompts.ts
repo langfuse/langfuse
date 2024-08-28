@@ -25,7 +25,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { sendRateLimitResponse } from "@/src/features/public-api/server/api-access-middleware";
 
 export default async function handler(
   req: NextApiRequest,
@@ -53,22 +52,13 @@ export default async function handler(
       const promptName = searchParams.name;
       const version = searchParams.version ?? undefined;
 
-      if (!authCheck.apiKey) throw new UnauthorizedError("No API key found");
+      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+        authCheck.scope,
+        "prompts",
+      );
 
-      const rateLimitCheck = redis
-        ? await new RateLimitService(redis).rateLimitRequest(
-            authCheck.apiKey,
-            "prompts",
-          )
-        : undefined;
-
-      if (rateLimitCheck && rateLimitCheck.remainingPoints < 1) {
-        return sendRateLimitResponse(
-          res,
-          rateLimitCheck,
-          authCheck.apiKey,
-          "prompts",
-        );
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
       }
 
       const promptService = new PromptService(prisma, redis, recordIncrement);
