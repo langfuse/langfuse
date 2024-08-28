@@ -670,7 +670,7 @@ export default function GenerationsTable({
       accessorKey: "traceTags",
       id: "traceTags",
       header: "Trace Tags",
-      size: 150,
+      size: 250,
       enableHiding: true,
       defaultHidden: true,
       cell: ({ row }) => {
@@ -678,7 +678,12 @@ export default function GenerationsTable({
         console.log(traceTags);
         return (
           traceTags && (
-            <div className="flex gap-x-2 gap-y-1">
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
               <TagList selectedTags={traceTags} isLoading={false} viewOnly />
             </div>
           )
