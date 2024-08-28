@@ -5,6 +5,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 const httpStatusOverride: Record<number, keyof typeof errorTitleMap> = {
   429: "TOO_MANY_REQUESTS",
+  524: "TIMEOUT",
 };
 
 const errorTitleMap = {
@@ -42,13 +43,25 @@ const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {
   return { errorTitle, httpStatus };
 };
 
+const getErrorDescription = (message: string, httpStatus: number) => {
+  switch (httpStatus) {
+    case 429:
+      return "Rate limit hit. Please try again later.";
+    case 524:
+      return "Request took too long to process. Please try again later.";
+    default:
+      return message;
+  }
+};
+
 export const trpcErrorToast = (error: unknown) => {
   if (error instanceof TRPCClientError) {
+    const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
+
     const path = error.data?.path;
     const cause = error.data?.cause;
-    const description = error.message;
+    const description = getErrorDescription(error.message, httpStatus);
 
-    const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
     showErrorToast(
       errorTitle,
       description,
