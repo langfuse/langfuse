@@ -157,7 +157,10 @@ export class ApiAuthService {
               fastHashedSecretKey: shaKey,
             },
           });
-          finalApiKey = convertToRedisRepresentation(slowKey);
+          finalApiKey = convertToRedisRepresentation({
+            ...slowKey,
+            fastHashedSecretKey: shaKey,
+          });
         }
 
         if (!finalApiKey) {
