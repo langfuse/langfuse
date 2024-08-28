@@ -380,11 +380,3 @@ export const convertToRedisRepresentation = (
 
   return newApiKey;
 };
-
-export const removeKeysFromApiKey = (
-  apiKey: z.infer<typeof OrgAndAPIKeyEnrichedApiKey>,
-) => {
-  const { fastHashedSecretKey, hashedSecretKey, ...rest } = apiKey;
-
-  return rest;
-};
