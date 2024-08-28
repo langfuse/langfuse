@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - set-keepalive-timeout
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
