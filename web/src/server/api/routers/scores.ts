@@ -17,7 +17,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   CreateAnnotationScoreData,
-  datetimeFilterToRawSql,
+  datetimeFilterToPrismaSql,
   datetimeFilterToPrisma,
   orderBy,
   orderByToPrismaSql,
@@ -131,7 +131,7 @@ export const scoresRouter = createTRPCRouter({
 
       const rawTimestampFilter =
         timestampFilter && timestampFilter.type === "datetime"
-          ? datetimeFilterToRawSql(
+          ? datetimeFilterToPrismaSql(
               "timestamp",
               timestampFilter.operator,
               timestampFilter.value,
