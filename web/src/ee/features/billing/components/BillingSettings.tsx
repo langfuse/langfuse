@@ -107,7 +107,9 @@ const OrganizationUsageChart = () => {
             )}
           </>
         ) : (
-          "Loading (might take a moment) ..."
+          <span className="text-sm text-muted-foreground">
+            Loading (might take a moment) ...
+          </span>
         )}
       </Card>
       <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">

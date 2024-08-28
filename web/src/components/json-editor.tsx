@@ -45,7 +45,7 @@ export function JsonEditor({
         if (onChange) onChange(c);
         setLinterEnabled(c !== "");
       }}
-      className={cn("overflow-hidden rounded-md border text-sm", className)}
+      className={cn("overflow-hidden rounded-md border text-xs", className)}
       editable={editable}
     />
   );

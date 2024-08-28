@@ -170,7 +170,7 @@ function OverviewTab({ userId, projectId }: TabProps) {
             <dt className="text-sm font-medium leading-6 text-primary">
               {item.label}
             </dt>
-            <dd className="mt-1 text-sm leading-6 text-primary sm:col-span-2 sm:mt-0">
+            <dd className="mt-1 text-xs leading-6 text-primary sm:col-span-2 sm:mt-0">
               {item.value ?? "-"}
             </dd>
           </div>
@@ -183,7 +183,7 @@ function OverviewTab({ userId, projectId }: TabProps) {
             <dt className="text-sm font-medium leading-6 text-primary">
               Last Score
             </dt>
-            <dd className="mt-1 text-sm leading-6 text-primary sm:col-span-2 sm:mt-0">
+            <dd className="mt-1 text-xs leading-6 text-primary sm:col-span-2 sm:mt-0">
               <div className="flex items-center gap-4">
                 <TableLink
                   path={
