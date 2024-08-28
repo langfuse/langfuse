@@ -18,10 +18,15 @@ export const OrgEnrichedApiKey = z.object({
   rateLimits: CloudConfigRateLimitZod.nullish(),
 });
 
+export const OrgAndAPIKeyEnrichedApiKey = OrgEnrichedApiKey.extend({
+  fastHashedSecretKey: z.string(),
+  hashedSecretKey: z.string(),
+});
+
 export const API_KEY_NON_EXISTENT = "api-key-non-existent";
 
 export const CachedApiKey = z.union([
-  OrgEnrichedApiKey,
+  OrgAndAPIKeyEnrichedApiKey,
   z.literal(API_KEY_NON_EXISTENT),
 ]);
 

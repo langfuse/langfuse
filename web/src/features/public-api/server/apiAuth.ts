@@ -1,6 +1,7 @@
 import { env } from "@/src/env.mjs";
 import {
   addUserToSpan,
+  OrgAndAPIKeyEnrichedApiKey,
   OrgEnrichedApiKey,
   createShaHash,
   recordIncrement,
@@ -114,19 +115,18 @@ export class ApiAuthService {
         const hashFromProvidedKey = createShaHash(secretKey, salt);
 
         // fetches by redis if available, fallback to postgres
+        // api key from redis does
         const apiKey = await this.fetchApiKeyAndAddToRedis(hashFromProvidedKey);
 
-        let projectId = apiKey?.projectId;
+        let finalApiKey = apiKey;
 
         if (!apiKey || !apiKey.fastHashedSecretKey) {
-          const dbKey = await this.prisma.apiKey.findUnique({
+          const slowKey = await this.prisma.apiKey.findUnique({
             where: { publicKey },
             include: { project: { include: { organization: true } } },
           });
 
-          const transformedKey = dbKey ? convertApiKeyAndOrg(dbKey) : null;
-
-          if (!transformedKey) {
+          if (!slowKey) {
             console.error("No key found for public key", publicKey);
             if (this.redis) {
               console.log(
@@ -142,7 +142,7 @@ export class ApiAuthService {
 
           const isValid = await verifySecretKey(
             secretKey,
-            transformedKey.hashedSecretKey,
+            slowKey.hashedSecretKey,
           );
 
           if (!isValid) {
@@ -158,23 +158,26 @@ export class ApiAuthService {
               fastHashedSecretKey: shaKey,
             },
           });
-          projectId = transformedKey.projectId;
+          finalApiKey = convertToRedisRepresentation(slowKey);
         }
 
-        if (!projectId) {
+        if (!finalApiKey) {
           console.log("No project id found for key", publicKey);
           throw new Error("Invalid credentials");
         }
 
-        addUserToSpan({ projectId });
+        addUserToSpan({ projectId: finalApiKey.projectId });
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { fastHashedSecretKey, hashedSecretKey, ...remainingApiKey } =
+          finalApiKey;
         return {
           validKey: true,
           scope: {
-            projectId: projectId,
+            projectId: finalApiKey.projectId,
             accessLevel: "all",
           },
-          apiKey: apiKey ?? undefined,
+          apiKey: remainingApiKey,
         };
       }
       // Bearer auth, limited scope, only needs public key
@@ -191,7 +194,7 @@ export class ApiAuthService {
             projectId: dbKey.projectId,
             accessLevel: "scores",
           },
-          apiKey: convertApiKeyAndOrg(dbKey),
+          apiKey: convertToRedisRepresentation(dbKey),
         };
       }
     } catch (error: unknown) {
@@ -264,21 +267,24 @@ export class ApiAuthService {
       include: { project: { include: { organization: true } } },
     });
 
-    const transformedKey = apiKeyAndOrganisation
-      ? convertApiKeyAndOrg(apiKeyAndOrganisation)
-      : null;
-
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.
-    if (transformedKey && transformedKey.fastHashedSecretKey) {
-      await this.addApiKeyToRedis(hash, transformedKey);
+    if (apiKeyAndOrganisation && apiKeyAndOrganisation.fastHashedSecretKey) {
+      await this.addApiKeyToRedis(
+        hash,
+        convertToRedisRepresentation(apiKeyAndOrganisation),
+      );
     }
-    return transformedKey;
+    return apiKeyAndOrganisation
+      ? convertToRedisRepresentation(apiKeyAndOrganisation)
+      : null;
   }
 
   async addApiKeyToRedis(
     hash: string,
-    newApiKey: z.infer<typeof OrgEnrichedApiKey> | typeof API_KEY_NON_EXISTENT,
+    newApiKey:
+      | z.infer<typeof OrgAndAPIKeyEnrichedApiKey>
+      | typeof API_KEY_NON_EXISTENT,
   ) {
     if (!this.redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") {
       return;
@@ -336,7 +342,7 @@ export class ApiAuthService {
   }
 }
 
-export const convertApiKeyAndOrg = (
+export const convertToRedisRepresentation = (
   apiKeyAndOrganisation: ApiKey & {
     project: {
       id: string;
@@ -360,7 +366,7 @@ export const convertApiKeyAndOrg = (
     ? CloudConfigSchema.parse(cloudConfig)
     : undefined;
 
-  const newApiKey = OrgEnrichedApiKey.parse({
+  const newApiKey = OrgAndAPIKeyEnrichedApiKey.parse({
     ...apiKeyAndOrganisation,
     createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,
@@ -374,4 +380,12 @@ export const convertApiKeyAndOrg = (
   }
 
   return newApiKey;
+};
+
+export const removeKeysFromApiKey = (
+  apiKey: z.infer<typeof OrgAndAPIKeyEnrichedApiKey>,
+) => {
+  const { fastHashedSecretKey, hashedSecretKey, ...rest } = apiKey;
+
+  return rest;
 };
