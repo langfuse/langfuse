@@ -17,11 +17,14 @@ import {
 } from "@/src/server/api/trpc";
 import {
   CreateAnnotationScoreData,
+  datetimeFilterToPrismaSql,
+  datetimeFilterToPrisma,
   orderBy,
   orderByToPrismaSql,
   paginationZod,
   singleFilter,
   tableColumnsToSqlFilterAndPrefix,
+  timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
 } from "@langfuse/shared";
@@ -115,27 +118,53 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        timestampFilter: timeFilter.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const names = await ctx.prisma.score.groupBy({
-        where: {
-          projectId: input.projectId,
-        },
-        by: ["name"],
-        _count: {
-          _all: true,
-        },
-        take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
+      const { timestampFilter } = input;
+      const prismaTimestampFilter = timestampFilter
+        ? datetimeFilterToPrisma(timestampFilter)
+        : {};
+
+      const rawTimestampFilter =
+        timestampFilter && timestampFilter.type === "datetime"
+          ? datetimeFilterToPrismaSql(
+              "timestamp",
+              timestampFilter.operator,
+              timestampFilter.value,
+            )
+          : Prisma.empty;
+      const [names, tags] = await Promise.all([
+        ctx.prisma.score.groupBy({
+          where: {
+            projectId: input.projectId,
+            timestamp: prismaTimestampFilter,
           },
-        },
-      });
+          by: ["name"],
+          _count: {
+            _all: true,
+          },
+          take: 1000,
+          orderBy: {
+            _count: {
+              id: "desc",
+            },
+          },
+        }),
+        ctx.prisma.$queryRaw<{ value: string }[]>`
+          SELECT tags.tag as value
+          FROM traces, UNNEST(traces.tags) AS tags(tag)
+          WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
+          GROUP BY tags.tag
+          ORDER BY tags.tag ASC
+          LIMIT 1000
+        `,
+      ]);
 
       const res: ScoreOptions = {
         name: names.map((i) => ({ value: i.name, count: i._count._all })),
+        tags: tags,
       };
 
       return res;
