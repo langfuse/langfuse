@@ -28,7 +28,7 @@ export const throwIfNoOrganizationAccess = (p: HasOrganizationAccessParams) => {
     throw new TRPCError({
       code: "FORBIDDEN",
       message:
-        "Unauthorized, user does not have access to this resource or action",
+        "Forbidden, user does not have access to this resource or action",
     });
 };
 
