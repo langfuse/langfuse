@@ -112,6 +112,11 @@ export const projectsRouter = createTRPCRouter({
         },
       });
 
+      // API keys need to be deleted from cache. Otherwise, they will still be valid.
+      await new ApiAuthService(ctx.prisma, redis).invalidateProjectApiKeys(
+        input.projectId,
+      );
+
       return true;
     }),
 
