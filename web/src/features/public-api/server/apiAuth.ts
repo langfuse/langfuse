@@ -32,7 +32,7 @@ export class ApiAuthService {
   // this function needs to be called, when the organisation is updated
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
-  private async deleteApiKeys(apiKeys: ApiKey[], identifier: string) {
+  private async invalidate(apiKeys: ApiKey[], identifier: string) {
     const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
 
     if (this.redis) {
@@ -54,7 +54,7 @@ export class ApiAuthService {
       },
     });
 
-    await this.deleteApiKeys(apiKeys, `org ${orgId}`);
+    await this.invalidate(apiKeys, `org ${orgId}`);
   }
 
   async invalidateProjectApiKeys(projectId: string) {
@@ -64,7 +64,7 @@ export class ApiAuthService {
       },
     });
 
-    await this.deleteApiKeys(apiKeys, `project ${projectId}`);
+    await this.invalidate(apiKeys, `project ${projectId}`);
   }
 
   async deleteApiKey(id: string, projectId: string) {
