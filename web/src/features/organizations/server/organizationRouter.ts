@@ -117,8 +117,8 @@ export const organizationsRouter = createTRPCRouter({
         },
       });
 
-      // the api keys contain which org they belong to, so we need to delete them
-      await new ApiAuthService(ctx.prisma, redis).deleteAllApiKeysForOrg(
+      // the api keys contain which org they belong to, so we need to remove them from Redis
+      await new ApiAuthService(ctx.prisma, redis).invalidateOrgApiKeys(
         input.orgId,
       );
 

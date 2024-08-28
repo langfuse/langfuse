@@ -45,7 +45,7 @@ export class ApiAuthService {
     }
   }
 
-  async deleteAllApiKeysForOrg(orgId: string) {
+  async invalidateOrgApiKeys(orgId: string) {
     const apiKeys = await this.prisma.apiKey.findMany({
       where: {
         project: {
@@ -57,7 +57,7 @@ export class ApiAuthService {
     await this.deleteApiKeys(apiKeys, `org ${orgId}`);
   }
 
-  async deleteAllApiKeysForProject(projectId: string) {
+  async invalidateProjectApiKeys(projectId: string) {
     const apiKeys = await this.prisma.apiKey.findMany({
       where: {
         projectId: projectId,
