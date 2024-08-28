@@ -168,6 +168,14 @@ export class RateLimitService {
       }
     }
 
+    if (res.remainingPoints < 1) {
+      recordIncrement("rate_limit_exceeded", 1, {
+        orgId: scope.orgId,
+        plan: scope.plan,
+        resource: resource,
+      });
+    }
+
     return res;
   }
 
@@ -205,12 +213,6 @@ export const sendRateLimitResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
 ) => {
-  recordIncrement("rate-limit-exceeded", 1, {
-    orgId: rateLimitRes.scope.orgId,
-    plan: rateLimitRes.scope.plan,
-    resource: rateLimitRes.resource,
-  });
-
   const httpHeader = createHttpHeaderFromRateLimit(rateLimitRes);
 
   for (const [header, value] of Object.entries(httpHeader)) {
