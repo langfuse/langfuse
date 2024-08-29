@@ -1,7 +1,14 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { Button } from "@/src/components/ui/button";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
+import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { type RouterOutputs } from "@/src/utils/api";
+import { Pencil } from "lucide-react";
+import Link from "next/link";
 import { type NextRouter, useRouter } from "next/router";
+import { useState } from "react";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
@@ -10,7 +17,11 @@ const PromptHistoryTraceNode = (props: {
   setCurrentPromptVersion: (version: number | undefined) => void;
   router: NextRouter;
   projectId: string;
+  totalCount: number;
 }) => {
+  const capture = usePostHogClientCapture();
+  const [isHovered, setIsHovered] = useState(false);
+  const [isNavigationLoading, setIsNavigationLoading] = useState(false);
   const { prompt } = props;
   let badges: JSX.Element[] = prompt.labels
     .sort((a, b) =>
@@ -29,19 +40,54 @@ const PromptHistoryTraceNode = (props: {
       className={`group mb-2 flex cursor-pointer flex-col gap-1 rounded-sm p-2 hover:bg-primary-foreground ${
         props.currentPromptVersion === prompt.version ? "bg-muted" : ""
       }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onClick={() => {
         props.index === 0
           ? props.setCurrentPromptVersion(undefined)
           : props.setCurrentPromptVersion(prompt.version);
       }}
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-sm bg-input p-1 text-xs">
-          Version {prompt.version}
-        </span>
-        {badges}
+      <div
+        className={`grid items-center gap-2 ${isHovered && "grid-cols-[auto,minmax(100px,1fr)]"}`}
+      >
+        <div className="grid h-7 grid-cols-[auto,1fr] items-center">
+          <span className="rounded-sm bg-input p-1 text-xs">
+            Version {prompt.version}
+          </span>
+          {Boolean(prompt.labels.length) && (
+            <div className="ml-2 h-full space-x-1 space-y-0.5 overflow-auto">
+              {badges}
+            </div>
+          )}
+        </div>
+        {isHovered && (
+          <div className="space-x-1">
+            <SetPromptVersionLabels prompt={prompt} />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7 px-0"
+              loading={isNavigationLoading}
+              onClick={() => {
+                capture("prompts:update_form_open");
+                setIsNavigationLoading(true);
+              }}
+            >
+              <Link
+                href={`/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Link>
+            </Button>
+            <DeletePromptVersion
+              promptVersionId={prompt.id}
+              version={prompt.version}
+              countVersions={props.totalCount}
+            />
+          </div>
+        )}
       </div>
-
       <div className="flex gap-2">
         <span className="text-xs text-muted-foreground">
           {prompt.createdAt.toLocaleString()}
@@ -60,6 +106,7 @@ export const PromptHistoryNode = (props: {
   prompts: RouterOutputs["prompts"]["allVersions"]["promptVersions"];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (id: number | undefined) => void;
+  totalCount: number;
 }) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -74,6 +121,7 @@ export const PromptHistoryNode = (props: {
           setCurrentPromptVersion={props.setCurrentPromptVersion}
           router={router}
           projectId={projectId}
+          totalCount={props.totalCount}
         />
       ))}
     </div>

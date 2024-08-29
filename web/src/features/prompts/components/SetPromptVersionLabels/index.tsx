@@ -98,6 +98,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
         <Button
           variant="outline"
           size="icon"
+          className="h-7 w-7 px-0"
           aria-label="Set prompt labels"
           title="Set prompt labels"
         >
