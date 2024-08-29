@@ -31,7 +31,7 @@ export class RateLimitService {
   ) {
     // if cloud config is not present, we don't apply rate limits and just return
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-      return;
+      return new RateLimitHelper(undefined);
     }
 
     if (!this.redis) {
@@ -71,8 +71,6 @@ export class RateLimitService {
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
       storeClient: this.redis,
     });
-
-    console.log("Rate limiting for resource", resource, "with config");
 
     let res: RateLimitResult | undefined = undefined;
     try {
@@ -130,12 +128,6 @@ export class RateLimitHelper {
   }
 
   isRateLimited() {
-    console.log(
-      "Rate limit result",
-      this.res,
-      "is rate limited",
-      this.res?.remainingPoints,
-    );
     return this.res ? this.res.remainingPoints < 1 : false;
   }
 
