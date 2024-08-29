@@ -40,14 +40,6 @@ const handleTrpcError = (error: unknown) => {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
 
-    console.log(
-      "encountered error checking server build version",
-      buildVersion,
-    );
-    console.log(
-      "encountered error checking client build version",
-      process.env.NEXT_PUBLIC_BUILD_ID,
-    );
     if (CLIENT_STALE_CACHE_CODES.includes(httpStatus)) {
       if (
         !!buildVersion &&
@@ -78,11 +70,6 @@ const versionLink = (): TRPCLink<AppRouter> => () => {
             err.meta.response instanceof Response
           ) {
             buildVersion = err.meta.response.headers.get("x-build-version");
-            console.log(
-              "build version updated from error response",
-              err.meta.response.headers.get("x-build-version"),
-              buildVersion,
-            );
           }
           observer.error(err);
         },
