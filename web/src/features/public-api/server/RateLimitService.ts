@@ -167,58 +167,40 @@ const getRateLimitConfig = (
 ): z.infer<typeof RateLimitConfig> => {
   switch (plan) {
     case "oss":
-      return { resource, points: null, durationInMin: null };
     case "self-hosted:enterprise":
       return { resource, points: null, durationInMin: null };
     case "cloud:hobby":
+    case "cloud:pro":
       switch (resource) {
         case "ingestion":
-          return { resource: "ingestion", points: 100, durationInMin: 60 };
+          return { resource: "ingestion", points: 1000, durationInMin: 1 };
         case "prompts":
           return { resource: "prompts", points: null, durationInMin: null };
         case "public-api":
-          return { resource: "public-api", points: 1000, durationInMin: 60 };
+          return { resource: "public-api", points: 1000, durationInMin: 1 };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
             points: 10,
-            durationInMin: 60,
+            durationInMin: 1,
           };
         default:
-          const exhaustiveCheckHobby: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckHobby}`);
-      }
-    case "cloud:pro":
-      switch (resource) {
-        case "ingestion":
-          return { resource: "ingestion", points: 2000, durationInMin: 60 };
-        case "prompts":
-          return { resource: "prompts", points: null, durationInMin: null };
-        case "public-api":
-          return { resource: "public-api", points: 5000, durationInMin: 60 };
-        case "public-api-metrics":
-          return {
-            resource: "public-api-metrics",
-            points: 50,
-            durationInMin: 60,
-          };
-        default:
-          const exhaustiveCheckPro: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckPro}`);
+          const exhaustiveCheckDefault: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheckDefault}`);
       }
     case "cloud:team":
       switch (resource) {
         case "ingestion":
-          return { resource: "ingestion", points: 5000, durationInMin: 60 };
+          return { resource: "ingestion", points: 5000, durationInMin: 1 };
         case "prompts":
           return { resource: "prompts", points: null, durationInMin: null };
         case "public-api":
-          return { resource: "public-api", points: 10000, durationInMin: 60 };
+          return { resource: "public-api", points: 1000, durationInMin: 1 };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
-            points: 100,
-            durationInMin: 60,
+            points: 10,
+            durationInMin: 1,
           };
         default:
           const exhaustiveCheckTeam: never = resource;

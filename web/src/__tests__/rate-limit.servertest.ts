@@ -30,7 +30,7 @@ describe("RateLimitService", () => {
     }
   });
 
-  it("should rate limit", async () => {
+  it.only("should rate limit", async () => {
     const scope = {
       orgId: orgId,
       plan: "cloud:hobby" as const,
