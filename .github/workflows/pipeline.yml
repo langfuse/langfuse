@@ -160,6 +160,12 @@ jobs:
           cp .env.dev.example web/.env
           cp .env.dev.example worker/.env
 
+      - name: Run + migrate
+        run: |
+          docker compose -f docker-compose.dev.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose ps
+
       - name: Ensure no unhealthy status
         run: |
           if docker compose ps | grep "(unhealthy)"; then
@@ -168,12 +174,6 @@ jobs:
           else
             echo "All services are healthy"
           fi
-
-      - name: Run + migrate
-        run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
-          docker compose ps
 
       - name: Seed DB
         run: |
