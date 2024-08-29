@@ -144,11 +144,11 @@ importers:
         specifier: '>=1.0.0 <1.9.0'
         version: 1.8.0
       '@prisma/client':
-        specifier: ^5.18.0
-        version: 5.18.0(prisma@5.19.0)
+        specifier: ^5.19.0
+        version: 5.19.0(prisma@5.19.0)
       '@react-email/components':
         specifier: ^0.0.19
-        version: 0.0.19(@types/react@18.2.79)(react@18.2.0)
+        version: 0.0.19(@types/react@18.3.4)(react@18.2.0)
       '@react-email/render':
         specifier: ^0.0.15
         version: 0.0.15
@@ -157,7 +157,7 @@ importers:
         version: 2.4.6
       '@types/react':
         specifier: ^18.2.79
-        version: 18.2.79
+        version: 18.3.4
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -193,7 +193,7 @@ importers:
         version: 6.9.13
       prisma-extension-kysely:
         specifier: ^2.1.0
-        version: 2.1.0(@prisma/client@5.18.0(prisma@5.19.0))
+        version: 2.1.0(@prisma/client@5.19.0(prisma@5.19.0))
       react:
         specifier: ^18.0.0
         version: 18.2.0
@@ -257,7 +257,7 @@ importers:
         version: 5.19.0
       prisma-erd-generator:
         specifier: ^1.11.2
-        version: 1.11.2(@prisma/client@5.18.0(prisma@5.19.0))(typescript@5.4.5)
+        version: 1.11.2(@prisma/client@5.19.0(prisma@5.19.0))(typescript@5.4.5)
       prisma-kysely:
         specifier: ^1.8.0
         version: 1.8.0
@@ -326,7 +326,7 @@ importers:
         version: 7.6.2(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0))(@mui/material@5.15.19(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@next-auth/prisma-adapter':
         specifier: ^1.0.7
-        version: 1.0.7(@prisma/client@5.18.0(prisma@5.19.0))(next-auth@4.24.7(next@14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
+        version: 1.0.7(@prisma/client@5.19.0(prisma@5.19.0))(next-auth@4.24.7(next@14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
       '@opentelemetry/api':
         specifier: '>=1.0.0 <1.9.0'
         version: 1.8.0
@@ -3158,8 +3158,8 @@ packages:
   '@popperjs/core@2.11.8':
     resolution: {integrity: sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==}
 
-  '@prisma/client@5.18.0':
-    resolution: {integrity: sha512-BWivkLh+af1kqC89zCJYkHsRcyWsM8/JHpsDMM76DjP3ZdEquJhXa4IeX+HkWPnwJ5FanxEJFZZDTWiDs/Kvyw==}
+  '@prisma/client@5.19.0':
+    resolution: {integrity: sha512-CzOpau+q1kEWQyoQMvlnXIHqPvwmWbh48xZ4n8KWbAql0p8PC0BIgSTYW5ncxXa4JSEff0tcoxSZB874wDstdg==}
     engines: {node: '>=16.13'}
     peerDependencies:
       prisma: '*'
@@ -13628,9 +13628,9 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  '@next-auth/prisma-adapter@1.0.7(@prisma/client@5.18.0(prisma@5.19.0))(next-auth@4.24.7(next@14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
+  '@next-auth/prisma-adapter@1.0.7(@prisma/client@5.19.0(prisma@5.19.0))(next-auth@4.24.7(next@14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
     dependencies:
-      '@prisma/client': 5.18.0(prisma@5.19.0)
+      '@prisma/client': 5.19.0(prisma@5.19.0)
       next-auth: 4.24.7(next@14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.13)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
 
   '@next/env@14.2.6': {}
@@ -14696,7 +14696,7 @@ snapshots:
 
   '@popperjs/core@2.11.8': {}
 
-  '@prisma/client@5.18.0(prisma@5.19.0)':
+  '@prisma/client@5.19.0(prisma@5.19.0)':
     optionalDependencies:
       prisma: 5.19.0
 
@@ -15017,6 +15017,13 @@ snapshots:
       react: 18.2.0
     optionalDependencies:
       '@types/react': 18.2.79
+
+  '@radix-ui/react-compose-refs@1.0.1(@types/react@18.3.4)(react@18.2.0)':
+    dependencies:
+      '@babel/runtime': 7.24.7
+      react: 18.2.0
+    optionalDependencies:
+      '@types/react': 18.3.4
 
   '@radix-ui/react-compose-refs@1.1.0(@types/react@18.2.79)(react@18.2.0)':
     dependencies:
@@ -15387,6 +15394,14 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.2.79
 
+  '@radix-ui/react-slot@1.0.2(@types/react@18.3.4)(react@18.2.0)':
+    dependencies:
+      '@babel/runtime': 7.24.7
+      '@radix-ui/react-compose-refs': 1.0.1(@types/react@18.3.4)(react@18.2.0)
+      react: 18.2.0
+    optionalDependencies:
+      '@types/react': 18.3.4
+
   '@radix-ui/react-slot@1.1.0(@types/react@18.2.79)(react@18.2.0)':
     dependencies:
       '@radix-ui/react-compose-refs': 1.1.0(@types/react@18.2.79)(react@18.2.0)
@@ -15583,7 +15598,7 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@react-email/components@0.0.19(@types/react@18.2.79)(react@18.2.0)':
+  '@react-email/components@0.0.19(@types/react@18.3.4)(react@18.2.0)':
     dependencies:
       '@react-email/body': 0.0.8(react@18.2.0)
       '@react-email/button': 0.0.15(react@18.2.0)
@@ -15593,7 +15608,7 @@ snapshots:
       '@react-email/container': 0.0.12(react@18.2.0)
       '@react-email/font': 0.0.6(react@18.2.0)
       '@react-email/head': 0.0.9(react@18.2.0)
-      '@react-email/heading': 0.0.12(@types/react@18.2.79)(react@18.2.0)
+      '@react-email/heading': 0.0.12(@types/react@18.3.4)(react@18.2.0)
       '@react-email/hr': 0.0.8(react@18.2.0)
       '@react-email/html': 0.0.8(react@18.2.0)
       '@react-email/img': 0.0.8(react@18.2.0)
@@ -15621,9 +15636,9 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@react-email/heading@0.0.12(@types/react@18.2.79)(react@18.2.0)':
+  '@react-email/heading@0.0.12(@types/react@18.3.4)(react@18.2.0)':
     dependencies:
-      '@radix-ui/react-slot': 1.0.2(@types/react@18.2.79)(react@18.2.0)
+      '@radix-ui/react-slot': 1.0.2(@types/react@18.3.4)(react@18.2.0)
       react: 18.2.0
     transitivePeerDependencies:
       - '@types/react'
@@ -16692,7 +16707,7 @@ snapshots:
 
   '@types/ioredis@4.28.10':
     dependencies:
-      '@types/node': 20.14.8
+      '@types/node': 20.11.29
 
   '@types/istanbul-lib-coverage@2.0.6': {}
 
@@ -16902,7 +16917,7 @@ snapshots:
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 20.14.8
+      '@types/node': 20.10.5
     optional: true
 
   '@typescript-eslint/eslint-plugin@6.21.0(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)':
@@ -20834,7 +20849,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 20.14.8
+      '@types/node': 20.10.5
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -22671,10 +22686,10 @@ snapshots:
 
   prexit@2.2.0: {}
 
-  prisma-erd-generator@1.11.2(@prisma/client@5.18.0(prisma@5.19.0))(typescript@5.4.5):
+  prisma-erd-generator@1.11.2(@prisma/client@5.19.0(prisma@5.19.0))(typescript@5.4.5):
     dependencies:
       '@mermaid-js/mermaid-cli': 10.8.0(typescript@5.4.5)
-      '@prisma/client': 5.18.0(prisma@5.19.0)
+      '@prisma/client': 5.19.0(prisma@5.19.0)
       '@prisma/generator-helper': 5.3.1
       dotenv: 16.4.5
     transitivePeerDependencies:
@@ -22684,9 +22699,9 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  prisma-extension-kysely@2.1.0(@prisma/client@5.18.0(prisma@5.19.0)):
+  prisma-extension-kysely@2.1.0(@prisma/client@5.19.0(prisma@5.19.0)):
     dependencies:
-      '@prisma/client': 5.18.0(prisma@5.19.0)
+      '@prisma/client': 5.19.0(prisma@5.19.0)
 
   prisma-kysely@1.8.0:
     dependencies:
