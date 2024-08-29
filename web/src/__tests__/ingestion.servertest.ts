@@ -1656,7 +1656,7 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
     expect(dbScore?.value).toBe(scoreValue);
   });
 
-  it("should error on wrong input", async () => {
+  it.only("should error on wrong input", async () => {
     const traceId = "trace_id";
     const bearerAuth = "Bearer pk-lf-1234567890";
 

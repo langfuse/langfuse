@@ -196,9 +196,9 @@ export class ApiAuthService {
 
         addUserToSpan({ projectId: dbKey.projectId });
 
-        const cloudConfig = CloudConfigSchema.parse(
-          dbKey.project.organization.cloudConfig,
-        );
+        const cloudConfig = dbKey.project.organization.cloudConfig
+          ? CloudConfigSchema.parse(dbKey.project.organization.cloudConfig)
+          : undefined;
 
         return {
           validKey: true,
@@ -207,7 +207,7 @@ export class ApiAuthService {
             accessLevel: "scores",
             orgId: dbKey.project.organization.id,
             plan: getOrganizationPlan(cloudConfig),
-            rateLimits: cloudConfig.rateLimits ?? [],
+            rateLimits: cloudConfig?.rateLimits ?? [],
           },
         };
       }
