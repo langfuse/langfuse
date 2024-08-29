@@ -230,4 +230,40 @@ describe("RateLimitService", () => {
 
     expect(result?.res).toBeUndefined();
   });
+
+  it("should not apply rate limits when redis is not defined", async () => {
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId: "test-project-id",
+      accessLevel: "all" as const,
+      rateLimits: [
+        { resource: "public-api" as const, points: 5, durationInMin: 10 },
+      ],
+    };
+
+    const rateLimitService = new RateLimitService(null);
+
+    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
+
+    expect(result?.res).toBeUndefined();
+    expect(result?.isRateLimited()).toBe(false);
+  });
+
+  it("should not apply rate limits for OSS plan", async () => {
+    const scope = {
+      orgId: orgId,
+      plan: "oss" as const,
+      projectId: "test-project-id",
+      accessLevel: "all" as const,
+      rateLimits: [],
+    };
+
+    const rateLimitService = new RateLimitService(redis!);
+
+    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
+
+    expect(result?.res).toBeUndefined();
+    expect(result?.isRateLimited()).toBe(false);
+  });
 });

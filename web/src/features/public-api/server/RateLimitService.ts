@@ -14,100 +14,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { type NextApiResponse } from "next";
 
-// business logic to consider
-// - not all orgs have a cloud config. Need to default to hobby plan within
-// - we have the oss plan which is used for self-hosters.
-// - only apply rate-limits if cloud config is present
-// - rate limits are per org. We pull the orgId and the plan into the API key stored in Redis to have fast rate limiting.
-// - if Redis is not available, we apply container level memory rate limiting.
-
-const getRateLimitConfig = (
-  plan: Plan,
-  resource: z.infer<typeof RateLimitResource>,
-): z.infer<typeof RateLimitConfig> => {
-  switch (plan) {
-    case "oss":
-      return { resource, points: null, durationInMin: null };
-    case "cloud:hobby":
-      switch (resource) {
-        case "ingestion":
-          return { resource: "ingestion", points: 100, durationInMin: 60 };
-        case "prompts":
-          return { resource: "prompts", points: null, durationInMin: null };
-        case "public-api":
-          return { resource: "public-api", points: 1000, durationInMin: 60 };
-        case "public-api-metrics":
-          return {
-            resource: "public-api-metrics",
-            points: 10,
-            durationInMin: 60,
-          };
-        default:
-          const exhaustiveCheckHobby: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckHobby}`);
-      }
-    case "cloud:pro":
-      switch (resource) {
-        case "ingestion":
-          return { resource: "ingestion", points: 2000, durationInMin: 60 };
-        case "prompts":
-          return { resource: "prompts", points: null, durationInMin: null };
-        case "public-api":
-          return { resource: "public-api", points: 5000, durationInMin: 60 };
-        case "public-api-metrics":
-          return {
-            resource: "public-api-metrics",
-            points: 50,
-            durationInMin: 60,
-          };
-        default:
-          const exhaustiveCheckPro: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckPro}`);
-      }
-    case "cloud:team":
-      switch (resource) {
-        case "ingestion":
-          return { resource: "ingestion", points: 5000, durationInMin: 60 };
-        case "prompts":
-          return { resource: "prompts", points: null, durationInMin: null };
-        case "public-api":
-          return { resource: "public-api", points: 10000, durationInMin: 60 };
-        case "public-api-metrics":
-          return {
-            resource: "public-api-metrics",
-            points: 100,
-            durationInMin: 60,
-          };
-        default:
-          const exhaustiveCheckTeam: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckTeam}`);
-      }
-    case "self-hosted:enterprise":
-      switch (resource) {
-        case "ingestion":
-          return { resource: "ingestion", points: 10000, durationInMin: 60 };
-        case "prompts":
-          return { resource: "prompts", points: null, durationInMin: null };
-        case "public-api":
-          return { resource: "public-api", points: 20000, durationInMin: 60 };
-        case "public-api-metrics":
-          return {
-            resource: "public-api-metrics",
-            points: 200,
-            durationInMin: 60,
-          };
-        default:
-          const exhaustiveCheckEnterprise: never = resource;
-          throw new Error(
-            `Unhandled resource case: ${exhaustiveCheckEnterprise}`,
-          );
-      }
-    default:
-      const exhaustiveCheck: never = plan;
-      throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);
-  }
-};
-
+// Business Logic
+// - rate limit strategy is based on org-id, org plan, and ressources. Rate limits are appliead in buckets of minutes.
+// - rate limits are not applied for self hosters and are also not applied when Redis is not available
+// - infos for rate-limits are taken from the API access scope. Info for this scope is stored alongside API Keys in Redis for efficient access.
 export class RateLimitService {
   private redis: Redis | null;
 
@@ -126,7 +36,7 @@ export class RateLimitService {
 
     if (!this.redis) {
       console.log("Rate limiting not available without Redis");
-      return;
+      return new RateLimitHelper(undefined);
     }
 
     return new RateLimitHelper(await this.checkRateLimit(scope, resource));
@@ -257,4 +167,91 @@ const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
     "X-RateLimit-Remaining": res.remainingPoints,
     "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
   };
+};
+
+const getRateLimitConfig = (
+  plan: Plan,
+  resource: z.infer<typeof RateLimitResource>,
+): z.infer<typeof RateLimitConfig> => {
+  switch (plan) {
+    case "oss":
+      return { resource, points: null, durationInMin: null };
+    case "cloud:hobby":
+      switch (resource) {
+        case "ingestion":
+          return { resource: "ingestion", points: 100, durationInMin: 60 };
+        case "prompts":
+          return { resource: "prompts", points: null, durationInMin: null };
+        case "public-api":
+          return { resource: "public-api", points: 1000, durationInMin: 60 };
+        case "public-api-metrics":
+          return {
+            resource: "public-api-metrics",
+            points: 10,
+            durationInMin: 60,
+          };
+        default:
+          const exhaustiveCheckHobby: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheckHobby}`);
+      }
+    case "cloud:pro":
+      switch (resource) {
+        case "ingestion":
+          return { resource: "ingestion", points: 2000, durationInMin: 60 };
+        case "prompts":
+          return { resource: "prompts", points: null, durationInMin: null };
+        case "public-api":
+          return { resource: "public-api", points: 5000, durationInMin: 60 };
+        case "public-api-metrics":
+          return {
+            resource: "public-api-metrics",
+            points: 50,
+            durationInMin: 60,
+          };
+        default:
+          const exhaustiveCheckPro: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheckPro}`);
+      }
+    case "cloud:team":
+      switch (resource) {
+        case "ingestion":
+          return { resource: "ingestion", points: 5000, durationInMin: 60 };
+        case "prompts":
+          return { resource: "prompts", points: null, durationInMin: null };
+        case "public-api":
+          return { resource: "public-api", points: 10000, durationInMin: 60 };
+        case "public-api-metrics":
+          return {
+            resource: "public-api-metrics",
+            points: 100,
+            durationInMin: 60,
+          };
+        default:
+          const exhaustiveCheckTeam: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheckTeam}`);
+      }
+    case "self-hosted:enterprise":
+      switch (resource) {
+        case "ingestion":
+          return { resource: "ingestion", points: 10000, durationInMin: 60 };
+        case "prompts":
+          return { resource: "prompts", points: null, durationInMin: null };
+        case "public-api":
+          return { resource: "public-api", points: 20000, durationInMin: 60 };
+        case "public-api-metrics":
+          return {
+            resource: "public-api-metrics",
+            points: 200,
+            durationInMin: 60,
+          };
+        default:
+          const exhaustiveCheckEnterprise: never = resource;
+          throw new Error(
+            `Unhandled resource case: ${exhaustiveCheckEnterprise}`,
+          );
+      }
+    default:
+      const exhaustiveCheck: never = plan;
+      throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);
+  }
 };
