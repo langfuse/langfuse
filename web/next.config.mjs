@@ -58,7 +58,7 @@ const nextConfig = {
   poweredByHeader: false,
 
   generateBuildId: async () => {
-    return process.env.NEXT_JS_BUILD_ID ?? uuidv4();
+    return process.env.NEXT_PUBLIC_BUILD_ID ?? uuidv4();
   },
 
   /**

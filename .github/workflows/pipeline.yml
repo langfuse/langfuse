@@ -329,10 +329,6 @@ jobs:
         with:
           driver-opts: network=host
 
-      # todo: fix
-      - name: Set Commit Hash Environment Variable
-        run: echo "NEXT_JS_BUILD_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV
-
       - name: Extract metadata (tags, labels) for Docker
         id: meta-web
         uses: docker/metadata-action@v4

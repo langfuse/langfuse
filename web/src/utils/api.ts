@@ -11,7 +11,9 @@ import {
   loggerLink,
   splitLink,
   TRPCClientError,
+  type TRPCLink,
 } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
 import { createTRPCNext } from "@trpc/next";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import superjson from "superjson";
@@ -23,8 +25,6 @@ import { showVersionUpdateToast } from "@/src/features/notifications/showVersion
 
 setUpSuperjson();
 
-const CLIENT_STALE_CACHE_CODES = [404, 400];
-
 const getBaseUrl = () => {
   if (typeof window !== "undefined") return ""; // browser should use relative url
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`; // SSR should use vercel url
@@ -33,13 +33,19 @@ const getBaseUrl = () => {
 
 let buildVersion: string | null = null;
 
+const CLIENT_STALE_CACHE_CODES = [404, 400];
+
 const handleTrpcError = (error: unknown) => {
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
 
     if (CLIENT_STALE_CACHE_CODES.includes(httpStatus)) {
-      if (!!buildVersion && buildVersion !== process.env.NEXT_PUBLIC_BUILD_ID) {
+      if (
+        !!buildVersion &&
+        !!process.env.NEXT_PUBLIC_BUILD_ID &&
+        buildVersion !== process.env.NEXT_PUBLIC_BUILD_ID
+      ) {
         showVersionUpdateToast();
         return;
       }
@@ -47,6 +53,33 @@ const handleTrpcError = (error: unknown) => {
   }
 
   trpcErrorToast(error);
+};
+
+// onError update build version
+const versionLink = (): TRPCLink<AppRouter> => () => {
+  return ({ next, op }) => {
+    return observable((observer) => {
+      const unsubscribe = next(op).subscribe({
+        next(value) {
+          observer.next(value);
+        },
+        error(err) {
+          if (
+            err.meta &&
+            err.meta.response &&
+            err.meta.response instanceof Response
+          ) {
+            buildVersion = err.meta.response.headers.get("x-build-version");
+          }
+          observer.error(err);
+        },
+        complete() {
+          observer.complete();
+        },
+      });
+      return unsubscribe;
+    });
+  };
 };
 
 /** A set of type-safe react-query hooks for your tRPC API. */
@@ -66,6 +99,7 @@ export const api = createTRPCNext<AppRouter>({
        * @see https://trpc.io/docs/links
        */
       links: [
+        versionLink(),
         loggerLink({
           enabled: (opts) =>
             process.env.NODE_ENV === "development" ||
@@ -84,21 +118,11 @@ export const api = createTRPCNext<AppRouter>({
           // when condition is true, use normal request
           true: httpLink({
             url: `${getBaseUrl()}/api/trpc`,
-            async fetch(url, options) {
-              const response = await fetch(url, options);
-              buildVersion = response.headers.get("x-build-version");
-              return response;
-            },
           }),
           // when condition is false, use batching
           false: httpBatchLink({
             url: `${getBaseUrl()}/api/trpc`,
             maxURLLength: 2083, // avoid too large batches
-            async fetch(url, options) {
-              const response = await fetch(url, options);
-              buildVersion = response.headers.get("x-build-version");
-              return response;
-            },
           }),
         }),
       ],

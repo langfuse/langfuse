@@ -32,6 +32,9 @@ RUN pnpm install --frozen-lockfile
 ENV DOCKER_BUILD 1
 ENV NEXT_MANUAL_SIG_HANDLE true
 
+# set commit hash environment variable
+RUN echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse HEAD)" >> /etc/environment
+
 # pass public variables in build step
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 ARG NEXT_PUBLIC_DEMO_ORG_ID
