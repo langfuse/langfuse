@@ -165,6 +165,8 @@ jobs:
           docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
+        env:
+          CLICKHOUSE_MIGRATION_SSL: true
 
       - name: Ensure no unhealthy status
         run: |
@@ -180,13 +182,16 @@ jobs:
           pnpm run --filter=shared ch:up
           pnpm run db:migrate
           pnpm run db:seed
+        env:
+          CLICKHOUSE_MIGRATION_SSL: true
 
       - name: Build
         run: pnpm --filter=worker... run build
 
       - name: run tests
         run: pnpm --filter=worker run test
-
+        env:
+          CLICKHOUSE_MIGRATION_SSL: true
   e2e-tests:
     runs-on: ubuntu-latest
     steps:
