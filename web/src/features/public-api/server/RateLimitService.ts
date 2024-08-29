@@ -7,7 +7,6 @@ import {
   type RateLimitResource,
   type RateLimitConfig,
   type Plan,
-  type CloudConfigRateLimit,
 } from "@langfuse/shared";
 import {
   recordIncrement,
