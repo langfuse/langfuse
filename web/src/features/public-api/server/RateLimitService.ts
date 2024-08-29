@@ -176,6 +176,8 @@ const getRateLimitConfig = (
   switch (plan) {
     case "oss":
       return { resource, points: null, durationInMin: null };
+    case "self-hosted:enterprise":
+      return { resource, points: null, durationInMin: null };
     case "cloud:hobby":
       switch (resource) {
         case "ingestion":
@@ -229,26 +231,6 @@ const getRateLimitConfig = (
         default:
           const exhaustiveCheckTeam: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheckTeam}`);
-      }
-    case "self-hosted:enterprise":
-      switch (resource) {
-        case "ingestion":
-          return { resource: "ingestion", points: 10000, durationInMin: 60 };
-        case "prompts":
-          return { resource: "prompts", points: null, durationInMin: null };
-        case "public-api":
-          return { resource: "public-api", points: 20000, durationInMin: 60 };
-        case "public-api-metrics":
-          return {
-            resource: "public-api-metrics",
-            points: 200,
-            durationInMin: 60,
-          };
-        default:
-          const exhaustiveCheckEnterprise: never = resource;
-          throw new Error(
-            `Unhandled resource case: ${exhaustiveCheckEnterprise}`,
-          );
       }
     default:
       const exhaustiveCheck: never = plan;
