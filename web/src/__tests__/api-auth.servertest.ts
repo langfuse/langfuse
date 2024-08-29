@@ -156,7 +156,7 @@ describe("Authenticate API calls", () => {
               {
                 resource: "public-api",
                 points: 1000,
-                duration: 60,
+                durationInMin: 60,
               },
               {
                 resource: "ingestion",
@@ -204,7 +204,7 @@ describe("Authenticate API calls", () => {
           {
             resource: "public-api",
             points: 1000,
-            duration: 60,
+            durationInMin: 60,
           },
           {
             resource: "ingestion",
