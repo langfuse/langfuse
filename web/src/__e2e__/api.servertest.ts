@@ -169,7 +169,7 @@ describe("Ingestion Pipeline", () => {
             {
               resource: "ingestion",
               points: 1,
-              durationInMin: 1,
+              durationInSec: 60,
             },
           ],
         },

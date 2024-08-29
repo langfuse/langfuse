@@ -60,7 +60,7 @@ export class RateLimitService {
     if (
       !effectiveConfig ||
       !effectiveConfig.points ||
-      !effectiveConfig.durationInMin
+      !effectiveConfig.durationInSec
     ) {
       return;
     }
@@ -68,7 +68,7 @@ export class RateLimitService {
     const rateLimiter = new RateLimiterRedis({
       // Basic options
       points: effectiveConfig.points, // Number of points
-      duration: effectiveConfig.durationInMin * 60, // Per second(s)
+      duration: effectiveConfig.durationInSec, // Per second(s)
 
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
       storeClient: this.redis,
@@ -171,21 +171,21 @@ const getRateLimitConfig = (
   switch (plan) {
     case "oss":
     case "self-hosted:enterprise":
-      return { resource, points: null, durationInMin: null };
+      return { resource, points: null, durationInSec: null };
     case "cloud:hobby":
     case "cloud:pro":
       switch (resource) {
         case "ingestion":
-          return { resource: "ingestion", points: 1000, durationInMin: 1 };
+          return { resource: "ingestion", points: 1000, durationInSec: 60 };
         case "prompts":
-          return { resource: "prompts", points: null, durationInMin: null };
+          return { resource: "prompts", points: null, durationInSec: null };
         case "public-api":
-          return { resource: "public-api", points: 1000, durationInMin: 1 };
+          return { resource: "public-api", points: 1000, durationInSec: 60 };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
             points: 10,
-            durationInMin: 1,
+            durationInSec: 60,
           };
         default:
           const exhaustiveCheckDefault: never = resource;
@@ -194,16 +194,16 @@ const getRateLimitConfig = (
     case "cloud:team":
       switch (resource) {
         case "ingestion":
-          return { resource: "ingestion", points: 5000, durationInMin: 1 };
+          return { resource: "ingestion", points: 5000, durationInSec: 60 };
         case "prompts":
-          return { resource: "prompts", points: null, durationInMin: null };
+          return { resource: "prompts", points: null, durationInSec: null };
         case "public-api":
-          return { resource: "public-api", points: 1000, durationInMin: 1 };
+          return { resource: "public-api", points: 1000, durationInSec: 60 };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
             points: 10,
-            durationInMin: 1,
+            durationInSec: 60,
           };
         default:
           const exhaustiveCheckTeam: never = resource;

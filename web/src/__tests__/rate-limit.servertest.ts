@@ -94,7 +94,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "public-api" as const, points: 100, durationInMin: 1 },
+        { resource: "public-api" as const, points: 100, durationInSec: 2 },
       ],
     };
 
@@ -144,7 +144,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "public-api" as const, points: 5, durationInMin: 1 },
+        { resource: "public-api" as const, points: 5, durationInSec: 60 },
       ],
     };
 
@@ -175,7 +175,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "public-api" as const, points: 5, durationInMin: 10 },
+        { resource: "public-api" as const, points: 5, durationInSec: 10 },
       ],
     };
 
@@ -201,7 +201,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "public-api" as const, points: 5, durationInMin: 10 },
+        { resource: "public-api" as const, points: 5, durationInSec: 10 },
       ],
     };
 
@@ -220,7 +220,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "ingestion" as const, points: null, durationInMin: null },
+        { resource: "ingestion" as const, points: null, durationInSec: null },
       ],
     };
 
@@ -238,7 +238,7 @@ describe("RateLimitService", () => {
       projectId: "test-project-id",
       accessLevel: "all" as const,
       rateLimits: [
-        { resource: "public-api" as const, points: 5, durationInMin: 10 },
+        { resource: "public-api" as const, points: 5, durationInSec: 10 },
       ],
     };
 
