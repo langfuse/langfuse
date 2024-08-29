@@ -18,6 +18,8 @@ import { type NextApiResponse } from "next";
 // - rate limit strategy is based on org-id, org plan, and resources. Rate limits are appliead in buckets of minutes.
 // - rate limits are not applied for self hosters and are also not applied when Redis is not available
 // - infos for rate-limits are taken from the API access scope. Info for this scope is stored alongside API Keys in Redis for efficient access.
+// - isRateLimited returns false for self-hosters
+// - sendRestResponseIfLimited sends a 429 response with headers if the rate limit is exceeded. Return this from the route handler.
 export class RateLimitService {
   private redis: Redis | null;
 
