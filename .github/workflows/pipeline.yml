@@ -177,16 +177,15 @@ jobs:
 
       - name: Seed DB
         run: |
-          pnpm run --filter=shared ch:up
           pnpm run db:migrate
           pnpm run db:seed
+          pnpm run --filter=shared ch:up
 
       - name: Build
         run: pnpm --filter=worker... run build
 
       - name: run tests
         run: pnpm --filter=worker run test
-
   e2e-tests:
     runs-on: ubuntu-latest
     steps:
