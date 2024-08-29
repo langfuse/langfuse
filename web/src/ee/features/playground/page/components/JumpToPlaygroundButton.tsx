@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
-type JumpToPlaygroundButtonProps =
+type JumpToPlaygroundButtonProps = (
   | {
       source: "prompt";
       prompt: Prompt;
@@ -30,7 +30,10 @@ type JumpToPlaygroundButtonProps =
       source: "generation";
       generation: Observation;
       analyticsEventName: "trace_detail:test_in_playground_button_click";
-    };
+    }
+) & {
+  variant?: "outline";
+};
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   props,
@@ -58,7 +61,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
   return (
     <Button
-      variant="secondary"
+      variant={props.variant ?? "secondary"}
       title="Test in LLM playground"
       onClick={handleClick}
       asChild
