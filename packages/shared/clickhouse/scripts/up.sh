@@ -19,7 +19,5 @@ else
     DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=default&x-multi-statement=true&x-migrations-table-engine=MergeTree"
 fi
 
-echo "Database URL: $DATABASE_URL"
-
 # Execute the up command
 migrate -source file://clickhouse/migrations -database "$DATABASE_URL" up
