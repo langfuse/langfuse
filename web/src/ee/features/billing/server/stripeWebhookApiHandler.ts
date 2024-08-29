@@ -207,8 +207,6 @@ async function handleSubscriptionChanged(
         },
       },
     });
-    // need to update the plan in the api keys
-    await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
   } else if (action === "deleted") {
     await prisma.organization.update({
       where: {
@@ -228,9 +226,10 @@ async function handleSubscriptionChanged(
         },
       },
     });
-    // need to update the plan in the api keys
-    await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
   }
+
+  // need to update the plan in the api keys
+  await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
 
   return;
 }
