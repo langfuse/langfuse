@@ -37,6 +37,14 @@ export function DataTablePagination<TData>({
     setInputState(currentPage);
   }, [currentPage]);
 
+  const pageCount = table.getPageCount();
+  const setPageIndex = table.setPageIndex;
+  useEffect(() => {
+    if (currentPage > pageCount && pageCount > 0) {
+      setPageIndex(0);
+    }
+  }, [currentPage, pageCount, setPageIndex]);
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex-1 text-sm text-muted-foreground">
@@ -79,7 +87,7 @@ export function DataTablePagination<TData>({
               <Input
                 type="number"
                 min={1}
-                max={table.getPageCount()}
+                max={pageCount}
                 value={inputState} // Ensure the value is within bounds
                 onChange={(e) => {
                   setInputState(e.target.value);
@@ -99,10 +107,7 @@ export function DataTablePagination<TData>({
                   }
 
                   const newPageIndex = Number(newValue) - 1;
-                  if (
-                    newPageIndex < 0 ||
-                    newPageIndex >= table.getPageCount()
-                  ) {
+                  if (newPageIndex < 0 || newPageIndex >= pageCount) {
                     setInputState(currentPage);
                     return;
                   }
@@ -112,17 +117,15 @@ export function DataTablePagination<TData>({
                 }}
                 className="h-8 appearance-none"
                 style={{
-                  width: `${
-                    3 + Math.max(1, table.getPageCount().toString().length)
-                  }ch`,
+                  width: `${3 + Math.max(1, pageCount.toString().length)}ch`,
                 }}
               />
             </>
           ) : (
-            `Page ${table.getState().pagination.pageIndex + 1}`
+            `Page ${currentPage}`
           )}
-          {table.getPageCount() !== -1 ? (
-            <span>of {table.getPageCount()}</span>
+          {pageCount !== -1 ? (
+            <span>of {pageCount}</span>
           ) : (
             <span>
               of{" "}
@@ -178,12 +181,12 @@ export function DataTablePagination<TData>({
             variant="outline"
             className="hidden h-8 w-8 p-0 lg:flex"
             onClick={() => {
-              table.setPageIndex(table.getPageCount() - 1);
+              table.setPageIndex(pageCount - 1);
               capture("table:pagination_button_click", {
                 type: "lastPage",
               });
             }}
-            disabled={!table.getCanNextPage() || table.getPageCount() === -1}
+            disabled={!table.getCanNextPage() || pageCount === -1}
           >
             <span className="sr-only">Go to last page</span>
             <DoubleArrowRightIcon className="h-4 w-4" />
