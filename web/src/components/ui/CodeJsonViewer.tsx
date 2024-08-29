@@ -56,7 +56,7 @@ export function JSONView(props: {
                 title="Enable Markdown"
                 variant="ghost"
                 type="button"
-                size="xs"
+                size="icon-xs"
                 onClick={() => {
                   setIsMarkdownEnabled(true);
                   capture("trace_detail:io_pretty_format_toggle_group", {
@@ -71,10 +71,10 @@ export function JSONView(props: {
             <Button
               title="Copy to clipboard"
               variant="ghost"
-              size="xs"
+              size="icon-xs"
               type="button"
               onClick={handleCopy}
-              className="hover:bg-border"
+              className="-mr-2 hover:bg-border"
             >
               {isCopied ? (
                 <Check className="h-3 w-3" />
@@ -164,7 +164,12 @@ export function CodeView(props: {
               )}
             </Button>
           ) : undefined}
-          <Button variant="secondary" size="xs" onClick={handleCopy}>
+          <Button
+            variant="secondary"
+            size="icon-xs"
+            onClick={handleCopy}
+            className=""
+          >
             {isCopied ? (
               <Check className="h-3 w-3" />
             ) : (

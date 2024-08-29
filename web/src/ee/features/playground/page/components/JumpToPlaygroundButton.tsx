@@ -68,7 +68,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
       asChild
     >
       <Link href={`/project/${projectId}/playground`}>
-        <Terminal className="h-5 w-5" />
+        <Terminal className="h-4 w-4" />
         {props.fullWidth ? (
           <span className="ml-2">Test in playground</span>
         ) : null}

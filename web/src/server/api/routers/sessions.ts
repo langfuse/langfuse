@@ -14,6 +14,8 @@ import {
   paginationZod,
   type SessionOptions,
   singleFilter,
+  timeFilter,
+  datetimeFilterToPrismaSql,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -131,6 +133,7 @@ export const sessionRouter = createTRPCRouter({
             promptTokens: number;
             completionTokens: number;
             totalTokens: number;
+            traceTags: string[];
           }>
         >(
           createSessionsAllQuery(
@@ -144,7 +147,8 @@ export const sessionRouter = createTRPCRouter({
               o."outputCost" AS "outputCost",
               o."promptTokens" AS "promptTokens",
               o."completionTokens" AS "completionTokens",
-              o."totalTokens" AS "totalTokens"
+              o."totalTokens" AS "totalTokens",
+              t."tags" AS "traceTags"
             `,
             inputForMetrics,
             {
@@ -157,6 +161,8 @@ export const sessionRouter = createTRPCRouter({
         return metrics.map((row) => ({
           ...row,
           userIds: (row.userIds?.filter((t) => t !== null) ?? []) as string[],
+          traceTags: (row.traceTags?.filter((t) => t !== null) ??
+            []) as string[],
         }));
       } catch (e) {
         console.error(e);
@@ -170,27 +176,52 @@ export const sessionRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        timestampFilter: timeFilter.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
       try {
-        const userIds = await ctx.prisma.$queryRaw<
-          Array<{ value: string }>
-        >(Prisma.sql`
-          SELECT 
-            traces.user_id AS value
-          FROM traces
-          WHERE 
-            traces.session_id IS NOT NULL
-            AND traces.user_id IS NOT NULL
-            AND traces.project_id = ${input.projectId}
-          GROUP BY traces.user_id 
-          ORDER BY traces.user_id ASC
-          LIMIT 1000;
-        `);
+        const { timestampFilter } = input;
+        const rawTimestampFilter =
+          timestampFilter && timestampFilter.type === "datetime"
+            ? datetimeFilterToPrismaSql(
+                "timestamp",
+                timestampFilter.operator,
+                timestampFilter.value,
+              )
+            : Prisma.empty;
+        const [userIds, tags] = await Promise.all([
+          ctx.prisma.$queryRaw<Array<{ value: string }>>(Prisma.sql`
+            SELECT 
+              traces.user_id AS value
+            FROM traces
+            WHERE 
+              traces.session_id IS NOT NULL
+              AND traces.user_id IS NOT NULL
+              AND traces.project_id = ${input.projectId} ${rawTimestampFilter}
+            GROUP BY traces.user_id 
+            ORDER BY traces.user_id ASC
+            LIMIT 1000;
+          `),
+          ctx.prisma.$queryRaw<
+            Array<{
+              value: string;
+            }>
+          >(Prisma.sql`
+            SELECT DISTINCT tag AS value
+            FROM traces t
+            JOIN observations o ON o.trace_id = t.id,
+            UNNEST(t.tags) AS tag
+            WHERE o.type = 'GENERATION'
+              AND o.project_id = ${input.projectId}
+              AND t.project_id = ${input.projectId} ${rawTimestampFilter}
+            LIMIT 1000;
+          `),
+        ]);
 
         const res: SessionOptions = {
           userIds: userIds,
+          tags: tags,
         };
         return res;
       } catch (e) {

@@ -13,7 +13,7 @@ import { TRPCError } from "@trpc/server";
 const COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL = {
   [CommentObjectType.TRACE]: "trace",
   [CommentObjectType.OBSERVATION]: "observation",
-  [CommentObjectType.SESSION]: "session",
+  [CommentObjectType.SESSION]: "traceSession",
   [CommentObjectType.PROMPT]: "prompt",
 } as const;
 
@@ -209,6 +209,7 @@ export const commentsRouter = createTRPCRouter({
         });
       }
     }),
+  // deprecated procedure, returns empty map, kept to prevent caching issues
   getCountsByObjectIds: protectedProjectProcedure
     .input(
       z.object({
@@ -225,29 +226,7 @@ export const commentsRouter = createTRPCRouter({
           scope: "comments:read",
         });
 
-        const comments = await ctx.prisma.comment.findMany({
-          select: {
-            id: true,
-            objectId: true,
-          },
-          where: {
-            projectId: input.projectId,
-            objectId: { in: input.objectIds },
-            objectType: input.objectType,
-          },
-        });
-        const commentCountByObject = new Map<string, number>();
-
-        comments.forEach(({ objectId }) => {
-          const prevCount = commentCountByObject.get(objectId);
-          if (!!prevCount) {
-            commentCountByObject.set(objectId, prevCount + 1);
-          } else {
-            commentCountByObject.set(objectId, 1);
-          }
-        });
-
-        return commentCountByObject;
+        return new Map();
       } catch (error) {
         console.error(error);
         if (error instanceof TRPCError) {
@@ -255,7 +234,86 @@ export const commentsRouter = createTRPCRouter({
         }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Fetching comment count failed.",
+          message: "Fetching comment count by object id failed.",
+        });
+      }
+    }),
+  getCountByObjectId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        objectId: z.string(),
+        objectType: z.nativeEnum(CommentObjectType),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
+
+        const commentCount = await ctx.prisma.comment.count({
+          where: {
+            projectId: input.projectId,
+            objectId: input.objectId,
+            objectType: input.objectType,
+          },
+        });
+        return new Map([[input.objectId, commentCount]]);
+      } catch (error) {
+        console.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching comment count by object id failed.",
+        });
+      }
+    }),
+  getCountByObjectType: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        objectType: z.nativeEnum(CommentObjectType),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
+
+        // latency of query to be improved
+        const commentCounts = await ctx.prisma.comment.groupBy({
+          by: ["objectId"],
+          where: {
+            projectId: input.projectId,
+            objectType: input.objectType,
+          },
+          _count: {
+            objectId: true,
+          },
+        });
+
+        return new Map(
+          commentCounts.map(({ objectId, _count }) => [
+            objectId,
+            _count.objectId,
+          ]),
+        );
+      } catch (error) {
+        console.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching comment count by object type failed.",
         });
       }
     }),

@@ -79,10 +79,18 @@ export const sessionsViewCols: ColumnDefinition[] = [
     type: "number",
     internal: 'o."totalTokens"',
   },
+  {
+    name: "Trace Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: 't."tags"',
+    options: [], // to be filled in at runtime
+  },
 ];
 
 export type SessionOptions = {
   userIds: Array<OptionsDefinition>;
+  tags: Array<OptionsDefinition>;
 };
 
 export function sessionsTableColsWithOptions(
@@ -91,6 +99,9 @@ export function sessionsTableColsWithOptions(
   return sessionsViewCols.map((col) => {
     if (col.id === "userIds") {
       return { ...col, options: options?.userIds ?? [] };
+    }
+    if (col.id === "tags") {
+      return { ...col, options: options?.tags ?? [] };
     }
     return col;
   });

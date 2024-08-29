@@ -29,7 +29,7 @@ export const hasEntitlement = (p: HasEntitlementParams): Boolean => {
 export const throwIfNoEntitlement = (p: HasEntitlementParams) => {
   if (!hasEntitlement(p)) {
     throw new TRPCError({
-      code: "UNAUTHORIZED",
+      code: "FORBIDDEN",
       message:
         "Unauthorized, user does not have access to entitlement: " +
         p.entitlement,

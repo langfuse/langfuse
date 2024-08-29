@@ -212,7 +212,7 @@ const BreadcrumbComponent = ({
                               asChild
                               variant="ghost"
                               size="xs"
-                              className="-my-1 ml-4 mr-1 hover:bg-background"
+                              className="-my-1 ml-4 hover:bg-background"
                             >
                               <div
                                 onClick={(e) => {
@@ -299,7 +299,7 @@ const BreadcrumbComponent = ({
                               asChild
                               variant="ghost"
                               size="xs"
-                              className="-my-1 ml-4 mr-1 hover:bg-background"
+                              className="-my-1 ml-4 hover:bg-background"
                             >
                               <div
                                 onClick={(e) => {

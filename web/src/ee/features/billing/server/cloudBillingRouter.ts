@@ -40,7 +40,7 @@ export const cloudBillingRouter = createTRPCRouter({
       });
       if (!org) {
         throw new TRPCError({
-          code: "NOT_FOUND",
+          code: "INTERNAL_SERVER_ERROR",
           message: "Organization not found",
         });
       }
@@ -48,7 +48,7 @@ export const cloudBillingRouter = createTRPCRouter({
       const parsedOrg = parseDbOrg(org);
       if (parsedOrg.cloudConfig?.plan)
         throw new TRPCError({
-          code: "FORBIDDEN",
+          code: "INTERNAL_SERVER_ERROR",
           message:
             "Cannot initialize stripe checkout for orgs that have a manual/legacy plan",
         });
@@ -65,7 +65,7 @@ export const cloudBillingRouter = createTRPCRouter({
       if (stripeActiveSubscriptionId) {
         // If the org has a customer ID, do not return checkout options, should use the billing portal instead
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: "INTERNAL_SERVER_ERROR",
           message: "Organization already has an active subscription",
         });
       }
@@ -78,7 +78,7 @@ export const cloudBillingRouter = createTRPCRouter({
         )
       )
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: "INTERNAL_SERVER_ERROR",
           message: "Invalid stripe product id",
         });
 
@@ -87,7 +87,7 @@ export const cloudBillingRouter = createTRPCRouter({
       );
       if (!product.default_price) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: "INTERNAL_SERVER_ERROR",
           message: "Product does not have a default price in Stripe",
         });
       }
@@ -168,7 +168,7 @@ export const cloudBillingRouter = createTRPCRouter({
       });
       if (!org) {
         throw new TRPCError({
-          code: "NOT_FOUND",
+          code: "INTERNAL_SERVER_ERROR",
           message: "Organization not found",
         });
       }
@@ -233,7 +233,7 @@ export const cloudBillingRouter = createTRPCRouter({
       });
       if (!organization) {
         throw new TRPCError({
-          code: "NOT_FOUND",
+          code: "INTERNAL_SERVER_ERROR",
           message: "Organization not found",
         });
       }

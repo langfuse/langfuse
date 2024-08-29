@@ -4,7 +4,7 @@ import {
   redis,
   QueueName,
   QueueJobs,
-  instrument,
+  instrumentAsync,
   createNewRedisInstance,
 } from "@langfuse/shared/src/server";
 import { handleCloudUsageMeteringJob } from "../ee/cloudUsageMetering/handleCloudUsageMeteringJob";
@@ -42,7 +42,7 @@ const createCloudUsageMeteringJobExecutor = () => {
       QueueName.CloudUsageMeteringQueue,
       async (job) => {
         if (job.name === QueueJobs.CloudUsageMeteringJob) {
-          return instrument(
+          return instrumentAsync(
             { name: "cloudUsageMeteringJobExecutor" },
             async () => {
               logger.info("Executing Cloud Usage Metering Job", job.data);

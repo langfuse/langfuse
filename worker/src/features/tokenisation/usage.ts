@@ -10,7 +10,7 @@ import {
 } from "tiktoken";
 
 import { z } from "zod";
-import { instrument } from "@langfuse/shared/src/server";
+import { instrumentSync } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
   tokenizerModel: z.string().refine(isTiktokenModel, {
@@ -32,7 +32,7 @@ export function tokenCount(p: {
   model: Model;
   text: unknown;
 }): number | undefined {
-  return instrument(
+  return instrumentSync(
     {
       name: "token-count",
     },
