@@ -162,7 +162,7 @@ jobs:
 
       - name: Ensure no unhealthy status
         run: |
-          if docker-compose ps | grep "(unhealthy)"; then
+          if docker compose ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
           else
