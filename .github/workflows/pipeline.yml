@@ -177,6 +177,15 @@ jobs:
             echo "All services are healthy"
           fi
 
+      - name: Ensure no unhealthy status
+        run: |
+          if docker compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
+
       - name: Seed DB
         run: |
           pnpm run --filter=shared ch:up
