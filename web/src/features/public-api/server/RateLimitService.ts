@@ -15,7 +15,7 @@ import {
 import { type NextApiResponse } from "next";
 
 // Business Logic
-// - rate limit strategy is based on org-id, org plan, and ressources. Rate limits are appliead in buckets of minutes.
+// - rate limit strategy is based on org-id, org plan, and resources. Rate limits are appliead in buckets of minutes.
 // - rate limits are not applied for self hosters and are also not applied when Redis is not available
 // - infos for rate-limits are taken from the API access scope. Info for this scope is stored alongside API Keys in Redis for efficient access.
 export class RateLimitService {
