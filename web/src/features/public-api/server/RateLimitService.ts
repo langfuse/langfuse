@@ -68,10 +68,11 @@ export class RateLimitService {
     const rateLimiter = new RateLimiterRedis({
       // Basic options
       points: effectiveConfig.points, // Number of points
-      duration: effectiveConfig.durationInMin, // Per second(s)
+      duration: effectiveConfig.durationInMin * 60, // Per second(s)
 
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
       storeClient: this.redis,
+      rejectIfRedisNotReady: true,
     });
 
     let res: RateLimitResult | undefined = undefined;
