@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
-type JumpToPlaygroundButtonProps = (
+type JumpToPlaygroundButtonProps =
   | {
       source: "prompt";
       prompt: Prompt;
@@ -30,10 +30,7 @@ type JumpToPlaygroundButtonProps = (
       source: "generation";
       generation: Observation;
       analyticsEventName: "trace_detail:test_in_playground_button_click";
-    }
-) & {
-  fullWidth?: boolean;
-};
+    };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   props,
@@ -61,17 +58,14 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
   return (
     <Button
-      variant={props.fullWidth ? "secondary" : "outline"}
+      variant="secondary"
       title="Test in LLM playground"
-      size={!props.fullWidth ? "icon" : undefined}
       onClick={handleClick}
       asChild
     >
       <Link href={`/project/${projectId}/playground`}>
         <Terminal className="h-4 w-4" />
-        {props.fullWidth ? (
-          <span className="ml-2">Test in playground</span>
-        ) : null}
+        <span className="ml-2">Test in playground</span>
       </Link>
     </Button>
   );

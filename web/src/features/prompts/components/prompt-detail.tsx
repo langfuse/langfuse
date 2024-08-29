@@ -105,7 +105,6 @@ export const PromptDetail = () => {
                   source="prompt"
                   prompt={prompt}
                   analyticsEventName="prompt_detail:test_in_playground_button_click"
-                  fullWidth
                 />
                 <DetailPageNav
                   key="nav"
