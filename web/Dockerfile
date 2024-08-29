@@ -32,6 +32,10 @@ RUN pnpm install --frozen-lockfile
 ENV DOCKER_BUILD 1
 ENV NEXT_MANUAL_SIG_HANDLE true
 
+# Install git
+RUN apk add --no-cache git
+
+# Set NEXT_PUBLIC_BUILD_ID using git and propagate it to ARG and ENV
 RUN NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD) && echo "NEXT_PUBLIC_BUILD_ID=${NEXT_PUBLIC_BUILD_ID}" > /build_id.txt
 ARG NEXT_PUBLIC_BUILD_ID=$(cat /build_id.txt | cut -d'=' -f2)
 ENV NEXT_PUBLIC_BUILD_ID=${NEXT_PUBLIC_BUILD_ID}
