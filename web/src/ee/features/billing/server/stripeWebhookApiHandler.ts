@@ -8,7 +8,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import type Stripe from "stripe";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
-import { traceException } from "@langfuse/shared/src/server";
+import { traceException, redis } from "@langfuse/shared/src/server";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 /*
  * Sign-up endpoint (email/password users), creates user in database.
@@ -206,6 +207,8 @@ async function handleSubscriptionChanged(
         },
       },
     });
+    // need to update the plan in the api keys
+    await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
   } else if (action === "deleted") {
     await prisma.organization.update({
       where: {
@@ -225,6 +228,8 @@ async function handleSubscriptionChanged(
         },
       },
     });
+    // need to update the plan in the api keys
+    await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
   }
 
   return;
