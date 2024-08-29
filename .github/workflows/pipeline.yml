@@ -136,6 +136,7 @@ jobs:
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
@@ -164,6 +165,15 @@ jobs:
           docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
+
+      - name: Ensure no unhealthy status
+        run: |
+          if docker compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
 
       - name: Seed DB
         run: |
