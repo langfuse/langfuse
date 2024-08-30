@@ -427,6 +427,7 @@ export const InnerEvalTemplateForm = (props: {
                 updateModelParamValue: updateModelParamValue,
                 setModelParamEnabled,
               }}
+              evalModelsOnly
               formDisabled={!props.isEditing}
             />
           </div>
