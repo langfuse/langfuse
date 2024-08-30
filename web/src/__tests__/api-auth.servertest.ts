@@ -152,7 +152,7 @@ describe("Authenticate API calls", () => {
         where: { id: "seed-org-id" },
         data: {
           cloudConfig: {
-            rateLimits: [
+            rateLimitOverrides: [
               {
                 resource: "public-api",
                 points: 1000,
@@ -200,7 +200,7 @@ describe("Authenticate API calls", () => {
         ...apiKey,
         orgId: "seed-org-id",
         plan: "cloud:hobby",
-        rateLimits: [
+        rateLimitOverrides: [
           {
             resource: "public-api",
             points: 1000,
