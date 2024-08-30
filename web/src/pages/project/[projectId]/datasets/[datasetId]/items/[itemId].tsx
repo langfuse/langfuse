@@ -75,7 +75,11 @@ export default function Dataset() {
       />
 
       <ResizablePanelGroup direction="vertical">
-        <ResizablePanel minSize={10} defaultSize={50}>
+        <ResizablePanel
+          minSize={10}
+          defaultSize={50}
+          className="!overflow-y-auto"
+        >
           <EditDatasetItem
             projectId={projectId}
             datasetItem={item.data ?? null}
