@@ -567,6 +567,9 @@ importers:
       prisma:
         specifier: ^5.13.0
         version: 5.13.0
+      rate-limiter-flexible:
+        specifier: ^5.0.3
+        version: 5.0.3
       react:
         specifier: 18.2.0
         version: 18.2.0
@@ -9842,6 +9845,9 @@ packages:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
 
+  rate-limiter-flexible@5.0.3:
+    resolution: {integrity: sha512-lWx2y8NBVlTOLPyqs+6y7dxfEpT6YFqKy3MzWbCy95sTTOhOuxufP2QvRyOHpfXpB9OUJPbVLybw3z3AVAS5fA==}
+
   raw-body@2.5.2:
     resolution: {integrity: sha512-8zGqypfENjCIqGhgXToC8aB2r7YrBX+AQAfIPs/Mlk+BtPTztOvTS01NRW/3Eh60J+a48lt8qsCzirQ6loCVfA==}
     engines: {node: '>= 0.8'}
@@ -16685,11 +16691,11 @@ snapshots:
 
   '@types/bunyan@1.8.9':
     dependencies:
-      '@types/node': 20.10.5
+      '@types/node': 20.14.8
 
   '@types/connect@3.4.36':
     dependencies:
-      '@types/node': 20.10.5
+      '@types/node': 20.14.8
 
   '@types/connect@3.4.38':
     dependencies:
@@ -16898,7 +16904,7 @@ snapshots:
 
   '@types/mysql@2.15.22':
     dependencies:
-      '@types/node': 20.10.5
+      '@types/node': 20.14.8
 
   '@types/node-fetch@2.6.11':
     dependencies:
@@ -16949,7 +16955,7 @@ snapshots:
 
   '@types/pg@8.6.1':
     dependencies:
-      '@types/node': 20.10.5
+      '@types/node': 20.14.8
       pg-protocol: 1.6.1
       pg-types: 2.2.0
 
@@ -17012,7 +17018,7 @@ snapshots:
 
   '@types/tedious@4.0.14':
     dependencies:
-      '@types/node': 20.10.5
+      '@types/node': 20.14.8
 
   '@types/tough-cookie@4.0.5': {}
 
@@ -22984,6 +22990,8 @@ snapshots:
       safe-buffer: 5.2.1
 
   range-parser@1.2.1: {}
+
+  rate-limiter-flexible@5.0.3: {}
 
   raw-body@2.5.2:
     dependencies:

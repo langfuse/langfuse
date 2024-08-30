@@ -1,6 +1,7 @@
 import { createNextApiHandler } from "@trpc/server/adapters/next";
 import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
+import { traceException } from "@langfuse/shared/src/server";
 
 export const config = {
   maxDuration: 240,
@@ -12,5 +13,6 @@ export default createNextApiHandler({
   createContext: createTRPCContext,
   onError: ({ path, error }) => {
     console.error(`❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`);
+    traceException(error);
   },
 });

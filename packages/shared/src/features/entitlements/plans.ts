@@ -12,3 +12,6 @@ export const plans = Object.keys(planLabels) as Plan[];
 
 // This function is kept here to ensure consistency when updating plan names in the future.
 export const isCloudPlan = (plan: Plan) => plan.startsWith("cloud");
+
+export const isPlan = (value: string): value is Plan =>
+  plans.includes(value as Plan);
