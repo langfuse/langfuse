@@ -46,6 +46,8 @@ export function DeletePromptVersion({
     },
   });
 
+  if (!hasAccess) return null;
+
   return (
     <Popover
       key={promptVersionId}
@@ -63,7 +65,6 @@ export function DeletePromptVersion({
           type="button"
           size="icon"
           className="h-7 w-7 px-0"
-          disabled={!hasAccess}
         >
           <Trash className="h-4 w-4" />
         </Button>

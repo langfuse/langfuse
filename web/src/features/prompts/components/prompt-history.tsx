@@ -71,22 +71,24 @@ const PromptHistoryTraceNode = (props: {
           }}
         >
           <SetPromptVersionLabels prompt={prompt} />
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7 px-0"
-            loading={isNavigationLoading}
-            disabled={!hasAccess}
-            onClick={() => {
-              capture("prompts:update_form_open");
-              setIsNavigationLoading(true);
-              router.push(
-                `/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`,
-              );
-            }}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
+          {hasAccess ? (
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7 px-0"
+              loading={isNavigationLoading}
+              disabled={!hasAccess}
+              onClick={() => {
+                capture("prompts:update_form_open");
+                setIsNavigationLoading(true);
+                router.push(
+                  `/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`,
+                );
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          ) : null}
           <DeletePromptVersion
             promptVersionId={prompt.id}
             version={prompt.version}
