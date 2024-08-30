@@ -53,7 +53,7 @@ export const ModelParameters: React.FC<
         <>
           <p className="text-xs">
             No LLM API key set in project.{" "}
-            {evalModelsOnly && "For evals, we only support OpenAI so far."}
+            {evalModelsOnly && "For evals, only OpenAI models are supported."}
           </p>
           <CreateLLMApiKeyDialog evalModelsOnly={evalModelsOnly} />
         </>
