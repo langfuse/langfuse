@@ -4,6 +4,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterOutputs } from "@/src/utils/api";
 import { Pencil } from "lucide-react";
 import Link from "next/link";
@@ -22,6 +23,10 @@ const PromptHistoryTraceNode = (props: {
   const capture = usePostHogClientCapture();
   const [isHovered, setIsHovered] = useState(false);
   const [isNavigationLoading, setIsNavigationLoading] = useState(false);
+  const hasAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "prompts:CUD",
+  });
   const { prompt } = props;
   let badges: JSX.Element[] = prompt.labels
     .sort((a, b) =>
@@ -71,6 +76,7 @@ const PromptHistoryTraceNode = (props: {
             size="icon"
             className="h-7 w-7 px-0"
             loading={isNavigationLoading}
+            disabled={!hasAccess}
             onClick={() => {
               capture("prompts:update_form_open");
               setIsNavigationLoading(true);
