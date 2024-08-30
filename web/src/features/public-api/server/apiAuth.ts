@@ -289,6 +289,8 @@ export class ApiAuthService {
         convertToRedisRepresentation(apiKeyAndOrganisation),
       );
     }
+
+    console.log("I HAVE TO BREAK NOW", apiKeyAndOrganisation);
     return apiKeyAndOrganisation
       ? convertToRedisRepresentation(apiKeyAndOrganisation)
       : null;
@@ -383,9 +385,10 @@ export const convertToRedisRepresentation = (
     createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,
     plan: getOrganizationPlan(parsedCloudConfig),
-    rateLimitOverrides: parsedCloudConfig?.rateLimitOverrides ?? [],
+    rateLimitOverrides: parsedCloudConfig?.rateLimitOverrides,
   });
 
+  console.log("I got past", newApiKey);
   if (!orgId) {
     console.error("No organization found for key");
     throw new Error("Invalid credentials");

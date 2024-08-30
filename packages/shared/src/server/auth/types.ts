@@ -15,7 +15,7 @@ export const OrgEnrichedApiKey = z.object({
   hashedSecretKey: z.string(),
   orgId: z.string(),
   plan: z.enum(plans as unknown as [string, ...string[]]),
-  rateLimitOverrides: CloudConfigRateLimit.nullish(),
+  rateLimitOverrides: CloudConfigRateLimit,
 });
 
 export const API_KEY_NON_EXISTENT = "api-key-non-existent";

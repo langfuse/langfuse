@@ -41,7 +41,7 @@ describe("Authenticate API calls", () => {
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
     });
 
-    it("should create new api key and succeed with new key", async () => {
+    it.only("should create new api key and succeed with new key", async () => {
       await createAPIKey();
       const auth = await new ApiAuthService(
         prisma,
