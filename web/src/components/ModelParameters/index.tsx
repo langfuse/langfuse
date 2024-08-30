@@ -31,12 +31,15 @@ export type ModelParamsContext = {
   formDisabled?: boolean;
 };
 
-export const ModelParameters: React.FC<ModelParamsContext> = ({
+export const ModelParameters: React.FC<
+  ModelParamsContext & { evalModelsOnly: boolean }
+> = ({
   modelParams,
   availableProviders,
   availableModels,
   updateModelParamValue,
   setModelParamEnabled,
+  evalModelsOnly,
   formDisabled = false,
 }) => {
   const projectId = useProjectIdFromURL();
@@ -49,10 +52,10 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
       {availableProviders.length === 0 ? (
         <>
           <p className="text-xs">
-            No LLM API key set in project. For evals, we only support OpenAI so
-            far.
+            No LLM API key set in project.{" "}
+            {evalModelsOnly && "For evals, only OpenAI models are supported."}
           </p>
-          <CreateLLMApiKeyDialog evalModelsOnly={true} />
+          <CreateLLMApiKeyDialog evalModelsOnly={evalModelsOnly} />
         </>
       ) : (
         <div className="space-y-4">
