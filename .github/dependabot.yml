@@ -28,6 +28,10 @@ updates:
         patterns:
           - "eslint-config-next"
           - "next"
+      lodash:
+        patterns:
+          - "lodash"
+          - "@types/lodash"
       observability:
         patterns:
           - "dd-trace"
