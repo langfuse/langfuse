@@ -52,7 +52,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             No LLM API key set in project. For evals, we only support OpenAI so
             far.
           </p>
-          <CreateLLMApiKeyDialog evalModelsOnly={true} />
+          <CreateLLMApiKeyDialog evalModelsOnly={false} />
         </>
       ) : (
         <div className="space-y-4">
