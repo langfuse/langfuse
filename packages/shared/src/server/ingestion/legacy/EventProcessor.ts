@@ -12,18 +12,18 @@ import {
   sdkLogEvent,
 } from "../types";
 import { validateAndInflateScore } from "../validateAndInflateScore";
-import { ApiAccessScope } from "../../auth/types";
 import { Trace, Observation, Score, Prisma, Model } from "@prisma/client";
 import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { mergeJson } from "../../../utils/json";
 import { jsonSchema } from "../../../utils/zod";
 import { prisma } from "../../../db";
+import { LegacyIngestionAccessScope } from ".";
 
 export interface EventProcessor {
-  auth(apiScope: ApiAccessScope): void;
+  auth(apiScope: LegacyIngestionAccessScope): void;
 
   process(
-    apiScope: ApiAccessScope
+    apiScope: LegacyIngestionAccessScope
   ): Promise<Trace | Observation | Score> | undefined;
 }
 
@@ -46,7 +46,7 @@ export class ObservationProcessor implements EventProcessor {
   }
 
   async convertToObservation(
-    apiScope: ApiAccessScope,
+    apiScope: LegacyIngestionAccessScope,
     existingObservation: Observation | null
   ): Promise<{
     id: string;
@@ -398,12 +398,12 @@ export class ObservationProcessor implements EventProcessor {
     };
   }
 
-  auth(apiScope: ApiAccessScope): void {
+  auth(apiScope: LegacyIngestionAccessScope): void {
     if (apiScope.accessLevel !== "all")
       throw new ForbiddenError("Access denied for observation creation");
   }
 
-  async process(apiScope: ApiAccessScope): Promise<Observation> {
+  async process(apiScope: LegacyIngestionAccessScope): Promise<Observation> {
     this.auth(apiScope);
 
     const existingObservation = this.event.body.id
@@ -441,13 +441,13 @@ export class TraceProcessor implements EventProcessor {
     this.event = event;
   }
 
-  auth(apiScope: ApiAccessScope): void {
+  auth(apiScope: LegacyIngestionAccessScope): void {
     if (apiScope.accessLevel !== "all")
       throw new ForbiddenError("Access denied for trace creation");
   }
 
   async process(
-    apiScope: ApiAccessScope
+    apiScope: LegacyIngestionAccessScope
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
@@ -553,7 +553,7 @@ export class ScoreProcessor implements EventProcessor {
     this.event = event;
   }
 
-  auth(apiScope: ApiAccessScope) {
+  auth(apiScope: LegacyIngestionAccessScope) {
     if (apiScope.accessLevel !== "scores" && apiScope.accessLevel !== "all")
       throw new ForbiddenError(
         `Access denied for score creation, ${apiScope.accessLevel}`
@@ -561,7 +561,7 @@ export class ScoreProcessor implements EventProcessor {
   }
 
   async process(
-    apiScope: ApiAccessScope
+    apiScope: LegacyIngestionAccessScope
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
@@ -613,7 +613,7 @@ export class SdkLogProcessor implements EventProcessor {
     this.event = event;
   }
 
-  auth(apiScope: ApiAccessScope) {
+  auth(apiScope: LegacyIngestionAccessScope) {
     return;
   }
 
