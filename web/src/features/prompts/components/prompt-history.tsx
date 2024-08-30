@@ -7,7 +7,6 @@ import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterOutputs } from "@/src/utils/api";
 import { Pencil } from "lucide-react";
-import Link from "next/link";
 import { type NextRouter, useRouter } from "next/router";
 import { useState } from "react";
 
@@ -23,6 +22,7 @@ const PromptHistoryTraceNode = (props: {
   const capture = usePostHogClientCapture();
   const [isHovered, setIsHovered] = useState(false);
   const [isNavigationLoading, setIsNavigationLoading] = useState(false);
+  const router = useRouter();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "prompts:CUD",
@@ -80,13 +80,12 @@ const PromptHistoryTraceNode = (props: {
             onClick={() => {
               capture("prompts:update_form_open");
               setIsNavigationLoading(true);
+              router.push(
+                `/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`,
+              );
             }}
           >
-            <Link
-              href={`/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
-            >
-              <Pencil className="h-4 w-4" />
-            </Link>
+            <Pencil className="h-4 w-4" />
           </Button>
           <DeletePromptVersion
             promptVersionId={prompt.id}
