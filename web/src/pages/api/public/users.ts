@@ -11,6 +11,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { paginationZod } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { redis } from "@langfuse/shared/src/server";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 const GetUsersSchema = z.object({
   ...paginationZod,
@@ -39,6 +40,15 @@ export default async function handler(
         return res.status(401).json({
           message: "Access denied - need to use basic auth with secret key",
         });
+      }
+
+      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+        authCheck.scope,
+        "public-api",
+      );
+
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
       }
 
       const obj = GetUsersSchema.parse(req.query); // uses query and not body

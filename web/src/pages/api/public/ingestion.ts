@@ -1,4 +1,3 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
@@ -40,6 +39,8 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "@/src/features/ingest/usage";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 export const config = {
   api: {
@@ -64,6 +65,15 @@ export default async function handler(
     ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
+
+    const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+      authCheck.scope,
+      "ingestion",
+    );
+
+    if (rateLimitCheck?.isRateLimited()) {
+      return rateLimitCheck.sendRestResponseIfLimited(res);
+    }
 
     const batchType = z.object({
       batch: z.array(z.unknown()),
