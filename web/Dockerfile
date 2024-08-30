@@ -45,9 +45,6 @@ ARG NEXT_PUBLIC_SENTRY_DSN
 ARG NEXT_LANGFUSE_TRACING_SAMPLE_RATE
 ARG NEXT_PUBLIC_BUILD_ID
 
-# Set environment variables
-ENV NEXT_PUBLIC_BUILD_ID=${NEXT_PUBLIC_BUILD_ID}
-
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
