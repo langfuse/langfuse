@@ -27,12 +27,13 @@ export type ModelParamsContext = {
     key: Key,
     value: UIModelParams[Key]["value"],
   ) => void;
-  evalModelsOnly: boolean;
   setModelParamEnabled?: (key: keyof UIModelParams, enabled: boolean) => void;
   formDisabled?: boolean;
 };
 
-export const ModelParameters: React.FC<ModelParamsContext> = ({
+export const ModelParameters: React.FC<
+  ModelParamsContext & { evalModelsOnly: boolean }
+> = ({
   modelParams,
   availableProviders,
   availableModels,
