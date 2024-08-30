@@ -609,12 +609,8 @@ describe("Authenticate API calls", () => {
       expect(invalidatedCachedKey).toBeNull();
     });
 
-    it("if no keys in redis, deleting orgs should do nothing", async () => {
+    it("if no keys in redis, invalidating org keys should do nothing", async () => {
       await createAPIKey();
-
-      await prisma.organization.delete({
-        where: { id: "seed-org-id" },
-      });
 
       await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
         "seed-org-id",
@@ -655,12 +651,8 @@ describe("Authenticate API calls", () => {
       expect(invalidatedCachedKey).toBeNull();
     });
 
-    it("if no keys in redis, deleting projects should do nothing", async () => {
+    it("if no keys in redis, invalidating project keys should do nothing", async () => {
       await createAPIKey();
-
-      await prisma.project.delete({
-        where: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
-      });
 
       await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
