@@ -36,7 +36,7 @@ export type LegacyIngestionAccessScope = Omit<
   "orgId" | "plan" | "rateLimitOverrides"
 >;
 
-type IngstionAccessScope =
+type LegacyIngestionAuthHeaderVerificationResult =
   | {
       validKey: true;
       scope: LegacyIngestionAccessScope;
@@ -48,7 +48,7 @@ type IngstionAccessScope =
 
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
-  authCheck: IngstionAccessScope,
+  authCheck: LegacyIngestionAuthHeaderVerificationResult,
   calculateTokenDelegate: (p: TokenCountInput) => number | undefined
 ) => {
   console.log(`handling ingestion ${events.length} events`);
