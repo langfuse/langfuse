@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { type Plan } from "@/src/features/entitlements/constants/plans";
+import { type Plan } from "@langfuse/shared";
 
 type StripeProduct = {
   stripeProductId: string;

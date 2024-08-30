@@ -5,6 +5,7 @@ import { isPrismaException } from "@/src/utils/exceptions";
 import { redis } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 export default async function handler(
   req: NextApiRequest,
@@ -30,6 +31,15 @@ export default async function handler(
           id: authCheck.scope.projectId,
         },
       });
+
+      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+        authCheck.scope,
+        "public-api",
+      );
+
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
+      }
 
       return res.status(200).json({
         data: projects.map((project) => ({

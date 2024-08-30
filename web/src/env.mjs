@@ -170,6 +170,7 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
+    LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
   },
 
   /**
@@ -319,6 +320,7 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
+    LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

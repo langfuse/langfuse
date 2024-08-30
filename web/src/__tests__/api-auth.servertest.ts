@@ -1,14 +1,12 @@
 import {
   getDisplaySecretKey,
   hashSecretKey,
+  OrgEnrichedApiKey,
 } from "@langfuse/shared/src/server";
-import {
-  ApiAuthService,
-  ApiKeyZod,
-} from "@/src/features/public-api/server/apiAuth";
-import { type PrismaClient, prisma } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { Redis } from "ioredis";
 import { env } from "@/src/env.mjs";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 describe("Authenticate API calls", () => {
   beforeEach(async () => {
@@ -149,6 +147,25 @@ describe("Authenticate API calls", () => {
     it("should create new api key and read from cache", async () => {
       await createAPIKey();
 
+      // update the organization with a cloud config
+      await prisma.organization.update({
+        where: { id: "seed-org-id" },
+        data: {
+          cloudConfig: {
+            rateLimitOverrides: [
+              {
+                resource: "public-api",
+                points: 1000,
+                durationInSec: 60,
+              },
+              {
+                resource: "ingestion",
+              },
+            ],
+          },
+        },
+      });
+
       // first auth will generate the fast hashed api key
       await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
@@ -177,11 +194,30 @@ describe("Authenticate API calls", () => {
 
       expect(cachedKey2).not.toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey2!));
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey2!));
 
       expect(parsed).toEqual({
         ...apiKey,
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
+        rateLimitOverrides: [
+          {
+            resource: "public-api",
+            points: 1000,
+            durationInSec: 60,
+          },
+          {
+            resource: "ingestion",
+          },
+        ],
         createdAt: apiKey?.createdAt.toISOString(),
+      });
+
+      await prisma.organization.update({
+        where: { id: "seed-org-id" },
+        data: {
+          cloudConfig: Prisma.JsonNull,
+        },
       });
     });
 
@@ -275,7 +311,7 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
 
       expect(parsed).toEqual({
         id: expect.any(String),
@@ -288,6 +324,8 @@ describe("Authenticate API calls", () => {
         lastUsedAt: null,
         expiresAt: null,
         projectId: expect.any(String),
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
       });
     });
 
@@ -372,10 +410,12 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
 
       expect(parsed).toEqual({
         ...apiKey,
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
       });
 
