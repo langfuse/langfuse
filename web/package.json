@@ -107,7 +107,7 @@
     "ioredis": "^5.4.1",
     "ip-address": "^9.0.5",
     "js-tiktoken": "^1.0.12",
-    "kysely": "^0.27.3",
+    "kysely": "^0.27.4",
     "langchain": "^0.2.6",
     "lodash": "^4.17.21",
     "lucide-react": "^0.429.0",
