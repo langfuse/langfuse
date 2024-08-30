@@ -39,3 +39,6 @@ updates:
           - "@appsignal/opentelemetry-instrumentation-bullmq"
           - "@prisma/instrumentation"
           - "@sentry/*"
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
