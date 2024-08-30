@@ -204,8 +204,8 @@ importers:
         specifier: ^3.23.8
         version: 3.23.8
       zod-to-json-schema:
-        specifier: ^3.22.5
-        version: 3.22.5(zod@3.23.8)
+        specifier: ^3.23.2
+        version: 3.23.2(zod@3.23.8)
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -11500,8 +11500,8 @@ packages:
     peerDependencies:
       zod: ^3.22.4
 
-  zod-to-json-schema@3.23.1:
-    resolution: {integrity: sha512-oT9INvydob1XV0v1d2IadrR74rLtDInLvDFfAa1CG0Pmg/vxATk7I2gSelfj271mbzeM4Da0uuDQE/Nkj3DWNw==}
+  zod-to-json-schema@3.23.2:
+    resolution: {integrity: sha512-uSt90Gzc/tUfyNqxnjlfBs8W6WSGpNBv0rVsNxP/BVSMHMKGdthPYff4xtCHYloJGM0CFxFsb3NbC0eqPhfImw==}
     peerDependencies:
       zod: ^3.23.3
 
@@ -13224,7 +13224,7 @@ snapshots:
       '@langchain/core': 0.1.63(langchain@0.2.9(@aws-sdk/client-s3@3.627.0)(@aws-sdk/credential-provider-node@3.624.0(@aws-sdk/client-sso-oidc@3.624.0(@aws-sdk/client-sts@3.624.0))(@aws-sdk/client-sts@3.624.0))(axios@1.6.8)(fast-xml-parser@4.4.1)(handlebars@4.7.8)(html-to-text@9.0.5)(ignore@5.3.2)(ioredis@5.4.1)(jsdom@20.0.3)(openai@4.52.0)(playwright@1.43.1)(puppeteer@19.11.1(typescript@5.4.5))(ws@8.16.0))(openai@4.52.0)
       fast-xml-parser: 4.3.6
       zod: 3.23.8
-      zod-to-json-schema: 3.22.5(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
       - langchain
@@ -13236,7 +13236,7 @@ snapshots:
       '@langchain/core': 0.1.63(langchain@0.2.9(@aws-sdk/client-s3@3.627.0)(@aws-sdk/credential-provider-node@3.624.0)(axios@1.6.8)(fast-xml-parser@4.4.1)(handlebars@4.7.8)(html-to-text@9.0.5)(ignore@5.3.2)(ioredis@5.4.1)(jsdom@20.0.3)(openai@4.52.0)(playwright@1.43.1)(puppeteer@19.11.1(typescript@5.4.5))(ws@8.16.0))(openai@4.52.0)
       fast-xml-parser: 4.3.6
       zod: 3.23.8
-      zod-to-json-schema: 3.22.5(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
       - langchain
@@ -13255,7 +13255,7 @@ snapshots:
       p-retry: 4.6.2
       uuid: 9.0.1
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - langchain
       - openai
@@ -13273,7 +13273,7 @@ snapshots:
       p-retry: 4.6.2
       uuid: 9.0.1
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - langchain
       - openai
@@ -13291,7 +13291,7 @@ snapshots:
       p-retry: 4.6.2
       uuid: 9.0.1
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - langchain
       - openai
@@ -13309,7 +13309,7 @@ snapshots:
       p-retry: 4.6.2
       uuid: 9.0.1
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - langchain
       - openai
@@ -13327,7 +13327,7 @@ snapshots:
       p-retry: 4.6.2
       uuid: 10.0.0
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - langchain
       - openai
@@ -13345,7 +13345,7 @@ snapshots:
       p-retry: 4.6.2
       uuid: 10.0.0
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - langchain
       - openai
@@ -13356,7 +13356,7 @@ snapshots:
       js-tiktoken: 1.0.12
       openai: 4.47.1
       zod: 3.23.8
-      zod-to-json-schema: 3.22.5(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
       - langchain
@@ -13367,7 +13367,7 @@ snapshots:
       js-tiktoken: 1.0.12
       openai: 4.47.1
       zod: 3.23.8
-      zod-to-json-schema: 3.22.5(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
       - langchain
@@ -13378,7 +13378,7 @@ snapshots:
       js-tiktoken: 1.0.12
       openai: 4.52.0
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
       - langchain
@@ -13389,7 +13389,7 @@ snapshots:
       js-tiktoken: 1.0.12
       openai: 4.52.0
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
       - langchain
@@ -21173,7 +21173,7 @@ snapshots:
       uuid: 10.0.0
       yaml: 2.4.5
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     optionalDependencies:
       '@aws-sdk/client-s3': 3.627.0
       '@aws-sdk/credential-provider-node': 3.624.0(@aws-sdk/client-sso-oidc@3.624.0(@aws-sdk/client-sts@3.624.0))(@aws-sdk/client-sts@3.624.0)
@@ -21208,7 +21208,7 @@ snapshots:
       uuid: 10.0.0
       yaml: 2.4.5
       zod: 3.23.8
-      zod-to-json-schema: 3.23.1(zod@3.23.8)
+      zod-to-json-schema: 3.23.2(zod@3.23.8)
     optionalDependencies:
       '@aws-sdk/client-s3': 3.627.0
       '@aws-sdk/credential-provider-node': 3.624.0(@aws-sdk/client-sso-oidc@3.624.0(@aws-sdk/client-sts@3.624.0))(@aws-sdk/client-sts@3.624.0)
@@ -24903,7 +24903,7 @@ snapshots:
     dependencies:
       zod: 3.23.8
 
-  zod-to-json-schema@3.23.1(zod@3.23.8):
+  zod-to-json-schema@3.23.2(zod@3.23.8):
     dependencies:
       zod: 3.23.8
 
