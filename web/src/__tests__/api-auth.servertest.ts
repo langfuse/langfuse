@@ -558,7 +558,9 @@ describe("Authenticate API calls", () => {
       // calling the test twice will not add the key to the cache
 
       const keys = await redis.keys("api-key*");
+      console.log("before each deleting keys", keys);
       if (keys.length > 0) {
+        console.log("before each deleting keys. actually deleting", keys);
         await redis.del(keys);
       }
     });
@@ -568,6 +570,7 @@ describe("Authenticate API calls", () => {
       // calling the test twice will not add the key to the cache
 
       const keys = await redis.keys("api-key*");
+      console.log("after each deleting keys", keys);
       if (keys.length > 0) {
         await redis.del(keys);
       }
@@ -612,6 +615,13 @@ describe("Authenticate API calls", () => {
     it("if no keys in redis, invalidating org keys should do nothing", async () => {
       await createAPIKey();
 
+      await prisma.apiKey.update({
+        where: { publicKey: "pk-lf-1234567890" },
+        data: {
+          fastHashedSecretKey: Math.random().toString(36).substring(2, 15),
+        },
+      });
+
       await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
         "seed-org-id",
       );
@@ -653,6 +663,17 @@ describe("Authenticate API calls", () => {
 
     it("if no keys in redis, invalidating project keys should do nothing", async () => {
       await createAPIKey();
+
+      await prisma.apiKey.update({
+        where: { publicKey: "pk-lf-1234567890" },
+        data: {
+          fastHashedSecretKey: Math.random().toString(36).substring(2, 15),
+        },
+      });
+
+      // print everything in redis
+      const haha = await redis.keys("api-key*");
+      console.log("keys", haha);
 
       await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",

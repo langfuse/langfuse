@@ -33,16 +33,20 @@ export class ApiAuthService {
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
   private async invalidate(apiKeys: ApiKey[], identifier: string) {
-    if (apiKeys.length === 0) {
+    const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
+
+    const filteredHashKeys = hashKeys.filter((hash): hash is string =>
+      Boolean(hash),
+    );
+    if (filteredHashKeys.length === 0) {
+      console.log("No valid keys to invalidate");
       return;
     }
-
-    const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
 
     if (this.redis) {
       console.log(`Invalidating API keys in redis for ${identifier}`);
       await this.redis.del(
-        hashKeys
+        filteredHashKeys
           .filter((hash): hash is string => Boolean(hash))
           .map((hash) => this.createRedisKey(hash)),
       );
