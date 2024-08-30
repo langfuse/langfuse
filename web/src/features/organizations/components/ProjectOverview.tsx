@@ -24,10 +24,7 @@ import {
   createOrganizationRoute,
   createProjectRoute,
 } from "@/src/features/setup/setupRoutes";
-import {
-  isCloudPlan,
-  planLabels,
-} from "@/src/features/entitlements/constants/plans";
+import { isCloudPlan, planLabels } from "@langfuse/shared";
 
 const SingleOrganizationProjectOverview = ({
   orgId,
