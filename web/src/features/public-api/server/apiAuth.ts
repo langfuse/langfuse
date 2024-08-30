@@ -184,7 +184,7 @@ export class ApiAuthService {
             accessLevel: "all",
             orgId: finalApiKey.orgId,
             plan: plan,
-            rateLimits: finalApiKey.rateLimits ?? [],
+            rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
           },
         };
       }
@@ -207,7 +207,7 @@ export class ApiAuthService {
             accessLevel: "scores",
             orgId: dbKey.project.organization.id,
             plan: getOrganizationPlan(cloudConfig),
-            rateLimits: cloudConfig?.rateLimits ?? [],
+            rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
           },
         };
       }
@@ -383,7 +383,7 @@ export const convertToRedisRepresentation = (
     createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,
     plan: getOrganizationPlan(parsedCloudConfig),
-    rateLimits: parsedCloudConfig?.rateLimits,
+    rateLimitOverrides: parsedCloudConfig?.rateLimitOverrides,
   });
 
   if (!orgId) {

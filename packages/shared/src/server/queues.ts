@@ -22,7 +22,7 @@ export const LegacyIngestionEvent = z.object({
       plan: z.string().refine((value) => isPlan(value), {
         message: "Invalid plan type",
       }),
-      rateLimits: CloudConfigRateLimit.nullish(),
+      rateLimitOverrides: CloudConfigRateLimit.nullish(),
     }),
   }),
 });

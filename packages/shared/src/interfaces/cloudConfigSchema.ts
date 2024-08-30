@@ -16,7 +16,7 @@ export const CloudConfigSchema = z.object({
     .optional(),
 
   // custom rate limits for an organization
-  rateLimits: CloudConfigRateLimit.nullable(),
+  rateLimitOverrides: CloudConfigRateLimit.nullable(),
 });
 
 export type CloudConfigSchema = z.infer<typeof CloudConfigSchema>;

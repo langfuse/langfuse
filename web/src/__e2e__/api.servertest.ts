@@ -165,7 +165,7 @@ describe("Ingestion Pipeline", () => {
       data: {
         cloudConfig: {
           ...(typeof org?.cloudConfig === "object" ? org.cloudConfig : {}),
-          rateLimits: [
+          rateLimitOverrides: [
             {
               resource: "ingestion",
               points: 1,

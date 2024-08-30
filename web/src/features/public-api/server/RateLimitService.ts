@@ -48,13 +48,7 @@ export class RateLimitService {
     scope: ApiAccessScope,
     resource: z.infer<typeof RateLimitResource>,
   ) {
-    const planBasedConfig = getRateLimitConfig(scope.plan, resource);
-
-    const customConfig = scope.rateLimits?.find(
-      (config) => config.resource === resource,
-    );
-
-    const effectiveConfig = customConfig || planBasedConfig;
+    const effectiveConfig = getRateLimitConfig(scope, resource);
 
     // returning early if no rate limit is set
     if (
@@ -136,7 +130,12 @@ export class RateLimitHelper {
 
   sendRestResponseIfLimited(nextResponse: NextApiResponse) {
     if (!this.res || !this.isRateLimited()) {
-      return;
+      console.error(
+        "Trying to send rate limit response without being limited.",
+      );
+      throw new Error(
+        "Trying to send rate limit response without being limited.",
+      );
     }
     return sendRateLimitResponse(nextResponse, this.res);
   }
@@ -152,7 +151,7 @@ export const sendRateLimitResponse = (
     res.setHeader(header, value);
   }
 
-  res.status(429).end();
+  res.status(429).end("429 - rate limit exceeded");
 };
 
 const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
@@ -165,6 +164,18 @@ const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
 };
 
 const getRateLimitConfig = (
+  scope: ApiAccessScope,
+  resource: z.infer<typeof RateLimitResource>,
+) => {
+  const planBasedConfig = getPlanBasedRateLimitConfig(scope.plan, resource);
+  const customConfig = scope.rateLimitOverrides?.find(
+    (config) => config.resource === resource,
+  );
+
+  return customConfig || planBasedConfig;
+};
+
+const getPlanBasedRateLimitConfig = (
   plan: Plan,
   resource: z.infer<typeof RateLimitResource>,
 ): z.infer<typeof RateLimitConfig> => {

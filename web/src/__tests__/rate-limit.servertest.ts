@@ -36,7 +36,7 @@ describe("RateLimitService", () => {
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [],
+      rateLimitOverrides: [],
     };
 
     const rateLimitService = new RateLimitService(redis!);
@@ -67,7 +67,7 @@ describe("RateLimitService", () => {
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [],
+      rateLimitOverrides: [],
     };
 
     const rateLimitService = new RateLimitService(redis!);
@@ -93,7 +93,7 @@ describe("RateLimitService", () => {
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [
+      rateLimitOverrides: [
         { resource: "public-api" as const, points: 100, durationInSec: 2 },
       ],
     };
@@ -143,7 +143,7 @@ describe("RateLimitService", () => {
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [
+      rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 60 },
       ],
     };
@@ -174,7 +174,7 @@ describe("RateLimitService", () => {
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [
+      rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 10 },
       ],
     };
@@ -200,7 +200,7 @@ describe("RateLimitService", () => {
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [
+      rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 10 },
       ],
     };
@@ -219,7 +219,7 @@ describe("RateLimitService", () => {
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [
+      rateLimitOverrides: [
         { resource: "ingestion" as const, points: null, durationInSec: null },
       ],
     };
@@ -237,7 +237,7 @@ describe("RateLimitService", () => {
       plan: "cloud:hobby" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [
+      rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 10 },
       ],
     };
@@ -256,7 +256,7 @@ describe("RateLimitService", () => {
       plan: "oss" as const,
       projectId: "test-project-id",
       accessLevel: "all" as const,
-      rateLimits: [],
+      rateLimitOverrides: [],
     };
 
     const rateLimitService = new RateLimitService(redis!);

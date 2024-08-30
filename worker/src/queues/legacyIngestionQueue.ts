@@ -66,8 +66,9 @@ const createLegacyIngestionExecutor = () => {
                   scope: {
                     ...job.data.payload.authCheck.scope,
                     plan,
-                    rateLimits: job.data.payload.authCheck.scope.rateLimits
-                      ? job.data.payload.authCheck.scope.rateLimits
+                    rateLimitOverrides: job.data.payload.authCheck.scope
+                      .rateLimitOverrides
+                      ? job.data.payload.authCheck.scope.rateLimitOverrides
                       : [],
                   },
                 },
