@@ -281,8 +281,6 @@ export class ApiAuthService {
       include: { project: { include: { organization: true } } },
     });
 
-    console.log("apiKeyAndOrganisation", apiKeyAndOrganisation);
-
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.
     if (apiKeyAndOrganisation && apiKeyAndOrganisation.fastHashedSecretKey) {
