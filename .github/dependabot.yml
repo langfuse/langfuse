@@ -8,6 +8,7 @@ updates:
   - package-ecosystem: npm
     directory: "/" # Location of package manifests
     rebase-strategy: "disabled" # use dependabot-rebase-stale
+    open-pull-requests-limit: 10
     schedule:
       interval: "daily"
     versioning-strategy: "increase"
