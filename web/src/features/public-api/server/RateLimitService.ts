@@ -36,6 +36,10 @@ export class RateLimitService {
       return new RateLimitHelper(undefined);
     }
 
+    if (env.LANGFUSE_RATE_LIMITS_ENABLED === "false") {
+      return new RateLimitHelper(undefined);
+    }
+
     if (!this.redis) {
       console.log("Rate limiting not available without Redis");
       return new RateLimitHelper(undefined);
