@@ -88,7 +88,7 @@
     "@trpc/next": "^10.45.0",
     "@trpc/react-query": "^10.45.0",
     "@trpc/server": "^10.45.0",
-    "@uiw/codemirror-theme-github": "^4.21.25",
+    "@uiw/codemirror-theme-github": "^4.23.0",
     "@uiw/codemirror-theme-tokyo-night": "^4.22.2",
     "@uiw/react-codemirror": "^4.21.25",
     "ai": "^3.0.23",
