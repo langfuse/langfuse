@@ -66,6 +66,118 @@ describe("Authenticate API calls", () => {
       expect(auth2.validKey).toBe(true);
     });
 
+    it("should create new api key with stripe data and succeed with new key", async () => {
+      await createAPIKey();
+
+      await prisma.organization.update({
+        where: {
+          id: "seed-org-id",
+        },
+        data: {
+          cloudConfig: {
+            stripe: {
+              customerId: "cus_test123",
+              activeSubscriptionId: "sub_test123",
+              activeProductId: "prod_test123",
+            },
+          },
+        },
+      });
+
+      await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+      expect(auth.validKey).toBe(true);
+
+      if (auth.validKey) {
+        expect(auth.scope.orgId).toBe("seed-org-id");
+        expect(auth.scope.plan).toBe("cloud:hobby");
+        expect(auth.scope.rateLimitOverrides).toEqual([]);
+      }
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
+      await prisma.organization.update({
+        where: {
+          id: "seed-org-id",
+        },
+        data: {
+          cloudConfig: Prisma.JsonNull,
+        },
+      });
+    });
+
+    it("should create new api key with custom rate limits and succeed with new key", async () => {
+      await createAPIKey();
+
+      await prisma.organization.update({
+        where: {
+          id: "seed-org-id",
+        },
+        data: {
+          cloudConfig: {
+            rateLimitOverrides: [
+              {
+                resource: "ingestion",
+                points: 100,
+                durationInSec: 60,
+              },
+            ],
+          },
+        },
+      });
+
+      await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+      expect(auth.validKey).toBe(true);
+
+      if (auth.validKey) {
+        expect(auth.scope.orgId).toBe("seed-org-id");
+        expect(auth.scope.plan).toBe("cloud:hobby");
+        expect(auth.scope.rateLimitOverrides).toEqual([
+          {
+            resource: "ingestion",
+            points: 100,
+            durationInSec: 60,
+          },
+        ]);
+      }
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
+      await prisma.organization.update({
+        where: {
+          id: "seed-org-id",
+        },
+        data: {
+          cloudConfig: Prisma.JsonNull,
+        },
+      });
+    });
+
     it("should fail on wrong api key with new key", async () => {
       await createAPIKey();
       const auth = await new ApiAuthService(
