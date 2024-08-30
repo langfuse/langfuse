@@ -35,10 +35,18 @@ export class ApiAuthService {
   private async invalidate(apiKeys: ApiKey[], identifier: string) {
     const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
 
+    const filteredHashKeys = hashKeys.filter((hash): hash is string =>
+      Boolean(hash),
+    );
+    if (filteredHashKeys.length === 0) {
+      console.log("No valid keys to invalidate");
+      return;
+    }
+
     if (this.redis) {
       console.log(`Invalidating API keys in redis for ${identifier}`);
       await this.redis.del(
-        hashKeys
+        filteredHashKeys
           .filter((hash): hash is string => Boolean(hash))
           .map((hash) => this.createRedisKey(hash)),
       );
@@ -81,9 +89,7 @@ export class ApiAuthService {
 
     // if redis is available, delete the key from there as well
     // delete from redis even if caching is disabled via env for consistency
-    if (this.redis && apiKey.fastHashedSecretKey) {
-      await this.redis.del(this.createRedisKey(apiKey.fastHashedSecretKey));
-    }
+    this.invalidate([apiKey], `key ${id}`);
 
     await this.prisma.apiKey.delete({
       where: {
