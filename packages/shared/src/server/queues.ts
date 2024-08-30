@@ -1,7 +1,5 @@
 import { z } from "zod";
 import { ingestionBatchEvent } from ".";
-import { isPlan } from "../features/entitlements/plans";
-import { CloudConfigRateLimit } from "../interfaces/rate-limits";
 
 export enum EventName {
   TraceUpsert = "TraceUpsert",
@@ -18,11 +16,6 @@ export const LegacyIngestionEvent = z.object({
     scope: z.object({
       projectId: z.string(),
       accessLevel: z.enum(["all", "scores"]),
-      orgId: z.string(),
-      plan: z.string().refine((value) => isPlan(value), {
-        message: "Invalid plan type",
-      }),
-      rateLimitOverrides: CloudConfigRateLimit.nullish(),
     }),
   }),
 });

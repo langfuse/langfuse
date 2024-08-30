@@ -19,7 +19,6 @@ import {
 import { tokenCount } from "../features/tokenisation/usage";
 import { env } from "../env";
 import { SpanKind } from "@opentelemetry/api";
-import { isPlan } from "@langfuse/shared";
 
 const createLegacyIngestionExecutor = () => {
   const redisInstance = createNewRedisInstance();
@@ -51,27 +50,9 @@ const createLegacyIngestionExecutor = () => {
                 unit: "milliseconds",
               });
 
-              const plan = job.data.payload.authCheck.scope.plan;
-              if (!isPlan(plan)) {
-                logger.error(
-                  `Invalid plan type for project ${job.data.payload.authCheck.scope.projectId}`
-                );
-                return;
-              }
-
               const result = await handleBatch(
                 job.data.payload.data,
-                {
-                  ...job.data.payload.authCheck,
-                  scope: {
-                    ...job.data.payload.authCheck.scope,
-                    plan,
-                    rateLimitOverrides: job.data.payload.authCheck.scope
-                      .rateLimitOverrides
-                      ? job.data.payload.authCheck.scope.rateLimitOverrides
-                      : [],
-                  },
-                },
+                job.data.payload.authCheck,
                 tokenCount
               );
 
