@@ -1,11 +1,11 @@
 name: Snyk Container
 on:
-  push:
-    branches-ignore:
-      - "dependabot/**"
   pull_request:
     branches:
       - "**"
+  push:
+    branches:
+      - main
 
 jobs:
   snyk:
