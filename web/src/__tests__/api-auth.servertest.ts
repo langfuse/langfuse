@@ -548,6 +548,129 @@ describe("Authenticate API calls", () => {
     });
   });
 
+  describe("invalidates api keys in redis", () => {
+    const redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
+      maxRetriesPerRequest: null,
+    });
+
+    beforeEach(async () => {
+      // if we do not remove the key, it will remain in the cache and
+      // calling the test twice will not add the key to the cache
+
+      const keys = await redis.keys("api-key*");
+      if (keys.length > 0) {
+        await redis.del(keys);
+      }
+    });
+
+    afterEach(async () => {
+      // if we do not remove the key, it will remain in the cache and
+      // calling the test twice will not add the key to the cache
+
+      const keys = await redis.keys("api-key*");
+      if (keys.length > 0) {
+        await redis.del(keys);
+      }
+    });
+
+    afterAll(async () => {
+      redis.disconnect();
+    });
+
+    it("should invalidate organization API keys in redis", async () => {
+      await createAPIKey();
+
+      // put keys into cache
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+
+      const cachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(cachedKey).not.toBeNull();
+
+      await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
+        "seed-org-id",
+      );
+
+      const invalidatedCachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(invalidatedCachedKey).toBeNull();
+    });
+
+    it("if no keys in redis, deleting orgs should do nothing", async () => {
+      await createAPIKey();
+
+      await prisma.organization.delete({
+        where: { id: "seed-org-id" },
+      });
+
+      await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
+        "seed-org-id",
+      );
+
+      const keys = await redis.keys("api-key*");
+      expect(keys.length).toBe(0);
+    });
+
+    it("should invalidate project API keys in redis", async () => {
+      await createAPIKey();
+
+      // put keys into cache
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+
+      const cachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(cachedKey).not.toBeNull();
+
+      await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      );
+
+      const invalidatedCachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(invalidatedCachedKey).toBeNull();
+    });
+
+    it("if no keys in redis, deleting projects should do nothing", async () => {
+      await createAPIKey();
+
+      await prisma.project.delete({
+        where: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+      });
+
+      await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      );
+
+      const keys = await redis.keys("api-key*");
+      expect(keys.length).toBe(0);
+    });
+  });
+
   const createAPIKey = async () => {
     const seedApiKey = {
       id: "seed-api-key",

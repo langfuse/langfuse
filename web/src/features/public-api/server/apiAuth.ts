@@ -35,6 +35,10 @@ export class ApiAuthService {
   private async invalidate(apiKeys: ApiKey[], identifier: string) {
     const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
 
+    if (hashKeys.length === 0) {
+      return;
+    }
+
     if (this.redis) {
       console.log(`Invalidating API keys in redis for ${identifier}`);
       await this.redis.del(
