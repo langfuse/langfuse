@@ -66,7 +66,7 @@ describe("Authenticate API calls", () => {
       expect(auth2.validKey).toBe(true);
     });
 
-    it.only("should create new api key with stripe data and succeed with new key", async () => {
+    it("should create new api key with stripe data and succeed with new key", async () => {
       await createAPIKey();
 
       await prisma.organization.update({
@@ -118,7 +118,7 @@ describe("Authenticate API calls", () => {
       });
     });
 
-    it.only("should create new api key with custom rate limits and succeed with new key", async () => {
+    it("should create new api key with custom rate limits and succeed with new key", async () => {
       await createAPIKey();
 
       await prisma.organization.update({
