@@ -33,11 +33,11 @@ export class ApiAuthService {
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
   private async invalidate(apiKeys: ApiKey[], identifier: string) {
-    const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
-
-    if (hashKeys.length === 0) {
+    if (apiKeys.length === 0) {
       return;
     }
+
+    const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
 
     if (this.redis) {
       console.log(`Invalidating API keys in redis for ${identifier}`);
@@ -85,9 +85,7 @@ export class ApiAuthService {
 
     // if redis is available, delete the key from there as well
     // delete from redis even if caching is disabled via env for consistency
-    if (this.redis && apiKey.fastHashedSecretKey) {
-      await this.redis.del(this.createRedisKey(apiKey.fastHashedSecretKey));
-    }
+    this.invalidate([apiKey], `key ${id}`);
 
     await this.prisma.apiKey.delete({
       where: {
