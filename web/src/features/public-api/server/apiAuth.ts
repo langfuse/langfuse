@@ -383,7 +383,7 @@ export const convertToRedisRepresentation = (
     createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,
     plan: getOrganizationPlan(parsedCloudConfig),
-    rateLimitOverrides: parsedCloudConfig?.rateLimitOverrides,
+    rateLimitOverrides: parsedCloudConfig?.rateLimitOverrides ?? [],
   });
 
   if (!orgId) {
