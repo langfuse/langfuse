@@ -630,6 +630,17 @@ describe("Authenticate API calls", () => {
       expect(keys.length).toBe(0);
     });
 
+    it("if no keys in redis, invalidating org keys without fast hash should do nothing", async () => {
+      await createAPIKey();
+
+      await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
+        "seed-org-id",
+      );
+
+      const keys = await redis.keys("api-key*");
+      expect(keys.length).toBe(0);
+    });
+
     it("should invalidate project API keys in redis", async () => {
       await createAPIKey();
 
@@ -671,9 +682,23 @@ describe("Authenticate API calls", () => {
         },
       });
 
-      // print everything in redis
-      const haha = await redis.keys("api-key*");
-      console.log("keys", haha);
+      await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      );
+
+      const keys = await redis.keys("api-key*");
+      expect(keys.length).toBe(0);
+    });
+
+    it("if no keys in redis, invalidating project keys without fast hash should do nothing", async () => {
+      await createAPIKey();
+
+      await prisma.apiKey.update({
+        where: { publicKey: "pk-lf-1234567890" },
+        data: {
+          fastHashedSecretKey: Math.random().toString(36).substring(2, 15),
+        },
+      });
 
       await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
