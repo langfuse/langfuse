@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - marlies/lfe-1896-nextjs-client-side-refresh-after-redeployment
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
