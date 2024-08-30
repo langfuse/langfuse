@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.74.0",
+  "version": "2.75.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -73,7 +73,7 @@
     "@radix-ui/react-switch": "^1.0.3",
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toggle": "^1.0.3",
-    "@radix-ui/react-toggle-group": "^1.0.4",
+    "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.0.7",
     "@remixicon/react": "^4.2.0",
     "@repo/eslint-config": "workspace:*",
