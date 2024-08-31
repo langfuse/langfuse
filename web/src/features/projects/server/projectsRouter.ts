@@ -9,6 +9,8 @@ import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { redis } from "@langfuse/shared/src/server";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -110,6 +112,11 @@ export const projectsRouter = createTRPCRouter({
         },
       });
 
+      // API keys need to be deleted from cache. Otherwise, they will still be valid.
+      await new ApiAuthService(ctx.prisma, redis).invalidateProjectApiKeys(
+        input.projectId,
+      );
+
       return true;
     }),
 
@@ -139,7 +146,11 @@ export const projectsRouter = createTRPCRouter({
           id: input.projectId,
         },
       });
-      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!project)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
 
       await auditLog({
         session: ctx.session,
@@ -149,6 +160,7 @@ export const projectsRouter = createTRPCRouter({
         before: { orgId: ctx.session.orgId },
         after: { orgId: input.targetOrgId },
       });
+
       await ctx.prisma.$transaction([
         ctx.prisma.projectMembership.deleteMany({
           where: {
@@ -165,5 +177,11 @@ export const projectsRouter = createTRPCRouter({
           },
         }),
       ]);
+
+      // API keys need to be deleted from cache. Otherwise, they will still be valid.
+      // It has to be called after the db is done to prevent new API keys from being cached.
+      await new ApiAuthService(ctx.prisma, redis).invalidateProjectApiKeys(
+        input.projectId,
+      );
     }),
 });

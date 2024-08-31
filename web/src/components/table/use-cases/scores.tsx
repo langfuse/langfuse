@@ -24,6 +24,8 @@ import {
   type ScoreDataType,
 } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import TagList from "@/src/features/tag/components/TagList";
+import { cn } from "@/src/utils/tailwind";
 
 export type ScoresTableRow = {
   id: string;
@@ -43,6 +45,7 @@ export type ScoresTableRow = {
   traceName?: string;
   userId?: string;
   jobConfigurationId?: string;
+  traceTags?: string[];
 };
 
 export type ScoreFilterInput = Omit<
@@ -90,11 +93,12 @@ export default function ScoresTable({
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange();
+    useTableDateRange(projectId);
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
     "scores",
+    projectId,
   );
 
   const dateRangeFilter: FilterState = dateRange
@@ -120,18 +124,32 @@ export default function ScoresTable({
     order: "DESC",
   });
 
-  const scores = api.scores.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+  const getCountPayload = {
     projectId,
     filter: filterState,
+    page: 0,
+    limit: 1,
+    orderBy: null,
+  };
+
+  const getAllPayload = {
+    ...getCountPayload,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
     orderBy: orderByState,
-  });
-  const totalCount = scores.data?.totalCount ?? 0;
+  };
+
+  const scores = api.scores.all.useQuery(getAllPayload);
+  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload);
+  const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
   const filterOptions = api.scores.filterOptions.useQuery(
     {
       projectId,
+      timestampFilter:
+        dateRangeFilter[0]?.type === "datetime"
+          ? dateRangeFilter[0]
+          : undefined,
     },
     {
       trpc: {
@@ -323,6 +341,29 @@ export default function ScoresTable({
         ) : undefined;
       },
     },
+    {
+      accessorKey: "traceTags",
+      id: "traceTags",
+      header: "Trace Tags",
+      size: 250,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const traceTags: string[] | undefined = row.getValue("traceTags");
+        return (
+          traceTags && (
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
+              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
+            </div>
+          )
+        );
+      },
+    },
   ];
 
   const columns = rawColumns.filter(
@@ -358,6 +399,7 @@ export default function ScoresTable({
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
+      traceTags: score.traceTags ?? undefined,
     };
   };
 
@@ -401,7 +443,7 @@ export default function ScoresTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

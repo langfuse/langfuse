@@ -24,7 +24,7 @@ export const ResetPlaygroundButton: React.FC = () => {
       title="Reset playground state"
       onClick={handleClick}
     >
-      <ListRestartIcon className="mr-1 h-5 w-5" />
+      <ListRestartIcon className="mr-1 h-4 w-4" />
       <span>Reset playground</span>
     </Button>
   );

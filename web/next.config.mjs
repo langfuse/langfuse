@@ -12,18 +12,35 @@ import { env } from "./src/env.mjs";
  */
 const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.posthog.com https://*.sentry.io wss://*.crisp.chat https://*.crisp.chat;
-  script-src 'self' 'unsafe-eval' https://*.langfuse.com https://*.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
-  style-src 'self' 'unsafe-inline' https://*.crisp.chat;
-  img-src 'self' https: blob: data:;
-  font-src 'self' https://*.crisp.chat;
-  frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://client.crisp.chat https://settings.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
+  style-src 'self' 'unsafe-inline' https://client.crisp.chat;
+  img-src 'self' https: blob: data: https://client.crisp.chat https://image.crisp.chat https://storage.crisp.chat;
+  font-src 'self' https://client.crisp.chat;
+  frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com https://game.crisp.chat;
   worker-src 'self' blob:;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
   frame-ancestors 'none';
+  connect-src 'self' https://client.crisp.chat https://storage.crisp.chat wss://client.relay.crisp.chat wss://stream.relay.crisp.chat https://*.ingest.us.sentry.io https://ph.langfuse.com;
+  media-src 'self' https://client.crisp.chat;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
+  ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
 `;
+
+const reportToHeader = {
+  key: "Report-To",
+  value: JSON.stringify({
+    group: "csp-endpoint",
+    max_age: 10886400,
+    endpoints: [
+      {
+        url: env.SENTRY_CSP_REPORT_URI,
+      },
+    ],
+    include_subdomains: true,
+  }),
+};
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
@@ -31,7 +48,13 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     instrumentationHook: true,
+    serverComponentsExternalPackages: [
+      "dd-trace",
+      "@opentelemetry/auto-instrumentations-node",
+      "@opentelemetry/api",
+    ],
   },
+  poweredByHeader: false,
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config
@@ -66,6 +89,7 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "autoplay=*, fullscreen=*, microphone=*",
           },
+          ...(env.SENTRY_CSP_REPORT_URI ? [reportToHeader] : []),
         ],
       },
       {
@@ -116,10 +140,6 @@ const nextConfig = {
 
   // webassembly support for @dqbd/tiktoken
   webpack(config, { isServer }) {
-    if (isServer) {
-      // https://github.com/open-telemetry/opentelemetry-js/issues/4173
-      config.ignoreWarnings = [{ module: /opentelemetry/ }];
-    }
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,
@@ -129,36 +149,44 @@ const nextConfig = {
   },
 };
 
-const sentryOptions = {
-  // Additional config options for the Sentry Webpack plugin. Keep in mind that
-  // the following options are set automatically, and overriding them is not
-  // recommended:
-  //   release, url, authToken, configFile, stripPrefix,
-  //   urlPrefix, include, ignore
+export default withSentryConfig(nextConfig, {
+  // For all available options, see:
+  // https://github.com/getsentry/sentry-webpack-plugin#options
 
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
 
-  silent: true, // Suppresses all logs
+  authToken: env.SENTRY_AUTH_TOKEN,
+
+  // Only print logs for uploading source maps in CI
+  silent: !process.env.CI,
 
   // For all available options, see:
-  // https://github.com/getsentry/sentry-webpack-plugin#options.
+  // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
 
-  // See the sections below for information on the following options:
-  //   'Configure Source Maps':
-  //     - disableServerWebpackPlugin
-  //     - disableClientWebpackPlugin
-  //     - hideSourceMaps
-  hideSourceMaps: true,
-  //     - widenClientFileUpload
-  //   'Configure Legacy Browser Support':
-  //     - transpileClientSDK
-  //   'Configure Serverside Auto-instrumentation':
-  //     - autoInstrumentServerFunctions
-  //     - excludeServerRoutes
-  //   'Configure Tunneling':
-  //     - tunnelRoute
+  // Upload a larger set of source maps for prettier stack traces (increases build time)
+  widenClientFileUpload: true,
+
+  // Automatically annotate React components to show their full name in breadcrumbs and session replay
+  reactComponentAnnotation: {
+    enabled: true,
+  },
+
+  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
+  // This can increase your server load as well as your hosting bill.
+  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
+  // side errors will fail.
   tunnelRoute: "/api/monitoring-tunnel",
-};
 
-export default withSentryConfig(nextConfig, sentryOptions);
+  // Hides source maps from generated client bundles
+  hideSourceMaps: true,
+
+  // Automatically tree-shake Sentry logger statements to reduce bundle size
+  disableLogger: true,
+
+  // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
+  // See the following for more information:
+  // https://docs.sentry.io/product/crons/
+  // https://vercel.com/docs/cron-jobs
+  automaticVercelMonitors: false,
+});

@@ -21,14 +21,14 @@ type HasOrganizationAccessParams =
 
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
- * @throws TRPCError("UNAUTHORIZED") if user does not have access
+ * @throws TRPCError("FORBIDDEN") if user does not have access
  */
 export const throwIfNoOrganizationAccess = (p: HasOrganizationAccessParams) => {
   if (!hasOrganizationAccess(p))
     throw new TRPCError({
-      code: "UNAUTHORIZED",
+      code: "FORBIDDEN",
       message:
-        "Unauthorized, user does not have access to this resource or action",
+        "Forbidden, user does not have access to this resource or action",
     });
 };
 
@@ -43,6 +43,7 @@ export const useHasOrganizationAccess = (p: {
   const { scope, organizationId } = p;
   const session = useSession();
 
+  if (session.data?.user?.admin) return true;
   if (!organizationId) return false;
 
   return hasOrganizationAccess({

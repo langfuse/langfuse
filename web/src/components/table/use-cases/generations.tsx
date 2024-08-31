@@ -49,6 +49,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
+import TagList from "@/src/features/tag/components/TagList";
 
 export type GenerationsTableRow = {
   id: string;
@@ -80,6 +81,7 @@ export type GenerationsTableRow = {
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
+  traceTags?: string[];
 };
 
 export type GenerationsTableProps = {
@@ -113,11 +115,12 @@ export default function GenerationsTable({
   );
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange();
+    useTableDateRange(projectId);
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
     [],
     "generations",
+    projectId,
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -164,16 +167,26 @@ export default function GenerationsTable({
     ...promptVersionFilter,
   ]);
 
-  const generations = api.generations.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+  const getCountPayload = {
     projectId,
     filter: filterState,
-    orderBy: orderByState,
     searchQuery,
-  });
+    page: 0,
+    limit: 0,
+    orderBy: null,
+  };
 
-  const totalCount = generations.data?.totalCount ?? 0;
+  const getAllPayload = {
+    ...getCountPayload,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+    orderBy: orderByState,
+  };
+
+  const generations = api.generations.all.useQuery(getAllPayload);
+  const totalCountQuery = api.generations.countAll.useQuery(getCountPayload);
+
+  const totalCount = totalCountQuery.data?.totalCount ?? null;
 
   const startTimeFilter = filterState.find((f) => f.column === "Start Time");
   const filterOptions = api.generations.filterOptions.useQuery(
@@ -653,6 +666,30 @@ export default function GenerationsTable({
         );
       },
     },
+    {
+      accessorKey: "traceTags",
+      id: "traceTags",
+      header: "Trace Tags",
+      size: 250,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const traceTags: string[] | undefined = row.getValue("traceTags");
+        console.log(traceTags);
+        return (
+          traceTags && (
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
+              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
+            </div>
+          )
+        );
+      },
+    },
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
@@ -692,6 +729,7 @@ export default function GenerationsTable({
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,
             promptVersion: generation.promptVersion ?? undefined,
+            traceTags: generation.traceTags ?? undefined,
           };
         })
       : [];
@@ -709,6 +747,7 @@ export default function GenerationsTable({
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
+        columnsWithCustomSelect={["model", "name", "traceName", "promptName"]}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibilityState}
         rowHeight={rowHeight}
@@ -766,7 +805,7 @@ export default function GenerationsTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

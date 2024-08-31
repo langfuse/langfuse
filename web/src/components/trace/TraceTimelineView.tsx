@@ -29,6 +29,8 @@ import {
 import { TracePreview } from "@/src/components/trace/TracePreview";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { api } from "@/src/utils/api";
+import { useSession } from "next-auth/react";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 800;
@@ -94,7 +96,7 @@ function TreeItemInner({
   const customLabelWidth = cardWidth - SCALE_WIDTH - CARD_PADDING;
 
   return (
-    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
+    <div className="group my-0.5 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
       <div
         className="flex flex-row items-center gap-2"
         style={{
@@ -103,7 +105,10 @@ function TreeItemInner({
         }}
       >
         <span
-          className={cn("rounded-sm p-1 text-xs", treeItemColors.get(type))}
+          className={cn(
+            "rounded-sm px-1 py-0.5 text-xs",
+            treeItemColors.get(type),
+          )}
         >
           {type}
         </span>
@@ -181,6 +186,7 @@ function TraceTreeItem({
   scores,
   observations,
   cardWidth,
+  commentCounts,
 }: {
   observation: NestedObservation;
   level: number;
@@ -190,6 +196,7 @@ function TraceTreeItem({
   scores: APIScore[];
   observations: Array<ObservationReturnType>;
   cardWidth: number;
+  commentCounts?: Map<string, number>;
 }) {
   const { startTime, endTime } = observation || {};
   const [backgroundColor, setBackgroundColor] = useState("");
@@ -232,6 +239,7 @@ function TraceTreeItem({
                 projectId={projectId}
                 currentObservationId={observation.id}
                 traceId={observation.traceId}
+                commentCounts={commentCounts}
               />
             </div>
           </>
@@ -250,6 +258,7 @@ function TraceTreeItem({
               scores={scores}
               observations={observations}
               cardWidth={cardWidth}
+              commentCounts={commentCounts}
             />
           ))
         : null}
@@ -303,6 +312,41 @@ export function TraceTimelineView({
     [nestedObservations],
   );
 
+  const session = useSession();
+
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
+    {
+      projectId: trace.projectId,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: session.status === "authenticated",
+    },
+  );
+
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId: trace.projectId,
+      objectId: trace.id,
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: session.status === "authenticated",
+    },
+  );
+
   if (!latency) return null;
 
   const stepSize = calculateStepSize(latency, SCALE_WIDTH);
@@ -321,7 +365,7 @@ export function TraceTimelineView({
               minWidth: `${MIN_LABEL_WIDTH}px`,
             }}
           >
-            <h3 className="text-2xl font-semibold tracking-tight">
+            <h3 className="text-xl font-semibold tracking-tight">
               Trace Timeline
             </h3>
             <div className="flex h-full items-center">
@@ -414,6 +458,7 @@ export function TraceTimelineView({
                       trace={trace}
                       observations={observations}
                       scores={scores}
+                      commentCounts={traceCommentCounts.data}
                     />
                   </div>
                 </TreeItemInner>
@@ -431,6 +476,7 @@ export function TraceTimelineView({
                       scores={scores}
                       observations={observations}
                       cardWidth={cardWidth}
+                      commentCounts={observationCommentCounts.data}
                     />
                   ))
                 : null}

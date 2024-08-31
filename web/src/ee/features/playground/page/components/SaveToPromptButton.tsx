@@ -25,6 +25,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import DocPopup from "@/src/components/layouts/doc-popup";
 
 export const SaveToPromptButton: React.FC = () => {
   const available = useHasOrgEntitlement("playground");
@@ -90,7 +91,7 @@ export const SaveToPromptButton: React.FC = () => {
       <PopoverTrigger asChild>
         <Button variant={"outline"} title="Save to prompt" asChild>
           <Link href={`/project/${projectId}/playground`}>
-            <FileInput className="mr-1 h-5 w-5" />
+            <FileInput className="mr-1 h-4 w-4" />
             <span>Save as prompt</span>
           </Link>
         </Button>
@@ -102,7 +103,10 @@ export const SaveToPromptButton: React.FC = () => {
         <Divider />
         <Command className="min-h-[8rem]">
           <CommandInput placeholder="Search chat prompts..." />
-          <CommandEmpty>No chat prompt found.</CommandEmpty>
+          <CommandEmpty>
+            No chat prompt found
+            <DocPopup description="Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages." />
+          </CommandEmpty>
           <CommandGroup className="mt-2">
             <CommandList>
               {allPromptNames.map((promptName) => (
@@ -151,7 +155,7 @@ export const SaveToPromptButton: React.FC = () => {
 
 export function Divider() {
   return (
-    <div className="my-6 flex flex-row justify-center align-middle">
+    <div className="my-3 flex flex-row justify-center align-middle">
       <div className="flex flex-1 flex-col">
         <div className="flex-1 border-b-2 border-gray-200" />
         <div className="flex-1" />

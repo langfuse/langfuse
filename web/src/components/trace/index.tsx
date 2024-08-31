@@ -34,6 +34,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore } from "@langfuse/shared";
 import { useSession } from "next-auth/react";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -55,6 +56,41 @@ export function Trace(props: {
 
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
+  );
+
+  const session = useSession();
+
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: session.status === "authenticated",
+    },
+  );
+
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectId: props.trace.id,
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: session.status === "authenticated",
+    },
   );
 
   const toggleCollapsedObservation = useCallback(
@@ -114,6 +150,7 @@ export function Trace(props: {
             trace={props.trace}
             observations={props.observations}
             scores={props.scores}
+            commentCounts={traceCommentCounts.data}
           />
         ) : (
           <ObservationPreview
@@ -122,6 +159,7 @@ export function Trace(props: {
             projectId={props.projectId}
             currentObservationId={currentObservationId}
             traceId={props.trace.id}
+            commentCounts={observationCommentCounts.data}
           />
         )}
       </div>
@@ -135,7 +173,7 @@ export function Trace(props: {
               });
               setScoresOnObservationTree(e);
             }}
-            size="sm"
+            size="xs"
             title="Show scores"
           >
             <Award className="h-4 w-4" />
@@ -148,7 +186,7 @@ export function Trace(props: {
               });
               setMetricsOnObservationTree(e);
             }}
-            size="sm"
+            size="xs"
             title="Show metrics"
           >
             {metricsOnObservationTree ? (
@@ -171,6 +209,8 @@ export function Trace(props: {
           setCurrentObservationId={setCurrentObservationId}
           showMetrics={metricsOnObservationTree}
           showScores={scoresOnObservationTree}
+          observationCommentCounts={observationCommentCounts.data}
+          traceCommentCounts={traceCommentCounts.data}
           className="flex w-full flex-col overflow-y-auto"
         />
       </div>
@@ -183,7 +223,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   const router = useRouter();
   const utils = api.useUtils();
   const session = useSession();
-  const trace = api.traces.byId.useQuery(
+  const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     { traceId, projectId: router.query.projectId as string },
     {
       retry(failureCount, error) {
@@ -224,7 +264,7 @@ export function TracePage({ traceId }: { traceId: string }) {
     return <ErrorPage message="You do not have access to this trace." />;
   if (!trace.data) return <div>loading...</div>;
   return (
-    <div className="flex flex-col overflow-hidden 2xl:container md:h-[calc(100vh-2rem)]">
+    <FullScreenPage mobile={false} className="2xl:container">
       <Header
         title="Trace Detail"
         breadcrumb={[
@@ -357,7 +397,7 @@ export function TracePage({ traceId }: { traceId: string }) {
           />
         </div>
       )}
-    </div>
+    </FullScreenPage>
   );
 }
 

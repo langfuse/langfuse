@@ -64,7 +64,7 @@ export default function RenameOrganization() {
   return (
     <div>
       <Header title="Organization Name" level="h3" />
-      <Card className="mb-4 p-4">
+      <Card className="mb-4 p-3">
         {form.getValues().name !== "" ? (
           <p className="mb-4 text-sm text-primary">
             Your Organization will be renamed from &quot;

@@ -20,15 +20,18 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 
 export const TracePreview = ({
   trace,
   observations,
   scores,
+  commentCounts,
 }: {
   trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
   scores: APIScore[];
+  commentCounts?: Map<string, number>;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -99,6 +102,12 @@ export const TracePreview = ({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <CommentDrawerButton
+              projectId={trace.projectId}
+              objectId={trace.id}
+              objectType="TRACE"
+              count={commentCounts?.get(trace.id)}
+            />
             <AnnotateDrawer
               projectId={trace.projectId}
               traceId={trace.id}

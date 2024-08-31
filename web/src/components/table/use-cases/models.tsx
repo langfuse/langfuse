@@ -63,7 +63,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     limit: paginationState.pageSize,
     projectId,
   });
-  const totalCount = models.data?.totalCount ?? 0;
+  const totalCount = models.data?.totalCount ?? null;
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "s");
 
@@ -303,7 +303,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

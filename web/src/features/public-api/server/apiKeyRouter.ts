@@ -1,5 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { generateKeySet } from "@langfuse/shared/src/server";
+import { createShaHash, generateKeySet } from "@langfuse/shared/src/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -8,6 +8,7 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 export const apiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -57,12 +58,16 @@ export const apiKeysRouter = createTRPCRouter({
 
       const { pk, sk, hashedSk, displaySk } = await generateKeySet();
 
+      const salt = env.SALT;
+      const hashFromProvidedKey = createShaHash(sk, salt);
+
       const apiKey = await ctx.prisma.apiKey.create({
         data: {
           projectId: input.projectId,
           publicKey: pk,
           hashedSecretKey: hashedSk,
           displaySecretKey: displaySk,
+          fastHashedSecretKey: hashFromProvidedKey,
           note: input.note,
         },
       });

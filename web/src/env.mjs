@@ -47,7 +47,6 @@ export const env = createEnv({
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
-    LANGFUSE_TRACING_SAMPLE_RATE: z.coerce.number().positive().default(0.5),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -143,6 +142,7 @@ export const env = createEnv({
       .nullable(),
     REDIS_AUTH: z.string().nullish(),
     REDIS_CONNECTION_STRING: z.string().nullish(),
+    REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
@@ -166,6 +166,11 @@ export const env = createEnv({
       .number()
       .positive()
       .default(60 * 10),
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+    SENTRY_AUTH_TOKEN: z.string().optional(),
+    SENTRY_CSP_REPORT_URI: z.string().optional(),
+    LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
   },
 
   /**
@@ -176,6 +181,8 @@ export const env = createEnv({
    * WARNING: They do not work when used in Docker builds as NEXT_PUBLIC variables are not runtime but compile-time.
    */
   client: {
+    // WARNING: Also add these to web/Dockerfile
+
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
       .enum(["US", "EU", "STAGING", "DEV"])
@@ -214,7 +221,6 @@ export const env = createEnv({
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
-    LANGFUSE_TRACING_SAMPLE_RATE: process.env.LANGFUSE_TRACING_SAMPLE_RATE,
     // Default org, project and role
     LANGFUSE_DEFAULT_ORG_ID: process.env.LANGFUSE_DEFAULT_ORG_ID,
     LANGFUSE_DEFAULT_ORG_ROLE: process.env.LANGFUSE_DEFAULT_ORG_ROLE,
@@ -299,6 +305,7 @@ export const env = createEnv({
     REDIS_PORT: process.env.REDIS_PORT,
     REDIS_AUTH: process.env.REDIS_AUTH,
     REDIS_CONNECTION_STRING: process.env.REDIS_CONNECTION_STRING,
+    REDIS_ENABLE_AUTO_PIPELINING: process.env.REDIS_ENABLE_AUTO_PIPELINING,
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
@@ -309,6 +316,11 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:
       process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
+    SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
+    SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
+    LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

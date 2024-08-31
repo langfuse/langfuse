@@ -3,18 +3,19 @@ import Header from "@/src/components/layouts/header";
 import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { env } from "@/src/env.mjs";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { OrganizationUsageChart } from "@/src/features/usage-metering/OrganizationUsageChart";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
+import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 const OrgSettingsPage = () => {
   const organization = useQueryOrganization();
   const router = useRouter();
   const { page } = router.query;
+  const showBillingSettings = useHasOrgEntitlement("cloud-billing");
 
   if (!organization) return null;
 
@@ -28,7 +29,7 @@ const OrgSettingsPage = () => {
             title: "General",
             slug: "index",
             content: (
-              <div className="flex flex-col gap-10">
+              <div className="flex flex-col gap-6">
                 <RenameOrganization />
                 <div>
                   <Header title="Debug Information" level="h3" />
@@ -54,7 +55,7 @@ const OrgSettingsPage = () => {
             title: "Members",
             slug: "members",
             content: (
-              <div className="flex flex-col gap-10">
+              <div className="flex flex-col gap-6">
                 <div>
                   <Header title="Organization Members" level="h3" />
                   <MembersTable orgId={organization.id} />
@@ -68,8 +69,8 @@ const OrgSettingsPage = () => {
           {
             title: "Billing",
             slug: "billing",
-            content: <OrganizationUsageChart />,
-            show: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined,
+            content: <BillingSettings />,
+            show: showBillingSettings,
           },
           {
             title: "Projects",

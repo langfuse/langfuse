@@ -10,7 +10,7 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
+import { traceException } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -53,7 +53,7 @@ export default withMiddlewares({
       const outObservations = observations.map(transformDbToApiObservation);
       const validatedScores = filterAndValidateDbScoreList(
         scores,
-        Sentry.captureException,
+        traceException,
       );
 
       const { duration, ...restOfTrace } = trace;

@@ -1,6 +1,6 @@
 import { env } from "@/src/env.mjs";
 import {
-  instrument,
+  instrumentAsync,
   type EventBodyType,
   type IngestionApiSchemaWithProjectId,
 } from "@langfuse/shared/src/server";
@@ -31,7 +31,7 @@ export class WorkerClient {
   }
 
   async sendIngestionBatch(params: IngestionApiSchemaWithProjectId) {
-    await instrument({ name: "insert-clickhouse" }, async () => {
+    await instrumentAsync({ name: "insert-clickhouse" }, async () => {
       await this.sendWorkerRequest({
         method: "POST",
         route: "/api/ingestion",

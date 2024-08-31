@@ -5,6 +5,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 const httpStatusOverride: Record<number, keyof typeof errorTitleMap> = {
   429: "TOO_MANY_REQUESTS",
+  524: "TIMEOUT",
 };
 
 const errorTitleMap = {
@@ -23,23 +24,56 @@ const errorTitleMap = {
   INTERNAL_SERVER_ERROR: "Internal Server Error",
 } as const;
 
+const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {
+  const httpStatus: number =
+    typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
+
+  if (httpStatus in httpStatusOverride) {
+    return {
+      errorTitle: errorTitleMap[httpStatusOverride[httpStatus]],
+      httpStatus,
+    };
+  }
+
+  const errorTitle =
+    error.data?.code in errorTitleMap
+      ? errorTitleMap[error.data?.code as keyof typeof errorTitleMap]
+      : "Unexpected Error";
+
+  return { errorTitle, httpStatus };
+};
+
+const getErrorDescription = (message: string, httpStatus: number) => {
+  switch (httpStatus) {
+    case 429:
+      return "Rate limit hit. Please try again later.";
+    case 524:
+      return "Request took too long to process. Please try again later.";
+    default:
+      return message;
+  }
+};
+
 export const trpcErrorToast = (error: unknown) => {
   if (error instanceof TRPCClientError) {
+    const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
+
     const path = error.data?.path;
     const cause = error.data?.cause;
-    const description = error.message;
-    const errorTitle =
-      error.data?.httpStatus in httpStatusOverride
-        ? errorTitleMap[httpStatusOverride[error.data?.httpStatus]]
-        : error.data?.code in errorTitleMap
-          ? errorTitleMap[error.data?.code as keyof typeof errorTitleMap]
-          : "Unexpected Error";
+    const description = getErrorDescription(error.message, httpStatus);
 
-    showErrorToast(errorTitle, description, cause, path);
+    showErrorToast(
+      errorTitle,
+      description,
+      httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
+      cause,
+      path,
+    );
   } else {
     showErrorToast(
       "Unexpected Error",
-      "An unexpected error occurred. Please try again.",
+      "An unexpected error occurred.",
+      "ERROR",
     );
   }
 };

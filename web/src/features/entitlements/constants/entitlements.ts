@@ -1,11 +1,11 @@
-import { type Plan } from "@/src/features/entitlements/constants/plans";
+import { type Plan } from "@langfuse/shared";
 
 const entitlements = [
   // features
   "playground",
   "model-based-evaluations",
   "rbac-project-roles",
-  "cloud-usage-metering",
+  "cloud-billing",
   "integration-posthog",
   "batch-export",
 ] as const;
@@ -15,7 +15,7 @@ export type Entitlement = (typeof entitlements)[number];
 const cloudAllPlansEntitlements: Entitlement[] = [
   "playground",
   "model-based-evaluations",
-  "cloud-usage-metering",
+  "cloud-billing",
   "integration-posthog",
   "batch-export",
 ];
@@ -27,7 +27,6 @@ export const entitlementAccess: Record<Plan, Entitlement[]> = {
   "cloud:team": [...cloudAllPlansEntitlements, "rbac-project-roles"],
   "self-hosted:enterprise": [
     "playground",
-    "model-based-evaluations",
     "rbac-project-roles",
     // `LANGFUSE_ALLOWED_ORGANIZATION_CREATORS` -> directly checked on instance level in auth.ts
   ],

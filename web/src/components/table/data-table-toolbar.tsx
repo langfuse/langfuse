@@ -31,7 +31,9 @@ interface DataTableToolbarProps<TData, TValue> {
   searchConfig?: SearchConfig;
   actionButtons?: React.ReactNode;
   filterState?: FilterState;
-  setFilterState?: Dispatch<SetStateAction<FilterState>>;
+  setFilterState?:
+    | Dispatch<SetStateAction<FilterState>>
+    | ((newState: FilterState) => void);
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
   rowHeight?: RowHeight;
@@ -79,7 +81,7 @@ export function DataTableToolbar<TData, TValue>({
                 searchConfig.updateQuery(searchString);
               }
             }}
-            className="h-10 w-[150px] rounded-r-none @6xl:w-[250px]"
+            className="w-[150px] rounded-r-none @6xl:w-[250px]"
           />
           <Button
             variant="outline"

@@ -1,4 +1,3 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
@@ -40,6 +39,8 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "@/src/features/ingest/usage";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 export const config = {
   api: {
@@ -64,6 +65,15 @@ export default async function handler(
     ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
+
+    const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+      authCheck.scope,
+      "ingestion",
+    );
+
+    if (rateLimitCheck?.isRateLimited()) {
+      return rateLimitCheck.sendRestResponseIfLimited(res);
+    }
 
     const batchType = z.object({
       batch: z.array(z.unknown()),
@@ -97,8 +107,6 @@ export default async function handler(
     parsedSchema.data
       ? currentSpan?.setAttribute("event_count", parsedSchema.data.batch.length)
       : undefined;
-
-    await gaugePrismaStats();
 
     if (!parsedSchema.success) {
       console.log("Invalid request data", parsedSchema.error);
@@ -140,8 +148,6 @@ export default async function handler(
       const queue = getLegacyIngestionQueue();
 
       if (queue) {
-        console.log("Returning http response early");
-
         // still need to check auth scope for all events individually
 
         const failedAccessScope = accessCheckPerEvent(sortedBatch, authCheck);
@@ -449,16 +455,4 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;
-};
-
-const gaugePrismaStats = async () => {
-  // execute with a 50% probability
-  if (Math.random() > 0.5) {
-    return;
-  }
-  // const metrics = await prisma.$metrics.json();
-
-  // metrics.gauges.forEach((gauge) => {
-  //   Sentry.metrics.gauge(gauge.key, gauge.value, gauge.labels);
-  // });
 };

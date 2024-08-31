@@ -2,29 +2,31 @@ import { Job, Worker } from "bullmq";
 import {
   traceException,
   getLegacyIngestionQueue,
-  instrument,
+  instrumentAsync,
   QueueName,
   recordIncrement,
   recordGauge,
   recordHistogram,
   TQueueJobTypes,
+  createNewRedisInstance,
 } from "@langfuse/shared/src/server";
 import logger from "../logger";
 
 import {
   handleBatch,
-  redis,
   sendToWorkerIfEnvironmentConfigured,
 } from "@langfuse/shared/src/server";
 import { tokenCount } from "../features/tokenisation/usage";
 import { env } from "../env";
 import { SpanKind } from "@opentelemetry/api";
 
-export const legacyIngestionExecutor = redis
-  ? new Worker<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
+const createLegacyIngestionExecutor = () => {
+  const redisInstance = createNewRedisInstance();
+  if (redisInstance) {
+    return new Worker<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
       QueueName.LegacyIngestionQueue,
       async (job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>) => {
-        return instrument(
+        return instrumentAsync(
           {
             name: "legacyIngestion",
             spanKind: SpanKind.CONSUMER,
@@ -88,8 +90,12 @@ export const legacyIngestionExecutor = redis
         );
       },
       {
-        connection: redis,
+        connection: redisInstance,
         concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY, // n ingestion batches at a time
       }
-    )
-  : null;
+    );
+  }
+  return null;
+};
+
+export const legacyIngestionExecutor = createLegacyIngestionExecutor();

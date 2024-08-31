@@ -8,13 +8,14 @@ import {
 } from "@langfuse/shared";
 import { type ObservationView, Prisma, prisma } from "@langfuse/shared/src/db";
 
-import { type GetAllGenerationsInput } from "../getAllQuery";
-import * as Sentry from "@sentry/node";
+import { type GetAllGenerationsInput } from "../getAllQueries";
+import { traceException } from "@langfuse/shared/src/server";
 
 type AdditionalObservationFields = {
   traceName: string | null;
   promptName: string | null;
   promptVersion: string | null;
+  traceTags: Array<string>;
 };
 
 export type FullObservations = Array<
@@ -26,13 +27,7 @@ export type IOAndMetadataOmittedObservations = Array<
     AdditionalObservationFields
 >;
 
-export async function getAllGenerations({
-  input,
-  selectIOAndMetadata,
-}: {
-  input: GetAllGenerationsInput;
-  selectIOAndMetadata: boolean;
-}) {
+export function parseGetAllGenerationsInput(input: GetAllGenerationsInput) {
   const searchCondition = input.searchQuery
     ? Prisma.sql`AND (
         o."id" ILIKE ${`%${input.searchQuery}%`} OR
@@ -65,6 +60,24 @@ export async function getAllGenerations({
           startTimeFilter.value,
         )
       : Prisma.empty;
+
+  return {
+    searchCondition,
+    filterCondition,
+    orderByCondition,
+    datetimeFilter,
+  };
+}
+
+export async function getAllGenerations({
+  input,
+  selectIOAndMetadata,
+}: {
+  input: GetAllGenerationsInput;
+  selectIOAndMetadata: boolean;
+}) {
+  const { searchCondition, filterCondition, orderByCondition, datetimeFilter } =
+    parseGetAllGenerationsInput(input);
 
   const query = Prisma.sql`
       WITH scores_avg AS (
@@ -123,7 +136,8 @@ export async function getAllGenerations({
         o."latency",
         o.prompt_id as "promptId",
         p.name as "promptName",
-        p.version as "promptVersion"
+        p.version as "promptVersion",
+        t.tags as "traceTags"
       FROM observations_view o
       JOIN traces t ON t.id = o.trace_id AND t.project_id = ${input.projectId}
       LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
@@ -151,10 +165,7 @@ export async function getAllGenerations({
       },
     },
   });
-  const validatedScores = filterAndValidateDbScoreList(
-    scores,
-    Sentry.captureException,
-  );
+  const validatedScores = filterAndValidateDbScoreList(scores, traceException);
 
   const fullGenerations = generations.map((generation) => {
     const filteredScores = aggregateScores(

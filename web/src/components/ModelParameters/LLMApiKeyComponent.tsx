@@ -47,7 +47,7 @@ export const LLMApiKeyComponent = (p: {
       <Label className="text-xs font-semibold">API key</Label>
       <div>
         {apiKey ? (
-          <Link href={`/project/${p.projectId}/settings#llm-api-keys`}>
+          <Link href={`/project/${p.projectId}/settings/api-keys`}>
             <span className="mr-2 rounded-sm bg-input p-1 text-xs">
               {apiKey.displaySecretKey}
             </span>
@@ -60,7 +60,7 @@ export const LLMApiKeyComponent = (p: {
           {`No LLM API key found for provider ${modelProvider}.`}
 
           <Link
-            href={`/project/${p.projectId}/settings`}
+            href={`/project/${p.projectId}/settings/api-keys`}
             className="flex flex-row"
           >
             Create a new LLM API key here. <ArrowTopRightIcon />

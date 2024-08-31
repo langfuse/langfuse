@@ -9,17 +9,19 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreList,
-  getSessionTableSQL,
+  createSessionsAllQuery,
   orderBy,
   paginationZod,
   type SessionOptions,
   singleFilter,
+  timeFilter,
+  datetimeFilterToPrismaSql,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-import * as Sentry from "@sentry/node";
 import { TRPCError } from "@trpc/server";
 
 import type Decimal from "decimal.js";
+import { traceException } from "@langfuse/shared/src/server";
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
@@ -32,31 +34,28 @@ export const sessionRouter = createTRPCRouter({
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
       try {
-        const query = getSessionTableSQL(input);
-
         const sessions = await ctx.prisma.$queryRaw<
           Array<{
             id: string;
             createdAt: Date;
             bookmarked: boolean;
             public: boolean;
-            countTraces: number;
-            userIds: (string | null)[] | null;
-            totalCount: number;
-            sessionDuration: number | null;
-            inputCost: Decimal;
-            outputCost: Decimal;
-            totalCost: Decimal;
-            promptTokens: number;
-            completionTokens: number;
-            totalTokens: number;
           }>
-        >(query);
+        >(
+          createSessionsAllQuery(
+            Prisma.sql`
+              s.id,
+              s."created_at" AS "createdAt",
+              s.bookmarked,
+              s.public
+            `,
+            input,
+          ),
+        );
 
-        return sessions.map((s) => ({
-          ...s,
-          userIds: (s.userIds?.filter((t) => t !== null) ?? []) as string[],
-        }));
+        return {
+          sessions,
+        };
       } catch (e) {
         console.error(e);
         throw new TRPCError({
@@ -65,31 +64,164 @@ export const sessionRouter = createTRPCRouter({
         });
       }
     }),
-  filterOptions: protectedProjectProcedure
+  countAll: protectedProjectProcedure
+    .input(SessionFilterOptions)
+    .query(async ({ input, ctx }) => {
+      try {
+        const inputForTotal: z.infer<typeof SessionFilterOptions> = {
+          filter: input.filter,
+          projectId: input.projectId,
+          orderBy: null,
+          limit: 1,
+          page: 0,
+        };
+
+        const totalCount = await ctx.prisma.$queryRaw<
+          Array<{
+            totalCount: number;
+          }>
+        >(
+          createSessionsAllQuery(
+            Prisma.sql`
+                count(*)::int as "totalCount"
+              `,
+            inputForTotal,
+            {
+              ignoreOrderBy: true,
+            },
+          ),
+        );
+
+        return {
+          totalCount: totalCount[0].totalCount,
+        };
+      } catch (e) {
+        console.error(e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "unable to get session count",
+        });
+      }
+    }),
+  metrics: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
+        sessionIds: z.array(z.string()),
       }),
     )
     .query(async ({ input, ctx }) => {
       try {
-        const userIds = await ctx.prisma.$queryRaw<
-          Array<{ value: string }>
-        >(Prisma.sql`
-        SELECT 
-          traces.user_id AS value
-        FROM traces
-        WHERE 
-          traces.session_id IS NOT NULL
-          AND traces.user_id IS NOT NULL
-          AND traces.project_id = ${input.projectId}
-        GROUP BY
-          traces.user_id
-        LIMIT 1000;
-      `);
+        if (input.sessionIds.length === 0) return [];
+        const inputForMetrics: z.infer<typeof SessionFilterOptions> = {
+          filter: [],
+          projectId: input.projectId,
+          orderBy: null,
+          limit: 10000, // no limit
+          page: 0,
+        };
+
+        const metrics = await ctx.prisma.$queryRaw<
+          Array<{
+            id: string;
+            countTraces: number;
+            userIds: (string | null)[] | null;
+            sessionDuration: number | null;
+            inputCost: Decimal;
+            outputCost: Decimal;
+            totalCost: Decimal;
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
+            traceTags: string[];
+          }>
+        >(
+          createSessionsAllQuery(
+            Prisma.sql`
+              s.id,
+              t."userIds",
+              t."countTraces",
+              o."sessionDuration",
+              o."totalCost" AS "totalCost",
+              o."inputCost" AS "inputCost",
+              o."outputCost" AS "outputCost",
+              o."promptTokens" AS "promptTokens",
+              o."completionTokens" AS "completionTokens",
+              o."totalTokens" AS "totalTokens",
+              t."tags" AS "traceTags"
+            `,
+            inputForMetrics,
+            {
+              ignoreOrderBy: true,
+              sessionIdList: input.sessionIds,
+            },
+          ),
+        );
+
+        return metrics.map((row) => ({
+          ...row,
+          userIds: (row.userIds?.filter((t) => t !== null) ?? []) as string[],
+          traceTags: (row.traceTags?.filter((t) => t !== null) ??
+            []) as string[],
+        }));
+      } catch (e) {
+        console.error(e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "unable to get session metrics",
+        });
+      }
+    }),
+  filterOptions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        timestampFilter: timeFilter.optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const { timestampFilter } = input;
+        const rawTimestampFilter =
+          timestampFilter && timestampFilter.type === "datetime"
+            ? datetimeFilterToPrismaSql(
+                "timestamp",
+                timestampFilter.operator,
+                timestampFilter.value,
+              )
+            : Prisma.empty;
+        const [userIds, tags] = await Promise.all([
+          ctx.prisma.$queryRaw<Array<{ value: string }>>(Prisma.sql`
+            SELECT 
+              traces.user_id AS value
+            FROM traces
+            WHERE 
+              traces.session_id IS NOT NULL
+              AND traces.user_id IS NOT NULL
+              AND traces.project_id = ${input.projectId} ${rawTimestampFilter}
+            GROUP BY traces.user_id 
+            ORDER BY traces.user_id ASC
+            LIMIT 1000;
+          `),
+          ctx.prisma.$queryRaw<
+            Array<{
+              value: string;
+            }>
+          >(Prisma.sql`
+            SELECT DISTINCT tag AS value
+            FROM traces t
+            JOIN observations o ON o.trace_id = t.id,
+            UNNEST(t.tags) AS tag
+            WHERE o.type = 'GENERATION'
+              AND o.project_id = ${input.projectId}
+              AND t.project_id = ${input.projectId} ${rawTimestampFilter}
+            LIMIT 1000;
+          `),
+        ]);
 
         const res: SessionOptions = {
           userIds: userIds,
+          tags: tags,
         };
         return res;
       } catch (e) {
@@ -130,34 +262,33 @@ export const sessionRouter = createTRPCRouter({
           });
         }
 
-        const scores = await ctx.prisma.score.findMany({
-          where: {
-            traceId: {
-              in: session.traces.map((t) => t.id),
+        const totalCostQuery = Prisma.sql`
+          SELECT
+            SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
+          FROM observations_view o
+          JOIN traces t ON t.id = o.trace_id
+          WHERE
+            t."session_id" = ${input.sessionId}
+            AND t."project_id" = ${input.projectId}
+        `;
+
+        const [scores, costData] = await Promise.all([
+          ctx.prisma.score.findMany({
+            where: {
+              traceId: {
+                in: session.traces.map((t) => t.id),
+              },
+              projectId: input.projectId,
             },
-            projectId: input.projectId,
-          },
-        });
+          }),
+          // costData
+          ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(totalCostQuery),
+        ]);
 
         const validatedScores = filterAndValidateDbScoreList(
           scores,
-          Sentry.captureException,
+          traceException,
         );
-
-        const totalCostQuery = Prisma.sql`
-        SELECT
-          SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
-        FROM observations_view o
-        JOIN traces t ON t.id = o.trace_id
-        WHERE
-          t."session_id" = ${input.sessionId}
-          AND t."project_id" = ${input.projectId}
-      `;
-
-        const [costData] =
-          await ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(
-            totalCostQuery,
-          );
 
         return {
           ...session,
@@ -165,7 +296,7 @@ export const sessionRouter = createTRPCRouter({
             ...t,
             scores: validatedScores.filter((s) => s.traceId === t.id),
           })),
-          totalCost: costData?.totalCost ?? 0,
+          totalCost: costData[0].totalCost ?? 0,
           users: [
             ...new Set(
               session.traces.map((t) => t.userId).filter((t) => t !== null),

@@ -49,7 +49,7 @@ export const PagedSettingsContainer = ({
 
   return (
     <main className="flex flex-1 flex-col gap-4 py-4 md:gap-8">
-      <div className="grid w-full items-start gap-4 md:grid-cols-[180px_1fr] lg:grid-cols-[220px_1fr]">
+      <div className="grid w-full items-start gap-4 md:grid-cols-[150px_1fr] lg:grid-cols-[220px_1fr]">
         <nav className="block md:hidden">
           <Select
             onValueChange={(slug) => {
