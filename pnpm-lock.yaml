@@ -815,6 +815,9 @@ importers:
       express-basic-auth:
         specifier: ^1.2.1
         version: 1.2.1
+      express-minify:
+        specifier: ^1.0.0
+        version: 1.0.0
       handlebars:
         specifier: ^4.7.8
         version: 4.7.8
@@ -870,6 +873,9 @@ importers:
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.21
+      '@types/express-minify':
+        specifier: ^0.1.38
+        version: 0.1.38
       '@types/express-serve-static-core':
         specifier: ^4.19.3
         version: 4.19.3
@@ -4806,6 +4812,9 @@ packages:
   '@types/estree@1.0.5':
     resolution: {integrity: sha512-/kYRxGDLWzHOB7q+wtSUQlFrtcdUccpfy+X+9iMBpHK8QLLhx2wIPYuS5DYtR9Wa/YlZAbIovy7qVdB1Aq6Lyw==}
 
+  '@types/express-minify@0.1.38':
+    resolution: {integrity: sha512-+0IpiXWNGVSvrIArNCkk4gXivfwFEjA3bt95gBTspzDQHiGRYPRMGn8CqmFzG99c9c90BvM01wRwJoo0hKkojw==}
+
   '@types/express-serve-static-core@4.19.3':
     resolution: {integrity: sha512-KOzM7MhcBFlmnlr/fzISFF5vGWVSvN6fTd4T+ExOt08bA/dA5kpSzY52nMsI1KDFmUREpJelPYyuslLRSjjgCg==}
 
@@ -5915,6 +5924,10 @@ packages:
   class-variance-authority@0.7.0:
     resolution: {integrity: sha512-jFI8IQw4hczaL4ALINxqLEXQbWcNjoSkloa4IaufXCJr6QawJyw7tuRysRsrE8w2p/4gGaxKIt/hX3qz/IbD1A==}
 
+  clean-css@4.2.4:
+    resolution: {integrity: sha512-EJUDT7nDVFDvaQgAo2G/PJvxmp1o/c6iXLbswsBbUFXi1Nr+AjA2cKmfbKDMjMvzEe75g3P6JkaDDAKk96A85A==}
+    engines: {node: '>= 4.0'}
+
   clean-regexp@1.0.0:
     resolution: {integrity: sha512-GfisEZEJvzKrmGWkvfhgzcz/BllN1USeqD2V6tg14OAOgaCD2Z/PUEuxnAZ/nPvmaHRG7a8y77p1T/IRQ4D1Hw==}
     engines: {node: '>=4'}
@@ -6972,6 +6985,10 @@ packages:
 
   express-basic-auth@1.2.1:
     resolution: {integrity: sha512-L6YQ1wQ/mNjVLAmK3AG1RK6VkokA1BIY6wmiH304Xtt/cLTps40EusZsU1Uop+v9lTDPxdtzbFmdXfFO3KEnwA==}
+
+  express-minify@1.0.0:
+    resolution: {integrity: sha512-04/iYxB79jGeNZBBkbAW7L7FMG4Wtu78F1SayXIKiJD6MfqYnOI3DD8no7QOntgedYCdYUpj+Skg8QWR/2WnMQ==}
+    engines: {node: '>= 4.0.0'}
 
   express@4.19.2:
     resolution: {integrity: sha512-5T6nhjsT+EOMzuck8JjBHARTHfMht0POzlA60WV2pMD3gyXw2LZnZ+ueGdNxG+0calOJcWKbpFcuzLZ91YWq9Q==}
@@ -9181,6 +9198,10 @@ packages:
 
   on-finished@2.4.1:
     resolution: {integrity: sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==}
+    engines: {node: '>= 0.8'}
+
+  on-headers@1.0.2:
+    resolution: {integrity: sha512-pZAE+FJLoyITytdqK0U5s+FIpjN0JP3OzFi/u8Rx+EV5/W+JTWGXG8xFzevE7AjBfDqHv/8vL8qQsIhHnqRkrA==}
     engines: {node: '>= 0.8'}
 
   once@1.4.0:
@@ -16651,7 +16672,7 @@ snapshots:
 
   '@types/accepts@1.3.7':
     dependencies:
-      '@types/node': 20.11.29
+      '@types/node': 20.14.8
 
   '@types/aria-query@5.0.4': {}
 
@@ -16706,7 +16727,7 @@ snapshots:
       '@types/connect': 3.4.38
       '@types/express': 4.17.21
       '@types/keygrip': 1.0.6
-      '@types/node': 20.11.29
+      '@types/node': 20.14.8
 
   '@types/cors@2.8.17':
     dependencies:
@@ -16770,6 +16791,11 @@ snapshots:
       '@types/estree': 1.0.5
 
   '@types/estree@1.0.5': {}
+
+  '@types/express-minify@0.1.38':
+    dependencies:
+      '@types/express': 4.17.21
+      '@types/node': 20.14.8
 
   '@types/express-serve-static-core@4.19.3':
     dependencies:
@@ -18213,6 +18239,10 @@ snapshots:
     dependencies:
       clsx: 2.0.0
 
+  clean-css@4.2.4:
+    dependencies:
+      source-map: 0.6.1
+
   clean-regexp@1.0.0:
     dependencies:
       escape-string-regexp: 1.0.5
@@ -19506,6 +19536,12 @@ snapshots:
   express-basic-auth@1.2.1:
     dependencies:
       basic-auth: 2.0.1
+
+  express-minify@1.0.0:
+    dependencies:
+      clean-css: 4.2.4
+      on-headers: 1.0.2
+      uglify-js: 3.18.0
 
   express@4.19.2:
     dependencies:
@@ -22260,6 +22296,8 @@ snapshots:
     dependencies:
       ee-first: 1.1.1
 
+  on-headers@1.0.2: {}
+
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
@@ -24311,8 +24349,7 @@ snapshots:
 
   ufo@1.5.2: {}
 
-  uglify-js@3.18.0:
-    optional: true
+  uglify-js@3.18.0: {}
 
   unbox-primitive@1.0.2:
     dependencies:

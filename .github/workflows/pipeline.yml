@@ -201,6 +201,7 @@ jobs:
       - name: Upload worker source maps to Datadog
         run: |
           sha_short=$(git rev-parse --short HEAD)
+          chmod +x ./scripts/upload-sourcemaps-datadog.sh
           ./scripts/upload-sourcemaps-datadog.sh /static/ ./worker web $sha_short ./worker/dist
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
