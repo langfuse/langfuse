@@ -8,8 +8,8 @@ if [ -z "$DATADOG_API_KEY" ]; then
 fi
 
 # Check if all required arguments are provided
-if [ "$#" -ne 4 ]; then
-  echo "Usage: $0 <minified-path-prefix> <project-path> <service> <release-version>"
+if [ "$#" -ne 5 ]; then
+  echo "Usage: $0 <minified-path-prefix> <project-path> <service> <release-version> <dist-path>"
   exit 1
 fi
 
@@ -17,6 +17,7 @@ MINIFIED_PATH_PREFIX=$1
 PROJECT_PATH=$2
 SERVICE=$3
 RELEASE_VERSION=$4
+DIST_PATH=$5
 
 echo "Uploading sourcemaps to Datadog for version [$RELEASE_VERSION] with minified path prefix [$MINIFIED_PATH_PREFIX]"
 
@@ -26,7 +27,7 @@ echo "Uploading sourcemaps to Datadog for version [$RELEASE_VERSION] with minifi
 # Reference: https://github.com/DataDog/datadog-ci/tree/master/src/commands/sourcemaps#commands
 # `release-version` must match the version in initErrorReporter.ts and performance.ts
 # project-path is the prefix before src in the map: webpack:///./src/bricks/registry.ts
-npx --yes @datadog/datadog-ci sourcemaps upload ./dist \
+npx --yes @datadog/datadog-ci sourcemaps upload "$DIST_PATH" \
   --service="$SERVICE" \
   --release-version="$RELEASE_VERSION" \
   --minified-path-prefix="$MINIFIED_PATH_PREFIX" \
