@@ -112,6 +112,16 @@ jobs:
       - name: Build
         run: pnpm run build
         env:
+          # used for sentry source map upload
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+
+      - name: Upload web source maps to Datadog
+        run: |
+          sha_short=$(git rev-parse --short HEAD)
+          ./scripts/upload-sourcemaps-datadog.sh ./web/.next ./web web $sha_short
+        env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
@@ -187,6 +197,13 @@ jobs:
 
       - name: Build
         run: pnpm --filter=worker... run build
+
+      - name: Upload worker source maps to Datadog
+        run: |
+          sha_short=$(git rev-parse --short HEAD)
+          ./scripts/upload-sourcemaps-datadog.sh ./worker/dist ./worker web $sha_short
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
 
       - name: run tests
         run: pnpm --filter=worker run test
