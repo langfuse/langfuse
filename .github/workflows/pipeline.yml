@@ -122,7 +122,8 @@ jobs:
           sha_short=$(git rev-parse --short HEAD)
           ./scripts/upload-sourcemaps-datadog.sh /static/ ./web web $sha_short ./web/.next
         env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DATADOG_API_KEY_EU: ${{ secrets.DATADOG_API_KEY_EU }}
+          DATADOG_API_KEY_US: ${{ secrets.DATADOG_API_KEY_US }}
 
       - name: Start Langfuse
         run: (pnpm run start&)
@@ -202,7 +203,8 @@ jobs:
           chmod +x ./scripts/upload-sourcemaps-datadog.sh
           ./scripts/upload-sourcemaps-datadog.sh /static/ ./worker web $sha_short ./worker/dist
         env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DATADOG_API_KEY_EU: ${{ secrets.DATADOG_API_KEY_EU }}
+          DATADOG_API_KEY_US: ${{ secrets.DATADOG_API_KEY_US }}
 
       - name: run tests
         run: pnpm --filter=worker run test
