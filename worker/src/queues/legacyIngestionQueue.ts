@@ -34,6 +34,7 @@ const createLegacyIngestionExecutor = () => {
           },
           async () => {
             try {
+              throw new Error("Test error");
               const startTime = Date.now();
               logger.info(
                 `Processing legacy ingestion for payload ${JSON.stringify(job.data.payload)}`
