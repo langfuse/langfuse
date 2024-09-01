@@ -17,6 +17,12 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   console.log("version:", process.env.VERSION);
 
+  Object.keys(process.env)
+    .filter((key) => key.startsWith("PORTER_"))
+    .forEach((key) => {
+      console.log(`${key}: ${process.env[key]}`);
+    });
+
   const tracer = dd.init({
     runtimeMetrics: true,
     version: process.env.VERSION,
