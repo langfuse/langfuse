@@ -25,7 +25,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   const tracer = dd.init({
     runtimeMetrics: true,
-    version: process.env.VERSION,
+    version: process.env.PORTER_IMAGE_TAG,
   });
 
   const { TracerProvider } = tracer;

@@ -24,7 +24,7 @@ SERVICE=$3
 DIST_PATH=$4
 
 # Get the short SHA of the current commit. Same release number as Porter
-RELEASE_VERSION=$(git rev-parse --short HEAD)
+RELEASE_VERSION=$(git rev-parse HEAD)
 
 echo "Uploading sourcemaps to Datadog EU for version [$RELEASE_VERSION] with minified path prefix [$MINIFIED_PATH_PREFIX]"
 
