@@ -35,25 +35,23 @@ app.use("/api", api);
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
 
-logger.info("Eval Job Creator started", evalJobCreator?.isRunning());
+logger.info(`Eval Job Creator started: ${evalJobCreator?.isRunning()}`);
 
-logger.info("Eval Job Executor started", evalJobExecutor?.isRunning());
+logger.info(`Eval Job Executor started: ${evalJobExecutor?.isRunning()}`);
 logger.info(
-  "Batch Export Job Executor started",
-  batchExportJobExecutor?.isRunning()
-);
-logger.info("Repeat Queue Executor started", repeatQueueExecutor?.isRunning());
-logger.info(
-  "Flush Ingestion Queue Executor started",
-  ingestionQueueExecutor?.isRunning()
+  `Batch Export Job Executor started: ${batchExportJobExecutor?.isRunning()}`
 );
 logger.info(
-  "Legacy Ingestion Executor started",
-  legacyIngestionExecutor?.isRunning()
+  `Repeat Queue Executor started: ${repeatQueueExecutor?.isRunning()}`
 );
 logger.info(
-  "Cloud Usage Metering Job Executor started",
-  cloudUsageMeteringJobExecutor?.isRunning()
+  `Flush Ingestion Queue Executor started: ${ingestionQueueExecutor?.isRunning()}`
+);
+logger.info(
+  `Legacy Ingestion Executor started: ${legacyIngestionExecutor?.isRunning()}`
+);
+logger.info(
+  `Cloud Usage Metering Job Executor started: ${cloudUsageMeteringJobExecutor?.isRunning()}`
 );
 
 evalJobCreator?.on("failed", logQueueWorkerError);
