@@ -735,8 +735,8 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0
       tsx:
-        specifier: ^4.18.0
-        version: 4.18.0
+        specifier: ^4.19.0
+        version: 4.19.0
       typescript:
         specifier: ^5.4.5
         version: 5.4.5
@@ -919,8 +919,8 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0(typescript@5.4.5)
       tsx:
-        specifier: ^4.18.0
-        version: 4.18.0
+        specifier: ^4.19.0
+        version: 4.19.0
       typescript:
         specifier: ^5.4.5
         version: 5.4.5
@@ -7240,9 +7240,6 @@ packages:
     resolution: {integrity: sha512-g0QYk1dZBxGwk+Ngc+ltRH2IBp2f7zBkBMBJZCDerh6EhlhSR6+9irMCuT/09zD6qkarHUSn529sK/yL4S27mg==}
     engines: {node: '>= 0.4'}
 
-  get-tsconfig@4.7.6:
-    resolution: {integrity: sha512-ZAqrLlu18NbDdRaHq+AKXzAmqIUPswPWKUchfytdAjiRFnCe5ojG2bstg6mRiZabkKfCoL/e98pbBELIV/YCeA==}
-
   get-tsconfig@4.8.0:
     resolution: {integrity: sha512-Pgba6TExTZ0FJAn1qkJAjIeKoDJ3CsI2ChuLohJnZl/tTU8MVrq3b+2t5UOPfRa4RMsorClBjJALkJUMjG1PAw==}
 
@@ -10899,8 +10896,8 @@ packages:
     peerDependencies:
       typescript: '>=2.8.0 || >= 3.2.0-dev || >= 3.3.0-dev || >= 3.4.0-dev || >= 3.5.0-dev || >= 3.6.0-dev || >= 3.6.0-beta || >= 3.7.0-dev || >= 3.7.0-beta'
 
-  tsx@4.18.0:
-    resolution: {integrity: sha512-a1jaKBSVQkd6yEc1/NI7G6yHFfefIcuf3QJST7ZEyn4oQnxLYrZR5uZAM8UrwUa3Ge8suiZHcNS1gNrEvmobqg==}
+  tsx@4.19.0:
+    resolution: {integrity: sha512-bV30kM7bsLZKZIOCHeMNVMJ32/LuJzLVajkQI/qf92J2Qr08ueLQvW00PUZGiuLPP760UINwupgUj8qrSCPUKg==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -19119,7 +19116,7 @@ snapshots:
       eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
       fast-glob: 3.3.2
-      get-tsconfig: 4.7.6
+      get-tsconfig: 4.8.0
       is-core-module: 2.15.1
       is-glob: 4.0.3
     transitivePeerDependencies:
@@ -19136,7 +19133,7 @@ snapshots:
       eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
       fast-glob: 3.3.2
-      get-tsconfig: 4.7.6
+      get-tsconfig: 4.8.0
       is-core-module: 2.15.1
       is-glob: 4.0.3
     transitivePeerDependencies:
@@ -19796,10 +19793,6 @@ snapshots:
       call-bind: 1.0.7
       es-errors: 1.3.0
       get-intrinsic: 1.2.4
-
-  get-tsconfig@4.7.6:
-    dependencies:
-      resolve-pkg-maps: 1.0.0
 
   get-tsconfig@4.8.0:
     dependencies:
@@ -24203,10 +24196,10 @@ snapshots:
       tslib: 1.14.1
       typescript: 5.4.5
 
-  tsx@4.18.0:
+  tsx@4.19.0:
     dependencies:
       esbuild: 0.23.1
-      get-tsconfig: 4.7.6
+      get-tsconfig: 4.8.0
     optionalDependencies:
       fsevents: 2.3.3
 
