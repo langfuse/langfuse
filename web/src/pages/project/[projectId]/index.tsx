@@ -133,8 +133,6 @@ export default function Dashboard() {
         },
       ];
 
-  throw new Error("Test error");
-
   const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
 
   return (

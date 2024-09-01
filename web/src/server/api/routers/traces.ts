@@ -260,6 +260,7 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throw new Error("Test error");
       const trace = await ctx.prisma.trace.findFirstOrThrow({
         where: {
           id: input.traceId,
