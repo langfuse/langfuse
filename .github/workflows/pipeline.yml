@@ -198,7 +198,7 @@ jobs:
 
       - name: Upload worker source maps to Datadog
         run: |
-          ./scripts/upload-sourcemaps-datadog.sh . ./worker worker ./worker/dist
+          ./scripts/upload-sourcemaps-datadog.sh / ./worker worker ./worker/dist
         env:
           DATADOG_API_KEY_EU: ${{ secrets.DATADOG_API_KEY_EU }}
           DATADOG_API_KEY_US: ${{ secrets.DATADOG_API_KEY_US }}
