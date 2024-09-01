@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - datadog-sourcemaps
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
