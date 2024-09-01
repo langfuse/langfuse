@@ -26,8 +26,6 @@ DIST_PATH=$5
 
 echo "Uploading sourcemaps to Datadog EU for version [$RELEASE_VERSION] with minified path prefix [$MINIFIED_PATH_PREFIX]"
 
-# Set the Datadog site for EU
-DATADOG_SITE=https://app.datadoghq.eu
 
 # Upload to Datadog EU for viewing unminified sources in Datadog. Datadog does not appear to support import from an S3 URL
 # Because this command runs from a Git repo context, Datadog should also automatically link to our project from the UI.
@@ -35,7 +33,7 @@ DATADOG_SITE=https://app.datadoghq.eu
 # Reference: https://github.com/DataDog/datadog-ci/tree/master/src/commands/sourcemaps#commands
 # `release-version` must match the version in initErrorReporter.ts and performance.ts
 # project-path is the prefix before src in the map: webpack:///./src/bricks/registry.ts
-DATADOG_API_KEY=$DATADOG_API_KEY_EU DATADOG_SITE=$DATADOG_SITE npx --yes @datadog/datadog-ci sourcemaps upload "$DIST_PATH" \
+DATADOG_API_KEY=$DATADOG_API_KEY_EU DATADOG_SITE=datadoghq.eu npx --yes @datadog/datadog-ci sourcemaps upload "$DIST_PATH" \
   --service="$SERVICE" \
   --release-version="$RELEASE_VERSION" \
   --minified-path-prefix="$MINIFIED_PATH_PREFIX" \
@@ -43,8 +41,6 @@ DATADOG_API_KEY=$DATADOG_API_KEY_EU DATADOG_SITE=$DATADOG_SITE npx --yes @datado
 
 echo "Uploading sourcemaps to Datadog US for version [$RELEASE_VERSION] with minified path prefix [$MINIFIED_PATH_PREFIX]"
 
-# Set the Datadog site for US
-DATADOG_SITE=https://app.datadoghq.com
 
 # Upload to Datadog US for viewing unminified sources in Datadog. Datadog does not appear to support import from an S3 URL
 # Because this command runs from a Git repo context, Datadog should also automatically link to our project from the UI.
@@ -52,7 +48,7 @@ DATADOG_SITE=https://app.datadoghq.com
 # Reference: https://github.com/DataDog/datadog-ci/tree/master/src/commands/sourcemaps#commands
 # `release-version` must match the version in initErrorReporter.ts and performance.ts
 # project-path is the prefix before src in the map: webpack:///./src/bricks/registry.ts
-DATADOG_API_KEY=$DATADOG_API_KEY_US DATADOG_SITE=$DATADOG_SITE npx --yes @datadog/datadog-ci sourcemaps upload "$DIST_PATH" \
+DATADOG_API_KEY=$DATADOG_API_KEY_US npx --yes @datadog/datadog-ci sourcemaps upload "$DIST_PATH" \
   --service="$SERVICE" \
   --release-version="$RELEASE_VERSION" \
   --minified-path-prefix="$MINIFIED_PATH_PREFIX" \
