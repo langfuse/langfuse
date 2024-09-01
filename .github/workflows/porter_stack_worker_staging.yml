@@ -11,7 +11,10 @@ jobs:
         uses: actions/checkout@v3
       - name: Set Github tag
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "DD_GIT_REPOSITORY_URL=$(git config --get remote.origin.url)" >> $GITHUB_OUTPUT
+          echo "DD_GIT_COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
       - name: Setup porter
         uses: porter-dev/setup-porter@v0.1.0
       - name: Deploy stack
@@ -27,3 +30,5 @@ jobs:
           PORTER_STACK_NAME: worker
           PORTER_TAG: ${{ steps.vars.outputs.sha_short }}
           PORTER_TOKEN: ${{ secrets.PORTER_STACK_12565_4037 }}
+          PORTER_DD_GIT_REPOSITORY_URL: ${{ steps.vars.outputs.DD_GIT_REPOSITORY_URL }}
+          PORTER_DD_GIT_COMMIT_SHA: ${{ steps.vars.outputs.DD_GIT_COMMIT_SHA }}
