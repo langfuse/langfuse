@@ -26,22 +26,25 @@ DIST_PATH=$5
 
 echo "Uploading sourcemaps to Datadog EU for version [$RELEASE_VERSION] with minified path prefix [$MINIFIED_PATH_PREFIX]"
 
+# Set the Datadog site for EU
+DATADOG_SITE=https://app.datadoghq.eu
+
 # Upload to Datadog EU for viewing unminified sources in Datadog. Datadog does not appear to support import from an S3 URL
 # Because this command runs from a Git repo context, Datadog should also automatically link to our project from the UI.
 # Reference: https://docs.datadoghq.eu/real_user_monitoring/guide/upload-javascript-source-maps/?tab=webpackjs
 # Reference: https://github.com/DataDog/datadog-ci/tree/master/src/commands/sourcemaps#commands
 # `release-version` must match the version in initErrorReporter.ts and performance.ts
 # project-path is the prefix before src in the map: webpack:///./src/bricks/registry.ts
-DATADOG_API_KEY=$DATADOG_API_KEY_EU npx --yes @datadog/datadog-ci sourcemaps upload "$DIST_PATH" \
+DATADOG_API_KEY=$DATADOG_API_KEY_EU DATADOG_SITE=$DATADOG_SITE npx --yes @datadog/datadog-ci sourcemaps upload "$DIST_PATH" \
   --service="$SERVICE" \
   --release-version="$RELEASE_VERSION" \
   --minified-path-prefix="$MINIFIED_PATH_PREFIX" \
   --project-path="$PROJECT_PATH"
 
-# Ensure the DATADOG_API_KEY_US environment variable is set
-
-
 echo "Uploading sourcemaps to Datadog US for version [$RELEASE_VERSION] with minified path prefix [$MINIFIED_PATH_PREFIX]"
+
+# Set the Datadog site for US
+DATADOG_SITE=https://app.datadoghq.com
 
 # Upload to Datadog US for viewing unminified sources in Datadog. Datadog does not appear to support import from an S3 URL
 # Because this command runs from a Git repo context, Datadog should also automatically link to our project from the UI.
@@ -49,7 +52,7 @@ echo "Uploading sourcemaps to Datadog US for version [$RELEASE_VERSION] with min
 # Reference: https://github.com/DataDog/datadog-ci/tree/master/src/commands/sourcemaps#commands
 # `release-version` must match the version in initErrorReporter.ts and performance.ts
 # project-path is the prefix before src in the map: webpack:///./src/bricks/registry.ts
-DATADOG_API_KEY=$DATADOG_API_KEY_US npx --yes @datadog/datadog-ci sourcemaps upload "$DIST_PATH" \
+DATADOG_API_KEY=$DATADOG_API_KEY_US DATADOG_SITE=$DATADOG_SITE npx --yes @datadog/datadog-ci sourcemaps upload "$DIST_PATH" \
   --service="$SERVICE" \
   --release-version="$RELEASE_VERSION" \
   --minified-path-prefix="$MINIFIED_PATH_PREFIX" \
