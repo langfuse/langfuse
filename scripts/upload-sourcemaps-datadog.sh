@@ -38,7 +38,6 @@ DATADOG_API_KEY=$DATADOG_API_KEY_EU DATADOG_SITE=datadoghq.eu npx --yes @datadog
   --service="$SERVICE" \
   --release-version="$RELEASE_VERSION" \
   --minified-path-prefix="$MINIFIED_PATH_PREFIX" \
-  --project-path="$PROJECT_PATH" \
   --repository-url=https://github.com/langfuse/langfuse
 
 echo "Uploading sourcemaps to Datadog US for version [$RELEASE_VERSION] with minified path prefix [$MINIFIED_PATH_PREFIX]"
@@ -53,5 +52,4 @@ DATADOG_API_KEY=$DATADOG_API_KEY_US npx --yes @datadog/datadog-ci sourcemaps upl
   --service="$SERVICE" \
   --release-version="$RELEASE_VERSION" \
   --minified-path-prefix="$MINIFIED_PATH_PREFIX" \
-  --project-path="$PROJECT_PATH" \
   --repository-url=https://github.com/langfuse/langfuse
