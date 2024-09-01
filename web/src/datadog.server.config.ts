@@ -15,11 +15,11 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
 
   opentelemetry.context.setGlobalContextManager(contextManager);
 
-  console.log("version:", process.env.PORTER_TAG);
+  console.log("version:", process.env.VERSION);
 
   const tracer = dd.init({
     runtimeMetrics: true,
-    version: process.env.PORTER_TAG,
+    version: process.env.VERSION,
   });
 
   const { TracerProvider } = tracer;
