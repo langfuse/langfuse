@@ -13,19 +13,20 @@ if [ -z "$DATADOG_API_KEY_US" ]; then
 fi
 
 # Check if all required arguments are provided
-if [ "$#" -ne 5 ]; then
-  echo "Usage: $0 <minified-path-prefix> <project-path> <service> <release-version> <dist-path>"
+if [ "$#" -ne 4 ]; then
+  echo "Usage: $0 <minified-path-prefix> <project-path> <service> <dist-path>"
   exit 1
 fi
 
 MINIFIED_PATH_PREFIX=$1
 PROJECT_PATH=$2
 SERVICE=$3
-RELEASE_VERSION=$4
-DIST_PATH=$5
+DIST_PATH=$4
+
+# Get the short SHA of the current commit. Same release number as Porter
+RELEASE_VERSION=$(git rev-parse --short HEAD)
 
 echo "Uploading sourcemaps to Datadog EU for version [$RELEASE_VERSION] with minified path prefix [$MINIFIED_PATH_PREFIX]"
-
 
 # Upload to Datadog EU for viewing unminified sources in Datadog. Datadog does not appear to support import from an S3 URL
 # Because this command runs from a Git repo context, Datadog should also automatically link to our project from the UI.
@@ -40,7 +41,6 @@ DATADOG_API_KEY=$DATADOG_API_KEY_EU DATADOG_SITE=datadoghq.eu npx --yes @datadog
   --project-path="$PROJECT_PATH"
 
 echo "Uploading sourcemaps to Datadog US for version [$RELEASE_VERSION] with minified path prefix [$MINIFIED_PATH_PREFIX]"
-
 
 # Upload to Datadog US for viewing unminified sources in Datadog. Datadog does not appear to support import from an S3 URL
 # Because this command runs from a Git repo context, Datadog should also automatically link to our project from the UI.

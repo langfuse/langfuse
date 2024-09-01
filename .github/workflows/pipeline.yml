@@ -120,7 +120,7 @@ jobs:
       - name: Upload web source maps to Datadog
         run: |
           sha_short=$(git rev-parse --short HEAD)
-          ./scripts/upload-sourcemaps-datadog.sh /static ./web web $sha_short ./web/.next
+          ./scripts/upload-sourcemaps-datadog.sh /static ./web web ./web/.next
         env:
           DATADOG_API_KEY_EU: ${{ secrets.DATADOG_API_KEY_EU }}
           DATADOG_API_KEY_US: ${{ secrets.DATADOG_API_KEY_US }}
@@ -199,9 +199,7 @@ jobs:
 
       - name: Upload worker source maps to Datadog
         run: |
-          sha_short=$(git rev-parse --short HEAD)
-          chmod +x ./scripts/upload-sourcemaps-datadog.sh
-          ./scripts/upload-sourcemaps-datadog.sh . ./worker worker $sha_short ./worker/dist
+          ./scripts/upload-sourcemaps-datadog.sh . ./worker worker ./worker/dist
         env:
           DATADOG_API_KEY_EU: ${{ secrets.DATADOG_API_KEY_EU }}
           DATADOG_API_KEY_US: ${{ secrets.DATADOG_API_KEY_US }}
