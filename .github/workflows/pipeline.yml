@@ -122,9 +122,7 @@ jobs:
           sha_short=$(git rev-parse --short HEAD)
           ./scripts/upload-sourcemaps-datadog.sh /static/ ./web web $sha_short ./web/.next
         env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
 
       - name: Start Langfuse
         run: (pnpm run start&)
