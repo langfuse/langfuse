@@ -91,7 +91,7 @@ export const traceException = (
           : "Error",
     stack:
       ex instanceof Error
-        ? JSON.stringify(ex.stack)
+        ? ex.stack
         : typeof ex === "object" && ex !== null && "stack" in ex
           ? JSON.stringify(ex.stack)
           : undefined,

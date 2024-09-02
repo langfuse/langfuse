@@ -18,6 +18,7 @@ opentelemetry.context.setGlobalContextManager(contextManager);
 const { TracerProvider } = tracer.init({
   profiling: false,
   runtimeMetrics: true,
+  version: process.env.PORTER_IMAGE_TAG,
 });
 
 const provider = new TracerProvider();
