@@ -317,6 +317,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Set NEXT_PUBLIC_BUILD_ID
+        run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
       - name: Log in to the GitHub Container registry
         uses: docker/login-action@v2
         with:
