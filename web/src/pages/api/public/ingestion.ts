@@ -170,7 +170,7 @@ export default async function handler(
           );
         } catch (e: unknown) {
           console.warn(
-            "Failed to add message to queue. Falling back to synchronous ingestion",
+            "Failed to add batch to queue, falling back to sync processing",
             e,
           );
           addToQueueFailed = true;
