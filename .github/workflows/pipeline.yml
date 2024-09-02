@@ -47,8 +47,6 @@ jobs:
         run: |
           docker compose -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
-        env:
-          NEXT_PUBLIC_BUILD_ID: ${{ env.NEXT_PUBLIC_BUILD_ID }}
 
       - name: Check server health
         run: |
