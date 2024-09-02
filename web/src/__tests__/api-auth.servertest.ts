@@ -1,14 +1,12 @@
 import {
   getDisplaySecretKey,
   hashSecretKey,
+  OrgEnrichedApiKey,
 } from "@langfuse/shared/src/server";
-import {
-  ApiAuthService,
-  ApiKeyZod,
-} from "@/src/features/public-api/server/apiAuth";
-import { type PrismaClient, prisma } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { Redis } from "ioredis";
 import { env } from "@/src/env.mjs";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 describe("Authenticate API calls", () => {
   beforeEach(async () => {
@@ -66,6 +64,118 @@ describe("Authenticate API calls", () => {
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
       );
       expect(auth2.validKey).toBe(true);
+    });
+
+    it("should create new api key with stripe data and succeed with new key", async () => {
+      await createAPIKey();
+
+      await prisma.organization.update({
+        where: {
+          id: "seed-org-id",
+        },
+        data: {
+          cloudConfig: {
+            stripe: {
+              customerId: "cus_test123",
+              activeSubscriptionId: "sub_test123",
+              activeProductId: "prod_test123",
+            },
+          },
+        },
+      });
+
+      await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+      expect(auth.validKey).toBe(true);
+
+      if (auth.validKey) {
+        expect(auth.scope.orgId).toBe("seed-org-id");
+        expect(auth.scope.plan).toBe("cloud:hobby");
+        expect(auth.scope.rateLimitOverrides).toEqual([]);
+      }
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
+      await prisma.organization.update({
+        where: {
+          id: "seed-org-id",
+        },
+        data: {
+          cloudConfig: Prisma.JsonNull,
+        },
+      });
+    });
+
+    it("should create new api key with custom rate limits and succeed with new key", async () => {
+      await createAPIKey();
+
+      await prisma.organization.update({
+        where: {
+          id: "seed-org-id",
+        },
+        data: {
+          cloudConfig: {
+            rateLimitOverrides: [
+              {
+                resource: "ingestion",
+                points: 100,
+                durationInSec: 60,
+              },
+            ],
+          },
+        },
+      });
+
+      await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+      expect(auth.validKey).toBe(true);
+
+      if (auth.validKey) {
+        expect(auth.scope.orgId).toBe("seed-org-id");
+        expect(auth.scope.plan).toBe("cloud:hobby");
+        expect(auth.scope.rateLimitOverrides).toEqual([
+          {
+            resource: "ingestion",
+            points: 100,
+            durationInSec: 60,
+          },
+        ]);
+      }
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
+      await prisma.organization.update({
+        where: {
+          id: "seed-org-id",
+        },
+        data: {
+          cloudConfig: Prisma.JsonNull,
+        },
+      });
     });
 
     it("should fail on wrong api key with new key", async () => {
@@ -149,6 +259,25 @@ describe("Authenticate API calls", () => {
     it("should create new api key and read from cache", async () => {
       await createAPIKey();
 
+      // update the organization with a cloud config
+      await prisma.organization.update({
+        where: { id: "seed-org-id" },
+        data: {
+          cloudConfig: {
+            rateLimitOverrides: [
+              {
+                resource: "public-api",
+                points: 1000,
+                durationInSec: 60,
+              },
+              {
+                resource: "ingestion",
+              },
+            ],
+          },
+        },
+      });
+
       // first auth will generate the fast hashed api key
       await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
@@ -177,11 +306,30 @@ describe("Authenticate API calls", () => {
 
       expect(cachedKey2).not.toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey2!));
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey2!));
 
       expect(parsed).toEqual({
         ...apiKey,
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
+        rateLimitOverrides: [
+          {
+            resource: "public-api",
+            points: 1000,
+            durationInSec: 60,
+          },
+          {
+            resource: "ingestion",
+          },
+        ],
         createdAt: apiKey?.createdAt.toISOString(),
+      });
+
+      await prisma.organization.update({
+        where: { id: "seed-org-id" },
+        data: {
+          cloudConfig: Prisma.JsonNull,
+        },
       });
     });
 
@@ -275,7 +423,7 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
 
       expect(parsed).toEqual({
         id: expect.any(String),
@@ -288,6 +436,8 @@ describe("Authenticate API calls", () => {
         lastUsedAt: null,
         expiresAt: null,
         projectId: expect.any(String),
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
       });
     });
 
@@ -372,10 +522,12 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      const parsed = ApiKeyZod.parse(JSON.parse(cachedKey!));
+      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
 
       expect(parsed).toEqual({
         ...apiKey,
+        orgId: "seed-org-id",
+        plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
       });
 
@@ -393,6 +545,167 @@ describe("Authenticate API calls", () => {
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(deletedCachedKey).toBeNull();
+    });
+  });
+
+  describe("invalidates api keys in redis", () => {
+    const redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
+      maxRetriesPerRequest: null,
+    });
+
+    beforeEach(async () => {
+      // if we do not remove the key, it will remain in the cache and
+      // calling the test twice will not add the key to the cache
+
+      const keys = await redis.keys("api-key*");
+      console.log("before each deleting keys", keys);
+      if (keys.length > 0) {
+        console.log("before each deleting keys. actually deleting", keys);
+        await redis.del(keys);
+      }
+    });
+
+    afterEach(async () => {
+      // if we do not remove the key, it will remain in the cache and
+      // calling the test twice will not add the key to the cache
+
+      const keys = await redis.keys("api-key*");
+      console.log("after each deleting keys", keys);
+      if (keys.length > 0) {
+        await redis.del(keys);
+      }
+    });
+
+    afterAll(async () => {
+      redis.disconnect();
+    });
+
+    it("should invalidate organization API keys in redis", async () => {
+      await createAPIKey();
+
+      // put keys into cache
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+
+      const cachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(cachedKey).not.toBeNull();
+
+      await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
+        "seed-org-id",
+      );
+
+      const invalidatedCachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(invalidatedCachedKey).toBeNull();
+    });
+
+    it("if no keys in redis, invalidating org keys should do nothing", async () => {
+      await createAPIKey();
+
+      await prisma.apiKey.update({
+        where: { publicKey: "pk-lf-1234567890" },
+        data: {
+          fastHashedSecretKey: Math.random().toString(36).substring(2, 15),
+        },
+      });
+
+      await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
+        "seed-org-id",
+      );
+
+      const keys = await redis.keys("api-key*");
+      expect(keys.length).toBe(0);
+    });
+
+    it("if no keys in redis, invalidating org keys without fast hash should do nothing", async () => {
+      await createAPIKey();
+
+      await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
+        "seed-org-id",
+      );
+
+      const keys = await redis.keys("api-key*");
+      expect(keys.length).toBe(0);
+    });
+
+    it("should invalidate project API keys in redis", async () => {
+      await createAPIKey();
+
+      // put keys into cache
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
+      );
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: "pk-lf-1234567890" },
+      });
+      expect(apiKey).not.toBeNull();
+
+      const cachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(cachedKey).not.toBeNull();
+
+      await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      );
+
+      const invalidatedCachedKey = await redis.get(
+        `api-key:${apiKey?.fastHashedSecretKey}`,
+      );
+      expect(invalidatedCachedKey).toBeNull();
+    });
+
+    it("if no keys in redis, invalidating project keys should do nothing", async () => {
+      await createAPIKey();
+
+      await prisma.apiKey.update({
+        where: { publicKey: "pk-lf-1234567890" },
+        data: {
+          fastHashedSecretKey: Math.random().toString(36).substring(2, 15),
+        },
+      });
+
+      await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      );
+
+      const keys = await redis.keys("api-key*");
+      expect(keys.length).toBe(0);
+    });
+
+    it("if no keys in redis, invalidating project keys without fast hash should do nothing", async () => {
+      await createAPIKey();
+
+      await prisma.apiKey.update({
+        where: { publicKey: "pk-lf-1234567890" },
+        data: {
+          fastHashedSecretKey: Math.random().toString(36).substring(2, 15),
+        },
+      });
+
+      await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      );
+
+      const keys = await redis.keys("api-key*");
+      expect(keys.length).toBe(0);
     });
   });
 

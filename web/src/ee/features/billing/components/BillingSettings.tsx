@@ -16,10 +16,7 @@ import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
-import {
-  type Plan,
-  planLabels,
-} from "@/src/features/entitlements/constants/plans";
+import { type Plan, planLabels } from "@langfuse/shared";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 import { useRouter } from "next/router";
 import {

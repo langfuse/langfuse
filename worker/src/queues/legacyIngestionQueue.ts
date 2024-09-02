@@ -98,4 +98,7 @@ const createLegacyIngestionExecutor = () => {
   return null;
 };
 
-export const legacyIngestionExecutor = createLegacyIngestionExecutor();
+export const legacyIngestionExecutor =
+  env.QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED === "true"
+    ? createLegacyIngestionExecutor()
+    : null;
