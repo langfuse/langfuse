@@ -61,11 +61,6 @@ export const commentsRouter = createTRPCRouter({
           scope: "comments:CUD",
         });
 
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Comments are disabled.",
-        });
-
         validateCommentReferenceObject({ ctx, input });
 
         const comment = await ctx.prisma.comment.create({
