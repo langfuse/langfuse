@@ -52,13 +52,15 @@ const PromptHistoryTraceNode = (props: {
           : props.setCurrentPromptVersion(prompt.version);
       }}
     >
-      <div className="grid grid-cols-[auto,minmax(100px,1fr)] items-center gap-2">
-        <div className="grid h-7 grid-cols-[auto,1fr] items-center">
-          <span className="h-6 rounded-sm bg-input p-1 text-xs">
+      <div className="grid grid-cols-[auto,minmax(100px,1fr)] items-start gap-2">
+        <div
+          className={`grid grid-cols-[auto,1fr] items-start ${isHovered ? "h-full" : "h-7"}`}
+        >
+          <span className="flex h-6 text-nowrap rounded-sm bg-input p-1 text-xs">
             Version {prompt.version}
           </span>
           {Boolean(prompt.labels.length) && (
-            <div className="ml-2 h-full space-x-1 space-y-0.5 overflow-auto">
+            <div className="ml-2 flex h-full flex-wrap gap-1 overflow-auto">
               {badges}
             </div>
           )}
