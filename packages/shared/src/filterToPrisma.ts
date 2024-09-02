@@ -11,6 +11,7 @@ const operatorReplacements = {
   "does not contain": "NOT ILIKE",
   "starts with": "ILIKE",
   "ends with": "ILIKE",
+  "regex with": "~*",
 };
 
 const arrayOperatorReplacements = {

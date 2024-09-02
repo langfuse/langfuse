@@ -2,7 +2,14 @@ import { z } from "zod";
 
 export const filterOperators = {
   datetime: [">", "<", ">=", "<="],
-  string: ["=", "contains", "does not contain", "starts with", "ends with"],
+  string: [
+    "=",
+    "contains",
+    "does not contain",
+    "starts with",
+    "ends with",
+    "regex with",
+  ],
   stringOptions: ["any of", "none of"],
   arrayOptions: ["any of", "none of", "all of"],
   number: ["=", ">", "<", ">=", "<="],
@@ -12,6 +19,7 @@ export const filterOperators = {
     "does not contain",
     "starts with",
     "ends with",
+    "regex with",
   ],
   numberObject: ["=", ">", "<", ">=", "<="],
   boolean: ["=", "<>"],
