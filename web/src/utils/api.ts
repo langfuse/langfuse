@@ -31,7 +31,8 @@ const getBaseUrl = () => {
   return `http://localhost:${process.env.PORT ?? 3000}`; // dev SSR should use localhost
 };
 
-let buildVersion: string | null = null;
+// global build id used to compare versions to show refresh toast on stale cache hit serving deprecated files
+let buildId: string | null = null;
 
 const CLIENT_STALE_CACHE_CODES = [404, 400];
 
@@ -42,9 +43,9 @@ const handleTrpcError = (error: unknown) => {
 
     if (CLIENT_STALE_CACHE_CODES.includes(httpStatus)) {
       if (
-        !!buildVersion &&
+        !!buildId &&
         !!process.env.NEXT_PUBLIC_BUILD_ID &&
-        buildVersion !== process.env.NEXT_PUBLIC_BUILD_ID
+        buildId !== process.env.NEXT_PUBLIC_BUILD_ID
       ) {
         showVersionUpdateToast();
         return;
@@ -55,8 +56,8 @@ const handleTrpcError = (error: unknown) => {
   trpcErrorToast(error);
 };
 
-// onError update build version
-const versionLink = (): TRPCLink<AppRouter> => () => {
+// onError update build id to compare versions
+const buildIdLink = (): TRPCLink<AppRouter> => () => {
   return ({ next, op }) => {
     return observable((observer) => {
       const unsubscribe = next(op).subscribe({
@@ -69,7 +70,7 @@ const versionLink = (): TRPCLink<AppRouter> => () => {
             err.meta.response &&
             err.meta.response instanceof Response
           ) {
-            buildVersion = err.meta.response.headers.get("x-build-version");
+            buildId = err.meta.response.headers.get("x-build-id");
           }
           observer.error(err);
         },
@@ -99,7 +100,7 @@ export const api = createTRPCNext<AppRouter>({
        * @see https://trpc.io/docs/links
        */
       links: [
-        versionLink(),
+        buildIdLink(),
         loggerLink({
           enabled: (opts) =>
             process.env.NODE_ENV === "development" ||

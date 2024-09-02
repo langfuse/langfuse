@@ -17,7 +17,7 @@ export default createNextApiHandler({
   responseMeta() {
     return {
       headers: {
-        "x-build-version": env.NEXT_PUBLIC_BUILD_ID,
+        "x-build-id": env.NEXT_PUBLIC_BUILD_ID,
       },
     };
   },
