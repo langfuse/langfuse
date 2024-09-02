@@ -32,7 +32,7 @@ type JumpToPlaygroundButtonProps = (
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
-  variant?: "outline";
+  variant?: "outline" | "secondary";
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
