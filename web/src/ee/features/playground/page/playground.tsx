@@ -13,8 +13,8 @@ export default function Playground() {
       </div>
       <div className="h-full basis-1/4 pr-2">
         <div className="flex h-full flex-col">
-          <div className="basis-[55%] ">
-            <ModelParameters {...playgroundContext} />
+          <div className="basis-[55%]">
+            <ModelParameters {...playgroundContext} evalModelsOnly={false} />
           </div>
           <div className="mt-4 basis-[45%] overflow-auto">
             <Variables />

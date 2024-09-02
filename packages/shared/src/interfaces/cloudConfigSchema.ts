@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CloudConfigRateLimit } from "./rate-limits";
 
 export const CloudConfigSchema = z.object({
   plan: z.enum(["Hobby", "Pro", "Team", "Enterprise"]).optional(),
@@ -13,5 +14,9 @@ export const CloudConfigSchema = z.object({
       activeProductId: z.string().optional(),
     })
     .optional(),
+
+  // custom rate limits for an organization
+  rateLimitOverrides: CloudConfigRateLimit.optional(),
 });
+
 export type CloudConfigSchema = z.infer<typeof CloudConfigSchema>;
