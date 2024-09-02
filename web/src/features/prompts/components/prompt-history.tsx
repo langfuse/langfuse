@@ -6,7 +6,8 @@ import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPro
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterOutputs } from "@/src/utils/api";
-import { Pencil } from "lucide-react";
+import { Pencil, PencilOff } from "lucide-react";
+import Link from "next/link";
 import { type NextRouter, useRouter } from "next/router";
 import { useState } from "react";
 
@@ -21,8 +22,6 @@ const PromptHistoryTraceNode = (props: {
 }) => {
   const capture = usePostHogClientCapture();
   const [isHovered, setIsHovered] = useState(false);
-  const [isNavigationLoading, setIsNavigationLoading] = useState(false);
-  const router = useRouter();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "prompts:CUD",
@@ -76,19 +75,26 @@ const PromptHistoryTraceNode = (props: {
               variant="outline"
               size="icon"
               className="h-7 w-7 px-0"
-              loading={isNavigationLoading}
-              disabled={!hasAccess}
               onClick={() => {
                 capture("prompts:update_form_open");
-                setIsNavigationLoading(true);
-                router.push(
-                  `/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`,
-                );
               }}
             >
-              <Pencil className="h-4 w-4" />
+              <Link
+                href={`/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Link>
             </Button>
-          ) : null}
+          ) : (
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7 px-0"
+              disabled
+            >
+              <PencilOff className="h-4 w-4" />
+            </Button>
+          )}
           <DeletePromptVersion
             promptVersionId={prompt.id}
             version={prompt.version}
