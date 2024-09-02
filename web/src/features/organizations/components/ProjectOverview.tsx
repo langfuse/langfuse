@@ -2,6 +2,7 @@ import { Building2, LifeBuoy, LockIcon, Settings, Users } from "lucide-react";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -23,10 +24,7 @@ import {
   createOrganizationRoute,
   createProjectRoute,
 } from "@/src/features/setup/setupRoutes";
-import {
-  isCloudPlan,
-  planLabels,
-} from "@/src/features/entitlements/constants/plans";
+import { isCloudPlan, planLabels } from "@langfuse/shared";
 
 const SingleOrganizationProjectOverview = ({
   orgId,
@@ -251,9 +249,11 @@ const Onboarding = () => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {canCreateOrgs
-          ? "Create an organization to get started. Alternatively, ask your organization admin to invite you."
-          : "You need to get invited to an organization to get started with Langfuse."}
+        <CardDescription>
+          {canCreateOrgs
+            ? "Create an organization to get started. Alternatively, ask your organization admin to invite you."
+            : "You need to get invited to an organization to get started with Langfuse."}
+        </CardDescription>
       </CardContent>
       <CardFooter className="flex gap-4">
         {canCreateOrgs && (

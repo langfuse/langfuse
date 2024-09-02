@@ -75,6 +75,9 @@ const EnvSchema = z.object({
     .positive()
     .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
+  QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
 });
 
 export const env = EnvSchema.parse(process.env);

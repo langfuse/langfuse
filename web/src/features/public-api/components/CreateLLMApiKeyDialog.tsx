@@ -171,7 +171,7 @@ export function CreateLLMApiKeyDialog({
           Add new LLM API key
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90%]  min-w-[40vw] overflow-auto">
+      <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
         <DialogHeader>
           <DialogTitle>Add new LLM API key</DialogTitle>
         </DialogHeader>
@@ -246,16 +246,24 @@ export function CreateLLMApiKeyDialog({
                   <FormLabel>API Base URL</FormLabel>
                   <FormDescription>
                     Leave blank to use the default base URL for the given LLM
-                    adapter.
+                    adapter.{" "}
+                    {currentAdapter === LLMAdapter.OpenAI && (
+                      <span>OpenAI default: https://api.openai.com/v1</span>
+                    )}
+                    {currentAdapter === LLMAdapter.Azure && (
+                      <span>
+                        Please add the base URL in the following format (or
+                        compatible API):
+                        https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
+                      </span>
+                    )}
+                    {currentAdapter === LLMAdapter.Anthropic && (
+                      <span>
+                        Anthropic default: https://api.anthropic.com (excluding
+                        /v1/messages)
+                      </span>
+                    )}
                   </FormDescription>
-
-                  {currentAdapter === LLMAdapter.Azure && (
-                    <FormDescription className="text-yellow-700">
-                      Please add the base URL in the following format (or
-                      compatible API):
-                      https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
-                    </FormDescription>
-                  )}
 
                   <FormControl>
                     <Input {...field} placeholder="default" />
@@ -298,7 +306,7 @@ export function CreateLLMApiKeyDialog({
                         available in Langfuse features.
                       </FormDescription>
                       {currentAdapter === LLMAdapter.Azure && (
-                        <FormDescription className="text-yellow-700">
+                        <FormDescription className="text-dark-yellow">
                           Azure LLM adapter does not support default models.
                           Please add a custom model with your deployment name.
                         </FormDescription>
@@ -334,7 +342,7 @@ export function CreateLLMApiKeyDialog({
                     Custom model names accepted by given endpoint.
                   </FormDescription>
                   {currentAdapter === LLMAdapter.Azure && (
-                    <FormDescription className="text-yellow-700">
+                    <FormDescription className="text-dark-yellow">
                       {
                         "For Azure, the model name should be the same as the deployment name in Azure."
                       }
