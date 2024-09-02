@@ -40,10 +40,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Set NEXT_PUBLIC_BUILD_ID
+        run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
       - name: Build and run both images from compose
         run: |
           docker compose -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
+        env:
+          NEXT_PUBLIC_BUILD_ID: ${{ env.NEXT_PUBLIC_BUILD_ID }}
 
       - name: Check server health
         run: |
