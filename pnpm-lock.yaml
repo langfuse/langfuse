@@ -556,8 +556,8 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       posthog-js:
-        specifier: ^1.154.6
-        version: 1.154.6
+        specifier: ^1.160.1
+        version: 1.160.1
       posthog-node:
         specifier: ^3.6.3
         version: 3.6.3
@@ -9592,8 +9592,8 @@ packages:
   postgres-range@1.1.4:
     resolution: {integrity: sha512-i/hbxIE9803Alj/6ytL7UHQxRvZkI9O4Sy+J3HGc4F4oo/2eQAjTSNJ0bfxyse3bH0nuVesCk+3IRLaMtG3H6w==}
 
-  posthog-js@1.154.6:
-    resolution: {integrity: sha512-8dA9xRex27cIbtSKwxNEvx+khGO+arlwfwyfD/TKuoc0TI5mFAXwtgxE45nnWFnP2hZ4CUCv2WMifLudIqJvcw==}
+  posthog-js@1.160.1:
+    resolution: {integrity: sha512-OfzFSArlkSEUxQzL9+2qulbkJsVFAvpgb7rQaWBGtlY3qPKfdND+ak79rZkVPZHkP0JOh4keAM6xE4ZxLesvXA==}
 
   posthog-node@3.6.3:
     resolution: {integrity: sha512-JB+ei0LkwE+rKHyW5z79Nd1jUaGxU6TvkfjFqY9vQaHxU5aU8dRl0UUaEmZdZbHwjp3WmXCBQQRNyimwbNQfCw==}
@@ -22729,7 +22729,7 @@ snapshots:
 
   postgres-range@1.1.4: {}
 
-  posthog-js@1.154.6:
+  posthog-js@1.160.1:
     dependencies:
       fflate: 0.4.8
       preact: 10.19.7
