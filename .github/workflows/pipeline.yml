@@ -297,7 +297,7 @@ jobs:
 
   push-docker-image:
     needs: all-ci-passed
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/marlies/lfe-1896-nextjs-client-side-refresh-after-redeployment')
     environment: "protected branches"
     runs-on: ubuntu-latest
     permissions:
