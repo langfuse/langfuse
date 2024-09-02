@@ -41,6 +41,9 @@ ARG NEXT_PUBLIC_POSTHOG_KEY
 ARG NEXT_PUBLIC_POSTHOG_HOST
 ARG NEXT_PUBLIC_BUILD_ID
 
+# copy build time ARG to ENV variable 
+ENV NEXT_PUBLIC_BUILD_ID=$NEXT_PUBLIC_BUILD_ID
+
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
