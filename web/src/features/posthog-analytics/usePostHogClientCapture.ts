@@ -95,6 +95,7 @@ const events = {
     "new_from_trace_form_submit",
     "new_from_trace_form_open",
   ],
+  dataset_run: ["delete_form_open"],
   notification: ["click_link", "dismiss_notification"],
   tag: [
     "add_existing_tag",
