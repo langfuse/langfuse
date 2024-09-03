@@ -10,7 +10,6 @@ import {
   recordGauge,
   recordHistogram,
 } from "@langfuse/shared/src/server";
-import { env } from "../env";
 import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
@@ -80,8 +79,7 @@ export const ingestionFlushQueueProcessor: Processor = async (job) => {
             })
             .catch();
         } catch (err) {
-          console.error(`Error processing flush request for ${flushKey}`, err);
-
+          logger.error(`Error processing flush request for ${flushKey}`, err);
           throw err;
         }
       }

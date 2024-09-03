@@ -1,4 +1,4 @@
-import { Processor, Queue, Worker } from "bullmq";
+import { Processor, Queue } from "bullmq";
 import logger from "../logger";
 import {
   redis,
