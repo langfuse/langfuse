@@ -1,7 +1,8 @@
+import { PrismaClient } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
-import { env, type PrismaClient } from "@langfuse/shared";
+import { env } from "../../env";
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);

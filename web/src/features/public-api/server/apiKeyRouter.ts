@@ -6,7 +6,8 @@ import {
 } from "@/src/server/api/trpc";
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { createAndAddApiKeysToDb, redis } from "@langfuse/shared/src/server";
+import { redis } from "@langfuse/shared/src/server";
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 
 export const apiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
