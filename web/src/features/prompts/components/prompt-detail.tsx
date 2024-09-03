@@ -1,4 +1,3 @@
-import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { NumberParam, useQueryParam } from "use-query-params";
@@ -7,10 +6,8 @@ import Header from "@/src/components/layouts/header";
 import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -18,7 +15,6 @@ import { extractVariables } from "@/src/utils/string";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
-import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import Generations from "@/src/components/table/use-cases/generations";
 import {
   Accordion,
@@ -26,14 +22,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { CommentList } from "@/src/features/comments/CommentList";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
-  const capture = usePostHogClientCapture();
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
@@ -107,31 +101,11 @@ export const PromptDetail = () => {
             ]}
             actionButtons={
               <>
-                <SetPromptVersionLabels prompt={prompt} />
-
                 <JumpToPlaygroundButton
                   source="prompt"
                   prompt={prompt}
                   analyticsEventName="prompt_detail:test_in_playground_button_click"
-                />
-
-                <Button
                   variant="outline"
-                  size="icon"
-                  onClick={() => capture("prompts:update_form_open")}
-                  asChild
-                >
-                  <Link
-                    href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Link>
-                </Button>
-
-                <DeletePromptVersion
-                  promptVersionId={prompt.id}
-                  version={prompt.version}
-                  countVersions={promptHistory.data.totalCount}
                 />
                 <DetailPageNav
                   key="nav"
@@ -242,6 +216,7 @@ export const PromptDetail = () => {
                 prompts={promptHistory.data.promptVersions}
                 currentPromptVersion={prompt.version}
                 setCurrentPromptVersion={setCurrentPromptVersion}
+                totalCount={promptHistory.data.totalCount}
               />
             </ScrollArea>
           </div>

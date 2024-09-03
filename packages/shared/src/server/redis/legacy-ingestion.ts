@@ -2,28 +2,32 @@ import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
 import { createNewRedisInstance } from "./redis";
 
-let legacyIngestionQueue: Queue<
-  TQueueJobTypes[QueueName.LegacyIngestionQueue]
-> | null = null;
+export class LegacyIngestionQueue {
+  private static instance: Queue<
+    TQueueJobTypes[QueueName.LegacyIngestionQueue]
+  > | null = null;
 
-export const getLegacyIngestionQueue = () => {
-  if (legacyIngestionQueue) return legacyIngestionQueue;
+  public static getInstance(): Queue<
+    TQueueJobTypes[QueueName.LegacyIngestionQueue]
+  > | null {
+    if (LegacyIngestionQueue.instance) return LegacyIngestionQueue.instance;
 
-  const newRedis = createNewRedisInstance();
+    const newRedis = createNewRedisInstance({ enableOfflineQueue: false });
 
-  legacyIngestionQueue = newRedis
-    ? new Queue<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
-        QueueName.LegacyIngestionQueue,
-        {
-          connection: newRedis,
-          defaultJobOptions: {
-            removeOnComplete: true,
-            removeOnFail: 100,
-            attempts: 5,
+    LegacyIngestionQueue.instance = newRedis
+      ? new Queue<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
+          QueueName.LegacyIngestionQueue,
+          {
+            connection: newRedis,
+            defaultJobOptions: {
+              removeOnComplete: true,
+              removeOnFail: 100,
+              attempts: 5,
+            },
           },
-        }
-      )
-    : null;
+        )
+      : null;
 
-  return legacyIngestionQueue;
-};
+    return LegacyIngestionQueue.instance;
+  }
+}
