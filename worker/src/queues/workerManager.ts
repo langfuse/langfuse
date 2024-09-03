@@ -38,7 +38,6 @@ export class WorkerManager {
     });
     if (!redisInstance) {
       logger.error("Failed to initialize redis connection");
-      // TODO: Currently this is unhandled. Do we want to raise an exception?
       return;
     }
 
