@@ -214,18 +214,6 @@ export const cloudBillingRouter = createTRPCRouter({
         session: ctx.session,
       });
 
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      thirtyDaysAgo.setHours(0, 0, 0, 0);
-      let billingPeriod: {
-        start: Date;
-        end: Date;
-      } | null = null;
-      let upcomingInvoice: {
-        usdAmount: number;
-        date: Date;
-      } | null = null;
-
       const organization = await ctx.prisma.organization.findUnique({
         where: {
           id: input.orgId,
@@ -249,19 +237,35 @@ export const cloudBillingRouter = createTRPCRouter({
           parsedOrg.cloudConfig.stripe.activeSubscriptionId,
         );
         if (subscription) {
-          billingPeriod = {
+          const billingPeriod = {
             start: new Date(subscription.current_period_start * 1000),
             end: new Date(subscription.current_period_end * 1000),
           };
           const stripeInvoice = await stripeClient.invoices.retrieveUpcoming({
             subscription: parsedOrg.cloudConfig.stripe.activeSubscriptionId,
           });
-          upcomingInvoice = {
+          const upcomingInvoice = {
             usdAmount: stripeInvoice.amount_due / 100,
             date: new Date(stripeInvoice.period_end * 1000),
           };
+          const usage = stripeInvoice.lines.data.reduce((acc, line) => {
+            if (line.quantity) {
+              return acc + line.quantity;
+            }
+            return acc;
+          }, 0);
+          return {
+            countObservations: usage,
+            billingPeriod,
+            upcomingInvoice,
+          };
         }
       }
+
+      // For non-Stripe subscriptions, we can only get usage from the LangFuse API
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
 
       const usage = await ctx.prisma.observation.count({
         where: {
@@ -269,15 +273,13 @@ export const cloudBillingRouter = createTRPCRouter({
             orgId: input.orgId,
           },
           startTime: {
-            gte: billingPeriod?.start ?? thirtyDaysAgo,
+            gte: thirtyDaysAgo,
           },
         },
       });
 
       return {
         countObservations: usage,
-        billingPeriod,
-        upcomingInvoice,
       };
     }),
 });
