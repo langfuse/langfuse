@@ -1,6 +1,7 @@
 import { createNextApiHandler } from "@trpc/server/adapters/next";
 import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
+import { env } from "@/src/env.mjs";
 import { traceException } from "@langfuse/shared/src/server";
 
 export const config = {
@@ -14,5 +15,12 @@ export default createNextApiHandler({
   onError: ({ path, error }) => {
     console.error(`❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`);
     traceException(error);
+  },
+  responseMeta() {
+    return {
+      headers: {
+        "x-build-id": env.NEXT_PUBLIC_BUILD_ID,
+      },
+    };
   },
 });
