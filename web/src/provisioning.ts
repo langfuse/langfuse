@@ -3,8 +3,6 @@ import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/cre
 import { prisma } from "@langfuse/shared/src/db";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 
-console.warn("PROVISIONING IS EXECUTED");
-
 // Create Organization
 if (env.LANGFUSE_PROVISION_ORG_ID) {
   const org = await prisma.organization.upsert({
