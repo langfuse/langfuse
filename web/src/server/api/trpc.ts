@@ -231,9 +231,24 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
   },
 );
 
-export const protectedProjectProcedure = withOtelTracingProcedure.use(
-  enforceUserIsAuthedAndProjectMember,
-);
+const withErrorHandling = t.middleware(async ({ next }) => {
+  try {
+    return next();
+  } catch (error) {
+    console.error(error);
+    if (error instanceof TRPCError) {
+      throw error;
+    }
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "An error occurred while processing your request.",
+    });
+  }
+});
+
+export const protectedProjectProcedure = withOtelTracingProcedure
+  .use(enforceUserIsAuthedAndProjectMember)
+  .use(withErrorHandling);
 
 const inputOrganizationSchema = z.object({
   orgId: z.string(),
