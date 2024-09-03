@@ -10,7 +10,10 @@ import {
   httpLink,
   loggerLink,
   splitLink,
+  TRPCClientError,
+  type TRPCLink,
 } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
 import { createTRPCNext } from "@trpc/next";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import superjson from "superjson";
@@ -18,6 +21,7 @@ import superjson from "superjson";
 import { type AppRouter } from "@/src/server/api/root";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
 
 setUpSuperjson();
 
@@ -25,6 +29,58 @@ const getBaseUrl = () => {
   if (typeof window !== "undefined") return ""; // browser should use relative url
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`; // SSR should use vercel url
   return `http://localhost:${process.env.PORT ?? 3000}`; // dev SSR should use localhost
+};
+
+// global build id used to compare versions to show refresh toast on stale cache hit serving deprecated files
+let buildId: string | null = null;
+
+const CLIENT_STALE_CACHE_CODES = [404, 400];
+
+const handleTrpcError = (error: unknown) => {
+  if (error instanceof TRPCClientError) {
+    const httpStatus: number =
+      typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
+
+    if (CLIENT_STALE_CACHE_CODES.includes(httpStatus)) {
+      if (
+        !!buildId &&
+        !!process.env.NEXT_PUBLIC_BUILD_ID &&
+        buildId !== process.env.NEXT_PUBLIC_BUILD_ID
+      ) {
+        showVersionUpdateToast();
+        return;
+      }
+    }
+  }
+
+  trpcErrorToast(error);
+};
+
+// onError update build id to compare versions
+const buildIdLink = (): TRPCLink<AppRouter> => () => {
+  return ({ next, op }) => {
+    return observable((observer) => {
+      const unsubscribe = next(op).subscribe({
+        next(value) {
+          observer.next(value);
+        },
+        error(err) {
+          if (
+            err.meta &&
+            err.meta.response &&
+            err.meta.response instanceof Response
+          ) {
+            buildId = err.meta.response.headers.get("x-build-id");
+          }
+          observer.error(err);
+        },
+        complete() {
+          observer.complete();
+        },
+      });
+      return unsubscribe;
+    });
+  };
 };
 
 /** A set of type-safe react-query hooks for your tRPC API. */
@@ -44,6 +100,7 @@ export const api = createTRPCNext<AppRouter>({
        * @see https://trpc.io/docs/links
        */
       links: [
+        buildIdLink(),
         loggerLink({
           enabled: (opts) =>
             process.env.NODE_ENV === "development" ||
@@ -73,12 +130,12 @@ export const api = createTRPCNext<AppRouter>({
       queryClientConfig: {
         defaultOptions: {
           queries: {
-            onError: (error) => trpcErrorToast(error),
+            onError: (error) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
           mutations: {
-            onError: (error) => trpcErrorToast(error),
+            onError: (error) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
