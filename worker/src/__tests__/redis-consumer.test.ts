@@ -1,30 +1,15 @@
 import { expect, test, describe, vi } from "vitest";
 import { randomUUID } from "crypto";
-import { z } from "zod";
-import logger from "../logger";
-import { evalJobCreator } from "../queues/evalQueue";
 import {
   getTraceUpsertQueue,
   QueueJobs,
-  TraceUpsertEventSchema,
+  QueueName,
 } from "@langfuse/shared/src/server";
+import { WorkerManager } from "../queues/workerManager";
 
 describe.sequential("handle redis events", () => {
   test("handle redis job succeeding", async () => {
-    vi.mock("../eval-service", () => ({
-      createEvalJobs: async ({
-        data,
-      }: {
-        data: z.infer<typeof TraceUpsertEventSchema>;
-      }) => {
-        return true;
-      },
-    }));
-
-    // this activates the consumer
-    evalJobCreator?.on("completed", (job, err) => {
-      logger.info(`Eval Job with id ${job?.id} completed`);
-    });
+    WorkerManager.register(QueueName.TraceUpsert, async () => true);
 
     const traceUpsertQueue = getTraceUpsertQueue();
 
@@ -47,7 +32,7 @@ describe.sequential("handle redis events", () => {
       },
       {
         timeout: 20_000,
-      }
+      },
     );
   }, 20_000);
 
