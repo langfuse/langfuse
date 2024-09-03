@@ -801,4 +801,35 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
+  deleteDatasetRun: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetRunId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const deletedDatasetRun = await ctx.prisma.datasetRuns.delete({
+        where: {
+          id_projectId: {
+            id: input.datasetRunId,
+            projectId: input.projectId,
+          },
+        },
+      });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "datasetRun",
+        resourceId: deletedDatasetRun.id,
+        action: "delete",
+        before: deletedDatasetRun,
+      });
+      return deletedDatasetRun;
+    }),
 });
