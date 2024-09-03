@@ -32,7 +32,7 @@ type JumpToPlaygroundButtonProps = (
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
-  fullWidth?: boolean;
+  variant?: "outline" | "secondary";
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
@@ -61,17 +61,14 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
   return (
     <Button
-      variant={props.fullWidth ? "secondary" : "outline"}
+      variant={props.variant ?? "secondary"}
       title="Test in LLM playground"
-      size={!props.fullWidth ? "icon" : undefined}
       onClick={handleClick}
       asChild
     >
       <Link href={`/project/${projectId}/playground`}>
         <Terminal className="h-4 w-4" />
-        {props.fullWidth ? (
-          <span className="ml-2">Test in playground</span>
-        ) : null}
+        <span className="ml-2">Test in playground</span>
       </Link>
     </Button>
   );
