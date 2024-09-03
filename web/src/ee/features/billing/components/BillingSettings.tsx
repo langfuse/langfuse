@@ -83,7 +83,7 @@ const OrganizationUsageChart = () => {
           <>
             <Text>
               {usage.data.billingPeriod
-                ? `Observations in billing period`
+                ? `Observations in current billing period`
                 : "Observations / last 30d"}
             </Text>
             <Metric>{numberFormatter(usage.data.countObservations, 0)}</Metric>
