@@ -39,7 +39,7 @@ export const ROUTES: Route[] = [
     name: "Langfuse",
     pathname: "/",
     icon: LangfuseIcon,
-    label: <VersionLabel />,
+    label: <VersionLabel className="-ml-3" />,
   },
   {
     name: "Projects",
