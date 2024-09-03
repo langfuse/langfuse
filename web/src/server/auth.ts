@@ -104,8 +104,9 @@ const staticProviders: Provider[] = [
       }
 
       // EE: Check custom SSO enforcement
-      const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
-      if (customSsoProvider) {
+      const multiTenantSsoProvider =
+        await getSsoAuthProviderIdForDomain(domain);
+      if (multiTenantSsoProvider) {
         throw new Error(`You must sign in via SSO for this domain.`);
       }
 
@@ -416,8 +417,12 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
           // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
           const domain = email.split("@")[1];
-          const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
-          if (customSsoProvider && account?.provider !== customSsoProvider) {
+          const multiTenantSsoProvider =
+            await getSsoAuthProviderIdForDomain(domain);
+          if (
+            multiTenantSsoProvider &&
+            account?.provider !== multiTenantSsoProvider
+          ) {
             console.log(
               "Custom SSO provider enforced for domain, user signed in with other provider",
             );

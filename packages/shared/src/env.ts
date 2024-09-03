@@ -38,6 +38,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(60 * 10),
+  SALT: z.string().optional(), // used by components imported by web package
 });
 
 export const env = EnvSchema.parse(process.env);
