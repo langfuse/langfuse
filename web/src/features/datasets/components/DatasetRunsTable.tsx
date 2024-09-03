@@ -20,7 +20,7 @@ import {
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
-import { MoreVertical, Trash } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,16 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 
 type DatasetRunRowKey = {
   id: string;
@@ -65,12 +56,7 @@ export function DatasetRunsTable(props: {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-  const utils = api.useUtils();
-  const capture = usePostHogClientCapture();
-  const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "datasets:CUD",
-  });
+
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetRuns",
     "s",
@@ -91,10 +77,6 @@ export function DatasetRunsTable(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
-
-  const mutDelete = api.datasets.deleteDatasetRun.useMutation({
-    onSuccess: () => utils.datasets.invalidate(),
-  });
 
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<DatasetRunRowData>({
@@ -198,47 +180,11 @@ export function DatasetRunsTable(props: {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              {hasAccess ? (
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost" className="w-full">
-                      <div className="flex w-full flex-row items-center gap-1">
-                        <Trash className="h-4 w-4" />
-                        <span className="text-sm font-normal">Delete</span>
-                      </div>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
-                      <DialogTitle className="mb-4">Please confirm</DialogTitle>
-                      <DialogDescription className="text-md p-0">
-                        This action cannot be undone and removes all the data
-                        associated with this dataset run.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <Button
-                      variant="destructive"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        capture("dataset_run:delete_form_open");
-                        mutDelete.mutate({
-                          projectId: props.projectId,
-                          datasetRunId,
-                        });
-                      }}
-                    >
-                      Delete Dataset Run
-                    </Button>
-                  </DialogContent>
-                </Dialog>
-              ) : (
-                <Button variant="ghost" className="w-full" disabled>
-                  <div className="flex w-full flex-row items-center gap-1">
-                    <Trash className="h-4 w-4" />
-                    <span className="text-sm font-normal">Delete</span>
-                  </div>
-                </Button>
-              )}
+              <DeleteDatasetRunButton
+                projectId={props.projectId}
+                datasetRunId={datasetRunId}
+                fullWidth
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         );
