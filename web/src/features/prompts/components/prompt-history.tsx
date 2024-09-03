@@ -52,7 +52,7 @@ const PromptHistoryTraceNode = (props: {
           : props.setCurrentPromptVersion(prompt.version);
       }}
     >
-      <div className="grid grid-cols-[auto,minmax(100px,1fr)] items-start gap-2">
+      <div className="grid grid-cols-[auto,1fr] items-start gap-2">
         <div
           className={`grid grid-cols-[auto,1fr] items-start ${isHovered ? "h-full" : "h-7"}`}
         >
@@ -65,44 +65,41 @@ const PromptHistoryTraceNode = (props: {
             </div>
           )}
         </div>
-        <div
-          className="space-x-1"
-          style={{
-            visibility: isHovered ? "visible" : "hidden",
-          }}
-        >
-          <SetPromptVersionLabels prompt={prompt} />
-          {hasAccess ? (
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-7 w-7 px-0"
-              onClick={() => {
-                capture("prompts:update_form_open");
-              }}
-            >
-              <Link
-                href={`/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+        {isHovered && (
+          <div className="flex flex-row space-x-1">
+            <SetPromptVersionLabels prompt={prompt} />
+            {hasAccess ? (
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 px-0"
+                onClick={() => {
+                  capture("prompts:update_form_open");
+                }}
               >
-                <Pencil className="h-4 w-4" />
-              </Link>
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-7 w-7 px-0"
-              disabled
-            >
-              <PencilOff className="h-4 w-4" />
-            </Button>
-          )}
-          <DeletePromptVersion
-            promptVersionId={prompt.id}
-            version={prompt.version}
-            countVersions={props.totalCount}
-          />
-        </div>
+                <Link
+                  href={`/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 px-0"
+                disabled
+              >
+                <PencilOff className="h-4 w-4" />
+              </Button>
+            )}
+            <DeletePromptVersion
+              promptVersionId={prompt.id}
+              version={prompt.version}
+              countVersions={props.totalCount}
+            />
+          </div>
+        )}
       </div>
       <div className="flex gap-2">
         <span className="text-xs text-muted-foreground">
