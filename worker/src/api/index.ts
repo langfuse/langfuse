@@ -25,7 +25,7 @@ router.get<{}, { status: string }>("/health", async (_req, res) => {
     await checkContainerHealth(res);
   } catch (e) {
     traceException(e);
-    logger.error(`Health check failed ${e}`);
+    logger.error("Health check failed", e);
     res.status(500).json({
       status: "error",
     });
@@ -52,11 +52,11 @@ router
 
         res.json({ status: "success" });
       } catch (e) {
-        logger.error(`Clickhouse health check failed ${e}`);
+        logger.error("Clickhouse health check failed", e);
         res.status(500).json({ status: "error", message: JSON.stringify(e) });
       }
     } catch (e) {
-      logger.error(`Unexpected error during Clickhouse health check ${e}`);
+      logger.error("Unexpected error during Clickhouse health check", e);
       res.status(500).json({ status: "error", message: JSON.stringify(e) });
     }
   });
@@ -116,7 +116,7 @@ router
 
       return res.status(400).send();
     } catch (e) {
-      logger.error(`Error processing events: ${e}`);
+      logger.error("Error processing events", e);
       traceException(e);
       return res.status(500).json({
         status: "error",

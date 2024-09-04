@@ -79,7 +79,8 @@ const createLegacyIngestionExecutor = () => {
               );
             } catch (e) {
               logger.error(
-                `Failed job Evaluation for traceId ${job.data.payload} ${e}`,
+                `Failed job Evaluation for traceId ${job.data.payload}`,
+                e,
               );
               traceException(e);
               throw e;
