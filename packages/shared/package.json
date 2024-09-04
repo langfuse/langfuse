@@ -21,6 +21,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/auth/apiKeys": {
+      "import": "./dist/src/server/auth/apiKeys.js",
+      "require": "./dist/src/server/auth/apiKeys.js"
+    },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"

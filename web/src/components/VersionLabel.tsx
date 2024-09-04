@@ -2,6 +2,7 @@ import {
   BadgeCheck,
   Github,
   HardDriveDownload,
+  Info,
   Map,
   Newspaper,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 import { env } from "@/src/env.mjs";
+import { cn } from "@/src/utils/tailwind";
 
 export const VersionLabel = ({ className }: { className?: string }) => {
   const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
@@ -30,6 +32,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
     onError: (error) => console.error("checkUpdate error", error), // do not render default error message
   });
   const isEeVersion = useIsEeEnabled();
+  const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   const hasUpdate =
     !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
@@ -46,8 +49,9 @@ export const VersionLabel = ({ className }: { className?: string }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="xs" className={className}>
+        <Button variant="ghost" size="xs" className={cn("text-xs",className)}>
           {VERSION}
+          {!isLangfuseCloud && (isEeVersion ? " EE" : " OSS")}
           {hasUpdate && <ArrowUp className={`ml-1 h-3 w-3 ${color}`} />}
         </Button>
       </DropdownMenuTrigger>
@@ -96,6 +100,17 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             Roadmap
           </Link>
         </DropdownMenuItem>
+        {!isLangfuseCloud && !isEeVersion && (
+          <DropdownMenuItem asChild>
+            <Link
+              href="https://langfuse.com/docs/deployment/feature-overview"
+              target="_blank"
+            >
+              <Info size={16} className="mr-2" />
+              Compare Versions
+            </Link>
+          </DropdownMenuItem>
+        )}
         {hasUpdate && (
           <>
             <DropdownMenuSeparator />
