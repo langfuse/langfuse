@@ -17,6 +17,11 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     recordHistogram: vi.fn(),
     recordCount: vi.fn(),
     recordGauge: vi.fn(),
+    logger: {
+      info: vi.fn(),
+      debug: vi.fn(),
+      error: vi.fn(),
+    },
   };
 });
 
@@ -28,16 +33,6 @@ vi.mock("../../env", async (importOriginal) => {
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: 100,
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: 5000,
       LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: 3,
-    },
-  };
-});
-
-vi.mock("../../logger", () => {
-  return {
-    default: {
-      info: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
     },
   };
 });
