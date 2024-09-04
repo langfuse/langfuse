@@ -1,4 +1,4 @@
-import { orderByToPrismaSql } from "@langfuse/shared";
+import { orderByToPrismaSql } from "@langfuse/shared/src/server";
 import { tracesTableCols } from "@langfuse/shared";
 
 // The test for the orderByToPrisma function
