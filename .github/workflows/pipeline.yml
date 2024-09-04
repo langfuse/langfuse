@@ -121,15 +121,15 @@ jobs:
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
-          LANGFUSE_PROVISION_ORG_ID: "seed-org-id"
-          LANGFUSE_PROVISION_ORG_NAME: "Seed Org"
-          LANGFUSE_PROVISION_PROJECT_ID: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
-          LANGFUSE_PROVISION_PROJECT_NAME: "Seed Project"
-          LANGFUSE_PROVISION_PROJECT_PUBLIC_KEY: "pk-lf-1234567890"
-          LANGFUSE_PROVISION_PROJECT_SECRET_KEY: "sk-lf-1234567890"
-          LANGFUSE_PROVISION_USER_EMAIL: "demo@langfuse.com"
-          LANGFUSE_PROVISION_USER_NAME: "Demo User"
-          LANGFUSE_PROVISION_USER_PASSWORD: "password"
+          LANGFUSE_INIT_ORG_ID: "seed-org-id"
+          LANGFUSE_INIT_ORG_NAME: "Seed Org"
+          LANGFUSE_INIT_PROJECT_ID: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
+          LANGFUSE_INIT_PROJECT_NAME: "Seed Project"
+          LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "pk-lf-1234567890"
+          LANGFUSE_INIT_PROJECT_SECRET_KEY: "sk-lf-1234567890"
+          LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
+          LANGFUSE_INIT_USER_NAME: "Demo User"
+          LANGFUSE_INIT_USER_PASSWORD: "password"
 
       - name: run tests
         run: pnpm --filter=web run test
