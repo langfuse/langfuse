@@ -25,5 +25,8 @@ export * from "./auth/types";
 export * from "./ingestion/legacy/index";
 export * from "./queues";
 export * from "./ingestion/legacy/EventProcessor";
+export * from "./orderByToPrisma";
+export * from "./filterToPrisma";
 export * from "./instrumentation";
 export * from "./logger";
+export * from "./queries";

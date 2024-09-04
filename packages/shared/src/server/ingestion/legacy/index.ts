@@ -80,7 +80,7 @@ export const handleBatch = async (
       }); // Push each result into the array
     } catch (error) {
       // Handle or log the error if `handleSingleEvent` fails
-      console.error("Error handling event:", error);
+      logger.error("Error handling event:", error);
       // Decide how to handle the error: rethrow, continue, or push an error object to results
       // For example, push an error object:
       errors.push({
@@ -226,11 +226,11 @@ export const sendToWorkerIfEnvironmentConfigured = async (
 
   try {
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && redis) {
-      console.log(`Sending ${traceEvents.length} events to worker via Redis`);
+      logger.info(`Sending ${traceEvents.length} events to worker via Redis`);
 
       const queue = getTraceUpsertQueue();
       if (!queue) {
-        console.error("TraceUpsertQueue not initialized");
+        logger.error("TraceUpsertQueue not initialized");
         return;
       }
 
@@ -240,7 +240,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       env.LANGFUSE_WORKER_PASSWORD &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ) {
-      console.log(`Sending ${traceEvents.length} events to worker via HTTP`);
+      logger.info(`Sending ${traceEvents.length} events to worker via HTTP`);
       const body: EventBodyType = {
         name: EventName.TraceUpsert,
         payload: traceEvents,
@@ -263,6 +263,6 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       }
     }
   } catch (error) {
-    console.error("Error sending events to worker", error);
+    logger.error("Error sending events to worker", error);
   }
 };

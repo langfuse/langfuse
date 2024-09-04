@@ -83,13 +83,13 @@ export const ScoreBodyWithoutConfig = z.discriminatedUnion("dataType", [
     z.object({
       value: z.number(),
       dataType: z.literal("NUMERIC"),
-    })
+    }),
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.string(),
       dataType: z.literal("CATEGORICAL"),
-    })
+    }),
   ),
   BaseScoreBody.merge(
     z.object({
@@ -97,7 +97,7 @@ export const ScoreBodyWithoutConfig = z.discriminatedUnion("dataType", [
         message: "Value must be either 0 or 1",
       }),
       dataType: z.literal("BOOLEAN"),
-    })
+    }),
   ),
 ]);
 
@@ -161,7 +161,7 @@ export const ScorePropsAgainstConfig = z.union([
  */
 export const filterAndValidateDbScoreList = (
   scores: Score[],
-  onParseError?: (error: z.ZodError) => void
+  onParseError?: (error: z.ZodError) => void,
 ): APIScore[] =>
   scores.reduce((acc, ts) => {
     const result = APIScoreSchema.safeParse(ts);
@@ -198,14 +198,14 @@ export const PostScoresBody = z.discriminatedUnion("dataType", [
       value: z.number(),
       dataType: z.literal("NUMERIC"),
       configId: z.string().nullish(),
-    })
+    }),
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.string(),
       dataType: z.literal("CATEGORICAL"),
       configId: z.string().nullish(),
-    })
+    }),
   ),
   BaseScoreBody.merge(
     z.object({
@@ -215,14 +215,14 @@ export const PostScoresBody = z.discriminatedUnion("dataType", [
       }),
       dataType: z.literal("BOOLEAN"),
       configId: z.string().nullish(),
-    })
+    }),
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.union([z.string(), z.number()]),
       dataType: z.undefined(),
       configId: z.string().nullish(),
-    })
+    }),
   ),
 ]);
 
@@ -256,7 +256,7 @@ const LegacyGetScoreResponseDataV1 = z.intersection(
     trace: z.object({
       userId: z.string().nullish(),
     }),
-  })
+  }),
 );
 export const GetScoresResponse = z.object({
   data: z.array(LegacyGetScoreResponseDataV1),
@@ -265,7 +265,7 @@ export const GetScoresResponse = z.object({
 
 export const legacyFilterAndValidateV1GetScoreList = (
   scores: unknown[],
-  onParseError?: (error: z.ZodError) => void
+  onParseError?: (error: z.ZodError) => void,
 ): z.infer<typeof LegacyGetScoreResponseDataV1>[] =>
   scores.reduce(
     (acc: z.infer<typeof LegacyGetScoreResponseDataV1>[], ts) => {
@@ -278,7 +278,7 @@ export const legacyFilterAndValidateV1GetScoreList = (
       }
       return acc;
     },
-    [] as z.infer<typeof LegacyGetScoreResponseDataV1>[]
+    [] as z.infer<typeof LegacyGetScoreResponseDataV1>[],
   );
 
 // GET /scores/{scoreId}
