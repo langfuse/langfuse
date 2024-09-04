@@ -11,6 +11,7 @@ import {
 import {
   recordIncrement,
   type ApiAccessScope,
+  logger,
 } from "@langfuse/shared/src/server";
 import { type NextApiResponse } from "next";
 
@@ -41,7 +42,7 @@ export class RateLimitService {
     }
 
     if (!this.redis) {
-      console.log("Rate limiting not available without Redis");
+      logger.warn("Rate limiting not available without Redis");
       return new RateLimitHelper(undefined);
     }
 
@@ -100,7 +101,7 @@ export class RateLimitService {
         };
       } else {
         // Some other error occurred, rethrow it
-        console.log("Internal Rate limit error", err);
+        logger.error("Internal Rate limit error", err);
         throw err;
       }
     }
@@ -134,9 +135,7 @@ export class RateLimitHelper {
 
   sendRestResponseIfLimited(nextResponse: NextApiResponse) {
     if (!this.res || !this.isRateLimited()) {
-      console.error(
-        "Trying to send rate limit response without being limited.",
-      );
+      logger.error("Trying to send rate limit response without being limited.");
       throw new Error(
         "Trying to send rate limit response without being limited.",
       );

@@ -19,7 +19,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
-import { PromptService, redis } from "@langfuse/shared/src/server";
+import { logger, PromptService, redis } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 
@@ -192,7 +192,7 @@ export const promptRouter = createTRPCRouter({
 
         return prompt;
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -296,7 +296,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -384,7 +384,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -478,7 +478,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -546,7 +546,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (error) {
-        console.error(error);
+        logger.error(error);
       }
     }),
   allVersions: protectedProjectProcedure

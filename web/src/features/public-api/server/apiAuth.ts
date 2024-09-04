@@ -7,6 +7,7 @@ import {
   type AuthHeaderVerificationResult,
   CachedApiKey,
   OrgEnrichedApiKey,
+  logger,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -39,12 +40,12 @@ export class ApiAuthService {
       Boolean(hash),
     );
     if (filteredHashKeys.length === 0) {
-      console.log("No valid keys to invalidate");
+      logger.info("No valid keys to invalidate");
       return;
     }
 
     if (this.redis) {
-      console.log(`Invalidating API keys in redis for ${identifier}`);
+      logger.info(`Invalidating API keys in redis for ${identifier}`);
       await this.redis.del(
         filteredHashKeys
           .filter((hash): hash is string => Boolean(hash))
@@ -103,7 +104,7 @@ export class ApiAuthService {
     authHeader: string | undefined,
   ): Promise<AuthHeaderVerificationResult> {
     if (!authHeader) {
-      console.error("No authorization header");
+      logger.error("No authorization header");
       return {
         validKey: false,
         error: "No authorization header",
@@ -132,9 +133,9 @@ export class ApiAuthService {
           });
 
           if (!slowKey) {
-            console.error("No key found for public key", publicKey);
+            logger.error("No key found for public key", publicKey);
             if (this.redis) {
-              console.log(
+              logger.info(
                 `No key found, storing ${API_KEY_NON_EXISTENT} in redis`,
               );
               await this.addApiKeyToRedis(
@@ -151,7 +152,7 @@ export class ApiAuthService {
           );
 
           if (!isValid) {
-            console.log("Old key is invalid", publicKey);
+            logger.info("Old key is invalid", publicKey);
             throw new Error("Invalid credentials");
           }
 
@@ -170,7 +171,7 @@ export class ApiAuthService {
         }
 
         if (!finalApiKey) {
-          console.log("No project id found for key", publicKey);
+          logger.info("No project id found for key", publicKey);
           throw new Error("Invalid credentials");
         }
 
@@ -179,7 +180,7 @@ export class ApiAuthService {
         const plan = finalApiKey.plan;
 
         if (!isPlan(plan)) {
-          console.error("Invalid plan type for key", finalApiKey.plan);
+          logger.error("Invalid plan type for key", finalApiKey.plan);
           throw new Error("Invalid credentials");
         }
 
@@ -218,7 +219,7 @@ export class ApiAuthService {
         };
       }
     } catch (error: unknown) {
-      console.error(
+      logger.error(
         `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
         error,
       );
@@ -258,7 +259,7 @@ export class ApiAuthService {
       include: { project: { include: { organization: true } } },
     });
     if (!dbKey) {
-      console.log("No api key found for public key:", publicKey);
+      logger.info("No api key found for public key:", publicKey);
       throw new Error("Invalid public key");
     }
     return dbKey;
@@ -316,7 +317,7 @@ export class ApiAuthService {
         env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
       );
     } catch (error: unknown) {
-      console.error("Error adding key to redis", error);
+      logger.error("Error adding key to redis", error);
     }
   }
 
@@ -343,14 +344,11 @@ export class ApiAuthService {
       }
 
       if (!parsedApiKey.success) {
-        console.error(
-          "Failed to parse API key from Redis:",
-          parsedApiKey.error,
-        );
+        logger.error("Failed to parse API key from Redis:", parsedApiKey.error);
       }
       return null;
     } catch (error: unknown) {
-      console.error("Error fetching key from redis", error);
+      logger.error("Error fetching key from redis", error);
       return null;
     }
   }
@@ -393,7 +391,7 @@ export const convertToRedisRepresentation = (
   });
 
   if (!orgId) {
-    console.error("No organization found for key");
+    logger.error("No organization found for key");
     throw new Error("Invalid credentials");
   }
 
