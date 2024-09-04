@@ -42,9 +42,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3),
-  LANGFUSE_LOG_LEVEL: z
-    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
-    .optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number({
