@@ -19,10 +19,9 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
-import logger from "../../logger";
-
+import { logger } from "@langfuse/shared/src/server";
 export const handleBatchExportJob = async (
-  batchExportJob: BatchExportJobType
+  batchExportJob: BatchExportJobType,
 ) => {
   const { projectId, batchExportId } = batchExportJob;
 
@@ -96,7 +95,7 @@ export const handleBatchExportJob = async (
           orderBy,
           limit: pageSize,
           page: Math.floor(offset / pageSize),
-        }
+        },
       );
 
       const chunk = await prisma.$queryRaw<unknown[]>(query);
@@ -104,7 +103,7 @@ export const handleBatchExportJob = async (
       return chunk;
     },
     1000,
-    env.BATCH_EXPORT_ROW_LIMIT
+    env.BATCH_EXPORT_ROW_LIMIT,
   );
 
   // Transform data to desired format
@@ -113,9 +112,9 @@ export const handleBatchExportJob = async (
     streamTransformations[jobDetails.format as BatchExportFileFormat](),
     (err) => {
       if (err) {
-        console.error("Getting data from DB and transform failed: ", err);
+        logger.error("Getting data from DB and transform failed: ", err);
       }
-    }
+    },
   );
 
   // Stream upload results to S3

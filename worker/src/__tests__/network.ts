@@ -1,5 +1,6 @@
 import { setupServer } from "msw/node";
 import { HttpResponse, http } from "msw";
+import { logger } from "@langfuse/shared/src/server";
 
 const DEFAULT_RESPONSE = {
   id: "chatcmpl-9MhZ73aGSmhfAtjU9DwoL4om73hJ7",
@@ -32,7 +33,7 @@ const DEFAULT_RESPONSE = {
 
 function CompletionHandler(response: HttpResponse) {
   return http.post("https://api.openai.com/v1/chat/completions", async () => {
-    console.log("handler");
+    logger.info("handler");
     return response;
   });
 }
@@ -46,7 +47,7 @@ function ErrorCompletionHandler(status: number, statusText: string) {
     new HttpResponse(null, {
       status,
       statusText,
-    })
+    }),
   );
 }
 
@@ -64,15 +65,15 @@ export class OpenAIServer {
     hasActiveKey?: boolean;
     useDefaultResponse?: boolean;
   }) {
-    console.log("openai", { hasActiveKey, useDefaultResponse });
+    logger.info("openai", { hasActiveKey, useDefaultResponse });
 
     this.hasActiveKey = hasActiveKey;
     this.internalServer = setupServer(
-      ...(useDefaultResponse ? [JsonCompletionHandler(DEFAULT_RESPONSE)] : [])
+      ...(useDefaultResponse ? [JsonCompletionHandler(DEFAULT_RESPONSE)] : []),
     );
     if (hasActiveKey) {
       this.internalServer.events.on("response:bypass", async ({ response }) => {
-        console.log(response);
+        logger.info(response);
       });
     }
 

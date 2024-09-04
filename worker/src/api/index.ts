@@ -13,8 +13,7 @@ import {
 
 import { env } from "../env";
 import { checkContainerHealth } from "../features/health";
-import logger from "../logger";
-
+import { logger } from "@langfuse/shared/src/server";
 const router = express.Router();
 
 type EventsResponse = {
@@ -26,7 +25,7 @@ router.get<{}, { status: string }>("/health", async (_req, res) => {
     await checkContainerHealth(res, false);
   } catch (e) {
     traceException(e);
-    logger.error(e, "Health check failed");
+    logger.error("Health check failed", e);
     res.status(500).json({
       status: "error",
     });
@@ -38,7 +37,7 @@ router.get<{}, { status: string }>("/ready", async (_req, res) => {
     await checkContainerHealth(res, true);
   } catch (e) {
     traceException(e);
-    logger.error(e, "Readiness check failed");
+    logger.error("Readiness check failed", e);
     res.status(500).json({
       status: "error",
     });
@@ -65,11 +64,11 @@ router
 
         res.json({ status: "success" });
       } catch (e) {
-        logger.error(e, "Clickhouse health check failed");
+        logger.error("Clickhouse health check failed", e);
         res.status(500).json({ status: "error", message: JSON.stringify(e) });
       }
     } catch (e) {
-      logger.error(e, "Unexpected error during Clickhouse health check");
+      logger.error("Unexpected error during Clickhouse health check", e);
       res.status(500).json({ status: "error", message: JSON.stringify(e) });
     }
   });
@@ -129,7 +128,7 @@ router
 
       return res.status(400).send();
     } catch (e) {
-      logger.error(e, "Error processing events");
+      logger.error("Error processing events", e);
       traceException(e);
       return res.status(500).json({
         status: "error",

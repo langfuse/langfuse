@@ -8,9 +8,11 @@ import dd from "dd-trace";
 import opentelemetry from "@opentelemetry/api";
 // import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
+import { logger } from "@langfuse/shared/src/server";
+import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 
 if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-  console.log("Initializing otel tracing");
+  logger.info("Initializing otel tracing");
   const contextManager = new AsyncHooksContextManager().enable();
 
   opentelemetry.context.setGlobalContextManager(contextManager);
@@ -51,6 +53,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new IORedisInstrumentation(),
       new HttpInstrumentation(),
       new PrismaInstrumentation(),
+      new WinstonInstrumentation({ disableLogSending: true }),
       getNodeAutoInstrumentations(),
       new UndiciInstrumentation(),
       // new BullMQInstrumentation(),
