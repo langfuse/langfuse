@@ -9,7 +9,7 @@ export * from "./types";
 export * from "./filterToPrisma";
 export * from "./orderByToPrisma";
 export * from "./tracesTable";
-export * from "./server/auth/auth";
+export * from "./server/auth/apiKeys";
 export * from "./observationsTable";
 export * from "./utils/zod";
 export * from "./utils/json";

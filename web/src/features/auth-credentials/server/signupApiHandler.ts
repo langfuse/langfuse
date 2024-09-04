@@ -52,8 +52,8 @@ export async function signupApiHandler(
   }
 
   // EE: check if custom SSO configuration is enabled for this domain
-  const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
-  if (customSsoProvider) {
+  const multiTenantSsoProvider = await getSsoAuthProviderIdForDomain(domain);
+  if (multiTenantSsoProvider) {
     res.status(422).json({
       message: "You must sign in via SSO for this domain.",
     });

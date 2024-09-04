@@ -38,6 +38,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(60 * 10),
+  SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .optional(),
