@@ -81,7 +81,6 @@ export default async function handler(
       metadata: jsonSchema.nullish(),
     });
 
-    // TODO: instrument 1
     const parsedSchema = instrumentSync(
       { name: "ingestion-zod-parse-unknown-batch-event" },
       () => batchType.safeParse(req.body),
@@ -121,7 +120,6 @@ export default async function handler(
 
     const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
       parsedSchema.data.batch.map((event) => {
-        // TODO add instrumentation for each parse
         const parsed = instrumentSync(
           { name: "ingestion-zod-parse-individual-event" },
           () => ingestionEvent.safeParse(event),
