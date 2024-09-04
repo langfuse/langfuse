@@ -108,7 +108,7 @@
     "vitest": "^1.5.3"
   },
   "peerDependencies": {
-    "@types/react": "^18.2.79",
-    "react": "^18.0.0"
+    "@types/react": "~18.2.79",
+    "react": "~18.2.0"
   }
 }
