@@ -1,5 +1,4 @@
-import logger from "../logger";
-
+import { logger } from "@langfuse/shared/src/server";
 import { redis } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";

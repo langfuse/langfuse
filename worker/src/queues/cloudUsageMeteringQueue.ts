@@ -1,7 +1,7 @@
 import { Processor, Queue } from "bullmq";
-import logger from "../logger";
 import {
   redis,
+  logger,
   QueueName,
   QueueJobs,
   instrumentAsync,

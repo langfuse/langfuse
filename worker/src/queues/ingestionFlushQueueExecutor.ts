@@ -4,13 +4,13 @@ import { redis, QueueJobs } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
+  logger,
   getIngestionFlushQueue,
   instrumentAsync,
   recordIncrement,
   recordGauge,
   recordHistogram,
 } from "@langfuse/shared/src/server";
-import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
 import { SpanKind } from "@opentelemetry/api";
