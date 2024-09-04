@@ -2,12 +2,12 @@ import { Job, Queue } from "bullmq";
 import { ApiError, BaseError } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../features/evaluation/eval-service";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
-import logger from "../logger";
 import { sql } from "kysely";
 import {
   createNewRedisInstance,
   QueueName,
   TQueueJobTypes,
+  logger,
   traceException,
   instrumentAsync,
   recordIncrement,
@@ -77,8 +77,8 @@ export const evalJobCreatorQueueProcessor = async (
         return true;
       } catch (e) {
         logger.error(
+          `Failed job Evaluation for traceId ${job.data.payload.traceId}`,
           e,
-          `Failed job Evaluation for traceId ${job.data.payload.traceId} ${e}`,
         );
         traceException(e);
         throw e;
@@ -148,8 +148,8 @@ export const evalJobExecutorQueueProcessor = async (
         ) {
           traceException(e);
           logger.error(
+            `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
             e,
-            `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`,
           );
         }
 

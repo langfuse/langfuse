@@ -1,7 +1,5 @@
-import logger from "../logger";
-
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
-import { createNewRedisInstance } from "@langfuse/shared/src/server";
+import { logger, createNewRedisInstance } from "@langfuse/shared/src/server";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -52,8 +50,8 @@ export class WorkerManager {
     // Add error handling
     worker.on("failed", (job: Job | undefined, err: Error) => {
       logger.error(
+        `Queue Job ${job?.name} with id ${job?.id} in ${queueName} failed`,
         err,
-        `Queue Job ${job?.name} with id ${job?.id} in ${queueName} failed with error ${err}`,
       );
     });
     worker.on("error", (failedReason: Error) => {

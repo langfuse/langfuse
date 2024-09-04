@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import { logger, redis } from "@langfuse/shared/src/server";
 import { Response } from "express";
-import logger from "../../logger";
 
 /**
  * Check the health of the container.

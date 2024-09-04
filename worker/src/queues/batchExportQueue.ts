@@ -3,8 +3,11 @@ import { Job } from "bullmq";
 import { BaseError, BatchExportStatus } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
-import { traceException, instrumentAsync } from "@langfuse/shared/src/server";
-import logger from "../logger";
+import {
+  traceException,
+  instrumentAsync,
+  logger,
+} from "@langfuse/shared/src/server";
 import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 import { SpanKind } from "@opentelemetry/api";
@@ -39,8 +42,8 @@ export const batchExportQueueProcessor = async (
           .execute();
 
         logger.error(
+          `Failed Batch Export job for id ${job.data.payload.batchExportId}`,
           e,
-          `Failed Batch Export job for id ${job.data.payload.batchExportId} ${e}`,
         );
         traceException(e);
         throw e;

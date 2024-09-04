@@ -1,5 +1,6 @@
 import Redis, { RedisOptions } from "ioredis";
 import { env } from "../../env";
+import { logger } from "../logger";
 
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
@@ -26,7 +27,7 @@ const createRedisClient = () => {
   try {
     return createNewRedisInstance();
   } catch (e) {
-    console.error(e, "Failed to connect to redis");
+    logger.error("Failed to connect to redis", e);
     return null;
   }
 };

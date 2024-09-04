@@ -8,8 +8,8 @@ import {
   recordGauge,
   recordHistogram,
   TQueueJobTypes,
+  logger,
 } from "@langfuse/shared/src/server";
-import logger from "../logger";
 
 import {
   handleBatch,
@@ -75,8 +75,8 @@ export const legacyIngestionQueueProcessor: Processor = async (
         );
       } catch (e) {
         logger.error(
+          `Failed job Evaluation for traceId ${job.data.payload}`,
           e,
-          `Failed job Evaluation for traceId ${job.data.payload} ${e}`,
         );
         traceException(e);
         throw e;

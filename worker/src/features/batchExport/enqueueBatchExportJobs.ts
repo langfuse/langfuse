@@ -1,6 +1,6 @@
 import { BatchExportStatus } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
-import logger from "../../logger";
+import { logger } from "@langfuse/shared/src/server";
 import {
   traceException,
   getBatchExportQueue,
@@ -35,7 +35,7 @@ export async function enqueueBatchExportJobs() {
                 projectId: job.project_id,
               },
             },
-          }) as const
+          }) as const,
       );
 
       await queue.addBulk(newJobs);
@@ -44,7 +44,7 @@ export async function enqueueBatchExportJobs() {
   } catch (error) {
     logger.error(
       "Error while checking for QUEUED batch export jobs in postgres",
-      error
+      error,
     );
     traceException(error);
   }
