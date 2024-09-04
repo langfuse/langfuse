@@ -2,9 +2,9 @@ import { z } from "zod";
 
 import { Prisma } from "@prisma/client";
 
-import type { ColumnDefinition } from "./tableDefinitions/types";
-import type { OrderByState } from "./interfaces/orderBy";
-import { logger } from "./server";
+import type { ColumnDefinition } from "../tableDefinitions/types";
+import type { OrderByState } from "../interfaces/orderBy";
+import { logger } from "./logger";
 
 /**
  * Convert orderBy to SQL ORDER BY clause

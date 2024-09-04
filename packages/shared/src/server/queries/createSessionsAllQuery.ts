@@ -2,10 +2,10 @@ import { z } from "zod";
 
 import { Prisma } from "@prisma/client";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
-import { singleFilter } from "../interfaces/filters";
-import { orderBy } from "../interfaces/orderBy";
+import { singleFilter } from "../../interfaces/filters";
+import { orderBy } from "../../interfaces/orderBy";
 import { orderByToPrismaSql } from "../orderByToPrisma";
-import { sessionsViewCols } from "../tableDefinitions/index";
+import { sessionsViewCols } from "../../tableDefinitions";
 
 const GetSessionTableSQLParamsSchema = z.object({
   projectId: z.string(),
@@ -22,7 +22,7 @@ export const createSessionsAllQuery = (
   options?: {
     ignoreOrderBy?: boolean; // used by session.metrics and session.all.totalCount
     sessionIdList?: string[]; // used by session.metrics
-  }
+  },
 ): Prisma.Sql => {
   const { projectId, filter, orderBy, page, limit } =
     GetSessionTableSQLParamsSchema.parse(params);
@@ -30,7 +30,7 @@ export const createSessionsAllQuery = (
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
     filter ?? [],
     sessionsViewCols,
-    "sessions"
+    "sessions",
   );
   const orderByCondition = orderByToPrismaSql(orderBy, sessionsViewCols);
 

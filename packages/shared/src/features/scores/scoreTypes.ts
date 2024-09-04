@@ -9,7 +9,6 @@ import {
   paginationZod,
 } from "../../utils/zod";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
-import { logger } from "../../server";
 
 /**
  * Types to use across codebase
@@ -169,7 +168,7 @@ export const filterAndValidateDbScoreList = (
     if (result.success) {
       acc.push(result.data);
     } else {
-      logger.error("Score parsing error: ", result.error);
+      console.error("Score parsing error: ", result.error);
       onParseError?.(result.error);
     }
     return acc;
@@ -274,7 +273,7 @@ export const legacyFilterAndValidateV1GetScoreList = (
       if (result.success) {
         acc.push(result.data);
       } else {
-        logger.error("Score parsing error: ", result.error);
+        console.error("Score parsing error: ", result.error);
         onParseError?.(result.error);
       }
       return acc;
