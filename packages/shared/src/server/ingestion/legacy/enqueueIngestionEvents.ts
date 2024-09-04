@@ -8,10 +8,11 @@ import { IngestionUtils } from "../IngestionUtils";
 import { IngestionEventType } from "../types";
 import { redis } from "../../redis/redis";
 import { env } from "../../../env";
+import { logger } from "../../logger";
 
 export async function enqueueIngestionEvents(
   projectId: string,
-  events: IngestionEventType[]
+  events: IngestionEventType[],
 ) {
   const ingestionFlushQueue = getIngestionFlushQueue();
 
@@ -31,8 +32,8 @@ export async function enqueueIngestionEvents(
         event,
         redis,
         ingestionFlushQueue,
-        batchTimestamp
-      )
+        batchTimestamp,
+      ),
     );
   }
 
@@ -44,11 +45,11 @@ async function enqueueSingleIngestionEvent(
   event: IngestionEventType,
   redis: Redis,
   ingestionFlushQueue: IngestionFlushQueue,
-  batchTimestamp: string
+  batchTimestamp: string,
 ): Promise<void> {
   if (!("id" in event.body && event.body.id)) {
-    console.warn(
-      `Received ingestion event without id: ${JSON.stringify(event)}`
+    logger.warn(
+      `Received ingestion event without id: ${JSON.stringify(event)}`,
     );
 
     return;

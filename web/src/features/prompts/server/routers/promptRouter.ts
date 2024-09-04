@@ -10,16 +10,17 @@ import {
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 
 import { createPrompt } from "../actions/createPrompt";
-import { observationsTableCols, orderByToPrismaSql } from "@langfuse/shared";
+import { observationsTableCols } from "@langfuse/shared";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
-import {
-  orderBy,
-  singleFilter,
-  tableColumnsToSqlFilterAndPrefix,
-} from "@langfuse/shared";
+import { orderBy, singleFilter } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
-import { PromptService, redis } from "@langfuse/shared/src/server";
+import {
+  orderByToPrismaSql,
+  PromptService,
+  redis,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 

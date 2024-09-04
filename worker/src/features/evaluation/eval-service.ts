@@ -7,6 +7,7 @@ import {
   QueueName,
   EvalExecutionEvent,
   TraceUpsertEventSchema,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import {
   ApiError,
@@ -19,7 +20,6 @@ import {
   LLMApiKeySchema,
   Prisma,
   singleFilter,
-  tableColumnsToSqlFilterAndPrefix,
   InvalidRequestError,
   variableMappingList,
   ZodModelConfig,

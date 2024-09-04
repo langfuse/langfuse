@@ -3,6 +3,7 @@ import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
 
 import { BatchExportSuccessEmailTemplate } from "./BatchExportSuccessEmailTemplate";
+import { logger } from "../../../logger";
 
 type SendBatchExportSuccessParams = {
   env: Partial<
@@ -24,8 +25,7 @@ export const sendBatchExportSuccessEmail = async ({
   expiresInHours,
 }: SendBatchExportSuccessParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
-    console.error("Missing environment variables for sending email.");
-
+    logger.error("Missing environment variables for sending email.");
     return;
   }
 
@@ -38,7 +38,7 @@ export const sendBatchExportSuccessEmail = async ({
         userName,
         batchExportName,
         expiresInHours,
-      })
+      }),
     );
 
     await mailer.sendMail({
@@ -51,6 +51,6 @@ export const sendBatchExportSuccessEmail = async ({
       html: htmlTemplate,
     });
   } catch (error) {
-    console.error(error);
+    logger.error(error);
   }
 };

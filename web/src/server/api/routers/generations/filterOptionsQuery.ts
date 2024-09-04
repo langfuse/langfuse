@@ -1,13 +1,12 @@
 import { z } from "zod";
 
+import { timeFilter, type ObservationOptions } from "@langfuse/shared";
+import { protectedProjectProcedure } from "@/src/server/api/trpc";
+import { Prisma } from "@langfuse/shared/src/db";
 import {
   datetimeFilterToPrisma,
   datetimeFilterToPrismaSql,
-  timeFilter,
-  type ObservationOptions,
-} from "@langfuse/shared";
-import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { Prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/src/server";
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(

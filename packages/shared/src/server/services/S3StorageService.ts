@@ -2,6 +2,7 @@ import type { Readable } from "stream";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { logger } from "../logger";
 
 type UploadFile = {
   fileName: string;
@@ -56,15 +57,14 @@ export class S3StorageService {
 
       return { signedUrl };
     } catch (err) {
-      console.error(err);
-
+      logger.error(err);
       throw new Error("Failed to upload to S3 or generate signed URL");
     }
   }
 
   private async getSignedUrl(
     fileName: string,
-    ttlSeconds: number
+    ttlSeconds: number,
   ): Promise<string> {
     try {
       return await getSignedUrl(
@@ -74,7 +74,7 @@ export class S3StorageService {
           Key: fileName,
           ResponseContentDisposition: `attachment; filename="${fileName}"`,
         }),
-        { expiresIn: ttlSeconds }
+        { expiresIn: ttlSeconds },
       );
     } catch (err) {
       throw Error("Failed to generate signed URL");
