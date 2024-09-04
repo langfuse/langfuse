@@ -6,6 +6,7 @@ import {
   redis,
   type AuthHeaderValidVerificationResult,
   traceException,
+  logger,
 } from "@langfuse/shared/src/server";
 import { type RateLimitResource } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -64,15 +65,8 @@ export const createAuthedAPIRoute = <
       return rateLimitResponse.sendRestResponseIfLimited(res);
     }
 
-    console.log(
-      "Request to route ",
-      routeConfig.name,
-      "projectId ",
-      auth.scope.projectId,
-      "with query ",
-      req.query,
-      "and body ",
-      req.body,
+    logger.info(
+      `Request to route ${routeConfig.name} projectId ${auth.scope.projectId} with query ${req.query} and body ${req.body}`,
     );
 
     const query = routeConfig.querySchema
@@ -93,7 +87,7 @@ export const createAuthedAPIRoute = <
     if (routeConfig.responseSchema) {
       const parsingResult = routeConfig.responseSchema.safeParse(response);
       if (!parsingResult.success) {
-        console.error("Response validation failed:", parsingResult.error);
+        logger.error("Response validation failed:", parsingResult.error);
         traceException(parsingResult.error);
       }
     }

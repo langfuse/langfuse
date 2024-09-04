@@ -3,7 +3,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodError } from "zod";
 import { BaseError, MethodNotAllowedError } from "@langfuse/shared";
-import { traceException } from "@langfuse/shared/src/server";
+import { logger, traceException } from "@langfuse/shared/src/server";
 
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
@@ -39,7 +39,7 @@ export function withMiddlewares(handlers: Handlers) {
 
       return await finalHandlers[method](req, res);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
 
       if (error instanceof BaseError) {
         if (error.httpCode >= 500 && error.httpCode < 600) {
