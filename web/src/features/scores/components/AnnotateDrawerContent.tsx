@@ -652,8 +652,24 @@ export function AnnotateDrawerContent({
                                         />
                                         {field.value !== score.comment && (
                                           <div className="grid w-full grid-cols-[1fr,1fr] gap-2">
+                                            <PopoverClose asChild>
+                                              <Button
+                                                variant="secondary"
+                                                type="button"
+                                                size="sm"
+                                                className="text-xs"
+                                                disabled={!field.value}
+                                                onClick={() => {
+                                                  form.setValue(
+                                                    `scoreData.${index}.comment`,
+                                                    score.comment ?? "",
+                                                  );
+                                                }}
+                                              >
+                                                Discard
+                                              </Button>
+                                            </PopoverClose>
                                             <Button
-                                              variant="secondary"
                                               type="button"
                                               size="sm"
                                               className="text-xs"
@@ -672,23 +688,6 @@ export function AnnotateDrawerContent({
                                             >
                                               Save
                                             </Button>
-                                            <PopoverClose asChild>
-                                              <Button
-                                                variant="destructive"
-                                                type="button"
-                                                size="sm"
-                                                className="text-xs"
-                                                disabled={!field.value}
-                                                onClick={() => {
-                                                  form.setValue(
-                                                    `scoreData.${index}.comment`,
-                                                    score.comment ?? "",
-                                                  );
-                                                }}
-                                              >
-                                                Discard
-                                              </Button>
-                                            </PopoverClose>
                                           </div>
                                         )}
                                         {field.value === score.comment && (

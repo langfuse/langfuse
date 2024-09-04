@@ -1,8 +1,7 @@
 import { v4 } from "uuid";
-import { JobExecutionStatus, prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
+import { OrgEnrichedApiKey, redis } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
-import { ApiKeyZod } from "@/src/features/public-api/server/apiAuth";
 
 const generateAuth = (username: string, password: string) => {
   const auth = Buffer.from(`${username}:${password}`).toString("base64");
@@ -38,6 +37,14 @@ describe("Health endpoints", () => {
 });
 
 describe("Ingestion Pipeline", () => {
+  beforeEach(async () => {
+    // clear the redis cache
+    const keys = await redis?.keys("*");
+    if (keys && keys.length > 0) {
+      await redis?.del(keys);
+    }
+  });
+
   it("ingest a trace", async () => {
     const traceId = v4();
     const spanId = v4();
@@ -118,7 +125,7 @@ describe("Ingestion Pipeline", () => {
       expect(redisKeys?.length).toBe(1);
       const redisValue = await redis?.get(redisKeys![0]);
 
-      const llmApiKey = ApiKeyZod.parse(JSON.parse(redisValue!));
+      const llmApiKey = OrgEnrichedApiKey.parse(JSON.parse(redisValue!));
       expect(llmApiKey.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     });
 
@@ -143,6 +150,91 @@ describe("Ingestion Pipeline", () => {
 
     expect(response.status).toBe(207);
   }, 25000);
+
+  it("rate limit ingestion", async () => {
+    // update the org in the database and set the rate limit to 1 for ingestion
+    const org = await prisma.organization.findUnique({
+      where: {
+        id: "seed-org-id",
+      },
+    });
+    await prisma.organization.update({
+      where: {
+        id: "seed-org-id",
+      },
+      data: {
+        cloudConfig: {
+          ...(typeof org?.cloudConfig === "object" ? org.cloudConfig : {}),
+          rateLimitOverrides: [
+            {
+              resource: "ingestion",
+              points: 1,
+              durationInSec: 60,
+            },
+          ],
+        },
+      },
+    });
+
+    const traceId = v4();
+    const spanId = v4();
+
+    const event = {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            name: "test trace",
+            id: traceId,
+            userId: "user-1", // triggers the eval
+          },
+        },
+        {
+          id: v4(),
+          type: "span-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: spanId,
+            traceId: traceId,
+            name: "test span",
+          },
+        },
+      ],
+    };
+    // Arrange
+    const url = "http://localhost:3000/api/public/ingestion";
+
+    // Act
+    let responses = [];
+    for (let i = 0; i < 10; i++) {
+      responses.push(
+        await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: userApiKeyAuth,
+          },
+          body: JSON.stringify(event),
+        }),
+      );
+    }
+
+    // check that at least one of the responses is a 429
+    const rateLimitedResponse = responses.find((r) => r.status === 429);
+    expect(rateLimitedResponse).not.toBeNull();
+
+    // revert the rate limit on the org
+    await prisma.organization.update({
+      where: {
+        id: "seed-org-id",
+      },
+      data: {
+        cloudConfig: org?.cloudConfig ?? Prisma.JsonNull,
+      },
+    });
+  });
 });
 
 describe("Prompts endpoint", () => {

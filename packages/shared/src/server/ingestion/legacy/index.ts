@@ -14,7 +14,7 @@ import {
   convertTraceUpsertEventsToRedisEvents,
   getTraceUpsertQueue,
 } from "../../redis/trace-upsert";
-import { ApiAccessScope, AuthHeaderVerificationResult } from "../../auth/types";
+import { ApiAccessScope } from "../../auth/types";
 import { redis } from "../../redis/redis";
 import { backOff } from "exponential-backoff";
 import { Model } from "../../..";
@@ -31,9 +31,24 @@ type TokenCountInput = {
   text: unknown;
 };
 
+export type LegacyIngestionAccessScope = Omit<
+  ApiAccessScope,
+  "orgId" | "plan" | "rateLimitOverrides"
+>;
+
+type LegacyIngestionAuthHeaderVerificationResult =
+  | {
+      validKey: true;
+      scope: LegacyIngestionAccessScope;
+    }
+  | {
+      validKey: false;
+      error: string;
+    };
+
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
-  authCheck: AuthHeaderVerificationResult,
+  authCheck: LegacyIngestionAuthHeaderVerificationResult,
   calculateTokenDelegate: (p: TokenCountInput) => number | undefined
 ) => {
   console.log(`handling ingestion ${events.length} events`);
@@ -103,7 +118,7 @@ async function retry<T>(request: () => Promise<T>): Promise<T> {
 
 const handleSingleEvent = async (
   event: z.infer<typeof ingestionEvent>,
-  apiScope: ApiAccessScope,
+  apiScope: LegacyIngestionAccessScope,
   calculateTokenDelegate: (p: {
     model: Model;
     text: unknown;

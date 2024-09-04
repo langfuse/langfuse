@@ -44,6 +44,11 @@ ARG NEXT_PUBLIC_CRISP_WEBSITE_ID
 ARG NEXT_PUBLIC_SENTRY_DSN
 ARG NEXT_LANGFUSE_TRACING_SAMPLE_RATE
 
+# Accept build id as NEXT_PUBLIC_BUILD_ID or PORTER_NEXT_PUBLIC_BUILD_ID
+ARG PORTER_NEXT_PUBLIC_BUILD_ID
+ARG NEXT_PUBLIC_BUILD_ID
+ENV NEXT_PUBLIC_BUILD_ID=${PORTER_NEXT_PUBLIC_BUILD_ID:-$NEXT_PUBLIC_BUILD_ID}
+
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
@@ -56,7 +61,7 @@ RUN rm -f ./web/src/middleware.ts
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NEXT_MANUAL_SIG_HANDLE true
 
-RUN turbo run build --filter=web
+RUN NODE_OPTIONS='--max-old-space-size=4096' turbo run build --filter=web
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner

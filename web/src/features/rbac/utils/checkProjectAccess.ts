@@ -21,14 +21,13 @@ type HasProjectAccessParams =
 
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
- * @throws TRPCError("UNAUTHORIZED") if user does not have access
+ * @throws TRPCError("FORBIDDEN") if user does not have access
  */
 export const throwIfNoProjectAccess = (p: HasProjectAccessParams) => {
   if (!hasProjectAccess(p))
     throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message:
-        "Unauthorized, user does not have access to this resource or action",
+      code: "FORBIDDEN",
+      message: "User does not have access to this resource or action",
     });
 };
 

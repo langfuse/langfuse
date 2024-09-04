@@ -83,8 +83,6 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
     setIsOpen(false);
   };
 
-  if (!hasAccess) return null;
-
   return (
     <Popover
       key={prompt.id}
@@ -98,8 +96,10 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
         <Button
           variant="outline"
           size="icon"
+          className="h-7 w-7 px-0"
           aria-label="Set prompt labels"
           title="Set prompt labels"
+          disabled={!hasAccess}
         >
           <TagIcon className="h-4 w-4" />
         </Button>
@@ -160,7 +160,7 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
             ) : (
               <Button
                 variant="ghost"
-                className="mt-2 w-full justify-start px-2 py-1 text-sm  font-normal"
+                className="mt-2 w-full justify-start px-2 py-1 text-sm font-normal"
                 onClick={() => setIsAddingLabel(true)}
               >
                 <PlusIcon className="mr-2 h-4 w-4" />

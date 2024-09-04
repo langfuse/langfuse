@@ -40,6 +40,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Set NEXT_PUBLIC_BUILD_ID
+        run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
       - name: Build and run both images from compose
         run: |
           docker compose -f docker-compose.build.yml up -d
@@ -107,13 +110,26 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run db:seed
 
       - name: Build
         run: pnpm run build
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
 
       - name: Start Langfuse
         run: (pnpm run start&)
+        env:
+          LANGFUSE_PROVISION_ORG_ID: "seed-org-id"
+          LANGFUSE_PROVISION_ORG_NAME: "Seed Org"
+          LANGFUSE_PROVISION_PROJECT_ID: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
+          LANGFUSE_PROVISION_PROJECT_NAME: "Seed Project"
+          LANGFUSE_PROVISION_PROJECT_PUBLIC_KEY: "pk-lf-1234567890"
+          LANGFUSE_PROVISION_PROJECT_SECRET_KEY: "sk-lf-1234567890"
+          LANGFUSE_PROVISION_USER_EMAIL: "demo@langfuse.com"
+          LANGFUSE_PROVISION_USER_NAME: "Demo User"
+          LANGFUSE_PROVISION_USER_PASSWORD: "password"
 
       - name: run tests
         run: pnpm --filter=web run test
@@ -136,6 +152,7 @@ jobs:
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
@@ -165,18 +182,26 @@ jobs:
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
 
+      - name: Ensure no unhealthy status
+        run: |
+          if docker compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
+
       - name: Seed DB
         run: |
-          pnpm run --filter=shared ch:up
           pnpm run db:migrate
           pnpm run db:seed
+          pnpm run --filter=shared ch:up
 
       - name: Build
         run: pnpm --filter=worker... run build
 
       - name: run tests
         run: pnpm --filter=worker run test
-
   e2e-tests:
     runs-on: ubuntu-latest
     steps:
@@ -307,6 +332,9 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Set NEXT_PUBLIC_BUILD_ID
+        run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Log in to the GitHub Container registry
         uses: docker/login-action@v2

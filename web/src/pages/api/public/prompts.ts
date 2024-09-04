@@ -24,6 +24,7 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 export default async function handler(
   req: NextApiRequest,
@@ -50,6 +51,15 @@ export default async function handler(
       const projectId = authCheck.scope.projectId;
       const promptName = searchParams.name;
       const version = searchParams.version ?? undefined;
+
+      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+        authCheck.scope,
+        "prompts",
+      );
+
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
+      }
 
       const promptService = new PromptService(prisma, redis, recordIncrement);
 

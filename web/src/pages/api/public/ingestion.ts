@@ -1,10 +1,8 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { LangfuseNotFoundError, InternalServerError } from "@langfuse/shared";
 import {
-  getLegacyIngestionQueue,
   eventTypes,
   ingestionEvent,
   traceException,
@@ -14,6 +12,7 @@ import {
   handleBatch,
   recordIncrement,
   getCurrentSpan,
+  LegacyIngestionQueue,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
@@ -40,6 +39,8 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { tokenCount } from "@/src/features/ingest/usage";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 export const config = {
   api: {
@@ -64,6 +65,15 @@ export default async function handler(
     ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
+
+    const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+      authCheck.scope,
+      "ingestion",
+    );
+
+    if (rateLimitCheck?.isRateLimited()) {
+      return rateLimitCheck.sendRestResponseIfLimited(res);
+    }
 
     const batchType = z.object({
       batch: z.array(z.unknown()),
@@ -131,43 +141,54 @@ export default async function handler(
 
     if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" && redis) {
       // this function MUST NOT return but send the HTTP response directly
-      const queue = getLegacyIngestionQueue();
+      const queue = LegacyIngestionQueue.getInstance();
 
       if (queue) {
         // still need to check auth scope for all events individually
 
         const failedAccessScope = accessCheckPerEvent(sortedBatch, authCheck);
 
-        await queue.add(
-          QueueJobs.LegacyIngestionJob,
-          {
-            payload: { data: sortedBatch, authCheck: authCheck },
-            id: randomUUID(),
-            timestamp: new Date(),
-            name: QueueJobs.LegacyIngestionJob as const,
-          },
-          {
-            removeOnFail: 1_000_000,
-            removeOnComplete: true,
-            attempts: 5,
-            backoff: {
-              type: "exponential",
-              delay: 1000,
+        let addToQueueFailed = false;
+        try {
+          await queue.add(
+            QueueJobs.LegacyIngestionJob,
+            {
+              payload: { data: sortedBatch, authCheck: authCheck },
+              id: randomUUID(),
+              timestamp: new Date(),
+              name: QueueJobs.LegacyIngestionJob as const,
             },
-          },
-        );
+            {
+              removeOnFail: 1_000_000,
+              removeOnComplete: true,
+              attempts: 5,
+              backoff: {
+                type: "exponential",
+                delay: 1000,
+              },
+            },
+          );
+        } catch (e: unknown) {
+          console.warn(
+            "Failed to add batch to queue, falling back to sync processing",
+            e,
+          );
+          addToQueueFailed = true;
+        }
 
-        return handleBatchResult(
-          [
-            ...validationErrors,
-            ...failedAccessScope.map((e) => ({
-              id: e.id,
-              error: "Access Scope Denied",
-            })),
-          ], // we are not sending additional server errors to the client in case of early return
-          sortedBatch.map((event) => ({ id: event.id, result: event })),
-          res,
-        );
+        if (!addToQueueFailed) {
+          return handleBatchResult(
+            [
+              ...validationErrors,
+              ...failedAccessScope.map((e) => ({
+                id: e.id,
+                error: "Access Scope Denied",
+              })),
+            ], // we are not sending additional server errors to the client in case of early return
+            sortedBatch.map((event) => ({ id: event.id, result: event })),
+            res,
+          );
+        }
       } else {
         console.error(
           "Ingestion queue not initialized, falling back to sync processing",

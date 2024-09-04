@@ -13,7 +13,7 @@ export async function telemetry() {
   try {
     // Only run in prod
     if (process.env.NODE_ENV !== "production") return;
-    // Do not run in Lanfuse cloud, separate telemetry is used
+    // Do not run in Langfuse cloud, separate telemetry is used
     if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
     // Check if telemetry is not disabled, except for EE
     if (

@@ -12,6 +12,7 @@ export default withMiddlewares({
     name: "Get Daily Metrics",
     querySchema: GetMetricsDailyV1Query,
     responseSchema: GetMetricsDailyV1Response,
+    rateLimitRessource: "public-api-metrics",
     fn: async ({ query, auth }) => {
       const traceNameCondition = query.traceName
         ? Prisma.sql`AND t.name = ${query.traceName}`

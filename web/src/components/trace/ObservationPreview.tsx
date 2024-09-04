@@ -186,7 +186,6 @@ export const ObservationPreview = (props: {
                 source="generation"
                 generation={observationWithInputAndOutput.data}
                 analyticsEventName="trace_detail:test_in_playground_button_click"
-                fullWidth
               />
             )}
             {observationWithInputAndOutput.data ? (
