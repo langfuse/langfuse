@@ -19,6 +19,7 @@ import { redis } from "../../redis/redis";
 import { backOff } from "exponential-backoff";
 import { Model } from "../../..";
 import { enqueueIngestionEvents } from "./enqueueIngestionEvents";
+import { logger } from "../../logger";
 
 export type BatchResult = {
   result: unknown;
@@ -49,9 +50,9 @@ type LegacyIngestionAuthHeaderVerificationResult =
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
   authCheck: LegacyIngestionAuthHeaderVerificationResult,
-  calculateTokenDelegate: (p: TokenCountInput) => number | undefined
+  calculateTokenDelegate: (p: TokenCountInput) => number | undefined,
 ) => {
-  console.log(`handling ingestion ${events.length} events`);
+  logger.info(`handling ingestion ${events.length} events`);
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 
@@ -69,7 +70,7 @@ export const handleBatch = async (
         return await handleSingleEvent(
           singleEvent,
           authCheck.scope,
-          calculateTokenDelegate
+          calculateTokenDelegate,
         );
       });
       results.push({
@@ -93,9 +94,9 @@ export const handleBatch = async (
   if (env.CLICKHOUSE_URL) {
     try {
       await enqueueIngestionEvents(authCheck.scope.projectId, events);
-      console.log(`Added ${events.length} ingestion events to queue`);
+      logger.info(`Added ${events.length} ingestion events to queue`);
     } catch (err) {
-      console.error("Error adding ingestion events to queue", err);
+      logger.error("Error adding ingestion events to queue", err);
     }
   }
 
@@ -107,10 +108,10 @@ async function retry<T>(request: () => Promise<T>): Promise<T> {
     numOfAttempts: env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" ? 5 : 3,
     retry: (e: Error, attemptNumber: number) => {
       if (e instanceof UnauthorizedError || e instanceof ForbiddenError) {
-        console.log("not retrying auth error");
+        logger.info("not retrying auth error");
         return false;
       }
-      console.log(`retrying processing events ${attemptNumber}`);
+      logger.info(`retrying processing events ${attemptNumber}`);
       return true;
     },
   });
@@ -122,7 +123,7 @@ const handleSingleEvent = async (
   calculateTokenDelegate: (p: {
     model: Model;
     text: unknown;
-  }) => number | undefined
+  }) => number | undefined,
 ) => {
   const { body } = event;
   let restEvent = body;
@@ -137,8 +138,8 @@ const handleSingleEvent = async (
     restEvent = rest;
   }
 
-  console.log(
-    `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`
+  logger.info(
+    `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
   );
 
   const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
@@ -159,7 +160,7 @@ const handleSingleEvent = async (
     case eventTypes.GENERATION_UPDATE:
       processor = new ObservationProcessor(
         cleanedEvent,
-        calculateTokenDelegate
+        calculateTokenDelegate,
       );
       break;
     case eventTypes.SCORE_CREATE: {
@@ -201,7 +202,7 @@ export function cleanEvent(obj: unknown): unknown {
 }
 
 export const isNotNullOrUndefined = <T>(
-  val?: T | null
+  val?: T | null,
 ): val is Exclude<T, null | undefined> => !isUndefinedOrNull(val);
 
 export const isUndefinedOrNull = <T>(val?: T | null): val is undefined | null =>
@@ -209,7 +210,7 @@ export const isUndefinedOrNull = <T>(val?: T | null): val is undefined | null =>
 
 export const sendToWorkerIfEnvironmentConfigured = async (
   batchResults: BatchResult[],
-  projectId: string
+  projectId: string,
 ): Promise<void> => {
   const traceEvents: TraceUpsertEventType[] = batchResults
     .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
@@ -219,7 +220,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       "id" in result.result
         ? // ingestion API only gets traces for one projectId
           { traceId: result.result.id as string, projectId }
-        : null
+        : null,
     )
     .filter(isNotNullOrUndefined);
 
@@ -253,7 +254,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
             Authorization:
               "Basic " +
               Buffer.from(
-                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD
+                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
               ).toString("base64"),
           },
           body: JSON.stringify(body),

@@ -1,10 +1,10 @@
 import { expect, test, describe, vi } from "vitest";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import logger from "../logger";
 import { evalJobCreator } from "../queues/evalQueue";
 import {
   getTraceUpsertQueue,
+  logger,
   QueueJobs,
   TraceUpsertEventSchema,
 } from "@langfuse/shared/src/server";
@@ -47,7 +47,7 @@ describe.sequential("handle redis events", () => {
       },
       {
         timeout: 20_000,
-      }
+      },
     );
   }, 20_000);
 

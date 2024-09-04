@@ -2,7 +2,7 @@ import { parseDbOrg, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import Stripe from "stripe";
 import { env } from "../../env";
-import logger from "../../logger";
+import { logger } from "@langfuse/shared/src/server";
 import {
   cloudUsageMeteringDbCronJobName,
   CloudUsageMeteringDbCronJobStates,
@@ -36,7 +36,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   }
   if (cron.lastRun.getTime() % 3600000 !== 0) {
     throw new Error(
-      "Cloud Usage Metering Cron Job last run is not on the full hour"
+      "Cloud Usage Metering Cron Job last run is not on the full hour",
     );
   }
   if (cron.lastRun.getTime() + delayFromStartOfInterval > Date.now()) {
@@ -50,7 +50,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       cron.jobStartedAt < new Date(Date.now() - 1200000)
     ) {
       logger.warn(
-        "Last cloud usage metering job started at is older than 20 minutes, retrying job"
+        "Last cloud usage metering job started at is older than 20 minutes, retrying job",
       );
     } else {
       logger.warn("Cloud Usage Metering Job already in progress");
@@ -70,7 +70,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   const meterIntervalStart = cron.lastRun;
   const meterIntervalEnd = new Date(cron.lastRun.getTime() + 3600000);
   logger.info(
-    `Cloud Usage Metering Job running for interval ${meterIntervalStart.toISOString()} - ${meterIntervalEnd.toISOString()}`
+    `Cloud Usage Metering Job running for interval ${meterIntervalStart.toISOString()} - ${meterIntervalEnd.toISOString()}`,
   );
 
   // find all organizations which have a stripe org id set up
@@ -85,7 +85,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     })
   ).map(parseDbOrg);
   logger.info(
-    `Cloud Usage Metering Job for ${organizations.length} organizations`
+    `Cloud Usage Metering Job for ${organizations.length} organizations`,
   );
 
   // setup stripe client
@@ -118,7 +118,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       },
     });
     logger.info(
-      `Cloud Usage Metering Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`
+      `Cloud Usage Metering Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
     );
 
     if (countObservations > 0) {
@@ -144,7 +144,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     countProcessedObservations,
     {
       unit: "observations",
-    }
+    },
   );
 
   // update cron job

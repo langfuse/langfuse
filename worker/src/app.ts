@@ -6,8 +6,7 @@ import MessageResponse from "./interfaces/MessageResponse";
 
 require("dotenv").config();
 
-import logger from "./logger";
-
+import { logger } from "@langfuse/shared/src/server";
 import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
 import { batchExportJobExecutor } from "./queues/batchExportQueue";
 import { ingestionQueueExecutor } from "./queues/ingestionFlushQueueExecutor";
@@ -39,19 +38,19 @@ logger.info(`Eval Job Creator started: ${evalJobCreator?.isRunning()}`);
 
 logger.info(`Eval Job Executor started: ${evalJobExecutor?.isRunning()}`);
 logger.info(
-  `Batch Export Job Executor started: ${batchExportJobExecutor?.isRunning()}`
+  `Batch Export Job Executor started: ${batchExportJobExecutor?.isRunning()}`,
 );
 logger.info(
-  `Repeat Queue Executor started: ${repeatQueueExecutor?.isRunning()}`
+  `Repeat Queue Executor started: ${repeatQueueExecutor?.isRunning()}`,
 );
 logger.info(
-  `Flush Ingestion Queue Executor started: ${ingestionQueueExecutor?.isRunning()}`
+  `Flush Ingestion Queue Executor started: ${ingestionQueueExecutor?.isRunning()}`,
 );
 logger.info(
-  `Legacy Ingestion Executor started: ${legacyIngestionExecutor?.isRunning()}`
+  `Legacy Ingestion Executor started: ${legacyIngestionExecutor?.isRunning()}`,
 );
 logger.info(
-  `Cloud Usage Metering Job Executor started: ${cloudUsageMeteringJobExecutor?.isRunning()}`
+  `Cloud Usage Metering Job Executor started: ${cloudUsageMeteringJobExecutor?.isRunning()}`,
 );
 
 evalJobCreator?.on("failed", logQueueWorkerError);

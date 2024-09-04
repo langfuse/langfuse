@@ -10,7 +10,7 @@ import {
 } from "tiktoken";
 
 import { z } from "zod";
-import { instrumentSync } from "@langfuse/shared/src/server";
+import { instrumentSync, logger } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
   tokenizerModel: z.string().refine(isTiktokenModel, {
@@ -54,12 +54,12 @@ export function tokenCount(p: {
         return claudeTokenCount(p.text);
       } else {
         if (p.model.tokenizerId) {
-          console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
+          logger.error(`Unknown tokenizer ${p.model.tokenizerId}`);
         }
 
         return undefined;
       }
-    }
+    },
   );
 }
 
@@ -72,10 +72,10 @@ type ChatMessage = {
 function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
-    console.error(
+    logger.error(
       `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
-        p.model.tokenizerConfig
-      )}, ${JSON.stringify(config.error)}`
+        p.model.tokenizerConfig,
+      )}, ${JSON.stringify(config.error)}`,
     );
     return undefined;
   }
@@ -90,13 +90,13 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
   ) {
     // check if the tokenizerConfig is a valid chat config
     const parsedConfig = OpenAiChatTokenConfig.safeParse(
-      p.model.tokenizerConfig
+      p.model.tokenizerConfig,
     );
     if (!parsedConfig.success) {
-      console.error(
+      logger.error(
         `Invalid tokenizer config for chat model ${
           p.model.id
-        }: ${JSON.stringify(p.model.tokenizerConfig)}`
+        }: ${JSON.stringify(p.model.tokenizerConfig)}`,
       );
       return undefined;
     }
@@ -109,7 +109,7 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
       ? getTokensByModel(config.data.tokenizerModel, parsedText)
       : getTokensByModel(
           config.data.tokenizerModel,
-          JSON.stringify(parsedText)
+          JSON.stringify(parsedText),
         );
   }
   return result;
@@ -161,7 +161,7 @@ function openAiChatTokenCount(params: {
 }
 
 const getTokensByModel = (model: TiktokenModel, text: string) => {
-  // encoiding should be kept in memory to avoid re-creating it
+  // encoding should be kept in memory to avoid re-creating it
   let encoding: Tiktoken | undefined;
   try {
     cachedTokenizerByModel[model] =
@@ -169,7 +169,7 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
 
     encoding = cachedTokenizerByModel[model];
   } catch (KeyError) {
-    console.log("Warning: model not found. Using cl100k_base encoding.");
+    logger.warn("Model not found. Using cl100k_base encoding.");
 
     encoding = get_encoding("cl100k_base");
   }
@@ -205,7 +205,7 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
       typeof item.role === "string" &&
       "content" in item &&
       typeof item.content === "string" &&
-      (!("name" in item) || typeof item.name === "string")
+      (!("name" in item) || typeof item.name === "string"),
   );
 }
 

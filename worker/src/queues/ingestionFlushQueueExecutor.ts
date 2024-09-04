@@ -6,6 +6,7 @@ import {
   QueueName,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 import {
   clickhouseClient,
   getIngestionFlushQueue,
@@ -15,7 +16,6 @@ import {
   recordHistogram,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
-import logger from "../logger";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { IngestionService } from "../services/IngestionService";
 import { SpanKind } from "@opentelemetry/api";
@@ -43,7 +43,7 @@ const createIngestionQueueExecutor = () => {
               // Log wait time
               const waitTime = Date.now() - job.timestamp;
               logger.debug(
-                `Received flush request after ${waitTime} ms for ${flushKey}`
+                `Received flush request after ${waitTime} ms for ${flushKey}`,
               );
 
               recordIncrement("ingestion_processing_request");
@@ -65,18 +65,18 @@ const createIngestionQueueExecutor = () => {
                   redisInstance,
                   prisma,
                   ClickhouseWriter.getInstance(),
-                  clickhouseClient
+                  clickhouseClient,
                 ).flush(flushKey);
 
                 // Log processing time
                 const processingTime = Date.now() - processingStartTime;
                 logger.debug(
-                  `Prepared and scheduled CH-write in ${processingTime} ms for ${flushKey}`
+                  `Prepared and scheduled CH-write in ${processingTime} ms for ${flushKey}`,
                 );
                 recordHistogram(
                   "ingestion_flush_processing_time",
                   processingTime,
-                  { unit: "milliseconds" }
+                  { unit: "milliseconds" },
                 );
 
                 // Log queue size
@@ -91,21 +91,21 @@ const createIngestionQueueExecutor = () => {
                   })
                   .catch();
               } catch (err) {
-                console.error(
+                logger.error(
                   `Error processing flush request for ${flushKey}`,
-                  err
+                  err,
                 );
 
                 throw err;
               }
             }
-          }
+          },
         );
       },
       {
         connection: redisInstance,
         concurrency: env.LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY,
-      }
+      },
     );
   }
   return null;

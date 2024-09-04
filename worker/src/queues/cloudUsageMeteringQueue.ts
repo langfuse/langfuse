@@ -1,5 +1,5 @@
 import { Queue, Worker } from "bullmq";
-import logger from "../logger";
+import { logger } from "@langfuse/shared/src/server";
 import {
   redis,
   QueueName,
@@ -23,7 +23,7 @@ if (cloudUsageMeteringQueue) {
     {},
     {
       repeat: { pattern: "5 * * * *" },
-    }
+    },
   );
 
   // add a job to the queue to start the job immediately in case we need to catch up
@@ -52,14 +52,14 @@ const createCloudUsageMeteringJobExecutor = () => {
                 logger.error("Error executing Cloud Usage Metering Job", error);
                 throw error;
               }
-            }
+            },
           );
         }
       },
       {
         connection: redisInstance,
         concurrency: 1,
-      }
+      },
     );
   }
   return null;

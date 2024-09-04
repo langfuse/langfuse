@@ -8,7 +8,7 @@ import {
   instrumentAsync,
   createNewRedisInstance,
 } from "@langfuse/shared/src/server";
-import logger from "../logger";
+import { logger } from "@langfuse/shared/src/server";
 import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 import { SpanKind } from "@opentelemetry/api";
@@ -48,13 +48,13 @@ const createBatchExportJobExecutor = () => {
                 .execute();
 
               logger.error(
+                `Failed Batch Export job for id ${job.data.payload.batchExportId}`,
                 e,
-                `Failed Batch Export job for id ${job.data.payload.batchExportId} ${e}`
               );
               traceException(e);
               throw e;
             }
-          }
+          },
         );
       },
       {
@@ -65,7 +65,7 @@ const createBatchExportJobExecutor = () => {
           max: 1,
           duration: 5_000,
         },
-      }
+      },
     );
   }
 

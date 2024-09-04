@@ -10,8 +10,7 @@ import {
   TQueueJobTypes,
   createNewRedisInstance,
 } from "@langfuse/shared/src/server";
-import logger from "../logger";
-
+import { logger } from "@langfuse/shared/src/server";
 import {
   handleBatch,
   sendToWorkerIfEnvironmentConfigured,
@@ -80,7 +79,6 @@ const createLegacyIngestionExecutor = () => {
               );
             } catch (e) {
               logger.error(
-                e,
                 `Failed job Evaluation for traceId ${job.data.payload} ${e}`,
               );
               traceException(e);

@@ -25,3 +25,4 @@ export * from "./ingestion/legacy/index";
 export * from "./queues";
 export * from "./ingestion/legacy/EventProcessor";
 export * from "./instrumentation";
+export * from "./logger";

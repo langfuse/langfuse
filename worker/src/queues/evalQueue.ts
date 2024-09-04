@@ -2,7 +2,7 @@ import { Job, Queue, Worker } from "bullmq";
 import { ApiError, BaseError } from "@langfuse/shared";
 import { evaluate, createEvalJobs } from "../features/evaluation/eval-service";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
-import logger from "../logger";
+import { logger } from "@langfuse/shared/src/server";
 import { sql } from "kysely";
 import {
   createNewRedisInstance,
@@ -31,7 +31,7 @@ export const getEvalQueue = () => {
         QueueName.EvaluationExecution,
         {
           connection: connection,
-        }
+        },
       )
     : null;
 
@@ -76,24 +76,23 @@ const createEvalJobCreator = () => {
               recordHistogram(
                 "trace_upsert_queue_processing_time",
                 Date.now() - startTime,
-                { unit: "milliseconds" }
+                { unit: "milliseconds" },
               );
               return true;
             } catch (e) {
               logger.error(
-                e,
-                `Failed job Evaluation for traceId ${job.data.payload.traceId} ${e}`
+                `Failed job Evaluation for traceId ${job.data.payload.traceId} ${e}`,
               );
               traceException(e);
               throw e;
             }
-          }
+          },
         );
       },
       {
         connection: redisInstance,
         concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
-      }
+      },
     );
   }
   return null;
@@ -139,7 +138,7 @@ const createEvalJobExecutor = () => {
               recordHistogram(
                 "eval_execution_queue_processing_time",
                 Date.now() - startTime,
-                { unit: "milliseconds" }
+                { unit: "milliseconds" },
               );
 
               return true;
@@ -168,20 +167,20 @@ const createEvalJobExecutor = () => {
               ) {
                 traceException(e);
                 logger.error(
+                  `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
                   e,
-                  `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId} ${e}`
                 );
               }
 
               throw e;
             }
-          }
+          },
         );
       },
       {
         connection: redisInstance,
         concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
-      }
+      },
     );
   }
   return null;

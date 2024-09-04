@@ -7,6 +7,7 @@ import {
   ingestionEvent,
   traceException,
   redis,
+  logger,
   type AuthHeaderValidVerificationResult,
   type ingestionBatchEvent,
   handleBatch,
@@ -105,7 +106,7 @@ export default async function handler(
       : undefined;
 
     if (!parsedSchema.success) {
-      console.log("Invalid request data", parsedSchema.error);
+      logger.info("Invalid request data", parsedSchema.error);
       return res.status(400).json({
         message: "Invalid request data",
         errors: parsedSchema.error.issues.map((issue) => issue.message),
@@ -169,7 +170,7 @@ export default async function handler(
             },
           );
         } catch (e: unknown) {
-          console.warn(
+          logger.warn(
             "Failed to add batch to queue, falling back to sync processing",
             e,
           );
@@ -190,7 +191,7 @@ export default async function handler(
           );
         }
       } else {
-        console.error(
+        logger.error(
           "Ingestion queue not initialized, falling back to sync processing",
         );
       }
@@ -212,7 +213,7 @@ export default async function handler(
     );
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
-      console.error("error_handling_ingestion_event", error);
+      logger.error("error_handling_ingestion_event", error);
       traceException(error);
     }
 
@@ -229,7 +230,7 @@ export default async function handler(
       });
     }
     if (error instanceof z.ZodError) {
-      console.log(`Zod exception`, error.errors);
+      logger.info(`Zod exception`, error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
@@ -376,7 +377,7 @@ export const handleBatchResult = (
 
   if (returnedErrors.length > 0) {
     traceException(errors);
-    console.log("Error processing events", returnedErrors);
+    logger.info("Error processing events", returnedErrors);
   }
 
   results.forEach((result) => {
@@ -457,7 +458,7 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
 
   const parsedObj = object.safeParse(results[0].result);
   if (!parsedObj.success) {
-    console.error("Error parsing response", parsedObj.error);
+    logger.error("Error parsing response", parsedObj.error);
     traceException(parsedObj.error);
   }
   // should not fail in prod but just log an exception, see above
