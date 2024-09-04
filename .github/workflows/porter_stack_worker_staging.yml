@@ -2,7 +2,6 @@
   push:
     branches:
       - main
-      - steffen/lfe-1747-structured-logging
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
