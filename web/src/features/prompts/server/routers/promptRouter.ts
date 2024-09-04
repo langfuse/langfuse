@@ -19,6 +19,7 @@ import {
   orderByToPrismaSql,
   PromptService,
   redis,
+  logger,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -193,7 +194,7 @@ export const promptRouter = createTRPCRouter({
 
         return prompt;
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -297,7 +298,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -385,7 +386,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -479,7 +480,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -547,7 +548,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (error) {
-        console.error(error);
+        logger.error(error);
       }
     }),
   allVersions: protectedProjectProcedure
