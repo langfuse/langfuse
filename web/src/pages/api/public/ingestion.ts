@@ -35,6 +35,7 @@ import {
 import {
   sendToWorkerIfEnvironmentConfigured,
   QueueJobs,
+  instrumentSync,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
@@ -80,7 +81,11 @@ export default async function handler(
       metadata: jsonSchema.nullish(),
     });
 
-    const parsedSchema = batchType.safeParse(req.body);
+    // TODO: instrument 1
+    const parsedSchema = instrumentSync(
+      { name: "ingestion-zod-parse-unknown-batch-event" },
+      () => batchType.safeParse(req.body),
+    );
 
     recordIncrement(
       "ingestion_event",
@@ -116,7 +121,11 @@ export default async function handler(
 
     const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
       parsedSchema.data.batch.map((event) => {
-        const parsed = ingestionEvent.safeParse(event);
+        // TODO add instrumentation for each parse
+        const parsed = instrumentSync(
+          { name: "ingestion-zod-parse-individual-event" },
+          () => ingestionEvent.safeParse(event),
+        );
         if (!parsed.success) {
           validationErrors.push({
             id:
