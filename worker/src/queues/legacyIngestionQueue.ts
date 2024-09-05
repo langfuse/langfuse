@@ -30,7 +30,9 @@ export const legacyIngestionQueueProcessor: Processor = async (
     async () => {
       try {
         const startTime = Date.now();
-        logger.info("Processing legacy ingestion", job.data.payload);
+        logger.info("Processing legacy ingestion", {
+          payload: job.data.payload,
+        });
 
         // Log wait time
         const waitTime = Date.now() - job.timestamp;
