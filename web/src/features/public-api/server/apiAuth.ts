@@ -152,7 +152,7 @@ export class ApiAuthService {
           );
 
           if (!isValid) {
-            logger.info("Old key is invalid", publicKey);
+            logger.debug(`Old key is invalid: ${publicKey}`);
             throw new Error("Invalid credentials");
           }
 
