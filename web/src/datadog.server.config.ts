@@ -21,32 +21,14 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     runtimeMetrics: true,
   });
 
+  tracer.use("next", {
+    enabled: true,
+    measured: true,
+  });
+
   const { TracerProvider } = tracer;
 
   const provider = new TracerProvider();
-
-  // correct the ressrouce name for http requests
-  tracer.use("http", {
-    hooks: {
-      request(span, req) {
-        if (span && req) {
-          let url = "path" in req ? req.path : req.url;
-          if (url) {
-            // Remove URL parameters
-            url = url.split("?")[0];
-            // Add wildcard for /_next/static
-            if (url.startsWith("/_next/static")) {
-              url = "/_next/static/*";
-            }
-          }
-          if (url) {
-            const method = req.method;
-            span.setTag("resource.name", method ? `${method} ${url}` : url);
-          }
-        }
-      },
-    },
-  });
 
   registerInstrumentations({
     instrumentations: [
