@@ -97,7 +97,11 @@ export default async function handler(
 
     // get x-langfuse-xxx headers and add them to the span
     Object.keys(req.headers).forEach((header) => {
-      if (header.toLowerCase().startsWith("x-langfuse")) {
+      if (
+        header.toLowerCase().startsWith("x-langfuse") ||
+        header.toLowerCase().startsWith("x_langfuse")
+      ) {
+        console.log("headers", header);
         currentSpan?.setAttributes({
           [header]: req.headers[header],
         });
