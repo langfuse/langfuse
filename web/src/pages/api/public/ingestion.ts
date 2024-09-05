@@ -7,7 +7,6 @@ import {
   ingestionEvent,
   traceException,
   redis,
-  logger,
   type AuthHeaderValidVerificationResult,
   type ingestionBatchEvent,
   handleBatch,
@@ -110,7 +109,7 @@ export default async function handler(
       : undefined;
 
     if (!parsedSchema.success) {
-      logger.info("Invalid request data", parsedSchema.error);
+      console.log("Invalid request data", parsedSchema.error);
       return res.status(400).json({
         message: "Invalid request data",
         errors: parsedSchema.error.issues.map((issue) => issue.message),
@@ -123,7 +122,11 @@ export default async function handler(
       parsedSchema.data.batch.map((event) => {
         const parsed = instrumentSync(
           { name: "ingestion-zod-parse-individual-event" },
-          () => ingestionEvent.safeParse(event),
+          (span) => {
+            const parsedBody = ingestionEvent.safeParse(event);
+            span.setAttribute("object.id", parsedBody.data?.id);
+            return parsedBody;
+          },
         );
         if (!parsed.success) {
           validationErrors.push({
@@ -177,7 +180,7 @@ export default async function handler(
             },
           );
         } catch (e: unknown) {
-          logger.warn(
+          console.warn(
             "Failed to add batch to queue, falling back to sync processing",
             e,
           );
@@ -198,7 +201,7 @@ export default async function handler(
           );
         }
       } else {
-        logger.error(
+        console.error(
           "Ingestion queue not initialized, falling back to sync processing",
         );
       }
@@ -220,7 +223,7 @@ export default async function handler(
     );
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {
-      logger.error("error_handling_ingestion_event", error);
+      console.error("error_handling_ingestion_event", error);
       traceException(error);
     }
 
@@ -237,7 +240,7 @@ export default async function handler(
       });
     }
     if (error instanceof z.ZodError) {
-      logger.info(`Zod exception`, error.errors);
+      console.log(`Zod exception`, error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
@@ -384,7 +387,7 @@ export const handleBatchResult = (
 
   if (returnedErrors.length > 0) {
     traceException(errors);
-    logger.info("Error processing events", returnedErrors);
+    console.log("Error processing events", returnedErrors);
   }
 
   results.forEach((result) => {
@@ -465,7 +468,7 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
 
   const parsedObj = object.safeParse(results[0].result);
   if (!parsedObj.success) {
-    logger.error("Error parsing response", parsedObj.error);
+    console.error("Error parsing response", parsedObj.error);
     traceException(parsedObj.error);
   }
   // should not fail in prod but just log an exception, see above
