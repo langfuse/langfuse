@@ -50,6 +50,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
+import { type ColumnOrderState } from "@tanstack/react-table";
 
 export type GenerationsTableRow = {
   id: string;
@@ -698,6 +699,9 @@ export default function GenerationsTable({
       columns,
     );
 
+  // const [columnOrder, setColumnOrder] = useColumnOrder<GenerationsTableRow>(`generationsColumnOrder-${projectId}`, columns);
+  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
+
   const rows: GenerationsTableRow[] = useMemo(() => {
     return generations.isSuccess
       ? generations.data.generations.map((generation) => {
@@ -811,6 +815,8 @@ export default function GenerationsTable({
         }}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibilityState}
         rowHeight={rowHeight}

@@ -1,6 +1,7 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
 import React, { useState, useMemo } from "react";
+import { faker } from "@faker-js/faker";
 
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
@@ -21,6 +22,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
+  type ColumnOrderState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -45,6 +47,8 @@ interface DataTableProps<TData, TValue> {
   setRowSelection?: OnChangeFn<RowSelectionState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  columnOrder?: string[];
+  onColumnOrderChange?: OnChangeFn<ColumnOrderState> | undefined;
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
@@ -70,6 +74,8 @@ export function DataTable<TData extends object, TValue>({
   setRowSelection,
   columnVisibility,
   onColumnVisibilityChange,
+  columnOrder,
+  onColumnOrderChange,
   help,
   orderBy,
   setOrderBy,
@@ -87,6 +93,7 @@ export function DataTable<TData extends object, TValue>({
     data: data.data ?? [],
     columns,
     onColumnFiltersChange: setColumnFilters,
+    onColumnOrderChange: onColumnOrderChange,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
     manualPagination: pagination !== undefined,
@@ -111,6 +118,7 @@ export function DataTable<TData extends object, TValue>({
       columnFilters,
       pagination: pagination?.state,
       columnVisibility,
+      columnOrder,
       rowSelection,
     },
     manualFiltering: true,
@@ -121,6 +129,12 @@ export function DataTable<TData extends object, TValue>({
     },
     columnResizeMode: "onChange",
   });
+
+  const randomizeColumns = () => {
+    table.setColumnOrder(
+      faker.helpers.shuffle(table.getAllLeafColumns().map((d) => d.id)),
+    );
+  };
 
   // memo column sizes for performance
   // https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
@@ -150,6 +164,9 @@ export function DataTable<TData extends object, TValue>({
 
   return (
     <>
+      <button onClick={() => randomizeColumns()} className="border p-1">
+        Shuffle Columns
+      </button>
       <div
         className={cn(
           "flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto",
