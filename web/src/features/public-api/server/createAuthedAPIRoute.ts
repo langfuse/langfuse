@@ -66,7 +66,11 @@ export const createAuthedAPIRoute = <
     }
 
     logger.info(
-      `Request to route ${routeConfig.name} projectId ${auth.scope.projectId} with query ${req.query} and body ${req.body}`,
+      `Request to route ${routeConfig.name} projectId ${auth.scope.projectId}`,
+      {
+        query: req.query,
+        body: req.body,
+      },
     );
 
     const query = routeConfig.querySchema
