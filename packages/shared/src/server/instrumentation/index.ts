@@ -36,7 +36,7 @@ export async function instrumentAsync<T>(
   );
 }
 
-type SyncCallbackFn<T> = () => T;
+type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
 export function instrumentSync<T>(
   ctx: SpanCtx,
@@ -50,7 +50,7 @@ export function instrumentSync<T>(
     },
     (span) => {
       try {
-        const result = callback();
+        const result = callback(span);
         span.end();
         return result;
       } catch (ex) {
