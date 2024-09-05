@@ -10,7 +10,7 @@ export type SpanCtx = {
   traceScope?: string;
 };
 
-type AsyncCallbackFn<T> = () => Promise<T>;
+type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>;
 
 export async function instrumentAsync<T>(
   ctx: SpanCtx,
@@ -24,7 +24,7 @@ export async function instrumentAsync<T>(
     },
     async (span) => {
       try {
-        const result = await callback();
+        const result = await callback(span);
         span.end();
         return result;
       } catch (ex) {
@@ -36,7 +36,7 @@ export async function instrumentAsync<T>(
   );
 }
 
-type SyncCallbackFn<T> = () => T;
+type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
 export function instrumentSync<T>(
   ctx: SpanCtx,
@@ -50,7 +50,7 @@ export function instrumentSync<T>(
     },
     (span) => {
       try {
-        const result = callback();
+        const result = callback(span);
         span.end();
         return result;
       } catch (ex) {
