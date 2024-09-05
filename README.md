@@ -92,10 +92,10 @@ docker compose up -d
 
 ### Self-host (docker)
 
-Langfuse is simple to self-host and keep updated. It currently requires only a single docker container.
+Langfuse is simple to self-host and keep updated. It currently requires only a single docker container and a postgres database.
 [→ Self Hosting Instructions](https://langfuse.com/docs/deployment/self-host)
 
-Templated deployments: [Railway, GCP Cloud Run, AWS Fargate, Kubernetes and others](https://langfuse.com/docs/deployment/self-host#platform-specific-information)
+Templated deployments: [Railway, GCP, AWS, Azure, Kubernetes and others](https://langfuse.com/docs/deployment/self-host#platform-specific-information)
 
 ## Get Started
 
@@ -141,13 +141,13 @@ Packages integrated with Langfuse:
 
 - [Roadmap](https://langfuse.com/roadmap)
 - [GitHub Discussions](https://github.com/orgs/langfuse/discussions)
-- [Feature Requests](https://langfuse.com/idea
+- [Feature Requests](https://langfuse.com/ideas)
 
 ### Support and feedback
 
 In order of preference the best way to communicate with us:
 
-- [GitHub Discussions](https://github.com/orgs/langfuse/discussions): Contribute [ideas](https://langfuse.com/idea) [support requests](https://github.com/orgs/langfuse/discussions/categories/support) and [report bugs](https://github.com/langfuse/langfuse/issues/new?labels=%F0%9F%90%9E%E2%9D%94+unconfirmed+bug&projects=&template=bug_report.yml&title=bug%3A+) (preferred as we create a permanent, indexed artifact for other community members)
+- [GitHub Discussions](https://github.com/orgs/langfuse/discussions) (preferred): Contribute [ideas](https://langfuse.com/ideas), [support requests](https://langfuse.com/gh-support) and [report bugs](https://langfuse.com/issues)
 - [Discord](https://langfuse.com/discord): community support
 - Privately: contact at langfuse dot com
 
