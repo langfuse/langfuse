@@ -101,7 +101,6 @@ export default async function handler(
         header.toLowerCase().startsWith("x-langfuse") ||
         header.toLowerCase().startsWith("x_langfuse")
       ) {
-        console.log("headers", header);
         currentSpan?.setAttributes({
           [header]: req.headers[header],
         });
