@@ -12,7 +12,7 @@ import { env } from "./src/env.mjs";
  */
 const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.posthog.com https://*.sentry.io wss://*.crisp.chat https://*.crisp.chat;
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://client.crisp.chat https://settings.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://ph.langfuse.com https://static.cloudflareinsights.com https://*.stripe.com;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://client.crisp.chat https://settings.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://*.langfuse.dev https://static.cloudflareinsights.com https://*.stripe.com;
   style-src 'self' 'unsafe-inline' https://client.crisp.chat;
   img-src 'self' https: blob: data: https://client.crisp.chat https://image.crisp.chat https://storage.crisp.chat;
   font-src 'self' https://client.crisp.chat;
@@ -22,7 +22,7 @@ const cspHeader = `
   base-uri 'self';
   form-action 'self';
   frame-ancestors 'none';
-  connect-src 'self' https://client.crisp.chat https://storage.crisp.chat wss://client.relay.crisp.chat wss://stream.relay.crisp.chat https://*.ingest.us.sentry.io https://ph.langfuse.com;
+  connect-src 'self' https://client.crisp.chat https://storage.crisp.chat wss://client.relay.crisp.chat wss://stream.relay.crisp.chat https://*.ingest.us.sentry.io https://*.langfuse.dev;
   media-src 'self' https://client.crisp.chat;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
@@ -104,22 +104,22 @@ const nextConfig = {
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
-            {
-              source: "/api/auth/session",
-              headers: [
-                {
-                  key: "Access-Control-Allow-Origin",
-                  value: "https://langfuse.com",
-                },
-                { key: "Access-Control-Allow-Credentials", value: "true" },
-                { key: "Access-Control-Allow-Methods", value: "GET,POST" },
-                {
-                  key: "Access-Control-Allow-Headers",
-                  value: "Content-Type, Authorization",
-                },
-              ],
-            },
-          ]
+          {
+            source: "/api/auth/session",
+            headers: [
+              {
+                key: "Access-Control-Allow-Origin",
+                value: "https://langfuse.com",
+              },
+              { key: "Access-Control-Allow-Credentials", value: "true" },
+              { key: "Access-Control-Allow-Methods", value: "GET,POST" },
+              {
+                key: "Access-Control-Allow-Headers",
+                value: "Content-Type, Authorization",
+              },
+            ],
+          },
+        ]
         : []),
       // all files in /public/generated are public and can be accessed from any origin, e.g. to render an API reference based on our openapi schema
       {
