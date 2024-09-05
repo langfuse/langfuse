@@ -107,8 +107,6 @@ You need a Langfuse public and secret key to get started. Sign up [here](https:/
 
 Note: We recommend using our fully async, typed [SDKs](https://langfuse.com/docs/sdk) that allow you to instrument any LLM application with any underlying model. They are available in [Python (Decorators)](https://langfuse.com/docs/sdk/python) & [JS/TS](https://langfuse.com/docs/sdk/typescript). The SDKs will always be the most fully featured and stable way to ingest data into Langfuse.
 
-You may want to use another integration to get started quickly or implement a use case that we do not yet support. However, we recommend to migrate to the Langfuse SDKs over time to ensure performance and stability.
-
 See the [→ Quickstart](https://langfuse.com/docs/get-started) to integrate Langfuse.
 
 ### LLM Observability Integrations
