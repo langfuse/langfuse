@@ -125,7 +125,9 @@ export default async function handler(
           { name: "ingestion-zod-parse-individual-event" },
           (span) => {
             const parsedBody = ingestionEvent.safeParse(event);
-            span.setAttribute("object.id", parsedBody.data?.id);
+            if (parsedBody.data?.id !== undefined) {
+              span.setAttribute("object.id", parsedBody.data.id);
+            }
             return parsedBody;
           },
         );
