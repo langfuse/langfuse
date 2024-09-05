@@ -1,8 +1,7 @@
-![langfuse_logo_1024](https://github.com/user-attachments/assets/f17d8fc1-8206-4afa-a5ec-774826be88a8)
+![Langfuse GitHub Banner](https://github.com/langfuse/langfuse/assets/121163007/6035f0f3-d691-4963-b5d0-10cf506e9d42)
 
-<div align="center"><h1> Langfuse: Open Source LLM Observability & Engineering Platform</h4></div>
-<div align="center"><h2> Debug and improve your LLM app</h4></div>
-<div align="center"><h3> LLM Observability, Prompt Management, LLM Evaluations, Datasets, LLM Metrics and Prompt Playground</h4></div>
+<div align="center"><h1>Langfuse: Open Source LLM Engineering Platform</h1></div>
+<div align="center"><h4>LLM Observability, Prompt Management, LLM Evaluations,<br/>Datasets, LLM Metrics, and Prompt Playground</h4></div>
 
 <div align="center">
    <div>
