@@ -28,15 +28,15 @@
    </div>
    <span>Langfuse uses <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests.</span>
    <br/>
-   <span>We're hiring. <a href="https://langfuse.com/careers"><strong>Join us</strong></a> in Backend Engineering, Product Engineering, and Developer Relations.</span>
+   <span>We're hiring. <a href="https://langfuse.com/careers"><strong>Join us</strong></a> in Product Engineering and Developer Relations.</span>
    <br/>
    <br/>
    <div>
       <a href="https://github.com/langfuse/langfuse/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License"></a>
       <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange?style=flat-square" alt="Y Combinator W23"></a>
       <a href="https://github.com/langfuse/langfuse/pkgs/container/langfuse"><img alt="Docker Image" src="https://img.shields.io/badge/docker-langfuse-blue?logo=Docker&logoColor=white&style=flat-square"></a>
-      <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/v/langfuse?style=flat-square&label=npm+langfuse" alt="langfuse npm package"></a>
-      <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/v/langfuse.svg?style=flat-square&label=pypi+langfuse" alt="langfuse Python package on PyPi"></a>
+      <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/dm/langfuse?style=flat-square&logo=python&logoColor=white&label=pypi%20langfuse&color=blue" alt="langfuse Python package on PyPi"></a>
+      <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/dm/langfuse?style=flat-square&logo=npm&logoColor=white&label=npm%20langfuse&color=blue" alt="langfuse npm package"></a>
    </div>
 </div>
 </br>
@@ -130,7 +130,7 @@ Packages that integrate with Langfuse:
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | [Instructor](/docs/integrations/instructor)                | Library to get structured LLM outputs (JSON, Pydantic)                                                                  |
 | [Mirascope](/docs/integrations/mirascope)                  | Python toolkit for building LLM applications.                                                                           |
-| [AI SDK by Vercel](/docs/sdk/typescript/example-vercel-ai) | Typescript SDK that makes streaming LLM outputs super easy.                                                             |
+| [AI SDK by Vercel](/docs/integrations/vercel-ai)           | Typescript SDK that makes streaming LLM outputs super easy.                                                             |
 | [Flowise](/docs/integrations/flowise)                      | JS/TS no-code builder for customized LLM flows.                                                                         |
 | [Langflow](/docs/integrations/langflow)                    | Python-based UI for LangChain, designed with react-flow to provide an effortless way to experiment and prototype flows. |
 
