@@ -54,8 +54,6 @@ export const createAuthedAPIRoute = <
       return;
     }
 
-    return res.status(500).json("something went wrong");
-
     const rateLimitResponse = await new RateLimitService(
       redis,
     ).rateLimitRequest(
