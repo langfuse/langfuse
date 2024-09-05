@@ -11,8 +11,8 @@ import { env } from "./src/env.mjs";
  * img-src https to allow loading images from SSO providers
  */
 const cspHeader = `
-  default-src 'self' https://*.langfuse.com https://*.posthog.com https://*.sentry.io wss://*.crisp.chat https://*.crisp.chat;
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://client.crisp.chat https://settings.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://*.langfuse.dev https://static.cloudflareinsights.com https://*.stripe.com;
+  default-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io wss://*.crisp.chat https://*.crisp.chat;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://*.langfuse.dev https://client.crisp.chat https://settings.crisp.chat https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com;
   style-src 'self' 'unsafe-inline' https://client.crisp.chat;
   img-src 'self' https: blob: data: https://client.crisp.chat https://image.crisp.chat https://storage.crisp.chat;
   font-src 'self' https://client.crisp.chat;
@@ -22,7 +22,7 @@ const cspHeader = `
   base-uri 'self';
   form-action 'self';
   frame-ancestors 'none';
-  connect-src 'self' https://client.crisp.chat https://storage.crisp.chat wss://client.relay.crisp.chat wss://stream.relay.crisp.chat https://*.ingest.us.sentry.io https://*.langfuse.dev;
+  connect-src 'self' https://*.langfuse.com https://*.langfuse.dev https://client.crisp.chat https://storage.crisp.chat wss://client.relay.crisp.chat wss://stream.relay.crisp.chat https://*.ingest.us.sentry.io;
   media-src 'self' https://client.crisp.chat;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
