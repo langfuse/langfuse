@@ -18,6 +18,7 @@ groups:
         config:
           client_class_name: FernLangfuse
           improved_imports: false
+          inline_request_params: false
           pydantic_config:
             require_optional_fields: false
             use_str_enums: false
