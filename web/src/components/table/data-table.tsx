@@ -1,19 +1,6 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
 import React, { useState, useMemo } from "react";
-import {
-  DndContext,
-  useSensor,
-  useSensors,
-  MouseSensor,
-  TouchSensor,
-  KeyboardSensor,
-  closestCenter,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import { useSortable, arrayMove, SortableContext } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
@@ -44,10 +31,7 @@ import {
   type PaginationState,
   type RowSelectionState,
   type VisibilityState,
-  type Header,
 } from "@tanstack/react-table";
-import { Button } from "@/src/components/ui/button";
-import { Menu } from "lucide-react";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -63,7 +47,7 @@ interface DataTableProps<TData, TValue> {
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: string[];
-  onColumnOrderChange?: OnChangeFn<ColumnOrderState> | undefined;
+  onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
@@ -81,117 +65,20 @@ export interface AsyncTableData<T> {
   error?: string;
 }
 
-function DraggableTableHeader<TData extends object>({
-  header,
-  orderBy,
-  setOrderBy,
-}: {
-  header: Header<TData, unknown>;
-  orderBy: OrderByState;
-  setOrderBy: (s: OrderByState) => void;
-}) {
-  const capture = usePostHogClientCapture();
-  const { attributes, isDragging, listeners, setNodeRef, transform } =
-    useSortable({
-      id: header.column.id,
-    });
+function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {
+  const itemsToRemove = Array.from(toInsert.values()).flat();
+  array = array.filter((item) => !itemsToRemove.includes(item));
 
-  const columnDef = header.column.columnDef as LangfuseColumnDef<ModelTableRow>;
-  const sortingEnabled = columnDef.enableSorting;
+  toInsert.forEach((value, key) => {
+    const index = array.indexOf(key);
+    array.splice(
+      index + 1,
+      0,
+      ...value.filter((item) => !array.includes(item)),
+    );
+  });
 
-  return header.column.getIsVisible() ? (
-    <TableHead
-      key={header.id}
-      className={cn(
-        "group p-1 first:pl-2",
-        sortingEnabled && "cursor-pointer",
-        isDragging ? "opacity-80" : "opacity-100",
-        "relative whitespace-nowrap",
-      )}
-      ref={setNodeRef}
-      style={{
-        width: `calc(var(--header-${header.id}-size) * 1px)`,
-        transform: transform ? CSS.Translate.toString(transform) : "none",
-        transition: "width transform 0.2s ease-in-out",
-        zIndex: isDragging ? 1 : 0,
-      }}
-      onClick={(event) => {
-        event.preventDefault();
-
-        if (!setOrderBy || !columnDef.id || !sortingEnabled) {
-          return;
-        }
-
-        if (orderBy?.column === columnDef.id) {
-          if (orderBy.order === "DESC") {
-            capture("table:column_sorting_header_click", {
-              column: columnDef.id,
-              order: "ASC",
-            });
-            setOrderBy({
-              column: columnDef.id,
-              order: "ASC",
-            });
-          } else {
-            capture("table:column_sorting_header_click", {
-              column: columnDef.id,
-              order: "Disabled",
-            });
-            setOrderBy(null);
-          }
-        } else {
-          capture("table:column_sorting_header_click", {
-            column: columnDef.id,
-            order: "DESC",
-          });
-          setOrderBy({
-            column: columnDef.id,
-            order: "DESC",
-          });
-        }
-      }}
-    >
-      {header.isPlaceholder ? null : (
-        <div className="flex select-none items-center">
-          <span className="truncate">
-            {flexRender(header.column.columnDef.header, header.getContext())}
-          </span>
-          {columnDef.headerTooltip && (
-            <DocPopup
-              description={columnDef.headerTooltip.description}
-              href={columnDef.headerTooltip.href}
-            />
-          )}
-          {orderBy?.column === columnDef.id
-            ? renderOrderingIndicator(orderBy)
-            : null}
-          <Button
-            {...attributes}
-            {...listeners}
-            variant="ghost"
-            size="xs"
-            title="Drag and drop to reorder columns"
-            className="ml-1 hidden group-hover:block"
-          >
-            <Menu className="h-3 w-3" />
-          </Button>
-          <div
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onDoubleClick={() => header.column.resetSize()}
-            onMouseDown={header.getResizeHandler()}
-            onTouchStart={header.getResizeHandler()}
-            className={cn(
-              "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
-              header.column.getIsResizing() && "bg-primary-accent opacity-100",
-            )}
-          />
-        </div>
-      )}
-    </TableHead>
-  ) : null;
+  return array;
 }
 
 export function DataTable<TData extends object, TValue>({
@@ -215,6 +102,19 @@ export function DataTable<TData extends object, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
+  const capture = usePostHogClientCapture();
+
+  const flattedColumnsByGroup = useMemo(() => {
+    const flatColumnsByGroup = new Map();
+
+    columns.forEach((col) => {
+      if (Boolean(col.columns?.length)) {
+        const children = col.columns?.map((child) => child.accessorKey);
+        flatColumnsByGroup.set(col.accessorKey, children);
+      }
+    });
+    return flatColumnsByGroup;
+  }, [columns]);
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -245,7 +145,10 @@ export function DataTable<TData extends object, TValue>({
       columnFilters,
       pagination: pagination?.state,
       columnVisibility,
-      columnOrder,
+      columnOrder: insertArrayAfterKey(
+        columnOrder ?? [],
+        flattedColumnsByGroup,
+      ),
       rowSelection,
     },
     manualFiltering: true,
@@ -279,108 +182,156 @@ export function DataTable<TData extends object, TValue>({
     columnVisibility,
   ]);
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    console.log({ event });
-    if (active && over && active.id !== over.id) {
-      table.setColumnOrder((columnOrder) => {
-        const oldIndex = columnOrder.indexOf(active.id as string);
-        const newIndex = columnOrder.indexOf(over.id as string);
-        const newOrder = arrayMove(columnOrder, oldIndex, newIndex);
-        onColumnOrderChange(newOrder);
-        return newOrder;
-      });
-    }
-  }
-
-  console.log({ columnOrder });
-
-  const sensors = useSensors(
-    useSensor(MouseSensor, {}),
-    useSensor(TouchSensor, {}),
-    useSensor(KeyboardSensor, {}),
-  );
-
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
     : [table.getHeaderGroups().slice(-1)[0]];
 
   return (
     <>
-      <DndContext
-        collisionDetection={closestCenter}
-        modifiers={[restrictToHorizontalAxis]}
-        onDragEnd={handleDragEnd}
-        sensors={sensors}
+      <div
+        className={cn(
+          "flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto",
+          className,
+        )}
       >
         <div
           className={cn(
-            "flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto",
-            className,
+            "w-full overflow-auto",
+            isBorderless ? "" : "rounded-md border",
+          )}
+          style={{ ...columnSizeVars }}
+        >
+          <Table>
+            <TableHeader>
+              {tableHeaders.map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    const columnDef = header.column
+                      .columnDef as LangfuseColumnDef<ModelTableRow>;
+                    const sortingEnabled = columnDef.enableSorting;
+
+                    return header.column.getIsVisible() ? (
+                      <TableHead
+                        key={header.id}
+                        className={cn(
+                          "group p-1 first:pl-2",
+                          sortingEnabled && "cursor-pointer",
+                        )}
+                        style={{
+                          width: `calc(var(--header-${header.id}-size) * 1px)`,
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+
+                          if (!setOrderBy || !columnDef.id || !sortingEnabled) {
+                            return;
+                          }
+
+                          if (orderBy?.column === columnDef.id) {
+                            if (orderBy.order === "DESC") {
+                              capture("table:column_sorting_header_click", {
+                                column: columnDef.id,
+                                order: "ASC",
+                              });
+                              setOrderBy({
+                                column: columnDef.id,
+                                order: "ASC",
+                              });
+                            } else {
+                              capture("table:column_sorting_header_click", {
+                                column: columnDef.id,
+                                order: "Disabled",
+                              });
+                              setOrderBy(null);
+                            }
+                          } else {
+                            capture("table:column_sorting_header_click", {
+                              column: columnDef.id,
+                              order: "DESC",
+                            });
+                            setOrderBy({
+                              column: columnDef.id,
+                              order: "DESC",
+                            });
+                          }
+                        }}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <div className="flex select-none items-center">
+                            <span className="truncate">
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+                            </span>
+                            {columnDef.headerTooltip && (
+                              <DocPopup
+                                description={
+                                  columnDef.headerTooltip.description
+                                }
+                                href={columnDef.headerTooltip.href}
+                              />
+                            )}
+                            {orderBy?.column === columnDef.id
+                              ? renderOrderingIndicator(orderBy)
+                              : null}
+
+                            <div
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onDoubleClick={() => header.column.resetSize()}
+                              onMouseDown={header.getResizeHandler()}
+                              onTouchStart={header.getResizeHandler()}
+                              className={cn(
+                                "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
+                                header.column.getIsResizing() &&
+                                  "bg-primary-accent opacity-100",
+                              )}
+                            />
+                          </div>
+                        )}
+                      </TableHead>
+                    ) : null;
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            {table.getState().columnSizingInfo.isResizingColumn ? (
+              <MemoizedTableBody
+                table={table}
+                rowheighttw={rowheighttw}
+                columns={columns}
+                data={data}
+                help={help}
+              />
+            ) : (
+              <TableBodyComponent
+                table={table}
+                rowheighttw={rowheighttw}
+                columns={columns}
+                data={data}
+                help={help}
+              />
+            )}
+          </Table>
+        </div>
+        <div className="grow"></div>
+      </div>
+      {pagination !== undefined ? (
+        <div
+          className={cn(
+            "sticky bottom-0 z-10 flex w-full justify-end bg-background font-medium",
+            paginationClassName,
           )}
         >
-          <div
-            className={cn(
-              "w-full overflow-auto",
-              isBorderless ? "" : "rounded-md border",
-            )}
-            style={{ ...columnSizeVars }}
-          >
-            <Table>
-              <TableHeader>
-                {tableHeaders.map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <SortableContext
-                        key={header.id + "sortable"}
-                        items={columnOrder}
-                      >
-                        <DraggableTableHeader
-                          key={header.id}
-                          header={header}
-                          setOrderBy={setOrderBy}
-                          orderBy={orderBy}
-                        />
-                      </SortableContext>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              {table.getState().columnSizingInfo.isResizingColumn ? (
-                <MemoizedTableBody
-                  table={table}
-                  rowheighttw={rowheighttw}
-                  columns={columns}
-                  data={data}
-                  help={help}
-                />
-              ) : (
-                <TableBodyComponent
-                  table={table}
-                  rowheighttw={rowheighttw}
-                  columns={columns}
-                  data={data}
-                  help={help}
-                />
-              )}
-            </Table>
-          </div>
-          <div className="grow"></div>
+          <DataTablePagination
+            table={table}
+            paginationOptions={pagination.options}
+          />
         </div>
-        {pagination !== undefined ? (
-          <div
-            className={cn(
-              "sticky bottom-0 z-10 flex w-full justify-end bg-background font-medium",
-              paginationClassName,
-            )}
-          >
-            <DataTablePagination
-              table={table}
-              paginationOptions={pagination.options}
-            />
-          </div>
-        ) : null}
-      </DndContext>
+      ) : null}
     </>
   );
 }

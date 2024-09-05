@@ -699,6 +699,7 @@ export default function GenerationsTable({
       columns,
     );
 
+  // TODO: move to local storage
   const [columnOrder, setColumnOrder] = useState<string[]>(() =>
     columns.filter((c) => !!c.id).map((c) => c.id!),
   );
@@ -755,6 +756,8 @@ export default function GenerationsTable({
         columnsWithCustomSelect={["model", "name", "traceName", "promptName"]}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibilityState}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
