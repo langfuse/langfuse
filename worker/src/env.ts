@@ -42,9 +42,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3),
-  LANGFUSE_LOG_LEVEL: z
-    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
-    .optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number({
@@ -61,7 +58,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_URL: z.string().url().optional(),
   CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_PASSWORD: z.string().optional(),
-  LANGFUSE_WORKER_BETTERSTACK_TOKEN: z.string().optional(),
   LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -75,6 +71,9 @@ const EnvSchema = z.object({
     .positive()
     .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
+  QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
 });
 
 export const env = EnvSchema.parse(process.env);

@@ -1,12 +1,18 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import { logger, redis } from "@langfuse/shared/src/server";
 import { Response } from "express";
-import logger from "../../logger";
 
-export const checkContainerHealth = async (res: Response) => {
-  if (isSigtermReceived()) {
+/**
+ * Check the health of the container.
+ * If failOnSigterm is true, the health check will fail if a SIGTERM signal has been received.
+ */
+export const checkContainerHealth = async (
+  res: Response,
+  failOnSigterm: boolean,
+) => {
+  if (failOnSigterm && isSigtermReceived()) {
     logger.info(
-      "Health check failed: SIGTERM / SIGINT received, shutting down."
+      "Health check failed: SIGTERM / SIGINT received, shutting down.",
     );
     return res.status(500).json({
       status: "SIGTERM / SIGINT received, shutting down",
@@ -25,8 +31,8 @@ export const checkContainerHealth = async (res: Response) => {
     new Promise((_, reject) =>
       setTimeout(
         () => reject(new Error("Redis ping timeout after 2 seconds")),
-        2000
-      )
+        2000,
+      ),
     ),
   ]);
 

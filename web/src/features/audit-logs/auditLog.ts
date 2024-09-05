@@ -8,6 +8,7 @@ export type AuditableResource =
   | "comment"
   | "datasetItem"
   | "dataset"
+  | "datasetRun"
   | "trace"
   | "project"
   | "observation"

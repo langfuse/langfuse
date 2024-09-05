@@ -11,11 +11,12 @@ import {
 import {
   recordIncrement,
   type ApiAccessScope,
+  logger,
 } from "@langfuse/shared/src/server";
 import { type NextApiResponse } from "next";
 
 // Business Logic
-// - rate limit strategy is based on org-id, org plan, and resources. Rate limits are appliead in buckets of minutes.
+// - rate limit strategy is based on org-id, org plan, and resources. Rate limits are applied in buckets of minutes.
 // - rate limits are not applied for self hosters and are also not applied when Redis is not available
 // - infos for rate-limits are taken from the API access scope. Info for this scope is stored alongside API Keys in Redis for efficient access.
 // - isRateLimited returns false for self-hosters
@@ -41,7 +42,7 @@ export class RateLimitService {
     }
 
     if (!this.redis) {
-      console.log("Rate limiting not available without Redis");
+      logger.warn("Rate limiting not available without Redis");
       return new RateLimitHelper(undefined);
     }
 
@@ -100,7 +101,7 @@ export class RateLimitService {
         };
       } else {
         // Some other error occurred, rethrow it
-        console.log("Internal Rate limit error", err);
+        logger.error("Internal Rate limit error", err);
         throw err;
       }
     }
@@ -134,9 +135,7 @@ export class RateLimitHelper {
 
   sendRestResponseIfLimited(nextResponse: NextApiResponse) {
     if (!this.res || !this.isRateLimited()) {
-      console.error(
-        "Trying to send rate limit response without being limited.",
-      );
+      logger.error("Trying to send rate limit response without being limited.");
       throw new Error(
         "Trying to send rate limit response without being limited.",
       );

@@ -171,6 +171,15 @@ export const env = createEnv({
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
+    LANGFUSE_INIT_ORG_ID: z.string().optional(),
+    LANGFUSE_INIT_ORG_NAME: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
+    LANGFUSE_INIT_USER_EMAIL: z.string().email().optional(),
+    LANGFUSE_INIT_USER_NAME: z.string().optional(),
+    LANGFUSE_INIT_USER_PASSWORD: z.string().optional(),
   },
 
   /**
@@ -194,6 +203,7 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     NEXT_PUBLIC_CRISP_WEBSITE_ID: z.string().optional(),
+    NEXT_PUBLIC_BUILD_ID: z.string().optional(),
   },
 
   /**
@@ -206,6 +216,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_BUILD_ID: process.env.NEXT_PUBLIC_BUILD_ID,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
@@ -321,6 +332,16 @@ export const env = createEnv({
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
+    // provisioning
+    LANGFUSE_INIT_ORG_ID: process.env.LANGFUSE_INIT_ORG_ID,
+    LANGFUSE_INIT_ORG_NAME: process.env.LANGFUSE_INIT_ORG_NAME,
+    LANGFUSE_INIT_PROJECT_ID: process.env.LANGFUSE_INIT_PROJECT_ID,
+    LANGFUSE_INIT_PROJECT_NAME: process.env.LANGFUSE_INIT_PROJECT_NAME,
+    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: process.env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY,
+    LANGFUSE_INIT_PROJECT_SECRET_KEY: process.env.LANGFUSE_INIT_PROJECT_SECRET_KEY,
+    LANGFUSE_INIT_USER_EMAIL: process.env.LANGFUSE_INIT_USER_EMAIL,
+    LANGFUSE_INIT_USER_NAME: process.env.LANGFUSE_INIT_USER_NAME,
+    LANGFUSE_INIT_USER_PASSWORD: process.env.LANGFUSE_INIT_USER_PASSWORD,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

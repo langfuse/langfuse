@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { logger } from "@langfuse/shared/src/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -59,7 +60,7 @@ export default async function handler(
 
     await posthog.shutdownAsync();
 
-    console.log(
+    logger.info(
       "Updated ingestion_metrics in PostHog from startTimeframe:",
       startTimeframe?.toISOString(),
       "to endTimeframe:",
@@ -77,7 +78,7 @@ export default async function handler(
 
     return res.status(200).json({ message: "OK" });
   } catch (error) {
-    console.error(error);
+    logger.error(error);
     return res.status(500).json({ message: "Internal server error" });
   }
 }

@@ -3,6 +3,7 @@ import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
 
 import MembershipInvitationTemplate from "./MembershipInvitationEmailTemplate";
+import { logger } from "../../../logger";
 
 const langfuseUrls = {
   US: "https://us.cloud.langfuse.com",
@@ -34,8 +35,8 @@ export const sendMembershipInvitationEmail = async ({
   orgName,
 }: SendMembershipInvitationParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
-    console.error(
-      "Missing environment variables for sending membership invitation email."
+    logger.error(
+      "Missing environment variables for sending membership invitation email.",
     );
     return;
   }
@@ -49,8 +50,8 @@ export const sendMembershipInvitationEmail = async ({
 
   const authUrl = getAuthURL();
   if (!authUrl) {
-    console.error(
-      "Missing NEXTAUTH_URL or NEXT_PUBLIC_LANGFUSE_CLOUD_REGION environment variable."
+    logger.error(
+      "Missing NEXTAUTH_URL or NEXT_PUBLIC_LANGFUSE_CLOUD_REGION environment variable.",
     );
     return;
   }
@@ -67,7 +68,7 @@ export const sendMembershipInvitationEmail = async ({
         inviteLink: authUrl,
         emailFromAddress: env.EMAIL_FROM_ADDRESS,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      })
+      }),
     );
 
     await mailer.sendMail({
@@ -77,6 +78,6 @@ export const sendMembershipInvitationEmail = async ({
       html: htmlTemplate,
     });
   } catch (error) {
-    console.error(error);
+    logger.error(error);
   }
 };
