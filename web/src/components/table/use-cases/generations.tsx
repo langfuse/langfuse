@@ -699,8 +699,9 @@ export default function GenerationsTable({
       columns,
     );
 
-  // const [columnOrder, setColumnOrder] = useColumnOrder<GenerationsTableRow>(`generationsColumnOrder-${projectId}`, columns);
-  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
+  const [columnOrder, setColumnOrder] = useState<string[]>(() =>
+    columns.filter((c) => !!c.id).map((c) => c.id!),
+  );
 
   const rows: GenerationsTableRow[] = useMemo(() => {
     return generations.isSuccess
