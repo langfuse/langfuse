@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - main
+      - improve-dd-data
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
