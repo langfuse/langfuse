@@ -37,7 +37,6 @@ import {
 import {
   sendToWorkerIfEnvironmentConfigured,
   QueueJobs,
-  instrumentSync,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
