@@ -50,7 +50,6 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
-import { type ColumnOrderState } from "@tanstack/react-table";
 
 export type GenerationsTableRow = {
   id: string;
@@ -272,6 +271,7 @@ export default function GenerationsTable({
       id: "id",
       header: "ID",
       size: 100,
+      isPinned: true,
       cell: ({ row }) => {
         const observationId = row.getValue("id");
         const traceId = row.getValue("traceId");

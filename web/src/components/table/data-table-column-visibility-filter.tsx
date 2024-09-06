@@ -45,8 +45,8 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
-  columnOrder?: string[];
-  setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
+  columnOrder: string[];
+  setColumnOrder: Dispatch<SetStateAction<ColumnOrderState>>;
 }
 
 const calculateColumnCounts = <TData, TValue>(
@@ -216,14 +216,16 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    console.log({ event });
+
     if (active && over && active.id !== over.id) {
+      const overColumn = columns.find(
+        (col) => col.accessorKey === (over.id as string),
+      );
+      if (overColumn?.isPinned) return; // also send toast message to user
       setColumnOrder!((columnOrder) => {
         const oldIndex = columnOrder.indexOf(active.id as string);
         const newIndex = columnOrder.indexOf(over.id as string);
-        const newOrder = arrayMove(columnOrder, oldIndex, newIndex);
-        console.log({ newOrder });
-        return newOrder;
+        return arrayMove(columnOrder, oldIndex, newIndex);
       });
     }
   }
@@ -232,7 +234,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     <DndContext
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis]}
-      onDragEnd={setColumnOrder ? handleDragEnd : undefined}
+      onDragEnd={handleDragEnd}
       sensors={sensors}
     >
       <DropdownMenu open={isOpen}>
@@ -276,6 +278,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                           column={column}
                           columnVisibility={columnVisibility}
                           toggleColumn={toggleColumn}
+                          isOrderable={false} // grouped columns are not orderable, group may only be ordered as a whole
                         />
                       ))}
                       <DropdownMenuSeparator />
@@ -288,7 +291,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                       column={column}
                       columnVisibility={columnVisibility}
                       toggleColumn={toggleColumn}
-                      isOrderable
+                      isOrderable={!column.isPinned}
                     />
                   );
               }

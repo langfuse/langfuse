@@ -117,15 +117,18 @@ export function DataTableToolbar<TData, TValue>({
         />
       )}
       <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
-        {!!columnVisibility && !!setColumnVisibility && (
-          <DataTableColumnVisibilityFilter
-            columns={columns}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibility}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-          />
-        )}
+        {!!columnVisibility &&
+          !!setColumnVisibility &&
+          !!columnOrder &&
+          !!setColumnOrder && (
+            <DataTableColumnVisibilityFilter
+              columns={columns}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibility}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+            />
+          )}
         {!!rowHeight && !!setRowHeight && (
           <DataTableRowHeightSwitch
             rowHeight={rowHeight}
