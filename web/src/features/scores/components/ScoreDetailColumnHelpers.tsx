@@ -145,6 +145,7 @@ export const getScoreGroupColumnProps = (isLoading: boolean) => ({
   accessorKey: "scores",
   header: "Scores",
   id: "scores",
+  enableHiding: true,
   cell: () => {
     return isLoading ? <Skeleton className="h-3 w-1/2" /> : null;
   },
