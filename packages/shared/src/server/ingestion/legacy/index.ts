@@ -50,7 +50,7 @@ type LegacyIngestionAuthHeaderVerificationResult =
 export const handleBatch = async (
   events: z.infer<typeof ingestionApiSchema>["batch"],
   authCheck: LegacyIngestionAuthHeaderVerificationResult,
-  calculateTokenDelegate: (p: TokenCountInput) => number | undefined,
+  calculateTokenDelegate: (p: TokenCountInput) => number | undefined
 ) => {
   logger.debug(`handling ingestion ${events.length} events`);
 
@@ -70,7 +70,7 @@ export const handleBatch = async (
         return await handleSingleEvent(
           singleEvent,
           authCheck.scope,
-          calculateTokenDelegate,
+          calculateTokenDelegate
         );
       });
       results.push({
@@ -123,7 +123,7 @@ const handleSingleEvent = async (
   calculateTokenDelegate: (p: {
     model: Model;
     text: unknown;
-  }) => number | undefined,
+  }) => number | undefined
 ) => {
   const { body } = event;
   let restEvent = body;
@@ -139,10 +139,10 @@ const handleSingleEvent = async (
   }
 
   logger.info(
-    `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
+    `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`
   );
 
-  const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
+  const cleanedEvent = await ingestionEvent.parseAsync(cleanEvent(event));
 
   const { type } = cleanedEvent;
 
@@ -160,7 +160,7 @@ const handleSingleEvent = async (
     case eventTypes.GENERATION_UPDATE:
       processor = new ObservationProcessor(
         cleanedEvent,
-        calculateTokenDelegate,
+        calculateTokenDelegate
       );
       break;
     case eventTypes.SCORE_CREATE: {
@@ -202,7 +202,7 @@ export function cleanEvent(obj: unknown): unknown {
 }
 
 export const isNotNullOrUndefined = <T>(
-  val?: T | null,
+  val?: T | null
 ): val is Exclude<T, null | undefined> => !isUndefinedOrNull(val);
 
 export const isUndefinedOrNull = <T>(val?: T | null): val is undefined | null =>
@@ -210,7 +210,7 @@ export const isUndefinedOrNull = <T>(val?: T | null): val is undefined | null =>
 
 export const sendToWorkerIfEnvironmentConfigured = async (
   batchResults: BatchResult[],
-  projectId: string,
+  projectId: string
 ): Promise<void> => {
   const traceEvents: TraceUpsertEventType[] = batchResults
     .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
@@ -220,7 +220,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
       "id" in result.result
         ? // ingestion API only gets traces for one projectId
           { traceId: result.result.id as string, projectId }
-        : null,
+        : null
     )
     .filter(isNotNullOrUndefined);
 
@@ -254,7 +254,7 @@ export const sendToWorkerIfEnvironmentConfigured = async (
             Authorization:
               "Basic " +
               Buffer.from(
-                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
+                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD
               ).toString("base64"),
           },
           body: JSON.stringify(body),

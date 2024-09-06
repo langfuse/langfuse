@@ -14,6 +14,7 @@ import {
   recordIncrement,
   getCurrentSpan,
   LegacyIngestionQueue,
+  instrumentAsync,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
@@ -36,7 +37,6 @@ import {
 import {
   sendToWorkerIfEnvironmentConfigured,
   QueueJobs,
-  instrumentSync,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
@@ -82,9 +82,9 @@ export default async function handler(
       metadata: jsonSchema.nullish(),
     });
 
-    const parsedSchema = instrumentSync(
+    const parsedSchema = await instrumentAsync(
       { name: "ingestion-zod-parse-unknown-batch-event" },
-      () => batchType.safeParse(req.body),
+      () => batchType.safeParseAsync(req.body),
     );
 
     recordIncrement(
@@ -123,32 +123,34 @@ export default async function handler(
     const validationErrors: { id: string; error: unknown }[] = [];
 
     const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
-      parsedSchema.data.batch.map((event) => {
-        const parsed = instrumentSync(
-          { name: "ingestion-zod-parse-individual-event" },
-          (span) => {
-            const parsedBody = ingestionEvent.safeParse(event);
-            if (parsedBody.data?.id !== undefined) {
-              span.setAttribute("object.id", parsedBody.data.id);
-            }
-            return parsedBody;
-          },
-        );
-        if (!parsed.success) {
-          validationErrors.push({
-            id:
-              typeof event === "object" && event && "id" in event
-                ? typeof event.id === "string"
-                  ? event.id
-                  : "unknown"
-                : "unknown",
-            error: new InvalidRequestError(parsed.error.message),
-          });
-          return undefined;
-        } else {
-          return parsed.data;
-        }
-      });
+      await Promise.all(
+        parsedSchema.data.batch.map(async (event) => {
+          const parsed = await instrumentAsync(
+            { name: "ingestion-zod-parse-individual-event" },
+            async (span) => {
+              const parsedBody = await ingestionEvent.safeParseAsync(event);
+              if (parsedBody.data?.id !== undefined) {
+                span.setAttribute("object.id", parsedBody.data.id);
+              }
+              return parsedBody;
+            },
+          );
+          if (!parsed.success) {
+            validationErrors.push({
+              id:
+                typeof event === "object" && event && "id" in event
+                  ? typeof event.id === "string"
+                    ? event.id
+                    : "unknown"
+                  : "unknown",
+              error: new InvalidRequestError(parsed.error.message),
+            });
+            return undefined;
+          } else {
+            return parsed.data;
+          }
+        }),
+      );
     const filteredBatch: z.infer<typeof ingestionEvent>[] =
       batch.filter(isNotNullOrUndefined);
 
