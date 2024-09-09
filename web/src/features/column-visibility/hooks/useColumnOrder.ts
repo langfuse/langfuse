@@ -8,7 +8,7 @@ const readStoredColumnOrder = (localStorageKey: string): string[] => {
   }
   try {
     const storedValue = localStorage.getItem(localStorageKey);
-    return storedValue ? JSON.parse(storedValue) : {};
+    return storedValue ? JSON.parse(storedValue) : [];
   } catch (error) {
     console.error("Error reading from local storage", error);
     return [];
