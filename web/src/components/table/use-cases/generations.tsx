@@ -50,6 +50,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type GenerationsTableRow = {
   id: string;
@@ -699,9 +700,9 @@ export default function GenerationsTable({
       columns,
     );
 
-  // TODO: move to local storage
-  const [columnOrder, setColumnOrder] = useState<string[]>(() =>
-    columns.filter((c) => !!c.id).map((c) => c.id!),
+  const [columnOrder, setColumnOrder] = useColumnOrder<GenerationsTableRow>(
+    `generationColOrder-${projectId}`,
+    columns,
   );
 
   const rows: GenerationsTableRow[] = useMemo(() => {
