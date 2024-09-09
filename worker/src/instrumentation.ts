@@ -16,7 +16,6 @@ const contextManager = new AsyncHooksContextManager().enable();
 opentelemetry.context.setGlobalContextManager(contextManager);
 
 const { TracerProvider } = tracer.init({
-  profiling: false,
   runtimeMetrics: true,
 });
 
