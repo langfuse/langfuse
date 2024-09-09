@@ -19,7 +19,14 @@ import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { Check, ChevronDown, ChevronRight, Columns, Menu } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Columns,
+  Component,
+  Menu,
+} from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -116,7 +123,12 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
         <Check className="absolute left-2 h-4 w-4 opacity-50" />
       )}
       <div className="mr-1">
-        <span className="capitalize">
+        <span
+          className="capitalize"
+          title={
+            !column.enableHiding ? "This column may not be hidden" : undefined
+          }
+        >
           {column.header && typeof column.header === "string"
             ? column.header
             : column.accessorKey}
@@ -168,7 +180,7 @@ function GroupVisibilityDropdownHeader<TData, TValue>({
       }}
     >
       <div className="flex items-center">
-        <Check className="mr-2 h-4 w-4 opacity-50" />
+        <Component className="mr-2 h-4 w-4 opacity-50" />
         <span>
           {column.header && typeof column.header === "string"
             ? column.header
@@ -291,7 +303,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                           <GroupVisibilityDropdownHeader column={column} />
                         ) : (
                           <>
-                            <Check className="mr-2 h-4 w-4 opacity-50" />
+                            <Component className="mr-2 h-4 w-4 opacity-50" />
                             <span>
                               {column.header &&
                               typeof column.header === "string"
@@ -303,10 +315,10 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                       </DropdownMenuSubTrigger>
                       <DropdownMenuPortal>
                         <DropdownMenuSubContent>
-                          {column.columns.map((column) => (
+                          {column.columns.map((col) => (
                             <ColumnVisibilityDropdownItem
-                              key={column.accessorKey}
-                              column={column}
+                              key={col.accessorKey}
+                              column={col}
                               columnVisibility={columnVisibility}
                               toggleColumn={toggleColumn}
                               isOrderable={false} // grouped columns are not orderable, group may only be ordered as a whole
