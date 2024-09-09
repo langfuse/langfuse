@@ -52,7 +52,7 @@ export const handleBatch = async (
   authCheck: LegacyIngestionAuthHeaderVerificationResult,
   calculateTokenDelegate: (p: TokenCountInput) => number | undefined,
 ) => {
-  logger.info(`handling ingestion ${events.length} events`);
+  logger.debug(`handling ingestion ${events.length} events`);
 
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
 

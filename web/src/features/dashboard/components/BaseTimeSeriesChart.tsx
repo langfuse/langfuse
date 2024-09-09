@@ -3,7 +3,10 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { AreaChart, type CustomTooltipProps, LineChart } from "@tremor/react";
 import { Tooltip } from "@/src/features/dashboard/components/Tooltip";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
@@ -45,13 +48,11 @@ export function BaseTimeSeriesChart(props: {
     date: number,
     agg: DashboardDateRangeAggregationOption,
   ) => {
-    const showMinutes: DashboardDateRangeAggregationOption[] = [
-      "5 min",
-      "30 min",
-      "1 hour",
-      "3 hours",
-    ];
-    if (showMinutes.includes(agg)) {
+    const showMinutes = ["minute", "hour"].includes(
+      dashboardDateRangeAggregationSettings[agg].date_trunc,
+    );
+
+    if (showMinutes) {
       return new Date(date).toLocaleTimeString("en-US", {
         year: "2-digit",
         month: "numeric",

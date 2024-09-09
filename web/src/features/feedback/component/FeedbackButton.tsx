@@ -64,6 +64,7 @@ export function FeedbackButtonWrapper({
         }),
       });
       if (res.ok) {
+        form.reset();
         setOpen(false);
       } else {
         const data = res.json();

@@ -62,7 +62,7 @@ export const evalJobCreatorQueueProcessor = async (
         await getTraceUpsertQueue()
           ?.count()
           .then((count) => {
-            logger.info(`Eval creation queue length: ${count}`);
+            logger.debug(`Eval creation queue length: ${count}`);
             recordGauge("trace_upsert_queue_length", count, {
               unit: "records",
             });
@@ -112,7 +112,7 @@ export const evalJobExecutorQueueProcessor = async (
         await getEvalQueue()
           ?.count()
           .then((count) => {
-            logger.info(`Eval execution queue length: ${count}`);
+            logger.debug(`Eval execution queue length: ${count}`);
             recordGauge("eval_execution_queue_length", count, {
               unit: "records",
             });

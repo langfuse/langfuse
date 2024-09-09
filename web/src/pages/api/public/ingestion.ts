@@ -97,7 +97,10 @@ export default async function handler(
 
     // get x-langfuse-xxx headers and add them to the span
     Object.keys(req.headers).forEach((header) => {
-      if (header.toLowerCase().startsWith("x-langfuse")) {
+      if (
+        header.toLowerCase().startsWith("x-langfuse") ||
+        header.toLowerCase().startsWith("x_langfuse")
+      ) {
         currentSpan?.setAttributes({
           [header]: req.headers[header],
         });
@@ -243,7 +246,7 @@ export default async function handler(
       });
     }
     if (error instanceof z.ZodError) {
-      logger.log(`Zod exception`, error.errors);
+      logger.error(`Zod exception`, error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
@@ -390,7 +393,7 @@ export const handleBatchResult = (
 
   if (returnedErrors.length > 0) {
     traceException(errors);
-    logger.log("Error processing events", returnedErrors);
+    logger.error("Error processing events", returnedErrors);
   }
 
   results.forEach((result) => {
