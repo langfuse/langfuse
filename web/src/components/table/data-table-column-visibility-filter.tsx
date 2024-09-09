@@ -19,14 +19,7 @@ import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Columns,
-  Menu,
-  Pin,
-} from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Columns, Menu } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -49,7 +42,6 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/src/utils/tailwind";
-import { showNotificationToast } from "@/src/features/notifications/showNotificationToast";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -136,7 +128,7 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
           />
         )}
       </div>
-      {isOrderable ? (
+      {isOrderable && (
         <Button
           {...attributes}
           {...listeners}
@@ -147,10 +139,6 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
         >
           <Menu className="h-3 w-3" />
         </Button>
-      ) : (
-        !column.enableHiding && (
-          <Pin className="ml-auto mr-1 h-3 w-3 opacity-50" />
-        )
       )}
     </DropdownMenuCheckboxItem>
   );
@@ -250,12 +238,6 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         (col) => col.accessorKey === (over.id as string),
       );
       if (overColumn?.isPinned) {
-        showNotificationToast({
-          notification: {
-            message:
-              "Pinned columns must remain in their fixed position and cannot be reordered.",
-          },
-        });
         return;
       }
       setColumnOrder!((columnOrder) => {
@@ -334,14 +316,14 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                       </DropdownMenuPortal>
                     </DropdownMenuSub>
                   );
-                } else
+                } else if (!column.isPinned)
                   return (
                     <ColumnVisibilityDropdownItem
                       key={column.accessorKey}
                       column={column}
                       columnVisibility={columnVisibility}
                       toggleColumn={toggleColumn}
-                      isOrderable={isColumnOrderingEnabled && !column.isPinned}
+                      isOrderable={isColumnOrderingEnabled}
                     />
                   );
               }
