@@ -4,18 +4,19 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod } from "@langfuse/shared";
-import {
-  singleFilter,
-  tableColumnsToSqlFilterAndPrefix,
-} from "@langfuse/shared";
+import { paginationZod, singleFilter } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { type LastUserScore } from "@/src/features/scores/lib/types";
+import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
+  searchQuery: z
+    .string()
+    .optional()
+    .transform((val) => (val === "" ? undefined : val)),
 });
 
 const UserAllOptions = UserFilterOptions.extend({
@@ -31,6 +32,10 @@ export const userRouter = createTRPCRouter({
         usersTableCols,
         "users",
       );
+
+      const searchCondition = input.searchQuery
+        ? Prisma.sql`AND t.user_id ILIKE ${`%${input.searchQuery}%`}`
+        : Prisma.empty;
 
       const [users, totalUsers] = await Promise.all([
         ctx.prisma.$queryRaw<
@@ -49,6 +54,7 @@ export const userRouter = createTRPCRouter({
             AND t.user_id != ''
             AND t.project_id = ${input.projectId}
             ${filterCondition}
+            ${searchCondition}
           GROUP BY
             t.user_id
           ORDER BY
@@ -65,6 +71,7 @@ export const userRouter = createTRPCRouter({
           FROM traces t
           WHERE t.project_id = ${input.projectId}
           ${filterCondition}
+          ${searchCondition}
         `,
       ]);
 

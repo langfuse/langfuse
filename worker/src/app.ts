@@ -6,18 +6,21 @@ import MessageResponse from "./interfaces/MessageResponse";
 
 require("dotenv").config();
 
-import logger from "./logger";
-
-import { evalJobCreator, evalJobExecutor } from "./queues/evalQueue";
-import { batchExportJobExecutor } from "./queues/batchExportQueue";
-import { ingestionQueueExecutor } from "./queues/ingestionFlushQueueExecutor";
-import { repeatQueueExecutor } from "./queues/repeatQueue";
-import { logQueueWorkerError } from "./utils/logQueueWorkerError";
+import {
+  evalJobCreatorQueueProcessor,
+  evalJobExecutorQueueProcessor,
+} from "./queues/evalQueue";
+import { batchExportQueueProcessor } from "./queues/batchExportQueue";
+import { ingestionFlushQueueProcessor } from "./queues/ingestionFlushQueueExecutor";
+import { repeatQueueProcessor } from "./queues/repeatQueue";
 import { onShutdown } from "./utils/shutdown";
 
 import helmet from "helmet";
-import { legacyIngestionExecutor } from "./queues/legacyIngestionQueue";
-import { cloudUsageMeteringJobExecutor } from "./queues/cloudUsageMeteringQueue";
+import { legacyIngestionQueueProcessor } from "./queues/legacyIngestionQueue";
+import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
+import { WorkerManager } from "./queues/workerManager";
+import { QueueName } from "@langfuse/shared/src/server";
+import { env } from "./env";
 
 const app = express();
 
@@ -35,32 +38,54 @@ app.use("/api", api);
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
 
-logger.info(`Eval Job Creator started: ${evalJobCreator?.isRunning()}`);
+WorkerManager.register(QueueName.RepeatQueue, repeatQueueProcessor);
 
-logger.info(`Eval Job Executor started: ${evalJobExecutor?.isRunning()}`);
-logger.info(
-  `Batch Export Job Executor started: ${batchExportJobExecutor?.isRunning()}`
-);
-logger.info(
-  `Repeat Queue Executor started: ${repeatQueueExecutor?.isRunning()}`
-);
-logger.info(
-  `Flush Ingestion Queue Executor started: ${ingestionQueueExecutor?.isRunning()}`
-);
-logger.info(
-  `Legacy Ingestion Executor started: ${legacyIngestionExecutor?.isRunning()}`
-);
-logger.info(
-  `Cloud Usage Metering Job Executor started: ${cloudUsageMeteringJobExecutor?.isRunning()}`
+WorkerManager.register(QueueName.TraceUpsert, evalJobCreatorQueueProcessor, {
+  concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+});
+
+WorkerManager.register(
+  QueueName.EvaluationExecution,
+  evalJobExecutorQueueProcessor,
+  {
+    concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+  },
 );
 
-evalJobCreator?.on("failed", logQueueWorkerError);
-evalJobExecutor?.on("failed", logQueueWorkerError);
-batchExportJobExecutor?.on("failed", logQueueWorkerError);
-repeatQueueExecutor?.on("failed", logQueueWorkerError);
-ingestionQueueExecutor?.on("failed", logQueueWorkerError);
-legacyIngestionExecutor?.on("failed", logQueueWorkerError);
-cloudUsageMeteringJobExecutor?.on("failed", logQueueWorkerError);
+WorkerManager.register(QueueName.BatchExport, batchExportQueueProcessor, {
+  concurrency: 1, // only 1 job at a time
+  limiter: {
+    // execute 1 batch export in 5 seconds to avoid overloading the DB
+    max: 1,
+    duration: 5_000,
+  },
+});
+
+WorkerManager.register(
+  QueueName.IngestionFlushQueue,
+  ingestionFlushQueueProcessor,
+  {
+    concurrency: env.LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY,
+  },
+);
+
+if (env.STRIPE_SECRET_KEY) {
+  WorkerManager.register(
+    QueueName.CloudUsageMeteringQueue,
+    cloudUsageMeteringQueueProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.LegacyIngestionQueue,
+    legacyIngestionQueueProcessor,
+    { concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY }, // n ingestion batches at a time
+  );
+}
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
 process.on("SIGTERM", () => onShutdown("SIGTERM"));

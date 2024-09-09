@@ -36,6 +36,7 @@ import {
   traceException,
   sendResetPasswordVerificationRequest,
   instrumentAsync,
+  logger,
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
@@ -328,7 +329,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
   try {
     dynamicSsoProviders = await loadSsoProviders();
   } catch (e) {
-    console.error("Error loading dynamic SSO providers", e);
+    logger.error("Error loading dynamic SSO providers", e);
     traceException(e);
   }
   const providers = [...staticProviders, ...dynamicSsoProviders];
@@ -442,11 +443,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
           if (!email) {
-            console.error("No email found in user object");
+            logger.error("No email found in user object");
             throw new Error("No email found in user object");
           }
           if (z.string().email().safeParse(email).success === false) {
-            console.error("Invalid email found in user object");
+            logger.error("Invalid email found in user object");
             throw new Error("Invalid email found in user object");
           }
 
