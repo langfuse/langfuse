@@ -40,6 +40,7 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/src/utils/tailwind";
+import { showNotificationToast } from "@/src/features/notifications/showNotificationToast";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -223,7 +224,15 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       const overColumn = columns.find(
         (col) => col.accessorKey === (over.id as string),
       );
-      if (overColumn?.isPinned) return; // also send toast message to user
+      if (overColumn?.isPinned) {
+        showNotificationToast({
+          notification: {
+            message:
+              "Pinned columns must remain in their fixed position and cannot be reordered.",
+          },
+        });
+        return;
+      }
       setColumnOrder!((columnOrder) => {
         const oldIndex = columnOrder.indexOf(active.id as string);
         const newIndex = columnOrder.indexOf(over.id as string);
