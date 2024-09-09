@@ -227,6 +227,7 @@ export default function TracesTable({
       id: "select",
       accessorKey: "select",
       size: 30,
+      isPinned: true,
       header: ({ table }) => (
         <Checkbox
           checked={
@@ -260,6 +261,7 @@ export default function TracesTable({
       header: undefined,
       id: "bookmarked",
       size: 30,
+      isPinned: true,
       cell: ({ row }) => {
         const bookmarked: TracesTableRow["bookmarked"] =
           row.getValue("bookmarked");
@@ -282,6 +284,7 @@ export default function TracesTable({
       header: "ID",
       id: "id",
       size: 90,
+      isPinned: true,
       cell: ({ row }) => {
         const value: TracesTableRow["id"] = row.getValue("id");
         return value && typeof value === "string" ? (

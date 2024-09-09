@@ -107,7 +107,7 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
       style={{
         transform: transform ? CSS.Translate.toString(transform) : "none",
         transition: "width transform 0.2s ease-in-out",
-        zIndex: isDragging ? 1 : 0,
+        zIndex: isDragging ? 1 : undefined,
       }}
     >
       {!column.enableHiding && <Pin className="absolute left-2 h-3 w-3" />}

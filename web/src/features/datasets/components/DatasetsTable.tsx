@@ -67,6 +67,7 @@ export function DatasetsTable(props: { projectId: string }) {
       header: "Name",
       id: "key",
       size: 150,
+      isPinned: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (

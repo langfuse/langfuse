@@ -92,6 +92,7 @@ export function DatasetRunsTable(props: {
       header: "Name",
       id: "key",
       size: 150,
+      isPinned: true,
       cell: ({ row }) => {
         const key: DatasetRunRowData["key"] = row.getValue("key");
         return (
