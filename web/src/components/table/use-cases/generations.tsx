@@ -677,7 +677,6 @@ export default function GenerationsTable({
       defaultHidden: true,
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
-        console.log(traceTags);
         return (
           traceTags && (
             <div

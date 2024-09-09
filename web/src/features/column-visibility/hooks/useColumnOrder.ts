@@ -1,5 +1,6 @@
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useLocalStorage from "@/src/components/useLocalStorage";
+
 // returns deep copy of local storage object
 const readStoredColumnOrder = (localStorageKey: string): string[] => {
   if (typeof window === "undefined") {
