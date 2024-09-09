@@ -29,6 +29,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 type DatasetRunRowKey = {
   id: string;
@@ -216,12 +217,19 @@ export function DatasetRunsTable(props: {
       columns,
     );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<DatasetRunRowData>(
+    `datasetRunsColumnOrder-${props.projectId}`,
+    columns,
+  );
+
   return (
     <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={props.menuItems}
@@ -250,6 +258,8 @@ export function DatasetRunsTable(props: {
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

@@ -46,6 +46,7 @@ import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -678,6 +679,11 @@ export default function TracesTable({
       columns,
     );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
+    `tracesColumnOrder-${projectId}`,
+    columns,
+  );
+
   const rows = useMemo(() => {
     return traces.isSuccess
       ? traceRowData?.rows?.map((trace) => {
@@ -744,6 +750,8 @@ export default function TracesTable({
         }
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
@@ -777,6 +785,8 @@ export default function TracesTable({
         setRowSelection={setSelectedRows}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

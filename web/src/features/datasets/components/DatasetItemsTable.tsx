@@ -23,6 +23,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 type RowData = {
   id: string;
@@ -268,12 +269,19 @@ export function DatasetItemsTable({
     columns,
   );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
+    `datasetItemsColumnOrder-${projectId}`,
+    columns,
+  );
+
   return (
     <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={menuItems}
@@ -304,6 +312,8 @@ export function DatasetItemsTable({
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

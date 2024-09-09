@@ -66,19 +66,15 @@ export interface AsyncTableData<T> {
 }
 
 function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {
-  const itemsToRemove = Array.from(toInsert.values()).flat();
-  array = array.filter((item) => !itemsToRemove.includes(item));
+  return array.reduce<string[]>((acc, key) => {
+    if (toInsert.has(key)) {
+      acc.push(...toInsert.get(key)!);
+    } else {
+      acc.push(key);
+    }
 
-  toInsert.forEach((value, key) => {
-    const index = array.indexOf(key);
-    array.splice(
-      index + 1,
-      0,
-      ...value.filter((item) => !array.includes(item)),
-    );
-  });
-
-  return array;
+    return acc;
+  }, []);
 }
 
 export function DataTable<TData extends object, TValue>({
@@ -105,11 +101,11 @@ export function DataTable<TData extends object, TValue>({
   const capture = usePostHogClientCapture();
 
   const flattedColumnsByGroup = useMemo(() => {
-    const flatColumnsByGroup = new Map();
+    const flatColumnsByGroup = new Map<string, string[]>();
 
     columns.forEach((col) => {
-      if (Boolean(col.columns?.length)) {
-        const children = col.columns?.map((child) => child.accessorKey);
+      if (col.columns && Boolean(col.columns.length)) {
+        const children = col.columns.map((child) => child.accessorKey);
         flatColumnsByGroup.set(col.accessorKey, children);
       }
     });
@@ -145,10 +141,9 @@ export function DataTable<TData extends object, TValue>({
       columnFilters,
       pagination: pagination?.state,
       columnVisibility,
-      columnOrder: insertArrayAfterKey(
-        columnOrder ?? [],
-        flattedColumnsByGroup,
-      ),
+      columnOrder: columnOrder
+        ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
+        : undefined,
       rowSelection,
     },
     manualFiltering: true,

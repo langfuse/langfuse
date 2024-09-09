@@ -45,8 +45,8 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
-  columnOrder: string[];
-  setColumnOrder: Dispatch<SetStateAction<ColumnOrderState>>;
+  columnOrder?: string[];
+  setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
 }
 
 const calculateColumnCounts = <TData, TValue>(
@@ -213,6 +213,8 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   );
 
   const { count, total } = calculateColumnCounts(columns, columnVisibility);
+  const columnIdsOrder = columnOrder ?? columns.map((col) => col.accessorKey);
+  const isColumnOrderingEnabled = !!setColumnOrder;
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -234,7 +236,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     <DndContext
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis]}
-      onDragEnd={handleDragEnd}
+      onDragEnd={isColumnOrderingEnabled ? handleDragEnd : undefined}
       sensors={sensors}
     >
       <DropdownMenu open={isOpen}>
@@ -257,10 +259,10 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
           className="max-h-96 overflow-y-auto"
         >
           <SortableContext
-            items={columnOrder}
+            items={columnIdsOrder}
             strategy={verticalListSortingStrategy}
           >
-            {columnOrder.map((columnId, index) => {
+            {columnIdsOrder.map((columnId, index) => {
               const column = columns.find(
                 (col) => col.accessorKey === columnId,
               );
@@ -271,7 +273,15 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                   return (
                     <div key={index}>
                       {!isFollowingGroup && <DropdownMenuSeparator />}
-                      <GroupVisibilityDropdownHeader column={column} />
+                      {isColumnOrderingEnabled ? (
+                        <GroupVisibilityDropdownHeader column={column} />
+                      ) : (
+                        <DropdownMenuLabel>
+                          {column.header && typeof column.header === "string"
+                            ? column.header
+                            : column.accessorKey}
+                        </DropdownMenuLabel>
+                      )}
                       {column.columns.map((column) => (
                         <ColumnVisibilityDropdownItem
                           key={column.accessorKey}
@@ -291,10 +301,11 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                       column={column}
                       columnVisibility={columnVisibility}
                       toggleColumn={toggleColumn}
-                      isOrderable={!column.isPinned}
+                      isOrderable={isColumnOrderingEnabled && !column.isPinned}
                     />
                   );
               }
+              return null;
             })}
           </SortableContext>
         </DropdownMenuContent>
