@@ -3,7 +3,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import {
-  Notification,
+  ReleaseNotification,
   type TNotification,
 } from "@/src/features/notifications/Notification";
 import { Button } from "@/src/components/ui/button";
@@ -132,7 +132,7 @@ export const useCheckNotification = (
           if (n.id > lastSeenId) {
             toast.custom(
               (t) => (
-                <Notification
+                <ReleaseNotification
                   notification={n}
                   setLastSeenId={setLastSeenId}
                   dismissToast={toast.dismiss}

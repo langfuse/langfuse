@@ -8,14 +8,14 @@ export interface TNotification {
   description?: JSX.Element | string;
 }
 
-interface NotificationProps {
+interface ReleaseNotificationProps {
   notification: TNotification;
   setLastSeenId: (id: number) => void;
   dismissToast: (t?: string | number | undefined) => void;
   toast: string | number;
 }
 
-export const Notification: React.FC<NotificationProps> = ({
+export const ReleaseNotification: React.FC<ReleaseNotificationProps> = ({
   notification,
   setLastSeenId,
   dismissToast,
