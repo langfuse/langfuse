@@ -30,7 +30,7 @@
     "@opentelemetry/instrumentation-http": "^0.52.1",
     "@opentelemetry/instrumentation-ioredis": "^0.42.0",
     "@opentelemetry/instrumentation-undici": "^0.4.0",
-    "@opentelemetry/instrumentation-winston": "^0.40.0",
+    "@opentelemetry/instrumentation-winston": "^0.36.0",
     "@prisma/instrumentation": "^5.13.0",
     "backoff": "^2.5.0",
     "bullmq": "^5.12.10",
