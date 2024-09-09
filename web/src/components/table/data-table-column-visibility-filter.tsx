@@ -10,14 +10,23 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   DropdownMenuCheckboxItem,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSubContent,
 } from "@/src/components/ui/dropdown-menu";
 import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { ChevronDown, Columns, Menu, Pin } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Columns,
+  Menu,
+  Pin,
+} from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -103,7 +112,7 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
       ref={setNodeRef}
       className={cn(
         isDragging ? "opacity-80" : "opacity-100",
-        "whitespace-nowrap",
+        "group whitespace-nowrap",
       )}
       style={{
         transform: transform ? CSS.Translate.toString(transform) : "none",
@@ -111,29 +120,37 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
         zIndex: isDragging ? 1 : undefined,
       }}
     >
-      {!column.enableHiding && <Pin className="absolute left-2 h-3 w-3" />}
-      <span className="capitalize">
-        {column.header && typeof column.header === "string"
-          ? column.header
-          : column.accessorKey}
-      </span>
-      {column.headerTooltip && (
-        <DocPopup
-          description={column.headerTooltip.description}
-          href={column.headerTooltip.href}
-        />
+      {!column.enableHiding && (
+        <Check className="absolute left-2 h-4 w-4 opacity-50" />
       )}
-      {isOrderable && (
+      <div className="mr-1">
+        <span className="capitalize">
+          {column.header && typeof column.header === "string"
+            ? column.header
+            : column.accessorKey}
+        </span>
+        {column.headerTooltip && (
+          <DocPopup
+            description={column.headerTooltip.description}
+            href={column.headerTooltip.href}
+          />
+        )}
+      </div>
+      {isOrderable ? (
         <Button
           {...attributes}
           {...listeners}
           variant="ghost"
           size="xs"
           title="Drag and drop to reorder columns"
-          className="ml-auto"
+          className="invisible ml-auto group-hover:visible"
         >
           <Menu className="h-3 w-3" />
         </Button>
+      ) : (
+        !column.enableHiding && (
+          <Pin className="ml-auto mr-1 h-3 w-3 opacity-50" />
+        )
       )}
     </DropdownMenuCheckboxItem>
   );
@@ -150,32 +167,40 @@ function GroupVisibilityDropdownHeader<TData, TValue>({
     });
 
   return (
-    <DropdownMenuLabel
+    <div
       ref={setNodeRef}
       className={cn(
         isDragging ? "opacity-80" : "opacity-100",
-        "flex whitespace-nowrap",
+        "group flex w-full items-center justify-between whitespace-nowrap",
       )}
       style={{
         transform: transform ? CSS.Translate.toString(transform) : "none",
         transition: "width transform 0.2s ease-in-out",
-        zIndex: isDragging ? 1 : 0,
+        zIndex: isDragging ? 1 : undefined,
       }}
     >
-      {column.header && typeof column.header === "string"
-        ? column.header
-        : column.accessorKey}
-      <Button
-        {...attributes}
-        {...listeners}
-        variant="ghost"
-        size="xs"
-        title="Drag and drop to reorder columns"
-        className="ml-auto"
-      >
-        <Menu className="h-3 w-3" />
-      </Button>
-    </DropdownMenuLabel>
+      <div className="flex items-center">
+        <Check className="mr-2 h-4 w-4 opacity-50" />
+        <span>
+          {column.header && typeof column.header === "string"
+            ? column.header
+            : column.accessorKey}
+        </span>
+      </div>
+      <div className="flex items-center">
+        <Button
+          {...attributes}
+          {...listeners}
+          variant="ghost"
+          size="xs"
+          title="Drag and drop to reorder columns"
+          className="invisible group-hover:visible"
+        >
+          <Menu className="h-3 w-3" />
+        </Button>
+        <ChevronRight className="h-4 w-4" />
+      </div>
+    </div>
   );
 }
 
@@ -277,31 +302,37 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
               );
               if (column) {
                 if (!!column.columns && Boolean(column.columns.length)) {
-                  const isFollowingGroup =
-                    "columns" in (columns[index - 1] ?? {});
                   return (
-                    <div key={index}>
-                      {!isFollowingGroup && <DropdownMenuSeparator />}
-                      {isColumnOrderingEnabled ? (
-                        <GroupVisibilityDropdownHeader column={column} />
-                      ) : (
-                        <DropdownMenuLabel>
-                          {column.header && typeof column.header === "string"
-                            ? column.header
-                            : column.accessorKey}
-                        </DropdownMenuLabel>
-                      )}
-                      {column.columns.map((column) => (
-                        <ColumnVisibilityDropdownItem
-                          key={column.accessorKey}
-                          column={column}
-                          columnVisibility={columnVisibility}
-                          toggleColumn={toggleColumn}
-                          isOrderable={false} // grouped columns are not orderable, group may only be ordered as a whole
-                        />
-                      ))}
-                      <DropdownMenuSeparator />
-                    </div>
+                    <DropdownMenuSub key={index}>
+                      <DropdownMenuSubTrigger hasCustomIcon>
+                        {isColumnOrderingEnabled ? (
+                          <GroupVisibilityDropdownHeader column={column} />
+                        ) : (
+                          <>
+                            <Check className="mr-2 h-4 w-4 opacity-50" />
+                            <span>
+                              {column.header &&
+                              typeof column.header === "string"
+                                ? column.header
+                                : column.accessorKey}
+                            </span>
+                          </>
+                        )}
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                          {column.columns.map((column) => (
+                            <ColumnVisibilityDropdownItem
+                              key={column.accessorKey}
+                              column={column}
+                              columnVisibility={columnVisibility}
+                              toggleColumn={toggleColumn}
+                              isOrderable={false} // grouped columns are not orderable, group may only be ordered as a whole
+                            />
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
                   );
                 } else
                   return (
