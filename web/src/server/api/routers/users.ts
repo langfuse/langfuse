@@ -13,6 +13,10 @@ import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
+  searchQuery: z
+    .string()
+    .optional()
+    .transform((val) => (val === "" ? undefined : val)),
 });
 
 const UserAllOptions = UserFilterOptions.extend({
@@ -28,6 +32,10 @@ export const userRouter = createTRPCRouter({
         usersTableCols,
         "users",
       );
+
+      const searchCondition = input.searchQuery
+        ? Prisma.sql`AND t.user_id ILIKE ${`%${input.searchQuery}%`}`
+        : Prisma.empty;
 
       const [users, totalUsers] = await Promise.all([
         ctx.prisma.$queryRaw<
@@ -46,6 +54,7 @@ export const userRouter = createTRPCRouter({
             AND t.user_id != ''
             AND t.project_id = ${input.projectId}
             ${filterCondition}
+            ${searchCondition}
           GROUP BY
             t.user_id
           ORDER BY
@@ -62,6 +71,7 @@ export const userRouter = createTRPCRouter({
           FROM traces t
           WHERE t.project_id = ${input.projectId}
           ${filterCondition}
+          ${searchCondition}
         `,
       ]);
 

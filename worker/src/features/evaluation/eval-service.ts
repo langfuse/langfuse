@@ -54,7 +54,7 @@ export const createEvalJobs = async ({
 
   for (const config of configs) {
     if (config.status === "INACTIVE") {
-      logger.info(`Skipping inactive config ${config.id}`);
+      logger.debug(`Skipping inactive config ${config.id}`);
       continue;
     }
 

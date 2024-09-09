@@ -457,7 +457,7 @@ export class TraceProcessor implements EventProcessor {
 
     const internalId = body.id ?? v4();
 
-    logger.info(
+    logger.debug(
       `Trying to create trace, project ${apiScope.projectId}, id: ${internalId}`,
     );
 
