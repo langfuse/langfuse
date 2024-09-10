@@ -2,7 +2,6 @@
   push:
     branches:
       - main
-      - steffen/lfe-1994-log-trace-attributes
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
