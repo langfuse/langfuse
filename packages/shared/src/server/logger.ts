@@ -44,13 +44,14 @@ const getWinstonLogger = (
 
   const format =
     env.LANGFUSE_LOG_FORMAT === "text" ? textLoggerFormat : jsonLoggerFormat;
+  const transport =
+    env.LANGFUSE_LOG_FORMAT === "text"
+      ? new winston.transports.Console()
+      : new TracedTransport();
   return winston.createLogger({
     level: minLevel,
     format: format,
-    transports: [
-      // new winston.transports.Console(),
-      new TracedTransport(),
-    ],
+    transports: [transport],
   });
 };
 
