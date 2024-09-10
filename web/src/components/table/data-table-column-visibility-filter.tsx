@@ -49,6 +49,7 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/src/utils/tailwind";
+import { isString } from "@/src/utils/types";
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -246,17 +247,17 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     const { active, over } = event;
 
     if (active && over && active.id !== over.id) {
-      const overColumn = columns.find(
-        (col) => col.accessorKey === (over.id as string),
-      );
+      const overColumn = columns.find((col) => col.accessorKey === over.id);
       if (overColumn?.isPinned) {
         return;
       }
-      setColumnOrder!((columnOrder) => {
-        const oldIndex = columnOrder.indexOf(active.id as string);
-        const newIndex = columnOrder.indexOf(over.id as string);
-        return arrayMove(columnOrder, oldIndex, newIndex);
-      });
+      if (isString(active.id) && isString(over.id)) {
+        setColumnOrder!((columnOrder) => {
+          const oldIndex = columnOrder.indexOf(active.id as string);
+          const newIndex = columnOrder.indexOf(over.id as string);
+          return arrayMove(columnOrder, oldIndex, newIndex);
+        });
+      }
     }
   }
 
