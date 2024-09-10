@@ -1,5 +1,26 @@
 import { env } from "../env";
 import winston from "winston";
+import Transport from "winston-transport";
+import { getCurrentSpan } from "./instrumentation";
+
+class TracedTransport extends Transport {
+  constructor(opts: Transport.TransportStreamOptions = {}) {
+    super(opts);
+  }
+
+  log(info: Record<string, any>, callback: () => void): void {
+    setImmediate(() => {
+      this.emit("logged", info);
+    });
+
+    const currentSpan = getCurrentSpan();
+    info.trace_id = currentSpan?.spanContext().traceId;
+    info.span_id = currentSpan?.spanContext().spanId;
+    console.log(JSON.stringify(info));
+
+    callback();
+  }
+}
 
 const getWinstonLogger = (
   nodeEnv: "development" | "production" | "test",
@@ -26,7 +47,10 @@ const getWinstonLogger = (
   return winston.createLogger({
     level: minLevel,
     format: format,
-    transports: [new winston.transports.Console()],
+    transports: [
+      // new winston.transports.Console(),
+      new TracedTransport(),
+    ],
   });
 };
 
