@@ -39,7 +39,7 @@ export const cloudUsageMeteringQueueProcessor: Processor = async (job) => {
     return instrumentAsync(
       {
         name: "cloudUsageMeteringJobExecutor",
-        traceContext: job.data._tracecontext,
+        traceContext: job.data?._tracecontext,
       },
       async () => {
         logger.info("Executing Cloud Usage Metering Job", job.data);

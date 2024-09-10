@@ -19,7 +19,7 @@ export const batchExportQueueProcessor = async (
     {
       name: "batchExportJobExecutor",
       spanKind: SpanKind.CONSUMER,
-      traceContext: job.data._tracecontext,
+      traceContext: job.data?._tracecontext,
     },
     async () => {
       try {
