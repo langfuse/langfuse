@@ -39,7 +39,7 @@ interface DataTableToolbarProps<TData, TValue> {
     | ((newState: FilterState) => void);
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
-  columnOrder?: string[];
+  columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;

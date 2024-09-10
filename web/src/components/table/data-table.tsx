@@ -46,7 +46,7 @@ interface DataTableProps<TData, TValue> {
   setRowSelection?: OnChangeFn<RowSelectionState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
-  columnOrder?: string[];
+  columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
