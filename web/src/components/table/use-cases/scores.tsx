@@ -378,7 +378,7 @@ export default function ScoresTable({
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<ScoresTableRow>(
-    `scoresColumnOrder${localStorageSuffix}-${projectId}`,
+    `scoresColumnOrder${localStorageSuffix}`,
     columns,
   );
 
