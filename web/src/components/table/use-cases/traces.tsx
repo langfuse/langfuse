@@ -46,6 +46,7 @@ import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -226,6 +227,7 @@ export default function TracesTable({
       id: "select",
       accessorKey: "select",
       size: 30,
+      isPinned: true,
       header: ({ table }) => (
         <Checkbox
           checked={
@@ -259,6 +261,7 @@ export default function TracesTable({
       header: undefined,
       id: "bookmarked",
       size: 30,
+      isPinned: true,
       cell: ({ row }) => {
         const bookmarked: TracesTableRow["bookmarked"] =
           row.getValue("bookmarked");
@@ -281,6 +284,7 @@ export default function TracesTable({
       header: "ID",
       id: "id",
       size: 90,
+      isPinned: true,
       cell: ({ row }) => {
         const value: TracesTableRow["id"] = row.getValue("id");
         return value && typeof value === "string" ? (
@@ -656,6 +660,7 @@ export default function TracesTable({
       accessorKey: "action",
       header: "Action",
       size: 70,
+      isPinned: true,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
         return traceId && typeof traceId === "string" ? (
@@ -677,6 +682,11 @@ export default function TracesTable({
       `tracesColumnVisibility-${projectId}`,
       columns,
     );
+
+  const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
+    "tracesColumnOrder",
+    columns,
+  );
 
   const rows = useMemo(() => {
     return traces.isSuccess
@@ -744,6 +754,8 @@ export default function TracesTable({
         }
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
@@ -777,6 +789,8 @@ export default function TracesTable({
         setRowSelection={setSelectedRows}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

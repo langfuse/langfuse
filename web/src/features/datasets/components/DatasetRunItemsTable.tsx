@@ -20,6 +20,7 @@ import {
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -222,6 +223,11 @@ export function DatasetRunItemsTable(
       columns,
     );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<DatasetRunItemRowData>(
+    "datasetRunsItemsColumnOrder",
+    columns,
+  );
+
   const rows = useMemo(() => {
     return runItems.isSuccess
       ? runItems.data.runItems.map((item) => {
@@ -255,6 +261,8 @@ export function DatasetRunItemsTable(
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
@@ -282,6 +290,8 @@ export function DatasetRunItemsTable(
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>
