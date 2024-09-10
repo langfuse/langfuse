@@ -157,7 +157,7 @@ export default function EvalLogTable({
     useColumnVisibility<JobExecutionRow>("evalLogColumnVisibility", columns);
 
   const [columnOrder, setColumnOrder] = useColumnOrder<JobExecutionRow>(
-    `evalLogColumnOrder-${projectId}`,
+    "evalLogColumnOrder",
     columns,
   );
 

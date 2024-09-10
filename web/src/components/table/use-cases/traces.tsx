@@ -683,7 +683,7 @@ export default function TracesTable({
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
-    `tracesColumnOrder-${projectId}`,
+    "tracesColumnOrder",
     columns,
   );
 

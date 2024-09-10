@@ -453,7 +453,7 @@ export default function SessionsTable({
     useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
   const [columnOrder, setColumnOrder] = useColumnOrder<SessionTableRow>(
-    `sessionsColumnOrder-${projectId}`,
+    "sessionsColumnOrder",
     columns,
   );
 

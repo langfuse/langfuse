@@ -271,7 +271,7 @@ export function DatasetItemsTable({
   );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
-    `datasetItemsColumnOrder-${projectId}`,
+    "datasetItemsColumnOrder",
     columns,
   );
 

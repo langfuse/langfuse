@@ -182,7 +182,7 @@ export function DatasetsTable(props: { projectId: string }) {
   );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
-    `datasetsColumnOrder-${props.projectId}`,
+    "datasetsColumnOrder",
     columns,
   );
 

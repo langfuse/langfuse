@@ -301,7 +301,7 @@ export function MembersTable({
     useColumnVisibility<MembersTableRow>("membersColumnVisibility", columns);
 
   const [columnOrder, setColumnOrder] = useColumnOrder<MembersTableRow>(
-    `membersColumnOrder-${project?.id}`,
+    "membersColumnOrder",
     columns,
   );
 

@@ -700,7 +700,7 @@ export default function GenerationsTable({
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<GenerationsTableRow>(
-    `generationsColumnOrder-${projectId}`,
+    "generationsColumnOrder",
     columns,
   );
 

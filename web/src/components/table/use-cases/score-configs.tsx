@@ -233,7 +233,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<ScoreConfigTableRow>(
-    `scoreConfigsColumnOrder-${projectId}`,
+    "scoreConfigsColumnOrder",
     columns,
   );
 

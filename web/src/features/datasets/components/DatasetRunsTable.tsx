@@ -219,7 +219,7 @@ export function DatasetRunsTable(props: {
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<DatasetRunRowData>(
-    `datasetRunsColumnOrder-${props.projectId}`,
+    "datasetRunsColumnOrder",
     columns,
   );
 

@@ -224,7 +224,7 @@ export function DatasetRunItemsTable(
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<DatasetRunItemRowData>(
-    `datasetRunsItemsColumnOrder-${props.projectId}`,
+    "datasetRunsItemsColumnOrder",
     columns,
   );
 

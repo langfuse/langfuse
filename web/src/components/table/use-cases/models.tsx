@@ -260,7 +260,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     useColumnVisibility<ModelTableRow>("modelsColumnVisibility", columns);
 
   const [columnOrder, setColumnOrder] = useColumnOrder<ModelTableRow>(
-    `modelsColumnOrder-${projectId}`,
+    "modelsColumnOrder",
     columns,
   );
 
