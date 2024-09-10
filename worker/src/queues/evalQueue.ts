@@ -45,6 +45,7 @@ export const evalJobCreatorQueueProcessor = async (
       name: "evalJobCreator",
       rootSpan: true,
       spanKind: SpanKind.CONSUMER,
+      traceContext: job.data?._tracecontext,
     },
     async () => {
       try {
@@ -94,6 +95,7 @@ export const evalJobExecutorQueueProcessor = async (
     {
       name: "evalJobExecutor",
       spanKind: SpanKind.CONSUMER,
+      traceContext: job.data?._tracecontext,
     },
     async () => {
       try {

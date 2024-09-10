@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ingestionBatchEvent } from ".";
+import { ingestionBatchEvent, TCarrier } from ".";
 
 export enum EventName {
   TraceUpsert = "TraceUpsert",
@@ -80,23 +80,27 @@ export type TQueueJobTypes = {
     id: string;
     payload: TraceUpsertEventType;
     name: QueueJobs.TraceUpsert;
+    _tracecontext?: TCarrier;
   };
   [QueueName.EvaluationExecution]: {
     timestamp: Date;
     id: string;
     payload: EvalExecutionEventType;
     name: QueueJobs.EvaluationExecution;
+    _tracecontext?: TCarrier;
   };
   [QueueName.BatchExport]: {
     timestamp: Date;
     id: string;
     payload: BatchExportJobType;
     name: QueueJobs.BatchExportJob;
+    _tracecontext?: TCarrier;
   };
   [QueueName.LegacyIngestionQueue]: {
     timestamp: Date;
     id: string;
     payload: LegacyIngestionEventType;
     name: QueueJobs.LegacyIngestionJob;
+    _tracecontext?: TCarrier;
   };
 };
