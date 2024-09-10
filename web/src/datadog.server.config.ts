@@ -21,10 +21,10 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     runtimeMetrics: true,
   });
 
-  tracer.use("next", {
-    enabled: true,
-    measured: true,
-  });
+  // tracer.use("next", {
+  //   enabled: true,
+  //   measured: true,
+  // });
 
   const { TracerProvider } = tracer;
 
