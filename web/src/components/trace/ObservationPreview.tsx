@@ -239,7 +239,7 @@ export const ObservationPreview = (props: {
                 "jobConfigurationId",
                 "userId",
               ]}
-              tableColumnVisibilityName="scoresColumnVisibilityObservationPreview"
+              localStorageSuffix="ObservationPreview"
             />
           )}
         </CardContent>

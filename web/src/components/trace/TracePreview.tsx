@@ -148,7 +148,7 @@ export const TracePreview = ({
               omittedFilter={["Trace ID"]}
               traceId={trace.id}
               hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
-              tableColumnVisibilityName="scoresColumnVisibilityTracePreview"
+              localStorageSuffix="TracePreview"
             />
           )}
         </CardContent>

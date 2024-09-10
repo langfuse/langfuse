@@ -26,13 +26,14 @@ export const legacyIngestionQueueProcessor: Processor = async (
       name: "legacyIngestion",
       spanKind: SpanKind.CONSUMER,
       rootSpan: true,
+      traceContext: job.data?._tracecontext,
     },
     async () => {
       try {
         const startTime = Date.now();
-        logger.info(
-          `Processing legacy ingestion for payload ${JSON.stringify(job.data.payload)}`,
-        );
+        logger.info("Processing legacy ingestion", {
+          payload: job.data.payload,
+        });
 
         // Log wait time
         const waitTime = Date.now() - job.timestamp;
@@ -61,7 +62,7 @@ export const legacyIngestionQueueProcessor: Processor = async (
         await LegacyIngestionQueue.getInstance()
           ?.count()
           .then((count) => {
-            logger.info(`Legacy Ingestion flush queue length: ${count}`);
+            logger.debug(`Legacy Ingestion flush queue length: ${count}`);
             recordGauge("legacy_ingestion_flush_queue_length", count, {
               unit: "records",
             });
