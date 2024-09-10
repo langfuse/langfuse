@@ -4,7 +4,7 @@ import z from "zod";
 export type PromptVariable = { name: string; value: string; isUsed: boolean };
 
 export type ChatMessage = {
-  role: ChatMessageRole;
+  role: ChatMessageRole | string; // Users may ingest any string as role via API/SDK
   content: string;
 };
 
