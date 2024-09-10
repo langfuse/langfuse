@@ -203,6 +203,9 @@ importers:
       winston:
         specifier: ^3.14.2
         version: 3.14.2
+      winston-transport:
+        specifier: ^4.7.1
+        version: 4.7.1
       zod:
         specifier: ^3.23.8
         version: 3.23.8

@@ -14,6 +14,7 @@ import {
   recordIncrement,
   getCurrentSpan,
   LegacyIngestionQueue,
+  addTraceContext,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
@@ -169,12 +170,12 @@ export default async function handler(
         try {
           await queue.add(
             QueueJobs.LegacyIngestionJob,
-            {
+            addTraceContext({
               payload: { data: sortedBatch, authCheck: authCheck },
               id: randomUUID(),
               timestamp: new Date(),
               name: QueueJobs.LegacyIngestionJob as const,
-            },
+            }),
             {
               removeOnFail: 1_000_000,
               removeOnComplete: true,
