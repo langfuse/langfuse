@@ -170,6 +170,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       accessorKey: "action",
       header: "Action",
       size: 70,
+      isPinned: true,
       enableHiding: true,
       cell: ({ row }) => {
         const { id: configId, isArchived, name } = row.original;

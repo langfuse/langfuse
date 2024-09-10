@@ -22,9 +22,19 @@ function useColumnOrder<TData>(
   const initialColumnOrder = () => {
     const storedColumnOrder = readStoredColumnOrder(localStorageKey);
     const columnIds = columns.map((c) => c.accessorKey);
-    return columnIds.length === storedColumnOrder.length
-      ? storedColumnOrder
-      : columnIds;
+
+    // if new column has been added to table, insert it at it's default position
+    if (columnIds.length > storedColumnOrder.length) {
+      const newColumnOrder = [...storedColumnOrder];
+      columnIds.forEach((id) => {
+        if (!newColumnOrder.includes(id)) {
+          const index = columnIds.indexOf(id);
+          newColumnOrder.splice(index, 0, id);
+        }
+      });
+      return newColumnOrder;
+    }
+    return storedColumnOrder;
   };
 
   const [columnOrder, setColumnOrder] = useLocalStorage<string[]>(

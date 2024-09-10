@@ -660,6 +660,7 @@ export default function TracesTable({
       accessorKey: "action",
       header: "Action",
       size: 70,
+      isPinned: true,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
         return traceId && typeof traceId === "string" ? (
