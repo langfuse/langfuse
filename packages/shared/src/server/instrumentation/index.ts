@@ -3,25 +3,39 @@ import * as dd from "dd-trace";
 
 // type CallbackFn<T> = () => T;
 
+export type TCarrier = {
+  traceparent?: string;
+  tracestate?: string;
+};
+
 export type SpanCtx = {
   name: string;
   spanKind?: opentelemetry.SpanKind; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind
   rootSpan?: boolean; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#traces
   traceScope?: string;
+  traceContext?: TCarrier;
 };
 
 type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>;
 
 export async function instrumentAsync<T>(
   ctx: SpanCtx,
-  callback: AsyncCallbackFn<T>
+  callback: AsyncCallbackFn<T>,
 ): Promise<T> {
-  return await getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
+  const activeContext = ctx.traceContext
+    ? opentelemetry.propagation.extract(
+        opentelemetry.context.active(),
+        ctx.traceContext,
+      )
+    : opentelemetry.context.active();
+
+  return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
     {
-      root: ctx.rootSpan,
+      root: !Boolean(ctx.traceContext) && ctx.rootSpan,
       kind: ctx.spanKind,
     },
+    activeContext,
     async (span) => {
       try {
         const result = await callback(span);
@@ -32,7 +46,7 @@ export async function instrumentAsync<T>(
         span.end();
         throw ex;
       }
-    }
+    },
   );
 }
 
@@ -40,14 +54,22 @@ type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
 export function instrumentSync<T>(
   ctx: SpanCtx,
-  callback: SyncCallbackFn<T>
+  callback: SyncCallbackFn<T>,
 ): T {
+  const activeContext = ctx.traceContext
+    ? opentelemetry.propagation.extract(
+        opentelemetry.context.active(),
+        ctx.traceContext,
+      )
+    : opentelemetry.context.active();
+
   return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
     {
-      root: ctx.rootSpan,
+      root: !Boolean(ctx.traceContext) && ctx.rootSpan,
       kind: ctx.spanKind,
     },
+    activeContext,
     (span) => {
       try {
         const result = callback(span);
@@ -58,16 +80,28 @@ export function instrumentSync<T>(
         span.end();
         throw ex;
       }
-    }
+    },
   );
 }
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
+export const addTraceContext = <T extends Record<string, any>>(
+  input: T,
+): T & { _tracecontext?: TCarrier } => {
+  const context = {};
+  opentelemetry.propagation.inject(opentelemetry.context.active(), context);
+
+  return {
+    ...input,
+    _tracecontext: context,
+  };
+};
+
 export const traceException = (
   ex: unknown,
   span?: opentelemetry.Span,
-  code?: string
+  code?: string,
 ) => {
   const activeSpan = span ?? getCurrentSpan();
 
@@ -115,7 +149,7 @@ export const traceException = (
 
 export const addUserToSpan = (
   attributes: { userId?: string; projectId?: string; email?: string },
-  span?: opentelemetry.Span
+  span?: opentelemetry.Span,
 ) => {
   const activeSpan = span ?? getCurrentSpan();
 
@@ -138,7 +172,7 @@ export const recordGauge = (
     | {
         [tag: string]: string | number;
       }
-    | undefined
+    | undefined,
 ) => {
   dd.dogstatsd.gauge(stat, value, tags);
 };
@@ -146,7 +180,7 @@ export const recordGauge = (
 export const recordIncrement = (
   stat: string,
   value?: number | undefined,
-  tags?: { [tag: string]: string | number } | undefined
+  tags?: { [tag: string]: string | number } | undefined,
 ) => {
   dd.dogstatsd.increment(stat, value, tags);
 };
@@ -154,7 +188,7 @@ export const recordIncrement = (
 export const recordHistogram = (
   stat: string,
   value?: number | undefined,
-  tags?: { [tag: string]: string | number } | undefined
+  tags?: { [tag: string]: string | number } | undefined,
 ) => {
   dd.dogstatsd.histogram(stat, value, tags);
 };
