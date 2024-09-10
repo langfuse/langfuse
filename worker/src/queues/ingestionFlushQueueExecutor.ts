@@ -22,6 +22,7 @@ export const ingestionFlushQueueProcessor: Processor = async (job) => {
     {
       name: "flush-ingestion-consumer",
       spanKind: SpanKind.CONSUMER,
+      traceContext: job.data?._tracecontext,
     },
     async () => {
       if (job.name === QueueJobs.FlushIngestionEntity) {

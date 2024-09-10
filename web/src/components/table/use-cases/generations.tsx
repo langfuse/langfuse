@@ -50,6 +50,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type GenerationsTableRow = {
   id: string;
@@ -271,6 +272,7 @@ export default function GenerationsTable({
       id: "id",
       header: "ID",
       size: 100,
+      isPinned: true,
       cell: ({ row }) => {
         const observationId = row.getValue("id");
         const traceId = row.getValue("traceId");
@@ -675,7 +677,6 @@ export default function GenerationsTable({
       defaultHidden: true,
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
-        console.log(traceTags);
         return (
           traceTags && (
             <div
@@ -697,6 +698,11 @@ export default function GenerationsTable({
       `generationsColumnVisibility-${projectId}`,
       columns,
     );
+
+  const [columnOrder, setColumnOrder] = useColumnOrder<GenerationsTableRow>(
+    "generationsColumnOrder",
+    columns,
+  );
 
   const rows: GenerationsTableRow[] = useMemo(() => {
     return generations.isSuccess
@@ -750,6 +756,8 @@ export default function GenerationsTable({
         columnsWithCustomSelect={["model", "name", "traceName", "promptName"]}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibilityState}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
@@ -811,6 +819,8 @@ export default function GenerationsTable({
         }}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibilityState}
         rowHeight={rowHeight}
