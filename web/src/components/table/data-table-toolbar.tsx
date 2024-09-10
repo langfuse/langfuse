@@ -5,7 +5,10 @@ import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-tab
 import { type FilterState } from "@langfuse/shared";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@langfuse/shared";
-import { type VisibilityState } from "@tanstack/react-table";
+import {
+  type ColumnOrderState,
+  type VisibilityState,
+} from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   DataTableRowHeightSwitch,
@@ -36,6 +39,8 @@ interface DataTableToolbarProps<TData, TValue> {
     | ((newState: FilterState) => void);
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
+  columnOrder?: ColumnOrderState;
+  setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
   columnsWithCustomSelect?: string[];
@@ -55,6 +60,8 @@ export function DataTableToolbar<TData, TValue>({
   setFilterState,
   columnVisibility,
   setColumnVisibility,
+  columnOrder,
+  setColumnOrder,
   rowHeight,
   setRowHeight,
   columnsWithCustomSelect,
@@ -115,6 +122,8 @@ export function DataTableToolbar<TData, TValue>({
             columns={columns}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibility}
+            columnOrder={columnOrder}
+            setColumnOrder={setColumnOrder}
           />
         )}
         {!!rowHeight && !!setRowHeight && (

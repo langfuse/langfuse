@@ -21,6 +21,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
+  type ColumnOrderState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -45,6 +46,8 @@ interface DataTableProps<TData, TValue> {
   setRowSelection?: OnChangeFn<RowSelectionState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  columnOrder?: ColumnOrderState;
+  onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
@@ -62,6 +65,18 @@ export interface AsyncTableData<T> {
   error?: string;
 }
 
+function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {
+  return array.reduce<string[]>((acc, key) => {
+    if (toInsert.has(key)) {
+      acc.push(...toInsert.get(key)!);
+    } else {
+      acc.push(key);
+    }
+
+    return acc;
+  }, []);
+}
+
 export function DataTable<TData extends object, TValue>({
   columns,
   data,
@@ -70,6 +85,8 @@ export function DataTable<TData extends object, TValue>({
   setRowSelection,
   columnVisibility,
   onColumnVisibilityChange,
+  columnOrder,
+  onColumnOrderChange,
   help,
   orderBy,
   setOrderBy,
@@ -83,10 +100,23 @@ export function DataTable<TData extends object, TValue>({
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
 
+  const flattedColumnsByGroup = useMemo(() => {
+    const flatColumnsByGroup = new Map<string, string[]>();
+
+    columns.forEach((col) => {
+      if (col.columns && Boolean(col.columns.length)) {
+        const children = col.columns.map((child) => child.accessorKey);
+        flatColumnsByGroup.set(col.accessorKey, children);
+      }
+    });
+    return flatColumnsByGroup;
+  }, [columns]);
+
   const table = useReactTable({
     data: data.data ?? [],
     columns,
     onColumnFiltersChange: setColumnFilters,
+    onColumnOrderChange: onColumnOrderChange,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
     manualPagination: pagination !== undefined,
@@ -111,6 +141,9 @@ export function DataTable<TData extends object, TValue>({
       columnFilters,
       pagination: pagination?.state,
       columnVisibility,
+      columnOrder: columnOrder
+        ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
+        : undefined,
       rowSelection,
     },
     manualFiltering: true,
@@ -171,6 +204,7 @@ export function DataTable<TData extends object, TValue>({
                     const columnDef = header.column
                       .columnDef as LangfuseColumnDef<ModelTableRow>;
                     const sortingEnabled = columnDef.enableSorting;
+
                     return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
@@ -181,9 +215,8 @@ export function DataTable<TData extends object, TValue>({
                         style={{
                           width: `calc(var(--header-${header.id}-size) * 1px)`,
                         }}
-                        title={sortingEnabled ? "Sort by this column" : ""}
                         onClick={(event) => {
-                          event.preventDefault(); // Add this line
+                          event.preventDefault();
 
                           if (!setOrderBy || !columnDef.id || !sortingEnabled) {
                             return;
@@ -219,41 +252,40 @@ export function DataTable<TData extends object, TValue>({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <>
-                            <div className="flex select-none items-center">
-                              <span className="truncate">
-                                {flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext(),
-                                )}
-                              </span>
-                              {columnDef.headerTooltip && (
-                                <DocPopup
-                                  description={
-                                    columnDef.headerTooltip.description
-                                  }
-                                  href={columnDef.headerTooltip.href}
-                                />
+                          <div className="flex select-none items-center">
+                            <span className="truncate">
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
                               )}
-                              {orderBy?.column === columnDef.id
-                                ? renderOrderingIndicator(orderBy)
-                                : null}
-                              <div
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                }}
-                                onDoubleClick={() => header.column.resetSize()}
-                                onMouseDown={header.getResizeHandler()}
-                                onTouchStart={header.getResizeHandler()}
-                                className={cn(
-                                  "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
-                                  header.column.getIsResizing() &&
-                                    "bg-primary-accent opacity-100",
-                                )}
+                            </span>
+                            {columnDef.headerTooltip && (
+                              <DocPopup
+                                description={
+                                  columnDef.headerTooltip.description
+                                }
+                                href={columnDef.headerTooltip.href}
                               />
-                            </div>
-                          </>
+                            )}
+                            {orderBy?.column === columnDef.id
+                              ? renderOrderingIndicator(orderBy)
+                              : null}
+
+                            <div
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onDoubleClick={() => header.column.resetSize()}
+                              onMouseDown={header.getResizeHandler()}
+                              onTouchStart={header.getResizeHandler()}
+                              className={cn(
+                                "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
+                                header.column.getIsResizing() &&
+                                  "bg-primary-accent opacity-100",
+                              )}
+                            />
+                          </div>
                         )}
                       </TableHead>
                     ) : null;
@@ -302,7 +334,12 @@ export function DataTable<TData extends object, TValue>({
 function renderOrderingIndicator(orderBy?: OrderByState) {
   if (!orderBy) return null;
   if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
-  else return <span className="ml-1">▼</span>;
+  else
+    return (
+      <span className="ml-1" title="Sort by this column">
+        ▼
+      </span>
+    );
 }
 
 interface TableBodyComponentProps<TData> {

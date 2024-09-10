@@ -26,6 +26,7 @@ import {
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type ScoresTableRow = {
   id: string;
@@ -76,7 +77,7 @@ export default function ScoresTable({
   observationId,
   omittedFilter = [],
   hiddenColumns = [],
-  tableColumnVisibilityName = "scoresColumnVisibility",
+  localStorageSuffix = "",
 }: {
   projectId: string;
   userId?: string;
@@ -84,7 +85,7 @@ export default function ScoresTable({
   observationId?: string;
   omittedFilter?: string[];
   hiddenColumns?: string[];
-  tableColumnVisibilityName?: string;
+  localStorageSuffix?: string;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -371,7 +372,15 @@ export default function ScoresTable({
   );
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ScoresTableRow>(tableColumnVisibilityName, columns);
+    useColumnVisibility<ScoresTableRow>(
+      "scoresColumnVisibility" + localStorageSuffix,
+      columns,
+    );
+
+  const [columnOrder, setColumnOrder] = useColumnOrder<ScoresTableRow>(
+    `scoresColumnOrder${localStorageSuffix}`,
+    columns,
+  );
 
   const convertToTableRow = (
     score: RouterOutput["scores"]["all"]["scores"][0],
@@ -420,6 +429,8 @@ export default function ScoresTable({
         setFilterState={useDebounce(setUserFilterState)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
@@ -451,6 +462,8 @@ export default function ScoresTable({
         setOrderBy={setOrderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

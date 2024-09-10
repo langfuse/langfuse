@@ -37,7 +37,10 @@ if (cloudUsageMeteringQueue) {
 export const cloudUsageMeteringQueueProcessor: Processor = async (job) => {
   if (job.name === QueueJobs.CloudUsageMeteringJob) {
     return instrumentAsync(
-      { name: "cloudUsageMeteringJobExecutor" },
+      {
+        name: "cloudUsageMeteringJobExecutor",
+        traceContext: job.data?._tracecontext,
+      },
       async () => {
         logger.info("Executing Cloud Usage Metering Job", job.data);
         try {
