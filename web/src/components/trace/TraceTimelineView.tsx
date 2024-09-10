@@ -1,6 +1,6 @@
 import { Card } from "@/src/components/ui/card";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { type APIScore, type Trace } from "@langfuse/shared";
+import { isPresent, type APIScore, type Trace } from "@langfuse/shared";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
@@ -81,7 +81,7 @@ function TreeItemInner({
   level = 0,
   cardWidth,
 }: {
-  latency: number;
+  latency?: number;
   totalScaleSpan: number;
   type: TreeItemType;
   startOffset?: number;
@@ -91,7 +91,7 @@ function TreeItemInner({
   level?: number;
   cardWidth: number;
 }) {
-  const itemWidth = (latency / totalScaleSpan) * SCALE_WIDTH;
+  const itemWidth = ((latency ?? 0) / totalScaleSpan) * SCALE_WIDTH;
   const itemOffsetLabelWidth = itemWidth + startOffset + LABEL_WIDTH;
   const customLabelWidth = cardWidth - SCALE_WIDTH - CARD_PADDING;
 
@@ -163,12 +163,12 @@ function TreeItemInner({
                 "hidden justify-end text-xs text-muted-foreground group-hover:block",
                 itemOffsetLabelWidth > SCALE_WIDTH
                   ? "mr-1"
-                  : !!latency
+                  : isPresent(latency)
                     ? "-mr-9"
                     : "-mr-6",
               )}
             >
-              {!!latency ? `${latency.toFixed(2)}s` : "n/a"}
+              {isPresent(latency) ? `${latency.toFixed(2)}s` : "n/a"}
             </span>
           </div>
         </div>
@@ -203,7 +203,7 @@ function TraceTreeItem({
 
   const latency = endTime
     ? (endTime.getTime() - startTime.getTime()) / 1000
-    : 0;
+    : undefined;
   const startOffset =
     ((startTime.getTime() - traceStartTime.getTime()) / totalScaleSpan / 1000) *
     SCALE_WIDTH;
