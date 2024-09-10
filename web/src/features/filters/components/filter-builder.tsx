@@ -280,14 +280,18 @@ function FilterBuilderForm({
                         variant="outline"
                         role="combobox"
                         disabled={disabled}
+                        className="w-full min-w-32 justify-between"
                       >
                         {column ? column.name : "Column"}
                         <ChevronDown className="h-4 w-4 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="p-0">
+                    <PopoverContent className="max-w-fit p-0">
                       <Command>
-                        <CommandInput placeholder="Search for column" />
+                        <CommandInput
+                          placeholder="Search for column"
+                          onFocus={(e) => (e.target.style.border = "none")}
+                        />
                         <CommandList>
                           <CommandEmpty>No options found.</CommandEmpty>
                           <CommandGroup>
@@ -439,7 +443,7 @@ function FilterBuilderForm({
                     />
                   ) : filter.type === "datetime" ? (
                     <DatePicker
-                      className="min-w-[100px]"
+                      className="w-full"
                       disabled={disabled}
                       date={filter.value ? new Date(filter.value) : undefined}
                       onChange={(date) => {
