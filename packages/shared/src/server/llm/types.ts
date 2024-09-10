@@ -22,6 +22,8 @@ export enum ChatMessageRole {
   Assistant = "assistant",
 }
 
+export const ChatMessageDefaultRoleSchema = z.nativeEnum(ChatMessageRole);
+
 export type ModelParams = {
   provider: string;
   adapter: LLMAdapter;
