@@ -279,6 +279,7 @@ function FilterBuilderForm({
                       <Button
                         variant="outline"
                         role="combobox"
+                        type="button"
                         disabled={disabled}
                         className="w-full min-w-32 justify-between"
                       >
