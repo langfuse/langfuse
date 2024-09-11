@@ -22,7 +22,6 @@ import { type AppRouter } from "@/src/server/api/root";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
-import { captureException } from "@sentry/nextjs";
 
 setUpSuperjson();
 
@@ -38,7 +37,6 @@ let buildId: string | null = null;
 const CLIENT_STALE_CACHE_CODES = [404, 400];
 
 const handleTrpcError = (error: unknown) => {
-  captureException(error);
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;

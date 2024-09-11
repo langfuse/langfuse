@@ -1,7 +1,7 @@
 "on":
   push:
     branches:
-      - max/lfe-1949-sentry-config
+      - main
 name: Deploy to web (Staging)
 jobs:
   porter-deploy:
