@@ -19,6 +19,7 @@ import { jsonSchema } from "../../../utils/zod";
 import { prisma } from "../../../db";
 import { LegacyIngestionAccessScope } from ".";
 import { logger } from "../../logger";
+import { ApiAccessScope } from "../../auth/types";
 
 export interface EventProcessor {
   auth(apiScope: LegacyIngestionAccessScope): void;
@@ -121,6 +122,7 @@ export class ObservationProcessor implements EventProcessor {
     const [newInputCount, newOutputCount] =
       "usage" in this.event.body
         ? await this.calculateTokenCounts(
+            apiScope.projectId,
             this.event.body,
             this.calculateTokenDelegate,
             internalModel ?? undefined,
@@ -312,6 +314,7 @@ export class ObservationProcessor implements EventProcessor {
   }
 
   async calculateTokenCounts(
+    projectId: string,
     body:
       | z.infer<typeof legacyObservationCreateEvent>["body"]
       | z.infer<typeof generationCreateEvent>["body"],
@@ -330,8 +333,11 @@ export class ObservationProcessor implements EventProcessor {
           text: body.input,
         });
       } else {
+        logger.info(
+          `No input provided, trying to calculate for id: ${existingObservation?.id}`
+        );
         const observationInput = await prisma.observation.findFirst({
-          where: { id: existingObservation?.id },
+          where: { id: existingObservation?.id, projectId: projectId },
           select: {
             input: true,
           },
@@ -353,8 +359,11 @@ export class ObservationProcessor implements EventProcessor {
           text: body.output,
         });
       } else {
+        logger.info(
+          `No output provided, trying to calculate for id: ${existingObservation?.id}`
+        );
         const observationOutput = await prisma.observation.findFirst({
-          where: { id: existingObservation?.id },
+          where: { id: existingObservation?.id, projectId: projectId },
           select: {
             output: true,
           },
@@ -470,7 +479,7 @@ export class ObservationProcessor implements EventProcessor {
             promptId: true,
             internalModel: true,
           },
-          where: { id: this.event.body.id },
+          where: { id: this.event.body.id, projectId: apiScope.projectId },
         })
       : null;
 
