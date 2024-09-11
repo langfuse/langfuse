@@ -42,6 +42,8 @@ export default function Dashboard() {
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
+      timestampFilterFrom: dateRange?.from,
+      timestampFilterTo: dateRange?.to,
     },
     {
       trpc: {

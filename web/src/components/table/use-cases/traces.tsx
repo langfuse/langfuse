@@ -191,10 +191,7 @@ export default function TracesTable({
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
-      timestampFilter:
-        dateRangeFilter[0]?.type === "datetime"
-          ? dateRangeFilter[0]
-          : undefined,
+      timestampFilterFrom: dateRange?.from,
     },
     {
       trpc: {
