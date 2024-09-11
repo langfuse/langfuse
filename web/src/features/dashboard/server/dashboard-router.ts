@@ -20,6 +20,7 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throw new Error("Some local test");
       return await executeQuery(ctx.prisma, input.projectId, input);
     }),
   scoreHistogram: protectedProjectProcedure

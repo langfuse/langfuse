@@ -135,6 +135,8 @@ export default function Dashboard() {
 
   const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
 
+  throw new Error("Some local test fe error");
+
   return (
     <div className="md:container">
       <Header title="Dashboard" actionButtons={<SetupTracingButton />} />
