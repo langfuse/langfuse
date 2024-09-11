@@ -48,7 +48,7 @@ export class ObservationProcessor implements EventProcessor {
 
   async convertToObservation(
     apiScope: LegacyIngestionAccessScope,
-    existingObservation: Observation | null
+    existingObservation: Omit<Observation, "input" | "output"> | null
   ): Promise<{
     id: string;
     create: Prisma.ObservationUncheckedCreateInput;
@@ -120,7 +120,7 @@ export class ObservationProcessor implements EventProcessor {
     // Token counts
     const [newInputCount, newOutputCount] =
       "usage" in this.event.body
-        ? this.calculateTokenCounts(
+        ? await this.calculateTokenCounts(
             this.event.body,
             this.calculateTokenDelegate,
             internalModel ?? undefined,
@@ -221,8 +221,8 @@ export class ObservationProcessor implements EventProcessor {
             : undefined,
         input: this.event.body.input ?? undefined,
         output: this.event.body.output ?? undefined,
-        promptTokens: newInputCount,
-        completionTokens: newOutputCount,
+        promptTokens: newInputCount ?? undefined,
+        completionTokens: newOutputCount ?? undefined,
         totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
@@ -276,8 +276,8 @@ export class ObservationProcessor implements EventProcessor {
             : undefined,
         input: this.event.body.input ?? undefined,
         output: this.event.body.output ?? undefined,
-        promptTokens: newInputCount,
-        completionTokens: newOutputCount,
+        promptTokens: newInputCount ?? undefined,
+        completionTokens: newOutputCount ?? undefined,
         totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
@@ -320,7 +320,7 @@ export class ObservationProcessor implements EventProcessor {
       text: unknown;
     }) => number | undefined,
     model?: Model,
-    existingObservation?: Observation
+    existingObservation?: Omit<Observation, "input" | "output">
   ) {
     let newPromptTokens = body.usage?.input;
     if (newPromptTokens === undefined && model && model.tokenizerId) {
@@ -434,6 +434,42 @@ export class ObservationProcessor implements EventProcessor {
 
     const existingObservation = this.event.body.id
       ? await prisma.observation.findFirst({
+          select: {
+            // do not select I/O to spare our db
+            input: false,
+            output: false,
+
+            id: true,
+            traceId: true,
+            projectId: true,
+            type: true,
+            startTime: true,
+            endTime: true,
+            name: true,
+            metadata: true,
+            parentObservationId: true,
+            level: true,
+            statusMessage: true,
+            version: true,
+            createdAt: true,
+            updatedAt: true,
+            model: true,
+            internalModelId: true,
+            modelParameters: true,
+            promptTokens: true,
+            completionTokens: true,
+            totalTokens: true,
+            unit: true,
+            inputCost: true,
+            outputCost: true,
+            totalCost: true,
+            calculatedInputCost: true,
+            calculatedOutputCost: true,
+            calculatedTotalCost: true,
+            completionStartTime: true,
+            promptId: true,
+            internalModel: true,
+          },
           where: { id: this.event.body.id },
         })
       : null;
