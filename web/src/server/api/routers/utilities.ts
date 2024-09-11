@@ -22,20 +22,21 @@ const isPrivateIp = (hostname: string): boolean => {
   try {
     if (Address6.isValid(hostname)) {
       const address = new Address6(hostname);
-      return address.isLinkLocal() || address.isLoopback();
-    } else if (Address4.isValid(hostname)) {
+      const isValidAddress6 = address.isLinkLocal() || address.isLoopback();
+      if (isValidAddress6) return true;
+    }
+    if (Address4.isValid(hostname)) {
       const address = new Address4(hostname);
-      return [
+      const isValidAddress4 = [
         IP_4_LOOPBACK_SUBNET,
         IP_4_LINK_LOCAL_SUBNET,
         IP_4_PRIVATE_A_SUBNET,
         IP_4_PRIVATE_B_SUBNET,
         IP_4_PRIVATE_C_SUBNET,
       ].some((subnet) => address.isInSubnet(new Address4(subnet)));
-    } else {
-      console.error("Invalid IP address:", hostname);
-      return false;
+      if (isValidAddress4) return true;
     }
+    return false;
   } catch (error) {
     console.error("IP parsing error:", error);
     return false;
