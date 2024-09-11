@@ -139,7 +139,7 @@ export default function Dashboard() {
     <div className="md:container">
       <Header title="Dashboard" actionButtons={<SetupTracingButton />} />
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-        <div className=" flex flex-col gap-2 lg:flex-row">
+        <div className="flex flex-col gap-2 lg:flex-row">
           <DatePickerWithRange
             dateRange={dateRange}
             setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
@@ -201,7 +201,7 @@ export default function Dashboard() {
         />
         {!disableExpensiveDashboardComponents && (
           <ModelUsageChart
-            className="col-span-1  min-h-24 xl:col-span-3"
+            className="col-span-1 min-h-24 xl:col-span-3"
             projectId={projectId}
             globalFilterState={mergedFilterState}
             agg={agg}
