@@ -78,20 +78,20 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    const batchType = z.object({
-      batch: z.array(z.unknown()),
-      metadata: jsonSchema.nullish(),
-    });
+    // const batchType = z.object({
+    //   batch: z.array(z.unknown()),
+    //   metadata: jsonSchema.nullish(),
+    // });
 
-    const parsedSchema = instrumentSync(
-      { name: "ingestion-zod-parse-unknown-batch-event" },
-      () => batchType.safeParse(req.body),
-    );
+    // const parsedSchema = instrumentSync(
+    //   { name: "ingestion-zod-parse-unknown-batch-event" },
+    //   () => batchType.safeParse(req.body),
+    // );
 
-    recordIncrement(
-      "ingestion_event",
-      parsedSchema.success ? parsedSchema.data.batch.length : 0,
-    );
+    // recordIncrement(
+    //   "ingestion_event",
+    //   parsedSchema.success ? parsedSchema.data.batch.length : 0,
+    // );
 
     // add context of api call to the span
     const currentSpan = getCurrentSpan();
@@ -109,47 +109,52 @@ export default async function handler(
     });
 
     // add number of events to the span
-    parsedSchema.data
-      ? currentSpan?.setAttribute("event_count", parsedSchema.data.batch.length)
-      : undefined;
+    // parsedSchema.data
+    //   ? currentSpan?.setAttribute("event_count", parsedSchema.data.batch.length)
+    //   : undefined;
 
-    if (!parsedSchema.success) {
-      logger.info("Invalid request data", parsedSchema.error);
-      return res.status(400).json({
-        message: "Invalid request data",
-        errors: parsedSchema.error.issues.map((issue) => issue.message),
-      });
-    }
+    // if (!parsedSchema.success) {
+    //   logger.info("Invalid request data", parsedSchema.error);
+    //   return res.status(400).json({
+    //     message: "Invalid request data",
+    //     errors: parsedSchema.error.issues.map((issue) => issue.message),
+    //   });
+    // }
 
     const validationErrors: { id: string; error: unknown }[] = [];
 
-    const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
-      parsedSchema.data.batch.map((event) => {
-        const parsed = instrumentSync(
-          { name: "ingestion-zod-parse-individual-event" },
-          (span) => {
-            const parsedBody = ingestionEvent.safeParse(event);
-            if (parsedBody.data?.id !== undefined) {
-              span.setAttribute("object.id", parsedBody.data.id);
-            }
-            return parsedBody;
-          },
-        );
-        if (!parsed.success) {
-          validationErrors.push({
-            id:
-              typeof event === "object" && event && "id" in event
-                ? typeof event.id === "string"
-                  ? event.id
-                  : "unknown"
-                : "unknown",
-            error: new InvalidRequestError(parsed.error.message),
-          });
-          return undefined;
-        } else {
-          return parsed.data;
-        }
-      });
+    const batch = req.body.batch;
+
+    // const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
+    //   await Promise.all(
+    //     req.body.batch.map(async (event: Record<string, any>) => {
+    //       const parsed = instrumentSync(
+    //         { name: "ingestion-zod-parse-individual-event" },
+    //         (span) => {
+    //           const parsedBody = ingestionEvent.safeParse(event);
+    //           if (parsedBody.data?.id !== undefined) {
+    //             span.setAttribute("object.id", parsedBody.data.id);
+    //           }
+    //           return parsedBody;
+    //         },
+    //       );
+    //       if (!parsed.success) {
+    //         validationErrors.push({
+    //           id:
+    //             typeof event === "object" && event && "id" in event
+    //               ? typeof event.id === "string"
+    //                 ? event.id
+    //                 : "unknown"
+    //               : "unknown",
+    //           error: new InvalidRequestError(parsed.error.message),
+    //         });
+    //         return undefined;
+    //       } else {
+    //         return parsed.data;
+    //       }
+    //     }),
+    //   );
+
     const filteredBatch: z.infer<typeof ingestionEvent>[] =
       batch.filter(isNotNullOrUndefined);
 
