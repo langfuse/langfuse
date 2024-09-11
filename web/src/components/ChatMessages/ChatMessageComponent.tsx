@@ -25,7 +25,8 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   const toggleRole = () => {
     if (message.role === ChatMessageRole.System) return;
 
-    if (!!availableRoles) {
+    // if user has set custom roles, available roles will be non-empty and we toggle through custom and default roles (assistant, user)
+    if (!!availableRoles && Boolean(availableRoles.length)) {
       let randomRole = availableRoles[roleIndex % availableRoles.length];
       if (randomRole === message.role) {
         randomRole = availableRoles[(roleIndex + 1) % availableRoles.length];
@@ -33,6 +34,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       updateMessage(message.id, "role", randomRole);
       setRoleIndex(roleIndex + 1);
     } else {
+      // if user has not set custom roles, we toggle through default roles (assistant, user)
       updateMessage(
         message.id,
         "role",
