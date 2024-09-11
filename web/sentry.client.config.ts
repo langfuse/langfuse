@@ -6,9 +6,9 @@ Sentry.init({
   integrations: [
     Sentry.replayIntegration(),
     // Sentry.debugIntegration(),
-    Sentry.captureConsoleIntegration({
-      levels: ["error"],
-    }),
+    // Sentry.captureConsoleIntegration({
+    //   levels: ["error"],
+    // }),
   ],
 
   // Set tracesSampleRate to 1.0 to capture 100%
