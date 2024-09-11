@@ -221,8 +221,8 @@ export class ObservationProcessor implements EventProcessor {
             : undefined,
         input: this.event.body.input ?? undefined,
         output: this.event.body.output ?? undefined,
-        promptTokens: newInputCount ?? undefined,
-        completionTokens: newOutputCount ?? undefined,
+        promptTokens: newInputCount,
+        completionTokens: newOutputCount,
         totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
@@ -276,8 +276,8 @@ export class ObservationProcessor implements EventProcessor {
             : undefined,
         input: this.event.body.input ?? undefined,
         output: this.event.body.output ?? undefined,
-        promptTokens: newInputCount ?? undefined,
-        completionTokens: newOutputCount ?? undefined,
+        promptTokens: newInputCount,
+        completionTokens: newOutputCount,
         totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
@@ -366,7 +366,7 @@ export class ObservationProcessor implements EventProcessor {
       }
     }
 
-    return [newPromptTokens, newCompletionTokens];
+    return [newPromptTokens ?? undefined, newCompletionTokens ?? undefined];
   }
 
   static calculateTokenCosts(
