@@ -8,7 +8,7 @@ export async function findModel(p: {
     unit?: string;
     startTime?: Date;
   };
-  existingDbObservation?: Observation;
+  existingDbObservation?: Omit<Observation, "input" | "output">;
 }): Promise<Model | null> {
   const { event, existingDbObservation } = p;
   // either get the model from the existing observation
