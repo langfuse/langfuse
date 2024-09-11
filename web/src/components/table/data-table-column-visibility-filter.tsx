@@ -168,7 +168,8 @@ function GroupVisibilityDropdownHeader<TData, TValue>({
     });
 
   return (
-    <div
+    <DropdownMenuSubTrigger
+      hasCustomIcon
       ref={setNodeRef}
       className={cn(
         isDragging ? "opacity-80" : "opacity-100",
@@ -201,7 +202,7 @@ function GroupVisibilityDropdownHeader<TData, TValue>({
         </Button>
         <ChevronRight className="h-4 w-4" />
       </div>
-    </div>
+    </DropdownMenuSubTrigger>
   );
 }
 
@@ -299,21 +300,18 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                 if (!!column.columns && Boolean(column.columns.length)) {
                   return (
                     <DropdownMenuSub key={index}>
-                      <DropdownMenuSubTrigger hasCustomIcon>
-                        {isColumnOrderingEnabled ? (
-                          <GroupVisibilityDropdownHeader column={column} />
-                        ) : (
-                          <>
-                            <Component className="mr-2 h-4 w-4 opacity-50" />
-                            <span>
-                              {column.header &&
-                              typeof column.header === "string"
-                                ? column.header
-                                : column.accessorKey}
-                            </span>
-                          </>
-                        )}
-                      </DropdownMenuSubTrigger>
+                      {isColumnOrderingEnabled ? (
+                        <GroupVisibilityDropdownHeader column={column} />
+                      ) : (
+                        <DropdownMenuSubTrigger hasCustomIcon>
+                          <Component className="mr-2 h-4 w-4 opacity-50" />
+                          <span>
+                            {column.header && typeof column.header === "string"
+                              ? column.header
+                              : column.accessorKey}
+                          </span>
+                        </DropdownMenuSubTrigger>
+                      )}
                       <DropdownMenuPortal>
                         <DropdownMenuSubContent>
                           {column.columns.map((col) => (
