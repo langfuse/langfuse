@@ -23,7 +23,18 @@ registerInstrumentations({
   instrumentations: [
     new IORedisInstrumentation(),
     new HttpInstrumentation({
+      startIncomingSpanHook: (req) => {
+        console.log(`** incoming hook: ${JSON.stringify(req)}`);
+        if (req) {
+          return {
+            name: `${req.method} ${"path" in req ? req.path : req.url}`,
+            resource: "http.request",
+          };
+        }
+        return {};
+      },
       requestHook: (span, req) => {
+        console.log(`** request hook: ${JSON.stringify(req)}`);
         if (span && req) {
           let url = "path" in req ? req.path : req.url;
           if (url) {
