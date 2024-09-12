@@ -1,4 +1,4 @@
-name: WorkflowCall - Deploy to GCS Bucket
+name: WorkflowCall - Deploy to ECS Service
 on:
   workflow_call:
     inputs:
@@ -8,7 +8,7 @@ on:
         required: true
       app:
         type: string
-        description: path of the app to upload
+        description: Name of the app to be deployed
         required: true
 jobs:
   ecs-deploy:
