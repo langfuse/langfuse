@@ -2,6 +2,7 @@
   push:
     branches:
       - main
+      - steffen/lfe-2059-trace-cleanup
 name: Deploy to worker (staging)
 jobs:
   porter-deploy:
