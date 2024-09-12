@@ -2,14 +2,15 @@ import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
 
   // Replay may only be enabled for the client-side
   integrations: [
     Sentry.replayIntegration(),
     // Sentry.debugIntegration(),
-    Sentry.captureConsoleIntegration({
-      levels: ["error"],
-    }),
+    // Sentry.captureConsoleIntegration({
+    //   levels: ["error"],
+    // }),
   ],
 
   // Set tracesSampleRate to 1.0 to capture 100%
@@ -26,14 +27,6 @@ Sentry.init({
     : 0.5,
   replaysOnErrorSampleRate: 1.0,
   debug: false,
-
-  beforeSend(event, _hint) {
-    // Check if it is an exception, and if so, show the report dialog
-    if (event.exception) {
-      Sentry.showReportDialog({ eventId: event.event_id });
-    }
-    return event;
-  },
 
   // ...
 
