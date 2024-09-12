@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - web
+          - web-ingestion
           - worker
         required: true
       environment:
@@ -42,7 +43,7 @@ jobs:
               return `["${context.payload.inputs.app}"]`
             }
             if (context.eventName === "push") {
-              return `["web", "worker"]`
+              return `["web", "web-ingestion", "worker"]`
             }
             return "[]"
           result-encoding: string
