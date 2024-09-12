@@ -10,23 +10,23 @@ const IP_4_PRIVATE_B_SUBNET = "172.16.0.0/12";
 const IP_4_PRIVATE_C_SUBNET = "192.168.0.0/16";
 
 /**
- * Check if the hostname is a private IP address
+ * Check if the ipAddress is a private IP address
  * This function is used to protect against Server Side Request Forgery (SSRF) attacks.
  * SSRF attacks can cause the server to make requests to internal resources that should not be accessible.
- * By checking if a hostname resolves to a private IP address, we can prevent such attacks.
+ * By checking if a ipAddress resolves to a private IP address, we can prevent such attacks.
  *
- * @param hostname - The hostname to check
- * @returns True if the hostname is a private IP address, false otherwise
+ * @param ipAddress - The ipAddress to check
+ * @returns True if the ipAddress is a private IP address, false otherwise
  */
-const isPrivateIp = (hostname: string): boolean => {
+const isPrivateIp = (ipAddress: string): boolean => {
   try {
-    if (Address6.isValid(hostname)) {
-      const address = new Address6(hostname);
+    if (Address6.isValid(ipAddress)) {
+      const address = new Address6(ipAddress);
       const isValidAddress6 = address.isLinkLocal() || address.isLoopback();
       if (isValidAddress6) return true;
     }
-    if (Address4.isValid(hostname)) {
-      const address = new Address4(hostname);
+    if (Address4.isValid(ipAddress)) {
+      const address = new Address4(ipAddress);
       const isValidAddress4 = [
         IP_4_LOOPBACK_SUBNET,
         IP_4_LINK_LOCAL_SUBNET,
