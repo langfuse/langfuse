@@ -13,6 +13,16 @@ on:
       - "*"
 
 jobs:
+  check-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if OPENAI_API_KEY is set
+        run: |
+          if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "❌ OPENAI_API_KEY is empty or not set."
+          else
+            echo "✅ OPENAI_API_KEY is set."
+          fi
   lint:
     runs-on: ubuntu-latest
     steps:
