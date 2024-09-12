@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Get affected apps
         id: affected-apps
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             if (context.eventName === "workflow_dispatch") {
@@ -47,7 +47,7 @@ jobs:
             return "[]"
           result-encoding: string
       - name: Print apps to build
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         env:
           apps: ${{ steps.affected-apps.outputs.result }}
         with:
@@ -62,7 +62,7 @@ jobs:
     steps:
       - name: Get affected environments
         id: affected-environments
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             if (context.eventName === "workflow_dispatch") {
@@ -75,7 +75,7 @@ jobs:
             return "[]"
           result-encoding: string
       - name: Print environments to build
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         env:
           environments: ${{ steps.affected-environments.outputs.result }}
         with:
