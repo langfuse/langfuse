@@ -84,7 +84,7 @@ jobs:
             console.log('Environments', `${process.env.result}` ?? 'n/a');
 
   ecs-deploy:
-    uses: ./.github/workflows/_deploy_ecs_service.yaml
+    uses: ./.github/workflows/_deploy_ecs_service.yml
     needs: [affected-apps, affected-environments]
     strategy:
       matrix:
