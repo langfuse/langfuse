@@ -18,16 +18,22 @@ export default CrispChat;
 export const chatSetUser = ({
   name,
   email,
+  avatar,
   data,
+  segments,
 }: {
-  name: string;
-  email: string;
-  data: object;
+  name?: string;
+  email?: string;
+  avatar?: string;
+  data?: object;
+  segments?: string[];
 }) => {
   if (chatAvailable) {
-    Crisp.user.setEmail(email);
-    Crisp.user.setNickname(name);
-    Crisp.session.setData(data);
+    if (email) Crisp.user.setEmail(email);
+    if (name) Crisp.user.setNickname(name);
+    if (avatar) Crisp.user.setAvatar(avatar);
+    if (data) Crisp.session.setData(data);
+    if (segments) Crisp.session.setSegments(segments, true);
   }
 };
 
