@@ -21,7 +21,8 @@ jobs:
         with:
           script: |
             // e.g. "web" from "web-ingestion"
-            return `"${context.payload.inputs.service.split('-')[0]}"`
+            console.log(JSON.stringify(context.payload.inputs));
+            return `"${context.payload.inputs.service.split('-')[0]}"`;
           result-encoding: string
       - name: Checkout code
         uses: actions/checkout@v4
