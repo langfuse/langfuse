@@ -15,8 +15,22 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
+      - name: Check if AWS_ACCESS_KEY_ID is set
+        run: |
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "❌ AWS_ACCESS_KEY_ID is empty or not set."
+          else
+            echo "✅ AWS_ACCESS_KEY_ID is set."
+          fi
+      - name: Check if AWS_SECRET_ACCESS_KEY is set
+        run: |
+          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "❌ AWS_SECRET_ACCESS_KEY is empty or not set."
+          else
+            echo "✅ AWS_SECRET_ACCESS_KEY is set."
+          fi
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Authenticate with AWS
         # GitHub/AWS recommend to use OIDC here: https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#oidc
         # Probably more painful to configure, but would remove all long-lived credentials.
