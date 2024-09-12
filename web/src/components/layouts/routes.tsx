@@ -13,18 +13,22 @@ import {
   TerminalIcon,
   Lightbulb,
   Grid2X2,
+  Sparkle,
 } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { type ReactNode } from "react";
 import { VersionLabel } from "@/src/components/VersionLabel";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { type User } from "next-auth";
+import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 
 export type Route = {
   name: string;
   featureFlag?: Flag;
   label?: string | ReactNode;
   projectRbacScope?: ProjectScope;
+  organizationRbacScope?: OrganizationScope;
   icon?: LucideIcon | typeof LangfuseIcon; // ignored for nested routes
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
@@ -32,6 +36,9 @@ export type Route = {
   newTab?: boolean; // open in new tab
   entitlement?: Entitlement; // entitlement required
   customizableHref?: UiCustomizationOption; // key of useUiCustomization object to use to replace the href
+  show?: (p: {
+    organization: User["organizations"][number] | undefined;
+  }) => boolean;
 };
 
 export const ROUTES: Route[] = [
@@ -124,6 +131,24 @@ export const ROUTES: Route[] = [
     name: "Datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
+  },
+  {
+    name: "Upgrade",
+    icon: Sparkle,
+    pathname: "/project/[projectId]/settings/billing",
+    bottom: true,
+    entitlement: "cloud-billing",
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
+  },
+  {
+    name: "Upgrade",
+    icon: Sparkle,
+    pathname: "/organization/[organizationId]/settings/billing",
+    bottom: true,
+    entitlement: "cloud-billing",
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
     name: "Settings",
