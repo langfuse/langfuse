@@ -15,8 +15,6 @@ export default async function handler(
     const failIfNoRecentEvents = req.query.failIfNoRecentEvents === "true";
 
     try {
-      await prisma.$queryRaw`SELECT 1;`;
-
       if (failIfNoRecentEvents) {
         const now = Date.now();
         const trace = await prisma.trace.findFirst({
@@ -55,7 +53,7 @@ export default async function handler(
         }
       }
     } catch (e) {
-      logger.error("Health check failed: db not available", e);
+      logger.error("Couldn't fetch recent events: db not available", e);
       traceException(e);
       return res.status(503).json({
         status: "Database not available",
@@ -64,7 +62,7 @@ export default async function handler(
     }
   } catch (e) {
     traceException(e);
-    logger.error("Health check failed: ", e);
+    logger.error("Health check failed", e);
     return res.status(503).json({
       status: "Health check failed",
       version: VERSION.replace("v", ""),
