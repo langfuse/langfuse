@@ -33,13 +33,6 @@ jobs:
     outputs:
       apps: ${{ steps.affected-apps.outputs.result }}
     steps:
-      - uses: actions/checkout@v3
-        if: ${{github.event_name == 'push'}}
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
       - name: Get affected apps
         id: affected-apps
         uses: actions/github-script@v6
@@ -67,13 +60,6 @@ jobs:
     outputs:
       environments: ${{ steps.affected-environments.outputs.result }}
     steps:
-      - uses: actions/checkout@v3
-        if: ${{github.event_name == 'push'}}
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
       - name: Get affected environments
         id: affected-environments
         uses: actions/github-script@v6
