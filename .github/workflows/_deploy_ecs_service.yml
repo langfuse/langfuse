@@ -43,7 +43,6 @@ jobs:
           container-name: ${{ inputs.app }}
           image: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.app }}:${{ github.sha }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.app }}
-          environment-variables: "LOG_LEVEL=info"
       - name: Update AWS ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
