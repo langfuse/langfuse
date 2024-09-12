@@ -40,7 +40,7 @@ jobs:
         id: render-task-definition
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          container-name: ${{ matrix.app }}
+          container-name: ${{ inputs.app }}
           image: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.app }}:${{ github.sha }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.app }}
           environment-variables: "LOG_LEVEL=info"
