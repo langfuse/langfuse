@@ -86,6 +86,7 @@ jobs:
   ecs-deploy:
     uses: ./.github/workflows/_deploy_ecs_service.yml
     needs: [affected-apps, affected-environments]
+    secrets: inherit
     strategy:
       matrix:
         app: ${{ fromJson(needs.affected-apps.outputs.apps) }}
