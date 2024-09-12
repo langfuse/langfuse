@@ -15,15 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - name: Get app name from service
-        id: app-name
-        uses: actions/github-script@v7
+      - name: Get app name
+        uses: winterjung/split@v2
+        id: split
         with:
-          script: |
-            // e.g. "web" from "web-ingestion"
-            console.log(JSON.stringify(context.payload.inputs));
-            return `"${context.payload.inputs.service.split('-')[0]}"`;
-          result-encoding: string
+          msg: ${{ inputs.service }}
+          separator: '-'
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Authenticate with AWS
@@ -40,17 +37,17 @@ jobs:
       - name: Build, tag, and push Docker image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ steps.app-name.outputs.result }}
+          REPOSITORY: ${{ steps.split.outputs._0 }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -f ./${{ steps.app-name.outputs.result }}/Dockerfile .
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -f ./${{ steps.split.outputs._0 }}/Dockerfile .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
       - name: Render AWS ECS Task Definition
         id: render-task-definition
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           container-name: ${{ inputs.service }}
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ steps.app-name.outputs.result }}:${{ github.sha }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ steps.split.outputs._0 }}:${{ github.sha }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
