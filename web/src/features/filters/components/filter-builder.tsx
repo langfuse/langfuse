@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Filter, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Filter, Plus, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -28,6 +28,14 @@ import {
 import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/src/components/ui/command";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -266,39 +274,69 @@ function FilterBuilderForm({
                 <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
                 <td className="flex gap-2 p-1">
                   {/* selector of the column to be filtered */}
-                  <Select
-                    value={column ? column.id : ""}
-                    disabled={disabled}
-                    onValueChange={(value) => {
-                      const col = columns.find((c) => c.id === value);
-                      handleFilterChange(
-                        {
-                          column: col?.name,
-                          type: col?.type,
-                          operator:
-                            // does not work as expected on eval-template form when embedded into form via InlineFilterBuilder
-                            // col?.type !== undefined &&
-                            // filterOperators[col.type]?.length > 0
-                            //   ? (filterOperators[col.type][0] as any) // operator matches type
-                            undefined,
-                          value: undefined,
-                          key: undefined,
-                        },
-                        i,
-                      );
-                    }}
-                  >
-                    <SelectTrigger className="min-w-[100px]">
-                      <SelectValue placeholder="Column" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {columns.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        type="button"
+                        disabled={disabled}
+                        className="w-full min-w-32 justify-between"
+                      >
+                        {column ? column.name : "Column"}
+                        <ChevronDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="max-w-fit p-0">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search for column"
+                          onFocus={(e) => (e.target.style.border = "none")}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No options found.</CommandEmpty>
+                          <CommandGroup>
+                            {columns.map((option) => (
+                              <CommandItem
+                                key={option.id}
+                                value={option.id}
+                                onSelect={(value) => {
+                                  const col = columns.find(
+                                    (c) => c.id === value,
+                                  );
+                                  handleFilterChange(
+                                    {
+                                      column: col?.name,
+                                      type: col?.type,
+                                      operator:
+                                        // does not work as expected on eval-template form when embedded into form via InlineFilterBuilder
+                                        // col?.type !== undefined &&
+                                        // filterOperators[col.type]?.length > 0
+                                        //   ? (filterOperators[col.type][0] as any) // operator matches type
+                                        undefined,
+                                      value: undefined,
+                                      key: undefined,
+                                    },
+                                    i,
+                                  );
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    option.id === column?.id
+                                      ? "visible"
+                                      : "invisible",
+                                  )}
+                                />
+                                {option.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   {filter.type &&
                   (filter.type === "numberObject" ||
                     filter.type === "stringObject") &&
@@ -406,7 +444,7 @@ function FilterBuilderForm({
                     />
                   ) : filter.type === "datetime" ? (
                     <DatePicker
-                      className="min-w-[100px]"
+                      className="w-full"
                       disabled={disabled}
                       date={filter.value ? new Date(filter.value) : undefined}
                       onChange={(date) => {

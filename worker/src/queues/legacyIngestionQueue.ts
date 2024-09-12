@@ -26,6 +26,7 @@ export const legacyIngestionQueueProcessor: Processor = async (
       name: "legacyIngestion",
       spanKind: SpanKind.CONSUMER,
       rootSpan: true,
+      traceContext: job.data?._tracecontext,
     },
     async () => {
       try {

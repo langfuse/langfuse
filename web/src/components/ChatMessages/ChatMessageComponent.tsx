@@ -9,27 +9,40 @@ import type { MessagesContext } from "./types";
 
 type ChatMessageProps = Pick<
   MessagesContext,
-  "deleteMessage" | "updateMessage"
+  "deleteMessage" | "updateMessage" | "availableRoles"
 > & { message: ChatMessageWithId };
 
 export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   message,
   updateMessage,
   deleteMessage,
+  availableRoles,
 }) => {
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const [textAreaRows, setTextAreaRows] = useState(1);
+  const [roleIndex, setRoleIndex] = useState(1);
 
   const toggleRole = () => {
     if (message.role === ChatMessageRole.System) return;
 
-    updateMessage(
-      message.id,
-      "role",
-      message.role === ChatMessageRole.User
-        ? ChatMessageRole.Assistant
-        : ChatMessageRole.User,
-    );
+    // if user has set custom roles, available roles will be non-empty and we toggle through custom and default roles (assistant, user)
+    if (!!availableRoles && Boolean(availableRoles.length)) {
+      let randomRole = availableRoles[roleIndex % availableRoles.length];
+      if (randomRole === message.role) {
+        randomRole = availableRoles[(roleIndex + 1) % availableRoles.length];
+      }
+      updateMessage(message.id, "role", randomRole);
+      setRoleIndex(roleIndex + 1);
+    } else {
+      // if user has not set custom roles, we toggle through default roles (assistant, user)
+      updateMessage(
+        message.id,
+        "role",
+        message.role === ChatMessageRole.User
+          ? ChatMessageRole.Assistant
+          : ChatMessageRole.User,
+      );
+    }
   };
 
   const handleContentChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -64,7 +77,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         <Textarea
           ref={textAreaRef}
           id={message.id}
-          className="height-[auto] min-h-6 w-full  font-mono text-xs focus:outline-none"
+          className="height-[auto] min-h-6 w-full font-mono text-xs focus:outline-none"
           placeholder={placeholder}
           value={message.content}
           onChange={handleContentChange}
