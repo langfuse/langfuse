@@ -1,0 +1,53 @@
+name: WorkflowCall - Deploy to GCS Bucket
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        description: Deployment environment
+        required: true
+      app:
+        type: string
+        description: path of the app to upload
+        required: true
+jobs:
+  ecs-deploy:
+    runs-on: ubuntu-latest
+    environment: inputs.environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Authenticate with AWS
+        # GitHub/AWS recommend to use OIDC here: https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#oidc
+        # Probably more painful to configure, but would remove all long-lived credentials.
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Login to AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build, tag, and push Docker image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ inputs.app }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -f ./${{ inputs.app }}/Dockerfile .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+      - name: Render AWS ECS Task Definition
+        id: render-task-definition
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          container-name: ${{ matrix.app }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.app }}:${{ github.sha }}
+          task-definition-family: ${{ inputs.environment }}-${{ inputs.app }}
+          environment-variables: "LOG_LEVEL=info"
+      - name: Update AWS ECS Service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
+          service: ${{ inputs.app }}
+          cluster: ${{ inputs.environment }}-cluster
+          wait-for-service-stability: true

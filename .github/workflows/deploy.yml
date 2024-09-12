@@ -1,0 +1,104 @@
+on:
+  push:
+    branches:
+      - main
+      - steffen/lfe-2066-github-actions-staging-deploy
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'App'
+        type: choice
+        options:
+          - web
+          - worker
+        required: true
+      environment:
+        description: 'Environment'
+        type: choice
+        options:
+          - staging
+          # - prod-us
+          # - prod-eu
+        required: true
+
+name: Deploy to ECS
+jobs:
+  affected-apps:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.affected-apps.outputs.result }}
+    steps:
+      - uses: actions/checkout@v3
+        if: ${{github.event_name == 'push'}}
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Get affected apps
+        id: affected-apps
+        uses: actions/github-script@v6
+        with:
+          script: |
+            if (context.eventName === "workflow_dispatch") {
+              return `["${context.payload.inputs.app}"]`
+            }
+            if (context.eventName === "push") {
+              return `["web", "worker"]`
+            }
+            return "[]"
+          result-encoding: string
+      - name: Print apps to build
+        uses: actions/github-script@v6
+        env:
+          apps: ${{ steps.affected-apps.outputs.result }}
+        with:
+          result-encoding: string
+          script: |
+            console.log('Apps', `${process.env.result}` ?? 'n/a');
+
+  affected-environments:
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.affected-environments.outputs.result }}
+    steps:
+      - uses: actions/checkout@v3
+        if: ${{github.event_name == 'push'}}
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Get affected environments
+        id: affected-environments
+        uses: actions/github-script@v6
+        with:
+          script: |
+            if (context.eventName === "workflow_dispatch") {
+              return `["${context.payload.inputs.environment}"]`
+            }
+            if (context.eventName === "push") {
+              // TODO: Can we distinguish push branch vs push tag for staging vs. prod?
+              return `["staging"]`
+            }
+            return "[]"
+          result-encoding: string
+      - name: Print environments to build
+        uses: actions/github-script@v6
+        env:
+          environments: ${{ steps.affected-environments.outputs.result }}
+        with:
+          result-encoding: string
+          script: |
+            console.log('Environments', `${process.env.result}` ?? 'n/a');
+
+  ecs-deploy:
+    uses: ./.github/workflows/_deploy_ecs_service.yaml
+    needs: [affected-apps, affected-environments]
+    strategy:
+      matrix:
+        app: ${{ fromJson(needs.affected-apps.outputs.apps) }}
+        environment: ${{ fromJson(needs.affected-environments.outputs.environments) }}
+    with:
+      app: ${{ matrix.app }}
+      environment: ${{ matrix.environment }}
