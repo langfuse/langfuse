@@ -21,6 +21,11 @@ on:
           # - prod-eu
         required: true
 
+concurrency:
+  # Support concurrent `push` and `workflow_dispatch`` actions
+  group: deploy-${{ github.event_name }}
+  cancel-in-progress: true
+
 name: Deploy to ECS
 jobs:
   affected-apps:
