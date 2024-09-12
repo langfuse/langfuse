@@ -5,8 +5,8 @@ on:
       - steffen/lfe-2066-github-actions-staging-deploy
   workflow_dispatch:
     inputs:
-      app:
-        description: 'App'
+      service:
+        description: 'Service to be deployed'
         type: choice
         options:
           - web
@@ -14,7 +14,7 @@ on:
           - worker
         required: true
       environment:
-        description: 'Environment'
+        description: 'Environment to deploy to'
         type: choice
         options:
           - staging
@@ -29,13 +29,13 @@ concurrency:
 
 name: Deploy to ECS
 jobs:
-  affected-apps:
+  affected-services:
     runs-on: ubuntu-latest
     outputs:
-      apps: ${{ steps.affected-apps.outputs.result }}
+      services: ${{ steps.affected-services.outputs.result }}
     steps:
-      - name: Get affected apps
-        id: affected-apps
+      - name: Get affected services
+        id: affected-services
         uses: actions/github-script@v7
         with:
           script: |
@@ -47,14 +47,14 @@ jobs:
             }
             return "[]"
           result-encoding: string
-      - name: Print apps to build
+      - name: Print services to build
         uses: actions/github-script@v7
         env:
-          apps: ${{ steps.affected-apps.outputs.result }}
+          services: ${{ steps.affected-services.outputs.result }}
         with:
           result-encoding: string
           script: |
-            console.log('Apps', `${process.env.result}` ?? 'n/a');
+            console.log('Services', `${process.env.result}` ?? 'n/a');
 
   affected-environments:
     runs-on: ubuntu-latest
@@ -86,12 +86,12 @@ jobs:
 
   ecs-deploy:
     uses: ./.github/workflows/_deploy_ecs_service.yml
-    needs: [affected-apps, affected-environments]
+    needs: [affected-services, affected-environments]
     secrets: inherit
     strategy:
       matrix:
-        app: ${{ fromJson(needs.affected-apps.outputs.apps) }}
+        service: ${{ fromJson(needs.affected-services.outputs.services) }}
         environment: ${{ fromJson(needs.affected-environments.outputs.environments) }}
     with:
-      app: ${{ matrix.app }}
+      service: ${{ matrix.service }}
       environment: ${{ matrix.environment }}

@@ -6,15 +6,23 @@ on:
         type: string
         description: Deployment environment
         required: true
-      app:
+      service:
         type: string
-        description: Name of the app to be deployed
+        description: Name of the service to be deployed, e.g. web-ingestion, web, or worker.
         required: true
 jobs:
   ecs-deploy:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
+      - name: Get app name from service
+        id: app-name
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // e.g. "web" from "web-ingestion"
+            return `"${context.payload.inputs.servicesplit('-')[0]}"`
+          result-encoding: string
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Authenticate with AWS
@@ -31,22 +39,22 @@ jobs:
       - name: Build, tag, and push Docker image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ inputs.app }}
+          REPOSITORY: ${{ steps.app-name.outputs.result }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -f ./${{ inputs.app }}/Dockerfile .
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -f ./${{ steps.app-name.outputs.result }}/Dockerfile .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
       - name: Render AWS ECS Task Definition
         id: render-task-definition
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          container-name: ${{ inputs.app }}
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.app }}:${{ github.sha }}
-          task-definition-family: ${{ inputs.environment }}-${{ inputs.app }}
+          container-name: ${{ inputs.service }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ steps.app-name.outputs.result }}:${{ github.sha }}
+          task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
-          service: ${{ inputs.environment }}-${{ inputs.app }}
+          service: ${{ inputs.environment }}-${{ inputs.service }}
           cluster: ${{ inputs.environment }}-cluster
           wait-for-service-stability: true
