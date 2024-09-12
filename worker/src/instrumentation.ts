@@ -22,7 +22,19 @@ const provider = new TracerProvider();
 registerInstrumentations({
   instrumentations: [
     new IORedisInstrumentation(),
-    new HttpInstrumentation(),
+    new HttpInstrumentation({
+      requestHook: (span, req) => {
+        if (span && req) {
+          let url = "path" in req ? req.path : req.url;
+          if (url) {
+            // Remove URL parameters
+            url = url.split("?")[0];
+            const method = req.method;
+            span.updateName(method ? `${method} ${url}` : url);
+          }
+        }
+      },
+    }),
     new ExpressInstrumentation(),
     new PrismaInstrumentation(),
     new BullMQInstrumentation(),

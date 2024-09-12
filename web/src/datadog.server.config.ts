@@ -35,8 +35,6 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
               if (url.startsWith("/_next/static")) {
                 url = "/_next/static/*";
               }
-            }
-            if (url) {
               const method = req.method;
               span.updateName(method ? `${method} ${url}` : url);
             }
