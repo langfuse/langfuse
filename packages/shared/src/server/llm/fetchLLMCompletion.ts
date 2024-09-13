@@ -147,7 +147,7 @@ export async function fetchLLMCompletion(
 
   Reference: https://platform.openai.com/docs/guides/reasoning/beta-limitations
   */
-  if (isOpenAIo1Model(modelParams.model)) {
+  if (modelParams.model.startsWith("o1-")) {
     return await new ChatOpenAI({
       openAIApiKey: apiKey,
       modelName: modelParams.model,
@@ -162,11 +162,7 @@ export async function fetchLLMCompletion(
     })
       .pipe(new StringOutputParser())
       .invoke(
-        finalMessages.filter(
-          (message) =>
-            !isOpenAIo1Model(modelParams.model) ||
-            message._getType() !== "system"
-        )
+        finalMessages.filter((message) => message._getType() !== "system")
       );
   }
 
@@ -175,8 +171,4 @@ export async function fetchLLMCompletion(
   }
 
   return await chatModel.pipe(new StringOutputParser()).invoke(finalMessages);
-}
-
-function isOpenAIo1Model(model: string) {
-  return model.startsWith("o1-");
 }
