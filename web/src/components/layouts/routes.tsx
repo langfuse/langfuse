@@ -22,6 +22,7 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
+import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 
 export type Route = {
   name: string;
@@ -140,6 +141,7 @@ export const ROUTES: Route[] = [
     entitlement: "cloud-billing",
     organizationRbacScope: "langfuseCloudBilling:CRUD",
     show: ({ organization }) => organization?.plan === "cloud:hobby",
+    label: <UsageTracker />,
   },
   {
     name: "Upgrade",
@@ -149,6 +151,7 @@ export const ROUTES: Route[] = [
     entitlement: "cloud-billing",
     organizationRbacScope: "langfuseCloudBilling:CRUD",
     show: ({ organization }) => organization?.plan === "cloud:hobby",
+    label: <UsageTracker />,
   },
   {
     name: "Settings",
