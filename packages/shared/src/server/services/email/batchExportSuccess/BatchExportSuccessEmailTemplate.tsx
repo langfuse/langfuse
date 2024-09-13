@@ -59,6 +59,10 @@ export const BatchExportSuccessEmailTemplate = ({
               download. The download link will expire in{" "}
               <strong>{expiresInHours} hours</strong>.
             </Text>
+            <Text className="text-sm leading-6 text-black">
+              Please note data exports do not reflect custom column ordering or
+              visibility.
+            </Text>
             <Section className="mb-4 mt-8 text-center">
               <Button
                 className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
