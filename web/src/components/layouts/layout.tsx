@@ -39,9 +39,7 @@ const signOutUser = async () => {
   localStorage.clear();
   sessionStorage.clear();
 
-  await signOut({
-    callbackUrl: "/auth/sign-in",
-  });
+  await signOut();
 };
 
 const userNavigation = [
