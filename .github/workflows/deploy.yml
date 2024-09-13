@@ -24,7 +24,7 @@ on:
 
 concurrency:
   # Support concurrent `push` and `workflow_dispatch`` actions
-  group: deploy-${{ github.event_name }}
+  group: deploy-${{ github.event_name }}-${{ github.head_ref }}
   cancel-in-progress: true
 
 name: Deploy to ECS
