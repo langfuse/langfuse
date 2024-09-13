@@ -96,11 +96,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
             session={session}
             refetchOnWindowFocus={true}
             refetchInterval={5 * 60} // 5 minutes
-            basePath={
-              env.NEXT_PUBLIC_BASE_PATH
-                ? `${env.NEXT_PUBLIC_BASE_PATH}/api/auth`
-                : undefined
-            }
+            basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
           >
             <DetailPageListsProvider>
               <MarkdownContextProvider>
