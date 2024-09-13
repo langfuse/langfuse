@@ -40,7 +40,8 @@ export default async function handler(
           },
         });
         if (!!!trace || !!!observation) {
-          return res.status(503).json({
+          // Return 512. This is only used on cloud and makes tracking easier.
+          return res.status(512).json({
             status: `No ${
               !!!trace
                 ? "traces"

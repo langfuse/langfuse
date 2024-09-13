@@ -30,6 +30,9 @@ const prismaClientSingleton = () => {
 
   const connectionString = env.DATABASE_URL;
   const paramsString = connectionString?.split("?")[1];
+  console.log(
+    `database connection params: ${paramsString}, ${connectionString}`
+  );
   const params = new URLSearchParams(paramsString);
 
   const paramsArray: string[] = [];
