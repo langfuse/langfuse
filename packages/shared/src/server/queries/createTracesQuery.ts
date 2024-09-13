@@ -72,6 +72,8 @@ export function createTracesQuery({
             scores
         WHERE
             trace_id = t.id
+            AND "project_id" = ${projectId}
+            ${selectScoreValues ? Prisma.empty : Prisma.sql`AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')`}
         GROUP BY
             name
     ) tmp
