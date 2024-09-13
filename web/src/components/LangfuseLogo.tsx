@@ -2,6 +2,7 @@ import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { EnvLabel } from "./EnvLabel";
 import { VersionLabel } from "./VersionLabel";
+import { env } from "@/src/env.mjs";
 
 export const LangfuseIcon = ({
   size = 32,
@@ -12,7 +13,7 @@ export const LangfuseIcon = ({
 }) => (
   // eslint-disable-next-line @next/next/no-img-element
   <img
-    src="/icon.svg"
+    src={`${env.NEXT_PUBLIC_BASE_PATH}/icon.svg`}
     width={size}
     height={size}
     alt="Langfuse Icon"

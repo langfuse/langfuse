@@ -204,6 +204,7 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     NEXT_PUBLIC_CRISP_WEBSITE_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
+    NEXT_PUBLIC_BASE_PATH: z.string().optional().default(""),
   },
 
   /**
@@ -342,6 +343,7 @@ export const env = createEnv({
     LANGFUSE_INIT_USER_EMAIL: process.env.LANGFUSE_INIT_USER_EMAIL,
     LANGFUSE_INIT_USER_NAME: process.env.LANGFUSE_INIT_USER_NAME,
     LANGFUSE_INIT_USER_PASSWORD: process.env.LANGFUSE_INIT_USER_PASSWORD,
+    NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
