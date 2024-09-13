@@ -9,9 +9,11 @@ import { AlertTriangle } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { MAX_OBSERVATIONS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export const UsageTracker = () => {
   const { organization } = useQueryProjectOrOrganization();
+  const hasEntitlement = useHasOrgEntitlement("cloud-billing");
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "langfuseCloudBilling:CRUD",
@@ -22,14 +24,19 @@ export const UsageTracker = () => {
       orgId: organization?.id!,
     },
     {
-      enabled: !!organization && hasAccess,
+      enabled: !!organization && hasAccess && hasEntitlement,
       refetchOnMount: false,
       refetchOnReconnect: false,
       refetchOnWindowFocus: false,
     },
   );
 
-  if (usageQuery.isLoading || !usageQuery.data || !hasAccess) {
+  if (
+    usageQuery.isLoading ||
+    !usageQuery.data ||
+    !hasAccess ||
+    !hasEntitlement
+  ) {
     return null;
   }
 
