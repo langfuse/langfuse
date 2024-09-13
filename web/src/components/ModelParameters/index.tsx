@@ -75,6 +75,20 @@ export const ModelParameters: React.FC<
             options={availableModels}
             updateModelParam={updateModelParamValue}
           />
+          {modelParams.model.value?.startsWith("o1-") ? (
+            <p className="text-sm text-dark-yellow">
+              For {modelParams.model.value}, the system message and the
+              temperature, max_tokens and top_p setting are not supported while
+              it is in beta.{" "}
+              <a
+                href="https://platform.openai.com/docs/guides/reasoning/beta-limitations"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                More info ↗
+              </a>
+            </p>
+          ) : null}
           <ModelParamsSlider
             title="Temperature"
             modelParamsKey="temperature"
