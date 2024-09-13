@@ -180,10 +180,14 @@ const getDatabaseReadStream = async ({
             if (!scores) return { ...data, ...emptyScoreColumns };
             const scoreColumns = Object.entries(scores).reduce(
               (acc, [key, value]) => {
-                return {
-                  ...acc,
-                  [key]: value,
-                };
+                if (key in emptyScoreColumns) {
+                  return {
+                    ...acc,
+                    [key]: value,
+                  };
+                } else {
+                  return acc;
+                }
               },
               emptyScoreColumns
             );
