@@ -50,6 +50,8 @@ const parseTracesOrderByAndFilter = (
 
   const scoreTimestampFilter = filter?.find(isTimestampFilter);
 
+  console.log("scoreTimestampFilter", scoreTimestampFilter);
+
   return {
     orderByCondition,
     filterCondition,
@@ -178,6 +180,7 @@ const getDatabaseReadStream = async ({
 
           const chunkWithFlattenedScores = chunk.map((row) => {
             const { scores, ...data } = row;
+            if (!scores) return { ...data, ...emptyScoreColumns };
             const scoreColumns = Object.entries(scores).reduce(
               (acc, [key, value]) => {
                 return {

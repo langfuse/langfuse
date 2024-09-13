@@ -27,7 +27,7 @@ export type BatchExportTracesRow = {
   userId?: string | null;
   level?: ObservationLevel | null;
   observationCount?: number | null;
-  scores: Record<string, string[] | number[]>;
+  scores?: Record<string, string[] | number[]> | null;
   latency?: number | null;
   release?: string | null;
   version?: string | null;
