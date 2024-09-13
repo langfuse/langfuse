@@ -659,7 +659,7 @@ importers:
         version: 3.23.8
     optionalDependencies:
       crisp-sdk-web:
-        specifier: ^1.0.21
+        specifier: ^1.0.25
         version: 1.0.25
     devDependencies:
       '@jedmao/location':
