@@ -2,7 +2,6 @@ on:
   push:
     branches:
       - main
-      - steffen/lfe-2066-github-actions-staging-deploy
   workflow_dispatch:
     inputs:
       service:
