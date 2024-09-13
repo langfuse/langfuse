@@ -25,13 +25,27 @@ import {
 
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
+import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 
 const tableNameToTimeFilterColumn = {
   sessions: "created_at",
   traces: "timestamp",
 };
 
-const getDatabaseReadStream = ({
+const parseTracesOrderByAndFilter = (
+  orderBy: BatchExportQueryType["orderBy"],
+  filter: BatchExportQueryType["filter"]
+) => {
+  const orderByCondition = orderByToPrismaSql(orderBy, tracesTableCols);
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    filter ?? [],
+    tracesTableCols,
+    "traces"
+  );
+  return { orderByCondition, filterCondition };
+};
+
+const getDatabaseReadStream = async ({
   projectId,
   tableName,
   filter,
@@ -40,7 +54,7 @@ const getDatabaseReadStream = ({
 }: {
   projectId: string;
   cutoffCreatedAt: Date;
-} & BatchExportQueryType): DatabaseReadStream<unknown> => {
+} & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
   const createdAtCutoffFilter: FilterCondition = {
     column: tableNameToTimeFilterColumn[tableName],
@@ -82,14 +96,31 @@ const getDatabaseReadStream = ({
               page: Math.floor(offset / pageSize),
             }
           );
-          const chunk = await prisma.$queryRaw<unknown[]>(query);
+          const chunk = await prisma.$queryRaw<BatchExportSessionsRow[]>(query);
 
           return chunk;
         },
         1000,
         env.BATCH_EXPORT_ROW_LIMIT
       );
-    case "traces":
+    case "traces": {
+      const { orderByCondition, filterCondition } = parseTracesOrderByAndFilter(
+        orderBy,
+        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter]
+      );
+
+      const distinctScoreNames = await prisma.$queryRaw<{ name: string }[]>`
+        SELECT DISTINCT name
+        FROM scores
+        WHERE project_id = ${projectId}
+        AND created_at <= ${cutoffCreatedAt}
+      `;
+
+      const emptyScoreColumns = distinctScoreNames.reduce(
+        (acc, { name }) => ({ ...acc, [name]: null }),
+        {}
+      );
+
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
           const query = createTracesQuery({
@@ -120,24 +151,35 @@ const getDatabaseReadStream = ({
             projectId,
             limit: pageSize,
             page: Math.floor(offset / pageSize),
-            filterCondition: tableColumnsToSqlFilterAndPrefix(
-              filter
-                ? [...filter, createdAtCutoffFilter]
-                : [createdAtCutoffFilter],
-              tracesTableCols,
-              "traces"
-            ),
-            orderByCondition: orderByToPrismaSql(orderBy, tracesTableCols),
+            filterCondition,
+            orderByCondition,
             selectScoreValues: true,
           });
-          const chunk = await prisma.$queryRaw<unknown[]>(query);
+          const chunk = await prisma.$queryRaw<BatchExportTracesRow[]>(query);
 
-          return chunk;
+          const chunkWithFlattenedScores = chunk.map((row) => {
+            const { scores, ...data } = row;
+            const scoreColumns = Object.entries(scores).reduce(
+              (acc, [key, value]) => {
+                return {
+                  ...acc,
+                  [key]: value,
+                };
+              },
+              emptyScoreColumns
+            );
+            return {
+              ...data,
+              ...scoreColumns,
+            };
+          });
+
+          return chunkWithFlattenedScores;
         },
         1000,
         env.BATCH_EXPORT_ROW_LIMIT
       );
-
+    }
     default:
       throw new Error("Invalid table name: " + tableName);
   }
@@ -181,7 +223,7 @@ export const handleBatchExportJob = async (
   }
 
   // handle db read stream
-  const dbReadStream = getDatabaseReadStream({
+  const dbReadStream = await getDatabaseReadStream({
     projectId,
     cutoffCreatedAt: jobDetails.createdAt,
     ...parsedQuery.data,
