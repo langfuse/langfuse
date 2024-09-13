@@ -14,7 +14,7 @@ export type BatchExportSessionsRow = {
   totalCost?: Decimal | null;
   inputTokens?: bigint | null;
   outputTokens?: bigint | null;
-  totalTokens: bigint | null;
+  totalTokens?: bigint | null;
   traceTags?: string[] | null;
   totalCount: number;
 };
