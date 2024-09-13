@@ -204,7 +204,7 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     NEXT_PUBLIC_CRISP_WEBSITE_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
-    NEXT_PUBLIC_BASE_PATH: z.string().optional().default(""),
+    NEXT_PUBLIC_BASE_PATH: z.string().optional(),
   },
 
   /**

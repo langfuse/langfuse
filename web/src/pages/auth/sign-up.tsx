@@ -48,11 +48,14 @@ export default function SignIn({ authProviders }: PageProps) {
   async function onSubmit(values: z.infer<typeof signupSchema>) {
     try {
       setFormError(null);
-      const res = await fetch(`${env.NEXT_PUBLIC_BASE_PATH}/api/auth/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
+      const res = await fetch(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/signup`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        },
+      );
 
       if (!res.ok) {
         const payload = (await res.json()) as { message: string };
