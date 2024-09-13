@@ -79,7 +79,6 @@ const getDatabaseReadStream = async ({
 
   switch (tableName) {
     case "sessions":
-      // TODO: improve performance for (count(*) OVER ())::int AS "totalCount"
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
           const query = createSessionsAllQuery(
