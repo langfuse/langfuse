@@ -6,13 +6,14 @@
 import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function TemplatesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="h-[calc(100vh-6rem)] overflow-hidden lg:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title="Eval Log"
         help={{
@@ -21,6 +22,6 @@ export default function TemplatesPage() {
         }}
       />
       <EvalLogTable projectId={projectId} />
-    </div>
+    </FullScreenPage>
   );
 }
