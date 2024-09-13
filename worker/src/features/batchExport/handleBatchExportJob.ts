@@ -8,6 +8,7 @@ import {
   exportOptions,
   FilterCondition,
   Prisma,
+  TimeFilter,
   tracesTableCols,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -32,6 +33,10 @@ const tableNameToTimeFilterColumn = {
   traces: "timestamp",
 };
 
+const isTimestampFilter = (filter: FilterCondition): filter is TimeFilter => {
+  return filter.column === "Timestamp" && filter.type === "datetime";
+};
+
 const parseTracesOrderByAndFilter = (
   orderBy: BatchExportQueryType["orderBy"],
   filter: BatchExportQueryType["filter"]
@@ -42,7 +47,16 @@ const parseTracesOrderByAndFilter = (
     tracesTableCols,
     "traces"
   );
-  return { orderByCondition, filterCondition };
+
+  const scoreTimestampFilter = filter?.find(isTimestampFilter);
+
+  return {
+    orderByCondition,
+    filterCondition,
+    scoreTimestampFilterCondition: scoreTimestampFilter
+      ? Prisma.sql`AND s.timestamp >= ${scoreTimestampFilter.value}`
+      : Prisma.empty,
+  };
 };
 
 const getDatabaseReadStream = async ({
@@ -104,16 +118,21 @@ const getDatabaseReadStream = async ({
         env.BATCH_EXPORT_ROW_LIMIT
       );
     case "traces": {
-      const { orderByCondition, filterCondition } = parseTracesOrderByAndFilter(
+      const {
+        orderByCondition,
+        filterCondition,
+        scoreTimestampFilterCondition,
+      } = parseTracesOrderByAndFilter(
         orderBy,
         filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter]
       );
 
       const distinctScoreNames = await prisma.$queryRaw<{ name: string }[]>`
         SELECT DISTINCT name
-        FROM scores
-        WHERE project_id = ${projectId}
-        AND created_at <= ${cutoffCreatedAt}
+        FROM scores s
+        WHERE s.project_id = ${projectId}
+        AND s.created_at <= ${cutoffCreatedAt}
+        ${scoreTimestampFilterCondition}
       `;
 
       const emptyScoreColumns = distinctScoreNames.reduce(
