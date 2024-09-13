@@ -135,6 +135,37 @@ export async function fetchLLMCompletion(
     return await functionCallingModel.pipe(outputParser).invoke(finalMessages);
   }
 
+  /*
+  Workaround OpenAI o1 while in beta:
+  
+  This is a temporary workaround to avoid sending system messages to OpenAI's O1 models.
+  O1 models do not support in beta:
+  - system messages
+  - top_p
+  - max_tokens at all, one has to use max_completion_tokens instead
+  - temperature different than 1
+
+  Reference: https://platform.openai.com/docs/guides/reasoning/beta-limitations
+  */
+  if (modelParams.model.startsWith("o1-")) {
+    return await new ChatOpenAI({
+      openAIApiKey: apiKey,
+      modelName: modelParams.model,
+      temperature: 1,
+      maxTokens: undefined,
+      topP: undefined,
+      callbacks,
+      maxRetries,
+      configuration: {
+        baseURL,
+      },
+    })
+      .pipe(new StringOutputParser())
+      .invoke(
+        finalMessages.filter((message) => message._getType() !== "system")
+      );
+  }
+
   if (streaming) {
     return chatModel.pipe(new BytesOutputParser()).stream(finalMessages);
   }
