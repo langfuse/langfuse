@@ -23,13 +23,19 @@ import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
 import { captureException } from "@sentry/nextjs";
+import { env } from "@/src/env.mjs";
 
 setUpSuperjson();
 
 const getBaseUrl = () => {
-  if (typeof window !== "undefined") return ""; // browser should use relative url
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`; // SSR should use vercel url
-  return `http://localhost:${process.env.PORT ?? 3000}`; // dev SSR should use localhost
+  const hostname =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : `http://localhost:${process.env.PORT ?? 3000}`;
+
+  return `${hostname}${env.NEXT_PUBLIC_BASE_PATH}`;
 };
 
 // global build id used to compare versions to show refresh toast on stale cache hit serving deprecated files

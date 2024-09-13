@@ -320,7 +320,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
     }
     // current email domain
     const domain = email.data.split("@")[1]?.toLowerCase();
-    const res = await fetch("/api/auth/check-sso", {
+    const res = await fetch(`${env.NEXT_PUBLIC_BASE_PATH}/api/auth/check-sso`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ domain }),
