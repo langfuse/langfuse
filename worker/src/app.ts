@@ -38,38 +38,51 @@ app.use("/api", api);
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
 
-WorkerManager.register(QueueName.RepeatQueue, repeatQueueProcessor);
+if (env.QUEUE_CONSUMER_REPEAT_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.RepeatQueue, repeatQueueProcessor);
+}
 
-WorkerManager.register(QueueName.TraceUpsert, evalJobCreatorQueueProcessor, {
-  concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
-});
+if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.TraceUpsert, evalJobCreatorQueueProcessor, {
+    concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+  });
+}
 
-WorkerManager.register(
-  QueueName.EvaluationExecution,
-  evalJobExecutorQueueProcessor,
-  {
-    concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
-  },
-);
+if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.EvaluationExecution,
+    evalJobExecutorQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+    },
+  );
+}
 
-WorkerManager.register(QueueName.BatchExport, batchExportQueueProcessor, {
-  concurrency: 1, // only 1 job at a time
-  limiter: {
-    // execute 1 batch export in 5 seconds to avoid overloading the DB
-    max: 1,
-    duration: 5_000,
-  },
-});
+if (env.QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.BatchExport, batchExportQueueProcessor, {
+    concurrency: 1, // only 1 job at a time
+    limiter: {
+      // execute 1 batch export in 5 seconds to avoid overloading the DB
+      max: 1,
+      duration: 5_000,
+    },
+  });
+}
 
-WorkerManager.register(
-  QueueName.IngestionFlushQueue,
-  ingestionFlushQueueProcessor,
-  {
-    concurrency: env.LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY,
-  },
-);
+if (env.QUEUE_CONSUMER_INGESTION_FLUSH_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.IngestionFlushQueue,
+    ingestionFlushQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY,
+    },
+  );
+}
 
-if (env.STRIPE_SECRET_KEY) {
+if (
+  env.QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED === "true" &&
+  env.STRIPE_SECRET_KEY
+) {
   WorkerManager.register(
     QueueName.CloudUsageMeteringQueue,
     cloudUsageMeteringQueueProcessor,
