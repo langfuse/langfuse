@@ -50,8 +50,6 @@ const parseTracesOrderByAndFilter = (
 
   const scoreTimestampFilter = filter?.find(isTimestampFilter);
 
-  console.log("scoreTimestampFilter", scoreTimestampFilter);
-
   return {
     orderByCondition,
     filterCondition,
