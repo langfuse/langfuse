@@ -33,14 +33,6 @@ const prismaClientSingleton = () => {
   console.log(
     `database connection params: ${paramsString}, ${connectionString}`
   );
-  const params = new URLSearchParams(paramsString);
-
-  const paramsArray: string[] = [];
-  params.forEach((value, key) => {
-    paramsArray.push(`${key}=${value}`);
-  });
-
-  console.log(`database params: ${paramsArray.join(", ")}`);
 
   if (env.NODE_ENV === "development") {
     client.$on("query", (event) => {
