@@ -80,6 +80,7 @@ export type Account = {
     scope: string | null;
     id_token: string | null;
     session_state: string | null;
+    refresh_token_expires_in: number | null;
 };
 export type ApiKey = {
     id: string;
