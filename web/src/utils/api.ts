@@ -35,7 +35,7 @@ const getBaseUrl = () => {
         ? `https://${process.env.VERCEL_URL}`
         : `http://localhost:${process.env.PORT ?? 3000}`;
 
-  const basePath = env.NEXT_PUBLIC_BASE_PATH || "";
+  const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
   return `${hostname}${basePath}`;
 };
 
