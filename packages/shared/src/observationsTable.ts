@@ -52,7 +52,8 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Time To First Token (s)",
     id: "timeToFirstToken",
     type: "number",
-    internal: 'o."completion_start_time" - o."start_time"',
+    internal:
+      'EXTRACT(EPOCH FROM (o."completion_start_time" - o."start_time"))',
     nullable: true,
   },
   {
