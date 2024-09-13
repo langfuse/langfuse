@@ -28,7 +28,7 @@ export const QuickstartExamples = ({
     { value: "llamaindex", label: "LlamaIndex" },
     { value: "other", label: "Other" },
   ];
-  const host = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH}`;
+  const host = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 
   // if custom docs link, do not show quickstart examples but refer to docs
   if (uiCustomization?.documentationHref) {
