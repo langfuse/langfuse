@@ -28,6 +28,17 @@ const prismaClientSingleton = () => {
     ],
   });
 
+  const connectionString = env.DATABASE_URL;
+  const paramsString = connectionString?.split("?")[1];
+  const params = new URLSearchParams(paramsString);
+
+  const paramsArray: string[] = [];
+  params.forEach((value, key) => {
+    paramsArray.push(`${key}=${value}`);
+  });
+
+  console.log(`database params: ${paramsArray.join(", ")}`);
+
   if (env.NODE_ENV === "development") {
     client.$on("query", (event) => {
       logger.info(`prisma:query ${event.query}, ${event.duration}ms`);
@@ -59,7 +70,7 @@ const kyselySingleton = (prismaClient: PrismaClient) => {
             createQueryCompiler: () => new PostgresQueryCompiler(),
           },
         }),
-    }),
+    })
   );
 };
 declare global {
