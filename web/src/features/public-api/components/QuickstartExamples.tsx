@@ -6,6 +6,7 @@ import {
   TabsTrigger,
 } from "@/src/components/ui/tabs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Link from "next/link";
 
@@ -27,7 +28,7 @@ export const QuickstartExamples = ({
     { value: "llamaindex", label: "LlamaIndex" },
     { value: "other", label: "Other" },
   ];
-  const host = uiCustomization?.hostname ?? window.origin;
+  const host = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH}`;
 
   // if custom docs link, do not show quickstart examples but refer to docs
   if (uiCustomization?.documentationHref) {
