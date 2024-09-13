@@ -26,6 +26,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { MAX_OBSERVATIONS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -72,7 +73,8 @@ const OrganizationUsageChart = () => {
     },
   );
   const planLimit =
-    organization?.cloudConfig?.monthlyObservationLimit ?? 50_000;
+    organization?.cloudConfig?.monthlyObservationLimit ??
+    MAX_OBSERVATIONS_FREE_PLAN;
   const plan: Plan = organization?.plan ?? "cloud:hobby";
   const planLabel = planLabels[plan];
 
