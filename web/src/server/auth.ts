@@ -477,11 +477,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     adapter: extendedPrismaAdapter,
     providers,
     pages: {
-      signIn: "/auth/sign-in",
-      error: "/auth/error",
+      signIn: `${env.NEXT_PUBLIC_BASE_PATH}/auth/sign-in`,
+      error: `${env.NEXT_PUBLIC_BASE_PATH}/auth/error`,
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
         ? {
-            newUser: "/onboarding",
+            newUser: `${env.NEXT_PUBLIC_BASE_PATH}/onboarding`,
           }
         : {}),
     },
