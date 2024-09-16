@@ -32,11 +32,17 @@ export async function getAllGenerations({
   input: GetAllGenerationsInput;
   selectIOAndMetadata: boolean;
 }) {
-  const generationsFilters = parseGetAllGenerationsInput(input);
+  const { searchCondition, filterCondition, orderByCondition, datetimeFilter } =
+    parseGetAllGenerationsInput(input);
 
   const query = createGenerationsQuery({
-    ...input,
-    ...generationsFilters,
+    projectId: input.projectId,
+    page: input.page,
+    limit: input.limit,
+    searchCondition,
+    filterCondition,
+    orderByCondition,
+    datetimeFilter,
     selectIOAndMetadata,
   });
 
@@ -67,6 +73,9 @@ export async function getAllGenerations({
 
   return {
     generations: fullGenerations,
-    ...generationsFilters,
+    searchCondition,
+    filterCondition,
+    orderByCondition,
+    datetimeFilter,
   };
 }
