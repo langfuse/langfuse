@@ -1,29 +1,15 @@
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { filterAndValidateDbScoreList } from "@langfuse/shared";
-import { type ObservationView, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 
 import { type GetAllGenerationsInput } from "../getAllQueries";
 import {
   createGenerationsQuery,
   parseGetAllGenerationsInput,
   traceException,
+  type FullObservations,
+  type IOAndMetadataOmittedObservations,
 } from "@langfuse/shared/src/server";
-
-type AdditionalObservationFields = {
-  traceName: string | null;
-  promptName: string | null;
-  promptVersion: string | null;
-  traceTags: Array<string>;
-};
-
-export type FullObservations = Array<
-  AdditionalObservationFields & ObservationView
->;
-
-export type IOAndMetadataOmittedObservations = Array<
-  Omit<ObservationView, "input" | "output" | "metadata"> &
-    AdditionalObservationFields
->;
 
 export async function getAllGenerations({
   input,

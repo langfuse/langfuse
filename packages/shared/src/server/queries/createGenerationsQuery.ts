@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { ObservationView, Prisma } from "@prisma/client";
 import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
@@ -6,6 +6,26 @@ import {
 import { orderByToPrismaSql } from "../orderByToPrisma";
 import { observationsTableCols } from "../../observationsTable";
 import { TableFilters } from "./types";
+
+type AdditionalObservationFields = {
+  traceName: string | null;
+  promptName: string | null;
+  promptVersion: string | null;
+  traceTags: Array<string>;
+};
+
+type FullObservation = AdditionalObservationFields & ObservationView;
+
+export type FullObservations = Array<FullObservation>;
+
+export type FullObservationsWithScores = Array<
+  FullObservation & { scores?: Record<string, string[] | number[]> | null }
+>;
+
+export type IOAndMetadataOmittedObservations = Array<
+  Omit<ObservationView, "input" | "output" | "metadata"> &
+    AdditionalObservationFields
+>;
 
 export function parseGetAllGenerationsInput(filters: TableFilters) {
   const searchCondition = filters.searchQuery
@@ -59,6 +79,7 @@ export function createGenerationsQuery({
   filterCondition = Prisma.empty,
   orderByCondition = Prisma.empty,
   selectIOAndMetadata = false,
+  selectScoreValues = false,
 }: {
   projectId: string;
   datetimeFilter?: Prisma.Sql;
@@ -68,37 +89,43 @@ export function createGenerationsQuery({
   filterCondition?: Prisma.Sql;
   orderByCondition?: Prisma.Sql;
   selectIOAndMetadata?: boolean;
+  selectScoreValues?: boolean;
 }) {
   return Prisma.sql`
   WITH scores_avg AS (
         SELECT
           trace_id,
           observation_id,
-          jsonb_object_agg(name::text, avg_value::double precision) AS scores_avg
+          ${selectScoreValues ? Prisma.sql`jsonb_object_agg(name::text, "values") AS "scores_values",` : Prisma.empty}
+          jsonb_object_agg(name::text, avg_value::double precision) AS "scores_avg"
         FROM (
           SELECT
             trace_id,
             observation_id,
             name,
+            ${selectScoreValues ? Prisma.sql`array_agg(COALESCE(string_value, value::text)) AS "values",` : Prisma.empty}
             avg(value) avg_value,
             comment
           FROM
             scores
           WHERE
-          project_id = ${projectId}
-          AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')
+            project_id = ${projectId}
+            ${selectScoreValues ? Prisma.empty : Prisma.sql`AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')`}
           GROUP BY
-            1,
-            2,
-            3,
-            5
+            trace_id,
+            observation_id,
+            name,
+            comment
           ORDER BY
-            1) tmp
+            trace_id
+          ) tmp
         GROUP BY
-          1, 2
+          trace_id, 
+          observation_id
       )
       SELECT
         ${selectIOAndMetadata ? Prisma.sql`o.input, o.output, o.metadata,` : Prisma.empty} 
+        ${selectScoreValues ? Prisma.sql`s_avg."scores_values" AS "scores",` : Prisma.empty}
         o.id,
         o.name,
         o.model,

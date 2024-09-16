@@ -22,6 +22,7 @@ import {
   createGenerationsQuery,
   parseGetAllGenerationsInput,
   parseTraceAllFilters,
+  FullObservationsWithScores,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
@@ -34,28 +35,70 @@ const tableNameToTimeFilterColumn = {
   generations: "startTime",
 };
 
-const isTimestampFilter = (filter: FilterCondition): filter is TimeFilter => {
+const isGenerationTimestampFilter = (
+  filter: FilterCondition
+): filter is TimeFilter => {
+  return filter.column === "Start Time" && filter.type === "datetime";
+};
+
+const isTraceTimestampFilter = (
+  filter: FilterCondition
+): filter is TimeFilter => {
   return filter.column === "Timestamp" && filter.type === "datetime";
 };
 
-const parseTracesOrderByAndFilter = (
+const getEmptyScoreColumns = async (
   projectId: string,
-  orderBy: BatchExportQueryType["orderBy"],
-  filter: BatchExportQueryType["filter"]
+  cutoffCreatedAt: Date,
+  filter: FilterCondition[],
+  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter
 ) => {
-  const tracesFilters = parseTraceAllFilters({
-    projectId,
-    orderBy,
-    filter: filter ?? [],
-  });
   const scoreTimestampFilter = filter?.find(isTimestampFilter);
 
-  return {
-    ...tracesFilters,
-    scoreTimestampFilterCondition: scoreTimestampFilter
-      ? Prisma.sql`AND s.timestamp >= ${scoreTimestampFilter.value}`
-      : Prisma.empty,
-  };
+  const scoreTimestampFilterCondition = scoreTimestampFilter
+    ? Prisma.sql`AND s.timestamp >= ${scoreTimestampFilter.value}`
+    : Prisma.empty;
+
+  const distinctScoreNames = await prisma.$queryRaw<{ name: string }[]>`
+        SELECT DISTINCT name
+        FROM scores s
+        WHERE s.project_id = ${projectId}
+        AND s.created_at <= ${cutoffCreatedAt}
+        ${scoreTimestampFilterCondition}
+      `;
+
+  return distinctScoreNames.reduce(
+    (acc, { name }) => ({ ...acc, [name]: null }),
+    {} as Record<string, null>
+  );
+};
+
+const getChunkWithFlattenedScores = <
+  T extends BatchExportTracesRow[] | FullObservationsWithScores,
+>(
+  chunk: T,
+  emptyScoreColumns: Record<string, null>
+) => {
+  return chunk.map((row) => {
+    const { scores, ...data } = row;
+    if (!scores) return { ...data, ...emptyScoreColumns };
+    const scoreColumns = Object.entries(scores).reduce<
+      Record<string, string[] | number[] | null>
+    >((acc, [key, value]) => {
+      if (key in emptyScoreColumns) {
+        return {
+          ...acc,
+          [key]: value,
+        };
+      } else {
+        return acc;
+      }
+    }, emptyScoreColumns);
+    return {
+      ...data,
+      ...scoreColumns,
+    };
+  });
 };
 
 const getDatabaseReadStream = async ({
@@ -116,17 +159,24 @@ const getDatabaseReadStream = async ({
         env.BATCH_EXPORT_ROW_LIMIT
       );
     case "generations": {
+      const { orderByCondition, filterCondition, datetimeFilter } =
+        parseGetAllGenerationsInput({
+          projectId,
+          orderBy,
+          filter: filter
+            ? [...filter, createdAtCutoffFilter]
+            : [createdAtCutoffFilter],
+        });
+
+      const emptyScoreColumns = await getEmptyScoreColumns(
+        projectId,
+        cutoffCreatedAt,
+        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter],
+        isGenerationTimestampFilter
+      );
+
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const { orderByCondition, filterCondition, datetimeFilter } =
-            parseGetAllGenerationsInput({
-              projectId,
-              orderBy,
-              filter: filter
-                ? [...filter, createdAtCutoffFilter]
-                : [createdAtCutoffFilter],
-            });
-
           const query = createGenerationsQuery({
             projectId,
             limit: pageSize,
@@ -134,39 +184,37 @@ const getDatabaseReadStream = async ({
             filterCondition,
             orderByCondition,
             datetimeFilter,
-            selectIOAndMetadata: true,
+            selectScoreValues: true,
           });
-          const chunk = await prisma.$queryRaw<unknown[]>(query);
+          const chunk =
+            await prisma.$queryRaw<FullObservationsWithScores>(query);
 
-          return chunk;
+          const chunkWithFlattenedScores = getChunkWithFlattenedScores(
+            chunk,
+            emptyScoreColumns
+          );
+
+          return chunkWithFlattenedScores;
         },
         1000,
         env.BATCH_EXPORT_ROW_LIMIT
       );
     }
     case "traces": {
-      const {
-        orderByCondition,
-        filterCondition,
-        observationTimeseriesFilter,
-        scoreTimestampFilterCondition,
-      } = parseTracesOrderByAndFilter(
+      const { orderByCondition, filterCondition, observationTimeseriesFilter } =
+        parseTraceAllFilters({
+          projectId,
+          orderBy,
+          filter: filter
+            ? [...filter, createdAtCutoffFilter]
+            : [createdAtCutoffFilter],
+        });
+
+      const emptyScoreColumns = await getEmptyScoreColumns(
         projectId,
-        orderBy,
-        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter]
-      );
-
-      const distinctScoreNames = await prisma.$queryRaw<{ name: string }[]>`
-        SELECT DISTINCT name
-        FROM scores s
-        WHERE s.project_id = ${projectId}
-        AND s.created_at <= ${cutoffCreatedAt}
-        ${scoreTimestampFilterCondition}
-      `;
-
-      const emptyScoreColumns = distinctScoreNames.reduce(
-        (acc, { name }) => ({ ...acc, [name]: null }),
-        {}
+        cutoffCreatedAt,
+        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter],
+        isTraceTimestampFilter
       );
 
       return new DatabaseReadStream<unknown>(
@@ -206,27 +254,10 @@ const getDatabaseReadStream = async ({
           });
           const chunk = await prisma.$queryRaw<BatchExportTracesRow[]>(query);
 
-          const chunkWithFlattenedScores = chunk.map((row) => {
-            const { scores, ...data } = row;
-            if (!scores) return { ...data, ...emptyScoreColumns };
-            const scoreColumns = Object.entries(scores).reduce(
-              (acc, [key, value]) => {
-                if (key in emptyScoreColumns) {
-                  return {
-                    ...acc,
-                    [key]: value,
-                  };
-                } else {
-                  return acc;
-                }
-              },
-              emptyScoreColumns
-            );
-            return {
-              ...data,
-              ...scoreColumns,
-            };
-          });
+          const chunkWithFlattenedScores = getChunkWithFlattenedScores(
+            chunk,
+            emptyScoreColumns
+          );
 
           return chunkWithFlattenedScores;
         },
