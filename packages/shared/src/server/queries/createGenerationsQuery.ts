@@ -124,7 +124,6 @@ export function createGenerationsQuery({
           observation_id
       )
       SELECT
-        ${selectIOAndMetadata ? Prisma.sql`o.input, o.output, o.metadata,` : Prisma.empty} 
         ${selectScoreValues ? Prisma.sql`s_avg."scores_values" AS "scores",` : Prisma.empty}
         o.id,
         o.name,
@@ -132,6 +131,7 @@ export function createGenerationsQuery({
         o."modelParameters",
         o.start_time as "startTime",
         o.end_time as "endTime",
+        ${selectIOAndMetadata ? Prisma.sql`o.input, o.output, o.metadata,` : Prisma.empty} 
         o.trace_id as "traceId",
         t.name as "traceName",
         o.completion_start_time as "completionStartTime",
