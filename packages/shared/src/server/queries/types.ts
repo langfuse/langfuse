@@ -3,8 +3,8 @@ import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 
 const TableFilterSchema = z.object({
-  projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  projectId: z.string(),
+  filter: z.array(singleFilter).nullable().optional(),
   searchQuery: z.string().nullable().optional(),
   orderBy: orderBy,
 });

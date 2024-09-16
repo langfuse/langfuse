@@ -18,7 +18,7 @@ export function parseGetAllGenerationsInput(filters: TableFilters) {
     : Prisma.empty;
 
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    filters.filter,
+    filters.filter ?? [],
     observationsTableCols,
     "observations"
   );
@@ -29,7 +29,7 @@ export function parseGetAllGenerationsInput(filters: TableFilters) {
   );
 
   // to improve query performance, add timeseries filter to observation queries as well
-  const startTimeFilter = filters.filter.find(
+  const startTimeFilter = filters.filter?.find(
     (f) => f.column === "Start Time" && f.type === "datetime"
   );
 

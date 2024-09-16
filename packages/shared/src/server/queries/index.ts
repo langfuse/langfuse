@@ -1,5 +1,5 @@
 export { createSessionsAllQuery } from "./createSessionsAllQuery";
-export { createTracesQuery } from "./createTracesQuery";
+export { createTracesQuery, parseTraceAllFilters } from "./createTracesQuery";
 export {
   createGenerationsQuery,
   parseGetAllGenerationsInput,

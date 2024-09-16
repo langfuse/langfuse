@@ -9,7 +9,6 @@ import {
   FilterCondition,
   Prisma,
   TimeFilter,
-  tracesTableCols,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -20,10 +19,9 @@ import {
   streamTransformations,
   BatchExportJobType,
   createTracesQuery,
-  orderByToPrismaSql,
-  tableColumnsToSqlFilterAndPrefix,
   createGenerationsQuery,
   parseGetAllGenerationsInput,
+  parseTraceAllFilters,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
@@ -41,21 +39,19 @@ const isTimestampFilter = (filter: FilterCondition): filter is TimeFilter => {
 };
 
 const parseTracesOrderByAndFilter = (
+  projectId: string,
   orderBy: BatchExportQueryType["orderBy"],
   filter: BatchExportQueryType["filter"]
 ) => {
-  const orderByCondition = orderByToPrismaSql(orderBy, tracesTableCols);
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    filter ?? [],
-    tracesTableCols,
-    "traces"
-  );
-
+  const tracesFilters = parseTraceAllFilters({
+    projectId,
+    orderBy,
+    filter: filter ?? [],
+  });
   const scoreTimestampFilter = filter?.find(isTimestampFilter);
 
   return {
-    orderByCondition,
-    filterCondition,
+    ...tracesFilters,
     scoreTimestampFilterCondition: scoreTimestampFilter
       ? Prisma.sql`AND s.timestamp >= ${scoreTimestampFilter.value}`
       : Prisma.empty,
@@ -152,8 +148,10 @@ const getDatabaseReadStream = async ({
       const {
         orderByCondition,
         filterCondition,
+        observationTimeseriesFilter,
         scoreTimestampFilterCondition,
       } = parseTracesOrderByAndFilter(
+        projectId,
         orderBy,
         filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter]
       );
@@ -203,6 +201,7 @@ const getDatabaseReadStream = async ({
             page: Math.floor(offset / pageSize),
             filterCondition,
             orderByCondition,
+            observationTimeseriesFilter,
             selectScoreValues: true,
           });
           const chunk = await prisma.$queryRaw<BatchExportTracesRow[]>(query);
