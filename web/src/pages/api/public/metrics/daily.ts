@@ -12,7 +12,7 @@ export default withMiddlewares({
     name: "Get Daily Metrics",
     querySchema: GetMetricsDailyV1Query,
     responseSchema: GetMetricsDailyV1Response,
-    rateLimitRessource: "public-api-metrics",
+    rateLimitResource: "public-api-metrics",
     fn: async ({ query, auth }) => {
       const traceNameCondition = query.traceName
         ? Prisma.sql`AND t.name = ${query.traceName}`
@@ -47,73 +47,47 @@ export default withMiddlewares({
               SUM(o.completion_tokens) "outputUsage",
               SUM(o.total_tokens) "totalUsage",
               COALESCE(SUM(o.calculated_total_cost), 0)::DOUBLE PRECISION as "totalCost"
-            FROM
-              traces t
-            LEFT JOIN observations_view o ON o.trace_id = t.id AND o.project_id = t.project_id
+            FROM traces t
+            LEFT JOIN observations_view o
+            ON o.trace_id = t.id
+            AND o.project_id = t.project_id
             WHERE o.start_time IS NOT NULL
+              AND o.project_id = ${auth.scope.projectId}
               AND t.project_id = ${auth.scope.projectId}
               ${traceNameCondition}
               ${userCondition}
               ${tagsCondition}
               ${fromTimestampCondition}
               ${toTimestampCondition}
-            GROUP BY
-              1,
-              2
-            ORDER BY
-              1,
-              2
+            GROUP BY 1, 2
           ),
           daily_model_usage AS (
             SELECT
               "date",
-              json_agg(json_build_object('model',
-                  model,
-                  'inputUsage',
-                  "inputUsage",
-                  'outputUsage',
-                  "outputUsage",
-                  'totalUsage',
-                  "totalUsage",
-                  'totalCost',
-                  "totalCost",
-                  'countObservations',
-                  "countObservations",
-                  'countTraces',
-                  "countTraces")) daily_usage_json
+              sum("countTraces")::integer "countTraces",
+              sum("countObservations")::integer "countObservations",
+              sum("totalCost")::DOUBLE PRECISION "totalCost",      
+              json_agg(json_build_object(
+                'model', "model",
+                'inputUsage', "inputUsage",
+                'outputUsage', "outputUsage",
+                'totalUsage', "totalUsage",
+                'totalCost', "totalCost",
+                'countObservations', "countObservations",
+                'countTraces', "countTraces"
+              )) daily_usage_json
             FROM
               model_usage
-            GROUP BY
-              1
-          ),
-          daily_stats AS (
-            SELECT
-              DATE_TRUNC('DAY', t.timestamp) "date",
-              count(distinct t.id)::integer count_traces,
-              count(distinct o.id)::integer count_observations,
-              SUM(o.calculated_total_cost)::DOUBLE PRECISION total_cost
-            FROM traces t
-            LEFT JOIN observations_view o ON o.project_id = t.project_id AND t.id = o.trace_id
-            WHERE t.project_id = ${auth.scope.projectId}
-              ${traceNameCondition}
-              ${userCondition}
-              ${tagsCondition}
-              ${fromTimestampCondition}
-              ${toTimestampCondition}
             GROUP BY 1
           )
           SELECT
             TO_CHAR(COALESCE(ds.date, daily_model_usage.date), 'YYYY-MM-DD') AS "date",
-            COALESCE(count_traces, 0) "countTraces",
-            COALESCE(count_observations, 0) "countObservations",
-            COALESCE(total_cost, 0) "totalCost",
+            COALESCE("countTraces", 0) "countTraces",
+            COALESCE("countObservations", 0) "countObservations",
+            COALESCE("totalCost", 0) "totalCost",
             COALESCE(daily_usage_json, '[]'::JSON) usage
-          FROM
-            daily_stats ds
-          FULL OUTER JOIN
-            daily_model_usage ON daily_model_usage.date = ds.date
-          ORDER BY
-            1 DESC
+          FROM daily_model_usage
+          ORDER BY 1 DESC
           LIMIT ${query.limit} OFFSET ${(query.page - 1) * query.limit}
         `,
         prisma.$queryRaw<{ count: number }[]>`
