@@ -29,7 +29,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 
 const tableNameToTimeFilterColumn = {
-  sessions: "created_at",
+  sessions: "createdAt",
   traces: "timestamp",
 };
 
