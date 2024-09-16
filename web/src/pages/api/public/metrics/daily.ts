@@ -81,7 +81,7 @@ export default withMiddlewares({
             GROUP BY 1
           )
           SELECT
-            TO_CHAR(COALESCE(ds.date, daily_model_usage.date), 'YYYY-MM-DD') AS "date",
+            TO_CHAR(daily_model_usage.date, 'YYYY-MM-DD') AS "date",
             COALESCE("countTraces", 0) "countTraces",
             COALESCE("countObservations", 0) "countObservations",
             COALESCE("totalCost", 0) "totalCost",
