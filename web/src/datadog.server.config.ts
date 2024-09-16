@@ -54,7 +54,11 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new HttpInstrumentation(),
       new PrismaInstrumentation(),
       new WinstonInstrumentation({ disableLogSending: true }),
-      getNodeAutoInstrumentations(),
+      getNodeAutoInstrumentations({
+        "@opentelemetry/instrumentation-fs": {
+          enabled: false, // https://opentelemetry.io/docs/languages/js/libraries/
+        },
+      }),
       new UndiciInstrumentation(),
       // new BullMQInstrumentation(),
     ],
