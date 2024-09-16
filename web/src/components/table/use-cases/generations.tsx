@@ -5,14 +5,6 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useMemo, useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { Button } from "@/src/components/ui/button";
-import { ChevronDownIcon, Loader } from "lucide-react";
-import {
   NumberParam,
   StringParam,
   useQueryParam,
@@ -27,6 +19,7 @@ import {
   type ObservationLevel,
   type FilterState,
   type ObservationOptions,
+  BatchExportTableName,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -51,6 +44,7 @@ import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 export type GenerationsTableRow = {
   id: string;
@@ -763,36 +757,11 @@ export default function GenerationsTable({
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="ml-auto whitespace-nowrap">
-                <span className="hidden @6xl:inline">
-                  {filterState.length > 0 || searchQuery
-                    ? "Export selection"
-                    : "Export all"}{" "}
-                </span>
-                <span className="@6xl:hidden">Export</span>
-                {isExporting ? (
-                  <Loader className="ml-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <ChevronDownIcon className="ml-2 h-4 w-4" />
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {Object.entries(exportOptions).map(([key, options]) => (
-                <DropdownMenuItem
-                  key={key}
-                  className="capitalize"
-                  onClick={() =>
-                    void handleExport(key as BatchExportFileFormat)
-                  }
-                >
-                  as {options.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <BatchExportTableButton
+            {...{ projectId, filterState, orderByState }}
+            tableName={BatchExportTableName.Generations}
+            key="batchExport"
+          />
         }
       />
       <DataTable

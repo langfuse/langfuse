@@ -5,10 +5,8 @@ import { paginationZod } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
-import {
-  getAllGenerations,
-  parseGetAllGenerationsInput,
-} from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
+import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
+import { parseGetAllGenerationsInput } from "@langfuse/shared/src/server";
 
 const getAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,

@@ -22,6 +22,8 @@ import {
   createTracesQuery,
   orderByToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
+  createGenerationsQuery,
+  parseGetAllGenerationsInput,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
@@ -29,8 +31,9 @@ import { logger } from "@langfuse/shared/src/server";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 
 const tableNameToTimeFilterColumn = {
-  sessions: "created_at",
+  sessions: "createdAt",
   traces: "timestamp",
+  generations: "startTime",
 };
 
 const isTimestampFilter = (filter: FilterCondition): filter is TimeFilter => {
@@ -116,6 +119,35 @@ const getDatabaseReadStream = async ({
         1000,
         env.BATCH_EXPORT_ROW_LIMIT
       );
+    case "generations": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const { orderByCondition, filterCondition, datetimeFilter } =
+            parseGetAllGenerationsInput({
+              projectId,
+              orderBy,
+              filter: filter
+                ? [...filter, createdAtCutoffFilter]
+                : [createdAtCutoffFilter],
+            });
+
+          const query = createGenerationsQuery({
+            projectId,
+            limit: pageSize,
+            page: Math.floor(offset / pageSize),
+            filterCondition,
+            orderByCondition,
+            datetimeFilter,
+            selectIOAndMetadata: true,
+          });
+          const chunk = await prisma.$queryRaw<unknown[]>(query);
+
+          return chunk;
+        },
+        1000,
+        env.BATCH_EXPORT_ROW_LIMIT
+      );
+    }
     case "traces": {
       const {
         orderByCondition,
