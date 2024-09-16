@@ -64,7 +64,6 @@ export default withMiddlewares({
           daily_model_usage AS (
             SELECT
               "date",
-              sum("countTraces")::integer "countTraces",
               sum("countObservations")::integer "countObservations",
               sum("totalCost")::DOUBLE PRECISION "totalCost",      
               json_agg(json_build_object(
@@ -79,14 +78,29 @@ export default withMiddlewares({
             FROM
               model_usage
             GROUP BY 1
+          ),
+          trace_usage AS (
+            SELECT
+              DATE_TRUNC('DAY', t.timestamp) "date",
+              count(distinct t.id)::integer as "countTraces"
+            FROM traces t
+            WHERE t.project_id = ${auth.scope.projectId}
+              ${traceNameCondition}
+              ${userCondition}
+              ${tagsCondition}
+              ${fromTimestampCondition}
+              ${toTimestampCondition}
+            GROUP BY 1
           )
           SELECT
-            TO_CHAR(daily_model_usage.date, 'YYYY-MM-DD') AS "date",
-            COALESCE("countTraces", 0) "countTraces",
+            TO_CHAR(COALESCE(trace_usage.date, daily_model_usage.date), 'YYYY-MM-DD') AS "date",
+            COALESCE(trace_usage."countTraces", 0) "countTraces",
             COALESCE("countObservations", 0) "countObservations",
             COALESCE("totalCost", 0) "totalCost",
             COALESCE(daily_usage_json, '[]'::JSON) usage
           FROM daily_model_usage
+          FULL OUTER JOIN trace_usage
+          ON daily_model_usage."date" = trace_usage."date"
           ORDER BY 1 DESC
           LIMIT ${query.limit} OFFSET ${(query.page - 1) * query.limit}
         `,
