@@ -10,6 +10,7 @@ import {
   type FilterState,
   sessionsTableColsWithOptions,
   BatchExportTableName,
+  type SessionTableRow,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -17,7 +18,6 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
-import type Decimal from "decimal.js";
 import { useEffect } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
@@ -29,22 +29,6 @@ import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-
-export type SessionTableRow = {
-  id: string;
-  createdAt: string;
-  bookmarked: boolean;
-  userIds: string[] | undefined;
-  countTraces: number | undefined;
-  sessionDuration: number | null | undefined;
-  inputCost: Decimal | undefined;
-  outputCost: Decimal | undefined;
-  totalCost: Decimal | undefined;
-  inputTokens: number | undefined;
-  outputTokens: number | undefined;
-  totalTokens: number | undefined;
-  traceTags: string[] | undefined;
-};
 
 export type SessionTableProps = {
   projectId: string;
