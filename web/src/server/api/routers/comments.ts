@@ -27,7 +27,7 @@ export const commentsRouter = createTRPCRouter({
           input,
         });
 
-        if (result?.errorMessage) {
+        if (result.errorMessage) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: result.errorMessage,

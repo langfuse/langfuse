@@ -22,7 +22,7 @@ export default withMiddlewares({
         input: body,
       });
 
-      if (result?.errorMessage) {
+      if (result.errorMessage) {
         throw new LangfuseNotFoundError(result.errorMessage);
       }
 

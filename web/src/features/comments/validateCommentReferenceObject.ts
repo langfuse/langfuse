@@ -3,7 +3,6 @@ import {
   type PrismaClient,
   type CreateCommentData,
 } from "@langfuse/shared";
-import { TRPCError } from "@trpc/server";
 import { type z } from "zod";
 
 type PrismaModelName = keyof Omit<
@@ -38,12 +37,14 @@ export const validateCommentReferenceObject = async ({
 }: {
   ctx: any;
   input: z.infer<typeof CreateCommentData>;
-}): Promise<{ errorMessage: string } | undefined> => {
+}): Promise<{ errorMessage?: string }> => {
   const { objectId, objectType, projectId } = input;
   const prismaModel = COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL[objectType];
 
   if (!prismaModel) {
-    return { errorMessage: `No prisma model for object type ${objectType}` };
+    return {
+      errorMessage: `No prisma model for object type ${objectType}`,
+    };
   }
 
   const model = ctx.prisma[prismaModel];
@@ -59,4 +60,6 @@ export const validateCommentReferenceObject = async ({
       errorMessage: `No ${prismaModel} with id ${objectId} in project ${projectId}`,
     };
   }
+
+  return {};
 };
