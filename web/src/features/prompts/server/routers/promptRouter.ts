@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { CreatePromptTRPCSchema } from "@/src/features/prompts/server/utils/validation";
+import {
+  CreatePromptTRPCSchema,
+  PromptType,
+} from "@/src/features/prompts/server/utils/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -501,6 +504,34 @@ export const promptRouter = createTRPCRouter({
       `;
 
       return labels.map((l) => l.label);
+    }),
+  allNames: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        type: z.nativeEnum(PromptType).optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { session } = ctx;
+      const { projectId, type } = input;
+
+      throwIfNoProjectAccess({
+        session,
+        projectId,
+        scope: "prompts:read",
+      });
+
+      return await ctx.prisma.prompt.findMany({
+        where: {
+          projectId,
+          type,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
     }),
   updateTags: protectedProjectProcedure
     .input(

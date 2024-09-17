@@ -45,7 +45,9 @@ jobs:
             -f ./${{ steps.split.outputs._0 }}/Dockerfile \
             --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${{ vars.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION }} \
             --build-arg NEXT_LANGFUSE_TRACING_SAMPLE_RATE=${{ vars.NEXT_LANGFUSE_TRACING_SAMPLE_RATE }} \
-            --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ inputs.environment }} \
+            --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }} \
+            --build-arg NEXT_PUBLIC_DEMO_ORG_ID=${{ vars.NEXT_PUBLIC_DEMO_ORG_ID }} \
+            --build-arg NEXT_PUBLIC_DEMO_PROJECT_ID=${{ vars.NEXT_PUBLIC_DEMO_PROJECT_ID }} \
             --build-arg NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }} \
             --build-arg NEXT_PUBLIC_BUILD_ID=${{ github.sha }} \
             --build-arg NEXT_PUBLIC_POSTHOG_KEY=${{ vars.NEXT_PUBLIC_POSTHOG_KEY }} \
