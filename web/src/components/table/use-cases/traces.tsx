@@ -33,6 +33,7 @@ import {
   type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevel,
+  BatchExportTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -47,6 +48,7 @@ import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndivi
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -736,7 +738,7 @@ export default function TracesTable({
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
         columnsWithCustomSelect={["name", "tags"]}
-        actionButtons={
+        actionButtons={[
           Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),
           ).length > 0 ? (
@@ -750,8 +752,13 @@ export default function TracesTable({
                 setSelectedRows({});
               }}
             />
-          ) : null
-        }
+          ) : null,
+          <BatchExportTableButton
+            {...{ projectId, filterState, orderByState }}
+            tableName={BatchExportTableName.Traces}
+            key="batchExport"
+          />,
+        ]}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}

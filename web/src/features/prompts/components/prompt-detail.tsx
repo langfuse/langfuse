@@ -47,7 +47,11 @@ export const PromptDetail = () => {
     : promptHistory.data?.promptVersions[0];
 
   const extractedVariables = prompt
-    ? extractVariables(prompt.prompt?.toString() ?? "")
+    ? extractVariables(
+        prompt?.type === PromptType.Text
+          ? prompt.prompt?.toString() ?? ""
+          : JSON.stringify(prompt.prompt),
+      )
     : [];
 
   let chatMessages: z.infer<typeof ChatMlArraySchema> | null = null;

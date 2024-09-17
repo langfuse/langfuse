@@ -24,6 +24,7 @@ import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
   const router = useRouter();
+  const showBillingSettings = useHasOrgEntitlement("cloud-billing");
   if (!project || !organization) return null;
   return (
     <div className="lg:container">
@@ -107,6 +108,12 @@ export default function SettingsPage() {
             title: "Integrations",
             slug: "integrations",
             content: <Integrations projectId={project.id} />,
+          },
+          {
+            title: "Billing",
+            slug: "billing",
+            href: `/organization/${organization.id}/settings/billing`,
+            show: showBillingSettings,
           },
           {
             title: "Organization Settings",

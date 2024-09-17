@@ -35,6 +35,7 @@ import {
   createOrganizationRoute,
   createProjectRoute,
 } from "@/src/features/setup/setupRoutes";
+import { isCloudPlan, planLabels } from "@langfuse/shared";
 
 export default function Header({
   level = "h2",
@@ -170,8 +171,17 @@ const BreadcrumbComponent = ({
       <BreadcrumbList>
         {organization && (
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-1">
+            <DropdownMenuTrigger className="flex items-center gap-1 text-sm text-primary">
               {organization?.name ?? "Organization"}
+              {isCloudPlan(organization?.plan) &&
+                organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
+                  <Badge
+                    className="ml-1 px-1 py-0 text-xs font-normal"
+                    variant="secondary"
+                  >
+                    {planLabels[organization.plan]}
+                  </Badge>
+                )}
               <ChevronDownIcon className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
@@ -265,7 +275,7 @@ const BreadcrumbComponent = ({
               <Slash />
             </BreadcrumbSeparator>
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1">
+              <DropdownMenuTrigger className="flex items-center gap-1 text-primary">
                 {project?.name ?? "Project"}
                 <ChevronDownIcon className="h-4 w-4" />
               </DropdownMenuTrigger>
