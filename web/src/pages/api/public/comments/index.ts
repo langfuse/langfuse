@@ -15,9 +15,7 @@ export default withMiddlewares({
     bodySchema: PostCommentsV1Body,
     responseSchema: PostCommentsV1Response,
     fn: async ({ body, auth }) => {
-      // TODO: validate body
-
-      const config = await prisma.comment.create({
+      const comment = await prisma.comment.create({
         data: {
           ...body,
           id: v4(),
@@ -25,7 +23,7 @@ export default withMiddlewares({
         },
       });
 
-      return { id: config.id };
+      return { id: comment.id };
     },
   }),
   GET: createAuthedAPIRoute({
@@ -38,9 +36,9 @@ export default withMiddlewares({
       const comments = await prisma.comment.findMany({
         where: {
           projectId: auth.scope.projectId,
-          objectType,
-          objectId,
-          authorUserId,
+          objectType: objectType ?? undefined,
+          objectId: objectId ?? undefined,
+          authorUserId: authorUserId ?? undefined,
         },
       });
 

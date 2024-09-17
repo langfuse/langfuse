@@ -9,18 +9,15 @@ import {
   GetCommentV1Response,
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
-import { GetSessionsV1Response } from "@/src/features/public-api/types/sessions";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 import { prisma } from "@langfuse/shared/src/db";
-import { v4 } from "uuid";
+import { z } from "zod";
 
 describe("Create and get comments", () => {
   beforeEach(async () => await pruneDatabase());
   afterEach(async () => await pruneDatabase());
 
   it("should create and get comment", async () => {
-    await pruneDatabase();
-
     const traceResponse = await makeZodVerifiedAPICall(
       PostTracesV1Response,
       "POST",
@@ -58,6 +55,37 @@ describe("Create and get comments", () => {
       id: commentId,
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       objectId: traceId,
+      objectType: "TRACE",
+      content: "hello",
+    });
+  });
+
+  it("should not fail to create comment if reference object does not exist", async () => {
+    const commentResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "hello",
+        objectId: "non-existent-id",
+        objectType: "TRACE",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      },
+    );
+
+    const { id: commentId } = commentResponse.body;
+
+    const response = await makeZodVerifiedAPICall(
+      GetCommentV1Response,
+      "GET",
+      `/api/public/comments/${commentId}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      id: commentId,
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      objectId: "non-existent-id",
       objectType: "TRACE",
       content: "hello",
     });
@@ -165,21 +193,35 @@ describe("GET /api/public/comments API Endpoint", () => {
     ]);
   });
 
-  // it("should return sessions from a specific date onwards (including the date)", async () => {
-  //   const fromTimestamp = "2021-03-01T00:00:00Z";
+  it("should return all trace comments if objectType is provided and objectId is not", async () => {
+    const comments = await makeZodVerifiedAPICall(
+      GetCommentsV1Response,
+      "GET",
+      "/api/public/comments?objectType=TRACE",
+    );
+    expect(comments.body.data).toHaveLength(4);
+    expect(comments.body.data.map((comment) => comment.id)).toEqual([
+      "comment-2021-01-01",
+      "comment-2021-03-01",
+      "comment-2021-04-01",
+      "comment-2021-05-01",
+    ]);
+  });
 
-  //   const sessions = await makeZodVerifiedAPICall(
-  //     GetSessionsV1Response,
-  //     "GET",
-  //     `/api/public/sessions?fromTimestamp=${fromTimestamp}`,
-  //   );
-
-  //   expect(sessions.body.data).toHaveLength(3);
-  //   expect(sessions.body.data.map((session) => session.id)).toEqual([
-  //     "session-2021-05-01",
-  //     "session-2021-04-01",
-  //     "session-2021-03-01",
-  //   ]);
-  //   expect(sessions.body.meta.totalItems).toBe(3);
-  // });
+  it("should throw 400 error with descriptive error message if objectId is provided but objectType is not", async () => {
+    try {
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "GET",
+        "/api/public/comments?objectId=trace-2021-01-01",
+      );
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"custom\",\"message\":\"objectType is required when objectId is provided\",\"path\":[\"objectType\"]}]}`,
+      );
+    }
+  });
 });

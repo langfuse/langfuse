@@ -1,4 +1,8 @@
-import { CommentObjectType, CreateCommentData } from "@langfuse/shared";
+import {
+  CommentObjectType,
+  CreateCommentData,
+  paginationZod,
+} from "@langfuse/shared";
 import { z } from "zod";
 
 /**
@@ -14,7 +18,7 @@ const APIComment = z
     objectType: z.nativeEnum(CommentObjectType),
     objectId: z.string(),
     content: z.string(),
-    authorUserId: z.string().nullable(),
+    authorUserId: z.string().nullish(),
   })
   .strict();
 
@@ -29,11 +33,22 @@ export const PostCommentsV1Response = z.object({ id: z.string() }).strict();
 // GET /comments
 export const GetCommentsV1Query = z
   .object({
-    objectType: z.nativeEnum(CommentObjectType).optional(),
-    objectId: z.string().optional(),
-    authorUserId: z.string().optional(),
-  }) // TODO: add custom validation to ask for both objectType and objectId
-  .strict();
+    objectType: z.nativeEnum(CommentObjectType).nullish(),
+    objectId: z.string().nullish(),
+    authorUserId: z.string().nullish(),
+    ...paginationZod,
+  })
+  .strict()
+  .refine(
+    ({ objectId, objectType }) => {
+      return objectId ? !!objectType : true;
+    },
+    {
+      message: "objectType is required when objectId is provided",
+      path: ["objectType"],
+    },
+  );
+
 export const GetCommentsV1Response = z
   .object({
     data: z.array(APIComment),
