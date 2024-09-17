@@ -10,7 +10,7 @@ DROP INDEX CONCURRENTLY IF EXISTS "models_project_id_model_name_idx"; -- covered
 DROP INDEX CONCURRENTLY IF EXISTS "models_project_id_model_name_start_date_unit_idx"; -- covered by models_project_id_model_name_start_date_unit_key (unique)
 DROP INDEX CONCURRENTLY IF EXISTS "observations_project_id_idx"; -- covered by observations_project_id_start_time_type_idx
 DROP INDEX CONCURRENTLY IF EXISTS "observations_trace_id_idx"; -- covered by observations_trace_id_project_id_start_time_idx
-DROP INDEX CONCURRENTLY IF EXISTS "observations_traces_id_project_id_idx"; -- covered by observations_trace_id_project_id_start_time_idx
+DROP INDEX CONCURRENTLY IF EXISTS "observations_trace_id_project_id_idx"; -- covered by observations_trace_id_project_id_start_time_idx
 DROP INDEX CONCURRENTLY IF EXISTS "organization_memberships_org_id_idx"; -- covered by organization_memberships_org_id_user_id_key (unique)
 DROP INDEX CONCURRENTLY IF EXISTS "posthog_integrations_project_id_idx"; -- covered by posthog_integrations_pkey (unique)
 DROP INDEX CONCURRENTLY IF EXISTS "prompts_project_id_idx"; -- covered by prompts_project_id_name_version_key (unique)
