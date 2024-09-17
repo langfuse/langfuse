@@ -34,7 +34,7 @@ jobs:
       - name: lint web
         run: pnpm run lint
 
-  test-docker-build:
+  test-docker-build-and-snyk:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -64,6 +64,36 @@ jobs:
           else
             echo "All services are healthy"
           fi
+
+      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-server)
+        continue-on-error: true
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: langfuse-server
+          args: --file=web/Dockerfile
+
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk.sarif
+          category: web
+
+      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-worker)
+        continue-on-error: true
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: langfuse-worker
+          args: --file=worker/Dockerfile
+
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk.sarif
+          category: worker
 
   tests-web:
     timeout-minutes: 20
@@ -297,7 +327,7 @@ jobs:
         tests-web,
         tests-worker,
         e2e-tests,
-        test-docker-build,
+        test-docker-build-and-snyk,
         e2e-server-tests,
       ]
     if: always()
