@@ -223,7 +223,9 @@ export function CreateLLMApiKeyDialog({
                       {Object.values(LLMAdapter)
                         .filter(
                           (provider) =>
-                            !evalModelsOnly || provider === LLMAdapter.OpenAI,
+                            !evalModelsOnly ||
+                            provider === LLMAdapter.OpenAI ||
+                            provider === LLMAdapter.Azure,
                         )
                         .map((provider) => (
                           <SelectItem value={provider} key={provider}>
