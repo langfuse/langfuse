@@ -272,7 +272,7 @@ async function* getChatCompletionStream(
     modelParams: getFinalModelParams(modelParams),
   });
   const result = await fetch(
-    `${env.NEXT_PUBLIC_BASE_PATH}/api/chatCompletion`,
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

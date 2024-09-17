@@ -111,7 +111,10 @@ export const EvalConfigDetail = () => {
               />
             </TabsContent>
             <TabsContent value="logs">
-              <FullScreenPage customHeight="15rem" mobile={false}>
+              <FullScreenPage
+                lgHeight="lg:h-[calc(100dvh-13rem)]"
+                mobileHeight="h-[calc(100dvh-17rem)]"
+              >
                 <EvalLogTable
                   projectId={projectId}
                   jobConfigurationId={existingEvalConfig.id}
