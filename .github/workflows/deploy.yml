@@ -8,6 +8,7 @@ on:
         description: 'Service to be deployed'
         type: choice
         options:
+          - all
           - web
           - web-ingestion
           - worker
@@ -17,8 +18,8 @@ on:
         type: choice
         options:
           - staging
+          - prod-eu-temp
           # - prod-us
-          # - prod-eu
         required: true
 
 concurrency:
@@ -39,7 +40,10 @@ jobs:
         with:
           script: |
             if (context.eventName === "workflow_dispatch") {
-              return `["${context.payload.inputs.app}"]`
+              if (context.payload.inputs.service === "all") {
+                return `["web", "web-ingestion", "worker"]`
+              }
+              return `["${context.payload.inputs.service}"]`
             }
             if (context.eventName === "push") {
               return `["web", "web-ingestion", "worker"]`
