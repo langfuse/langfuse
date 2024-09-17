@@ -8,6 +8,8 @@ import {
 } from "@/src/features/public-api/types/comments";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
+import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -15,6 +17,15 @@ export default withMiddlewares({
     bodySchema: PostCommentsV1Body,
     responseSchema: PostCommentsV1Response,
     fn: async ({ body, auth }) => {
+      const result = await validateCommentReferenceObject({
+        ctx: { prisma, auth },
+        input: body,
+      });
+
+      if (result?.errorMessage) {
+        throw new LangfuseNotFoundError(result.errorMessage);
+      }
+
       const comment = await prisma.comment.create({
         data: {
           ...body,

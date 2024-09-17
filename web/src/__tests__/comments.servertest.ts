@@ -60,35 +60,27 @@ describe("Create and get comments", () => {
     });
   });
 
-  it("should not fail to create comment if reference object does not exist", async () => {
-    const commentResponse = await makeZodVerifiedAPICall(
-      PostCommentsV1Response,
-      "POST",
-      "/api/public/comments",
-      {
-        content: "hello",
-        objectId: "non-existent-id",
-        objectType: "TRACE",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      },
-    );
-
-    const { id: commentId } = commentResponse.body;
-
-    const response = await makeZodVerifiedAPICall(
-      GetCommentV1Response,
-      "GET",
-      `/api/public/comments/${commentId}`,
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      id: commentId,
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      objectId: "non-existent-id",
-      objectType: "TRACE",
-      content: "hello",
-    });
+  it("should fail to create comment if reference object does not exist", async () => {
+    try {
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "POST",
+        "/api/public/comments",
+        {
+          content: "hello",
+          objectId: "invalid-trace-id",
+          objectType: "TRACE",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      );
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        `API call did not return 200, returned status 404, body {\"message\":\"No trace with id invalid-trace-id in project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a\",\"error\":\"LangfuseNotFoundError\"}`,
+      );
+    }
   });
 });
 
