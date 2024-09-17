@@ -17,7 +17,7 @@ const APIComment = z
     updatedAt: z.coerce.date(),
     objectType: z.nativeEnum(CommentObjectType),
     objectId: z.string(),
-    content: z.string(),
+    content: z.string().min(1).max(500),
     authorUserId: z.string().nullish(),
   })
   .strict();
@@ -27,7 +27,7 @@ const APIComment = z
  */
 
 // POST /comments
-export const PostCommentsV1Body = CreateCommentData;
+export const PostCommentsV1Body = CreateCommentData.strict();
 export const PostCommentsV1Response = z.object({ id: z.string() }).strict();
 
 // GET /comments

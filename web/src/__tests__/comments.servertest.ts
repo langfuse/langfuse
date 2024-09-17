@@ -57,6 +57,7 @@ describe("Create and get comments", () => {
       objectId: traceId,
       objectType: "TRACE",
       content: "hello",
+      authorUserId: null,
     });
   });
 
