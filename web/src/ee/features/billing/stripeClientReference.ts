@@ -1,9 +1,10 @@
 import { env } from "@/src/env.mjs";
+import { logger } from "@langfuse/shared/src/server";
 
 // used client-side to create a stripe customer reference
 export const createStripeClientReference = (orgId: string) => {
   if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    console.error(
+    logger.error(
       "Returning null stripeCustomerReference, you cannot run the checkout page outside of Langfuse Cloud",
     );
     return null;
