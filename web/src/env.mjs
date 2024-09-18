@@ -120,6 +120,8 @@ export const env = createEnv({
     LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
     LANGFUSE_UI_SUPPORT_HREF: z.string().url().optional(),
     LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
+    LANGFUSE_UI_LOGO_HREF_LIGHT_MODE: z.string().url().optional(),
+    LANGFUSE_UI_LOGO_HREF_DARK_MODE: z.string().url().optional(),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
     ADMIN_API_KEY: z.string().optional(),
@@ -309,6 +311,8 @@ export const env = createEnv({
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
     LANGFUSE_UI_SUPPORT_HREF: process.env.LANGFUSE_UI_SUPPORT_HREF,
     LANGFUSE_UI_FEEDBACK_HREF: process.env.LANGFUSE_UI_FEEDBACK_HREF,
+    LANGFUSE_UI_LOGO_HREF_LIGHT_MODE: process.env.LANGFUSE_UI_LOGO_HREF_LIGHT_MODE,
+    LANGFUSE_UI_LOGO_HREF_DARK_MODE: process.env.LANGFUSE_UI_LOGO_HREF_DARK_MODE,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
