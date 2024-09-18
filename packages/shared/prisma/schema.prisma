@@ -79,6 +79,8 @@ model User {
     createdAt               DateTime                 @default(now()) @map("created_at")
     updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at")
     featureFlags            String[]                 @default([]) @map("feature_flags")
+    annotatedEditStartItem  AnnotationQueueItem[]    @relation("EditStartUser")
+    annotatedCompletedItem  AnnotationQueueItem[]    @relation("AnnotatorUser")
 
     @@map("users")
 }
@@ -106,31 +108,33 @@ model Organization {
 }
 
 model Project {
-    id                 String                 @id @default(cuid())
-    orgId              String                 @map("org_id")
-    createdAt          DateTime               @default(now()) @map("created_at")
-    updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at")
-    name               String
-    projectMembers     ProjectMembership[]
-    organization       Organization           @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-    traces             Trace[]
-    observations       Observation[]
-    apiKeys            ApiKey[]
-    dataset            Dataset[]
-    RawEvents          Events[]
-    invitations        MembershipInvitation[]
-    sessions           TraceSession[]
-    Prompt             Prompt[]
-    Model              Model[]
-    EvalTemplate       EvalTemplate[]
-    JobConfiguration   JobConfiguration[]
-    JobExecution       JobExecution[]
-    LlmApiKeys         LlmApiKeys[]
-    PosthogIntegration PosthogIntegration[]
-    Score              Score[]
-    scoreConfig        ScoreConfig[]
-    BatchExport        BatchExport[]
-    comment            Comment[]
+    id                  String                 @id @default(cuid())
+    orgId               String                 @map("org_id")
+    createdAt           DateTime               @default(now()) @map("created_at")
+    updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
+    name                String
+    projectMembers      ProjectMembership[]
+    organization        Organization           @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+    traces              Trace[]
+    observations        Observation[]
+    apiKeys             ApiKey[]
+    dataset             Dataset[]
+    RawEvents           Events[]
+    invitations         MembershipInvitation[]
+    sessions            TraceSession[]
+    Prompt              Prompt[]
+    Model               Model[]
+    EvalTemplate        EvalTemplate[]
+    JobConfiguration    JobConfiguration[]
+    JobExecution        JobExecution[]
+    LlmApiKeys          LlmApiKeys[]
+    PosthogIntegration  PosthogIntegration[]
+    Score               Score[]
+    scoreConfig         ScoreConfig[]
+    BatchExport         BatchExport[]
+    comment             Comment[]
+    annotationQueue     AnnotationQueue[]
+    annotationQueueItem AnnotationQueueItem[]
 
     @@index([orgId])
     @@map("projects")
@@ -520,6 +524,54 @@ enum ScoreDataType {
     CATEGORICAL
     NUMERIC
     BOOLEAN
+}
+
+model AnnotationQueue {
+    id                  String                @id @default(cuid())
+    name                String
+    description         String?
+    scoreConfigs        String[]              @default([]) @map("score_configs")
+    projectId           String                @map("project_id")
+    project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt           DateTime              @default(now()) @map("created_at")
+    updatedAt           DateTime              @default(now()) @updatedAt @map("updated_at")
+    annotationQueueItem AnnotationQueueItem[]
+
+    @@unique([projectId, name])
+    @@index([id, projectId])
+    @@map("annotation_queues")
+}
+
+model AnnotationQueueItem {
+    id                String                    @id @default(cuid())
+    queueId           String                    @map("queue_id")
+    queue             AnnotationQueue           @relation(fields: [queueId], references: [id], onDelete: Cascade)
+    objectId          String                    @map("object_id")
+    objectType        AnnotationQueueObjectType @map("object_type")
+    status            AnnotationQueueStatus     @default(PENDING)
+    editStartTime     DateTime?                 @map("edit_start_time")
+    editStartByUserId String?                   @map("edit_start_by_user_id")
+    editStartByUser   User?                     @relation("EditStartUser", fields: [editStartByUserId], references: [id], onDelete: SetNull)
+    annotatorUserId   String?                   @map("annotator_user_id")
+    annotatorUser     User?                     @relation("AnnotatorUser", fields: [annotatorUserId], references: [id], onDelete: SetNull)
+    completedAt       DateTime?                 @map("completed_at")
+    projectId         String                    @map("project_id")
+    project           Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt         DateTime                  @default(now()) @map("created_at")
+
+    @@index([queueId, status])
+    @@index([id, projectId])
+    @@map("annotation_queue_items")
+}
+
+enum AnnotationQueueStatus {
+    PENDING
+    COMPLETED
+}
+
+enum AnnotationQueueObjectType {
+    TRACE
+    OBSERVATION
 }
 
 model CronJobs {
