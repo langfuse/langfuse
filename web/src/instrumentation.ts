@@ -2,10 +2,10 @@
 
 export async function register() {
   // This variable is set in the .env file or environment variables
-  // Value is true if NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT_ENABLED is "true" or undefined
+  // Value is true if NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT is "true" or undefined
   const isInitLoadingEnabled =
-    process.env.NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT_ENABLED !== undefined
-      ? process.env.NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT_ENABLED === "true"
+    process.env.NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT !== undefined
+      ? process.env.NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT === "true"
       : true;
 
   if (process.env.NEXT_RUNTIME === "nodejs" && isInitLoadingEnabled) {
