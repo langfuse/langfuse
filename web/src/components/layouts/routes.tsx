@@ -48,7 +48,7 @@ export const ROUTES: Route[] = [
     pathname: "/",
     icon: LangfuseIcon,
     label: <VersionLabel className="-ml-3" />,
-    // node is overridden in layout.tsx if uiCustomization.logoHrefLightMode and uiCustomization.logoHrefDarkMode are set
+    // node is overridden in layout.tsx if uiCustomization.logoLightModeHref and uiCustomization.logoDarkModeHref are set
   },
   {
     name: "Projects",

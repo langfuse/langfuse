@@ -26,12 +26,12 @@ export const LangfuseIcon = ({
 const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
   const uiCustomization = useUiCustomization();
 
-  if (uiCustomization?.logoHrefLightMode && uiCustomization?.logoHrefDarkMode) {
+  if (uiCustomization?.logoLightModeHref && uiCustomization?.logoDarkModeHref) {
     return (
       <div className="flex items-center gap-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={uiCustomization.logoHrefLightMode}
+          src={uiCustomization.logoLightModeHref}
           alt="Langfuse Logo"
           className={cn(
             "dark:hidden",
@@ -40,7 +40,7 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={uiCustomization.logoHrefDarkMode}
+          src={uiCustomization.logoDarkModeHref}
           alt="Langfuse Logo"
           className={cn(
             "hidden dark:block",

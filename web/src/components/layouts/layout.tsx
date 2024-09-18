@@ -597,8 +597,8 @@ const MainNavigation: React.FC<{
                 target={item.newTab ? "_blank" : undefined}
               >
                 {item.pathname === "/" &&
-                uiCustomization?.logoHrefLightMode &&
-                uiCustomization?.logoHrefDarkMode ? (
+                uiCustomization?.logoLightModeHref &&
+                uiCustomization?.logoDarkModeHref ? (
                   // override the default logo with the uiCustomization logo if the pathname is "/"
                   <LangfuseLogo size="sm" version />
                 ) : (
