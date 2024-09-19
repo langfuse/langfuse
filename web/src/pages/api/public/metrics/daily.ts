@@ -53,7 +53,7 @@ export default withMiddlewares({
             SELECT
               DATE_TRUNC('DAY', o.start_time) "date",
               o.model,
-              count(distinct o.id)::integer as "countObservations",
+              count(o.id)::integer as "countObservations",
               count(distinct t.id)::integer as "countTraces",
               SUM(o.prompt_tokens) "inputUsage",
               SUM(o.completion_tokens) "outputUsage",
