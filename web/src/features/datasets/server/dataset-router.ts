@@ -16,7 +16,6 @@ import { filterAndValidateDbScoreList, paginationZod } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 import { traceException } from "@langfuse/shared/src/server";
-import type Decimal from "decimal.js";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
