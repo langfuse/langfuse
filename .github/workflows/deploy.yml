@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - main
+      - production
   workflow_dispatch:
     inputs:
       service:
@@ -19,7 +20,7 @@ on:
         options:
           - staging
           - prod-eu-temp
-          # - prod-us
+          - prod-us
         required: true
 
 concurrency:
@@ -57,7 +58,7 @@ jobs:
         with:
           result-encoding: string
           script: |
-            console.log('Services', `${process.env.result}` ?? 'n/a');
+            console.log('Services', `${process.env.services}` ?? 'n/a');
 
   affected-environments:
     runs-on: ubuntu-latest
@@ -73,8 +74,12 @@ jobs:
               return `["${context.payload.inputs.environment}"]`
             }
             if (context.eventName === "push") {
-              // TODO: Can we distinguish push branch vs push tag for staging vs. prod?
-              return `["staging"]`
+              if (context.ref === "refs/heads/main") {
+                return `["staging"]`
+              }
+              if (context.ref === "refs/heads/production") {
+                return `["prod-eu-temp", "prod-us"]`
+              }
             }
             return "[]"
           result-encoding: string
@@ -85,7 +90,7 @@ jobs:
         with:
           result-encoding: string
           script: |
-            console.log('Environments', `${process.env.result}` ?? 'n/a');
+            console.log('Environments', `${process.env.environments}` ?? 'n/a');
 
   ecs-deploy:
     uses: ./.github/workflows/_deploy_ecs_service.yml
