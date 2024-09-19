@@ -48,200 +48,221 @@ export const QuickstartExamples = ({
   }
 
   return (
-    <Tabs defaultValue="python" className="relative max-w-full">
-      <div className="overflow-x-scroll">
-        <TabsList>
-          {tabs.map((tab) => (
-            <TabsTrigger
-              key={tab.value}
-              value={tab.value}
-              onClick={() =>
-                capture("onboarding:code_example_tab_switch", {
-                  tabLabel: tab.value,
-                })
-              }
+    <div>
+      <Tabs defaultValue="python" className="relative max-w-full">
+        <div className="overflow-x-scroll">
+          <TabsList>
+            {tabs.map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                onClick={() =>
+                  capture("onboarding:code_example_tab_switch", {
+                    tabLabel: tab.value,
+                  })
+                }
+              >
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+        <TabsContent value="python">
+          <CodeView content="pip install langfuse" className="mb-2" />
+          <CodeView
+            content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${secretKey}",\n  public_key="${publicKey}",\n  host="${host}"\n)`}
+          />
+          <p className="mt-3 text-xs text-muted-foreground">
+            See{" "}
+            <a
+              href="https://langfuse.com/docs/get-started"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </div>
-      <TabsContent value="python">
-        <CodeView content="pip install langfuse" className="mb-2" />
-        <CodeView
-          content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${secretKey}",\n  public_key="${publicKey}",\n  host="${host}"\n)`}
-        />
-        <p className="mt-3 text-xs text-muted-foreground">
-          See{" "}
-          <a
-            href="https://langfuse.com/docs/get-started"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Quickstart
-          </a>{" "}
-          and{" "}
-          <a
-            href="https://langfuse.com/docs/sdk/python"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Python docs
-          </a>{" "}
-          for more details and an end-to-end example.
-        </p>
-      </TabsContent>
-      <TabsContent value="js">
-        <CodeView content="npm install langfuse" className="mb-2" />
-        <CodeView
-          content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
-        />
-        <p className="mt-3 text-xs text-muted-foreground">
-          See{" "}
-          <a
-            href="https://langfuse.com/docs/get-started"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Quickstart
-          </a>{" "}
-          and{" "}
-          <a
-            href="https://langfuse.com/docs/sdk/typescript"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            JS/TS docs
-          </a>{" "}
-          for more details and an end-to-end example.
-        </p>
-      </TabsContent>
-      <TabsContent value="openai">
-        <p className="mt-2 text-xs text-muted-foreground">
-          The integration is a drop-in replacement for the OpenAI Python SDK. By
-          changing the import, Langfuse will capture all LLM calls and send them
-          to Langfuse asynchronously.
-        </p>
-        <CodeView content="pip install langfuse" className="my-2" />
-        <CodeView
-          title=".env"
-          content={`LANGFUSE_SECRET_KEY=${secretKey}\nLANGFUSE_PUBLIC_KEY=${publicKey}\nLANGFUSE_HOST="${host}"`}
-          className="my-2"
-        />
-        <CodeView
-          content={`# remove: import openai\n\nfrom langfuse.openai import openai`}
-          className="my-2"
-        />
-        <p className="mt-2 text-xs text-muted-foreground">
-          Use the OpenAI SDK as you would normally. See the{" "}
-          <a
-            href="https://langfuse.com/docs/integrations/openai"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            OpenAI Integration docs
-          </a>{" "}
-          for more details and an end-to-end example.
-        </p>
-      </TabsContent>
-      <TabsContent value="langchain">
-        <p className="mt-2 text-xs text-muted-foreground">
-          The integration uses the Langchain callback system to automatically
-          capture detailed traces of your Langchain executions.
-        </p>
-        <CodeView content="pip install langfuse" className="my-2" />
-        <CodeView
-          content={LANGCHAIN_PYTHON_CODE({ publicKey, secretKey, host })}
-          className="my-2"
-        />
-        <p className="mt-2 text-xs text-muted-foreground">
-          See the{" "}
-          <a
-            href="https://langfuse.com/docs/integrations/langchain/python"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Langchain Integration docs
-          </a>{" "}
-          for more details and an end-to-end example.
-        </p>
-      </TabsContent>
-      <TabsContent value="langchain-js">
-        <p className="mt-2 text-xs text-muted-foreground">
-          The integration uses the Langchain callback system to automatically
-          capture detailed traces of your Langchain executions.
-        </p>
-        <CodeView content="npm install langfuse-langchain" className="my-2" />
-        <CodeView
-          content={LANGCHAIN_JS_CODE({ publicKey, secretKey, host })}
-          className="my-2"
-        />
-        <p className="mt-2 text-xs text-muted-foreground">
-          See the{" "}
-          <a
-            href="https://langfuse.com/docs/integrations/langchain/typescript"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Langchain Integration docs
-          </a>{" "}
-          for more details and an end-to-end example.
-        </p>
-      </TabsContent>
-      <TabsContent value="llamaindex">
-        <p className="mt-2 text-xs text-muted-foreground">
-          The integration uses the LlamaIndex callback system to automatically
-          capture detailed traces of your LlamaIndex executions.
-        </p>
-        <CodeView content="pip install langfuse llama-index" className="my-2" />
-        <CodeView
-          content={LLAMA_INDEX_CODE({ publicKey, secretKey, host })}
-          className="my-2"
-        />
-        <p className="mt-2 text-xs text-muted-foreground">
-          See the{" "}
-          <a
-            href="https://langfuse.com/docs/integrations/llama-index"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            LlamaIndex Integration docs
-          </a>{" "}
-          for more details and an end-to-end example.
-        </p>
-      </TabsContent>
-      <TabsContent value="other">
-        <p className="mt-2 text-xs text-muted-foreground">
-          Use the{" "}
-          <a
-            href="https://api.reference.langfuse.com/"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            API
-          </a>{" "}
-          or one of the{" "}
-          <a
-            href="https://langfuse.com/docs/integrations"
-            className="underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            native integrations
-          </a>{" "}
-          (e.g. LiteLLM, Flowise, and Langflow) to integrate with Langfuse.
-        </p>
-      </TabsContent>
-    </Tabs>
+              Quickstart
+            </a>{" "}
+            and{" "}
+            <a
+              href="https://langfuse.com/docs/sdk/python"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Python docs
+            </a>{" "}
+            for more details and an end-to-end example.
+          </p>
+        </TabsContent>
+        <TabsContent value="js">
+          <CodeView content="npm install langfuse" className="mb-2" />
+          <CodeView
+            content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
+          />
+          <p className="mt-3 text-xs text-muted-foreground">
+            See{" "}
+            <a
+              href="https://langfuse.com/docs/get-started"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Quickstart
+            </a>{" "}
+            and{" "}
+            <a
+              href="https://langfuse.com/docs/sdk/typescript"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              JS/TS docs
+            </a>{" "}
+            for more details and an end-to-end example.
+          </p>
+        </TabsContent>
+        <TabsContent value="openai">
+          <p className="mt-2 text-xs text-muted-foreground">
+            The integration is a drop-in replacement for the OpenAI Python SDK.
+            By changing the import, Langfuse will capture all LLM calls and send
+            them to Langfuse asynchronously.
+          </p>
+          <CodeView content="pip install langfuse" className="my-2" />
+          <CodeView
+            title=".env"
+            content={`LANGFUSE_SECRET_KEY=${secretKey}\nLANGFUSE_PUBLIC_KEY=${publicKey}\nLANGFUSE_HOST="${host}"`}
+            className="my-2"
+          />
+          <CodeView
+            content={`# remove: import openai\n\nfrom langfuse.openai import openai`}
+            className="my-2"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Use the OpenAI SDK as you would normally. See the{" "}
+            <a
+              href="https://langfuse.com/docs/integrations/openai"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              OpenAI Integration docs
+            </a>{" "}
+            for more details and an end-to-end example.
+          </p>
+        </TabsContent>
+        <TabsContent value="langchain">
+          <p className="mt-2 text-xs text-muted-foreground">
+            The integration uses the Langchain callback system to automatically
+            capture detailed traces of your Langchain executions.
+          </p>
+          <CodeView content="pip install langfuse" className="my-2" />
+          <CodeView
+            content={LANGCHAIN_PYTHON_CODE({ publicKey, secretKey, host })}
+            className="my-2"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            See the{" "}
+            <a
+              href="https://langfuse.com/docs/integrations/langchain/python"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Langchain Integration docs
+            </a>{" "}
+            for more details and an end-to-end example.
+          </p>
+        </TabsContent>
+        <TabsContent value="langchain-js">
+          <p className="mt-2 text-xs text-muted-foreground">
+            The integration uses the Langchain callback system to automatically
+            capture detailed traces of your Langchain executions.
+          </p>
+          <CodeView content="npm install langfuse-langchain" className="my-2" />
+          <CodeView
+            content={LANGCHAIN_JS_CODE({ publicKey, secretKey, host })}
+            className="my-2"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            See the{" "}
+            <a
+              href="https://langfuse.com/docs/integrations/langchain/typescript"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Langchain Integration docs
+            </a>{" "}
+            for more details and an end-to-end example.
+          </p>
+        </TabsContent>
+        <TabsContent value="llamaindex">
+          <p className="mt-2 text-xs text-muted-foreground">
+            The integration uses the LlamaIndex callback system to automatically
+            capture detailed traces of your LlamaIndex executions.
+          </p>
+          <CodeView
+            content="pip install langfuse llama-index"
+            className="my-2"
+          />
+          <CodeView
+            content={LLAMA_INDEX_CODE({ publicKey, secretKey, host })}
+            className="my-2"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            See the{" "}
+            <a
+              href="https://langfuse.com/docs/integrations/llama-index"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              LlamaIndex Integration docs
+            </a>{" "}
+            for more details and an end-to-end example.
+          </p>
+        </TabsContent>
+        <TabsContent value="other">
+          <p className="mt-2 text-xs text-muted-foreground">
+            Use the{" "}
+            <a
+              href="https://api.reference.langfuse.com/"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              API
+            </a>{" "}
+            or one of the{" "}
+            <a
+              href="https://langfuse.com/docs/integrations"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              native integrations
+            </a>{" "}
+            (e.g. LiteLLM, Flowise, and Langflow) to integrate with Langfuse.
+          </p>
+        </TabsContent>
+      </Tabs>
+      <span className="mt-4 text-xs text-muted-foreground">
+        Do you have questions or issues? Check out this{" "}
+        <a
+          href="https://langfuse.com/faq/all/missing-traces"
+          className="underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          FAQ post
+        </a>{" "}
+        for common resolutions or{" "}
+        <Link className="underline" href="/support">
+          get support
+        </Link>
+        .
+      </span>
+    </div>
   );
 };
 const LANGCHAIN_PYTHON_CODE = (p: {
