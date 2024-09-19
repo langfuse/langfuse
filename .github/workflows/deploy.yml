@@ -20,7 +20,7 @@ on:
         options:
           - staging
           - prod-eu-temp
-          # - prod-us
+          - prod-us
         required: true
 
 concurrency:
@@ -78,9 +78,8 @@ jobs:
                 return `["staging"]`
               }
               if (context.ref === "refs/heads/production") {
-                return `["prod-eu-temp"]`
+                return `["prod-eu-temp", "prod-us"]`
               }
-              return "[]"
             }
             return "[]"
           result-encoding: string
