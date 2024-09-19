@@ -18,6 +18,7 @@ import {
 } from "@langfuse/shared";
 
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
+import { FormDescription } from "@/src/components/ui/form";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
@@ -29,6 +30,7 @@ export type ModelParamsContext = {
   ) => void;
   setModelParamEnabled?: (key: keyof UIModelParams, enabled: boolean) => void;
   formDisabled?: boolean;
+  modelParamsDescription?: string;
 };
 
 export const ModelParameters: React.FC<
@@ -41,6 +43,7 @@ export const ModelParameters: React.FC<
   setModelParamEnabled,
   evalModelsOnly,
   formDisabled = false,
+  modelParamsDescription,
 }) => {
   const projectId = useProjectIdFromURL();
 
@@ -74,6 +77,7 @@ export const ModelParameters: React.FC<
             value={modelParams.model.value}
             options={availableModels}
             updateModelParam={updateModelParamValue}
+            modelParamsDescription={modelParamsDescription}
           />
           {modelParams.model.value?.startsWith("o1-") ? (
             <p className="text-sm text-dark-yellow">
@@ -142,6 +146,7 @@ type ModelParamsSelectProps = {
   options: string[];
   updateModelParam: ModelParamsContext["updateModelParamValue"];
   disabled?: boolean;
+  modelParamsDescription?: string;
 };
 const ModelParamsSelect = ({
   title,
@@ -150,6 +155,7 @@ const ModelParamsSelect = ({
   options,
   updateModelParam,
   disabled,
+  modelParamsDescription,
 }: ModelParamsSelectProps) => {
   return (
     <div className="space-y-2">
@@ -182,6 +188,9 @@ const ModelParamsSelect = ({
           ))}
         </SelectContent>
       </Select>
+      {modelParamsDescription ? (
+        <FormDescription>{modelParamsDescription}</FormDescription>
+      ) : undefined}
     </div>
   );
 };
