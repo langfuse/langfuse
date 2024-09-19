@@ -3,7 +3,6 @@ on:
     branches:
       - main
       - production
-      - steffen/lfe-2200-ecs-deployments
   workflow_dispatch:
     inputs:
       service:
@@ -75,9 +74,13 @@ jobs:
               return `["${context.payload.inputs.environment}"]`
             }
             if (context.eventName === "push") {
-              console.log(context.ref);
-              // TODO: Can we distinguish push branch vs push tag for staging vs. prod?
-              return `["staging"]`
+              if (context.ref === "refs/heads/main") {
+                return `["staging"]`
+              }
+              if (context.ref === "refs/heads/production") {
+                return `["prod-eu-temp"]`
+              }
+              return "[]"
             }
             return "[]"
           result-encoding: string
