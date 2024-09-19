@@ -120,6 +120,8 @@ export const env = createEnv({
     LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
     LANGFUSE_UI_SUPPORT_HREF: z.string().url().optional(),
     LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
+    LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.string().url().optional(),
+    LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.string().url().optional(),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
     ADMIN_API_KEY: z.string().optional(),
@@ -204,6 +206,7 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     NEXT_PUBLIC_CRISP_WEBSITE_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
+    NEXT_PUBLIC_BASE_PATH: z.string().optional(),
   },
 
   /**
@@ -308,6 +311,8 @@ export const env = createEnv({
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
     LANGFUSE_UI_SUPPORT_HREF: process.env.LANGFUSE_UI_SUPPORT_HREF,
     LANGFUSE_UI_FEEDBACK_HREF: process.env.LANGFUSE_UI_FEEDBACK_HREF,
+    LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: process.env.LANGFUSE_UI_LOGO_LIGHT_MODE_HREF,
+    LANGFUSE_UI_LOGO_DARK_MODE_HREF: process.env.LANGFUSE_UI_LOGO_DARK_MODE_HREF,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
@@ -342,6 +347,7 @@ export const env = createEnv({
     LANGFUSE_INIT_USER_EMAIL: process.env.LANGFUSE_INIT_USER_EMAIL,
     LANGFUSE_INIT_USER_NAME: process.env.LANGFUSE_INIT_USER_NAME,
     LANGFUSE_INIT_USER_PASSWORD: process.env.LANGFUSE_INIT_USER_PASSWORD,
+    NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

@@ -22,6 +22,7 @@ import { Label } from "@/src/components/ui/label";
 import TableLink from "@/src/components/table/table-link";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -85,7 +86,7 @@ export const EvalConfigDetail = () => {
       />
       {existingEvalConfig && (
         <>
-          <div className="my-5 flex items-center gap-4 rounded-md border p-2	">
+          <div className="my-5 flex items-center gap-4 rounded-md border p-2">
             <Label>Eval Template</Label>
             <TableLink
               path={`/project/${projectId}/evals/templates/${existingEvalConfig.evalTemplateId}`}
@@ -110,10 +111,15 @@ export const EvalConfigDetail = () => {
               />
             </TabsContent>
             <TabsContent value="logs">
-              <EvalLogTable
-                projectId={projectId}
-                jobConfigurationId={existingEvalConfig.id}
-              />
+              <FullScreenPage
+                lgHeight="lg:h-[calc(100dvh-13rem)]"
+                mobileHeight="h-[calc(100dvh-17rem)]"
+              >
+                <EvalLogTable
+                  projectId={projectId}
+                  jobConfigurationId={existingEvalConfig.id}
+                />
+              </FullScreenPage>
             </TabsContent>
           </Tabs>
         </>

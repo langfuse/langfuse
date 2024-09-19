@@ -13,6 +13,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { env } from "@/src/env.mjs";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useUtils();
@@ -108,7 +109,9 @@ export const ApiKeyRender = ({
       </div>
       <div>
         <div className="text-md mb-2 font-semibold">Host</div>
-        <CodeView content={uiCustomization?.hostname ?? window.origin} />
+        <CodeView
+          content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
+        />
       </div>
     </>
   );
