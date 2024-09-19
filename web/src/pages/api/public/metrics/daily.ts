@@ -42,6 +42,7 @@ export default withMiddlewares({
         ? Prisma.sql`AND o."start_time" < ${query.toTimestamp}::timestamp with time zone at time zone 'UTC' + INTERVAL '1 day'`
         : Prisma.empty;
 
+      // TODO: We can use observations as soon as we compute costs on write and backfill self-hosters
       const observationtable =
         env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
           ? "observations_view"
