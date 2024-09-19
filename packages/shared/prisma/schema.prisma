@@ -469,6 +469,7 @@ model Score {
     observationId String?        @map("observation_id")
     configId      String?        @map("config_id")
     stringValue   String?        @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
+    queueId       String?        @map("queue_id")
     createdAt     DateTime       @default(now()) @map("created_at")
     updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
     dataType      ScoreDataType  @default(NUMERIC) @map("data_type")

@@ -442,6 +442,7 @@ export type Score = {
     observation_id: string | null;
     config_id: string | null;
     string_value: string | null;
+    queue_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     data_type: Generated<ScoreDataType>;
