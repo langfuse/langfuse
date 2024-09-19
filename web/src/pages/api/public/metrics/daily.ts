@@ -34,6 +34,12 @@ export default withMiddlewares({
       const toTimestampCondition = query.toTimestamp
         ? Prisma.sql`AND t."timestamp" < ${query.toTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
+      const fromObservationStartTimeCondition = query.fromTimestamp
+        ? Prisma.sql`AND o."start_time" >= ${query.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
+      const toObservationStartTimeCondition = query.toTimestamp
+        ? Prisma.sql`AND o."start_time" < ${query.toTimestamp}::timestamp with time zone at time zone 'UTC'`
+        : Prisma.empty;
 
       const [usage, totalItemsRes] = await Promise.all([
         prisma.$queryRaw`
@@ -52,13 +58,14 @@ export default withMiddlewares({
             ON o.trace_id = t.id
             AND o.project_id = t.project_id
             WHERE o.start_time IS NOT NULL
-              AND o.project_id = ${auth.scope.projectId}
               AND t.project_id = ${auth.scope.projectId}
               ${traceNameCondition}
               ${userCondition}
               ${tagsCondition}
               ${fromTimestampCondition}
               ${toTimestampCondition}
+              ${fromObservationStartTimeCondition}
+              ${toObservationStartTimeCondition}
             GROUP BY 1, 2
           ),
           daily_model_usage AS (
