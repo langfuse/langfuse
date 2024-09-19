@@ -200,6 +200,8 @@ export const datasetRouter = createTRPCRouter({
             AND datasets.project_id = ${input.projectId}
             
           -- Add average latency and cost if a run's items are linked to observations 
+          -- LIMITATION: this will only work if all items for a given run are linked to either observations or traces
+          -- If a run has items linked to both observations and traces, the average latency and cost will be incorrect as only those from the observations will be used
           LEFT JOIN LATERAL (
             SELECT
               AVG(o.latency) AS "o_avgLatency",
@@ -234,7 +236,8 @@ export const datasetRouter = createTRPCRouter({
                       EXTRACT(epoch FROM COALESCE(max(o1.end_time), max(o1.start_time)))::double precision - EXTRACT(epoch FROM min(o1.start_time))::double precision AS duration,
                       SUM(COALESCE(o1.calculated_total_cost, 0)) AS total_cost
                     FROM
-                      observations o1
+                      -- Use observations_view as cost are not backfilled for self-hosters. Once V3 is migration is done, we can use observations instead
+                      observations_view o1
                     WHERE
                       o1.project_id = ${input.projectId}
                       AND o1.trace_id = t.id
@@ -770,7 +773,8 @@ export const datasetRouter = createTRPCRouter({
                   EXTRACT(epoch FROM COALESCE(max(o1.end_time), max(o1.start_time)))::double precision - EXTRACT(epoch FROM min(o1.start_time))::double precision AS duration,
                   SUM(COALESCE(o1.calculated_total_cost, 0))::double precision AS total_cost
                 FROM
-                  observations o1
+                  -- Use observations_view as cost are not backfilled for self-hosters. Once V3 is migration is done, we can use observations instead
+                  observations_view o1
                 WHERE
                   o1.project_id = ${input.projectId}
                   AND o1.trace_id = t.id
