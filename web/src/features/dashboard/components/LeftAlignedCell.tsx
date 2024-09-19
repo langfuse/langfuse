@@ -4,7 +4,13 @@ import { type ReactNode } from "react";
 export const LeftAlignedCell = ({
   children,
   className,
+  title,
 }: {
   children: ReactNode;
   className?: string;
-}) => <div className={cn("text-left", className)}>{children}</div>;
+  title?: string;
+}) => (
+  <div className={cn("text-left", className)} title={title}>
+    {children}
+  </div>
+);
