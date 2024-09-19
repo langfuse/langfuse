@@ -45,8 +45,8 @@ export default withMiddlewares({
       // TODO: We can use observations as soon as we compute costs on write and backfill self-hosters
       const observationtable =
         env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
-          ? "observations_view"
-          : "observations";
+          ? Prisma.sql`observations_view`
+          : Prisma.sql`observations`;
 
       const [usage, totalItemsRes] = await Promise.all([
         prisma.$queryRaw`
