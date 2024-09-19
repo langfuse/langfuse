@@ -34,12 +34,12 @@ export const legacyIngestionQueueProcessor: Processor = async (
         logger.info("Processing legacy ingestion", {
           payload: job.data.payload.data.map(({ body, ...rest }) => {
             let modifiedBody = body;
-            if (body && "input" in body) {
+            if (body && "input" in modifiedBody) {
               // eslint-disable-next-line @typescript-eslint/no-unused-vars
               const { input, ...restPayload } = modifiedBody || {};
               modifiedBody = restPayload;
             }
-            if (body && "output" in body) {
+            if (body && "output" in modifiedBody) {
               // eslint-disable-next-line @typescript-eslint/no-unused-vars
               const { output, ...restPayload } = modifiedBody || {};
               modifiedBody = restPayload;
