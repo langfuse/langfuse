@@ -16,6 +16,7 @@ import { filterAndValidateDbScoreList, paginationZod } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 import { traceException } from "@langfuse/shared/src/server";
+import type Decimal from "decimal.js";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -191,30 +192,73 @@ export const datasetRouter = createTRPCRouter({
           runs.metadata,
           runs.created_at "createdAt",
           runs.updated_at "updatedAt",
-          COALESCE(latency_and_total_cost."avgLatency", 0) "avgLatency",
-          COALESCE(latency_and_total_cost."avgTotalCost", 0) "avgTotalCost",  
+          COALESCE(o_latency_and_total_cost. "o_avgLatency", t_latency_and_total_cost."t_avgLatency", 0) "avgLatency",
+          COALESCE(o_latency_and_total_cost. "o_avgTotalCost", t_latency_and_total_cost."t_avgTotalCost", 0) "avgTotalCost",
           COALESCE(run_items_count.count, 0)::int "countRunItems"
         FROM
           dataset_runs runs
-          JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
+          JOIN datasets ON datasets.id = runs.dataset_id
+            AND datasets.project_id = ${input.projectId}
+            
+          -- Add average latency and cost if a run's items are linked to observations 
           LEFT JOIN LATERAL (
             SELECT
-              AVG(o.latency) AS "avgLatency",
-              AVG(COALESCE(o.calculated_total_cost, 0)) AS "avgTotalCost"
+              AVG(o.latency) AS "o_avgLatency",
+              AVG(COALESCE(o.calculated_total_cost, 0)) AS "o_avgTotalCost"
             FROM
               dataset_run_items ri
-              JOIN observations_view o ON o.id = ri.observation_id AND o.project_id = ${input.projectId}
-            WHERE 
+              JOIN observations_view o ON o.id = ri.observation_id
+                AND o.project_id = ${input.projectId}
+            WHERE
               ri.project_id = ${input.projectId}
-              AND ri.dataset_run_id = runs.id
-          ) latency_and_total_cost ON true
+              AND ri.dataset_run_id = runs.id) o_latency_and_total_cost ON TRUE
+              
+          -- Add average latency and cost if run's items are linked to traces
           LEFT JOIN LATERAL (
-            SELECT count(*) as count 
-            FROM dataset_run_items ri 
-            WHERE ri.dataset_run_id = runs.id
-            AND ri.project_id = ${input.projectId}
-          ) run_items_count ON true
-        WHERE 
+            -- Average across run items. One run has many items
+            SELECT
+              AVG(trace_latency_cost.duration) AS "t_avgLatency", 
+              AVG(trace_latency_cost.total_cost) AS "t_avgTotalCost"
+            FROM
+              dataset_run_items ri
+              LEFT JOIN LATERAL (
+                -- Latency and cost for a run item's trace
+                SELECT
+                  t.id,
+                  o.duration,
+                  o.total_cost 
+                FROM
+                  traces t
+                  LEFT JOIN LATERAL (
+                    -- Latency and cost across a trace's observations
+                    SELECT
+                      EXTRACT(epoch FROM COALESCE(max(o1.end_time), max(o1.start_time)))::double precision - EXTRACT(epoch FROM min(o1.start_time))::double precision AS duration,
+                      SUM(COALESCE(o1.calculated_total_cost, 0)) AS total_cost
+                    FROM
+                      observations o1
+                    WHERE
+                      o1.project_id = ${input.projectId}
+                      AND o1.trace_id = t.id
+                    GROUP BY
+                      o1.project_id,
+                      o1.trace_id) o ON TRUE
+                  WHERE
+                    t.project_id = ${input.projectId}
+                    AND t.id = ri.trace_id) trace_latency_cost ON TRUE
+                WHERE
+                  ri.project_id = ${input.projectId}
+                  AND ri.dataset_run_id = runs.id) t_latency_and_total_cost ON TRUE
+                  
+          -- Add run item counts
+          LEFT JOIN LATERAL (
+            SELECT
+              count(*) AS count
+            FROM
+              dataset_run_items ri
+            WHERE
+              ri.dataset_run_id = runs.id
+              AND ri.project_id = ${input.projectId}) run_items_count ON TRUE
+        WHERE
           runs.dataset_id = ${input.datasetId}
           AND runs.project_id = ${input.projectId}
         ORDER BY
@@ -712,17 +756,20 @@ export const datasetRouter = createTRPCRouter({
         {
           id: string;
           duration: number;
+          totalCost: number;
         }[]
       >(
         Prisma.sql`
             SELECT
               t.id,
-              o.duration
+              o.duration,
+              o.total_cost as "totalCost"
             FROM
               traces t
               LEFT JOIN LATERAL (
                 SELECT
-                  EXTRACT(epoch FROM COALESCE(max(o1.end_time), max(o1.start_time)))::double precision - EXTRACT(epoch FROM min(o1.start_time))::double precision AS duration
+                  EXTRACT(epoch FROM COALESCE(max(o1.end_time), max(o1.start_time)))::double precision - EXTRACT(epoch FROM min(o1.start_time))::double precision AS duration,
+                  SUM(COALESCE(o1.calculated_total_cost, 0))::double precision AS total_cost
                 FROM
                   observations o1
                 WHERE

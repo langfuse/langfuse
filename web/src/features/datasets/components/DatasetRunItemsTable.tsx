@@ -247,7 +247,9 @@ export function DatasetRunItemsTable(
             ),
             totalCost: !!item.observation?.calculatedTotalCost
               ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-              : undefined,
+              : !!item.trace?.totalCost
+                ? usdFormatter(item.trace.totalCost)
+                : undefined,
             latency:
               item.observation?.latency ?? item.trace?.duration ?? undefined,
           };
