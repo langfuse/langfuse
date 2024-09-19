@@ -6,6 +6,7 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { type z } from "zod";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -35,11 +36,16 @@ export default withMiddlewares({
         ? Prisma.sql`AND t."timestamp" < ${query.toTimestamp}::timestamp with time zone at time zone 'UTC'`
         : Prisma.empty;
       const fromObservationStartTimeCondition = query.fromTimestamp
-        ? Prisma.sql`AND o."start_time" >= ${query.fromTimestamp}::timestamp with time zone at time zone 'UTC'`
+        ? Prisma.sql`AND o."start_time" >= ${query.fromTimestamp}::timestamp with time zone at time zone 'UTC' - INTERVAL '1 day'`
         : Prisma.empty;
       const toObservationStartTimeCondition = query.toTimestamp
-        ? Prisma.sql`AND o."start_time" < ${query.toTimestamp}::timestamp with time zone at time zone 'UTC'`
+        ? Prisma.sql`AND o."start_time" < ${query.toTimestamp}::timestamp with time zone at time zone 'UTC' + INTERVAL '1 day'`
         : Prisma.empty;
+
+      const observationtable =
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
+          ? "observations_view"
+          : "observations";
 
       const [usage, totalItemsRes] = await Promise.all([
         prisma.$queryRaw`
@@ -54,7 +60,7 @@ export default withMiddlewares({
               SUM(o.total_tokens) "totalUsage",
               COALESCE(SUM(o.calculated_total_cost), 0)::DOUBLE PRECISION as "totalCost"
             FROM traces t
-            LEFT JOIN observations_view o
+            LEFT JOIN ${observationtable} o
             ON o.trace_id = t.id
             AND o.project_id = t.project_id
             WHERE o.start_time IS NOT NULL
@@ -89,7 +95,7 @@ export default withMiddlewares({
           trace_usage AS (
             SELECT
               DATE_TRUNC('DAY', t.timestamp) "date",
-              count(distinct t.id)::integer as "countTraces"
+              count(t.id)::integer as "countTraces"
             FROM traces t
             WHERE t.project_id = ${auth.scope.projectId}
               ${traceNameCondition}
