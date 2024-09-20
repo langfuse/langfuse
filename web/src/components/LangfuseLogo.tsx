@@ -27,6 +27,7 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
   const uiCustomization = useUiCustomization();
 
   if (uiCustomization?.logoLightModeHref && uiCustomization?.logoDarkModeHref) {
+    // logo is a url, maximum aspect ratio of 1:3 needs to be supported according to docs
     return (
       <div className="flex items-center gap-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
