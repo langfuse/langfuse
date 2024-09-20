@@ -23,6 +23,10 @@ export class LegacyIngestionQueue {
               removeOnComplete: true,
               removeOnFail: 100_000,
               attempts: 5,
+              backoff: {
+                type: "exponential",
+                delay: 5000,
+              },
             },
           },
         )
