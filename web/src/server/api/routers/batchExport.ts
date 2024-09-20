@@ -35,27 +35,6 @@ export const batchExportRouter = createTRPCRouter({
           scope: "batchExport:create",
         });
 
-        // check if S3 buckets are configured
-        const accessKeyId = env.S3_ACCESS_KEY_ID;
-        const secretAccessKey = env.S3_SECRET_ACCESS_KEY;
-        const bucketName = env.S3_BUCKET_NAME;
-        const endpoint = env.S3_ENDPOINT;
-        const region = env.S3_REGION;
-
-        if (
-          !accessKeyId ||
-          !secretAccessKey ||
-          !bucketName ||
-          !endpoint ||
-          !region
-        ) {
-          throw new TRPCError({
-            code: "UNAUTHORIZED",
-            message:
-              "S3 credentials missing. See Langfuse docs for setup: https://langfuse.com/docs/deployment/self-host",
-          });
-        }
-
         const { projectId, query, format, name } = input;
         console.log(
           "[TRPC] Creating export job",
