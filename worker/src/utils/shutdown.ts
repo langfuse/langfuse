@@ -6,6 +6,7 @@ import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
 import { freeAllTokenizers } from "../features/tokenisation/usage";
 import { WorkerManager } from "../queues/workerManager";
+import { prisma } from "@langfuse/shared/src/db";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
@@ -24,6 +25,9 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
 
   redis?.disconnect();
   logger.info("Redis connection has been closed.");
+
+  await prisma.$disconnect();
+  logger.info("Prisma connection has been closed.");
 
   freeAllTokenizers();
   logger.info("All tokenizers are cleaned up from memory.");
