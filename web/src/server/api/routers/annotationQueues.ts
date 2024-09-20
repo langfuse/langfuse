@@ -4,7 +4,11 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { CreateQueueData, paginationZod, Prisma } from "@langfuse/shared";
+import {
+  CreateQueueData,
+  optionalPaginationZod,
+  Prisma,
+} from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -14,7 +18,7 @@ export const queueRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        ...paginationZod,
+        ...optionalPaginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -48,8 +52,8 @@ export const queueRouter = createTRPCRouter({
             aq.id, aq.name, aq.description, aq.created_at
           ORDER BY
             aq.created_at DESC
-          LIMIT
-            ${input.limit} OFFSET ${input.page * input.limit}
+          ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
+          ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
         `),
         ctx.prisma.annotationQueue.count({
           where: {

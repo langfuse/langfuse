@@ -8,7 +8,6 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
-import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
@@ -24,6 +23,7 @@ import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/compon
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { AddTraceToButton } from "@/src/components/trace/AddTraceToButton";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -189,7 +189,7 @@ export const ObservationPreview = (props: {
               />
             )}
             {observationWithInputAndOutput.data ? (
-              <NewDatasetItemFromTrace
+              <AddTraceToButton
                 traceId={preloadedObservation.traceId}
                 observationId={preloadedObservation.id}
                 projectId={props.projectId}

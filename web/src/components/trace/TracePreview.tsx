@@ -13,7 +13,6 @@ import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -21,6 +20,7 @@ import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { AddTraceToButton } from "@/src/components/trace/AddTraceToButton";
 
 export const TracePreview = ({
   trace,
@@ -116,7 +116,7 @@ export const TracePreview = ({
               setEmptySelectedConfigIds={setEmptySelectedConfigIds}
               key={"annotation-drawer" + trace.id}
             />
-            <NewDatasetItemFromTrace
+            <AddTraceToButton
               traceId={trace.id}
               projectId={trace.projectId}
               input={trace.input}

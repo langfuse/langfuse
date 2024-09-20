@@ -25,6 +25,7 @@ import { utilsRouter } from "@/src/server/api/routers/utilities";
 import { uiCustomizationRouter } from "@/src/ee/features/ui-customization/uiCustomizationRouter";
 import { commentsRouter } from "@/src/server/api/routers/comments";
 import { queueRouter } from "@/src/server/api/routers/annotationQueues";
+import { queueItemRouter } from "@/src/server/api/routers/annotationQueueItems";
 
 /**
  * This is the primary router for your server.
@@ -33,6 +34,7 @@ import { queueRouter } from "@/src/server/api/routers/annotationQueues";
  */
 export const appRouter = createTRPCRouter({
   annotationQueues: queueRouter,
+  annotationQueueItems: queueItemRouter,
   batchExport: batchExportRouter,
   traces: traceRouter,
   sessions: sessionRouter,
