@@ -15,7 +15,7 @@ export const getBatchExportQueue = () => {
         connection: connection,
         defaultJobOptions: {
           removeOnComplete: true,
-          removeOnFail: 10000,
+          removeOnFail: 10_000,
           attempts: 2,
         },
       })
