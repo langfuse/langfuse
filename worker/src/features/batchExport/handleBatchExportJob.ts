@@ -185,6 +185,7 @@ const getDatabaseReadStream = async ({
             orderByCondition,
             datetimeFilter,
             selectScoreValues: true,
+            selectIOAndMetadata: true,
           });
           const chunk =
             await prisma.$queryRaw<FullObservationsWithScores>(query);
