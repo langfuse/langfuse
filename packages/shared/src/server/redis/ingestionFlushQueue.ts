@@ -21,6 +21,10 @@ export const getIngestionFlushQueue = () => {
           removeOnFail: 100_000,
           delay: env.LANGFUSE_INGESTION_FLUSH_DELAY_MS,
           attempts: env.LANGFUSE_INGESTION_FLUSH_ATTEMPTS,
+          backoff: {
+            type: "exponential",
+            delay: 5000,
+          },
         },
       })
     : null;

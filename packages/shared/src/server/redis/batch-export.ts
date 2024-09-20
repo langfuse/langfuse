@@ -17,6 +17,10 @@ export const getBatchExportQueue = () => {
           removeOnComplete: true,
           removeOnFail: 10_000,
           attempts: 2,
+          backoff: {
+            type: "exponential",
+            delay: 5000,
+          },
         },
       })
     : null;
