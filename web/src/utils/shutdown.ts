@@ -4,6 +4,8 @@
 // NEVER call process.exit() in this process. Kubernetes should kill the container: https://kostasbariotis.com/why-you-should-not-use-process-exit/
 // We wait for 20 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
 
+import { prisma } from "@langfuse/shared/src/db";
+
 const TIMEOUT = 200_000;
 
 declare global {
@@ -43,6 +45,9 @@ export const shutdown = async (signal: PrexitSignal) => {
             return;
           }
           redis?.disconnect();
+
+          await prisma.$disconnect();
+          console.log("Prisma connection has been closed.");
         }
         console.log("Shutdown complete");
         resolve();
