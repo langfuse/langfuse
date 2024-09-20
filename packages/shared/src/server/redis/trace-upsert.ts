@@ -21,7 +21,7 @@ export const getTraceUpsertQueue = () => {
         connection: connection,
         defaultJobOptions: {
           removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
-          removeOnFail: 1_000,
+          removeOnFail: 100000,
         },
       })
     : null;
@@ -30,7 +30,7 @@ export const getTraceUpsertQueue = () => {
 };
 
 export function convertTraceUpsertEventsToRedisEvents(
-  events: TraceUpsertEventType[]
+  events: TraceUpsertEventType[],
 ) {
   const uniqueTracesPerProject = events.reduce((acc, event) => {
     if (!acc.get(event.projectId)) {
