@@ -4,6 +4,7 @@
 // NEVER call process.exit() in this process. Kubernetes should kill the container: https://kostasbariotis.com/why-you-should-not-use-process-exit/
 // We wait for 20 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
 
+import { logger, redis } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 const TIMEOUT = 200_000;
@@ -24,8 +25,6 @@ export const isSigtermReceived = () =>
   Boolean(process.env.NEXT_MANUAL_SIG_HANDLE) && globalThis.sigtermReceived;
 
 export const shutdown = async (signal: PrexitSignal) => {
-  // import redis at runtime
-
   if (signal === "SIGTERM" || signal === "SIGINT") {
     console.log(
       `SIGTERM / SIGINT received. Shutting down in ${TIMEOUT / 1000} seconds.`,
@@ -34,22 +33,20 @@ export const shutdown = async (signal: PrexitSignal) => {
 
     return await new Promise<void>((resolve) => {
       setTimeout(async () => {
-        if (typeof window === "undefined") {
-          const { redis } = await import("@langfuse/shared/src/server");
-          console.log(`Redis status ${redis?.status}`);
-          if (!redis) {
-            return;
-          }
-          if (redis.status === "end") {
-            console.log("Redis connection already closed");
-            return;
-          }
-          redis?.disconnect();
-
-          await prisma.$disconnect();
-          console.log("Prisma connection has been closed.");
+        logger.info(`Redis status ${redis?.status}`);
+        if (!redis) {
+          return;
         }
-        console.log("Shutdown complete");
+        if (redis.status === "end") {
+          logger.info("Redis connection already closed");
+          return;
+        }
+        redis?.disconnect();
+
+        await prisma.$disconnect();
+        logger.info("Prisma connection has been closed.");
+
+        logger.info("Shutdown complete");
         resolve();
       }, TIMEOUT);
     });
