@@ -2,12 +2,12 @@
 // There is no official best way to gracefully shutdown a Next.js app in Docker.
 // This here is a workaround to handle SIGTERM and SIGINT signals.
 // NEVER call process.exit() in this process. Kubernetes should kill the container: https://kostasbariotis.com/why-you-should-not-use-process-exit/
-// We wait for 20 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
+// We wait for 110 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
 
 import { logger, redis } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
-const TIMEOUT = 200_000;
+const TIMEOUT = 110_000;
 
 declare global {
   // eslint-disable-next-line no-var
