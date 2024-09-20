@@ -2,12 +2,14 @@ on:
   push:
     branches:
       - main
+      - production
   workflow_dispatch:
     inputs:
       service:
         description: 'Service to be deployed'
         type: choice
         options:
+          - all
           - web
           - web-ingestion
           - worker
@@ -17,8 +19,8 @@ on:
         type: choice
         options:
           - staging
-          # - prod-us
-          # - prod-eu
+          - prod-eu-temp
+          - prod-us
         required: true
 
 concurrency:
@@ -39,7 +41,10 @@ jobs:
         with:
           script: |
             if (context.eventName === "workflow_dispatch") {
-              return `["${context.payload.inputs.app}"]`
+              if (context.payload.inputs.service === "all") {
+                return `["web", "web-ingestion", "worker"]`
+              }
+              return `["${context.payload.inputs.service}"]`
             }
             if (context.eventName === "push") {
               return `["web", "web-ingestion", "worker"]`
@@ -53,7 +58,7 @@ jobs:
         with:
           result-encoding: string
           script: |
-            console.log('Services', `${process.env.result}` ?? 'n/a');
+            console.log('Services', `${process.env.services}` ?? 'n/a');
 
   affected-environments:
     runs-on: ubuntu-latest
@@ -69,8 +74,12 @@ jobs:
               return `["${context.payload.inputs.environment}"]`
             }
             if (context.eventName === "push") {
-              // TODO: Can we distinguish push branch vs push tag for staging vs. prod?
-              return `["staging"]`
+              if (context.ref === "refs/heads/main") {
+                return `["staging"]`
+              }
+              if (context.ref === "refs/heads/production") {
+                return `["prod-eu-temp", "prod-us"]`
+              }
             }
             return "[]"
           result-encoding: string
@@ -81,7 +90,7 @@ jobs:
         with:
           result-encoding: string
           script: |
-            console.log('Environments', `${process.env.result}` ?? 'n/a');
+            console.log('Environments', `${process.env.environments}` ?? 'n/a');
 
   ecs-deploy:
     uses: ./.github/workflows/_deploy_ecs_service.yml

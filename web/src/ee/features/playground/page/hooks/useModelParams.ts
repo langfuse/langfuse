@@ -34,7 +34,8 @@ export const useModelParams = ({
     const adapter =
       (evalModelsOnly
         ? availableLLMApiKeys.data?.data.filter(
-            (p) => p.adapter === LLMAdapter.OpenAI,
+            (p) =>
+              p.adapter === LLMAdapter.OpenAI || p.adapter === LLMAdapter.Azure,
           ) // for evals, we only support OpenAI
         : availableLLMApiKeys.data?.data) ?? [];
 

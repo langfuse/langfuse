@@ -22,6 +22,7 @@ const PromptHistoryTraceNode = (props: {
 }) => {
   const capture = usePostHogClientCapture();
   const [isHovered, setIsHovered] = useState(false);
+  const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "prompts:CUD",
@@ -45,7 +46,9 @@ const PromptHistoryTraceNode = (props: {
         props.currentPromptVersion === prompt.version ? "bg-muted" : ""
       }`}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={() => {
+        if (!isLabelPopoverOpen) setIsHovered(false);
+      }}
       onClick={() => {
         props.index === 0
           ? props.setCurrentPromptVersion(undefined)
@@ -67,7 +70,14 @@ const PromptHistoryTraceNode = (props: {
         </div>
         {isHovered && (
           <div className="flex flex-row space-x-1">
-            <SetPromptVersionLabels prompt={prompt} />
+            <SetPromptVersionLabels
+              prompt={prompt}
+              isOpen={isLabelPopoverOpen}
+              setIsOpen={(open) => {
+                setIsLabelPopoverOpen(open);
+                if (!open) setIsHovered(false);
+              }}
+            />
             {hasAccess ? (
               <Button
                 variant="outline"
