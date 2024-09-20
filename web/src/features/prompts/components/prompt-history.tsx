@@ -37,7 +37,13 @@ const PromptHistoryTraceNode = (props: {
           : a.localeCompare(b),
     )
     .map((label) => {
-      return <StatusBadge type={label} key={label} />;
+      return (
+        <StatusBadge
+          type={label}
+          key={label}
+          className="break-all sm:break-normal"
+        />
+      );
     });
 
   return (
@@ -55,15 +61,13 @@ const PromptHistoryTraceNode = (props: {
           : props.setCurrentPromptVersion(prompt.version);
       }}
     >
-      <div className="grid h-full min-h-7 grid-cols-[auto,1fr] items-start">
-        <span className="flex h-6 text-nowrap rounded-sm bg-input p-1 text-xs">
+      <div className="flex h-full min-h-6 flex-wrap gap-1">
+        <span className="text-nowrap rounded-sm bg-input p-1 text-xs">
           Version {prompt.version}
         </span>
-        {Boolean(prompt.labels.length) && (
-          <div className="ml-2 flex h-full flex-wrap gap-1">{badges}</div>
-        )}
+        {badges}
       </div>
-      <div className="grid w-full grid-cols-[1fr,auto] items-start justify-between gap-1">
+      <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr,auto]">
         <div>
           <div className="flex gap-2">
             <span className="text-xs text-muted-foreground">
@@ -77,7 +81,7 @@ const PromptHistoryTraceNode = (props: {
           </div>
         </div>
         {isHovered && (
-          <div className="flex flex-row space-x-1">
+          <div className="flex flex-row justify-end space-x-1">
             <SetPromptVersionLabels
               prompt={prompt}
               isOpen={isLabelPopoverOpen}
