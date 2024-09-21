@@ -164,9 +164,7 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
   // encoding should be kept in memory to avoid re-creating it
   let encoding: Tiktoken | undefined = encoding_for_model(model);
   try {
-    cachedTokenizerByModel[model] = encoding_for_model(model);
-
-    encoding = cachedTokenizerByModel[model];
+    encoding = encoding_for_model(model);
   } catch (KeyError) {
     logger.warn("Model not found. Using cl100k_base encoding.");
 
