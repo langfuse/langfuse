@@ -162,10 +162,9 @@ function openAiChatTokenCount(params: {
 
 const getTokensByModel = (model: TiktokenModel, text: string) => {
   // encoding should be kept in memory to avoid re-creating it
-  let encoding: Tiktoken | undefined;
+  let encoding: Tiktoken | undefined = encoding_for_model(model);
   try {
-    cachedTokenizerByModel[model] =
-      cachedTokenizerByModel[model] || encoding_for_model(model);
+    cachedTokenizerByModel[model] = encoding_for_model(model);
 
     encoding = cachedTokenizerByModel[model];
   } catch (KeyError) {
