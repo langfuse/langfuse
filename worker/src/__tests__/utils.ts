@@ -15,7 +15,6 @@ export const pruneDatabase = async () => {
   await prisma.dataset.deleteMany();
   await prisma.datasetRuns.deleteMany();
   await prisma.prompt.deleteMany();
-  await prisma.events.deleteMany();
   await prisma.model.deleteMany();
   await prisma.jobExecution.deleteMany();
   await prisma.jobConfiguration.deleteMany();
