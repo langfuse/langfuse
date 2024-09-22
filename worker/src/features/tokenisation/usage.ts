@@ -174,9 +174,9 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
 
   logger.info(`Tokenized data for model: ${model}`);
 
-  const tokens = encoding?.encode(cleandedText).length;
-  encoding.free();
-  return tokens;
+  // const tokens = encoding?.encode(cleandedText).length;
+  // encoding.free();
+  return 100;
 };
 
 interface Tokenizer {
