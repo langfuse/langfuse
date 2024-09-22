@@ -21,7 +21,7 @@ type RouteConfig<
   bodySchema?: TBody;
   responseSchema: TResponse;
   successStatusCode?: number;
-  rateLimitRessource?: z.infer<typeof RateLimitResource>; // defaults to public-api
+  rateLimitResource?: z.infer<typeof RateLimitResource>; // defaults to public-api
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -58,7 +58,7 @@ export const createAuthedAPIRoute = <
       redis,
     ).rateLimitRequest(
       auth.scope,
-      routeConfig.rateLimitRessource || "public-api",
+      routeConfig.rateLimitResource || "public-api",
     );
 
     if (rateLimitResponse?.isRateLimited()) {

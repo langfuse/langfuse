@@ -349,8 +349,11 @@ export const evalRouter = createTRPCRouter({
       }
 
       // check that the adapter on the api key is openai for evals
-      if (matchingLLMKey.adapter !== LLMAdapter.OpenAI) {
-        throw new Error("Only OpenAI models are supported for evals");
+      if (
+        matchingLLMKey.adapter !== LLMAdapter.OpenAI &&
+        matchingLLMKey.adapter !== LLMAdapter.Azure
+      ) {
+        throw new Error("Only OpenAI and Azure models are supported for evals");
       }
 
       const latestTemplate = await ctx.prisma.evalTemplate.findFirst({
