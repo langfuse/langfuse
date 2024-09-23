@@ -80,6 +80,7 @@ export default async function handler(
 
     res.status(200).json({ message: "API keys deleted" });
   } catch (e) {
+    logger.error("failed to remove API keys", e);
     res.status(500).json({ error: e });
   }
 }
