@@ -46,14 +46,22 @@ const isPrivateIp = (ipAddress: string): boolean => {
 const resolveHostname = async (
   hostname: string,
 ): Promise<{ addresses4: string[]; addresses6: string[] }> => {
+  let addresses4: string[] = [];
+  let addresses6: string[] = [];
+
   try {
-    const addresses4 = await dns.resolve4(hostname);
-    const addresses6 = await dns.resolve6(hostname);
-    return { addresses4, addresses6 };
+    addresses4 = await dns.resolve4(hostname);
   } catch (error) {
-    console.error("DNS resolution error:", error);
-    return { addresses4: [], addresses6: [] };
+    console.log("IPv4 DNS resolution error:", error);
   }
+
+  try {
+    addresses6 = await dns.resolve6(hostname);
+  } catch (error) {
+    console.log("IPv6 DNS resolution error:", error);
+  }
+
+  return { addresses4, addresses6 };
 };
 
 const isValidAndSecureUrl = async (urlString: string): Promise<boolean> => {
