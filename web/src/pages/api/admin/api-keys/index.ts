@@ -24,10 +24,7 @@ export default async function handler(
       res.status(500).json({ error: "ADMIN_API_KEY is not set" });
       return;
     }
-    if (!env.ENCRYPTION_KEY) {
-      res.status(500).json({ error: "ENCRYPTION_KEY is not set" });
-      return;
-    }
+
     // check bearer token
     const { authorization } = req.headers;
     if (!authorization) {
