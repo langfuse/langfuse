@@ -20,7 +20,7 @@ jobs:
         id: split
         with:
           msg: ${{ inputs.service }}
-          separator: '-'
+          separator: "-"
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Authenticate with AWS
@@ -40,6 +40,11 @@ jobs:
           REPOSITORY: ${{ steps.split.outputs._0 }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          # Sentry config required to submit minified code to Sentry.
+          export SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+          export SENTRY_ORG=${{ vars.SENTRY_ORG }}
+          export SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+
           docker build \
             -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
             -f ./${{ steps.split.outputs._0 }}/Dockerfile \
@@ -52,9 +57,10 @@ jobs:
             --build-arg NEXT_PUBLIC_BUILD_ID=${{ github.sha }} \
             --build-arg NEXT_PUBLIC_POSTHOG_KEY=${{ vars.NEXT_PUBLIC_POSTHOG_KEY }} \
             --build-arg NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }} \
-            --build-arg NEXT_PUBLIC_CRISP_WEBSITE_ID=${{ vars.NEXT_PUBLIC_CRISP_WEBSITE_ID }} \
+            --build-arg NEXT_PUBLIC_CRISP_WEBSITE_ID=${{ vars.NEXT_PUBLIC_CRISP_WEBSITE_ID }} \            
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
       - name: Render AWS ECS Task Definition
         id: render-task-definition
         uses: aws-actions/amazon-ecs-render-task-definition@v1
