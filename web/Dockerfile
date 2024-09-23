@@ -83,6 +83,9 @@ RUN rm -f ./web/src/middleware.ts
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NEXT_MANUAL_SIG_HANDLE true
+# set the CI flag to true to get CI specific logs
+ENV CI true
+
 
 RUN NODE_OPTIONS='--max-old-space-size=4096' turbo run build --filter=web
 
@@ -98,8 +101,6 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ENV DOCKER_BUILD 0
 # Set NEXT_MANUAL_SIG_HANDLE for runtime
 ENV NEXT_MANUAL_SIG_HANDLE true
-# set the CI flag to true to get CI specific logs
-ENV CI true
 
 RUN apk add --no-cache dumb-init
 
