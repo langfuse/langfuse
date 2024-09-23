@@ -41,7 +41,8 @@ const MIN_LABEL_WIDTH = 250;
 const TREE_INDENTATION = 12; // default in MUI X TreeView
 
 const PREDEFINED_STEP_SIZES = [
-  0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10,
+  0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25,
+  35, 40, 45, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500,
 ];
 
 const getNestedObservationKeys = (
@@ -164,7 +165,7 @@ function TreeItemInner({
                 itemOffsetLabelWidth > SCALE_WIDTH
                   ? "mr-1"
                   : isPresent(latency)
-                    ? "-mr-9"
+                    ? `-mr-9`
                     : "-mr-6",
               )}
             >
@@ -353,9 +354,9 @@ export function TraceTimelineView({
   const totalScaleSpan = stepSize * (SCALE_WIDTH / STEP_SIZE);
 
   return (
-    <div ref={parentRef} className="w-full">
+    <div ref={parentRef} className="h-full w-full">
       <Card
-        className="flex max-h-[calc(100dvh-24rem)] flex-col overflow-x-auto overflow-y-hidden"
+        className="flex max-h-full flex-col overflow-x-auto overflow-y-hidden"
         style={{ width: cardWidth }}
       >
         <div className="grid w-full grid-cols-[1fr,auto] items-center p-2">
@@ -406,7 +407,7 @@ export function TraceTimelineView({
                     className="absolute -right-2 text-xs text-muted-foreground"
                     key={index}
                   >
-                    {step.toFixed(2)}s
+                    {step.toFixed(latency.toString().length >= 8 ? 0 : 2)}s
                   </span>
                 ) : (
                   <div

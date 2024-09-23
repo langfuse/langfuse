@@ -15,7 +15,6 @@ import {
   singleFilter,
   timeFilter,
   type TraceOptions,
-  tracesTableCols,
 } from "@langfuse/shared";
 
 import {
@@ -27,10 +26,9 @@ import {
 import {
   datetimeFilterToPrisma,
   datetimeFilterToPrismaSql,
-  orderByToPrismaSql,
-  tableColumnsToSqlFilterAndPrefix,
   traceException,
   createTracesQuery,
+  parseTraceAllFilters,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import type Decimal from "decimal.js";
@@ -549,42 +547,3 @@ export const traceRouter = createTRPCRouter({
       }
     }),
 });
-
-function parseTraceAllFilters(input: TraceFilterOptions) {
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    input.filter ?? [],
-    tracesTableCols,
-    "traces",
-  );
-  const orderByCondition = orderByToPrismaSql(input.orderBy, tracesTableCols);
-
-  // to improve query performance, add timeseries filter to observation queries as well
-  const timeseriesFilter = input.filter?.find(
-    (f) => f.column === "Timestamp" && f.type === "datetime",
-  );
-
-  const observationTimeseriesFilter =
-    timeseriesFilter && timeseriesFilter.type === "datetime"
-      ? datetimeFilterToPrismaSql(
-          "start_time",
-          timeseriesFilter.operator,
-          timeseriesFilter.value,
-        )
-      : Prisma.empty;
-
-  const searchCondition = input.searchQuery
-    ? Prisma.sql`AND (
-    t."id" ILIKE ${`%${input.searchQuery}%`} OR 
-    t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
-    t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
-    t."name" ILIKE ${`%${input.searchQuery}%`}
-  )`
-    : Prisma.empty;
-
-  return {
-    filterCondition,
-    orderByCondition,
-    observationTimeseriesFilter,
-    searchCondition,
-  };
-}
