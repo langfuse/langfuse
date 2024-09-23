@@ -41,7 +41,9 @@ const MIN_LABEL_WIDTH = 250;
 const TREE_INDENTATION = 12; // default in MUI X TreeView
 
 const PREDEFINED_STEP_SIZES = [
-  0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10,
+  0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25,
+  35, 40, 45, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800,
+  900, 1000,
 ];
 
 const getNestedObservationKeys = (
