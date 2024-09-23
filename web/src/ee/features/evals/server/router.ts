@@ -10,13 +10,12 @@ import {
   DEFAULT_TRACE_JOB_DELAY,
   EvalTargetObject,
   LLMAdapter,
-} from "@langfuse/shared";
-import {
   ZodModelConfig,
   singleFilter,
   variableMapping,
 } from "@langfuse/shared";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { logger } from "@langfuse/shared/src/server";
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
@@ -292,7 +291,7 @@ export const evalRouter = createTRPCRouter({
         });
 
         if (!evalTemplate) {
-          console.log(
+          logger.warn(
             `Template not found for project ${input.projectId} and id ${input.evalTemplateId}`,
           );
           throw new Error("Template not found");
@@ -319,7 +318,7 @@ export const evalRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -349,8 +348,11 @@ export const evalRouter = createTRPCRouter({
       }
 
       // check that the adapter on the api key is openai for evals
-      if (matchingLLMKey.adapter !== LLMAdapter.OpenAI) {
-        throw new Error("Only OpenAI models are supported for evals");
+      if (
+        matchingLLMKey.adapter !== LLMAdapter.OpenAI &&
+        matchingLLMKey.adapter !== LLMAdapter.Azure
+      ) {
+        throw new Error("Only OpenAI and Azure models are supported for evals");
       }
 
       const latestTemplate = await ctx.prisma.evalTemplate.findFirst({

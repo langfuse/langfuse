@@ -69,8 +69,8 @@ export default function SignIn({ authProviders }: PageProps) {
         callbackUrl:
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
-            ? "/onboarding"
-            : "/",
+            ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
+            : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`,
         turnstileToken,
       });
     } catch (err) {

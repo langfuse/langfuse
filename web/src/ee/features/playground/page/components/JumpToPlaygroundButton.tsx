@@ -79,6 +79,16 @@ const ParsedChatMessageListSchema = z.array(
     role: z.nativeEnum(ChatMessageRole),
     content: z.union([
       z.string(),
+      // If system message is cached, the message is an array of objects with a text property
+      z
+        .array(
+          z
+            .object({
+              text: z.string(),
+            })
+            .transform((v) => v.text),
+        )
+        .transform((v) => v.join("")),
       z.any().transform((v) => JSON.stringify(v, null, 2)),
     ]),
   }),

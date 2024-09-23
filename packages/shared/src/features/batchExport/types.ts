@@ -20,6 +20,7 @@ export enum BatchExportFileFormat {
 export enum BatchExportTableName {
   Sessions = "sessions",
   Traces = "traces",
+  Generations = "generations",
 }
 
 export const exportOptions: Record<

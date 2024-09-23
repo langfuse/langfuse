@@ -223,7 +223,9 @@ export function CreateLLMApiKeyDialog({
                       {Object.values(LLMAdapter)
                         .filter(
                           (provider) =>
-                            !evalModelsOnly || provider === LLMAdapter.OpenAI,
+                            !evalModelsOnly ||
+                            provider === LLMAdapter.OpenAI ||
+                            provider === LLMAdapter.Azure,
                         )
                         .map((provider) => (
                           <SelectItem value={provider} key={provider}>
@@ -344,7 +346,7 @@ export function CreateLLMApiKeyDialog({
                   {currentAdapter === LLMAdapter.Azure && (
                     <FormDescription className="text-dark-yellow">
                       {
-                        "For Azure, the model name should be the same as the deployment name in Azure."
+                        "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities."
                       }
                     </FormDescription>
                   )}

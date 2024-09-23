@@ -24,7 +24,15 @@ import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
 
-export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
+export function SetPromptVersionLabels({
+  prompt,
+  isOpen,
+  setIsOpen,
+}: {
+  prompt: Prompt;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
+}) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -32,7 +40,6 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
 
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [labels, setLabels] = useState<string[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
   const [isAddingLabel, setIsAddingLabel] = useState(false);
   const customLabelScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -87,8 +94,8 @@ export function SetPromptVersionLabels({ prompt }: { prompt: Prompt }) {
     <Popover
       key={prompt.id}
       open={isOpen}
-      onOpenChange={() => {
-        setIsOpen(!isOpen);
+      onOpenChange={(open) => {
+        setIsOpen(open);
         setIsAddingLabel(false);
       }}
     >
