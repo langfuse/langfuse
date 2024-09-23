@@ -113,10 +113,6 @@ jobs:
 
       - name: Build
         run: pnpm run build
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
 
       - name: Start Langfuse
         run: (pnpm run start&)
