@@ -40,11 +40,6 @@ jobs:
           REPOSITORY: ${{ steps.split.outputs._0 }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Sentry config required to submit minified code to Sentry.
-          export SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-          export SENTRY_ORG=${{ vars.SENTRY_ORG }}
-          export SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
-
           docker build \
             -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
             -f ./${{ steps.split.outputs._0 }}/Dockerfile \
@@ -58,6 +53,9 @@ jobs:
             --build-arg NEXT_PUBLIC_POSTHOG_KEY=${{ vars.NEXT_PUBLIC_POSTHOG_KEY }} \
             --build-arg NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }} \
             --build-arg NEXT_PUBLIC_CRISP_WEBSITE_ID=${{ vars.NEXT_PUBLIC_CRISP_WEBSITE_ID }} \
+            --build-arg SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} \
+            --build-arg SENTRY_ORG=${{ vars.SENTRY_ORG }} \
+            --build-arg SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }} \
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
