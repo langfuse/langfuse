@@ -8,7 +8,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import type Stripe from "stripe";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
-import { traceException, redis } from "@langfuse/shared/src/server";
+import { traceException, redis, logger } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 /*
@@ -23,14 +23,14 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
     );
 
   if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION || !stripeClient) {
-    console.error("[Stripe Webhook] Endpoint only available in Langfuse Cloud");
+    logger.error("[Stripe Webhook] Endpoint only available in Langfuse Cloud");
     return NextResponse.json(
       { message: "Stripe webhook endpoint only available in Langfuse Cloud" },
       { status: 500 },
     );
   }
   if (!env.STRIPE_WEBHOOK_SIGNING_SECRET) {
-    console.error("[Stripe Webhook] Stripe webhook signing key not found");
+    logger.error("[Stripe Webhook] Stripe webhook signing key not found");
     return NextResponse.json(
       { message: "Stripe secret key not found" },
       { status: 500 },
@@ -39,9 +39,8 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
 
   // check if the request is signed by stripe
   const sig = req.headers.get("stripe-signature");
-  console.log("[Stripe Webhook] Signature", sig);
   if (!sig) {
-    console.error("[Stripe Webhook] No signature");
+    logger.error("[Stripe Webhook] No signature");
     return NextResponse.json({ message: "No signature" }, { status: 400 });
   }
   let event: Stripe.Event;
@@ -52,7 +51,7 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
       env.STRIPE_WEBHOOK_SIGNING_SECRET,
     );
   } catch (err) {
-    console.error("[Stripe Webhook] Error verifying signature", err);
+    logger.error("[Stripe Webhook] Error verifying signature", err);
     return NextResponse.json(
       { message: `Webhook Error: ${err}` },
       { status: 400 },
@@ -64,32 +63,29 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
     case "customer.subscription.created":
       // update the active product id on the organization linked to the subscription + customer and subscription id (if null or same)
       const subscription = event.data.object;
-      console.log(
-        "[Stripe Webhook] Start customer.subscription.created",
-        subscription,
-      );
+      logger.info("[Stripe Webhook] Start customer.subscription.created", {
+        payload: subscription,
+      });
       await handleSubscriptionChanged(subscription, "created");
       break;
     case "customer.subscription.updated":
       // update the active product id on the organization linked to the subscription + customer and subscription id (if null or same)
       const updatedSubscription = event.data.object;
-      console.log(
-        "[Stripe Webhook] Start customer.subscription.updated",
-        updatedSubscription,
-      );
+      logger.info("[Stripe Webhook] Start customer.subscription.updated", {
+        payload: updatedSubscription,
+      });
       await handleSubscriptionChanged(updatedSubscription, "updated");
       break;
     case "customer.subscription.deleted":
       // remove the active product id on the organization linked to the subscription + subscription, keep customer id
       const deletedSubscription = event.data.object;
-      console.log(
-        "[Stripe Webhook] Start customer.subscription.deleted",
-        deletedSubscription,
-      );
+      logger.info("[Stripe Webhook] Start customer.subscription.deleted", {
+        payload: deletedSubscription,
+      });
       await handleSubscriptionChanged(deletedSubscription, "deleted");
       break;
     default:
-      console.log(`Unhandled event type ${event.type}`);
+      logger.warn(`Unhandled event type ${event.type}`);
   }
 
   return NextResponse.json({ received: true }, { status: 200 });
@@ -107,7 +103,7 @@ async function handleSubscriptionChanged(
     limit: 1,
   });
   if (!checkoutSessionsResponse || checkoutSessionsResponse.data.length !== 1) {
-    console.error("[Stripe Webhook] No checkout session found");
+    logger.error("[Stripe Webhook] No checkout session found");
     return;
   }
   const checkoutSession = checkoutSessionsResponse.data[0];
@@ -115,14 +111,14 @@ async function handleSubscriptionChanged(
   // the client reference is passed to the stripe checkout session via the pricing page
   const clientReference = checkoutSession.client_reference_id;
   if (!clientReference) {
-    console.error("[Stripe Webhook] No client reference");
+    logger.error("[Stripe Webhook] No client reference");
     return NextResponse.json(
       { message: "No client reference" },
       { status: 400 },
     );
   }
   if (!isStripeClientReferenceFromCurrentCloudRegion(clientReference)) {
-    console.log(
+    logger.info(
       "[Stripe Webhook] Client reference not from current cloud region",
     );
     return;
@@ -136,7 +132,7 @@ async function handleSubscriptionChanged(
     },
   });
   if (!organization) {
-    console.error("[Stripe Webhook] No organization not found");
+    logger.error("[Stripe Webhook] Organization not found");
     return;
   }
   const parsedOrg = parseDbOrg(organization);
@@ -144,7 +140,7 @@ async function handleSubscriptionChanged(
   // assert that no other stripe customer id is already set on the org
   const customerId = subscription.customer;
   if (!customerId || typeof customerId !== "string") {
-    console.error("[Stripe Webhook] Product ID not found");
+    logger.error("[Stripe Webhook] Product ID not found");
     traceException("[Stripe Webhook] Product ID not found");
     return;
   }
@@ -157,10 +153,10 @@ async function handleSubscriptionChanged(
   }
 
   // check subscription items
-  console.log("subscription.items.data", subscription.items.data);
+  logger.info("subscription.items.data", { payload: subscription.items.data });
 
   if (!subscription.items.data || subscription.items.data.length !== 1) {
-    console.error(
+    logger.error(
       "[Stripe Webhook] Subscription items not found or more than one",
     );
     return;
@@ -170,7 +166,7 @@ async function handleSubscriptionChanged(
   const productId = subscriptionItem.price.product;
 
   if (!productId || typeof productId !== "string") {
-    console.error("[Stripe Webhook] Product ID not found");
+    logger.error("[Stripe Webhook] Product ID not found");
     traceException("[Stripe Webhook] Product ID not found");
     return;
   }

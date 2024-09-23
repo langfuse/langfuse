@@ -13,6 +13,7 @@ import { validateChatCompletionBody } from "./validateChatCompletionBody";
 
 import { prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
+import { logger } from "@langfuse/shared/src/server";
 
 export default async function chatCompletionHandler(req: NextRequest) {
   try {
@@ -44,7 +45,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
 
     return new StreamingTextResponse(stream);
   } catch (err) {
-    console.error(err);
+    logger.error("Failed to handle chat completion", err);
 
     if (err instanceof BaseError) {
       return NextResponse.json(
