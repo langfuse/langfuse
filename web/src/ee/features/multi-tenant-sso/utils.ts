@@ -9,7 +9,11 @@ import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
 import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
-import { CustomSSOProvider, traceException } from "@langfuse/shared/src/server";
+import {
+  CustomSSOProvider,
+  logger,
+  traceException,
+} from "@langfuse/shared/src/server";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -50,7 +54,7 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
         },
       );
     } catch (e) {
-      console.error("Failed to load SSO configs from the database", e);
+      logger.error("Failed to load SSO configs from the database", e);
       traceException(e);
       // empty array will be cached to prevent repeated DB queries
       failedToFetch = true;
@@ -63,7 +67,7 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
           const parsedValue = SsoProviderSchema.parse(v);
           return parsedValue;
         } catch (e) {
-          console.error(
+          logger.error(
             `Failed to parse SSO provider config for domain ${v.domain}`,
             e,
           );
@@ -190,7 +194,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     // Type check to ensure we handle all providers
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _: never = provider;
-    console.error(
+    logger.error(
       `Unrecognized SSO provider for domain ${(provider as any).domain}`,
     );
     traceException(
