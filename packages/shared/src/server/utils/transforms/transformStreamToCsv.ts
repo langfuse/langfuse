@@ -26,6 +26,7 @@ export function transformStreamToCsv(): Transform {
         const field = row[header];
         let str = stringify(field);
 
+        // escape and format fields that contain commas
         if (str.includes(",")) {
           str = `"${str.replace(/"/g, '""')}"`;
         }
