@@ -1,4 +1,50 @@
 import { Prisma } from "@prisma/client";
+import { TableFilters } from "./types";
+import {
+  datetimeFilterToPrismaSql,
+  tableColumnsToSqlFilterAndPrefix,
+} from "../filterToPrisma";
+import { tracesTableCols } from "../../tracesTable";
+import { orderByToPrismaSql } from "../orderByToPrisma";
+
+export function parseTraceAllFilters(input: TableFilters) {
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    input.filter ?? [],
+    tracesTableCols,
+    "traces"
+  );
+  const orderByCondition = orderByToPrismaSql(input.orderBy, tracesTableCols);
+
+  // to improve query performance, add timeseries filter to observation queries as well
+  const timeseriesFilter = input.filter?.find(
+    (f) => f.column === "Timestamp" && f.type === "datetime"
+  );
+
+  const observationTimeseriesFilter =
+    timeseriesFilter && timeseriesFilter.type === "datetime"
+      ? datetimeFilterToPrismaSql(
+          "start_time",
+          timeseriesFilter.operator,
+          timeseriesFilter.value
+        )
+      : Prisma.empty;
+
+  const searchCondition = input.searchQuery
+    ? Prisma.sql`AND (
+    t."id" ILIKE ${`%${input.searchQuery}%`} OR 
+    t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
+    t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
+    t."name" ILIKE ${`%${input.searchQuery}%`}
+  )`
+    : Prisma.empty;
+
+  return {
+    filterCondition,
+    orderByCondition,
+    observationTimeseriesFilter,
+    searchCondition,
+  };
+}
 
 export function createTracesQuery({
   select,

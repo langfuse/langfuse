@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
 import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
-import { MetricTable } from "@/src/features/dashboard/components/MetricTable";
+import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
 import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
@@ -182,7 +182,7 @@ export default function Dashboard() {
           globalFilterState={mergedFilterState}
         />
         {!disableExpensiveDashboardComponents && (
-          <MetricTable
+          <ModelCostTable
             className="col-span-1 xl:col-span-2"
             projectId={projectId}
             globalFilterState={mergedFilterState}

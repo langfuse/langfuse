@@ -577,6 +577,8 @@ const MainNavigation: React.FC<{
     {},
   );
 
+  const uiCustomization = useUiCustomization();
+
   return (
     <li className={className}>
       <ul role="list" className="-mx-2 space-y-1">
@@ -594,34 +596,44 @@ const MainNavigation: React.FC<{
                 onClick={onNavitemClick}
                 target={item.newTab ? "_blank" : undefined}
               >
-                {item.icon && (
-                  <item.icon
-                    className={clsx(
-                      item.current
-                        ? "text-primary-accent"
-                        : "text-muted-foreground group-hover:text-primary-accent",
-                      "h-5 w-5 shrink-0",
+                {item.pathname === "/" &&
+                uiCustomization?.logoLightModeHref &&
+                uiCustomization?.logoDarkModeHref ? (
+                  // override the default logo with the uiCustomization logo if the pathname is "/"
+                  <LangfuseLogo size="sm" version />
+                ) : (
+                  // default node for all other routes
+                  <>
+                    {item.icon && (
+                      <item.icon
+                        className={clsx(
+                          item.current
+                            ? "text-primary-accent"
+                            : "text-muted-foreground group-hover:text-primary-accent",
+                          "h-5 w-5 shrink-0",
+                        )}
+                        aria-hidden="true"
+                      />
                     )}
-                    aria-hidden="true"
-                  />
+                    {item.name}
+                    {item.label &&
+                      (typeof item.label === "string" ? (
+                        <span
+                          className={cn(
+                            "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                            item.current
+                              ? "border-primary-accent text-primary-accent"
+                              : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                      ) : (
+                        // ReactNode
+                        item.label
+                      ))}
+                  </>
                 )}
-                {item.name}
-                {item.label &&
-                  (typeof item.label === "string" ? (
-                    <span
-                      className={cn(
-                        "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                        item.current
-                          ? "border-primary-accent text-primary-accent"
-                          : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  ) : (
-                    // ReactNode
-                    item.label
-                  ))}
               </Link>
             ) : item.children && item.children.length > 0 ? (
               <Disclosure

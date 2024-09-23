@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 
-// used client-side to create a stripe customer reference
+// used server-side to create a stripe customer reference when creating a checkout session
 export const createStripeClientReference = (orgId: string) => {
   if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     logger.error(
@@ -12,7 +12,7 @@ export const createStripeClientReference = (orgId: string) => {
   return `${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}-${orgId}`;
 };
 
-// used server-side to check if the stripe customer reference is valid and parse the orgId
+// used server-side to check if the stripe customer reference is valid and parse the orgId when receiving a stripe webhook
 export const isStripeClientReferenceFromCurrentCloudRegion = (
   clientReference: string,
 ) =>

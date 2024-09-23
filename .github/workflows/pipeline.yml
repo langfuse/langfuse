@@ -97,7 +97,7 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          grep -v -e '^REDIS_HOST=' .env.dev.example > .env
+          grep -v -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
 
       - name: Run + migrate
         run: |
@@ -113,10 +113,6 @@ jobs:
 
       - name: Build
         run: pnpm run build
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
 
       - name: Start Langfuse
         run: (pnpm run start&)
