@@ -57,7 +57,7 @@ jobs:
             --build-arg NEXT_PUBLIC_BUILD_ID=${{ github.sha }} \
             --build-arg NEXT_PUBLIC_POSTHOG_KEY=${{ vars.NEXT_PUBLIC_POSTHOG_KEY }} \
             --build-arg NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }} \
-            --build-arg NEXT_PUBLIC_CRISP_WEBSITE_ID=${{ vars.NEXT_PUBLIC_CRISP_WEBSITE_ID }} \            
+            --build-arg NEXT_PUBLIC_CRISP_WEBSITE_ID=${{ vars.NEXT_PUBLIC_CRISP_WEBSITE_ID }} \
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
