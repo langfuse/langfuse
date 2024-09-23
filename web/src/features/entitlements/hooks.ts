@@ -48,5 +48,9 @@ export const useOrgEntitlements = (): Entitlement[] => {
  */
 export const useHasOrgEntitlement = (entitlement: Entitlement): boolean => {
   const orgEntitlements = useOrgEntitlements();
+
+  const session = useSession();
+  if (session.data?.user?.admin) return true;
+
   return orgEntitlements.includes(entitlement);
 };
