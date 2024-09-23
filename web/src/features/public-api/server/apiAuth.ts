@@ -47,9 +47,7 @@ export class ApiAuthService {
     if (this.redis) {
       logger.info(`Invalidating API keys in redis for ${identifier}`);
       await this.redis.del(
-        filteredHashKeys
-          .filter((hash): hash is string => Boolean(hash))
-          .map((hash) => this.createRedisKey(hash)),
+        filteredHashKeys.map((hash) => this.createRedisKey(hash)),
       );
     }
   }

@@ -6,7 +6,7 @@ import { redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 const DeleteApiKeySchema = z.object({
-  projectId: z.string(),
+  projectIds: z.array(z.string()),
 });
 
 export default async function handler(
@@ -49,20 +49,24 @@ export default async function handler(
     // delete the API keys in the database first
     const apiKeysToBeDeleted = await prisma.apiKey.findMany({
       where: {
-        projectId: body.data.projectId,
+        projectId: {
+          in: body.data.projectIds,
+        },
       },
     });
 
     await prisma.apiKey.deleteMany({
       where: {
-        projectId: body.data.projectId,
+        projectId: {
+          in: body.data.projectIds,
+        },
       },
     });
 
     // then delete from the cache
     await new ApiAuthService(prisma, redis).invalidate(
       apiKeysToBeDeleted,
-      `project ${body.data.projectId}`,
+      `projects ${body.data.projectIds.join(", ")}`,
     );
   } catch (e) {
     res.status(500).json({ error: e });
