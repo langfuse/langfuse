@@ -82,7 +82,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
               <TableHead className="text-primary md:table-cell">
                 Provider
               </TableHead>
-              <TableHead className="hidden text-primary md:table-cell">
+              <TableHead className="text-primary md:table-cell">
                 Adapter
               </TableHead>
               <TableHead className="text-primary md:table-cell">
@@ -109,9 +109,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
                     {apiKey.createdAt.toLocaleDateString()}
                   </TableCell>
                   <TableCell className="font-mono">{apiKey.provider}</TableCell>
-                  <TableCell className="hidden font-mono">
-                    {apiKey.adapter}
-                  </TableCell>
+                  <TableCell className="font-mono">{apiKey.adapter}</TableCell>
                   <TableCell className="max-w-md overflow-auto font-mono">
                     {apiKey.baseURL ?? "default"}
                   </TableCell>
