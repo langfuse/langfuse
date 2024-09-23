@@ -387,7 +387,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         </div>
       )}
       {selectedTab === "timeline" && (
-        <div className="mt-5 flex-1 flex-col space-y-5 overflow-hidden">
+        <div className="mt-5 max-h-[calc(100dvh-16rem)] flex-1 flex-col space-y-5 overflow-hidden">
           <TraceTimelineView
             key={trace.data.id}
             trace={trace.data}

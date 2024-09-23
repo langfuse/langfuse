@@ -33,7 +33,7 @@ export class ApiAuthService {
   // this function needs to be called, when the organisation is updated
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
-  private async invalidate(apiKeys: ApiKey[], identifier: string) {
+  async invalidate(apiKeys: ApiKey[], identifier: string) {
     const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
 
     const filteredHashKeys = hashKeys.filter((hash): hash is string =>
@@ -47,9 +47,7 @@ export class ApiAuthService {
     if (this.redis) {
       logger.info(`Invalidating API keys in redis for ${identifier}`);
       await this.redis.del(
-        filteredHashKeys
-          .filter((hash): hash is string => Boolean(hash))
-          .map((hash) => this.createRedisKey(hash)),
+        filteredHashKeys.map((hash) => this.createRedisKey(hash)),
       );
     }
   }
