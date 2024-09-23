@@ -89,6 +89,9 @@ export const batchExportRouter = createTRPCRouter({
         return;
       } catch (e) {
         console.error(e);
+        if (e instanceof TRPCError) {
+          throw e;
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Creating export job failed.",
