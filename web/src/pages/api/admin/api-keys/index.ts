@@ -9,7 +9,10 @@ const DeleteApiKeySchema = z.object({
   projectId: z.string(),
 });
 
-export async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   try {
     // allow only POST requests
     if (req.method !== "DELETE") {
@@ -58,11 +61,6 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         projectId: body.data.projectId,
       },
     });
-
-    if (apiKeysToBeDeleted.length > 0) {
-      res.status(404).json({ error: "No API keys found" });
-      return;
-    }
 
     // then delete from the cache
     await new ApiAuthService(prisma, redis).invalidate(
