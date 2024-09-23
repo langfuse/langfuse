@@ -165,7 +165,7 @@ function TreeItemInner({
                 itemOffsetLabelWidth > SCALE_WIDTH
                   ? "mr-1"
                   : isPresent(latency)
-                    ? `-mr-${Math.min(12, Math.max(9, latency.toString().length + 4))}`
+                    ? `-mr-9`
                     : "-mr-6",
               )}
             >
@@ -407,7 +407,7 @@ export function TraceTimelineView({
                     className="absolute -right-2 text-xs text-muted-foreground"
                     key={index}
                   >
-                    {step.toFixed(2)}s
+                    {step.toFixed(latency.toString().length >= 8 ? 0 : 2)}s
                   </span>
                 ) : (
                   <div
