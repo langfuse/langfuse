@@ -58,6 +58,16 @@ ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 ARG NEXT_PUBLIC_BASE_PATH
 ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 
+# Sentry already needs to be set on build time to upload sourcemaps
+# This must not be set for OSS releases as we would share our Sentry secret.
+ARG SENTRY_AUTH_TOKEN
+ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
+ARG SENTRY_ORG
+ENV SENTRY_ORG=$SENTRY_ORG
+ARG SENTRY_PROJECT
+ENV SENTRY_PROJECT=$SENTRY_PROJECT
+
+
 # Accept build id as NEXT_PUBLIC_BUILD_ID or PORTER_NEXT_PUBLIC_BUILD_ID
 ARG PORTER_NEXT_PUBLIC_BUILD_ID
 ARG NEXT_PUBLIC_BUILD_ID
@@ -74,6 +84,9 @@ RUN rm -f ./web/src/middleware.ts
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NEXT_MANUAL_SIG_HANDLE true
+# set the CI flag to true to get CI specific logs
+ENV CI true
+
 
 RUN NODE_OPTIONS='--max-old-space-size=4096' turbo run build --filter=web
 
