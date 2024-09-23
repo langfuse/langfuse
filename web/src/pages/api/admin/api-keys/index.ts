@@ -2,7 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "@/src/env.mjs";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import { logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 const DeleteApiKeySchema = z.object({
@@ -21,6 +21,7 @@ export default async function handler(
     }
     // check if ADMIN_API_KEY is set
     if (!env.ADMIN_API_KEY) {
+      logger.error("ADMIN_API_KEY is not set");
       res.status(500).json({ error: "ADMIN_API_KEY is not set" });
       return;
     }
@@ -46,6 +47,10 @@ export default async function handler(
       return;
     }
 
+    logger.info(
+      `trying to remove API keys for projects ${body.data.projectIds.join(", ")}`,
+    );
+
     // delete the API keys in the database first
     const apiKeysToBeDeleted = await prisma.apiKey.findMany({
       where: {
@@ -68,6 +73,12 @@ export default async function handler(
       apiKeysToBeDeleted,
       `projects ${body.data.projectIds.join(", ")}`,
     );
+
+    logger.info(
+      `Removed API keys for projects ${body.data.projectIds.join(", ")}`,
+    );
+
+    res.status(200).json({ message: "API keys deleted" });
   } catch (e) {
     res.status(500).json({ error: e });
   }
