@@ -9,10 +9,7 @@ const DeleteApiKeySchema = z.object({
   projectId: z.string(),
 });
 
-export async function createNewSsoConfigHandler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
+export async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // allow only POST requests
     if (req.method !== "DELETE") {
