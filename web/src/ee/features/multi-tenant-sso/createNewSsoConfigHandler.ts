@@ -4,6 +4,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "@/src/env.mjs";
+import { logger } from "@langfuse/shared/src/server";
 
 export async function createNewSsoConfigHandler(
   req: NextApiRequest,
@@ -68,7 +69,7 @@ export async function createNewSsoConfigHandler(
       message: "SSO configuration created successfully",
     });
   } catch (e) {
-    console.log(e);
+    logger.error("Failed to create SSO configuration", e);
     res.status(500).json({ error: "Internal Server Error" });
   }
 }
