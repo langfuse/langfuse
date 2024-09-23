@@ -59,6 +59,7 @@ ARG NEXT_PUBLIC_BASE_PATH
 ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 
 # Sentry already needs to be set on build time to upload sourcemaps
+# This must not be set for OSS releases as we would share our Sentry secret.
 ARG SENTRY_AUTH_TOKEN
 ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
 ARG SENTRY_ORG
