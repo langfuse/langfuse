@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 /* 
 This API route is used by Langfuse Cloud to delete API keys for a project. It will return 403 for self-hosters.
