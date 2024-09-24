@@ -1,14 +1,11 @@
 import dd from "dd-trace";
-import opentelemetry from "@opentelemetry/api";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
-import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
+import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 import {
   envDetector,
   processDetector,
@@ -16,17 +13,12 @@ import {
 } from "@opentelemetry/resources";
 import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { env } from "@/src/env.mjs";
-// import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 
 if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
   dd.init({
     runtimeMetrics: true,
     plugins: false,
   });
-
-  const contextManager = new AsyncHooksContextManager().enable();
-
-  opentelemetry.context.setGlobalContextManager(contextManager);
 
   const sdk = new NodeSDK({
     resource: new Resource({
@@ -37,12 +29,20 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     }),
     instrumentations: [
       new IORedisInstrumentation(),
-      new HttpInstrumentation(),
+      new HttpInstrumentation({
+        requireParentforOutgoingSpans: true,
+        requestHook: (span, request: any) => {
+          const { method, url } = request;
+          let path = new URL(url, `http://${request.host}`).pathname;
+          if (path.startsWith("/_next/static")) {
+            path = "/_next/static/*";
+          }
+          span.updateName(`${method} ${path}`);
+        },
+      }),
       new PrismaInstrumentation(),
       new WinstonInstrumentation({ disableLogSending: true }),
-      getNodeAutoInstrumentations(),
-      new UndiciInstrumentation(),
-      // new BullMQInstrumentation(),
+      new BullMQInstrumentation(),
     ],
     resourceDetectors: [envDetector, processDetector, awsEcsDetector],
   });
