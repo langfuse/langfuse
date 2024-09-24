@@ -13,7 +13,7 @@ const DeleteApiKeySchema = z.object({
   projectIds: z.array(z.string()),
 });
 
-export default async function deleteApiKeys(
+export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
