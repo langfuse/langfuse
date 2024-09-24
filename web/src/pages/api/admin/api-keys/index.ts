@@ -1,9 +1,14 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { env } from "@/src/env.mjs";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+
+/* 
+This API route is used by Langfuse Cloud to delete API keys for a project. It will return 403 for self-hosters.
+We will work on admin APIs in the future. See the discussion here: https://github.com/orgs/langfuse/discussions/3243
+*/
 
 const DeleteApiKeySchema = z.object({
   projectIds: z.array(z.string()),
@@ -19,6 +24,12 @@ export default async function handler(
       res.status(405).json({ error: "Method Not Allowed" });
       return;
     }
+
+    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      res.status(403).json({ error: "Only accessible on Langfuse cloud" });
+      return;
+    }
+
     // check if ADMIN_API_KEY is set
     if (!env.ADMIN_API_KEY) {
       logger.error("ADMIN_API_KEY is not set");
