@@ -4,6 +4,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
+/* 
+This API route is used by Langfuse Cloud to delete API keys for a project.
+We will work on admin APIs in the future. See the discussion here: https://github.com/orgs/langfuse/discussions/3243
+*/
+
 const DeleteApiKeySchema = z.object({
   projectIds: z.array(z.string()),
 });
