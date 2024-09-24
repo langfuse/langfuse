@@ -375,6 +375,9 @@ importers:
       '@opentelemetry/instrumentation-winston':
         specifier: ^0.36.0
         version: 0.36.0(@opentelemetry/api@1.8.0)
+      '@opentelemetry/resource-detector-aws':
+        specifier: ^1.6.1
+        version: 1.6.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/resources':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.8.0)
@@ -812,6 +815,9 @@ importers:
       '@opentelemetry/instrumentation-winston':
         specifier: ^0.36.0
         version: 0.36.0(@opentelemetry/api@1.8.0)
+      '@opentelemetry/resource-detector-aws':
+        specifier: ^1.6.1
+        version: 1.6.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/resources':
         specifier: ^1.25.1
         version: 1.26.0(@opentelemetry/api@1.8.0)
@@ -3093,8 +3099,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': ^1.0.0
 
-  '@opentelemetry/resource-detector-aws@1.5.2':
-    resolution: {integrity: sha512-LNwKy5vJM5fvCDcbXVKwg6Y1pKT4WgZUsddGMnWMEhxJcQVZm2Z9vUkyHdQU7xvJtGwCO2/TkMWHPjU1KQNDJQ==}
+  '@opentelemetry/resource-detector-aws@1.6.1':
+    resolution: {integrity: sha512-A/3lqx9xoew7sFi+AVUUVr6VgB7UJ5qqddkKR3gQk9hWLm1R7HUXVJG09cLcZ7DMNpX13DohPRGmHE/vp1vafw==}
     engines: {node: '>=14'}
     peerDependencies:
       '@opentelemetry/api': ^1.0.0
@@ -13721,7 +13727,7 @@ snapshots:
       '@opentelemetry/instrumentation-tedious': 0.9.0(@opentelemetry/api@1.8.0)
       '@opentelemetry/instrumentation-winston': 0.36.0(@opentelemetry/api@1.8.0)
       '@opentelemetry/resource-detector-alibaba-cloud': 0.28.10(@opentelemetry/api@1.8.0)
-      '@opentelemetry/resource-detector-aws': 1.5.2(@opentelemetry/api@1.8.0)
+      '@opentelemetry/resource-detector-aws': 1.6.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/resource-detector-container': 0.3.11(@opentelemetry/api@1.8.0)
       '@opentelemetry/resource-detector-gcp': 0.29.10(@opentelemetry/api@1.8.0)
       '@opentelemetry/resources': 1.26.0(@opentelemetry/api@1.8.0)
@@ -14464,7 +14470,7 @@ snapshots:
       '@opentelemetry/resources': 1.26.0(@opentelemetry/api@1.8.0)
       '@opentelemetry/semantic-conventions': 1.27.0
 
-  '@opentelemetry/resource-detector-aws@1.5.2(@opentelemetry/api@1.8.0)':
+  '@opentelemetry/resource-detector-aws@1.6.1(@opentelemetry/api@1.8.0)':
     dependencies:
       '@opentelemetry/api': 1.8.0
       '@opentelemetry/core': 1.26.0(@opentelemetry/api@1.8.0)

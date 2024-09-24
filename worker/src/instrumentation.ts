@@ -10,7 +10,12 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
-import { Resource } from "@opentelemetry/resources";
+import {
+  envDetector,
+  processDetector,
+  Resource,
+} from "@opentelemetry/resources";
+import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { env } from "./env";
 // import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 
@@ -40,6 +45,7 @@ const sdk = new NodeSDK({
     new UndiciInstrumentation(),
     // new BullMQInstrumentation(),
   ],
+  resourceDetectors: [envDetector, processDetector, awsEcsDetector],
 });
 
 sdk.start();

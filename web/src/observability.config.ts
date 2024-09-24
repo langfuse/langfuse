@@ -9,7 +9,12 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
-import { Resource } from "@opentelemetry/resources";
+import {
+  envDetector,
+  processDetector,
+  Resource,
+} from "@opentelemetry/resources";
+import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { env } from "@/src/env.mjs";
 // import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 
@@ -39,6 +44,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new UndiciInstrumentation(),
       // new BullMQInstrumentation(),
     ],
+    resourceDetectors: [envDetector, processDetector, awsEcsDetector],
   });
 
   sdk.start();

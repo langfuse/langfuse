@@ -53,6 +53,7 @@
     "@opentelemetry/instrumentation-ioredis": "^0.42.0",
     "@opentelemetry/instrumentation-undici": "^0.4.0",
     "@opentelemetry/instrumentation-winston": "^0.36.0",
+    "@opentelemetry/resource-detector-aws": "^1.6.1",
     "@opentelemetry/resources": "^1.25.1",
     "@opentelemetry/sdk-metrics": "1.23.0",
     "@opentelemetry/sdk-node": "^0.50.0",
