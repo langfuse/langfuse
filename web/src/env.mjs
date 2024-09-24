@@ -289,6 +289,9 @@ export const env = createEnv({
     // Email
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
+    // Otel
+    OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     // S3
     S3_ENDPOINT: process.env.S3_ENDPOINT,
     S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
