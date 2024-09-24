@@ -5,7 +5,7 @@ import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
-import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
+// import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 import {
   envDetector,
   processDetector,
@@ -42,7 +42,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       }),
       new PrismaInstrumentation(),
       new WinstonInstrumentation({ disableLogSending: true }),
-      new BullMQInstrumentation(),
+      // new BullMQInstrumentation(),
     ],
     resourceDetectors: [envDetector, processDetector, awsEcsDetector],
   });
