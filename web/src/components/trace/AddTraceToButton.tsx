@@ -34,7 +34,7 @@ export const AddTraceToButton = (props: {
       <DropdownMenuContent>
         <CreateNewAnnotationQueueItem
           projectId={props.projectId}
-          itemId={props.traceId}
+          itemId={props.observationId ?? props.traceId}
           itemType={
             !!props.observationId
               ? AnnotationQueueObjectType.OBSERVATION

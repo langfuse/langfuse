@@ -2,6 +2,7 @@ import { prisma as _prisma, type Role } from "@langfuse/shared/src/db";
 
 export type AuditableResource =
   | "annotationQueue"
+  | "annotationQueueItem"
   | "organization"
   | "orgMembership"
   | "projectMembership"

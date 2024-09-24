@@ -16,10 +16,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { MoreVertical } from "lucide-react";
+import { ClipboardPen, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { DeleteAnnotationQueueButton } from "@/src/features/scores/components/DeleteAnnotationQueueButton";
 import { cn } from "@/src/utils/tailwind";
+import TableLink from "@/src/components/table/table-link";
+import Link from "next/link";
 
 type RowData = {
   key: {
@@ -52,7 +54,6 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
-      // TODO: make this a link to the queue
       accessorKey: "key",
       header: "Name",
       id: "key",
@@ -60,7 +61,12 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       isPinned: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
-        return <span>{key.name}</span>;
+        return key && "id" in key && typeof key.id === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/annotation-queues/${key.id}`}
+            value={key.name}
+          />
+        ) : undefined;
       },
     },
     {
@@ -130,6 +136,25 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       id: "createdAt",
       enableHiding: true,
       size: 150,
+    },
+    {
+      accessorKey: "processAction",
+      header: "Process",
+      id: "processAction",
+      isPinned: true,
+      cell: ({ row }) => {
+        const key: RowData["key"] = row.getValue("key");
+        return key && "id" in key && typeof key.id === "string" ? (
+          <Button variant="secondary" size="sm" asChild>
+            <Link
+              href={`/project/${projectId}/annotation-queues/${key.id}/items`}
+            >
+              <ClipboardPen className="mr-1 h-3 w-3" />
+              <span className="text-xs">Process queue</span>
+            </Link>
+          </Button>
+        ) : undefined;
+      },
     },
     {
       accessorKey: "actions",
