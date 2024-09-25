@@ -7,13 +7,17 @@ import {
   traceException,
   instrumentAsync,
   logger,
+  recordIncrement,
+  recordHistogram,
+  getBatchExportQueue,
+  recordGauge,
 } from "@langfuse/shared/src/server";
 import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 import { SpanKind } from "@opentelemetry/api";
 
 export const batchExportQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.BatchExport]>,
+  job: Job<TQueueJobTypes[QueueName.BatchExport]>
 ) => {
   return instrumentAsync(
     {
@@ -24,9 +28,35 @@ export const batchExportQueueProcessor = async (
     async () => {
       try {
         logger.info("Executing Batch Export Job", job.data.payload);
+
+        const startTime = Date.now();
+
+        const waitTime = Date.now() - job.timestamp;
+
+        recordIncrement("batch_export_queue_request");
+        recordHistogram("batch_export_queue_wait_time", waitTime, {
+          unit: "milliseconds",
+        });
+
         await handleBatchExportJob(job.data.payload);
 
         logger.info("Finished Batch Export Job", job.data.payload);
+
+        await getBatchExportQueue()
+          ?.count()
+          .then((count) => {
+            logger.debug(`Batch export queue length: ${count}`);
+            recordGauge("batch_export_queue_length", count, {
+              unit: "records",
+            });
+            return count;
+          })
+          .catch();
+        recordHistogram(
+          "batch_export_queue_processing_time",
+          Date.now() - startTime,
+          { unit: "milliseconds" }
+        );
 
         return true;
       } catch (e) {
@@ -44,11 +74,11 @@ export const batchExportQueueProcessor = async (
 
         logger.error(
           `Failed Batch Export job for id ${job.data.payload.batchExportId}`,
-          e,
+          e
         );
         traceException(e);
         throw e;
       }
-    },
+    }
   );
 };
