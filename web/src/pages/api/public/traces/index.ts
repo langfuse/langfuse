@@ -23,9 +23,10 @@ import { tokenCount } from "@/src/features/ingest/usage";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
-    name: "Create Trace",
+    name: "Create Trace (Legacy)",
     bodySchema: PostTracesV1Body,
     responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
+    rateLimitResource: "legacy-ingestion",
     fn: async ({ body, auth }) => {
       await telemetry();
 
