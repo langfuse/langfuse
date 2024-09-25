@@ -20,10 +20,9 @@ import { tokenCount } from "@/src/features/ingest/usage";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
-    name: "Create Score (Legacy)",
+    name: "Create Score",
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
-    rateLimitResource: "legacy-ingestion",
     fn: async ({ body, auth }) => {
       const event = {
         id: v4(),
