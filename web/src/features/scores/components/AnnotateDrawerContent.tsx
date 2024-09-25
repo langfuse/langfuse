@@ -141,6 +141,8 @@ export function AnnotateDrawerContent({
   projectId,
   type = "trace",
   source = "TraceDetail",
+  isSelectHidden = false,
+  isViewOnly = false,
 }: {
   traceId: string;
   scores: APIScore[];
@@ -151,6 +153,8 @@ export function AnnotateDrawerContent({
   projectId: string;
   type?: "trace" | "observation" | "session";
   source?: "TraceDetail" | "SessionDetail";
+  isSelectHidden?: boolean;
+  isViewOnly?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -499,48 +503,50 @@ export function AnnotateDrawerContent({
             href: "https://langfuse.com/docs/scores/manually",
           }}
         ></Header>
-        <div className="grid grid-flow-col items-center">
-          <MultiSelectKeyValues
-            title="Value"
-            align="end"
-            items="empty scores"
-            className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
-            onValueChange={handleOnCheckedChange}
-            options={configs
-              .filter(
-                (config) =>
-                  !config.isArchived ||
-                  fields.find((field) => field.configId === config.id),
-              )
-              .map((config) => ({
-                key: config.id,
-                value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-                disabled: fields.some(
-                  (field) => !!field.scoreId && field.configId === config.id,
-                ),
-                isArchived: config.isArchived,
-              }))}
-            values={fields
-              .filter((field) => !!field.configId)
-              .map((field) => ({
-                value: `${getScoreDataTypeIcon(field.dataType)} ${field.name}`,
-                key: field.configId as string,
-              }))}
-            controlButtons={
-              <CommandItem
-                onSelect={() => {
-                  capture("score_configs:manage_configs_item_click", {
-                    type: type,
-                    source: source,
-                  });
-                  router.push(`/project/${projectId}/settings/scores`);
-                }}
-              >
-                Manage score configs
-              </CommandItem>
-            }
-          />
-        </div>
+        {!isSelectHidden && (
+          <div className="grid grid-flow-col items-center">
+            <MultiSelectKeyValues
+              title="Value"
+              align="end"
+              items="empty scores"
+              className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
+              onValueChange={handleOnCheckedChange}
+              options={configs
+                .filter(
+                  (config) =>
+                    !config.isArchived ||
+                    fields.find((field) => field.configId === config.id),
+                )
+                .map((config) => ({
+                  key: config.id,
+                  value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+                  disabled: fields.some(
+                    (field) => !!field.scoreId && field.configId === config.id,
+                  ),
+                  isArchived: config.isArchived,
+                }))}
+              values={fields
+                .filter((field) => !!field.configId)
+                .map((field) => ({
+                  value: `${getScoreDataTypeIcon(field.dataType)} ${field.name}`,
+                  key: field.configId as string,
+                }))}
+              controlButtons={
+                <CommandItem
+                  onSelect={() => {
+                    capture("score_configs:manage_configs_item_click", {
+                      type: type,
+                      source: source,
+                    });
+                    router.push(`/project/${projectId}/settings/scores`);
+                  }}
+                >
+                  Manage score configs
+                </CommandItem>
+              }
+            />
+          </div>
+        )}
       </DrawerHeader>
       <Form {...form}>
         <form className="flex flex-col gap-4">
@@ -649,6 +655,7 @@ export function AnnotateDrawerContent({
                                           {...field}
                                           className="text-xs"
                                           value={field.value || ""}
+                                          disabled={isViewOnly}
                                         />
                                         {field.value !== score.comment && (
                                           <div className="grid w-full grid-cols-[1fr,1fr] gap-2">
@@ -675,7 +682,8 @@ export function AnnotateDrawerContent({
                                               className="text-xs"
                                               disabled={
                                                 !field.value ||
-                                                config.isArchived
+                                                config.isArchived ||
+                                                isViewOnly
                                               }
                                               loading={
                                                 mutUpdateScores.isLoading
@@ -735,7 +743,7 @@ export function AnnotateDrawerContent({
                                       value={field.value ?? undefined}
                                       type="number"
                                       className="text-xs"
-                                      disabled={config.isArchived}
+                                      disabled={config.isArchived || isViewOnly}
                                       onBlur={handleOnBlur({
                                         config,
                                         field,
@@ -765,7 +773,7 @@ export function AnnotateDrawerContent({
                                     renderSelect(categories) ? (
                                     <Select
                                       defaultValue={score.stringValue}
-                                      disabled={config.isArchived}
+                                      disabled={config.isArchived || isViewOnly}
                                       onValueChange={handleOnValueChange(
                                         score,
                                         index,
@@ -795,7 +803,7 @@ export function AnnotateDrawerContent({
                                     <ToggleGroup
                                       type="single"
                                       defaultValue={score.stringValue}
-                                      disabled={config.isArchived}
+                                      disabled={config.isArchived || isViewOnly}
                                       className={`grid grid-cols-${categories.length}`}
                                       onValueChange={handleOnValueChange(
                                         score,
@@ -881,7 +889,9 @@ export function AnnotateDrawerContent({
                               type="button"
                               className="px-0 pl-1"
                               title="Delete score from trace/observation"
-                              disabled={isScoreUnsaved(score.scoreId)}
+                              disabled={
+                                isScoreUnsaved(score.scoreId) || isViewOnly
+                              }
                               loading={mutDeleteScore.isLoading}
                               onClick={async () => {
                                 if (score.scoreId) {

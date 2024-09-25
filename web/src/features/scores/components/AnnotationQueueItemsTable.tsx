@@ -202,7 +202,7 @@ export function AnnotationQueueItemsTable({
         const id: QueueItemRowData["id"] = row.getValue("id");
         return (
           <TableLink
-            path={`/project/${projectId}/annotation-queues/${queueId}/items/${id}`}
+            path={`/project/${projectId}/annotation-queues/${queueId}/items?itemId=${id}&viewOnly=true`}
             value={id}
           />
         );
@@ -247,7 +247,9 @@ export function AnnotationQueueItemsTable({
       size: 60,
       cell: ({ row }) => {
         const status: QueueItemRowData["status"] = row.getValue("status");
-        return <StatusBadge type={status.toLowerCase()} />;
+        return (
+          <StatusBadge className="capitalize" type={status.toLowerCase()} />
+        );
       },
     },
     {
@@ -320,8 +322,6 @@ export function AnnotationQueueItemsTable({
     columns,
   );
 
-  console.log({ columnOrder });
-
   return (
     <>
       <DataTableToolbar
@@ -363,8 +363,8 @@ export function AnnotationQueueItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.queueItems.flatMap((item) =>
-                    Array(20).fill(convertToTableRow(item)),
+                  data: items.data.queueItems.map((item) =>
+                    convertToTableRow(item),
                   ),
                 }
         }

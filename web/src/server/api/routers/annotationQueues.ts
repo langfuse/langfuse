@@ -5,9 +5,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  type AnnotationQueueObjectType,
-  type AnnotationQueueStatus,
+  AnnotationQueueObjectType,
+  AnnotationQueueStatus,
   CreateQueueData,
+  filterAndValidateDbScoreConfigList,
   optionalPaginationZod,
   paginationZod,
   Prisma,
@@ -103,8 +104,23 @@ export const queueRouter = createTRPCRouter({
 
       return {
         ...queue,
-        scoreConfigs: configs,
+        scoreConfigs: filterAndValidateDbScoreConfigList(configs),
       };
+    }),
+  pendingItemsByQueueId: protectedProjectProcedure
+    .input(z.object({ queueId: z.string(), projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const items = await ctx.prisma.annotationQueueItem.findMany({
+        where: {
+          queueId: input.queueId,
+          projectId: input.projectId,
+          status: AnnotationQueueStatus.PENDING,
+        },
+        select: {
+          id: true,
+        },
+      });
+      return items.map((item) => item.id);
     }),
   create: protectedProjectProcedure
     .input(
@@ -261,5 +277,62 @@ export const queueRouter = createTRPCRouter({
           message: "Fetching annotation queue items failed.",
         });
       }
+    }),
+  next: protectedProjectProcedure
+    .input(
+      z.object({
+        queueId: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+      const item = await ctx.prisma.annotationQueueItem.findFirst({
+        where: {
+          queueId: input.queueId,
+          projectId: input.projectId,
+          status: AnnotationQueueStatus.PENDING,
+          OR: [
+            { editStartTime: null },
+            { editStartTime: { lt: fiveMinutesAgo } },
+          ],
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+
+      if (!item) return null;
+
+      await ctx.prisma.annotationQueueItem.update({
+        where: {
+          id: item.id,
+        },
+        data: {
+          editStartTime: now,
+          editStartByUserId: ctx.session.user.id,
+        },
+      });
+
+      if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
+        const observation = await ctx.prisma.observation.findUnique({
+          where: {
+            id: item.objectId,
+          },
+          select: {
+            id: true,
+            traceId: true,
+          },
+        });
+
+        return {
+          ...item,
+          parentObjectId: observation?.traceId,
+        };
+      }
+
+      return item;
     }),
 });

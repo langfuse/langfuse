@@ -14,6 +14,42 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 export const queueItemRouter = createTRPCRouter({
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        itemId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const item = await ctx.prisma.annotationQueueItem.findUnique({
+        where: {
+          id: input.itemId,
+          projectId: input.projectId,
+        },
+      });
+
+      if (!item) return null;
+
+      if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
+        const observation = await ctx.prisma.observation.findUnique({
+          where: {
+            id: item.objectId,
+          },
+          select: {
+            id: true,
+            traceId: true,
+          },
+        });
+
+        return {
+          ...item,
+          parentObjectId: observation?.traceId,
+        };
+      }
+
+      return item;
+    }),
   getItemsByObjectId: protectedProjectProcedure
     .input(
       z.object({
@@ -198,6 +234,8 @@ export const queueItemRouter = createTRPCRouter({
         },
         data: {
           status: AnnotationQueueStatus.COMPLETED,
+          completedAt: new Date(),
+          annotatorUserId: ctx.session.user.id,
         },
       });
 

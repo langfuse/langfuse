@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { ChevronRight, ClipboardPen } from "lucide-react";
+import { ChevronRight, ClipboardPen, Edit } from "lucide-react";
 import { Separator } from "@/src/components/ui/separator";
 import { useState } from "react";
 import { Badge } from "@/src/components/ui/badge";
@@ -37,9 +37,9 @@ const TableWithMetadataWrapper = ({
         {tableComponent}
       </div>
       <div
-        className={`my-2 flex flex-row ${isCollapsed ? "w-8" : "w-full"} h-full`}
+        className={`my-2 flex flex-row ${isCollapsed ? "w-8" : "w-full"} h-full overflow-hidden`}
       >
-        <div className="grid h-full w-full grid-cols-[auto,1fr] items-start gap-2">
+        <div className="grid h-full w-full grid-cols-[auto,1fr] items-start gap-2 overflow-hidden">
           <div className="grid h-full w-full grid-rows-[auto,1fr] gap-2">
             <Button
               variant="outline"
@@ -52,16 +52,20 @@ const TableWithMetadataWrapper = ({
             </Button>
             <Separator orientation="vertical" className="ml-4 h-full" />
           </div>
-          <div className={`${isCollapsed ? "hidden" : "block"} h-full w-full`}>
-            <Card className="mt-10 flex flex-col">
-              <CardHeader className="flex flex-col space-y-4">
-                <CardTitle className="flex justify-between text-xl font-bold leading-7 sm:tracking-tight">
-                  {cardTitleChildren}
-                </CardTitle>
-                <CardContent className="flex-1 space-y-4 p-0">
-                  {cardContentChildren}
-                </CardContent>
-              </CardHeader>
+          <div
+            className={`${isCollapsed ? "hidden" : "block"} mt-8 grid h-[calc(100%-2rem)] w-full grid-rows-[auto,1fr] gap-2 overflow-hidden p-2`}
+          >
+            <Card className="flex h-full flex-col overflow-hidden">
+              <div className="flex h-full overflow-y-auto">
+                <CardHeader className="flex h-full w-full flex-col space-y-4">
+                  <CardTitle className="flex justify-between text-xl font-bold leading-7 sm:tracking-tight">
+                    {cardTitleChildren}
+                  </CardTitle>
+                  <CardContent className="flex-1 space-y-4 p-0">
+                    {cardContentChildren}
+                  </CardContent>
+                </CardHeader>
+              </div>
             </Card>
           </div>
         </div>
@@ -91,6 +95,16 @@ export default function QueueItems() {
           },
           { name: queue.data?.name ?? queueId },
         ]}
+        actionButtons={
+          <Button asChild>
+            <Link
+              href={`/project/${projectId}/annotation-queues/${queueId}/items`}
+            >
+              <ClipboardPen className="mr-1 h-4 w-4" />
+              <span className="text-sm">Process queue</span>
+            </Link>
+          </Button>
+        }
       />
       <TableWithMetadataWrapper
         tableComponent={
@@ -99,13 +113,8 @@ export default function QueueItems() {
         cardTitleChildren={
           <>
             {queue.data?.name}
-            <Button asChild>
-              <Link
-                href={`/project/${projectId}/annotation-queues/${queueId}/items`} // TODO: fix link
-              >
-                <ClipboardPen className="mr-1 h-4 w-4" />
-                <span className="text-sm">Process queue</span>
-              </Link>
+            <Button variant="secondary" size="icon">
+              <Edit className="h-4 w-4" />
             </Button>
           </>
         }
