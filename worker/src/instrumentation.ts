@@ -12,7 +12,7 @@ import {
   processDetector,
   Resource,
 } from "@opentelemetry/resources";
-import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
+import { awsEcsDetectorSync } from "@opentelemetry/resource-detector-aws";
 import { env } from "./env";
 
 dd.init({
@@ -31,13 +31,16 @@ const sdk = new NodeSDK({
     new IORedisInstrumentation(),
     new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
-      requestHook: (span, request: any) => {
-        const { method, url } = request;
-        let path = new URL(url, `http://${request.host}`).pathname;
+      ignoreOutgoingRequestHook: (req) => {
+        return req.host === "127.0.0.1";
+      },
+      requestHook: (span, req: any) => {
+        const url = "path" in req ? req?.path : req?.url;
+        let path = new URL(url, `http://${req?.host ?? "localhost"}`).pathname;
         if (path.startsWith("/_next/static")) {
           path = "/_next/static/*";
         }
-        span.updateName(`${method} ${path}`);
+        span.updateName(`${req?.method} ${path}`);
       },
     }),
     new ExpressInstrumentation(),
@@ -45,7 +48,7 @@ const sdk = new NodeSDK({
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation(),
   ],
-  resourceDetectors: [envDetector, processDetector, awsEcsDetector],
+  resourceDetectors: [envDetector, processDetector, awsEcsDetectorSync],
 });
 
 sdk.start();
