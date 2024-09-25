@@ -32,13 +32,9 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new HttpInstrumentation({
         requireParentforOutgoingSpans: true,
         requestHook: (span, request: any) => {
-          // TODO: Remove
-          console.log("requestHook method", request?.method);
-          console.log("requestHook url", request?.url);
-          console.log("requestHook host", request?.host);
-          console.log("requestHook path", request?.path);
           const { method, url } = request;
-          let path = new URL(url, `http://${request.host}`).pathname;
+          let path = new URL(url, `http://${request?.host ?? "localhost"}`)
+            .pathname;
           if (path.startsWith("/_next/static")) {
             path = "/_next/static/*";
           }
