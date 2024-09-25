@@ -31,14 +31,14 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new IORedisInstrumentation(),
       new HttpInstrumentation({
         requireParentforOutgoingSpans: true,
-        requestHook: (span, request: any) => {
-          const { method, url } = request;
-          let path = new URL(url, `http://${request?.host ?? "localhost"}`)
+        requestHook: (span, req: any) => {
+          const url = "path" in req ? req?.path : req?.url;
+          let path = new URL(url, `http://${req?.host ?? "localhost"}`)
             .pathname;
           if (path.startsWith("/_next/static")) {
             path = "/_next/static/*";
           }
-          span.updateName(`${method} ${path}`);
+          span.updateName(`${req?.method} ${path}`);
         },
       }),
       new PrismaInstrumentation(),
