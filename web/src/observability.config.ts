@@ -1,7 +1,6 @@
 import dd from "dd-trace";
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-node";
-// import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
@@ -25,10 +24,9 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     resource: new Resource({
       "service.name": env.OTEL_SERVICE_NAME,
     }),
-    traceExporter: new ConsoleSpanExporter(),
-    // traceExporter: new OTLPTraceExporter({
-    //   url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`,
-    // }),
+    traceExporter: new OTLPTraceExporter({
+      url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`,
+    }),
     instrumentations: [
       new IORedisInstrumentation(),
       new HttpInstrumentation({
