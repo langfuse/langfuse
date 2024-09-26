@@ -24,7 +24,6 @@ import {
   ScoreProcessor,
   TraceProcessor,
 } from "@langfuse/shared/src/server";
-import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
