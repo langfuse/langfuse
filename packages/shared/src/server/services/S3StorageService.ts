@@ -31,7 +31,7 @@ export class S3StorageService {
 
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
     const credentials =
-      accessKeyId != undefined && secretAccessKey != undefined
+      accessKeyId !== undefined && secretAccessKey !== undefined
         ? {
             accessKeyId,
             secretAccessKey,
