@@ -183,7 +183,7 @@ export default async function handler(
             sortedBatch.map(async (event) => {
               return event.type !== eventTypes.SDK_LOG
                 ? s3Client.uploadJson(
-                    `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${event.body.id}/${event.id}.json`,
+                    `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${event.type}/${event.body.id}/${event.id}.json`,
                     event,
                   )
                 : Promise.resolve();
