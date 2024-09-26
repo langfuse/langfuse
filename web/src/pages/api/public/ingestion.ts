@@ -181,9 +181,10 @@ export default async function handler(
           });
           const results = await Promise.allSettled(
             sortedBatch.map(async (event) => {
+              const eventName = event.type.split("-").shift();
               return event.type !== eventTypes.SDK_LOG
                 ? s3Client.uploadJson(
-                    `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${event.type}/${event.body.id}/${event.id}.json`,
+                    `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${eventName}/${event.body.id}/${event.id}.json`,
                     event,
                   )
                 : Promise.resolve();
