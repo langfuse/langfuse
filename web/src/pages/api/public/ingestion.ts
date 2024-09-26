@@ -16,6 +16,7 @@ import {
   LegacyIngestionQueue,
   addTraceContext,
   S3StorageService,
+  instrumentAsync,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
@@ -165,36 +166,38 @@ export default async function handler(
     const sortedBatch = sortBatch(batch);
 
     if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true") {
-      if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
-        logger.warn(
-          "S3 event upload activated, but no bucket configured. Skipping upload.",
-        );
-      } else {
-        const s3Client = new S3StorageService({
-          accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-          secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-          bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-          endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-          region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-        });
-        const results = await Promise.allSettled(
-          sortedBatch.map(async (event) => {
-            return event.type !== eventTypes.SDK_LOG
-              ? s3Client.uploadJson(
-                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${event.body.id}/${event.id}.json`,
-                  event,
-                )
-              : Promise.resolve();
-          }),
-        );
-        results.forEach((result) => {
-          if (result.status === "rejected") {
-            logger.error("Failed to upload event to S3", {
-              error: result.reason,
-            });
-          }
-        });
-      }
+      await instrumentAsync({ name: "s3-upload-events" }, async () => {
+        if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
+          logger.warn(
+            "S3 event upload activated, but no bucket configured. Skipping upload.",
+          );
+        } else {
+          const s3Client = new S3StorageService({
+            accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+            secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+            bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+            endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+            region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+          });
+          const results = await Promise.allSettled(
+            sortedBatch.map(async (event) => {
+              return event.type !== eventTypes.SDK_LOG
+                ? s3Client.uploadJson(
+                    `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${event.body.id}/${event.id}.json`,
+                    event,
+                  )
+                : Promise.resolve();
+            }),
+          );
+          results.forEach((result) => {
+            if (result.status === "rejected") {
+              logger.error("Failed to upload event to S3", {
+                error: result.reason,
+              });
+            }
+          });
+        }
+      });
     }
 
     if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" && redis) {
