@@ -9,6 +9,7 @@ import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import opentelemetry from "@opentelemetry/api";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
+import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 // import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 
 const contextManager = new AsyncHooksContextManager().enable();
@@ -27,6 +28,7 @@ registerInstrumentations({
     new HttpInstrumentation(),
     new ExpressInstrumentation(),
     new PrismaInstrumentation(),
+    new AwsInstrumentation(),
     new WinstonInstrumentation({ disableLogSending: true }),
     getNodeAutoInstrumentations(),
     new UndiciInstrumentation(),

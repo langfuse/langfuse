@@ -26,6 +26,7 @@
     "@opentelemetry/auto-instrumentations-node": "^0.44.0",
     "@opentelemetry/context-async-hooks": "^1.25.1",
     "@opentelemetry/instrumentation": "^0.52.1",
+    "@opentelemetry/instrumentation-aws-sdk": "^0.44.0",
     "@opentelemetry/instrumentation-express": "^0.41.1",
     "@opentelemetry/instrumentation-http": "^0.52.1",
     "@opentelemetry/instrumentation-ioredis": "^0.42.0",
