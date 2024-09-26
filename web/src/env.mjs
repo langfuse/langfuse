@@ -152,7 +152,7 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
     LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().optional(),
+    LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
     LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
