@@ -390,7 +390,7 @@ export default function GenerationsTable({
         return latency !== undefined &&
           (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
           <span>
-            {usage.completionTokens
+            {usage.completionTokens && latency
               ? Number((usage.completionTokens / latency).toFixed(1))
               : undefined}
           </span>

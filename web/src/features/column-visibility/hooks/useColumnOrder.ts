@@ -40,7 +40,7 @@ function useColumnOrder<TData>(
     });
 
     setColumnOrder(finalColumnOrder);
-  }, [columnOrder, columns, localStorageKey, setColumnOrder]);
+  }, [columns, localStorageKey, setColumnOrder]);
 
   return [columnOrder, setColumnOrder] as const;
 }
