@@ -10,6 +10,7 @@ import opentelemetry from "@opentelemetry/api";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { logger } from "@langfuse/shared/src/server";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
+import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 
 if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
   logger.info("Initializing otel tracing");
@@ -53,6 +54,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new IORedisInstrumentation(),
       new HttpInstrumentation(),
       new PrismaInstrumentation(),
+      new AwsInstrumentation(),
       new WinstonInstrumentation({ disableLogSending: true }),
       getNodeAutoInstrumentations(),
       new UndiciInstrumentation(),
