@@ -372,6 +372,9 @@ importers:
       '@opentelemetry/resource-detector-aws':
         specifier: ^1.6.1
         version: 1.6.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resource-detector-container':
+        specifier: ^0.4.1
+        version: 0.4.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources':
         specifier: ^1.26.0
         version: 1.26.0(@opentelemetry/api@1.9.0)
@@ -803,6 +806,9 @@ importers:
       '@opentelemetry/resource-detector-aws':
         specifier: ^1.6.1
         version: 1.6.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resource-detector-container':
+        specifier: ^0.4.1
+        version: 0.4.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources':
         specifier: ^1.26.0
         version: 1.26.0(@opentelemetry/api@1.9.0)
@@ -2804,6 +2810,12 @@ packages:
 
   '@opentelemetry/resource-detector-aws@1.6.1':
     resolution: {integrity: sha512-A/3lqx9xoew7sFi+AVUUVr6VgB7UJ5qqddkKR3gQk9hWLm1R7HUXVJG09cLcZ7DMNpX13DohPRGmHE/vp1vafw==}
+    engines: {node: '>=14'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.0.0
+
+  '@opentelemetry/resource-detector-container@0.4.1':
+    resolution: {integrity: sha512-v0bvO6RxYtbxvY/HwqrPQnZ4UtP4nBq4AOyS30iqV2vEtiLTY1gNTbNvTF1lwN/gg/g5CY1tRSrHcYODDOv0vw==}
     engines: {node: '>=14'}
     peerDependencies:
       '@opentelemetry/api': ^1.0.0
@@ -13540,6 +13552,12 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.26.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources': 1.26.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/semantic-conventions': 1.27.0
+
+  '@opentelemetry/resource-detector-container@0.4.1(@opentelemetry/api@1.9.0)':
+    dependencies:
+      '@opentelemetry/api': 1.9.0
       '@opentelemetry/resources': 1.26.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.27.0
 

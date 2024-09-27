@@ -13,6 +13,7 @@ import {
   Resource,
 } from "@opentelemetry/resources";
 import { awsEcsDetectorSync } from "@opentelemetry/resource-detector-aws";
+import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "@/src/env.mjs";
 
 if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -51,7 +52,12 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new WinstonInstrumentation({ disableLogSending: true }),
       // new BullMQInstrumentation(),
     ],
-    resourceDetectors: [envDetector, processDetector, awsEcsDetectorSync],
+    resourceDetectors: [
+      envDetector,
+      processDetector,
+      awsEcsDetectorSync,
+      containerDetector,
+    ],
   });
 
   sdk.start();

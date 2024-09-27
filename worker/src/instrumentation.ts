@@ -14,6 +14,7 @@ import {
   Resource,
 } from "@opentelemetry/resources";
 import { awsEcsDetectorSync } from "@opentelemetry/resource-detector-aws";
+import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "./env";
 
 dd.init({
@@ -50,7 +51,12 @@ const sdk = new NodeSDK({
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation(),
   ],
-  resourceDetectors: [envDetector, processDetector, awsEcsDetectorSync],
+  resourceDetectors: [
+    envDetector,
+    processDetector,
+    awsEcsDetectorSync,
+    containerDetector,
+  ],
 });
 
 sdk.start();
