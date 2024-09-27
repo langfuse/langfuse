@@ -252,13 +252,20 @@ export default function Layout(props: PropsWithChildren) {
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
   ) {
-    const targetPath = router.query.targetPath as string | undefined;
+    const queryTargetPath = router.query.targetPath as string | undefined;
 
-    const sanitizedTargetPath = targetPath
-      ? DOMPurify.sanitize(targetPath)
+    const sanitizedTargetPath = queryTargetPath
+      ? DOMPurify.sanitize(queryTargetPath)
       : undefined;
 
-    void router.replace(sanitizedTargetPath ?? "/");
+    // only allow relative links
+    const targetPath =
+      sanitizedTargetPath?.startsWith("/") &&
+      !sanitizedTargetPath.startsWith("//")
+        ? sanitizedTargetPath
+        : "/";
+
+    void router.replace(targetPath);
     return <Spinner message="Redirecting" />;
   }
 
