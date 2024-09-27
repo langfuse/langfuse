@@ -229,7 +229,6 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run db:seed
 
       - name: Build
         run: pnpm run build
@@ -239,6 +238,16 @@ jobs:
 
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
+        env:
+          LANGFUSE_INIT_ORG_ID: "seed-org-id"
+          LANGFUSE_INIT_ORG_NAME: "Seed Org"
+          LANGFUSE_INIT_PROJECT_ID: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
+          LANGFUSE_INIT_PROJECT_NAME: "Seed Project"
+          LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "pk-lf-1234567890"
+          LANGFUSE_INIT_PROJECT_SECRET_KEY: "sk-lf-1234567890"
+          LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
+          LANGFUSE_INIT_USER_NAME: "Demo User"
+          LANGFUSE_INIT_USER_PASSWORD: "password"
 
   e2e-server-tests:
     runs-on: ubuntu-latest
