@@ -87,7 +87,7 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@types/lodash": "^4.17.7",
+    "@types/lodash": "^4.17.9",
     "@types/node": "^20.11.29",
     "@types/nodemailer": "^6.4.15",
     "@types/pg": "^8.11.6",
