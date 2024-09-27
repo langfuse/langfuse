@@ -43,6 +43,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
             path = "/_next/static/*";
           }
           span.updateName(`${req?.method} ${path}`);
+          span.setAttribute("http.route", path);
         },
       }),
       new PrismaInstrumentation(),
