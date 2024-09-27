@@ -235,7 +235,8 @@ export const AnnotationQueueItemPage: React.FC<{
               }}
               disabled={
                 (!nextItemData.data && totalItems === progressIndex + 1) ||
-                progressIndex === seenItemIds.length - 1
+                (progressIndex === seenItemIds.length - 1 &&
+                  progressIndex > (pendingItemIds.data?.length ?? 0))
               }
               size="lg"
               className="w-full"

@@ -9,7 +9,6 @@ import {
   AnnotationQueueStatus,
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
-import { Item } from "@radix-ui/react-select";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -131,6 +130,52 @@ export const queueItemRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Creating annotation queue failed.",
+        });
+      }
+    }),
+  createMany: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        queueId: z.string(),
+        objectIds: z.array(z.string()),
+        objectType: z.nativeEnum(AnnotationQueueObjectType),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "scoreConfigs:CUD",
+        });
+
+        const MAX_ITEMS = 500;
+        const limitedObjectIds = input.objectIds.slice(0, MAX_ITEMS);
+
+        const createdItems = await ctx.prisma.annotationQueueItem.createMany({
+          data: limitedObjectIds.map((objectId) => ({
+            projectId: input.projectId,
+            queueId: input.queueId,
+            objectId,
+            objectType: input.objectType,
+          })),
+          skipDuplicates: true,
+        });
+
+        return {
+          count: createdItems.count,
+          totalRequested: input.objectIds.length,
+          created: Math.min(input.objectIds.length, MAX_ITEMS),
+        };
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Creating multiple annotation queue items failed.",
         });
       }
     }),

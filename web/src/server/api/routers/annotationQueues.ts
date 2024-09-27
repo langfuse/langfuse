@@ -86,6 +86,25 @@ export const queueRouter = createTRPCRouter({
         })),
       };
     }),
+  allNamesAndIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const queueNamesAndIds = await ctx.prisma.annotationQueue.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      return queueNamesAndIds;
+    }),
   byId: protectedProjectProcedure
     .input(z.object({ queueId: z.string(), projectId: z.string() }))
     .query(async ({ input, ctx }) => {

@@ -145,7 +145,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return key && "id" in key && typeof key.id === "string" ? (
-          <Button variant="secondary" size="sm" asChild>
+          <Button variant="outline" size="sm" asChild>
             <Link
               href={`/project/${projectId}/annotation-queues/${key.id}/items`}
             >
