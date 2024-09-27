@@ -252,13 +252,20 @@ export default function Layout(props: PropsWithChildren) {
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
   ) {
-    const targetPath = router.query.targetPath as string | undefined;
+    const queryTargetPath = router.query.targetPath as string | undefined;
 
-    const sanitizedTargetPath = targetPath
-      ? DOMPurify.sanitize(targetPath)
+    const sanitizedTargetPath = queryTargetPath
+      ? DOMPurify.sanitize(queryTargetPath)
       : undefined;
 
-    void router.replace(sanitizedTargetPath ?? "/");
+    // only allow relative links
+    const targetPath =
+      sanitizedTargetPath?.startsWith("/") &&
+      !sanitizedTargetPath.startsWith("//")
+        ? sanitizedTargetPath
+        : "/";
+
+    void router.replace(targetPath);
     return <Spinner message="Redirecting" />;
   }
 
@@ -281,19 +288,19 @@ export default function Layout(props: PropsWithChildren) {
         <link
           rel="apple-touch-icon"
           sizes="180x180"
-          href="/apple-touch-icon.png"
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/apple-touch-icon.png`}
         />
         <link
           rel="icon"
           type="image/png"
           sizes="32x32"
-          href="/favicon-32x32.png"
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-32x32.png`}
         />
         <link
           rel="icon"
           type="image/png"
           sizes="16x16"
-          href="/favicon-16x16.png"
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16.png`}
         />
       </Head>
       <div>
