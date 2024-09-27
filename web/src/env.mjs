@@ -152,6 +152,15 @@ export const env = createEnv({
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
+    LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
+    LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
+    LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
+    LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
+    LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+    LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
     LANGFUSE_ASYNC_INGESTION_PROCESSING: z
       .enum(["true", "false"])
       .default("false"),
@@ -298,6 +307,21 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
     S3_REGION: process.env.S3_REGION,
+    // S3 event upload
+    LANGFUSE_S3_EVENT_UPLOAD_ENABLED:
+      process.env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED,
+    LANGFUSE_S3_EVENT_UPLOAD_BUCKET:
+      process.env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    LANGFUSE_S3_EVENT_UPLOAD_PREFIX:
+      process.env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX,
+    LANGFUSE_S3_EVENT_UPLOAD_REGION:
+      process.env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+    LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT:
+      process.env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+    LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID:
+      process.env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+    LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY:
+      process.env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
     // Worker

@@ -6,6 +6,7 @@ import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
+import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 import {
   envDetector,
@@ -45,6 +46,7 @@ const sdk = new NodeSDK({
     }),
     new ExpressInstrumentation(),
     new PrismaInstrumentation(),
+    new AwsInstrumentation(),
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation(),
   ],
