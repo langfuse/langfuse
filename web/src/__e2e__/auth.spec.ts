@@ -97,3 +97,44 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await expect(page).toHaveURL(promptUrl);
 });
+
+test("Unauthenticated user should not be redirected to non-relative URLs after login", async ({
+  page,
+}) => {
+  const nonRelativeUrl = "https://example.com";
+  await page.goto(
+    `/auth/sign-in?targetPath=${encodeURIComponent(nonRelativeUrl)}`,
+  );
+
+  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[type="password"]', "password");
+  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+
+  // Wait for navigation
+  await page.waitForTimeout(2000);
+
+  // Expect to be redirected to the home page, not the non-relative URL
+  await expect(page).toHaveURL("/");
+
+  // Verify we're logged in
+  await expect(page.getByRole("button", { name: /Demo User/ })).toBeVisible();
+});
+
+test("Unauthenticated user should be redirected to relative URL after login", async ({
+  page,
+}) => {
+  const relativeUrl = "/support";
+  await page.goto(
+    `/auth/sign-in?targetPath=${encodeURIComponent(relativeUrl)}`,
+  );
+
+  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[type="password"]', "password");
+  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+
+  // Wait for navigation
+  await page.waitForTimeout(2000);
+
+  // Expect to be redirected to the relative URL
+  await expect(page).toHaveURL(relativeUrl);
+});
