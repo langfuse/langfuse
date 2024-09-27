@@ -87,9 +87,11 @@ export function createTracesQuery({
       AND "type" = 'GENERATION'
       AND "project_id" = ${projectId}
       ${observationTimeseriesFilter}
-  ) AS tm ON true
+  ) AS generation_metrics ON true
   LEFT JOIN LATERAL (
     SELECT
+      COUNT(*) AS "observationCount",
+      EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency",
       COALESCE(  
         MAX(CASE WHEN level = 'ERROR' THEN 'ERROR' END),  
         MAX(CASE WHEN level = 'WARNING' THEN 'WARNING' END),  
@@ -97,23 +99,12 @@ export function createTracesQuery({
         'DEBUG'  
       ) AS "level"
     FROM
-      "observations_view"
-    WHERE
-      trace_id = t.id
-      AND "project_id" = ${projectId}
-      ${observationTimeseriesFilter}
-  ) AS lm ON true
-  LEFT JOIN LATERAL (
-    SELECT
-      COUNT(*) AS "observationCount",
-      EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
-    FROM
         "observations"
     WHERE
         trace_id = t.id
         AND "project_id" = ${projectId}
          ${observationTimeseriesFilter}
-  ) AS tl ON true
+  ) AS observation_metrics ON true
   LEFT JOIN LATERAL (
     SELECT
       ${selectScoreValues ? Prisma.sql`jsonb_object_agg(name::text, "values") AS "scores_values",` : Prisma.empty}
