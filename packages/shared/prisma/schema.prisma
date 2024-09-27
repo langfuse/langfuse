@@ -177,7 +177,6 @@ model LlmApiKeys {
     project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
     @@unique([projectId, provider])
-    @@index([projectId, provider])
     @@map("llm_api_keys")
 }
 
@@ -194,7 +193,6 @@ model OrganizationMembership {
 
     @@unique([orgId, userId])
     @@index([userId])
-    @@index([orgId])
     @@map("organization_memberships")
 }
 
@@ -287,7 +285,6 @@ model Trace {
 
     JobExecution JobExecution[]
 
-    @@index([projectId])
     @@index([projectId, timestamp])
     @@index([sessionId])
     @@index([name])
@@ -378,12 +375,9 @@ model Observation {
     @@index([projectId, internalModel, startTime, unit])
     @@index([traceId, projectId, type, startTime])
     @@index([traceId, projectId, startTime])
-    @@index([traceId, projectId])
-    @@index([traceId])
     @@index([type])
     @@index(startTime)
     @@index(createdAt)
-    @@index(projectId)
     @@index(model)
     @@index(internalModel)
     @@index([projectId, promptId])
@@ -479,7 +473,6 @@ model Score {
     @@unique([id, projectId]) // used for upserts via prisma
     @@index(timestamp)
     @@index([value])
-    @@index([projectId])
     @@index([projectId, name])
     @@index([authorUserId])
     @@index([configId])
@@ -598,7 +591,6 @@ model Dataset {
 
     @@id([id, projectId])
     @@unique([projectId, name])
-    @@index([projectId], type: Hash)
     @@index([createdAt])
     @@index([updatedAt])
     @@map("datasets")
@@ -732,9 +724,7 @@ model Prompt {
     labels   String[] @default([])
 
     @@unique([projectId, name, version])
-    @@index([projectId, name, version])
     @@index([projectId, id])
-    @@index([projectId])
     @@index([createdAt])
     @@index([updatedAt])
     @@index([tags(ops: ArrayOps)], type: Gin)
@@ -761,8 +751,6 @@ model Model {
     tokenizerConfig Json?     @map("tokenizer_config")
 
     @@unique([projectId, modelName, startDate, unit])
-    @@index([projectId, modelName, startDate, unit])
-    @@index([projectId, modelName])
     @@index(modelName)
     @@map("models")
 }
@@ -811,7 +799,6 @@ model EvalTemplate {
 
     @@unique([projectId, name, version])
     @@index([projectId, id])
-    @@index([projectId])
     @@map("eval_templates")
 }
 
@@ -846,7 +833,6 @@ model JobConfiguration {
     JobExecution    JobExecution[]
 
     @@index([projectId, id])
-    @@index([projectId])
     @@map("job_configurations")
 }
 
@@ -881,7 +867,6 @@ model JobExecution {
 
     @@index([projectId, status])
     @@index([projectId, id])
-    @@index([projectId])
     @@index([jobConfigurationId])
     @@index([jobOutputScoreId])
     @@index([jobInputTraceId])
@@ -914,7 +899,6 @@ model PosthogIntegration {
     enabled                Boolean
     createdAt              DateTime  @default(now()) @map("created_at")
 
-    @@index([projectId])
     @@map("posthog_integrations")
 }
 

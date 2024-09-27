@@ -19,7 +19,7 @@ import { tokenCount } from "../features/tokenisation/usage";
 import { SpanKind } from "@opentelemetry/api";
 
 export const legacyIngestionQueueProcessor: Processor = async (
-  job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>,
+  job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>
 ) => {
   return instrumentAsync(
     {
@@ -32,13 +32,29 @@ export const legacyIngestionQueueProcessor: Processor = async (
       try {
         const startTime = Date.now();
         logger.info("Processing legacy ingestion", {
-          payload: job.data.payload,
+          payload: job.data.payload.data.map(({ body, ...rest }) => {
+            let modifiedBody = body;
+            if (body && "input" in modifiedBody) {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { input, ...restPayload } = modifiedBody || {};
+              modifiedBody = restPayload;
+            }
+            if (body && "output" in modifiedBody) {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { output, ...restPayload } = modifiedBody || {};
+              modifiedBody = restPayload;
+            }
+            return {
+              ...rest,
+              body: modifiedBody,
+            };
+          }),
         });
 
         // Log wait time
         const waitTime = Date.now() - job.timestamp;
         logger.debug(
-          `Received flush request after ${waitTime} ms for ${job.data.payload.authCheck.scope.projectId}`,
+          `Received flush request after ${waitTime} ms for ${job.data.payload.authCheck.scope.projectId}`
         );
 
         recordIncrement("legacy_ingestion_processing_request");
@@ -49,13 +65,13 @@ export const legacyIngestionQueueProcessor: Processor = async (
         const result = await handleBatch(
           job.data.payload.data,
           job.data.payload.authCheck,
-          tokenCount,
+          tokenCount
         );
 
         // send out REDIS requests to worker for all trace types
         await sendToWorkerIfEnvironmentConfigured(
           result.results,
-          job.data.payload.authCheck.scope.projectId,
+          job.data.payload.authCheck.scope.projectId
         );
 
         // Log queue size
@@ -72,16 +88,16 @@ export const legacyIngestionQueueProcessor: Processor = async (
         recordHistogram(
           "legacy_ingestion_processing_time",
           Date.now() - startTime,
-          { unit: "milliseconds" },
+          { unit: "milliseconds" }
         );
       } catch (e) {
         logger.error(
           `Failed job Evaluation for traceId ${job.data.payload}`,
-          e,
+          e
         );
         traceException(e);
         throw e;
       }
-    },
+    }
   );
 };

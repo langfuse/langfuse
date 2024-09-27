@@ -9,7 +9,6 @@ import {
   FilterCondition,
   Prisma,
   TimeFilter,
-  tracesTableCols,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -20,8 +19,10 @@ import {
   streamTransformations,
   BatchExportJobType,
   createTracesQuery,
-  orderByToPrismaSql,
-  tableColumnsToSqlFilterAndPrefix,
+  createGenerationsQuery,
+  parseGetAllGenerationsInput,
+  parseTraceAllFilters,
+  FullObservationsWithScores,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
@@ -31,32 +32,73 @@ import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 const tableNameToTimeFilterColumn = {
   sessions: "createdAt",
   traces: "timestamp",
+  generations: "startTime",
 };
 
-const isTimestampFilter = (filter: FilterCondition): filter is TimeFilter => {
+const isGenerationTimestampFilter = (
+  filter: FilterCondition
+): filter is TimeFilter => {
+  return filter.column === "Start Time" && filter.type === "datetime";
+};
+
+const isTraceTimestampFilter = (
+  filter: FilterCondition
+): filter is TimeFilter => {
   return filter.column === "Timestamp" && filter.type === "datetime";
 };
 
-const parseTracesOrderByAndFilter = (
-  orderBy: BatchExportQueryType["orderBy"],
-  filter: BatchExportQueryType["filter"]
+const getEmptyScoreColumns = async (
+  projectId: string,
+  cutoffCreatedAt: Date,
+  filter: FilterCondition[],
+  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter
 ) => {
-  const orderByCondition = orderByToPrismaSql(orderBy, tracesTableCols);
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    filter ?? [],
-    tracesTableCols,
-    "traces"
-  );
-
   const scoreTimestampFilter = filter?.find(isTimestampFilter);
 
-  return {
-    orderByCondition,
-    filterCondition,
-    scoreTimestampFilterCondition: scoreTimestampFilter
-      ? Prisma.sql`AND s.timestamp >= ${scoreTimestampFilter.value}`
-      : Prisma.empty,
-  };
+  const scoreTimestampFilterCondition = scoreTimestampFilter
+    ? Prisma.sql`AND s.timestamp >= ${scoreTimestampFilter.value}`
+    : Prisma.empty;
+
+  const distinctScoreNames = await prisma.$queryRaw<{ name: string }[]>`
+        SELECT DISTINCT name
+        FROM scores s
+        WHERE s.project_id = ${projectId}
+        AND s.created_at <= ${cutoffCreatedAt}
+        ${scoreTimestampFilterCondition}
+      `;
+
+  return distinctScoreNames.reduce(
+    (acc, { name }) => ({ ...acc, [name]: null }),
+    {} as Record<string, null>
+  );
+};
+
+const getChunkWithFlattenedScores = <
+  T extends BatchExportTracesRow[] | FullObservationsWithScores,
+>(
+  chunk: T,
+  emptyScoreColumns: Record<string, null>
+) => {
+  return chunk.map((row) => {
+    const { scores, ...data } = row;
+    if (!scores) return { ...data, ...emptyScoreColumns };
+    const scoreColumns = Object.entries(scores).reduce<
+      Record<string, string[] | number[] | null>
+    >((acc, [key, value]) => {
+      if (key in emptyScoreColumns) {
+        return {
+          ...acc,
+          [key]: value,
+        };
+      } else {
+        return acc;
+      }
+    }, emptyScoreColumns);
+    return {
+      ...data,
+      ...scoreColumns,
+    };
+  });
 };
 
 const getDatabaseReadStream = async ({
@@ -116,27 +158,64 @@ const getDatabaseReadStream = async ({
         1000,
         env.BATCH_EXPORT_ROW_LIMIT
       );
-    case "traces": {
-      const {
-        orderByCondition,
-        filterCondition,
-        scoreTimestampFilterCondition,
-      } = parseTracesOrderByAndFilter(
-        orderBy,
-        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter]
+    case "generations": {
+      const { orderByCondition, filterCondition, datetimeFilter } =
+        parseGetAllGenerationsInput({
+          projectId,
+          orderBy,
+          filter: filter
+            ? [...filter, createdAtCutoffFilter]
+            : [createdAtCutoffFilter],
+        });
+
+      const emptyScoreColumns = await getEmptyScoreColumns(
+        projectId,
+        cutoffCreatedAt,
+        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter],
+        isGenerationTimestampFilter
       );
 
-      const distinctScoreNames = await prisma.$queryRaw<{ name: string }[]>`
-        SELECT DISTINCT name
-        FROM scores s
-        WHERE s.project_id = ${projectId}
-        AND s.created_at <= ${cutoffCreatedAt}
-        ${scoreTimestampFilterCondition}
-      `;
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const query = createGenerationsQuery({
+            projectId,
+            limit: pageSize,
+            page: Math.floor(offset / pageSize),
+            filterCondition,
+            orderByCondition,
+            datetimeFilter,
+            selectScoreValues: true,
+            selectIOAndMetadata: true,
+          });
+          const chunk =
+            await prisma.$queryRaw<FullObservationsWithScores>(query);
 
-      const emptyScoreColumns = distinctScoreNames.reduce(
-        (acc, { name }) => ({ ...acc, [name]: null }),
-        {}
+          const chunkWithFlattenedScores = getChunkWithFlattenedScores(
+            chunk,
+            emptyScoreColumns
+          );
+
+          return chunkWithFlattenedScores;
+        },
+        1000,
+        env.BATCH_EXPORT_ROW_LIMIT
+      );
+    }
+    case "traces": {
+      const { orderByCondition, filterCondition, observationTimeseriesFilter } =
+        parseTraceAllFilters({
+          projectId,
+          orderBy,
+          filter: filter
+            ? [...filter, createdAtCutoffFilter]
+            : [createdAtCutoffFilter],
+        });
+
+      const emptyScoreColumns = await getEmptyScoreColumns(
+        projectId,
+        cutoffCreatedAt,
+        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter],
+        isTraceTimestampFilter
       );
 
       return new DatabaseReadStream<unknown>(
@@ -148,10 +227,10 @@ const getDatabaseReadStream = async ({
               t."timestamp",
               t."name",
               t."user_id" AS "userId",
-              tm."level" AS "level",
-              tl."observationCount" AS "observationCount",
+              observation_metrics."level" AS "level",
+              observation_metrics."observationCount" AS "observationCount",
               s_avg."scores_values" AS "scores",
-              tl.latency AS "latency",
+              observation_metrics.latency AS "latency",
               t."release",
               t."version",
               t.session_id AS "sessionId",
@@ -159,43 +238,27 @@ const getDatabaseReadStream = async ({
               t."output",
               t."metadata",
               t."tags",
-              COALESCE(tm."promptTokens", 0)::bigint AS "usage.promptTokens",
-              COALESCE(tm."completionTokens", 0)::bigint AS "usage.completionTokens",
-              COALESCE(tm."totalTokens", 0)::bigint AS "usage.totalTokens",
-              COALESCE(tm."calculatedInputCost", 0)::numeric AS "inputCost",
-              COALESCE(tm."calculatedOutputCost", 0)::numeric AS "outputCost",
-              COALESCE(tm."calculatedTotalCost", 0)::numeric AS "totalCost"
+              COALESCE(generation_metrics."promptTokens", 0)::bigint AS "usage.promptTokens",
+              COALESCE(generation_metrics."completionTokens", 0)::bigint AS "usage.completionTokens",
+              COALESCE(generation_metrics."totalTokens", 0)::bigint AS "usage.totalTokens",
+              COALESCE(generation_metrics."calculatedInputCost", 0)::numeric AS "inputCost",
+              COALESCE(generation_metrics."calculatedOutputCost", 0)::numeric AS "outputCost",
+              COALESCE(generation_metrics."calculatedTotalCost", 0)::numeric AS "totalCost"
               `,
             projectId,
             limit: pageSize,
             page: Math.floor(offset / pageSize),
             filterCondition,
             orderByCondition,
+            observationTimeseriesFilter,
             selectScoreValues: true,
           });
           const chunk = await prisma.$queryRaw<BatchExportTracesRow[]>(query);
 
-          const chunkWithFlattenedScores = chunk.map((row) => {
-            const { scores, ...data } = row;
-            if (!scores) return { ...data, ...emptyScoreColumns };
-            const scoreColumns = Object.entries(scores).reduce(
-              (acc, [key, value]) => {
-                if (key in emptyScoreColumns) {
-                  return {
-                    ...acc,
-                    [key]: value,
-                  };
-                } else {
-                  return acc;
-                }
-              },
-              emptyScoreColumns
-            );
-            return {
-              ...data,
-              ...scoreColumns,
-            };
-          });
+          const chunkWithFlattenedScores = getChunkWithFlattenedScores(
+            chunk,
+            emptyScoreColumns
+          );
 
           return chunkWithFlattenedScores;
         },
