@@ -79,7 +79,17 @@ export function createTracesQuery({
       SUM(total_tokens) AS "totalTokens",
       SUM(calculated_total_cost) AS "calculatedTotalCost",
       SUM(calculated_input_cost) AS "calculatedInputCost",
-      SUM(calculated_output_cost) AS "calculatedOutputCost",
+      SUM(calculated_output_cost) AS "calculatedOutputCost"
+    FROM
+      "observations_view"
+    WHERE
+      trace_id = t.id
+      AND "type" = 'GENERATION'
+      AND "project_id" = ${projectId}
+      ${observationTimeseriesFilter}
+  ) AS tm ON true
+  LEFT JOIN LATERAL (
+    SELECT
       COALESCE(  
         MAX(CASE WHEN level = 'ERROR' THEN 'ERROR' END),  
         MAX(CASE WHEN level = 'WARNING' THEN 'WARNING' END),  
@@ -90,10 +100,9 @@ export function createTracesQuery({
       "observations_view"
     WHERE
       trace_id = t.id
-      AND "type" = 'GENERATION'
       AND "project_id" = ${projectId}
       ${observationTimeseriesFilter}
-  ) AS tm ON true
+  ) AS lm ON true
   LEFT JOIN LATERAL (
     SELECT
       COUNT(*) AS "observationCount",

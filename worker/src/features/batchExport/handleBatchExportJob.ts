@@ -227,7 +227,7 @@ const getDatabaseReadStream = async ({
               t."timestamp",
               t."name",
               t."user_id" AS "userId",
-              tm."level" AS "level",
+              lm."level" AS "level",
               tl."observationCount" AS "observationCount",
               s_avg."scores_values" AS "scores",
               tl.latency AS "latency",

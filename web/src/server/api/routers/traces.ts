@@ -143,7 +143,7 @@ export const traceRouter = createTRPCRouter({
           COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
           COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
           COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
-          tm."level" AS "level"
+          lm."level" AS "level"
         `,
         projectId: input.projectId,
         filterCondition: Prisma.sql`AND t.id IN (${Prisma.join(input.traceIds)})`,
