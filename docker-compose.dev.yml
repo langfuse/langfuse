@@ -28,7 +28,7 @@ services:
   postgres:
     image: postgres:${POSTGRES_VERSION:-latest}
     restart: always
-    command: ["postgres", "-c", "log_statement=all"]
+    command: ["postgres", "-c", "log_statement=all", "-c", "max_connections=500"]
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
