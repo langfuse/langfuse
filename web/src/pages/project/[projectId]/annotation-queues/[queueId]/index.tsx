@@ -11,13 +11,14 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { ChevronRight, ClipboardPen } from "lucide-react";
+import { ChevronRight, ClipboardPen, Lock } from "lucide-react";
 import { Separator } from "@/src/components/ui/separator";
 import { useState } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import Link from "next/link";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/scores/components/CreateOrEditAnnotationQueueButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 const TableWithMetadataWrapper = ({
   tableComponent,
@@ -85,6 +86,11 @@ export default function QueueItems() {
     projectId,
   });
 
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "annotationQueues:CUD",
+  });
+
   return (
     <FullScreenPage>
       <Header
@@ -97,14 +103,21 @@ export default function QueueItems() {
           { name: queue.data?.name ?? queueId },
         ]}
         actionButtons={
-          <Button asChild>
-            <Link
-              href={`/project/${projectId}/annotation-queues/${queueId}/items`}
-            >
-              <ClipboardPen className="mr-1 h-4 w-4" />
+          !hasAccess ? (
+            <Button disabled>
+              <Lock className="mr-1 h-4 w-4" />
               <span className="text-sm">Process queue</span>
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button asChild>
+              <Link
+                href={`/project/${projectId}/annotation-queues/${queueId}/items`}
+              >
+                <ClipboardPen className="mr-1 h-4 w-4" />
+                <span className="text-sm">Process queue</span>
+              </Link>
+            </Button>
+          )
         }
       />
       <TableWithMetadataWrapper

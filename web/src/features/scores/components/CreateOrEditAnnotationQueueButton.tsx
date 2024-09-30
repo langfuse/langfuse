@@ -44,7 +44,7 @@ export const CreateOrEditAnnotationQueueButton = ({
   const [isOpen, setIsOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId: projectId,
-    scope: "scoreConfigs:CUD",
+    scope: "annotationQueues:CUD",
   });
 
   const queueQuery = api.annotationQueues.byId.useQuery(

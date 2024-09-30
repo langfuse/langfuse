@@ -16,12 +16,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { ClipboardPen, MoreVertical } from "lucide-react";
+import { ClipboardPen, Lock, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { DeleteAnnotationQueueButton } from "@/src/features/scores/components/DeleteAnnotationQueueButton";
 import { cn } from "@/src/utils/tailwind";
 import TableLink from "@/src/components/table/table-link";
 import Link from "next/link";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type RowData = {
   key: {
@@ -50,6 +51,11 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     projectId: projectId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+  });
+
+  const hasAccess = useHasProjectAccess({
+    projectId: projectId,
+    scope: "annotationQueues:CUD",
   });
 
   const columns: LangfuseColumnDef<RowData>[] = [
@@ -144,7 +150,12 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       isPinned: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
-        return key && "id" in key && typeof key.id === "string" ? (
+        return !hasAccess ? (
+          <Button variant="outline" size="sm" disabled>
+            <Lock className="mr-1 h-3 w-3" />
+            <span className="text-xs">Process queue</span>
+          </Button>
+        ) : (
           <Button variant="outline" size="sm" asChild>
             <Link
               href={`/project/${projectId}/annotation-queues/${key.id}/items`}
@@ -153,7 +164,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
               <span className="text-xs">Process queue</span>
             </Link>
           </Button>
-        ) : undefined;
+        );
       },
     },
     {

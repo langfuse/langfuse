@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { api } from "@/src/utils/api";
 import {
@@ -156,6 +157,11 @@ export const AnnotationQueueItemPage: React.FC<{
     0,
   );
 
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "annotationQueues:CUD",
+  });
+
   useEffect(() => {
     const viewOnlyParam = router.query.viewOnly;
     isViewOnly.current = viewOnlyParam === "true";
@@ -279,7 +285,7 @@ export const AnnotationQueueItemPage: React.FC<{
             <Button
               onClick={() => setProgressIndex(progressIndex - 1)}
               variant="outline"
-              disabled={progressIndex === 0}
+              disabled={progressIndex === 0 || !hasAccess}
               size="lg"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -293,7 +299,7 @@ export const AnnotationQueueItemPage: React.FC<{
                   await nextItemData.refetch();
                 }
               }}
-              disabled={!isNextItemAvailable}
+              disabled={!isNextItemAvailable || !hasAccess}
               size="lg"
               className="w-full"
             >
@@ -311,7 +317,7 @@ export const AnnotationQueueItemPage: React.FC<{
                   });
                 }}
                 size="lg"
-                disabled={completeMutation.isLoading}
+                disabled={completeMutation.isLoading || !hasAccess}
               >
                 Mark as complete
               </Button>

@@ -27,7 +27,7 @@ export const CreateNewAnnotationQueueItem = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId: projectId,
-    scope: "scoreConfigs:CUD",
+    scope: "annotationQueues:CUD",
   });
   const queues = api.annotationQueueItems.getItemsByObjectId.useQuery({
     projectId,

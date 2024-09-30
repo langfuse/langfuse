@@ -50,7 +50,7 @@ export const queueRouter = createTRPCRouter({
           FROM
             annotation_queues aq
           LEFT JOIN
-            annotation_queue_items aqi ON aq.id = aqi.queue_id
+            annotation_queue_items aqi ON aq.id = aqi.queue_id 
           WHERE
             aq.project_id = ${input.projectId}
           GROUP BY
@@ -153,7 +153,7 @@ export const queueRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "scoreConfigs:CUD",
+          scope: "annotationQueues:CUD",
         });
 
         const queue = await ctx.prisma.annotationQueue.create({
@@ -210,7 +210,7 @@ export const queueRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "scoreConfigs:CUD",
+          scope: "annotationQueues:CUD",
         });
 
         const queue = await ctx.prisma.annotationQueue.findFirst({
@@ -258,7 +258,7 @@ export const queueRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "scoreConfigs:CUD",
+          scope: "annotationQueues:CUD",
         });
         const queue = await ctx.prisma.annotationQueue.delete({
           where: { id: input.queueId, projectId: input.projectId },

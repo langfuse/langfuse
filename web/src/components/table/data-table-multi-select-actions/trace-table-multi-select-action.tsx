@@ -68,10 +68,10 @@ export function TraceTableMultiSelectAction({
     },
   });
 
-  // const hasAddToQueueAccess = useHasProjectAccess({
-  //   projectId,
-  //   scope: "annotationQueueItems:CUD",
-  // });
+  const hasAddToQueueAccess = useHasProjectAccess({
+    projectId,
+    scope: "annotationQueues:CUD",
+  });
   const mutAddToQueue = api.annotationQueueItems.createMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
@@ -113,11 +113,8 @@ export function TraceTableMultiSelectAction({
             <span>Delete</span>
           </DropdownMenuItem>
           <DropdownMenuItem
+            disabled={!hasAddToQueueAccess}
             onClick={() => {
-              // capture("trace:add_to_queue_form_open", {
-              //   count: selectedTraceIds.length,
-              //   source: "table-multi-select",
-              // });
               setAddToQueueDialogOpen(true);
             }}
           >
@@ -194,10 +191,6 @@ export function TraceTableMultiSelectAction({
                     .then(() => {
                       setAddToQueueDialogOpen(false);
                     });
-                  // capture("trace:add_to_queue_form_submit", {
-                  //   count: selectedTraceIds.length,
-                  //   source: "table-multi-select",
-                  // });
                 }
               })}
             >

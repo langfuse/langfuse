@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/ui/checkbox";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -43,10 +44,10 @@ const QueueItemTableMultiSelectAction = ({
   const utils = api.useUtils();
   const [open, setOpen] = useState(false);
 
-  // const hasDeleteAccess = useHasProjectAccess({
-  //   projectId,
-  //   scope: "traces:delete",
-  // });
+  const hasDeleteAccess = useHasProjectAccess({
+    projectId,
+    scope: "annotationQueues:CUD",
+  });
   const mutDeleteItems = api.annotationQueueItems.deleteMany.useMutation({
     onSuccess: () => {
       onDeleteSuccess();
@@ -65,7 +66,7 @@ const QueueItemTableMultiSelectAction = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem
-            // disabled={!hasDeleteAccess}
+            disabled={!hasDeleteAccess}
             onClick={() => {
               setOpen(true);
             }}

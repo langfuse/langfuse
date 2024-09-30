@@ -24,7 +24,7 @@ export const DeleteAnnotationQueueButton = ({
   const [isOpen, setIsOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId: projectId,
-    scope: "scoreConfigs:CUD",
+    scope: "annotationQueues:CUD",
   });
   const utils = api.useUtils();
   const mutDelete = api.annotationQueues.delete.useMutation({

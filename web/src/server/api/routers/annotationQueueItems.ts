@@ -111,7 +111,7 @@ export const queueItemRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "scoreConfigs:CUD",
+          scope: "annotationQueues:CUD",
         });
         const queueItem = await ctx.prisma.annotationQueueItem.create({
           data: {
@@ -148,14 +148,11 @@ export const queueItemRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "scoreConfigs:CUD",
+          scope: "annotationQueues:CUD",
         });
 
-        const MAX_ITEMS = 500;
-        const limitedObjectIds = input.objectIds.slice(0, MAX_ITEMS);
-
         const createdItems = await ctx.prisma.annotationQueueItem.createMany({
-          data: limitedObjectIds.map((objectId) => ({
+          data: input.objectIds.map((objectId) => ({
             projectId: input.projectId,
             queueId: input.queueId,
             objectId,
@@ -167,7 +164,7 @@ export const queueItemRouter = createTRPCRouter({
         return {
           count: createdItems.count,
           totalRequested: input.objectIds.length,
-          created: Math.min(input.objectIds.length, MAX_ITEMS),
+          created: input.objectIds.length,
         };
       } catch (error) {
         logger.error(error);
@@ -194,7 +191,7 @@ export const queueItemRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "scoreConfigs:CUD",
+          scope: "annotationQueues:CUD",
         });
 
         const item = await ctx.prisma.annotationQueueItem.findFirst({
@@ -248,7 +245,7 @@ export const queueItemRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "scoreConfigs:CUD",
+          scope: "annotationQueues:CUD",
         });
 
         for (const itemId of input.itemIds) {
@@ -289,20 +286,37 @@ export const queueItemRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const item = await ctx.prisma.annotationQueueItem.updateMany({
-        where: {
-          queueId: input.annotationQueueId,
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
           projectId: input.projectId,
-          objectId: input.objectId,
-          objectType: input.objectType,
-        },
-        data: {
-          status: AnnotationQueueStatus.COMPLETED,
-          completedAt: new Date(),
-          annotatorUserId: ctx.session.user.id,
-        },
-      });
+          scope: "annotationQueues:CUD",
+        });
 
-      return item;
+        const item = await ctx.prisma.annotationQueueItem.updateMany({
+          where: {
+            queueId: input.annotationQueueId,
+            projectId: input.projectId,
+            objectId: input.objectId,
+            objectType: input.objectType,
+          },
+          data: {
+            status: AnnotationQueueStatus.COMPLETED,
+            completedAt: new Date(),
+            annotatorUserId: ctx.session.user.id,
+          },
+        });
+
+        return item;
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Completing annotation queue item failed.",
+        });
+      }
     }),
 });
