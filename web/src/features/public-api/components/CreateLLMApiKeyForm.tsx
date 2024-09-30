@@ -71,8 +71,9 @@ export function CreateLLMApiKeyForm({
 
   const mutTestLLMApiKey = api.llmApiKey.test.useMutation();
 
-  const defaultAdapter =
-    customization?.defaultModelAdapter ?? LLMAdapter.OpenAI;
+  const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
+    ? LLMAdapter[customization.defaultModelAdapter]
+    : LLMAdapter.OpenAI;
 
   const getCustomizedBaseURL = (adapter: LLMAdapter) => {
     switch (adapter) {

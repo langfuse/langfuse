@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createEnv } from "@t3-oss/env-nextjs";
-import { LLMAdapter } from "@langfuse/shared";
 
 export const env = createEnv({
   /**
@@ -123,7 +122,7 @@ export const env = createEnv({
     LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
     LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.string().url().optional(),
     LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.string().url().optional(),
-    LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z.nativeEnum(LLMAdapter).optional(),
+    LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z.enum(["OpenAI", "Anthropic", "Azure"]).optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.string().url().optional(),
