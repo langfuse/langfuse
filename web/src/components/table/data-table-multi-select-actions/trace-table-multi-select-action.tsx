@@ -38,6 +38,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useSession } from "next-auth/react";
 
 const addToQueueFormSchema = z.object({
   queueId: z.string(),
@@ -55,6 +56,7 @@ export function TraceTableMultiSelectAction({
   const utils = api.useUtils();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [addToQueueDialogOpen, setAddToQueueDialogOpen] = useState(false);
+  const session = useSession();
   const capture = usePostHogClientCapture();
 
   const hasDeleteAccess = useHasProjectAccess({
@@ -85,9 +87,12 @@ export function TraceTableMultiSelectAction({
     resolver: zodResolver(addToQueueFormSchema),
   });
 
-  const queues = api.annotationQueues.allNamesAndIds.useQuery({
-    projectId,
-  });
+  const queues = api.annotationQueues.allNamesAndIds.useQuery(
+    {
+      projectId,
+    },
+    { enabled: session.status === "authenticated" },
+  );
 
   return (
     <>
