@@ -516,12 +516,12 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces on or after a certain datetime (ISO 8601)"
+                  "description": "Optional filter to only include traces and observations on or after a certain datetime (ISO 8601)"
                 },
                 {
                   "key": "toTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces before a certain datetime (ISO 8601)"
+                  "description": "Optional filter to only include traces and observations before a certain datetime (ISO 8601)"
                 }
               ],
               "variable": []
