@@ -1,3 +1,5 @@
+import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenuItem,
@@ -10,8 +12,13 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { type AnnotationQueueObjectType } from "@langfuse/shared";
-import { ChevronDown, ExternalLink, LockIcon, PlusIcon } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+import {
+  AnnotationQueueStatus,
+  type AnnotationQueueObjectType,
+} from "@langfuse/shared";
+import { ChevronDown, ExternalLink, PlusIcon } from "lucide-react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useState, useCallback } from "react";
 
@@ -25,15 +32,19 @@ export const CreateNewAnnotationQueueItem = ({
   itemType: AnnotationQueueObjectType;
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const session = useSession();
   const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "annotationQueues:CUD",
   });
-  const queues = api.annotationQueueItems.getItemsByObjectId.useQuery({
-    projectId,
-    objectId: itemId,
-    objectType: itemType,
-  });
+  const queues = api.annotationQueueItems.getItemsByObjectId.useQuery(
+    {
+      projectId,
+      objectId: itemId,
+      objectType: itemType,
+    },
+    { enabled: session.status === "authenticated" },
+  );
   const utils = api.useUtils();
   const addToQueueMutation = api.annotationQueueItems.create.useMutation();
   const removeFromQueueMutation = api.annotationQueueItems.delete.useMutation();
@@ -81,12 +92,16 @@ export const CreateNewAnnotationQueueItem = ({
     ],
   );
 
-  if (!hasAccess) {
+  if (session.status !== "authenticated" || queues.isLoading) {
     return (
-      <DropdownMenuItem>
-        <LockIcon className="ml-1.5 h-3 w-3" aria-hidden="true" />
-        In {queues.data?.totalCount ?? 0} queue(s)
-      </DropdownMenuItem>
+      <Button
+        variant="ghost"
+        disabled
+        size="icon"
+        className="h-6 w-8 px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+      >
+        <ChevronDown className="h-3 w-3" />
+      </Button>
     );
   }
 
@@ -94,7 +109,11 @@ export const CreateNewAnnotationQueueItem = ({
     <DropdownMenu
       key="queue"
       open={isDropdownOpen}
-      onOpenChange={setIsDropdownOpen}
+      onOpenChange={() => {
+        if (hasAccess) {
+          setIsDropdownOpen(!isDropdownOpen);
+        }
+      }}
     >
       <DropdownMenuTrigger asChild>
         <Button
@@ -138,6 +157,19 @@ export const CreateNewAnnotationQueueItem = ({
               }}
             >
               {queue.name}
+              {queue.status && (
+                <Badge
+                  className={cn(
+                    "ml-2 px-1 py-0.5 text-[10px] capitalize",
+                    queue.status === AnnotationQueueStatus.COMPLETED
+                      ? "bg-light-green text-dark-green"
+                      : "bg-light-yellow text-dark-yellow",
+                  )}
+                  variant="outline"
+                >
+                  {queue.status.toLowerCase()}
+                </Badge>
+              )}
             </DropdownMenuCheckboxItem>
           ))
         ) : (
