@@ -41,10 +41,19 @@ CREATE INDEX "annotation_queues_id_project_id_idx" ON "annotation_queues"("id", 
 CREATE UNIQUE INDEX "annotation_queues_project_id_name_key" ON "annotation_queues"("project_id", "name");
 
 -- CreateIndex
-CREATE INDEX "annotation_queue_items_queue_id_status_idx" ON "annotation_queue_items"("queue_id", "status");
+CREATE INDEX "annotation_queues_project_id_created_at_idx" ON "annotation_queues"("project_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "annotation_queue_items_project_id_queue_id_status_idx" ON "annotation_queue_items"("project_id", "queue_id", "status");
 
 -- CreateIndex
 CREATE INDEX "annotation_queue_items_id_project_id_idx" ON "annotation_queue_items"("id", "project_id");
+
+-- CreateIndex
+CREATE INDEX "annotation_queue_items_object_id_object_type_project_id_que_idx" ON "annotation_queue_items"("object_id", "object_type", "project_id", "queue_id");
+
+-- CreateIndex
+CREATE INDEX "annotation_queue_items_annotator_user_id_idx" ON "annotation_queue_items"("annotator_user_id");
 
 -- AddForeignKey
 ALTER TABLE "annotation_queues" ADD CONSTRAINT "annotation_queues_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
