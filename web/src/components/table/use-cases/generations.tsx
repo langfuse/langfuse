@@ -768,7 +768,7 @@ export default function GenerationsTable({
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
-          plan && isCloudPlan(plan) ? (
+          false ? (
             <BatchExportTableButton
               {...{ projectId, filterState, orderByState }}
               tableName={BatchExportTableName.Generations}
