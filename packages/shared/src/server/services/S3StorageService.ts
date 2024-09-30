@@ -88,6 +88,21 @@ export class S3StorageService {
     }
   }
 
+  public async download(path: string): Promise<string> {
+    const getCommand = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: path,
+    });
+
+    try {
+      const response = await this.client.send(getCommand);
+      return (await response.Body?.transformToString()) ?? "";
+    } catch (err) {
+      logger.error(`Failed to download file from S3 ${path}`, err);
+      throw Error("Failed to download file from S3");
+    }
+  }
+
   private async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
