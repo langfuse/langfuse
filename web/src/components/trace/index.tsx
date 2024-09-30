@@ -41,7 +41,9 @@ export function Trace(props: {
   trace: Trace;
   scores: APIScore[];
   projectId: string;
+  viewType?: "detailed" | "focused";
 }) {
+  const viewType = props.viewType ?? "detailed";
   const capture = usePostHogClientCapture();
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -151,6 +153,7 @@ export function Trace(props: {
             observations={props.observations}
             scores={props.scores}
             commentCounts={traceCommentCounts.data}
+            viewType={viewType}
           />
         ) : (
           <ObservationPreview
@@ -160,6 +163,7 @@ export function Trace(props: {
             currentObservationId={currentObservationId}
             traceId={props.trace.id}
             commentCounts={observationCommentCounts.data}
+            viewType={viewType}
           />
         )}
       </div>

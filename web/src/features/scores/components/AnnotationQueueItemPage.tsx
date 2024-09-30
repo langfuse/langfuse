@@ -1,7 +1,13 @@
+import { Trace } from "@/src/components/trace";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 import { TracePreview } from "@/src/components/trace/TracePreview";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
@@ -15,21 +21,34 @@ import {
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef } from "react";
+import { StringParam, useQueryParam } from "use-query-params";
 
 const AnnotateIOView = ({
   item,
   configs,
   isViewOnly,
+  view,
 }: {
   item: AnnotationQueueItem & { parentObjectId?: string | null };
   configs: ValidatedScoreConfig[];
   isViewOnly: boolean;
+  view: "showTree" | "hideTree";
 }) => {
   const router = useRouter();
   const traceId = item.parentObjectId ?? item.objectId;
+  const projectId = router.query.projectId as string;
+  const [panelSize, setPanelSize] = useSessionStorage(
+    `annotationQueuePanelSize-${projectId}`,
+    65,
+  );
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_, setCurrentObservationId] = useQueryParam(
+    "observation",
+    StringParam,
+  );
 
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
-    { traceId, projectId: router.query.projectId as string },
+    { traceId, projectId },
     {
       retry(failureCount, error) {
         if (error.data?.code === "UNAUTHORIZED") return false;
@@ -40,31 +59,64 @@ const AnnotateIOView = ({
 
   if (trace.isLoading || !trace.data) return <div>Loading...</div>;
 
+  if (view === "showTree") {
+    if (item.objectType === AnnotationQueueObjectType.OBSERVATION)
+      setCurrentObservationId(item.objectId);
+    else setCurrentObservationId(undefined);
+  }
+
   return (
-    <div className="grid h-full grid-cols-2 gap-4 overflow-hidden">
-      <div className="col-span-1 h-full overflow-y-auto">
-        {item.objectType === AnnotationQueueObjectType.TRACE ? (
-          <TracePreview
-            key={trace.data.id}
-            trace={trace.data}
-            scores={trace.data.scores}
-            observations={trace.data.observations}
-            viewType="focused"
-            className="h-full"
-          />
+    <ResizablePanelGroup
+      direction="horizontal"
+      className="h-full overflow-hidden"
+      onLayout={(sizes) => {
+        setPanelSize(sizes[0]);
+      }}
+    >
+      <ResizablePanel
+        className="col-span-1 h-full !overflow-y-auto"
+        minSize={30}
+        defaultSize={panelSize}
+      >
+        {view === "hideTree" ? (
+          item.objectType === AnnotationQueueObjectType.TRACE ? (
+            <TracePreview
+              key={trace.data.id}
+              trace={trace.data}
+              scores={trace.data.scores}
+              observations={trace.data.observations}
+              viewType="focused"
+              className="h-full"
+            />
+          ) : (
+            <ObservationPreview
+              observations={trace.data.observations}
+              scores={trace.data.scores}
+              projectId={item.projectId}
+              currentObservationId={item.objectId}
+              traceId={traceId}
+              viewType="focused"
+              className="h-full"
+            />
+          )
         ) : (
-          <ObservationPreview
-            observations={trace.data.observations}
-            scores={trace.data.scores}
-            projectId={item.projectId}
-            currentObservationId={item.objectId}
-            traceId={traceId}
-            viewType="focused"
-            className="h-full"
-          />
+          <Card className="col-span-2 flex h-full flex-col overflow-hidden p-2">
+            <Trace
+              key={trace.data.id}
+              trace={trace.data}
+              scores={trace.data.scores}
+              projectId={trace.data.projectId}
+              observations={trace.data.observations}
+              viewType="focused"
+            />
+          </Card>
         )}
-      </div>
-      <div className="col-span-1 h-full md:flex md:flex-col md:overflow-hidden">
+      </ResizablePanel>
+      <ResizableHandle withHandle className="ml-4 bg-transparent" />
+      <ResizablePanel
+        className="col-span-1 h-full md:flex md:flex-col md:overflow-hidden"
+        minSize={30}
+      >
         <Card className="col-span-2 flex h-full flex-col overflow-hidden">
           {/* TODO: ensure configs keep their order */}
           <AnnotateDrawerContent
@@ -82,15 +134,16 @@ const AnnotateIOView = ({
             queueId={item.queueId}
           />
         </Card>
-      </div>
-    </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 };
 
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
   projectId: string;
-}> = ({ annotationQueueId, projectId }) => {
+  view: "showTree" | "hideTree";
+}> = ({ annotationQueueId, projectId, view }) => {
   const router = useRouter();
   const isViewOnly = useRef<boolean>(false);
 
@@ -204,12 +257,18 @@ export const AnnotationQueueItemPage: React.FC<{
     return <div>No more items left to annotate!</div>;
   }
 
+  const isNextItemAvailable =
+    (nextItemData.data && totalItems > progressIndex + 1) ||
+    progressIndex < seenItemIds.length - 1 ||
+    progressIndex < (pendingItemIds.data?.length ?? 1) - 1;
+
   return (
     <div className="grid h-full grid-rows-[1fr,auto] gap-4 overflow-hidden">
       <AnnotateIOView
         item={relevantItem}
         configs={configs}
         isViewOnly={isViewOnly.current}
+        view={view}
       />
       {!isViewOnly.current ? (
         <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
@@ -234,11 +293,7 @@ export const AnnotationQueueItemPage: React.FC<{
                   await nextItemData.refetch();
                 }
               }}
-              disabled={
-                (!nextItemData.data && totalItems === progressIndex + 1) ||
-                (progressIndex === seenItemIds.length - 1 &&
-                  progressIndex > (pendingItemIds.data?.length ?? 0))
-              }
+              disabled={!isNextItemAvailable}
               size="lg"
               className="w-full"
             >

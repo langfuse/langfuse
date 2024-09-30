@@ -57,6 +57,7 @@ export const CreateNewAnnotationQueueItem = ({
               projectId,
               objectId: itemId,
               objectType: itemType,
+              queueId,
             });
           }
         }

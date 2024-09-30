@@ -186,6 +186,7 @@ export const queueItemRouter = createTRPCRouter({
         projectId: z.string(),
         objectId: z.string(),
         objectType: z.nativeEnum(AnnotationQueueObjectType),
+        queueId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -201,6 +202,7 @@ export const queueItemRouter = createTRPCRouter({
             objectId: input.objectId,
             objectType: input.objectType,
             projectId: input.projectId,
+            queueId: input.queueId,
           },
         });
 

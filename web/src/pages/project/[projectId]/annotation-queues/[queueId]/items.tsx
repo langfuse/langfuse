@@ -1,7 +1,10 @@
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
+import { Button } from "@/src/components/ui/button";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { AnnotationQueueItemPage } from "@/src/features/scores/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
+import { Network } from "lucide-react";
 import { useRouter } from "next/router";
 
 export default function AnnotationQueues() {
@@ -24,6 +27,11 @@ export default function AnnotationQueues() {
     },
   );
 
+  const [view, setView] = useSessionStorage<"hideTree" | "showTree">(
+    `annotationQueueView-${projectId}`,
+    "hideTree",
+  );
+
   return (
     <FullScreenPage>
       <Header
@@ -35,10 +43,23 @@ export default function AnnotationQueues() {
           },
           { name: annotationQueueId },
         ]}
+        actionButtons={
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() =>
+              setView(view === "hideTree" ? "showTree" : "hideTree")
+            }
+            title={view === "hideTree" ? "Show trace tree" : "Hide trace tree"}
+          >
+            <Network className="h-4 w-4"></Network>
+          </Button>
+        }
       />
       <AnnotationQueueItemPage
         projectId={projectId}
         annotationQueueId={annotationQueueId}
+        view={view}
       />
     </FullScreenPage>
   );
