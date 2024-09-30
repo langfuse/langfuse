@@ -7,9 +7,6 @@ groups:
         output:
           location: local-file-system
           path: ../../../web/public/generated/api
-        config:
-          namespaceExport: Langfuse
-          allowCustomFetcher: true
       - name: fernapi/fern-python-sdk
         version: 2.16.0
         output:
