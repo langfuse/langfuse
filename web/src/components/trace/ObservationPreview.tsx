@@ -23,8 +23,8 @@ import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/compon
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
-import { AddTraceToButton } from "@/src/components/trace/AddTraceToButton";
 import { cn } from "@/src/utils/tailwind";
+import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 
 export const ObservationPreview = ({
   observations,
@@ -213,7 +213,7 @@ export const ObservationPreview = ({
                 />
               )}
               {observationWithInputAndOutput.data ? (
-                <AddTraceToButton
+                <NewDatasetItemFromTrace
                   traceId={preloadedObservation.traceId}
                   observationId={preloadedObservation.id}
                   projectId={projectId}

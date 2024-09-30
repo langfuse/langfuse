@@ -7,6 +7,7 @@ import {
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -183,7 +184,8 @@ export const queueItemRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        itemId: z.string(),
+        objectId: z.string(),
+        objectType: z.nativeEnum(AnnotationQueueObjectType),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -193,9 +195,22 @@ export const queueItemRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "scoreConfigs:CUD",
         });
+
+        const item = await ctx.prisma.annotationQueueItem.findFirst({
+          where: {
+            objectId: input.objectId,
+            objectType: input.objectType,
+            projectId: input.projectId,
+          },
+        });
+
+        if (!item) {
+          throw new LangfuseNotFoundError("Annotation queue item not found.");
+        }
+
         const deletedItem = await ctx.prisma.annotationQueueItem.delete({
           where: {
-            id: input.itemId,
+            id: item.id,
             projectId: input.projectId,
           },
         });
@@ -206,6 +221,8 @@ export const queueItemRouter = createTRPCRouter({
           action: "delete",
           session: ctx.session,
         });
+
+        return deletedItem;
       } catch (error) {
         logger.error(error);
         if (error instanceof TRPCError) {

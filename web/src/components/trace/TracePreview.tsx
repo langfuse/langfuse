@@ -20,8 +20,8 @@ import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
-import { AddTraceToButton } from "@/src/components/trace/AddTraceToButton";
 import { cn } from "@/src/utils/tailwind";
+import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 
 export const TracePreview = ({
   trace,
@@ -131,7 +131,7 @@ export const TracePreview = ({
                 setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                 key={"annotation-drawer" + trace.id}
               />
-              <AddTraceToButton
+              <NewDatasetItemFromTrace
                 traceId={trace.id}
                 projectId={trace.projectId}
                 input={trace.input}
