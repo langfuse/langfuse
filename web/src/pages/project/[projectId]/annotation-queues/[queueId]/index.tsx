@@ -11,12 +11,13 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { ChevronRight, ClipboardPen, Edit } from "lucide-react";
+import { ChevronRight, ClipboardPen } from "lucide-react";
 import { Separator } from "@/src/components/ui/separator";
 import { useState } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import Link from "next/link";
+import { CreateOrEditAnnotationQueueButton } from "@/src/features/scores/components/CreateOrEditAnnotationQueueButton";
 
 const TableWithMetadataWrapper = ({
   tableComponent,
@@ -113,9 +114,10 @@ export default function QueueItems() {
         cardTitleChildren={
           <>
             {queue.data?.name}
-            <Button variant="secondary" size="icon">
-              <Edit className="h-4 w-4" />
-            </Button>
+            <CreateOrEditAnnotationQueueButton
+              projectId={projectId}
+              queueId={queueId}
+            />
           </>
         }
         cardContentChildren={

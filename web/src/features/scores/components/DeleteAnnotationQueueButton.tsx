@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { Trash } from "lucide-react";
+import { LockIcon, Trash } from "lucide-react";
 import React, { useState } from "react";
 
 type DeleteAnnotationQueueButtonProps = {
@@ -34,9 +34,13 @@ export const DeleteAnnotationQueueButton = ({
   });
 
   const button = (
-    <Button variant="ghost" className="w-full" disabled={!hasAccess}>
+    <Button variant="ghost" disabled={!hasAccess}>
       <div className="flex w-full flex-row items-center gap-1">
-        <Trash className="h-4 w-4" />
+        {hasAccess ? (
+          <Trash className="-ml-0.5 mr-1.5 h-4 w-4" />
+        ) : (
+          <LockIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
+        )}
         <span className="text-sm font-normal">Delete</span>
       </div>
     </Button>

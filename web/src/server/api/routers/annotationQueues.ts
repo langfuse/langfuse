@@ -9,6 +9,7 @@ import {
   AnnotationQueueStatus,
   CreateQueueData,
   filterAndValidateDbScoreConfigList,
+  LangfuseNotFoundError,
   optionalPaginationZod,
   paginationZod,
   Prisma,
@@ -194,6 +195,59 @@ export const queueRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Creating annotation queue failed.",
+        });
+      }
+    }),
+  update: protectedProjectProcedure
+    .input(
+      CreateQueueData.extend({
+        projectId: z.string(),
+        queueId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "scoreConfigs:CUD",
+        });
+
+        const queue = await ctx.prisma.annotationQueue.findFirst({
+          where: { id: input.queueId, projectId: input.projectId },
+        });
+
+        if (!queue) {
+          throw new LangfuseNotFoundError("Queue not found in project");
+        }
+
+        const updatedQueue = await ctx.prisma.annotationQueue.update({
+          where: { id: input.queueId, projectId: input.projectId },
+          data: {
+            name: input.name,
+            description: input.description,
+            scoreConfigs: input.scoreConfigs,
+          },
+        });
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "annotationQueue",
+          resourceId: queue.id,
+          action: "update",
+          before: queue,
+          after: updatedQueue,
+        });
+
+        return updatedQueue;
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Updating annotation queue failed.",
         });
       }
     }),

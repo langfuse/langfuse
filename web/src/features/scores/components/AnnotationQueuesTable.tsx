@@ -7,7 +7,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { CreateAnnotationQueueButton } from "@/src/features/scores/components/CreateAnnotationQueueButton";
+import { CreateOrEditAnnotationQueueButton } from "@/src/features/scores/components/CreateOrEditAnnotationQueueButton";
 import { type ScoreDataType } from "@langfuse/shared";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import {
@@ -174,10 +174,17 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DeleteAnnotationQueueButton
-                projectId={projectId}
-                queueId={key.id}
-              />
+              <div className="flex flex-col space-y-0.5">
+                <CreateOrEditAnnotationQueueButton
+                  projectId={projectId}
+                  queueId={key.id}
+                  variant="ghost"
+                />
+                <DeleteAnnotationQueueButton
+                  projectId={projectId}
+                  queueId={key.id}
+                />
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         );
@@ -218,7 +225,9 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={<CreateAnnotationQueueButton projectId={projectId} />}
+        actionButtons={
+          <CreateOrEditAnnotationQueueButton projectId={projectId} />
+        }
       />
       <DataTable
         columns={columns}
