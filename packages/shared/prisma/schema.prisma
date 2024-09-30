@@ -533,6 +533,7 @@ model AnnotationQueue {
 
     @@unique([projectId, name])
     @@index([id, projectId])
+    @@index([projectId, createdAt])
     @@map("annotation_queues")
 }
 
@@ -553,8 +554,10 @@ model AnnotationQueueItem {
     project           Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
     createdAt         DateTime                  @default(now()) @map("created_at")
 
-    @@index([queueId, status])
     @@index([id, projectId])
+    @@index([projectId, queueId, status])
+    @@index([objectId, objectType, projectId, queueId])
+    @@index([annotatorUserId])
     @@map("annotation_queue_items")
 }
 
