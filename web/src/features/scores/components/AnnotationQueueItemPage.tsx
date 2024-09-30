@@ -77,8 +77,9 @@ const AnnotateIOView = ({
             setEmptySelectedConfigIds={() => {}}
             projectId={item.projectId}
             type={item.objectType.toLowerCase() as "trace" | "observation"}
-            isSelectHidden
             isViewOnly={isViewOnly}
+            isSelectHidden
+            queueId={item.queueId}
           />
         </Card>
       </div>

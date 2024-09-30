@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, SquarePen, LoaderCircle, ChevronDown } from "lucide-react";
+import { LockIcon, SquarePen, LoaderCircle } from "lucide-react";
 import {
   Drawer,
   DrawerContent,

@@ -100,7 +100,7 @@ export const CreateNewAnnotationQueueItem = ({
           variant="ghost"
           disabled={!hasAccess}
           size="icon"
-          className="ml-0.5 h-6 w-8 px-0 focus-visible:ring-1 focus-visible:ring-offset-0"
+          className="ml-0.5 h-6 w-8 px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
         >
           {queues.data?.totalCount ? (
             <span className="relative mr-1 text-xs">

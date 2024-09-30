@@ -32,6 +32,7 @@ const CreateAnnotationScoreBase = z.object({
   configId: z.string().optional(),
   observationId: z.string().optional(),
   comment: z.string().nullish(),
+  queueId: z.string().nullish(),
 });
 
 const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({

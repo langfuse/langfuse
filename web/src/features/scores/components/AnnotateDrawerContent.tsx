@@ -143,6 +143,7 @@ export function AnnotateDrawerContent({
   source = "TraceDetail",
   isSelectHidden = false,
   isViewOnly = false,
+  queueId,
 }: {
   traceId: string;
   scores: APIScore[];
@@ -155,6 +156,7 @@ export function AnnotateDrawerContent({
   source?: "TraceDetail" | "SessionDetail";
   isSelectHidden?: boolean;
   isViewOnly?: boolean;
+  queueId?: string;
 }) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -333,6 +335,7 @@ export function AnnotateDrawerContent({
               observationId,
               value: newValue,
               stringValue,
+              queueId,
             });
 
             await mutUpdateScores.mutateAsync({
@@ -354,6 +357,7 @@ export function AnnotateDrawerContent({
               observationId,
               value: newValue,
               stringValue,
+              queueId,
             });
 
             await mutCreateScores.mutateAsync({
@@ -396,6 +400,7 @@ export function AnnotateDrawerContent({
           observationId,
           value,
           comment,
+          queueId,
         });
 
         await mutUpdateScores.mutateAsync({
@@ -476,6 +481,7 @@ export function AnnotateDrawerContent({
             comment: score.comment,
             observationId,
             value: Number(field.value),
+            queueId,
           });
 
           await mutCreateScores.mutateAsync({
