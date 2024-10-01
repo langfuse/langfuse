@@ -347,7 +347,7 @@ export const queueRouter = createTRPCRouter({
       // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items
       if (!item) return null;
 
-      await ctx.prisma.annotationQueueItem.update({
+      const updatedItem = await ctx.prisma.annotationQueueItem.update({
         where: {
           id: item.id,
           projectId: input.projectId,
@@ -357,6 +357,11 @@ export const queueRouter = createTRPCRouter({
           lockedByUserId: ctx.session.user.id,
         },
       });
+
+      const inflatedUpdatedItem = {
+        ...updatedItem,
+        lockedByUser: { name: ctx.session.user.name },
+      };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
         const observation = await ctx.prisma.observation.findUnique({
@@ -371,11 +376,11 @@ export const queueRouter = createTRPCRouter({
         });
 
         return {
-          ...item,
+          ...inflatedUpdatedItem,
           parentTraceId: observation?.traceId,
         };
       }
 
-      return item;
+      return inflatedUpdatedItem;
     }),
 });

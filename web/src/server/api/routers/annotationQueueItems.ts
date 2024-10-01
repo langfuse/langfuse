@@ -5,6 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  type AnnotationQueueItem,
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
   paginationZod,
@@ -13,6 +14,14 @@ import {
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+
+const isItemLocked = (item: AnnotationQueueItem) => {
+  return (
+    item.lockedByUserId &&
+    item.lockedAt &&
+    new Date(item.lockedAt) > new Date(Date.now() - 5 * 60 * 1000)
+  );
+};
 
 export const queueItemRouter = createTRPCRouter({
   byId: protectedProjectProcedure
@@ -30,7 +39,25 @@ export const queueItemRouter = createTRPCRouter({
         },
       });
 
+      // Expected behavior, non-error case: if user has seen item in given session, prior to it being deleted, we return null
       if (!item) return null;
+      let lockedByUser: { name: string | null } | null = null;
+
+      if (isItemLocked(item)) {
+        lockedByUser = await ctx.prisma.user.findUnique({
+          where: {
+            id: item.lockedByUserId as string,
+          },
+          select: {
+            name: true,
+          },
+        });
+      }
+
+      const inflatedItem = {
+        ...item,
+        lockedByUser,
+      };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
         const observation = await ctx.prisma.observation.findUnique({
@@ -45,12 +72,12 @@ export const queueItemRouter = createTRPCRouter({
         });
 
         return {
-          ...item,
+          ...inflatedItem,
           parentTraceId: observation?.traceId,
         };
       }
 
-      return item;
+      return inflatedItem;
     }),
   itemsByQueueId: protectedProjectProcedure
     .input(

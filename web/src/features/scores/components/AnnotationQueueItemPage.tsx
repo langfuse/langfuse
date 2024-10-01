@@ -13,13 +13,21 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { api } from "@/src/utils/api";
+import { type RouterOutput } from "@/src/utils/types";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
+  isPresent,
   type ValidatedScoreConfig,
 } from "@langfuse/shared";
-import { ArrowLeft, ArrowRight, SearchXIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  SearchXIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
@@ -30,12 +38,16 @@ const AnnotateIOView = ({
   isViewOnly,
   view,
 }: {
-  item: AnnotationQueueItem & { parentTraceId?: string | null };
+  item: AnnotationQueueItem & {
+    parentTraceId?: string | null;
+    lockedByUser: { name: string | null | undefined } | null;
+  };
   configs: ValidatedScoreConfig[];
   isViewOnly: boolean;
   view: "showTree" | "hideTree";
 }) => {
   const router = useRouter();
+  const session = useSession();
   const traceId = item.parentTraceId ?? item.objectId;
   const projectId = router.query.projectId as string;
   const [panelSize, setPanelSize] = useSessionStorage(
@@ -47,6 +59,7 @@ const AnnotateIOView = ({
     "observation",
     StringParam,
   );
+  const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
 
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     { traceId, projectId },
@@ -133,6 +146,16 @@ const AnnotateIOView = ({
             isViewOnly={isViewOnly}
             isSelectHidden
             queueId={item.queueId}
+            actionButtons={
+              isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
+                <div className="flex items-center justify-center rounded-sm border border-dark-red bg-light-red p-1">
+                  <TriangleAlertIcon className="mr-1 h-4 w-4 text-dark-red" />
+                  <span className="text-xs text-dark-red">
+                    Currently edited by {item.lockedByUser.name}
+                  </span>
+                </div>
+              ) : undefined
+            }
           />
         </Card>
       </ResizablePanel>
@@ -147,9 +170,9 @@ export const AnnotationQueueItemPage: React.FC<{
 }> = ({ annotationQueueId, projectId, view }) => {
   const router = useRouter();
   const isViewOnly = router.query.viewOnly === "true";
-  const [nextItemData, setNextItemData] = useState<AnnotationQueueItem | null>(
-    null,
-  );
+  const [nextItemData, setNextItemData] = useState<
+    RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
+  >(null);
   const [seenItemIds, setSeenItemIds] = useSessionStorage<string[]>(
     `seenItemIds-${annotationQueueId}`,
     [],
@@ -165,8 +188,6 @@ export const AnnotationQueueItemPage: React.FC<{
   });
   const itemId = seenItemIds[progressIndex];
 
-  // TODO: add user name of user editing seenItem to display in the UI
-  // TODO: handle case in which item has been deleted in the meantime
   const seenItemData = api.annotationQueueItems.byId.useQuery(
     { projectId, itemId: itemId as string },
     { enabled: !!itemId, refetchOnMount: false },

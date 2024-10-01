@@ -144,6 +144,7 @@ export function AnnotateDrawerContent({
   isSelectHidden = false,
   isViewOnly = false,
   queueId,
+  actionButtons,
 }: {
   traceId: string;
   scores: APIScore[];
@@ -157,6 +158,7 @@ export function AnnotateDrawerContent({
   isSelectHidden?: boolean;
   isViewOnly?: boolean;
   queueId?: string;
+  actionButtons?: React.ReactNode;
 }) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -508,6 +510,7 @@ export function AnnotateDrawerContent({
             description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
             href: "https://langfuse.com/docs/scores/manually",
           }}
+          actionButtons={actionButtons}
         ></Header>
         {!isSelectHidden && (
           <div className="grid grid-flow-col items-center">
