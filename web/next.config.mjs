@@ -48,7 +48,11 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     instrumentationHook: true,
-    serverComponentsExternalPackages: ["dd-trace", "@opentelemetry/api"],
+    serverComponentsExternalPackages: [
+      "dd-trace",
+      "@opentelemetry/api",
+      "@appsignal/opentelemetry-instrumentation-bullmq",
+    ],
   },
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
