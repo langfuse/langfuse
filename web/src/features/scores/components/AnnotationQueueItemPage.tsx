@@ -19,7 +19,7 @@ import {
   AnnotationQueueStatus,
   type ValidatedScoreConfig,
 } from "@langfuse/shared";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
@@ -262,8 +262,7 @@ export const AnnotationQueueItemPage: React.FC<{
     return <div>Loading...</div>;
   }
 
-  if (!relevantItem) {
-    // TODO: handle case in which item has been deleted in the meantime, let's show a placeholder
+  if (!relevantItem && !(itemId && seenItemIds.includes(itemId))) {
     return <div>No more items left to annotate!</div>;
   }
 
@@ -271,12 +270,23 @@ export const AnnotationQueueItemPage: React.FC<{
 
   return (
     <div className="grid h-full grid-rows-[1fr,auto] gap-4 overflow-hidden">
-      <AnnotateIOView
-        item={relevantItem}
-        configs={configs}
-        isViewOnly={isViewOnly ?? false}
-        view={view}
-      />
+      {relevantItem ? (
+        <AnnotateIOView
+          item={relevantItem}
+          configs={configs}
+          isViewOnly={isViewOnly ?? false}
+          view={view}
+        />
+      ) : (
+        <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
+          <SearchXIcon className="mb-2 h-8 w-8 text-muted-foreground" />
+          <span className="max-w-96 text-wrap text-sm text-muted-foreground">
+            Item has been <strong>deleted from annotation queue</strong>.
+            Previously added scores and underlying reference trace are
+            unaffected by this action.
+          </span>
+        </Card>
+      )}
       {!isViewOnly ? (
         <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
           <div className="flex max-h-10 flex-row gap-2">
@@ -310,7 +320,7 @@ export const AnnotationQueueItemPage: React.FC<{
             >
               <ArrowRight className="h-4 w-4" />
             </Button>
-            {relevantItem.status === AnnotationQueueStatus.PENDING && (
+            {relevantItem?.status === AnnotationQueueStatus.PENDING && (
               <Button
                 onClick={async () => {
                   if (!relevantItem) return;
