@@ -4,6 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotationQueueItemPage } from "@/src/features/scores/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
@@ -44,32 +45,41 @@ export default function AnnotationQueues() {
 
   return (
     <FullScreenPage>
-      <Header
-        title={`${queue.data?.name ?? annotationQueueId}`}
-        breadcrumb={[
-          {
-            name: "Annotation Queues",
-            href: `/project/${projectId}/annotation-queues`,
-          },
-          { name: annotationQueueId },
-        ]}
-        actionButtons={
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() =>
-              setView(view === "hideTree" ? "showTree" : "hideTree")
-            }
-            title={view === "hideTree" ? "Show trace tree" : "Hide trace tree"}
-          >
-            <Network className="h-4 w-4"></Network>
-          </Button>
+      <FeatureFlagToggle
+        featureFlag="annotationQueues"
+        whenEnabled={
+          <>
+            <Header
+              title={`${queue.data?.name ?? annotationQueueId}`}
+              breadcrumb={[
+                {
+                  name: "Annotation Queues",
+                  href: `/project/${projectId}/annotation-queues`,
+                },
+                { name: annotationQueueId },
+              ]}
+              actionButtons={
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() =>
+                    setView(view === "hideTree" ? "showTree" : "hideTree")
+                  }
+                  title={
+                    view === "hideTree" ? "Show trace tree" : "Hide trace tree"
+                  }
+                >
+                  <Network className="h-4 w-4"></Network>
+                </Button>
+              }
+            />
+            <AnnotationQueueItemPage
+              projectId={projectId}
+              annotationQueueId={annotationQueueId}
+              view={view}
+            />
+          </>
         }
-      />
-      <AnnotationQueueItemPage
-        projectId={projectId}
-        annotationQueueId={annotationQueueId}
-        view={view}
       />
     </FullScreenPage>
   );

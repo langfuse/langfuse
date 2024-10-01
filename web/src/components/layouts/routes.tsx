@@ -94,6 +94,7 @@ export const ROUTES: Route[] = [
     label: "Beta",
     projectRbacScope: "annotationQueues:read",
     entitlement: "annotation-queues",
+    featureFlag: "annotationQueues",
   },
   {
     name: "Evaluation",
