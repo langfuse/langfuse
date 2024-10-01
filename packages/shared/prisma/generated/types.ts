@@ -107,8 +107,8 @@ export type AnnotationQueueItem = {
     object_id: string;
     object_type: AnnotationQueueObjectType;
     status: Generated<AnnotationQueueStatus>;
-    edit_start_time: Timestamp | null;
-    edit_start_by_user_id: string | null;
+    locked_at: Timestamp | null;
+    locked_by_user_id: string | null;
     annotator_user_id: string | null;
     completed_at: Timestamp | null;
     project_id: string;

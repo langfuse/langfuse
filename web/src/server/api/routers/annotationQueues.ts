@@ -317,14 +317,14 @@ export const queueRouter = createTRPCRouter({
         });
       }
     }),
-  next: protectedProjectProcedure
+  fetchAndLockNext: protectedProjectProcedure
     .input(
       z.object({
         queueId: z.string(),
         projectId: z.string(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }) => {
       const now = new Date();
       const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
@@ -333,10 +333,7 @@ export const queueRouter = createTRPCRouter({
           queueId: input.queueId,
           projectId: input.projectId,
           status: AnnotationQueueStatus.PENDING,
-          OR: [
-            { editStartTime: null },
-            { editStartTime: { lt: fiveMinutesAgo } },
-          ],
+          OR: [{ lockedAt: null }, { lockedAt: { lt: fiveMinutesAgo } }],
         },
         orderBy: {
           createdAt: "asc",
@@ -351,8 +348,8 @@ export const queueRouter = createTRPCRouter({
           projectId: input.projectId,
         },
         data: {
-          editStartTime: now,
-          editStartByUserId: ctx.session.user.id,
+          lockedAt: now,
+          lockedByUserId: ctx.session.user.id,
         },
       });
 
