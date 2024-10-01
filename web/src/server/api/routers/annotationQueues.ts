@@ -135,47 +135,43 @@ export const queueRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const [referencedItems, queueNamesAndIds] = await Promise.all([
-        ctx.prisma.annotationQueueItem.findMany({
-          where: {
-            projectId: input.projectId,
-            objectId: input.objectId,
-            objectType: input.objectType,
+      const queues = await ctx.prisma.annotationQueue.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+        select: {
+          id: true,
+          name: true,
+          annotationQueueItem: {
+            where: {
+              objectId: input.objectId,
+              objectType: input.objectType,
+            },
+            select: {
+              queueId: true,
+              status: true,
+              id: true,
+            },
           },
-          select: {
-            queueId: true,
-            status: true,
-            id: true,
-          },
-        }),
-        ctx.prisma.annotationQueue.findMany({
-          where: {
-            projectId: input.projectId,
-          },
-          select: {
-            id: true,
-            name: true,
-          },
-        }),
-      ]);
+        },
+      });
 
-      const referencedItemsMap = new Map(
-        referencedItems.map((item) => [
-          item.queueId,
-          { status: item.status, id: item.id },
-        ]),
-      );
+      let totalCount = 0;
 
       return {
-        queues: queueNamesAndIds.map((queue) => {
+        queues: queues.map((queue) => {
+          totalCount += queue.annotationQueueItem.length;
           return {
             id: queue.id,
             name: queue.name,
-            itemId: referencedItemsMap.get(queue.id)?.id,
-            status: referencedItemsMap.get(queue.id)?.status,
+            itemId: queue.annotationQueueItem[0]?.id, // Safely access the first item's id
+            status: queue.annotationQueueItem[0]?.status, // Safely access the first item's status
+            // Since there may be multiple queue items in a given queue, but with the same objectId, we select only the first one
+            // to simplify the logic and because we are only interested in the first item's details.
           };
         }),
-        totalCount: referencedItemsMap.size,
+        totalCount,
+        // If the given objectId has been added to the same queue more than once, the total count will reflect that, by counting each item (incl duplicates)
       };
     }),
   create: protectedProjectProcedure
