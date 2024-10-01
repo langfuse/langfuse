@@ -122,54 +122,6 @@ export const queueItemRouter = createTRPCRouter({
         });
       }
     }),
-  getItemsByObjectId: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        objectId: z.string(),
-        objectType: z.nativeEnum(AnnotationQueueObjectType),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const [referencedItems, queueNamesAndIds] = await Promise.all([
-        ctx.prisma.annotationQueueItem.findMany({
-          where: {
-            projectId: input.projectId,
-            objectId: input.objectId,
-            objectType: input.objectType,
-          },
-          select: {
-            queueId: true,
-            status: true,
-          },
-        }),
-        ctx.prisma.annotationQueue.findMany({
-          where: {
-            projectId: input.projectId,
-          },
-          select: {
-            id: true,
-            name: true,
-          },
-        }),
-      ]);
-
-      const referencedItemsMap = new Map(
-        referencedItems.map((item) => [item.queueId, item.status]),
-      );
-
-      return {
-        queues: queueNamesAndIds.map((queue) => {
-          return {
-            id: queue.id,
-            name: queue.name,
-            includesItem: referencedItemsMap.has(queue.id),
-            status: referencedItemsMap.get(queue.id) || undefined,
-          };
-        }),
-        totalCount: referencedItemsMap.size,
-      };
-    }),
   unseenPendingItemCountByQueueId: protectedProjectProcedure
     .input(
       z.object({

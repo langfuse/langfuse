@@ -36,7 +36,7 @@ export const CreateNewAnnotationQueueItem = ({
     projectId: projectId,
     scope: "annotationQueues:CUD",
   });
-  const queues = api.annotationQueueItems.getItemsByObjectId.useQuery(
+  const queues = api.annotationQueues.byObjectId.useQuery(
     {
       projectId,
       objectId: itemId,
@@ -72,7 +72,7 @@ export const CreateNewAnnotationQueueItem = ({
           }
         }
         // Manually invalidate the query to refresh the data
-        await utils.annotationQueueItems.getItemsByObjectId.invalidate({
+        await utils.annotationQueues.byObjectId.invalidate({
           projectId,
           objectId: itemId,
           objectType: itemType,
@@ -87,7 +87,7 @@ export const CreateNewAnnotationQueueItem = ({
       projectId,
       itemId,
       itemType,
-      utils.annotationQueueItems,
+      utils.annotationQueues,
     ],
   );
 
