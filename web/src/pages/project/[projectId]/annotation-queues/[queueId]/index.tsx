@@ -19,6 +19,8 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDeta
 import Link from "next/link";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/scores/components/CreateOrEditAnnotationQueueButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 
 const TableWithMetadataWrapper = ({
   tableComponent,
@@ -86,10 +88,16 @@ export default function QueueItems() {
     projectId,
   });
 
-  const hasAccess = useHasProjectAccess({
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "annotationQueues:read",
+  });
+  const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:CUD",
   });
+  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  if (!hasReadAccess || !hasEntitlement) return <SupportOrUpgradePage />;
 
   return (
     <FullScreenPage>
@@ -103,7 +111,7 @@ export default function QueueItems() {
           { name: queue.data?.name ?? queueId },
         ]}
         actionButtons={
-          !hasAccess ? (
+          !hasWriteAccess ? (
             <Button disabled>
               <Lock className="mr-1 h-4 w-4" />
               <span className="text-sm">Process queue</span>
