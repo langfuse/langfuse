@@ -1,4 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -32,52 +33,75 @@ export const queueItemRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const item = await ctx.prisma.annotationQueueItem.findUnique({
-        where: {
-          id: input.itemId,
+      try {
+        throwIfNoEntitlement({
+          entitlement: "annotation-queues",
           projectId: input.projectId,
-        },
-      });
-
-      // Expected behavior, non-error case: if user has seen item in given session, prior to it being deleted, we return null
-      if (!item) return null;
-      let lockedByUser: { name: string | null } | null = null;
-
-      if (isItemLocked(item)) {
-        lockedByUser = await ctx.prisma.user.findUnique({
-          where: {
-            id: item.lockedByUserId as string,
-          },
-          select: {
-            name: true,
-          },
+          sessionUser: ctx.session.user,
         });
-      }
 
-      const inflatedItem = {
-        ...item,
-        lockedByUser,
-      };
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "annotationQueues:read",
+        });
 
-      if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-        const observation = await ctx.prisma.observation.findUnique({
+        const item = await ctx.prisma.annotationQueueItem.findUnique({
           where: {
-            id: item.objectId,
+            id: input.itemId,
             projectId: input.projectId,
           },
-          select: {
-            id: true,
-            traceId: true,
-          },
         });
 
-        return {
-          ...inflatedItem,
-          parentTraceId: observation?.traceId,
-        };
-      }
+        // Expected behavior, non-error case: if user has seen item in given session, prior to it being deleted, we return null
+        if (!item) return null;
+        let lockedByUser: { name: string | null } | null = null;
 
-      return inflatedItem;
+        if (isItemLocked(item)) {
+          lockedByUser = await ctx.prisma.user.findUnique({
+            where: {
+              id: item.lockedByUserId as string,
+            },
+            select: {
+              name: true,
+            },
+          });
+        }
+
+        const inflatedItem = {
+          ...item,
+          lockedByUser,
+        };
+
+        if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
+          const observation = await ctx.prisma.observation.findUnique({
+            where: {
+              id: item.objectId,
+              projectId: input.projectId,
+            },
+            select: {
+              id: true,
+              traceId: true,
+            },
+          });
+
+          return {
+            ...inflatedItem,
+            parentTraceId: observation?.traceId,
+          };
+        }
+
+        return inflatedItem;
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching annotation queue item by id failed.",
+        });
+      }
     }),
   itemsByQueueId: protectedProjectProcedure
     .input(
@@ -89,6 +113,18 @@ export const queueItemRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
+        throwIfNoEntitlement({
+          entitlement: "annotation-queues",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
+
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "annotationQueues:read",
+        });
+
         const [queueItems, totalItems] = await Promise.all([
           // queueItems
           ctx.prisma.$queryRaw<
@@ -157,17 +193,40 @@ export const queueItemRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const count = await ctx.prisma.annotationQueueItem.count({
-        where: {
-          queueId: input.queueId,
+      try {
+        throwIfNoEntitlement({
+          entitlement: "annotation-queues",
           projectId: input.projectId,
-          status: AnnotationQueueStatus.PENDING,
-          id: {
-            notIn: input.seenItemIds,
+          sessionUser: ctx.session.user,
+        });
+
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "annotationQueues:read",
+        });
+
+        const count = await ctx.prisma.annotationQueueItem.count({
+          where: {
+            queueId: input.queueId,
+            projectId: input.projectId,
+            status: AnnotationQueueStatus.PENDING,
+            id: {
+              notIn: input.seenItemIds,
+            },
           },
-        },
-      });
-      return count;
+        });
+        return count;
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching unseen pending item count by queueId failed.",
+        });
+      }
     }),
   createMany: protectedProjectProcedure
     .input(
@@ -182,6 +241,12 @@ export const queueItemRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
+        throwIfNoEntitlement({
+          entitlement: "annotation-queues",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
+
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -244,6 +309,12 @@ export const queueItemRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
+        throwIfNoEntitlement({
+          entitlement: "annotation-queues",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
+
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
@@ -301,6 +372,12 @@ export const queueItemRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
+        throwIfNoEntitlement({
+          entitlement: "annotation-queues",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
+
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
