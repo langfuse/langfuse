@@ -45,7 +45,7 @@ export const CreateNewAnnotationQueueItem = ({
     { enabled: session.status === "authenticated" },
   );
   const utils = api.useUtils();
-  const addToQueueMutation = api.annotationQueueItems.create.useMutation();
+  const addToQueueMutation = api.annotationQueueItems.createMany.useMutation();
   const removeFromQueueMutation = api.annotationQueueItems.delete.useMutation();
 
   const handleQueueItemToggle = useCallback(
@@ -54,7 +54,7 @@ export const CreateNewAnnotationQueueItem = ({
         if (!includesItem) {
           await addToQueueMutation.mutateAsync({
             projectId,
-            objectId: itemId,
+            objectIds: [itemId],
             objectType: itemType,
             queueId,
           });

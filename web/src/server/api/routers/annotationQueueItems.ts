@@ -99,43 +99,6 @@ export const queueItemRouter = createTRPCRouter({
         totalCount: referencedItemsMap.size,
       };
     }),
-  create: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        queueId: z.string(),
-        objectId: z.string(),
-        objectType: z.nativeEnum(AnnotationQueueObjectType),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "annotationQueues:CUD",
-        });
-        const queueItem = await ctx.prisma.annotationQueueItem.create({
-          data: {
-            projectId: input.projectId,
-            queueId: input.queueId,
-            objectId: input.objectId,
-            objectType: input.objectType,
-          },
-        });
-
-        return queueItem;
-      } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Creating annotation queue failed.",
-        });
-      }
-    }),
   createMany: protectedProjectProcedure
     .input(
       z.object({
