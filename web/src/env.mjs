@@ -123,6 +123,10 @@ export const env = createEnv({
     LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
     LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.string().url().optional(),
     LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.string().url().optional(),
+    LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z.enum(["OpenAI", "Anthropic", "Azure"]).optional(),
+    LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.string().url().optional(),
+    LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.string().url().optional(),
+    LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.string().url().optional(),
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
     ADMIN_API_KEY: z.string().optional(),
@@ -346,6 +350,14 @@ export const env = createEnv({
       process.env.LANGFUSE_UI_LOGO_LIGHT_MODE_HREF,
     LANGFUSE_UI_LOGO_DARK_MODE_HREF:
       process.env.LANGFUSE_UI_LOGO_DARK_MODE_HREF,
+    LANGFUSE_UI_DEFAULT_MODEL_ADAPTER:
+      process.env.LANGFUSE_UI_DEFAULT_MODEL_ADAPTER,
+    LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI:
+      process.env.LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI,
+    LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC:
+      process.env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
+    LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
+      process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
