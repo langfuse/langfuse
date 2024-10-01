@@ -51,7 +51,7 @@ const QueueItemTableMultiSelectAction = ({
   const mutDeleteItems = api.annotationQueueItems.deleteMany.useMutation({
     onSuccess: () => {
       onDeleteSuccess();
-      void utils.annotationQueues.itemsByQueueId.invalidate();
+      void utils.annotationQueueItems.itemsByQueueId.invalidate();
     },
   });
 
@@ -148,7 +148,7 @@ export function AnnotationQueueItemsTable({
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("queueItems", "s");
-  const items = api.annotationQueues.itemsByQueueId.useQuery({
+  const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
     page: paginationState.pageIndex,
@@ -289,7 +289,7 @@ export function AnnotationQueueItemsTable({
   ];
 
   const convertToTableRow = (
-    item: RouterOutput["annotationQueues"]["itemsByQueueId"]["queueItems"][number],
+    item: RouterOutput["annotationQueueItems"]["itemsByQueueId"]["queueItems"][number],
   ): QueueItemRowData => {
     return {
       id: item.id,
