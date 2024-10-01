@@ -266,13 +266,13 @@ describe("ClickhouseWriter", () => {
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
     expect(metricsDistributionSpy).toHaveBeenCalledWith(
-      "ingestion_clickhouse_insert_wait_time",
+      "langfuse.queue.clickhouse_writer.wait_time",
       expect.any(Number),
       { unit: "milliseconds" },
     );
 
     expect(metricsDistributionSpy).toHaveBeenCalledWith(
-      "ingestion_clickhouse_insert_processing_time",
+      "langfuse.queue.clickhouse_writer.processing_time",
       expect.any(Number),
       { unit: "milliseconds" },
     );
