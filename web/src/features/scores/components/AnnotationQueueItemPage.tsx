@@ -310,10 +310,8 @@ export const AnnotationQueueItemPage: React.FC<{
                 onClick={async () => {
                   if (!relevantItem) return;
                   await completeMutation.mutateAsync({
-                    annotationQueueId,
+                    itemId: relevantItem.id,
                     projectId,
-                    objectId: relevantItem.objectId,
-                    objectType: relevantItem.objectType,
                   });
                 }}
                 size="lg"

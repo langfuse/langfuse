@@ -104,7 +104,9 @@ export const queueItemRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         queueId: z.string(),
-        objectIds: z.array(z.string()),
+        objectIds: z
+          .array(z.string())
+          .min(1, "Minimum 1 object_id is required."),
         objectType: z.nativeEnum(AnnotationQueueObjectType),
       }),
     )
@@ -280,9 +282,7 @@ export const queueItemRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        annotationQueueId: z.string(),
-        objectId: z.string(),
-        objectType: z.nativeEnum(AnnotationQueueObjectType),
+        itemId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -295,10 +295,8 @@ export const queueItemRouter = createTRPCRouter({
 
         const item = await ctx.prisma.annotationQueueItem.updateMany({
           where: {
-            queueId: input.annotationQueueId,
+            id: input.itemId,
             projectId: input.projectId,
-            objectId: input.objectId,
-            objectType: input.objectType,
           },
           data: {
             status: AnnotationQueueStatus.COMPLETED,
