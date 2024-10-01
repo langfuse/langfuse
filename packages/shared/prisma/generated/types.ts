@@ -113,6 +113,7 @@ export type AnnotationQueueItem = {
     completed_at: Timestamp | null;
     project_id: string;
     created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
 };
 export type ApiKey = {
     id: string;
