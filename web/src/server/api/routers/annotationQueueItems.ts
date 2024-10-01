@@ -45,7 +45,7 @@ export const queueItemRouter = createTRPCRouter({
 
         return {
           ...item,
-          parentObjectId: observation?.traceId,
+          parentTraceId: observation?.traceId,
         };
       }
 

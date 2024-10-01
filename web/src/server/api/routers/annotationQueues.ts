@@ -302,7 +302,7 @@ export const queueRouter = createTRPCRouter({
               status: AnnotationQueueStatus;
               objectId: string;
               objectType: AnnotationQueueObjectType;
-              parentObjectId: string | null;
+              parentTraceId: string | null;
               completedAt: string | null;
               annotatorUserId: string | null;
               annotatorUserImage: string | null;
@@ -314,7 +314,7 @@ export const queueRouter = createTRPCRouter({
             aqi.status,
             aqi.object_id AS "objectId",
             aqi.object_type AS "objectType",
-	          o.trace_id AS "parentObjectId",
+	          o.trace_id AS "parentTraceId",
             aqi.completed_at AS "completedAt",
             aqi.annotator_user_id AS "annotatorUserId",
             u.image AS "annotatorUserImage", 
@@ -404,7 +404,7 @@ export const queueRouter = createTRPCRouter({
 
         return {
           ...item,
-          parentObjectId: observation?.traceId,
+          parentTraceId: observation?.traceId,
         };
       }
 

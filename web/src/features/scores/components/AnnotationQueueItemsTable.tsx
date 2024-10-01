@@ -298,7 +298,7 @@ export function AnnotationQueueItemsTable({
       source:
         item.objectType === "OBSERVATION"
           ? {
-              traceId: item.parentObjectId ?? "",
+              traceId: item.parentTraceId ?? "",
               observationId: item.objectId,
             }
           : {

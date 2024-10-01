@@ -30,13 +30,13 @@ const AnnotateIOView = ({
   isViewOnly,
   view,
 }: {
-  item: AnnotationQueueItem & { parentObjectId?: string | null };
+  item: AnnotationQueueItem & { parentTraceId?: string | null };
   configs: ValidatedScoreConfig[];
   isViewOnly: boolean;
   view: "showTree" | "hideTree";
 }) => {
   const router = useRouter();
-  const traceId = item.parentObjectId ?? item.objectId;
+  const traceId = item.parentTraceId ?? item.objectId;
   const projectId = router.query.projectId as string;
   const [panelSize, setPanelSize] = useSessionStorage(
     `annotationQueuePanelSize-${projectId}`,
@@ -124,7 +124,7 @@ const AnnotateIOView = ({
             key={"annotation-drawer-content" + item.objectId}
             traceId={traceId}
             scores={trace.data?.scores ?? []}
-            observationId={item.parentObjectId ? item.objectId : undefined}
+            observationId={item.parentTraceId ? item.objectId : undefined}
             configs={configs}
             emptySelectedConfigIds={configs.map((c) => c.id)}
             setEmptySelectedConfigIds={() => {}}
