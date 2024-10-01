@@ -16,8 +16,9 @@ import {
   addTraceContext,
   S3StorageService,
   instrumentAsync,
-  LegacyIngestionEventType,
   getProcessorForEvent,
+  LegacyIngestionEventType,
+  IngestionEventType,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -347,7 +348,7 @@ export default async function handler(
 }
 
 const isAuthorized = (
-  event: z.infer<typeof ingestionEvent>,
+  event: IngestionEventType,
   authScope: AuthHeaderValidVerificationResult,
 ): boolean => {
   try {
