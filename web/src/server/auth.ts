@@ -151,6 +151,7 @@ if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
     EmailProvider({
       server: env.SMTP_CONNECTION_URL,
       from: env.EMAIL_FROM_ADDRESS,
+      maxAge: 60 * 10, // 10 minutes
       sendVerificationRequest: sendResetPasswordVerificationRequest,
     }),
   );
