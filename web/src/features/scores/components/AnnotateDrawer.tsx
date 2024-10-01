@@ -91,8 +91,8 @@ export function AnnotateDrawer({
                 />
                 <CreateNewAnnotationQueueItem
                   projectId={projectId}
-                  itemId={observationId ?? traceId}
-                  itemType={
+                  objectId={observationId ?? traceId}
+                  objectType={
                     observationId
                       ? AnnotationQueueObjectType.OBSERVATION
                       : AnnotationQueueObjectType.TRACE

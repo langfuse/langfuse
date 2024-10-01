@@ -7,7 +7,6 @@ import {
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
-  LangfuseNotFoundError,
   paginationZod,
   Prisma,
 } from "@langfuse/shared";
@@ -206,62 +205,6 @@ export const queueItemRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Creating multiple annotation queue items failed.",
-        });
-      }
-    }),
-  delete: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        objectId: z.string(),
-        objectType: z.nativeEnum(AnnotationQueueObjectType),
-        queueId: z.string(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "annotationQueues:CUD",
-        });
-
-        const item = await ctx.prisma.annotationQueueItem.findFirst({
-          where: {
-            objectId: input.objectId,
-            objectType: input.objectType,
-            projectId: input.projectId,
-            queueId: input.queueId,
-          },
-        });
-
-        if (!item) {
-          throw new LangfuseNotFoundError("Annotation queue item not found.");
-        }
-
-        const deletedItem = await ctx.prisma.annotationQueueItem.delete({
-          where: {
-            id: item.id,
-            projectId: input.projectId,
-          },
-        });
-
-        await auditLog({
-          resourceType: "annotationQueueItem",
-          resourceId: deletedItem.id,
-          action: "delete",
-          session: ctx.session,
-        });
-
-        return deletedItem;
-      } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Creating annotation queue failed.",
         });
       }
     }),

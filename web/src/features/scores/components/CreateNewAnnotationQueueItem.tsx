@@ -23,12 +23,12 @@ import { useState, useCallback } from "react";
 
 export const CreateNewAnnotationQueueItem = ({
   projectId,
-  itemId,
-  itemType,
+  objectId,
+  objectType,
 }: {
   projectId: string;
-  itemId: string;
-  itemType: AnnotationQueueObjectType;
+  objectId: string;
+  objectType: AnnotationQueueObjectType;
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const session = useSession();
@@ -39,23 +39,24 @@ export const CreateNewAnnotationQueueItem = ({
   const queues = api.annotationQueues.byObjectId.useQuery(
     {
       projectId,
-      objectId: itemId,
-      objectType: itemType,
+      objectId,
+      objectType,
     },
     { enabled: session.status === "authenticated" },
   );
   const utils = api.useUtils();
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation();
-  const removeFromQueueMutation = api.annotationQueueItems.delete.useMutation();
+  const removeFromQueueMutation =
+    api.annotationQueueItems.deleteMany.useMutation();
 
   const handleQueueItemToggle = useCallback(
-    async (queueId: string, includesItem: boolean, queueName: string) => {
+    async (queueId: string, queueName: string, itemId?: string) => {
       try {
-        if (!includesItem) {
+        if (!itemId) {
           await addToQueueMutation.mutateAsync({
             projectId,
-            objectIds: [itemId],
-            objectType: itemType,
+            objectIds: [objectId],
+            objectType,
             queueId,
           });
         } else {
@@ -65,17 +66,15 @@ export const CreateNewAnnotationQueueItem = ({
           if (confirmRemoval) {
             await removeFromQueueMutation.mutateAsync({
               projectId,
-              objectId: itemId,
-              objectType: itemType,
-              queueId,
+              itemIds: [itemId],
             });
           }
         }
         // Manually invalidate the query to refresh the data
         await utils.annotationQueues.byObjectId.invalidate({
           projectId,
-          objectId: itemId,
-          objectType: itemType,
+          objectId,
+          objectType,
         });
       } catch (error) {
         console.error("Error toggling queue item:", error);
@@ -85,8 +84,8 @@ export const CreateNewAnnotationQueueItem = ({
       addToQueueMutation,
       removeFromQueueMutation,
       projectId,
-      itemId,
-      itemType,
+      objectId,
+      objectType,
       utils.annotationQueues,
     ],
   );
@@ -145,14 +144,14 @@ export const CreateNewAnnotationQueueItem = ({
             <DropdownMenuCheckboxItem
               key={queue.id}
               className="hover:bg-accent"
-              checked={queue.includesItem}
+              checked={!!queue.itemId}
               onSelect={(event) => {
                 event.preventDefault();
               }}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                handleQueueItemToggle(queue.id, queue.includesItem, queue.name);
+                handleQueueItemToggle(queue.id, queue.name, queue.itemId);
               }}
             >
               {queue.name}

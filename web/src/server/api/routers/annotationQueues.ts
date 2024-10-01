@@ -145,6 +145,7 @@ export const queueRouter = createTRPCRouter({
           select: {
             queueId: true,
             status: true,
+            id: true,
           },
         }),
         ctx.prisma.annotationQueue.findMany({
@@ -159,7 +160,10 @@ export const queueRouter = createTRPCRouter({
       ]);
 
       const referencedItemsMap = new Map(
-        referencedItems.map((item) => [item.queueId, item.status]),
+        referencedItems.map((item) => [
+          item.queueId,
+          { status: item.status, id: item.id },
+        ]),
       );
 
       return {
@@ -167,8 +171,8 @@ export const queueRouter = createTRPCRouter({
           return {
             id: queue.id,
             name: queue.name,
-            includesItem: referencedItemsMap.has(queue.id),
-            status: referencedItemsMap.get(queue.id) || undefined,
+            itemId: referencedItemsMap.get(queue.id)?.id,
+            status: referencedItemsMap.get(queue.id)?.status,
           };
         }),
         totalCount: referencedItemsMap.size,
@@ -340,6 +344,7 @@ export const queueRouter = createTRPCRouter({
         },
       });
 
+      // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items
       if (!item) return null;
 
       await ctx.prisma.annotationQueueItem.update({
