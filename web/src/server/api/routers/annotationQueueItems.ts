@@ -297,6 +297,7 @@ export const queueItemRouter = createTRPCRouter({
           where: {
             id: input.itemId,
             projectId: input.projectId,
+            status: AnnotationQueueStatus.PENDING,
           },
           data: {
             status: AnnotationQueueStatus.COMPLETED,
