@@ -21,7 +21,7 @@ import {
 } from "@langfuse/shared";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
 const AnnotateIOView = ({
@@ -146,8 +146,10 @@ export const AnnotationQueueItemPage: React.FC<{
   view: "showTree" | "hideTree";
 }> = ({ annotationQueueId, projectId, view }) => {
   const router = useRouter();
-  const isViewOnly = useRef<boolean>(false);
-
+  const isViewOnly = router.query.viewOnly === "true";
+  const [nextItemData, setNextItemData] = useState<AnnotationQueueItem | null>(
+    null,
+  );
   const [seenItemIds, setSeenItemIds] = useSessionStorage<string[]>(
     `seenItemIds-${annotationQueueId}`,
     [],
@@ -161,29 +163,31 @@ export const AnnotationQueueItemPage: React.FC<{
     projectId,
     scope: "annotationQueues:CUD",
   });
-
-  useEffect(() => {
-    const viewOnlyParam = router.query.viewOnly;
-    isViewOnly.current = viewOnlyParam === "true";
-  }, [router.query.viewOnly]);
-
   const itemId = seenItemIds[progressIndex];
 
+  // TODO: add user name of user editing seenItem to display in the UI
+  // TODO: handle case in which item has been deleted in the meantime
   const seenItemData = api.annotationQueueItems.byId.useQuery(
     { projectId, itemId: itemId as string },
     { enabled: !!itemId, refetchOnMount: false },
   );
 
-  const nextItemData = api.annotationQueues.next.useQuery(
-    {
-      queueId: annotationQueueId,
-      projectId,
-    },
-    {
-      enabled: !itemId,
-      refetchOnMount: false,
-    },
-  );
+  const fetchAndLockNextMutation =
+    api.annotationQueues.fetchAndLockNext.useMutation();
+
+  useEffect(() => {
+    async function fetchNextItem() {
+      if (!itemId && !isViewOnly) {
+        const nextItem = await fetchAndLockNextMutation.mutateAsync({
+          queueId: annotationQueueId,
+          projectId,
+        });
+        setNextItemData(nextItem);
+      }
+    }
+    fetchNextItem();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const queueData = api.annotationQueues.byId.useQuery(
     {
@@ -226,10 +230,8 @@ export const AnnotationQueueItemPage: React.FC<{
 
   const relevantItem = useMemo(
     () =>
-      progressIndex < seenItemIds.length
-        ? seenItemData.data
-        : nextItemData.data,
-    [progressIndex, seenItemIds.length, seenItemData.data, nextItemData.data],
+      progressIndex < seenItemIds.length ? seenItemData.data : nextItemData,
+    [progressIndex, seenItemIds.length, seenItemData.data, nextItemData],
   );
 
   useEffect(() => {
@@ -254,13 +256,14 @@ export const AnnotationQueueItemPage: React.FC<{
 
   if (
     (seenItemData.isLoading && itemId) ||
-    (nextItemData.isLoading && !itemId) ||
+    (fetchAndLockNextMutation.isLoading && !itemId) ||
     unseenPendingItemCount.isLoading
   ) {
     return <div>Loading...</div>;
   }
 
   if (!relevantItem) {
+    // TODO: handle case in which item has been deleted in the meantime, let's show a placeholder
     return <div>No more items left to annotate!</div>;
   }
 
@@ -271,10 +274,10 @@ export const AnnotationQueueItemPage: React.FC<{
       <AnnotateIOView
         item={relevantItem}
         configs={configs}
-        isViewOnly={isViewOnly.current}
+        isViewOnly={isViewOnly ?? false}
         view={view}
       />
-      {!isViewOnly.current ? (
+      {!isViewOnly ? (
         <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
           <div className="flex max-h-10 flex-row gap-2">
             <span className="grid h-9 min-w-16 items-center rounded-md bg-border p-1 text-center text-sm">
@@ -294,7 +297,11 @@ export const AnnotationQueueItemPage: React.FC<{
               onClick={async () => {
                 setProgressIndex(Math.max(progressIndex + 1, 0));
                 if (progressIndex >= seenItemIds.length) {
-                  await nextItemData.refetch();
+                  const nextItem = await fetchAndLockNextMutation.mutateAsync({
+                    queueId: annotationQueueId,
+                    projectId,
+                  });
+                  setNextItemData(nextItem);
                 }
               }}
               disabled={!isNextItemAvailable || !hasAccess}
