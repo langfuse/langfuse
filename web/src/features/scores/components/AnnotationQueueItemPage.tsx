@@ -115,14 +115,16 @@ const AnnotateIOView = ({
           )
         ) : (
           <Card className="col-span-2 flex h-full flex-col overflow-hidden p-2">
-            <Trace
-              key={trace.data.id}
-              trace={trace.data}
-              scores={trace.data.scores}
-              projectId={trace.data.projectId}
-              observations={trace.data.observations}
-              viewType="focused"
-            />
+            <div className="overflow-x-auto md:overflow-hidden">
+              <Trace
+                key={trace.data.id}
+                trace={trace.data}
+                scores={trace.data.scores}
+                projectId={trace.data.projectId}
+                observations={trace.data.observations}
+                viewType="focused"
+              />
+            </div>
           </Card>
         )}
       </ResizablePanel>
@@ -170,6 +172,7 @@ export const AnnotationQueueItemPage: React.FC<{
 }> = ({ annotationQueueId, projectId, view }) => {
   const router = useRouter();
   const isViewOnly = router.query.viewOnly === "true";
+  const queryItemId = isViewOnly ? router.query.itemId : undefined;
   const [nextItemData, setNextItemData] = useState<
     RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
   >(null);
@@ -186,7 +189,8 @@ export const AnnotationQueueItemPage: React.FC<{
     projectId,
     scope: "annotationQueues:CUD",
   });
-  const itemId = seenItemIds[progressIndex];
+  const itemId =
+    typeof queryItemId === "string" ? queryItemId : seenItemIds[progressIndex];
 
   const seenItemData = api.annotationQueueItems.byId.useQuery(
     { projectId, itemId: itemId as string },
@@ -249,11 +253,19 @@ export const AnnotationQueueItemPage: React.FC<{
 
   const configs = queueData.data?.scoreConfigs ?? [];
 
-  const relevantItem = useMemo(
-    () =>
-      progressIndex < seenItemIds.length ? seenItemData.data : nextItemData,
-    [progressIndex, seenItemIds.length, seenItemData.data, nextItemData],
-  );
+  const relevantItem = useMemo(() => {
+    if (typeof queryItemId === "string") return seenItemData.data;
+    else
+      return progressIndex < seenItemIds.length
+        ? seenItemData.data
+        : nextItemData;
+  }, [
+    progressIndex,
+    seenItemIds.length,
+    seenItemData.data,
+    nextItemData,
+    queryItemId,
+  ]);
 
   useEffect(() => {
     if (relevantItem && router.query.itemId !== relevantItem.id) {
@@ -269,7 +281,7 @@ export const AnnotationQueueItemPage: React.FC<{
   }, [relevantItem, router]);
 
   useEffect(() => {
-    if (relevantItem && !seenItemIds.includes(relevantItem.id)) {
+    if (relevantItem && !seenItemIds.includes(relevantItem.id) && !isViewOnly) {
       setSeenItemIds((prev) => [...prev, relevantItem.id]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -327,7 +339,7 @@ export const AnnotationQueueItemPage: React.FC<{
             <Button
               onClick={async () => {
                 setProgressIndex(Math.max(progressIndex + 1, 0));
-                if (progressIndex >= seenItemIds.length) {
+                if (progressIndex >= seenItemIds.length - 1) {
                   const nextItem = await fetchAndLockNextMutation.mutateAsync({
                     queueId: annotationQueueId,
                     projectId,

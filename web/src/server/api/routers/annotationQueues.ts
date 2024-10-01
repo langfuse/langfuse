@@ -353,6 +353,20 @@ export const queueRouter = createTRPCRouter({
           throw new LangfuseNotFoundError("Queue not found in project");
         }
 
+        const existingQueue = await ctx.prisma.annotationQueue.findFirst({
+          where: {
+            projectId: input.projectId,
+            name: input.name,
+          },
+        });
+
+        if (existingQueue) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A queue with this name already exists in the project",
+          });
+        }
+
         const updatedQueue = await ctx.prisma.annotationQueue.update({
           where: { id: input.queueId, projectId: input.projectId },
           data: {

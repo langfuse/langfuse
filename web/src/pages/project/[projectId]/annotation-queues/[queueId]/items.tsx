@@ -56,7 +56,10 @@ export default function AnnotationQueues() {
                   name: "Annotation Queues",
                   href: `/project/${projectId}/annotation-queues`,
                 },
-                { name: annotationQueueId },
+                {
+                  name: queue.data?.name ?? annotationQueueId,
+                  href: `/project/${projectId}/annotation-queues/${annotationQueueId}`,
+                },
               ]}
               actionButtons={
                 <Button
