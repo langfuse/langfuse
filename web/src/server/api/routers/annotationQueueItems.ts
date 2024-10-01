@@ -99,6 +99,27 @@ export const queueItemRouter = createTRPCRouter({
         totalCount: referencedItemsMap.size,
       };
     }),
+  unseenPendingItemCountByQueueId: protectedProjectProcedure
+    .input(
+      z.object({
+        queueId: z.string(),
+        projectId: z.string(),
+        seenItemIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const count = await ctx.prisma.annotationQueueItem.count({
+        where: {
+          queueId: input.queueId,
+          projectId: input.projectId,
+          status: AnnotationQueueStatus.PENDING,
+          id: {
+            notIn: input.seenItemIds,
+          },
+        },
+      });
+      return count;
+    }),
   createMany: protectedProjectProcedure
     .input(
       z.object({

@@ -127,21 +127,6 @@ export const queueRouter = createTRPCRouter({
         scoreConfigs: filterAndValidateDbScoreConfigList(configs),
       };
     }),
-  pendingItemsByQueueId: protectedProjectProcedure
-    .input(z.object({ queueId: z.string(), projectId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const items = await ctx.prisma.annotationQueueItem.findMany({
-        where: {
-          queueId: input.queueId,
-          projectId: input.projectId,
-          status: AnnotationQueueStatus.PENDING,
-        },
-        select: {
-          id: true,
-        },
-      });
-      return items.map((item) => item.id);
-    }),
   create: protectedProjectProcedure
     .input(
       CreateQueueData.extend({

@@ -197,11 +197,15 @@ export const AnnotationQueueItemPage: React.FC<{
     },
   );
 
-  // TODO: refetch after a few minutes
-  const pendingItemIds = api.annotationQueues.pendingItemsByQueueId.useQuery({
-    queueId: annotationQueueId,
-    projectId,
-  });
+  const unseenPendingItemCount =
+    api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
+      {
+        queueId: annotationQueueId,
+        projectId,
+        seenItemIds,
+      },
+      { refetchOnWindowFocus: false },
+    );
 
   const utils = api.useUtils();
   const completeMutation = api.annotationQueueItems.complete.useMutation({
@@ -215,9 +219,8 @@ export const AnnotationQueueItemPage: React.FC<{
   });
 
   const totalItems = useMemo(() => {
-    return [...new Set([...seenItemIds, ...(pendingItemIds.data ?? [])])]
-      .length;
-  }, [pendingItemIds.data, seenItemIds]);
+    return seenItemIds.length + (unseenPendingItemCount.data ?? 0);
+  }, [unseenPendingItemCount.data, seenItemIds.length]);
 
   const configs = queueData.data?.scoreConfigs ?? [];
 
@@ -251,22 +254,17 @@ export const AnnotationQueueItemPage: React.FC<{
 
   if (
     (seenItemData.isLoading && itemId) ||
-    (nextItemData.isLoading && !itemId)
+    (nextItemData.isLoading && !itemId) ||
+    unseenPendingItemCount.isLoading
   ) {
     return <div>Loading...</div>;
   }
 
-  if (
-    !relevantItem ||
-    (pendingItemIds.data?.length === 0 && !isViewOnly.current)
-  ) {
+  if (!relevantItem) {
     return <div>No more items left to annotate!</div>;
   }
 
-  const isNextItemAvailable =
-    (nextItemData.data && totalItems > progressIndex + 1) ||
-    progressIndex < seenItemIds.length - 1 ||
-    progressIndex < (pendingItemIds.data?.length ?? 1) - 1;
+  const isNextItemAvailable = totalItems > progressIndex + 1;
 
   return (
     <div className="grid h-full grid-rows-[1fr,auto] gap-4 overflow-hidden">
