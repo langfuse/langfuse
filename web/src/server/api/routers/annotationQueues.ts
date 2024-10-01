@@ -50,7 +50,7 @@ export const queueRouter = createTRPCRouter({
           FROM
             annotation_queues aq
           LEFT JOIN
-            annotation_queue_items aqi ON aq.id = aqi.queue_id 
+            annotation_queue_items aqi ON aq.id = aqi.queue_id AND aqi.project_id = ${input.projectId}
           WHERE
             aq.project_id = ${input.projectId}
           GROUP BY
@@ -382,6 +382,7 @@ export const queueRouter = createTRPCRouter({
       await ctx.prisma.annotationQueueItem.update({
         where: {
           id: item.id,
+          projectId: input.projectId,
         },
         data: {
           editStartTime: now,
@@ -393,6 +394,7 @@ export const queueRouter = createTRPCRouter({
         const observation = await ctx.prisma.observation.findUnique({
           where: {
             id: item.objectId,
+            projectId: input.projectId,
           },
           select: {
             id: true,

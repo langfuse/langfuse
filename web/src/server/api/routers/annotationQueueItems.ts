@@ -35,6 +35,7 @@ export const queueItemRouter = createTRPCRouter({
         const observation = await ctx.prisma.observation.findUnique({
           where: {
             id: item.objectId,
+            projectId: input.projectId,
           },
           select: {
             id: true,
@@ -152,7 +153,7 @@ export const queueItemRouter = createTRPCRouter({
           scope: "annotationQueues:CUD",
         });
 
-        const createdItems = await ctx.prisma.annotationQueueItem.createMany({
+        const { count } = await ctx.prisma.annotationQueueItem.createMany({
           data: input.objectIds.map((objectId) => ({
             projectId: input.projectId,
             queueId: input.queueId,
@@ -162,10 +163,31 @@ export const queueItemRouter = createTRPCRouter({
           skipDuplicates: true,
         });
 
+        const createdItems = await ctx.prisma.annotationQueueItem.findMany({
+          where: {
+            projectId: input.projectId,
+            queueId: input.queueId,
+            objectId: { in: input.objectIds },
+            objectType: input.objectType,
+          },
+          orderBy: { createdAt: "desc" },
+        });
+
+        for (const item of createdItems) {
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "annotationQueueItem",
+              resourceId: item.id,
+              action: "create",
+              after: item,
+            },
+            ctx.prisma,
+          );
+        }
+
         return {
-          count: createdItems.count,
-          totalRequested: input.objectIds.length,
-          created: input.objectIds.length,
+          createdCount: count,
         };
       } catch (error) {
         logger.error(error);
@@ -249,16 +271,7 @@ export const queueItemRouter = createTRPCRouter({
           scope: "annotationQueues:CUD",
         });
 
-        for (const itemId of input.itemIds) {
-          await auditLog({
-            resourceType: "annotationQueueItem",
-            resourceId: itemId,
-            action: "delete",
-            session: ctx.session,
-          });
-        }
-
-        return ctx.prisma.annotationQueueItem.deleteMany({
+        const items = await ctx.prisma.annotationQueueItem.findMany({
           where: {
             id: {
               in: input.itemIds,
@@ -266,6 +279,29 @@ export const queueItemRouter = createTRPCRouter({
             projectId: input.projectId,
           },
         });
+
+        for (const item of items) {
+          await auditLog({
+            resourceType: "annotationQueueItem",
+            resourceId: item.id,
+            before: item,
+            action: "delete",
+            session: ctx.session,
+          });
+        }
+
+        const { count } = await ctx.prisma.annotationQueueItem.deleteMany({
+          where: {
+            id: {
+              in: input.itemIds,
+            },
+            projectId: input.projectId,
+          },
+        });
+
+        return {
+          deletedCount: count,
+        };
       } catch (error) {
         logger.error(error);
         if (error instanceof TRPCError) {
