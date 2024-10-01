@@ -188,6 +188,20 @@ export const queueRouter = createTRPCRouter({
           scope: "annotationQueues:CUD",
         });
 
+        const existingQueue = await ctx.prisma.annotationQueue.findFirst({
+          where: {
+            projectId: input.projectId,
+            name: input.name,
+          },
+        });
+
+        if (existingQueue) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A queue with this name already exists in the project",
+          });
+        }
+
         const queue = await ctx.prisma.annotationQueue.create({
           data: {
             name: input.name,
@@ -196,10 +210,6 @@ export const queueRouter = createTRPCRouter({
             scoreConfigs: input.scoreConfigs,
           },
         });
-
-        if (!queue) {
-          throw new Error("Failed to create queue");
-        }
 
         await auditLog({
           session: ctx.session,
@@ -212,15 +222,6 @@ export const queueRouter = createTRPCRouter({
         return queue;
       } catch (error) {
         logger.error(error);
-        if (error instanceof Prisma.PrismaClientKnownRequestError) {
-          // P2002: "Unique constraint failed on the {constraint}", see prisma docs https://www.prisma.io/docs/orm/reference/error-reference
-          if (error.code === "P2002") {
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: "A queue with this name already exists in the project",
-            });
-          }
-        }
         if (error instanceof TRPCError) {
           throw error;
         }
