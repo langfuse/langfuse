@@ -96,6 +96,8 @@ export const queueItemRouter = createTRPCRouter({
             users u ON u.id = aqi.annotator_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${ctx.session.orgId})
           WHERE 
             aqi.project_id = ${input.projectId} AND aqi.queue_id = ${input.queueId}
+          ORDER BY 
+            aqi.created_at ASC
           ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
           ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
         `),
