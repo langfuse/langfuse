@@ -56,8 +56,9 @@ const ResetPasswordTemplate = ({ url }: ResetPasswordTemplateProps) => {
               </Button>
             </Section>
             <Text className="text-center text-xs leading-6 text-[#666666]">
-              If you do not want to change your password or didn&apos;t request
-              a reset, you can ignore and delete this email.
+              The link is valid for 10 minutes. If you do not want to change
+              your password or didn&apos;t request a reset, you can ignore and
+              delete this email.
             </Text>
           </Container>
         </Body>
@@ -76,7 +77,7 @@ export async function sendResetPasswordVerificationRequest(
     to: identifier,
     from: provider.from,
     subject: `Forgot your password?`,
-    text: `To reset your Langfuse password, please confirm your email:\n${url}\n\nIf you do not want to change your password or didn't request a reset, you can ignore and delete this email.`,
+    text: `To reset your Langfuse password, please confirm your email:\n${url}\n\nThe link is valid for 10 minutes. If you do not want to change your password or didn't request a reset, you can ignore and delete this email.`,
     html: htmlTemplate,
   });
   const failed = result.rejected.concat(result.pending).filter(Boolean);
