@@ -60,24 +60,20 @@ export const legacyIngestionQueueProcessor: Processor = async (
           });
           data = (
             await Promise.all(
-              job.data.payload.data.map(
-                async (record): Promise<IngestionEventType[]> => {
-                  const eventName = record.type.split("-").shift();
-                  const file = await s3Client.download(
-                    `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${eventName}/${record.eventBodyId}/${record.eventId}.json`,
+              job.data.payload.data.map(async (record) => {
+                const eventName = record.type.split("-").shift();
+                const file = await s3Client.download(
+                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${eventName}/${record.eventBodyId}/${record.eventId}.json`,
+                );
+                const parsed = ingestionBatchEvent.safeParse(JSON.parse(file));
+                if (parsed.success) {
+                  return parsed.data;
+                } else {
+                  throw new Error(
+                    `Failed to parse event from S3: ${parsed.error.message}`,
                   );
-                  const parsed = ingestionBatchEvent.safeParse(
-                    JSON.parse(file),
-                  );
-                  if (parsed.success) {
-                    return parsed.data;
-                  } else {
-                    throw new Error(
-                      `Failed to parse event from S3: ${parsed.error.message}`,
-                    );
-                  }
-                },
-              ),
+                }
+              }),
             )
           ).flat();
         } else {
