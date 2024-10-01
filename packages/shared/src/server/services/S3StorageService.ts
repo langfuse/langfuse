@@ -25,11 +25,10 @@ export class S3StorageService {
     bucketName: string;
     endpoint: string | undefined;
     region: string | undefined;
+    forcePathStyle: boolean;
   }) {
-    const { accessKeyId, secretAccessKey, bucketName, endpoint, region } =
-      params;
-
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
+    const { accessKeyId, secretAccessKey } = params;
     const credentials =
       accessKeyId !== undefined && secretAccessKey !== undefined
         ? {
@@ -40,10 +39,11 @@ export class S3StorageService {
 
     this.client = new S3Client({
       credentials,
-      endpoint,
-      region,
+      endpoint: params.endpoint,
+      region: params.region,
+      forcePathStyle: params.forcePathStyle,
     });
-    this.bucketName = bucketName;
+    this.bucketName = params.bucketName;
   }
 
   public async uploadFile({
@@ -72,7 +72,7 @@ export class S3StorageService {
     }
   }
 
-  public async uploadJson(path: string, body: Record<string, unknown>) {
+  public async uploadJson(path: string, body: Record<string, unknown>[]) {
     const putCommand = new PutObjectCommand({
       Bucket: this.bucketName,
       Key: path,

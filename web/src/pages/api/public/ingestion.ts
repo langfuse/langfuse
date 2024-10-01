@@ -17,13 +17,7 @@ import {
   S3StorageService,
   instrumentAsync,
   LegacyIngestionEventType,
-} from "@langfuse/shared/src/server";
-import {
-  SdkLogProcessor,
-  type EventProcessor,
-  ObservationProcessor,
-  ScoreProcessor,
-  TraceProcessor,
+  getProcessorForEvent,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -36,7 +30,7 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import {
-  sendToWorkerIfEnvironmentConfigured,
+  addTracesToTraceUpsertQueue,
   QueueJobs,
   instrumentSync,
 } from "@langfuse/shared/src/server";
@@ -195,41 +189,46 @@ export default async function handler(
     /********************
      * ASYNC PROCESSING *
      ********************/
+    let s3UploadErrored = false;
     if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true") {
       await instrumentAsync({ name: "s3-upload-events" }, async () => {
         if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
-          logger.warn(
-            "S3 event upload activated, but no bucket configured. Skipping upload.",
-          );
-        } else {
-          const s3Client = new S3StorageService({
-            accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-            secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-            bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-            endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-            region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-          });
-          // S3 Event Upload is currently blocking, but non-failing.
-          // If a promise rejects, we log it below, but do not throw an error.
-          const results = await Promise.allSettled(
-            sortedBatch.map(async (event) => {
-              const eventName = event.type.split("-").shift();
-              return event.type !== eventTypes.SDK_LOG
-                ? s3Client.uploadJson(
-                    `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${eventName}/${event.body.id}/${event.id}.json`,
-                    event,
-                  )
-                : Promise.resolve();
-            }),
-          );
-          results.forEach((result) => {
-            if (result.status === "rejected") {
-              logger.error("Failed to upload event to S3", {
-                error: result.reason,
-              });
-            }
-          });
+          throw new Error("S3 event store is enabled but no bucket is set");
         }
+        const s3Client = new S3StorageService({
+          accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+          secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+          bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+          region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+        });
+        // S3 Event Upload is currently blocking, but non-failing.
+        // If a promise rejects, we log it below, but do not throw an error.
+        // In this case, we upload the full batch into the Redis queue.
+        const results = await Promise.allSettled(
+          sortedBatch.map(async (event) => {
+            const eventName = event.type.split("-").shift();
+            // We upload the event in an array to the S3 bucket.
+            // This should allow us to eventually batch events together and increase cost-efficiency through
+            // reduced write operations.
+            return event.type !== eventTypes.SDK_LOG
+              ? s3Client.uploadJson(
+                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${eventName}/${event.body.id}/${event.id}.json`,
+                  [event],
+                )
+              : Promise.resolve();
+          }),
+        );
+        results.forEach((result) => {
+          if (result.status === "rejected") {
+            s3UploadErrored = true;
+            logger.error("Failed to upload event to S3", {
+              error: result.reason,
+            });
+          }
+        });
       });
     }
 
@@ -241,7 +240,7 @@ export default async function handler(
         let addToQueueFailed = false;
 
         const queuePayload: LegacyIngestionEventType =
-          env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true"
+          env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" && !s3UploadErrored
             ? {
                 data: sortedBatch.map((event) => ({
                   type: event.type,
@@ -301,7 +300,7 @@ export default async function handler(
     const result = await handleBatch(sortedBatch, authCheck, tokenCount);
 
     // send out REST requests to worker for all trace types
-    await sendToWorkerIfEnvironmentConfigured(
+    await addTracesToTraceUpsertQueue(
       result.results,
       authCheck.scope.projectId,
     );
@@ -352,28 +351,7 @@ const isAuthorized = (
   authScope: AuthHeaderValidVerificationResult,
 ): boolean => {
   try {
-    let processor: EventProcessor;
-    switch (event.type) {
-      case eventTypes.TRACE_CREATE:
-        processor = new TraceProcessor(event);
-        break;
-      case eventTypes.OBSERVATION_CREATE:
-      case eventTypes.OBSERVATION_UPDATE:
-      case eventTypes.EVENT_CREATE:
-      case eventTypes.SPAN_CREATE:
-      case eventTypes.SPAN_UPDATE:
-      case eventTypes.GENERATION_CREATE:
-      case eventTypes.GENERATION_UPDATE:
-        processor = new ObservationProcessor(event, tokenCount);
-        break;
-      case eventTypes.SCORE_CREATE:
-        processor = new ScoreProcessor(event);
-        break;
-      case eventTypes.SDK_LOG:
-        processor = new SdkLogProcessor(event);
-        break;
-    }
-    processor.auth(authScope.scope);
+    getProcessorForEvent(event, tokenCount).auth(authScope.scope);
     return true;
   } catch (error) {
     return false;

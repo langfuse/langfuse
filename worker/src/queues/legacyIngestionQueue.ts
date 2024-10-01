@@ -12,11 +12,13 @@ import {
   IngestionEventType,
   S3StorageService,
   ingestionEvent,
+  ingestionBatchEvent,
+  IngestionBatchEventType,
 } from "@langfuse/shared/src/server";
 
 import {
   handleBatch,
-  sendToWorkerIfEnvironmentConfigured,
+  addTracesToTraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { tokenCount } from "../features/tokenisation/usage";
 import { SpanKind } from "@opentelemetry/api";
@@ -53,23 +55,31 @@ export const legacyIngestionQueueProcessor: Processor = async (
             bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
             endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
             region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           });
-          data = await Promise.all(
-            job.data.payload.data.map(async (record) => {
-              const eventName = record.type.split("-").shift();
-              const file = await s3Client.download(
-                `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${eventName}/${record.eventBodyId}/${record.eventId}.json`,
-              );
-              const parsed = ingestionEvent.safeParse(file);
-              if (parsed.success) {
-                return parsed.data;
-              } else {
-                throw new Error(
-                  `Failed to parse event from S3: ${parsed.error.message}`,
-                );
-              }
-            }),
-          );
+          data = (
+            await Promise.all(
+              job.data.payload.data.map(
+                async (record): Promise<IngestionEventType[]> => {
+                  const eventName = record.type.split("-").shift();
+                  const file = await s3Client.download(
+                    `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${eventName}/${record.eventBodyId}/${record.eventId}.json`,
+                  );
+                  const parsed = ingestionBatchEvent.safeParse(
+                    JSON.parse(file),
+                  );
+                  if (parsed.success) {
+                    return parsed.data;
+                  } else {
+                    throw new Error(
+                      `Failed to parse event from S3: ${parsed.error.message}`,
+                    );
+                  }
+                },
+              ),
+            )
+          ).flat();
         } else {
           // If we didn't use the S3 store we can consume the data directly from Redis
           data = job.data.payload.data;
@@ -113,7 +123,7 @@ export const legacyIngestionQueueProcessor: Processor = async (
         );
 
         // send out REDIS requests to worker for all trace types
-        await sendToWorkerIfEnvironmentConfigured(
+        await addTracesToTraceUpsertQueue(
           result.results,
           job.data.payload.authCheck.scope.projectId,
         );

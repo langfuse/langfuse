@@ -17,6 +17,31 @@ services:
     depends_on:
       - postgres
 
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: miniosecret
+    ports:
+      - "9090:9000"
+      - "9091:9001"
+    volumes:
+      - langfuse_minio_data:/data
+
+  miniocreatebucket:
+    image: minio/mc
+    container_name: miniocreatebucket
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "mc alias set minio http://minio:9000 minio miniosecret && 
+       mc rm -r --force minio/mybucket || true &&
+       mc mb minio/mybucket && 
+       mc policy set download minio/mybucket"
+    depends_on:
+      - minio
+
   redis:
     image: redis:7.2.4
     restart: always
@@ -44,4 +69,6 @@ volumes:
   langfuse_clickhouse_data:
     driver: local
   langfuse_clickhouse_logs:
+    driver: local
+  langfuse_minio_data:
     driver: local
