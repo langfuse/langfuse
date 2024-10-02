@@ -63,10 +63,10 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: '"latency"',
   },
   {
-    name: "Time Per Output Token (s)",
-    id: "timePerOutputToken",
+    name: "Tokens per second",
+    id: "tokensPerSecond",
     type: "number",
-    internal: '"latency" / o."completion_tokens"',
+    internal: 'o."completion_tokens" / "latency"',
     nullable: true,
   },
   {
