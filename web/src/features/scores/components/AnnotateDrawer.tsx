@@ -7,14 +7,12 @@ import {
   DrawerHeader,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
-import { AnnotationQueueObjectType, type APIScore } from "@langfuse/shared";
+import { type APIScore } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
-import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/CreateNewAnnotationQueueItem";
-import { Separator } from "@/src/components/ui/separator";
 
 export function AnnotateDrawer({
   traceId,
@@ -26,6 +24,7 @@ export function AnnotateDrawer({
   variant = "button",
   type = "trace",
   source = "TraceDetail",
+  hasGroupedButton = false,
 }: {
   traceId: string;
   scores: APIScore[];
@@ -36,6 +35,7 @@ export function AnnotateDrawer({
   variant?: "button" | "badge";
   type?: "trace" | "observation" | "session";
   source?: "TraceDetail" | "SessionDetail";
+  hasGroupedButton?: boolean;
 }) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const capture = usePostHogClientCapture();
@@ -64,6 +64,7 @@ export function AnnotateDrawer({
           <Button
             variant="secondary"
             disabled={!hasAccess}
+            className={hasGroupedButton ? "rounded-r-none" : ""}
             onClick={() => {
               setIsDrawerOpen(true);
               capture(
@@ -83,23 +84,6 @@ export function AnnotateDrawer({
               <SquarePen className="mr-1.5 h-4 w-4" />
             )}
             <span>Annotate</span>
-            {type !== "session" && (
-              <>
-                <Separator
-                  orientation="vertical"
-                  className="ml-2 h-4 bg-secondary-foreground/20"
-                />
-                <CreateNewAnnotationQueueItem
-                  projectId={projectId}
-                  objectId={observationId ?? traceId}
-                  objectType={
-                    observationId
-                      ? AnnotationQueueObjectType.OBSERVATION
-                      : AnnotationQueueObjectType.TRACE
-                  }
-                />
-              </>
-            )}
           </Button>
         ) : (
           <Button

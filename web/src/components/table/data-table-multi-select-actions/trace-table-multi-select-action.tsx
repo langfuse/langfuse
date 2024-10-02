@@ -75,10 +75,10 @@ export function TraceTableMultiSelectAction({
     scope: "annotationQueues:CUD",
   });
   const mutAddToQueue = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       showSuccessToast({
         title: "Traces added to queue",
-        description: `${selectedTraceIds.length} traces added to queue`,
+        description: `${selectedTraceIds.length} traces added to queue "${data.queueName}"`,
       });
     },
   });

@@ -159,7 +159,9 @@ export const queueItemRouter = createTRPCRouter({
           WHERE 
             aqi.project_id = ${input.projectId} AND aqi.queue_id = ${input.queueId}
           ORDER BY 
-            aqi.created_at ASC
+            aqi.created_at ASC,
+            aqi.object_id ASC,
+            aqi.object_type ASC
           ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
           ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
         `),
@@ -286,8 +288,19 @@ export const queueItemRouter = createTRPCRouter({
           );
         }
 
+        const queue = await ctx.prisma.annotationQueue.findUnique({
+          where: {
+            id: input.queueId,
+            projectId: input.projectId,
+          },
+          select: {
+            name: true,
+          },
+        });
+
         return {
           createdCount: count,
+          queueName: queue?.name,
         };
       } catch (error) {
         logger.error(error);

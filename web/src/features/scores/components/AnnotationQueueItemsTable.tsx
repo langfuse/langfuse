@@ -5,12 +5,11 @@ import { api } from "@/src/utils/api";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { type AnnotationQueueStatus } from "@langfuse/shared";
+import { AnnotationQueueStatus } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { ChevronDown, ListTree, Trash } from "lucide-react";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
@@ -31,6 +30,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Badge } from "@/src/components/ui/badge";
+import { cn } from "@/src/utils/tailwind";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -249,7 +250,17 @@ export function AnnotationQueueItemsTable({
       cell: ({ row }) => {
         const status: QueueItemRowData["status"] = row.getValue("status");
         return (
-          <StatusBadge className="capitalize" type={status.toLowerCase()} />
+          <Badge
+            className={cn(
+              "rounded-md capitalize",
+              status === AnnotationQueueStatus.COMPLETED
+                ? "bg-light-green text-dark-green"
+                : "bg-light-yellow text-dark-yellow",
+            )}
+            variant="outline"
+          >
+            {status.toLowerCase()}
+          </Badge>
         );
       },
     },

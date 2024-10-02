@@ -16,7 +16,7 @@ import {
   AnnotationQueueStatus,
   type AnnotationQueueObjectType,
 } from "@langfuse/shared";
-import { ChevronDown, ExternalLink, PlusIcon } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useState, useCallback } from "react";
@@ -93,10 +93,9 @@ export const CreateNewAnnotationQueueItem = ({
   if (session.status !== "authenticated" || queues.isLoading) {
     return (
       <Button
-        variant="ghost"
+        variant="secondary"
         disabled
-        size="icon"
-        className="h-6 w-8 px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        className="rounded-l-none rounded-r-md border-l border-l-secondary-foreground"
       >
         <ChevronDown className="h-3 w-3" />
       </Button>
@@ -115,14 +114,13 @@ export const CreateNewAnnotationQueueItem = ({
     >
       <DropdownMenuTrigger asChild>
         <Button
-          variant="ghost"
+          variant="secondary"
           disabled={!hasAccess}
-          size="icon"
-          className="ml-0.5 h-6 w-8 px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="rounded-l-none rounded-r-md border-l border-l-secondary-foreground"
         >
           {queues.data?.totalCount ? (
             <span className="relative mr-1 text-xs">
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="h-3 w-3 text-secondary-foreground" />
               <span className="absolute -top-1.5 left-2.5 flex max-h-[0.8rem] min-w-[0.8rem] items-center justify-center rounded-full border border-muted-foreground bg-accent-light-blue px-[0.2rem] text-[8px]">
                 {queues.data?.totalCount > 99 ? "99+" : queues.data?.totalCount}
               </span>
@@ -130,9 +128,6 @@ export const CreateNewAnnotationQueueItem = ({
           ) : (
             <span className="relative mr-1 text-xs">
               <ChevronDown className="h-3 w-3" />
-              <span className="absolute -top-1.5 left-2.5 flex h-[0.8rem] w-[0.8rem] items-center justify-center rounded-full border border-muted-foreground bg-accent-light-blue text-[8px]">
-                <PlusIcon className="h-2 w-2" />
-              </span>
             </span>
           )}
         </Button>
@@ -171,7 +166,14 @@ export const CreateNewAnnotationQueueItem = ({
             </DropdownMenuCheckboxItem>
           ))
         ) : (
-          <DropdownMenuItem>No queues defined</DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            No queues defined
+          </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem

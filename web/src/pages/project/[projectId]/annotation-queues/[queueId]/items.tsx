@@ -1,6 +1,7 @@
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
@@ -8,7 +9,7 @@ import { FeatureFlagToggle } from "@/src/features/feature-flags/components/Featu
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotationQueueItemPage } from "@/src/features/scores/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
-import { Network } from "lucide-react";
+import { Goal, Network } from "lucide-react";
 import { useRouter } from "next/router";
 
 export default function AnnotationQueues() {
@@ -62,18 +63,23 @@ export default function AnnotationQueues() {
                 },
               ]}
               actionButtons={
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() =>
-                    setView(view === "hideTree" ? "showTree" : "hideTree")
-                  }
-                  title={
-                    view === "hideTree" ? "Show trace tree" : "Hide trace tree"
-                  }
+                <Tabs
+                  value={view}
+                  onValueChange={(view: string) => {
+                    setView(view as "hideTree" | "showTree");
+                  }}
                 >
-                  <Network className="h-4 w-4"></Network>
-                </Button>
+                  <TabsList>
+                    <TabsTrigger value="hideTree">
+                      <Goal className="mr-1 h-4 w-4"></Goal>
+                      Focused
+                    </TabsTrigger>
+                    <TabsTrigger value="showTree">
+                      <Network className="mr-1 h-4 w-4"></Network>
+                      Detailed
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               }
             />
             <AnnotationQueueItemPage

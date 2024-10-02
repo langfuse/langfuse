@@ -1,5 +1,10 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { type APIScore, type Trace, type ScoreSource } from "@langfuse/shared";
+import {
+  type APIScore,
+  type Trace,
+  type ScoreSource,
+  AnnotationQueueObjectType,
+} from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -22,6 +27,8 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
+import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/CreateNewAnnotationQueueItem";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export const TracePreview = ({
   trace,
@@ -45,6 +52,7 @@ export const TracePreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
+  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
 
   const traceScores = scores.filter((s) => s.observationId === null);
   const traceScoresBySource = traceScores.reduce((acc, score) => {
@@ -123,14 +131,24 @@ export const TracePreview = ({
                 objectType="TRACE"
                 count={commentCounts?.get(trace.id)}
               />
-              <AnnotateDrawer
-                projectId={trace.projectId}
-                traceId={trace.id}
-                scores={scores}
-                emptySelectedConfigIds={emptySelectedConfigIds}
-                setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                key={"annotation-drawer" + trace.id}
-              />
+              <div className="flex items-start">
+                <AnnotateDrawer
+                  projectId={trace.projectId}
+                  traceId={trace.id}
+                  scores={scores}
+                  emptySelectedConfigIds={emptySelectedConfigIds}
+                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                  key={"annotation-drawer" + trace.id}
+                  hasGroupedButton={hasEntitlement}
+                />
+                {hasEntitlement && (
+                  <CreateNewAnnotationQueueItem
+                    projectId={trace.projectId}
+                    objectId={trace.id}
+                    objectType={AnnotationQueueObjectType.TRACE}
+                  />
+                )}
+              </div>
               <NewDatasetItemFromTrace
                 traceId={trace.id}
                 projectId={trace.projectId}

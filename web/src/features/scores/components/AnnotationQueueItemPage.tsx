@@ -238,12 +238,20 @@ export const AnnotationQueueItemPage: React.FC<{
 
   const utils = api.useUtils();
   const completeMutation = api.annotationQueueItems.complete.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       utils.annotationQueueItems.invalidate();
       showSuccessToast({
         title: "Item marked as complete",
         description: "The item is successfully marked as complete.",
       });
+      setProgressIndex(Math.max(progressIndex + 1, 0));
+      if (progressIndex >= seenItemIds.length - 1) {
+        const nextItem = await fetchAndLockNextMutation.mutateAsync({
+          queueId: annotationQueueId,
+          projectId,
+        });
+        setNextItemData(nextItem);
+      }
     },
   });
 
@@ -323,7 +331,7 @@ export const AnnotationQueueItemPage: React.FC<{
       {!isViewOnly ? (
         <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
           <div className="flex max-h-10 flex-row gap-2">
-            <span className="grid h-9 min-w-16 items-center rounded-md bg-border p-1 text-center text-sm">
+            <span className="grid h-9 min-w-16 items-center rounded-md bg-muted p-1 text-center text-sm">
               {progressIndex + 1} / {totalItems}
             </span>
             <Button
@@ -331,8 +339,10 @@ export const AnnotationQueueItemPage: React.FC<{
               variant="outline"
               disabled={progressIndex === 0 || !hasAccess}
               size="lg"
+              className="px-4"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              Back
             </Button>
           </div>
           <div className="flex w-full min-w-[265px] justify-end gap-2">
@@ -349,25 +359,34 @@ export const AnnotationQueueItemPage: React.FC<{
               }}
               disabled={!isNextItemAvailable || !hasAccess}
               size="lg"
-              className="w-full"
+              className={`px-4 ${!relevantItem ? "w-full" : ""}`}
+              variant="outline"
             >
-              <ArrowRight className="h-4 w-4" />
+              {relevantItem?.status === AnnotationQueueStatus.PENDING
+                ? "Skip"
+                : "Next"}
+              <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
-            {relevantItem?.status === AnnotationQueueStatus.PENDING && (
-              <Button
-                onClick={async () => {
-                  if (!relevantItem) return;
-                  await completeMutation.mutateAsync({
-                    itemId: relevantItem.id,
-                    projectId,
-                  });
-                }}
-                size="lg"
-                disabled={completeMutation.isLoading || !hasAccess}
-              >
-                Mark as complete
-              </Button>
-            )}
+            {!!relevantItem &&
+              (relevantItem.status === AnnotationQueueStatus.PENDING ? (
+                <Button
+                  onClick={async () => {
+                    await completeMutation.mutateAsync({
+                      itemId: relevantItem.id,
+                      projectId,
+                    });
+                  }}
+                  size="lg"
+                  className="w-full"
+                  disabled={completeMutation.isLoading || !hasAccess}
+                >
+                  Complete + next
+                </Button>
+              ) : (
+                <div className="text-dark-gree inline-flex h-9 w-full items-center justify-center rounded-md border border-dark-green bg-light-green px-8 text-sm font-medium">
+                  Completed
+                </div>
+              ))}
           </div>
         </div>
       ) : (

@@ -151,7 +151,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return !hasAccess ? (
-          <Button variant="outline" size="sm" disabled>
+          <Button variant="primary" size="sm" disabled>
             <Lock className="mr-1 h-3 w-3" />
             <span className="text-xs">Process queue</span>
           </Button>
