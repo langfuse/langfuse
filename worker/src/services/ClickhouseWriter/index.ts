@@ -107,7 +107,7 @@ export class ClickhouseWriter {
     // Log wait time
     queueItems.forEach((item) => {
       const waitTime = Date.now() - item.createdAt;
-      recordHistogram("ingestion_clickhouse_insert_wait_time", waitTime, {
+      recordHistogram("langfuse.queue.clickhouse_writer.wait_time", waitTime, {
         unit: "milliseconds",
       });
     });
@@ -122,7 +122,7 @@ export class ClickhouseWriter {
 
       // Log processing time
       recordHistogram(
-        "ingestion_clickhouse_insert_processing_time",
+        "langfuse.queue.clickhouse_writer.processing_time",
         Date.now() - processingStartTime,
         {
           unit: "milliseconds",
