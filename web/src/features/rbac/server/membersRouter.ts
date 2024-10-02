@@ -254,7 +254,7 @@ export const membersRouter = createTRPCRouter({
               user: { email: adminEmail },
             } of adminOrOwnerEmails) {
               if (adminEmail) {
-                await sendMembershipInvitationEmail({
+                await sendMembershipNotificationEmail({
                   inviterEmail: ctx.session.user.email!,
                   inviterName: ctx.session.user.name!,
                   to: adminEmail,
