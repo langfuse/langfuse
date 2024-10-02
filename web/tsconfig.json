@@ -1,6 +1,7 @@
 {
   "extends": "@repo/typescript-config/nextjs.json",
   "compilerOptions": {
+    "jsx": "react-jsx",
     "declaration": false,
     "declarationMap": false,
     "outDir": "dist",
