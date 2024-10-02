@@ -102,8 +102,8 @@ if (process.env.NODE_ENV === "development") {
         }),
     })
   );
-}
-s;
+};
+
 export const prisma =
   globalThis.prismaGlobal ?? PrismaClientSingleton.getInstance();
 export const kyselyPrisma =
