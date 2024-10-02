@@ -59,8 +59,6 @@ export function nestObservations(
     obj.children.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
   }
 
-  // TODO sum token amounts per level
-
   // Step 5: Return the roots.
   return Array.from(roots.values());
 }

@@ -5,7 +5,7 @@ import { TracePreview } from "./TracePreview";
 
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
-import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
+import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -331,7 +331,7 @@ export function TracePage({ traceId }: { traceId: string }) {
             <Badge>User ID: {trace.data.userId}</Badge>
           </Link>
         ) : null}
-        <TraceAggUsageBadge observations={trace.data.observations} />
+        <AggUsageBadge observations={trace.data.observations} />
         {totalCost ? (
           <Badge variant="outline">
             Total cost: {usdFormatter(totalCost.toNumber())}

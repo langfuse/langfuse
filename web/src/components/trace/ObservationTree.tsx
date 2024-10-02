@@ -2,7 +2,7 @@ import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import { type APIScore, type Trace, type $Enums } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { Fragment } from "react";
+import { Fragment, useMemo } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { LevelColors } from "@/src/components/level-colors";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -15,6 +15,7 @@ import {
   treeItemColors,
 } from "@/src/components/trace/lib/helpers";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export const ObservationTree = (props: {
   observations: ObservationReturnType[];
@@ -32,7 +33,10 @@ export const ObservationTree = (props: {
   traceCommentCounts?: Map<string, number>;
   className?: string;
 }) => {
-  const nestedObservations = nestObservations(props.observations);
+  const nestedObservations = useMemo(
+    () => nestObservations(props.observations),
+    [props.observations],
+  );
   return (
     <div className={props.className}>
       <ObservationTreeTraceNode
@@ -228,6 +232,11 @@ const ObservationTreeNode = (props: {
                             {observation.promptTokens} →{" "}
                             {observation.completionTokens} (∑{" "}
                             {observation.totalTokens})
+                          </span>
+                        ) : null}
+                        {observation.calculatedTotalCost ? (
+                          <span className="text-xs text-muted-foreground">
+                            {usdFormatter(observation.calculatedTotalCost)}
                           </span>
                         ) : null}
                       </div>

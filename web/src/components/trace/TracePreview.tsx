@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
+import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
@@ -92,7 +92,7 @@ export const TracePreview = ({
                   {formatIntervalSeconds(trace.latency)}
                 </Badge>
               )}
-              <TraceAggUsageBadge observations={observations} />
+              <AggUsageBadge observations={observations} />
               {!!trace.release && (
                 <Badge variant="outline">Release: {trace.release}</Badge>
               )}
