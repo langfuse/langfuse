@@ -30,6 +30,7 @@ CREATE TABLE observations (
     `output_cost` Nullable(Decimal64(12)),
     `total_cost` Nullable(Decimal64(12)),
     `completion_start_time` Nullable(DateTime64(3)),
+    `time_to_first_token` Nullable(DateTime64(3)),
     `prompt_id` Nullable(String),
     `prompt_name` Nullable(String),
     `prompt_version` Nullable(UInt16),
@@ -47,3 +48,4 @@ ORDER BY (
         toDate(start_time),
         trace_id
     );
+
