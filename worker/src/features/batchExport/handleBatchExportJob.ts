@@ -382,7 +382,6 @@ export const handleBatchExportJob = async (
       downloadLink: signedUrl,
       userName: user?.name || "",
       batchExportName: jobDetails.name,
-      expiresInHours: env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS,
     });
 
     logger.info(`Batch export success email sent to user ${user.id}`);
