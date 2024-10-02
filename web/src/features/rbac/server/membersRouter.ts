@@ -10,7 +10,10 @@ import {
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { type PrismaClient, Role } from "@langfuse/shared";
-import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
+import {
+  sendMembershipInvitationEmail,
+  sendMembershipNotificationEmail,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -228,6 +231,39 @@ export const membersRouter = createTRPCRouter({
               action: "create",
               after: newProjectMembership,
             });
+
+            const adminOrOwnerEmails =
+              await ctx.prisma.organizationMembership.findMany({
+                where: {
+                  orgId: input.orgId,
+                  role: {
+                    in: [Role.ADMIN, Role.OWNER], // only notify admins or owners
+                  },
+                },
+                select: {
+                  user: {
+                    select: {
+                      email: true,
+                    },
+                  },
+                },
+              });
+
+            // Send email notifications to all admins and owners
+            for (const {
+              user: { email: adminEmail },
+            } of adminOrOwnerEmails) {
+              if (adminEmail) {
+                await sendMembershipInvitationEmail({
+                  inviterEmail: ctx.session.user.email!,
+                  inviterName: ctx.session.user.name!,
+                  to: adminEmail,
+                  orgName: org.name,
+                  env: env,
+                });
+              }
+            }
+
             return;
           } else {
             throw new TRPCError({
