@@ -39,8 +39,11 @@ function useColumnOrder<TData>(
       }
     });
 
-    setColumnOrder(finalColumnOrder);
-  }, [columns, localStorageKey, setColumnOrder]);
+    // Compare the new order with the current order to avoid unnecessary updates
+    if (JSON.stringify(finalColumnOrder) !== JSON.stringify(columnOrder)) {
+      setColumnOrder(finalColumnOrder);
+    }
+  }, [columns, localStorageKey, columnOrder, setColumnOrder]);
 
   return [columnOrder, setColumnOrder] as const;
 }
