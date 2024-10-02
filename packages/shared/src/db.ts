@@ -73,14 +73,40 @@ export class KyselySingleton {
               createQueryCompiler: () => new PostgresQueryCompiler(),
             },
           }),
-      }),
+      })
     );
 
     return KyselySingleton.instance;
   }
 }
 
-export const prisma = PrismaClientSingleton.getInstance();
-export const kyselyPrisma = KyselySingleton.getInstance();
+declare const globalThis: {
+  prismaGlobal: PrismaClient | undefined;
+  kyselyPrismaGlobal: { $kysely: Kysely<DB> } | undefined;
+} & typeof global;
+
+if (process.env.NODE_ENV === "development") {
+  globalThis.prismaGlobal ??= new PrismaClient(); // regular instantiation
+  globalThis.kyselyPrismaGlobal ??= globalThis.prismaGlobal.$extends(
+    kyselyExtension({
+      kysely: (driver) =>
+        new Kysely<DB>({
+          dialect: {
+            // This is where the magic happens!
+            createDriver: () => driver,
+            // Don't forget to customize these to match your database!
+            createAdapter: () => new PostgresAdapter(),
+            createIntrospector: (db) => new PostgresIntrospector(db),
+            createQueryCompiler: () => new PostgresQueryCompiler(),
+          },
+        }),
+    })
+  );
+};
+
+export const prisma =
+  globalThis.prismaGlobal ?? PrismaClientSingleton.getInstance();
+export const kyselyPrisma =
+  globalThis.kyselyPrismaGlobal ?? KyselySingleton.getInstance();
 
 export * from "@prisma/client";
