@@ -21,7 +21,7 @@ export const createTracesTimeFilter = (
 export const totalCostDashboardFormatted = (totalCost?: number) => {
   return totalCost
     ? totalCost < 5
-      ? usdFormatter(totalCost, 2, 4)
+      ? usdFormatter(totalCost, 2, 6)
       : usdFormatter(totalCost, 2, 2)
     : usdFormatter(0);
 };
