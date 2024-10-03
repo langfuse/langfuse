@@ -21,6 +21,9 @@ import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { useMemo } from "react";
+import { usdFormatter } from "@/src/utils/numbers";
+import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 
 export const TracePreview = ({
   trace,
@@ -49,6 +52,14 @@ export const TracePreview = ({
     acc.get(score.source)?.push(score);
     return acc;
   }, new Map<ScoreSource, APIScore[]>());
+
+  const totalCost = useMemo(
+    () =>
+      calculateDisplayTotalCost({
+        allObservations: observations,
+      }),
+    [observations],
+  );
 
   return (
     <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">
@@ -98,6 +109,11 @@ export const TracePreview = ({
               )}
               {!!trace.version && (
                 <Badge variant="outline">Version: {trace.version}</Badge>
+              )}
+              {totalCost && (
+                <Badge variant="outline">
+                  ∑ {usdFormatter(totalCost.toNumber())}
+                </Badge>
               )}
             </div>
           </div>
