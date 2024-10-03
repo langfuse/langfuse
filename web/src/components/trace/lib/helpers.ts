@@ -79,16 +79,17 @@ export function calculateDisplayTotalCost(p: {
         o.parentObservationId === p.rootObservationId ||
         o.id === p.rootObservationId,
     );
-  }
-  while (true) {
-    const childrenToAdd = p.allObservations.filter(
-      (o) =>
-        o.parentObservationId &&
-        !observations.map((o2) => o2.id).includes(o.id) &&
-        observations.map((o2) => o2.id).includes(o.parentObservationId),
-    );
-    if (childrenToAdd.length === 0) break;
-    observations = [...observations, ...childrenToAdd];
+
+    while (true) {
+      const childrenToAdd = p.allObservations.filter(
+        (o) =>
+          o.parentObservationId &&
+          !observations.map((o2) => o2.id).includes(o.id) &&
+          observations.map((o2) => o2.id).includes(o.parentObservationId),
+      );
+      if (childrenToAdd.length === 0) break;
+      observations = [...observations, ...childrenToAdd];
+    }
   }
 
   const totalCost = observations.reduce(
