@@ -154,7 +154,7 @@ function OverviewTab({ userId, projectId }: TabProps) {
         },
         {
           label: "Total Cost",
-          value: usdFormatter(user.data.sumCalculatedTotalCost, 2, 2),
+          value: usdFormatter(user.data.sumCalculatedTotalCost),
         },
       ]
     : [];
