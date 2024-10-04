@@ -249,6 +249,7 @@ describe("/api/public/traces API Endpoint", () => {
         value: 75.0,
         traceId: traceId,
         comment: "First score",
+        timestamp: new Date("2023-04-15T14:30:00Z"), // Use a specific date for testing
       },
     );
     const scoreId2 = uuidv4();
@@ -262,6 +263,7 @@ describe("/api/public/traces API Endpoint", () => {
         value: 85.5,
         traceId: traceId,
         comment: "Second score",
+        timestamp: new Date("2023-04-15T14:30:00Z"),
       },
     );
     const scoreId3 = uuidv4();
@@ -275,6 +277,7 @@ describe("/api/public/traces API Endpoint", () => {
         value: 95.0,
         traceId: traceId,
         comment: "Third score",
+        timestamp: new Date("2023-04-15T14:30:00Z"),
       },
     );
 

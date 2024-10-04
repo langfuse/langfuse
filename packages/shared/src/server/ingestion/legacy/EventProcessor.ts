@@ -666,9 +666,11 @@ export class ScoreProcessor implements EventProcessor {
       },
       create: {
         ...validatedScore,
+        timestamp: body.timestamp ? new Date(body.timestamp) : new Date(),
       },
       update: {
         ...validatedScore,
+        timestamp: body.timestamp ? new Date(body.timestamp) : new Date(),
       },
     });
   }

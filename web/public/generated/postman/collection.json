@@ -1105,7 +1105,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"novelty\",\n    \"value\": 0.9,\n    \"traceId\": \"cdef-1234-5678-90ab\"\n}",
+              "raw": "{\n    \"name\": \"novelty\",\n    \"value\": 0.9,\n    \"traceId\": \"cdef-1234-5678-90ab\",\n    \"timestamp\": \"2023-04-15T14:30:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
