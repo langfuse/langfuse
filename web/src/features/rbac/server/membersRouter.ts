@@ -371,7 +371,7 @@ export const membersRouter = createTRPCRouter({
               to: adminEmail,
               orgName: org.name,
               env: env,
-              userExists: true,
+              userExists: false,
             });
           }
         }
