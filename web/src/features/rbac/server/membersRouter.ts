@@ -10,7 +10,11 @@ import {
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { type PrismaClient, Role } from "@langfuse/shared";
-import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
+import {
+  sendMembershipInvitationEmail,
+  sendMembershipNotificationEmail,
+} from "@langfuse/shared/src/server";
+
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -277,6 +281,38 @@ export const membersRouter = createTRPCRouter({
           orgName: org.name,
           env: env,
         });
+        const adminOrOwnerEmails =
+          await ctx.prisma.organizationMembership.findMany({
+            where: {
+              orgId: input.orgId,
+              role: {
+                in: [Role.ADMIN, Role.OWNER], // only notify admins or owners
+              },
+            },
+            select: {
+              user: {
+                select: {
+                  email: true,
+                },
+              },
+            },
+          });
+
+        // Send email notifications to all admins and owners
+        for (const {
+          user: { email: adminEmail },
+        } of adminOrOwnerEmails) {
+          if (adminEmail) {
+            await sendMembershipNotificationEmail({
+              inviterEmail: ctx.session.user.email!,
+              inviterName: ctx.session.user.name!,
+              to: adminEmail,
+              orgName: org.name,
+              env: env,
+              userExists: true,
+            });
+          }
+        }
       } else {
         const invitation = await ctx.prisma.membershipInvitation.create({
           data: {
@@ -308,7 +344,37 @@ export const membersRouter = createTRPCRouter({
           orgName: org.name,
           env: env,
         });
-
+        const adminOrOwnerEmails =
+          await ctx.prisma.organizationMembership.findMany({
+            where: {
+              orgId: input.orgId,
+              role: {
+                in: [Role.ADMIN, Role.OWNER], // only notify admins or owners
+              },
+            },
+            select: {
+              user: {
+                select: {
+                  email: true,
+                },
+              },
+            },
+          });
+        // Send email notifications to all admins and owners
+        for (const {
+          user: { email: adminEmail },
+        } of adminOrOwnerEmails) {
+          if (adminEmail) {
+            await sendMembershipNotificationEmail({
+              inviterEmail: ctx.session.user.email!,
+              inviterName: ctx.session.user.name!,
+              to: adminEmail,
+              orgName: org.name,
+              env: env,
+              userExists: true,
+            });
+          }
+        }
         return invitation;
       }
     }),
