@@ -27,7 +27,7 @@ export class PosthogCallbackHandler extends BaseCallbackHandler {
     const properties = this.getEventProperties(outputString);
 
     this.captureEvent(properties);
-    await this.posthog.flushAsync();
+    await this.posthog.flush();
   }
 
   private getInputLength() {
@@ -54,8 +54,8 @@ export class PosthogCallbackHandler extends BaseCallbackHandler {
     });
   }
 
-  public async flushAsync() {
-    await this.posthog.flushAsync();
+  public async flush() {
+    await this.posthog.flush();
   }
 }
 
