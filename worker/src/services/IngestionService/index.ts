@@ -70,7 +70,7 @@ export class IngestionService {
     private redis: Redis,
     prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
-    private clickhouseClient: ClickhouseClientType,
+    private clickhouseClient: ClickhouseClientType
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -80,12 +80,12 @@ export class IngestionService {
     const eventList = (await this.redis.lrange(bufferKey, 0, -1))
       .map((serializedEventData) => {
         const parsed = ingestionEventWithProjectId.safeParse(
-          JSON.parse(serializedEventData),
+          JSON.parse(serializedEventData)
         );
 
         if (!parsed.success) {
           logger.error(
-            `Failed to parse event ${serializedEventData} : ${parsed.error}`,
+            `Failed to parse event ${serializedEventData} : ${parsed.error}`
           );
 
           return null;
@@ -97,7 +97,7 @@ export class IngestionService {
 
     if (eventList.length === 0) {
       throw new Error(
-        `No valid events found in buffer for flushKey ${flushKey}`,
+        `No valid events found in buffer for flushKey ${flushKey}`
       );
     }
 
@@ -173,7 +173,7 @@ export class IngestionService {
 
     if (!clickhouseScoreRecord && !this.hasCreateEvent(scoreEventList)) {
       throw new Error(
-        `No create event or existing record found for score with id ${entityId} in project ${projectId}`,
+        `No create event or existing record found for score with id ${entityId} in project ${projectId}`
       );
     }
 
@@ -211,7 +211,7 @@ export class IngestionService {
 
     if (!clickhouseTraceRecord && !this.hasCreateEvent(traceEventList)) {
       throw new Error(
-        `No create event or existing record found for trace with id ${entityId} in project ${projectId}`,
+        `No create event or existing record found for trace with id ${entityId} in project ${projectId}`
       );
     }
 
@@ -253,7 +253,7 @@ export class IngestionService {
       !this.hasCreateEvent(observationEventList)
     ) {
       throw new Error(
-        `No create event or existing record found for observation with id ${entityId} in project ${projectId}`,
+        `No create event or existing record found for observation with id ${entityId} in project ${projectId}`
       );
     }
 
@@ -284,7 +284,7 @@ export class IngestionService {
 
     this.clickHouseWriter.addToQueue(
       TableName.Observations,
-      finalObservationRecord,
+      finalObservationRecord
     );
   }
 
@@ -300,7 +300,7 @@ export class IngestionService {
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
-      immutableEntityKeys[TableName.Scores],
+      immutableEntityKeys[TableName.Scores]
     );
 
     return scoreRecordInsertSchema.parse(mergedRecord);
@@ -318,7 +318,7 @@ export class IngestionService {
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
-      immutableEntityKeys[TableName.Traces],
+      immutableEntityKeys[TableName.Traces]
     );
 
     return traceRecordInsertSchema.parse(mergedRecord);
@@ -338,7 +338,7 @@ export class IngestionService {
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
-      immutableEntityKeys[TableName.Observations],
+      immutableEntityKeys[TableName.Observations]
     );
 
     const parsedObservationRecord =
@@ -362,7 +362,7 @@ export class IngestionService {
 
   private mergeRecords<T extends InsertRecord>(
     records: T[],
-    immutableEntityKeys: string[],
+    immutableEntityKeys: string[]
   ): unknown {
     if (records.length === 0) {
       throw new Error("No records to merge");
@@ -398,7 +398,7 @@ export class IngestionService {
 
   private async getPrompt(
     projectId: string,
-    observationEventList: ObservationEvent[],
+    observationEventList: ObservationEvent[]
   ): Promise<ObservationPrompt | null> {
     const lastObservationWithPromptInfo = observationEventList
       .slice()
@@ -419,7 +419,7 @@ export class IngestionService {
   }
 
   private hasPromptInformation(
-    event: ObservationEvent,
+    event: ObservationEvent
   ): event is ObservationEvent & {
     body: { promptName: string; promptVersion: number };
   } {
@@ -461,7 +461,7 @@ export class IngestionService {
     const tokenCosts = IngestionService.calculateTokenCosts(
       internalModel,
       observationRecord,
-      tokenCounts,
+      tokenCounts
     );
 
     return {
@@ -474,7 +474,7 @@ export class IngestionService {
 
   private getTokenCounts(
     observationRecord: ObservationRecordInsertType,
-    model: Model | null | undefined,
+    model: Model | null | undefined
   ): Pick<
     ObservationRecordInsertType,
     "input_usage_units" | "output_usage_units" | "total_usage_units"
@@ -521,7 +521,7 @@ export class IngestionService {
       input_usage_units?: number | null;
       output_usage_units?: number | null;
       total_usage_units?: number | null;
-    },
+    }
   ): {
     input_cost: number | null | undefined;
     output_cost: number | null | undefined;
@@ -613,7 +613,7 @@ export class IngestionService {
         : table === TableName.Scores
           ? convertScoreReadToInsert(recordParser[table].parse(result[0]))
           : convertObservationReadToInsert(
-              recordParser[table].parse(result[0]),
+              recordParser[table].parse(result[0])
             );
     });
   }
@@ -631,7 +631,7 @@ export class IngestionService {
         // in the default implementation, we set timestamps server side if not provided.
         // we need to insert timestamps here and change the SDKs to send timestamps client side.
         timestamp: this.getMillisecondTimestamp(
-          trace.body.timestamp ?? trace.timestamp,
+          trace.body.timestamp ?? trace.timestamp
         ),
         name: trace.body.name,
         user_id: trace.body.userId,
@@ -649,6 +649,7 @@ export class IngestionService {
         session_id: trace.body.sessionId,
         created_at: Date.now(),
         updated_at: Date.now(),
+        event_ts: trace.timestamp,
       };
 
       return traceRecord;
@@ -714,7 +715,7 @@ export class IngestionService {
         type: observationType,
         name: obs.body.name,
         start_time: this.getMillisecondTimestamp(
-          obs.body.startTime ?? obs.timestamp,
+          obs.body.startTime ?? obs.timestamp
         ),
         end_time:
           "endTime" in obs.body && obs.body.endTime
@@ -763,7 +764,7 @@ export class IngestionService {
   }
 
   private stringify(
-    obj: string | object | number | boolean | undefined | null,
+    obj: string | object | number | boolean | undefined | null
   ): string | undefined {
     if (obj == null) return; // return undefined on undefined or null
 
@@ -775,10 +776,10 @@ export class IngestionService {
   }
 
   private hasCreateEvent(
-    eventList: ObservationEvent[] | ScoreEventType[] | TraceEventType[],
+    eventList: ObservationEvent[] | ScoreEventType[] | TraceEventType[]
   ): boolean {
     return eventList.some((event) =>
-      event.type.toLowerCase().includes("create"),
+      event.type.toLowerCase().includes("create")
     );
   }
 }

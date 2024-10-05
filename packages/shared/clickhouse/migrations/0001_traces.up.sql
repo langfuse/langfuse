@@ -15,6 +15,7 @@ CREATE TABLE traces (
     `session_id` Nullable(String),
     `created_at` DateTime64(3) DEFAULT now(),
     `updated_at` DateTime64(3) DEFAULT now(),
+    event_ts DateTime64(3),
     INDEX idx_id id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_res_metadata_key mapKeys(metadata) TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_res_metadata_value mapValues(metadata) TYPE bloom_filter(0.01) GRANULARITY 1
