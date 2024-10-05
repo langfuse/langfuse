@@ -66,6 +66,7 @@
     "@react-email/components": "^0.0.19",
     "@react-email/render": "^0.0.15",
     "@types/bcryptjs": "^2.4.6",
+    "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.12.10",
     "dd-trace": "^5.23.1",
@@ -106,7 +107,7 @@
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "typescript": "^5.4.5",
-    "vitest": "^1.5.3"
+    "vitest": "^2.1.2"
   },
   "peerDependencies": {
     "@types/react": "~18.2.79",
