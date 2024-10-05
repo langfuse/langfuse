@@ -55,6 +55,9 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_GITLAB_CLIENT_ID: z.string().optional(),
+    AUTH_GITLAB_CLIENT_SECRET: z.string().optional(),
+    AUTH_GITLAB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
@@ -126,7 +129,9 @@ export const env = createEnv({
     LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
     LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.string().url().optional(),
     LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.string().url().optional(),
-    LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z.enum(["OpenAI", "Anthropic", "Azure"]).optional(),
+    LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z
+      .enum(["OpenAI", "Anthropic", "Azure"])
+      .optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.string().url().optional(),
@@ -267,6 +272,10 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING,
+    AUTH_GITLAB_CLIENT_ID: process.env.AUTH_GITLAB_CLIENT_ID,
+    AUTH_GITLAB_CLIENT_SECRET: process.env.AUTH_GITLAB_CLIENT_SECRET,
+    AUTH_GITLAB_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING,
     AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
     AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,

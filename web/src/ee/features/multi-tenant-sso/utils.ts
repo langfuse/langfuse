@@ -1,6 +1,7 @@
 import { type Provider } from "next-auth/providers/index";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
+import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
 import CognitoProvider from "next-auth/providers/cognito";
 import Auth0Provider from "next-auth/providers/auth0";
@@ -153,6 +154,12 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     });
   else if (provider.authProvider === "github")
     return GitHubProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
+  else if (provider.authProvider === "gitlab")
+    return GitLabProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
