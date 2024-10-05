@@ -38,6 +38,9 @@ importers:
       '@opentelemetry/api':
         specifier: '>=1.0.0 <1.9.0'
         version: 1.8.0
+      axios:
+        specifier: ^1.7.7
+        version: 1.7.7
       next:
         specifier: ^14.2.6
         version: 14.2.6(@opentelemetry/api@1.8.0)(@playwright/test@1.43.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -158,6 +161,9 @@ importers:
       '@types/react':
         specifier: ~18.2.79
         version: 18.2.79
+      axios:
+        specifier: ^1.7.7
+        version: 1.7.7
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -181,7 +187,7 @@ importers:
         version: 0.27.4
       langchain:
         specifier: ^0.3.2
-        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))(axios@1.6.8)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
+        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -557,7 +563,7 @@ importers:
         version: 0.27.4
       langchain:
         specifier: ^0.3.2
-        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))(axios@1.6.8)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
+        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -5384,8 +5390,8 @@ packages:
     resolution: {integrity: sha512-M0JtH+hlOL5pLQwHOLNYZaXuhqmvS8oExsqB1SBYgA4Dk7u/xx+YdGHXaK5pyUfed5mYXdlYiphWq3G8cRi5JQ==}
     engines: {node: '>=4'}
 
-  axios@1.6.8:
-    resolution: {integrity: sha512-v/ZHtJDU39mDpyBoFVkETcd/uNdxrWRrg3bKpOKzXFA6Bvqopts6ALSMU3y6ijYxbw2B+wPrIv46egTzJXCLGQ==}
+  axios@1.7.7:
+    resolution: {integrity: sha512-S4kL7XrjgBmvdGut0sN3yJxqYzrDOnivkBiN0OFs6hLiUam3UPvswUo0kqGyhqUZGEOytHyumEdXsAkgCOUf3Q==}
 
   axobject-query@3.2.1:
     resolution: {integrity: sha512-jsyHu61e6N4Vbz/v18DHwWYKK0bSWLqn47eeDSKPB7m8tqMHF9YJ+mhIk2lVteyZrY8tnSj/jHOv4YiTCuCJgg==}
@@ -16312,7 +16318,7 @@ snapshots:
       '@typescript-eslint/eslint-plugin': 7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
       '@typescript-eslint/parser': 7.12.0(eslint@8.57.0)(typescript@5.4.5)
       eslint-config-prettier: 9.1.0(eslint@8.57.0)
-      eslint-import-resolver-alias: 1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0))
+      eslint-import-resolver-alias: 1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))
       eslint-import-resolver-typescript: 3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0)
       eslint-plugin-eslint-comments: 3.2.0(eslint@8.57.0)
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
@@ -16791,7 +16797,7 @@ snapshots:
 
   axe-core@4.7.0: {}
 
-  axios@1.6.8:
+  axios@1.7.7:
     dependencies:
       follow-redirects: 1.15.6
       form-data: 4.0.0
@@ -18011,7 +18017,7 @@ snapshots:
       eslint: 8.57.0
       eslint-plugin-turbo: 1.13.4(eslint@8.57.0)
 
-  eslint-import-resolver-alias@1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)):
+  eslint-import-resolver-alias@1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)):
     dependencies:
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
 
@@ -20028,7 +20034,7 @@ snapshots:
 
   kysely@0.27.4: {}
 
-  langchain@0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))(axios@1.6.8)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8)):
+  langchain@0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8)):
     dependencies:
       '@langchain/core': 0.3.3(openai@4.62.1(zod@3.23.8))
       '@langchain/openai': 0.3.0(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))
@@ -20045,7 +20051,7 @@ snapshots:
       zod-to-json-schema: 3.23.2(zod@3.23.8)
     optionalDependencies:
       '@langchain/anthropic': 0.3.1(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))
-      axios: 1.6.8
+      axios: 1.7.7
       handlebars: 4.7.8
     transitivePeerDependencies:
       - encoding
@@ -21490,7 +21496,7 @@ snapshots:
 
   posthog-node@3.6.3:
     dependencies:
-      axios: 1.6.8
+      axios: 1.7.7
       rusha: 0.8.14
     transitivePeerDependencies:
       - debug
