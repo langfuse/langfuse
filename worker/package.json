@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.81.2",
+  "version": "2.82.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -38,10 +38,10 @@
     "backoff": "^2.5.0",
     "bullmq": "^5.12.10",
     "cors": "^2.8.5",
-    "dd-trace": "^5.21.0",
+    "dd-trace": "^5.23.1",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "express": "^4.21.0",
     "express-basic-auth": "^1.2.1",
     "handlebars": "^4.7.8",
     "helmet": "^7.1.0",
@@ -78,7 +78,7 @@
     "tsc-watch": "^6.2.0",
     "tsx": "^4.19.0",
     "typescript": "^5.4.5",
-    "vite": "^5.2.13",
+    "vite": "^5.2.14",
     "vitest": "^1.5.3"
   }
 }

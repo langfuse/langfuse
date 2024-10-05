@@ -15,7 +15,6 @@ import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
-import { calculateDisplayTotalCost } from "@/src/components/trace";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -24,6 +23,8 @@ import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/compon
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
+import { useMemo } from "react";
 
 export const ObservationPreview = (props: {
   observations: Array<ObservationReturnType>;
@@ -51,8 +52,19 @@ export const ObservationPreview = (props: {
     (o) => o.id === props.currentObservationId,
   );
 
-  const totalCost = calculateDisplayTotalCost(
-    preloadedObservation ? [preloadedObservation] : [],
+  const thisCost = preloadedObservation
+    ? calculateDisplayTotalCost({
+        allObservations: [preloadedObservation],
+      })
+    : undefined;
+
+  const totalCost = useMemo(
+    () =>
+      calculateDisplayTotalCost({
+        allObservations: props.observations,
+        rootObservationId: props.currentObservationId,
+      }),
+    [props.observations, props.currentObservationId],
   );
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
@@ -142,9 +154,14 @@ export const ObservationPreview = (props: {
               {preloadedObservation.model ? (
                 <Badge variant="outline">{preloadedObservation.model}</Badge>
               ) : null}
-              {totalCost ? (
+              {thisCost ? (
                 <Badge variant="outline">
-                  {usdFormatter(totalCost.toNumber())}
+                  {usdFormatter(thisCost.toNumber())}
+                </Badge>
+              ) : undefined}
+              {totalCost && totalCost !== thisCost ? (
+                <Badge variant="outline">
+                  ∑ {usdFormatter(totalCost.toNumber())}
                 </Badge>
               ) : undefined}
 

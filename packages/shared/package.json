@@ -68,7 +68,7 @@
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.12.10",
-    "dd-trace": "^5.19.0",
+    "dd-trace": "^5.23.1",
     "decimal.js": "^10.4.3",
     "exponential-backoff": "^3.1.1",
     "ioredis": "^5.4.1",
