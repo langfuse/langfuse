@@ -87,7 +87,7 @@
     "@t3-oss/env-nextjs": "^0.10.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^4.36.1",
-    "@tanstack/react-table": "^8.11.8",
+    "@tanstack/react-table": "^8.20.5",
     "@tremor/react": "3.16.2",
     "@trpc/client": "^10.45.0",
     "@trpc/next": "^10.45.0",
