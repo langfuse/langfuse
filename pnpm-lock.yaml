@@ -165,8 +165,8 @@ importers:
         specifier: ^5.12.10
         version: 5.12.10
       dd-trace:
-        specifier: ^5.19.0
-        version: 5.19.0
+        specifier: ^5.23.1
+        version: 5.23.1
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
@@ -532,8 +532,8 @@ importers:
         specifier: ^3.3.1
         version: 3.6.0
       dd-trace:
-        specifier: ^5.21.0
-        version: 5.21.0
+        specifier: ^5.23.1
+        version: 5.23.1
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
@@ -828,8 +828,8 @@ importers:
         specifier: ^2.8.5
         version: 2.8.5
       dd-trace:
-        specifier: ^5.21.0
-        version: 5.21.0
+        specifier: ^5.23.1
+        version: 5.23.1
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
@@ -1497,20 +1497,13 @@ packages:
   '@dabh/diagnostics@2.0.3':
     resolution: {integrity: sha512-hrlQOIi7hAfzsMqlGSFyVucrx38O+j6wiGOf//H2ecvIEqYN4ADBSS2iLMh5UFyDunCNniUIPk/q3riFv45xRA==}
 
-  '@datadog/native-appsec@8.0.1':
-    resolution: {integrity: sha512-SpWkoo7K4+pwxFze1ogRF1qBaKm8sZjWfZKnQ8Ex67f6L5odLjWOoiiIAs5rp01sLKGXjxU8IJf+X9j4PvI2zQ==}
+  '@datadog/native-appsec@8.1.1':
+    resolution: {integrity: sha512-mf+Ym/AzET4FeUTXOs8hz0uLOSsVIUnavZPUx8YoKWK5lKgR2L+CLfEzOpjBwgFpDgbV8I1/vyoGelgGpsMKHA==}
     engines: {node: '>=16'}
-
-  '@datadog/native-iast-rewriter@2.3.1':
-    resolution: {integrity: sha512-3pmt5G1Ai/+MPyxP7wBerIu/zH/BnAHxEu/EAMr+77IMpK5m7THPDUoWrPRCWcgFBfn0pK5DR7gRItG0wX3e0g==}
-    engines: {node: '>= 10'}
 
   '@datadog/native-iast-rewriter@2.4.1':
     resolution: {integrity: sha512-j3auTmyyn63e2y+SL28CGNy/l+jXQyh+pxqoGTacWaY5FW/dvo5nGQepAismgJ3qJ8VhQfVWRdxBSiT7wu9clw==}
     engines: {node: '>= 10'}
-
-  '@datadog/native-iast-taint-tracking@3.0.0':
-    resolution: {integrity: sha512-V+25+edlNCQSNRUvL45IajN+CFEjii9NbjfSMG6HRHbH/zeLL9FCNE+GU88dwB1bqXKNpBdrIxsfgTN65Yq9tA==}
 
   '@datadog/native-iast-taint-tracking@3.1.0':
     resolution: {integrity: sha512-rw6qSjmxmu1yFHVvZLXFt/rVq2tUZXocNogPLB8n7MPpA0jijNGb109WokWw5ITImiW91GcGDuBW6elJDVKouQ==}
@@ -2138,6 +2131,18 @@ packages:
 
   '@js-sdsl/ordered-map@4.4.2':
     resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
+
+  '@jsep-plugin/assignment@1.2.1':
+    resolution: {integrity: sha512-gaHqbubTi29aZpVbBlECRpmdia+L5/lh2BwtIJTmtxdbecEyyX/ejAOg7eQDGNvGOUmPY7Z2Yxdy9ioyH/VJeA==}
+    engines: {node: '>= 10.16.0'}
+    peerDependencies:
+      jsep: ^0.4.0||^1.0.0
+
+  '@jsep-plugin/regex@1.0.3':
+    resolution: {integrity: sha512-XfZgry4DwEZvSFtS/6Y+R48D7qJYJK6R9/yJFyUFHCIUMEEHuJ4X95TDgJp5QkmzfLYvapMPzskV5HpIDrREug==}
+    engines: {node: '>= 10.16.0'}
+    peerDependencies:
+      jsep: ^0.4.0||^1.0.0
 
   '@langchain/anthropic@0.3.1':
     resolution: {integrity: sha512-mE2zfv2IeogDgP53IYlfqZuXbmACkQDtBkg1Nriasrzvr1g+1Q85pfyUCnxc05p4S2IplbJhvoBtgdQUTGenqw==}
@@ -5656,6 +5661,9 @@ packages:
   cjs-module-lexer@1.3.1:
     resolution: {integrity: sha512-a3KdPAANPbNE4ZUv9h6LckSl9zLsYOP4MBmhIPkRaeyybt+r4UghLvq+xw/YwUcC1gqylCkL4rdVs3Lwupjm4Q==}
 
+  cjs-module-lexer@1.4.1:
+    resolution: {integrity: sha512-cuSVIHi9/9E/+821Qjdvngor+xpnlwnuwIyZOaLmHBVdXL+gP+I6QQB9VkO7RI77YIcTV+S1W9AreJ5eN63JBA==}
+
   class-variance-authority@0.7.0:
     resolution: {integrity: sha512-jFI8IQw4hczaL4ALINxqLEXQbWcNjoSkloa4IaufXCJr6QawJyw7tuRysRsrE8w2p/4gGaxKIt/hX3qz/IbD1A==}
 
@@ -6011,12 +6019,8 @@ packages:
     resolution: {integrity: sha512-UV33cugmCC49a5uWAApM+6Ev9ZdvIUMTrtCO9fj96TPGOQiea54oeO3tiEVdVeo3J9N2UdJEmbS4zOkkEA35uQ==}
     engines: {node: '>=12.17'}
 
-  dd-trace@5.19.0:
-    resolution: {integrity: sha512-2NdnW1cU5gD27R2TeTmO339UUeyk3aPISL6E63Lenh95hBp9wAuwDjmjMetdu6LbmuxUTNN55Q2yo9gnRoSnlg==}
-    engines: {node: '>=18'}
-
-  dd-trace@5.21.0:
-    resolution: {integrity: sha512-3jgrYxifuYmSl3kuAxpTSOS7/kKK9DLbw4m85hS/Yn5IFCXer+uvG8sWwFIcBNXOidF/BcyeKC92WX4X87W4Iw==}
+  dd-trace@5.23.1:
+    resolution: {integrity: sha512-cdpJuiP1sYVgyagTt+BBjN3Wfa24a/fZw2L1oXg885uUy3bK9GYTiX0U6njlXY4krDiCZt+hii1sGEQPLYK6TQ==}
     engines: {node: '>=18'}
 
   debug@2.6.9:
@@ -7272,8 +7276,8 @@ packages:
   import-in-the-middle@1.11.0:
     resolution: {integrity: sha512-5DimNQGoe0pLUHbR9qK84iWaWjjbsxiqXnw6Qz64+azRgleqv9k2kTt5fw7QsOpmaGYtuxxursnPPsnTKEx10Q==}
 
-  import-in-the-middle@1.8.1:
-    resolution: {integrity: sha512-yhRwoHtiLGvmSozNOALgjRPFI6uYsds60EoMqqnXyyv+JOIW/BrrLejuTGBt+bq0T5tLzOHrN0T7xYTm4Qt/ng==}
+  import-in-the-middle@1.11.2:
+    resolution: {integrity: sha512-gK6Rr6EykBcc6cVWRSBR5TWf8nn6hZMYSRYqCcHa0l0d1fPK7JSYo6+Mlmck76jIX9aL/IZ71c06U2VpFwl1zA==}
 
   import-lazy@4.0.0:
     resolution: {integrity: sha512-rKtvo6a868b5Hu3heneU+L4yEQ4jYKLtjpnPeUdK7h0yzXGmyBTypknlkCvHFBqfX9YlorEiMM6Dnq/5atfHkw==}
@@ -7854,6 +7858,10 @@ packages:
       canvas:
         optional: true
 
+  jsep@1.3.9:
+    resolution: {integrity: sha512-i1rBX5N7VPl0eYb6+mHNp52sEuaS2Wi8CDYx1X5sn9naevL78+265XJqy1qENEk7mRKwS06NHpUqiBwR7qeodw==}
+    engines: {node: '>= 10.16.0'}
+
   jsesc@0.5.0:
     resolution: {integrity: sha512-uZz5UnB7u4T9LvwmFqXii7pZSouaRPorGs5who1Ip7VO0wxanFvBL7GkM6dTHlgX+jhBApRetaWpnDabOeTcnA==}
     hasBin: true
@@ -7902,6 +7910,11 @@ packages:
 
   jsonfile@6.1.0:
     resolution: {integrity: sha512-5dgndWOriYSm5cnYaJNhalLNDKOqFwyDB/rr1E9ZsGciGvKPs8R2xYGCacuf3z6K1YKDz182fd+fY3cn3pMqXQ==}
+
+  jsonpath-plus@9.0.0:
+    resolution: {integrity: sha512-bqE77VIDStrOTV/czspZhTn+o27Xx9ZJRGVkdVShEtPoqsIx5yALv3lWVU6y+PqYvWPJNWE7ORCQheQkEe0DDA==}
+    engines: {node: '>=14.0.0'}
+    hasBin: true
 
   jsonpointer@5.0.1:
     resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
@@ -8150,9 +8163,8 @@ packages:
   lowlight@1.20.0:
     resolution: {integrity: sha512-8Ktj+prEb1RoCPkEOrPMYUN/nCggB7qAWe3a7OpMjWQkh3l2RD5wKRQ+o8Q8YuI9RG/xs95waaI/E6ym/7NsTw==}
 
-  lru-cache@10.3.0:
-    resolution: {integrity: sha512-CQl19J/g+Hbjbv4Y3mFNNXFEL/5t/KCg8POCuUqd4rMKjGG+j1ybER83hxV58zL+dFI1PTkt3GNFSHRt+d8qEQ==}
-    engines: {node: 14 || >=16.14}
+  lru-cache@10.4.3:
+    resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
@@ -8650,8 +8662,8 @@ packages:
     resolution: {integrity: sha512-zLcTg6P4AbcHPq465ZMFNXx7XpKKJh+7kkN699NiQWisR2uWYOWNWqRHAmbnmKiL4e9aLSlmy5U7rEMUXV59+A==}
     hasBin: true
 
-  node-gyp-build@4.8.1:
-    resolution: {integrity: sha512-OSs33Z9yWr148JZcbZd5WiAXhh/n9z8TxQcdMhIOlpN9AhWpLfvVFO73+m77bBABQMaY9XSvIa+qk0jlI7Gcaw==}
+  node-gyp-build@4.8.2:
+    resolution: {integrity: sha512-IRUxE4BVsHWXkV/SFOut4qTlagw2aM8T5/vnTsmrHJvVoKueJHRc/JaFND7QDDc61kLYUJ6qlZM3sqTSyx2dTw==}
     hasBin: true
 
   node-int64@0.4.0:
@@ -8979,8 +8991,8 @@ packages:
   path-to-regexp@0.1.10:
     resolution: {integrity: sha512-7lf7qcQidTku0Gu3YDPc8DJ1q7OOucfa/BSsIwjuh56VU7katFvuM8hULfkwB3Fns/rsVF7PwPKVw1sl5KQS9w==}
 
-  path-to-regexp@0.1.7:
-    resolution: {integrity: sha512-5DFkuoqlv1uYQKxy8omFBeJPQcdoE07Kv2sferDCrAq1ohOU+MSDswDIbnx3YAM60qIOnYa53wBhXW0EbMonrQ==}
+  path-to-regexp@0.1.11:
+    resolution: {integrity: sha512-c0t+KCuUkO/YDLPG4WWzEwx3J5F/GHXsD1h/SNZfySqAIKe/BaP95x8fWtOfRJokpS5yYHRJjMtYlXD8jxnpbw==}
 
   path-to-regexp@6.2.2:
     resolution: {integrity: sha512-GQX3SSMokngb36+whdpRXE+3f9V8UzyAorlYvOGx87ufGHehNTn5lCxrKtLyZ4Yl/wEKnNnr98ZzOwwDZV5ogw==}
@@ -9758,6 +9770,9 @@ packages:
   reusify@1.0.4:
     resolution: {integrity: sha512-U9nH88a3fc/ekCF1l0/UP1IosiuIjyTh7hBvXVMHYgVcfGvt897Xguj2UOLDeI5BG2m7/uwyaLVT6fbtCwTyzw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
+
+  rfdc@1.4.1:
+    resolution: {integrity: sha512-q1b3N5QkRUWUl7iyylaaj3kOpIT0N2i9MqIEQXP73GVsN9cw3fdx8X63cEmWhJGi2PPCF23Ijp7ktmd39rawIA==}
 
   rimraf@3.0.2:
     resolution: {integrity: sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==}
@@ -12129,23 +12144,14 @@ snapshots:
       enabled: 2.0.0
       kuler: 2.0.0
 
-  '@datadog/native-appsec@8.0.1':
+  '@datadog/native-appsec@8.1.1':
     dependencies:
       node-gyp-build: 3.9.0
-
-  '@datadog/native-iast-rewriter@2.3.1':
-    dependencies:
-      lru-cache: 7.18.3
-      node-gyp-build: 4.8.1
 
   '@datadog/native-iast-rewriter@2.4.1':
     dependencies:
       lru-cache: 7.18.3
-      node-gyp-build: 4.8.1
-
-  '@datadog/native-iast-taint-tracking@3.0.0':
-    dependencies:
-      node-gyp-build: 3.9.0
+      node-gyp-build: 4.8.2
 
   '@datadog/native-iast-taint-tracking@3.1.0':
     dependencies:
@@ -12823,6 +12829,14 @@ snapshots:
 
   '@js-sdsl/ordered-map@4.4.2': {}
 
+  '@jsep-plugin/assignment@1.2.1(jsep@1.3.9)':
+    dependencies:
+      jsep: 1.3.9
+
+  '@jsep-plugin/regex@1.0.3(jsep@1.3.9)':
+    dependencies:
+      jsep: 1.3.9
+
   '@langchain/anthropic@0.3.1(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))':
     dependencies:
       '@anthropic-ai/sdk': 0.27.3
@@ -13260,11 +13274,6 @@ snapshots:
       '@opentelemetry/api': 1.8.0
       '@opentelemetry/semantic-conventions': 1.25.1
 
-  '@opentelemetry/core@1.26.0(@opentelemetry/api@1.8.0)':
-    dependencies:
-      '@opentelemetry/api': 1.8.0
-      '@opentelemetry/semantic-conventions': 1.27.0
-
   '@opentelemetry/core@1.26.0(@opentelemetry/api@1.9.0)':
     dependencies:
       '@opentelemetry/api': 1.9.0
@@ -13541,7 +13550,7 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/api-logs': 0.52.1
       '@types/shimmer': 1.2.0
-      import-in-the-middle: 1.11.0
+      import-in-the-middle: 1.11.2
       require-in-the-middle: 7.4.0
       semver: 7.6.3
       shimmer: 1.2.1
@@ -14978,7 +14987,7 @@ snapshots:
       '@sentry/opentelemetry': 8.31.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@1.26.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.27.0)
       '@sentry/types': 8.31.0
       '@sentry/utils': 8.31.0
-      import-in-the-middle: 1.11.0
+      import-in-the-middle: 1.11.2
     transitivePeerDependencies:
       - supports-color
 
@@ -16312,7 +16321,7 @@ snapshots:
       '@typescript-eslint/eslint-plugin': 7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
       '@typescript-eslint/parser': 7.12.0(eslint@8.57.0)(typescript@5.4.5)
       eslint-config-prettier: 9.1.0(eslint@8.57.0)
-      eslint-import-resolver-alias: 1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0))
+      eslint-import-resolver-alias: 1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))
       eslint-import-resolver-typescript: 3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0)
       eslint-plugin-eslint-comments: 3.2.0(eslint@8.57.0)
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
@@ -16517,12 +16526,8 @@ snapshots:
 
   acorn-globals@7.0.1:
     dependencies:
-      acorn: 8.12.1
-      acorn-walk: 8.3.2
-
-  acorn-import-attributes@1.9.5(acorn@8.11.3):
-    dependencies:
       acorn: 8.11.3
+      acorn-walk: 8.3.2
 
   acorn-import-attributes@1.9.5(acorn@8.12.1):
     dependencies:
@@ -17137,6 +17142,8 @@ snapshots:
 
   cjs-module-lexer@1.3.1: {}
 
+  cjs-module-lexer@1.4.1: {}
+
   class-variance-authority@0.7.0:
     dependencies:
       clsx: 2.0.0
@@ -17506,11 +17513,11 @@ snapshots:
 
   dc-polyfill@0.1.6: {}
 
-  dd-trace@5.19.0:
+  dd-trace@5.23.1:
     dependencies:
-      '@datadog/native-appsec': 8.0.1
-      '@datadog/native-iast-rewriter': 2.3.1
-      '@datadog/native-iast-taint-tracking': 3.0.0
+      '@datadog/native-appsec': 8.1.1
+      '@datadog/native-iast-rewriter': 2.4.1
+      '@datadog/native-iast-taint-tracking': 3.1.0
       '@datadog/native-metrics': 2.0.0
       '@datadog/pprof': 5.3.0
       '@datadog/sketches-js': 2.1.1
@@ -17519,10 +17526,11 @@ snapshots:
       crypto-randomuuid: 1.0.0
       dc-polyfill: 0.1.6
       ignore: 5.3.1
-      import-in-the-middle: 1.8.1
+      import-in-the-middle: 1.11.2
       int64-buffer: 0.1.10
       istanbul-lib-coverage: 3.2.0
       jest-docblock: 29.7.0
+      jsonpath-plus: 9.0.0
       koalas: 1.0.2
       limiter: 1.1.5
       lodash.sortby: 4.7.0
@@ -17530,43 +17538,12 @@ snapshots:
       module-details-from-path: 1.0.3
       msgpack-lite: 0.1.26
       opentracing: 0.14.7
-      path-to-regexp: 0.1.7
+      path-to-regexp: 0.1.11
       pprof-format: 2.1.0
       protobufjs: 7.3.2
       retry: 0.13.1
+      rfdc: 1.4.1
       semver: 7.6.2
-      shell-quote: 1.8.1
-      tlhunter-sorted-set: 0.1.0
-
-  dd-trace@5.21.0:
-    dependencies:
-      '@datadog/native-appsec': 8.0.1
-      '@datadog/native-iast-rewriter': 2.4.1
-      '@datadog/native-iast-taint-tracking': 3.1.0
-      '@datadog/native-metrics': 2.0.0
-      '@datadog/pprof': 5.3.0
-      '@datadog/sketches-js': 2.1.1
-      '@opentelemetry/api': 1.8.0
-      '@opentelemetry/core': 1.26.0(@opentelemetry/api@1.8.0)
-      crypto-randomuuid: 1.0.0
-      dc-polyfill: 0.1.6
-      ignore: 5.3.1
-      import-in-the-middle: 1.11.0
-      int64-buffer: 0.1.10
-      istanbul-lib-coverage: 3.2.0
-      jest-docblock: 29.7.0
-      koalas: 1.0.2
-      limiter: 1.1.5
-      lodash.sortby: 4.7.0
-      lru-cache: 7.18.3
-      module-details-from-path: 1.0.3
-      msgpack-lite: 0.1.26
-      opentracing: 0.14.7
-      path-to-regexp: 0.1.7
-      pprof-format: 2.1.0
-      protobufjs: 7.3.2
-      retry: 0.13.1
-      semver: 7.6.3
       shell-quote: 1.8.1
       tlhunter-sorted-set: 0.1.0
 
@@ -18045,7 +18022,7 @@ snapshots:
       eslint: 8.57.0
       eslint-plugin-turbo: 1.13.4(eslint@8.57.0)
 
-  eslint-import-resolver-alias@1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)):
+  eslint-import-resolver-alias@1.1.2(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)):
     dependencies:
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
 
@@ -19105,11 +19082,11 @@ snapshots:
       cjs-module-lexer: 1.3.1
       module-details-from-path: 1.0.3
 
-  import-in-the-middle@1.8.1:
+  import-in-the-middle@1.11.2:
     dependencies:
-      acorn: 8.11.3
-      acorn-import-attributes: 1.9.5(acorn@8.11.3)
-      cjs-module-lexer: 1.3.1
+      acorn: 8.12.1
+      acorn-import-attributes: 1.9.5(acorn@8.12.1)
+      cjs-module-lexer: 1.4.1
       module-details-from-path: 1.0.3
 
   import-lazy@4.0.0: {}
@@ -19800,7 +19777,7 @@ snapshots:
       '@jest/types': 29.6.3
       '@types/node': 20.14.8
       chalk: 4.1.2
-      cjs-module-lexer: 1.3.1
+      cjs-module-lexer: 1.4.1
       collect-v8-coverage: 1.0.2
       glob: 7.2.3
       graceful-fs: 4.2.11
@@ -19872,7 +19849,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 20.10.5
+      '@types/node': 20.14.8
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -19980,6 +19957,8 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  jsep@1.3.9: {}
+
   jsesc@0.5.0: {}
 
   jsesc@2.5.2: {}
@@ -20015,6 +19994,12 @@ snapshots:
       universalify: 2.0.1
     optionalDependencies:
       graceful-fs: 4.2.11
+
+  jsonpath-plus@9.0.0:
+    dependencies:
+      '@jsep-plugin/assignment': 1.2.1(jsep@1.3.9)
+      '@jsep-plugin/regex': 1.0.3(jsep@1.3.9)
+      jsep: 1.3.9
 
   jsonpointer@5.0.1: {}
 
@@ -20206,7 +20191,7 @@ snapshots:
       fault: 1.0.4
       highlight.js: 10.7.3
 
-  lru-cache@10.3.0: {}
+  lru-cache@10.4.3: {}
 
   lru-cache@5.1.1:
     dependencies:
@@ -20938,7 +20923,7 @@ snapshots:
 
   node-gyp-build@3.9.0: {}
 
-  node-gyp-build@4.8.1: {}
+  node-gyp-build@4.8.2: {}
 
   node-int64@0.4.0: {}
 
@@ -21313,17 +21298,17 @@ snapshots:
 
   path-scurry@1.10.2:
     dependencies:
-      lru-cache: 10.3.0
+      lru-cache: 10.4.3
       minipass: 7.1.2
 
   path-scurry@1.11.1:
     dependencies:
-      lru-cache: 10.3.0
+      lru-cache: 10.4.3
       minipass: 7.1.2
 
   path-to-regexp@0.1.10: {}
 
-  path-to-regexp@0.1.7: {}
+  path-to-regexp@0.1.11: {}
 
   path-to-regexp@6.2.2: {}
 
@@ -22179,6 +22164,8 @@ snapshots:
   retry@0.13.1: {}
 
   reusify@1.0.4: {}
+
+  rfdc@1.4.1: {}
 
   rimraf@3.0.2:
     dependencies:
