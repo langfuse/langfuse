@@ -91,7 +91,7 @@
     "@types/lodash": "^4.17.9",
     "@types/node": "^20.11.29",
     "@types/nodemailer": "^6.4.15",
-    "@types/pg": "^8.11.6",
+    "@types/pg": "^8.11.10",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",
