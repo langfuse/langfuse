@@ -642,9 +642,6 @@ importers:
       superjson:
         specifier: 2.2.1
         version: 2.2.1
-      svelte:
-        specifier: ^4.2.19
-        version: 4.2.19
       tailwind-merge:
         specifier: ^2.5.2
         version: 2.5.2
