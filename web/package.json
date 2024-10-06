@@ -149,7 +149,7 @@
   },
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
-    "@mermaid-js/mermaid-cli": "^10.7.0",
+    "@mermaid-js/mermaid-cli": "^11.2.0",
     "@playwright/test": "^1.43.1",
     "@tailwindcss/forms": "^0.5.7",
     "@testing-library/jest-dom": "^6.4.6",
