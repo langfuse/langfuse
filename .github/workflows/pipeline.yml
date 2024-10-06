@@ -35,6 +35,7 @@ jobs:
         run: pnpm run lint
 
   test-docker-build:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
