@@ -96,7 +96,7 @@
     "@uiw/codemirror-theme-github": "^4.23.0",
     "@uiw/codemirror-theme-tokyo-night": "^4.22.2",
     "@uiw/react-codemirror": "^4.21.25",
-    "ai": "^3.0.23",
+    "ai": "^3.4.9",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.12.10",
     "class-variance-authority": "^0.7.0",
