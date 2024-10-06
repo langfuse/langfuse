@@ -106,7 +106,7 @@ RUN apk add --no-cache dumb-init
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-RUN npm install -g --no-package-lock --no-save prisma@5.13.0
+RUN npm install -g --no-package-lock --no-save prisma@5.20.0
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
