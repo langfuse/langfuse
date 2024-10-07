@@ -204,7 +204,7 @@ export function AnnotationQueueItemsTable({
         const id: QueueItemRowData["id"] = row.getValue("id");
         return (
           <TableLink
-            path={`/project/${projectId}/annotation-queues/${queueId}/items?itemId=${id}&viewOnly=true`}
+            path={`/project/${projectId}/annotation-queues/${queueId}/items?itemId=${id}&singleItem=true`}
             value={id}
           />
         );

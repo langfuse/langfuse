@@ -149,7 +149,6 @@ export function AnnotateDrawerContent({
   type = "trace",
   source = "TraceDetail",
   isSelectHidden = false,
-  isViewOnly = false,
   queueId,
   actionButtons,
 }: {
@@ -163,7 +162,6 @@ export function AnnotateDrawerContent({
   type?: "trace" | "observation" | "session";
   source?: "TraceDetail" | "SessionDetail";
   isSelectHidden?: boolean;
-  isViewOnly?: boolean;
   queueId?: string;
   actionButtons?: React.ReactNode;
 }) {
@@ -686,7 +684,6 @@ export function AnnotateDrawerContent({
                                           {...field}
                                           className="text-xs"
                                           value={field.value || ""}
-                                          disabled={isViewOnly}
                                         />
                                         {field.value !== score.comment && (
                                           <div className="grid w-full grid-cols-[1fr,1fr] gap-2">
@@ -713,8 +710,7 @@ export function AnnotateDrawerContent({
                                               className="text-xs"
                                               disabled={
                                                 !field.value ||
-                                                config.isArchived ||
-                                                isViewOnly
+                                                config.isArchived
                                               }
                                               loading={
                                                 mutUpdateScores.isLoading
@@ -774,7 +770,7 @@ export function AnnotateDrawerContent({
                                       value={field.value ?? undefined}
                                       type="number"
                                       className="text-xs"
-                                      disabled={config.isArchived || isViewOnly}
+                                      disabled={config.isArchived}
                                       onBlur={handleOnBlur({
                                         config,
                                         field,
@@ -804,7 +800,7 @@ export function AnnotateDrawerContent({
                                     renderSelect(categories) ? (
                                     <Select
                                       defaultValue={score.stringValue}
-                                      disabled={config.isArchived || isViewOnly}
+                                      disabled={config.isArchived}
                                       onValueChange={handleOnValueChange(
                                         score,
                                         index,
@@ -834,7 +830,7 @@ export function AnnotateDrawerContent({
                                     <ToggleGroup
                                       type="single"
                                       defaultValue={score.stringValue}
-                                      disabled={config.isArchived || isViewOnly}
+                                      disabled={config.isArchived}
                                       className={`grid grid-cols-${categories.length}`}
                                       onValueChange={handleOnValueChange(
                                         score,
@@ -920,9 +916,7 @@ export function AnnotateDrawerContent({
                               type="button"
                               className="px-0 pl-1"
                               title="Delete score from trace/observation"
-                              disabled={
-                                isScoreUnsaved(score.scoreId) || isViewOnly
-                              }
+                              disabled={isScoreUnsaved(score.scoreId)}
                               loading={mutDeleteScore.isLoading}
                               onClick={async () => {
                                 if (score.scoreId) {

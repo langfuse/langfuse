@@ -35,7 +35,6 @@ import { StringParam, useQueryParam } from "use-query-params";
 const AnnotateIOView = ({
   item,
   configs,
-  isViewOnly,
   view,
 }: {
   item: AnnotationQueueItem & {
@@ -43,7 +42,6 @@ const AnnotateIOView = ({
     lockedByUser: { name: string | null | undefined } | null;
   };
   configs: ValidatedScoreConfig[];
-  isViewOnly: boolean;
   view: "showTree" | "hideTree";
 }) => {
   const router = useRouter();
@@ -158,7 +156,6 @@ const AnnotateIOView = ({
             setEmptySelectedConfigIds={() => {}}
             projectId={item.projectId}
             type={item.objectType.toLowerCase() as "trace" | "observation"}
-            isViewOnly={isViewOnly}
             isSelectHidden
             queueId={item.queueId}
             actionButtons={
@@ -184,8 +181,8 @@ export const AnnotationQueueItemPage: React.FC<{
   view: "showTree" | "hideTree";
 }> = ({ annotationQueueId, projectId, view }) => {
   const router = useRouter();
-  const isViewOnly = router.query.viewOnly === "true";
-  const queryItemId = isViewOnly ? router.query.itemId : undefined;
+  const isSingleItem = router.query.singleItem === "true";
+  const queryItemId = isSingleItem ? router.query.itemId : undefined;
   const [nextItemData, setNextItemData] = useState<
     RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
   >(null);
@@ -215,7 +212,7 @@ export const AnnotationQueueItemPage: React.FC<{
 
   useEffect(() => {
     async function fetchNextItem() {
-      if (!itemId && !isViewOnly) {
+      if (!itemId && !isSingleItem) {
         const nextItem = await fetchAndLockNextMutation.mutateAsync({
           queueId: annotationQueueId,
           projectId,
@@ -257,6 +254,11 @@ export const AnnotationQueueItemPage: React.FC<{
         title: "Item marked as complete",
         description: "The item is successfully marked as complete.",
       });
+      if (isSingleItem) {
+        router.back();
+        return;
+      }
+
       if (progressIndex + 1 < totalItems) {
         setProgressIndex(Math.max(progressIndex + 1, 0));
       }
@@ -307,7 +309,11 @@ export const AnnotationQueueItemPage: React.FC<{
   }, [relevantItem, router]);
 
   useEffect(() => {
-    if (relevantItem && !seenItemIds.includes(relevantItem.id) && !isViewOnly) {
+    if (
+      relevantItem &&
+      !seenItemIds.includes(relevantItem.id) &&
+      !isSingleItem
+    ) {
       setSeenItemIds((prev) => [...prev, relevantItem.id]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -330,12 +336,7 @@ export const AnnotationQueueItemPage: React.FC<{
   return (
     <div className="grid h-full grid-rows-[1fr,auto] gap-4 overflow-hidden">
       {relevantItem ? (
-        <AnnotateIOView
-          item={relevantItem}
-          configs={configs}
-          isViewOnly={isViewOnly ?? false}
-          view={view}
-        />
+        <AnnotateIOView item={relevantItem} configs={configs} view={view} />
       ) : (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
           <SearchXIcon className="mb-2 h-8 w-8 text-muted-foreground" />
@@ -346,8 +347,8 @@ export const AnnotationQueueItemPage: React.FC<{
           </span>
         </Card>
       )}
-      {!isViewOnly ? (
-        <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
+      <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
+        {!isSingleItem && (
           <div className="flex max-h-10 flex-row gap-2">
             <span className="grid h-9 min-w-16 items-center rounded-md bg-muted p-1 text-center text-sm">
               {progressIndex + 1} / {totalItems}
@@ -365,7 +366,9 @@ export const AnnotationQueueItemPage: React.FC<{
               Back
             </Button>
           </div>
-          <div className="flex w-full min-w-[265px] justify-end gap-2">
+        )}
+        <div className="flex w-full min-w-[265px] justify-end gap-2">
+          {!isSingleItem && (
             <Button
               onClick={async () => {
                 setProgressIndex(Math.max(progressIndex + 1, 0));
@@ -387,35 +390,29 @@ export const AnnotationQueueItemPage: React.FC<{
                 : "Next"}
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
-            {!!relevantItem &&
-              (relevantItem.status === AnnotationQueueStatus.PENDING ? (
-                <Button
-                  onClick={async () => {
-                    await completeMutation.mutateAsync({
-                      itemId: relevantItem.id,
-                      projectId,
-                    });
-                  }}
-                  size="lg"
-                  className="w-full"
-                  disabled={completeMutation.isLoading || !hasAccess}
-                >
-                  Complete + next
-                </Button>
-              ) : (
-                <div className="text-dark-gree inline-flex h-9 w-full items-center justify-center rounded-md border border-dark-green bg-light-green px-8 text-sm font-medium">
-                  Completed
-                </div>
-              ))}
-          </div>
+          )}
+          {!!relevantItem &&
+            (relevantItem.status === AnnotationQueueStatus.PENDING ? (
+              <Button
+                onClick={async () => {
+                  await completeMutation.mutateAsync({
+                    itemId: relevantItem.id,
+                    projectId,
+                  });
+                }}
+                size="lg"
+                className="w-full"
+                disabled={completeMutation.isLoading || !hasAccess}
+              >
+                {isSingleItem ? "Complete" : "Complete + Next"}
+              </Button>
+            ) : (
+              <div className="text-dark-gree inline-flex h-9 w-full items-center justify-center rounded-md border border-dark-green bg-light-green px-8 text-sm font-medium">
+                Completed
+              </div>
+            ))}
         </div>
-      ) : (
-        <div className="flex h-full w-full items-center justify-end">
-          <span className="rounded-md bg-border p-2 text-sm text-muted-foreground">
-            View only
-          </span>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
