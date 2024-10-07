@@ -111,7 +111,7 @@
     "graphql": "^16.9.0",
     "ioredis": "^5.4.1",
     "ip-address": "^9.0.5",
-    "js-tiktoken": "^1.0.12",
+    "js-tiktoken": "^1.0.15",
     "kysely": "^0.27.4",
     "langchain": "^0.3.2",
     "lodash": "^4.17.21",
