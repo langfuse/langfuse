@@ -55,6 +55,9 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_GITLAB_CLIENT_ID: z.string().optional(),
+    AUTH_GITLAB_CLIENT_SECRET: z.string().optional(),
+    AUTH_GITLAB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
@@ -112,6 +115,10 @@ export const env = createEnv({
     LANGFUSE_WORKER_PASSWORD: z.string().optional(),
     TURNSTILE_SECRET_KEY: z.string().optional(),
 
+    // Otel
+    OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
+    OTEL_SERVICE_NAME: z.string().default("web"),
+
     // clickhouse
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
@@ -123,7 +130,9 @@ export const env = createEnv({
     LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
     LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.string().url().optional(),
     LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.string().url().optional(),
-    LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z.enum(["OpenAI", "Anthropic", "Azure"]).optional(),
+    LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z
+      .enum(["OpenAI", "Anthropic", "Azure"])
+      .optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.string().url().optional(),
@@ -190,15 +199,15 @@ export const env = createEnv({
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_INIT_ORG_ID: z.string().optional(),
-    LANGFUSE_INIT_ORG_NAME: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
-    LANGFUSE_INIT_USER_EMAIL: z.string().email().optional(),
-    LANGFUSE_INIT_USER_NAME: z.string().optional(),
-    LANGFUSE_INIT_USER_PASSWORD: z.string().optional(),
+    LANGFUSE_INIT_ORG_ID: z.string().optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_ORG_NAME: z.string().optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_PROJECT_ID: z.string().optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_PROJECT_NAME: z.string().optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_USER_EMAIL: z.union([z.string().email(), z.string().length(0)]).optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_USER_NAME: z.string().optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_USER_PASSWORD: z.string().optional().transform((v) => v === "" ? undefined : v),
   },
 
   /**
@@ -267,6 +276,10 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING,
+    AUTH_GITLAB_CLIENT_ID: process.env.AUTH_GITLAB_CLIENT_ID,
+    AUTH_GITLAB_CLIENT_SECRET: process.env.AUTH_GITLAB_CLIENT_SECRET,
+    AUTH_GITLAB_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING,
     AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
     AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
@@ -302,6 +315,9 @@ export const env = createEnv({
     // Email
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
+    // Otel
+    OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     // S3
     S3_ENDPOINT: process.env.S3_ENDPOINT,
     S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,

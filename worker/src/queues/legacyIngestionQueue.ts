@@ -101,14 +101,9 @@ export const legacyIngestionQueueProcessor: Processor = async (
           }),
         });
 
-        // Log wait time
         const waitTime = Date.now() - job.timestamp;
-        logger.debug(
-          `Received flush request after ${waitTime} ms for ${job.data.payload.authCheck.scope.projectId}`,
-        );
-
-        recordIncrement("legacy_ingestion_processing_request");
-        recordHistogram("legacy_ingestion_flush_wait_time", waitTime, {
+        recordIncrement("langfuse.queue.legacy_ingestion.request");
+        recordHistogram("langfuse.queue.legacy_ingestion.wait_time", waitTime, {
           unit: "milliseconds",
         });
 
@@ -129,20 +124,20 @@ export const legacyIngestionQueueProcessor: Processor = async (
           ?.count()
           .then((count) => {
             logger.debug(`Legacy Ingestion flush queue length: ${count}`);
-            recordGauge("legacy_ingestion_flush_queue_length", count, {
+            recordGauge("langfuse.queue.legacy_ingestion.length", count, {
               unit: "records",
             });
             return count;
           })
           .catch();
         recordHistogram(
-          "legacy_ingestion_processing_time",
+          "langfuse.queue.legacy_ingestion.processing_time",
           Date.now() - startTime,
           { unit: "milliseconds" },
         );
       } catch (e) {
         logger.error(
-          `Failed job Evaluation for traceId ${job.data.payload}`,
+          `Failed job legacy ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
           e,
         );
         traceException(e);
