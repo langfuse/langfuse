@@ -8,7 +8,6 @@ import {
   traceException,
   redis,
   logger,
-  type AuthHeaderValidVerificationResult,
   handleBatch,
   recordIncrement,
   getCurrentSpan,
@@ -17,8 +16,9 @@ import {
   S3StorageService,
   instrumentAsync,
   getProcessorForEvent,
-  LegacyIngestionEventType,
-  IngestionEventType,
+  type AuthHeaderValidVerificationResult,
+  type LegacyIngestionEventType,
+  type IngestionEventType,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
