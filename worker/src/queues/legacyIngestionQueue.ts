@@ -38,7 +38,7 @@ export const legacyIngestionQueueProcessor: Processor = async (
       try {
         const startTime = Date.now();
 
-        let data: IngestionEventType[] = [];
+        let ingestionEvents: IngestionEventType[] = [];
         if (job.data.payload.useS3EventStore) {
           if (
             env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED !== "true" ||
@@ -48,7 +48,7 @@ export const legacyIngestionQueueProcessor: Processor = async (
               "S3 event store is not enabled but useS3EventStore is true",
             );
           }
-          // If we used the S3 store we need to fetch the data from S3
+          // If we used the S3 store we need to fetch the ingestionEvents from S3
           const s3Client = new S3StorageService({
             accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
             secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
@@ -58,7 +58,7 @@ export const legacyIngestionQueueProcessor: Processor = async (
             forcePathStyle:
               env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           });
-          data = (
+          ingestionEvents = (
             await Promise.all(
               job.data.payload.data.map(async (record) => {
                 const eventName = record.type.split("-").shift();
@@ -77,12 +77,12 @@ export const legacyIngestionQueueProcessor: Processor = async (
             )
           ).flat();
         } else {
-          // If we didn't use the S3 store we can consume the data directly from Redis
-          data = job.data.payload.data;
+          // If we didn't use the S3 store we can consume the ingestionEvents directly from Redis
+          ingestionEvents = job.data.payload.data;
         }
 
         logger.info("Processing legacy ingestion", {
-          payload: data.map(({ body, ...rest }) => {
+          payload: ingestionEvents.map(({ body, ...rest }) => {
             let modifiedBody = body;
             if (body && "input" in modifiedBody) {
               // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -108,7 +108,7 @@ export const legacyIngestionQueueProcessor: Processor = async (
         });
 
         const result = await handleBatch(
-          data,
+          ingestionEvents,
           job.data.payload.authCheck,
           tokenCount,
         );
