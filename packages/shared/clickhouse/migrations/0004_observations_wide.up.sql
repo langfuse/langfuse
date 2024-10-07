@@ -44,9 +44,23 @@ CREATE TABLE observations_wide
     `time_to_first_token` Nullable(DateTime64(3)),
     `prompt_id` Nullable(String),
     `prompt_name` Nullable(String),
-    `prompt_version` Nullable(UInt16)
+    `prompt_version` Nullable(UInt16),
+    trace_timestamp DateTime64(3),
+    trace_name String,
+    trace_user_id Nullable(String),
+    trace_metadata Map(String, String),
+    trace_release Nullable(String),
+    trace_version Nullable(String),
+    trace_public Bool,
+    trace_bookmarked Bool,
+    trace_tags Array(String),
+    trace_input Nullable(String),
+    trace_output Nullable(String),
+    trace_session_id Nullable(String),
+    trace_event_ts DateTime64(3)
+    
 ) ENGINE = ReplacingMergeTree
-ORDER BY (project_id, id);
+ORDER BY (project_id, toDate(start_time), id);
 
 CREATE MATERIALIZED VIEW mv_traces_to_observations_wide TO observations_wide AS
 SELECT 
