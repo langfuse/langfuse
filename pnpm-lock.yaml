@@ -556,8 +556,8 @@ importers:
         specifier: ^9.0.5
         version: 9.0.5
       js-tiktoken:
-        specifier: ^1.0.12
-        version: 1.0.12
+        specifier: ^1.0.15
+        version: 1.0.15
       kysely:
         specifier: ^0.27.4
         version: 0.27.4
@@ -858,8 +858,8 @@ importers:
         specifier: ^5.4.1
         version: 5.4.1
       js-tiktoken:
-        specifier: ^1.0.12
-        version: 1.0.12
+        specifier: ^1.0.15
+        version: 1.0.15
       kysely:
         specifier: ^0.27.4
         version: 0.27.4
@@ -8035,11 +8035,11 @@ packages:
     resolution: {integrity: sha512-cEiJEAEoIbWfCZYKWhVwFuvPX1gETRYPw6LlaTKoxD3s2AkXzkCjnp6h0V77ozyqj0jakteJ4YqDJT830+lVGw==}
     engines: {node: '>=14'}
 
-  js-tiktoken@1.0.12:
-    resolution: {integrity: sha512-L7wURW1fH9Qaext0VzaUDpFGVQgjkdE3Dgsy9/+yXyGEpBKnylTd0mU0bfbNkKDlXRb6TEsZkwuflu1B8uQbJQ==}
-
   js-tiktoken@1.0.14:
     resolution: {integrity: sha512-Pk3l3WOgM9joguZY2k52+jH82RtABRgB5RdGFZNUGbOKGMVlNmafcPA3b0ITcCZPu1L9UclP1tne6aw7ZI4Myg==}
+
+  js-tiktoken@1.0.15:
+    resolution: {integrity: sha512-65ruOWWXDEZHHbAo7EjOcNxOGasQKbL4Fq3jEr2xsCqSsoOo6VVSqzWQb6PRIqypFSDcma4jO90YP0w5X8qVXQ==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -13200,7 +13200,7 @@ snapshots:
   '@langchain/textsplitters@0.1.0(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))':
     dependencies:
       '@langchain/core': 0.3.3(openai@4.62.1(zod@3.23.8))
-      js-tiktoken: 1.0.14
+      js-tiktoken: 1.0.15
 
   '@lezer/common@1.2.1': {}
 
@@ -20390,11 +20390,11 @@ snapshots:
 
   js-cookie@3.0.5: {}
 
-  js-tiktoken@1.0.12:
+  js-tiktoken@1.0.14:
     dependencies:
       base64-js: 1.5.1
 
-  js-tiktoken@1.0.14:
+  js-tiktoken@1.0.15:
     dependencies:
       base64-js: 1.5.1
 
