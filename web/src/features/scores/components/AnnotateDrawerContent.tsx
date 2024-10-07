@@ -1,6 +1,12 @@
 import React, { useEffect, useRef } from "react";
 import { Button } from "@/src/components/ui/button";
-import { MessageCircleMore, MessageCircle, X, Archive } from "lucide-react";
+import {
+  MessageCircleMore,
+  MessageCircle,
+  X,
+  Archive,
+  Loader2,
+} from "lucide-react";
 import {
   type ControllerRenderProps,
   useFieldArray,
@@ -59,6 +65,7 @@ import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { Spinner } from "@/src/components/layouts/spinner";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -510,7 +517,22 @@ export function AnnotateDrawerContent({
             description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
             href: "https://langfuse.com/docs/scores/manually",
           }}
-          actionButtons={actionButtons}
+          actionButtons={[
+            (mutUpdateScores.isLoading ||
+              mutCreateScores.isLoading ||
+              mutDeleteScore.isLoading) && (
+              <div
+                className="flex items-center justify-end"
+                key="saving-spinner"
+              >
+                <div className="mr-1 items-center justify-center">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                </div>
+                <span className="text-xs text-muted-foreground">Saving...</span>
+              </div>
+            ),
+            actionButtons,
+          ]}
         ></Header>
         {!isSelectHidden && (
           <div className="grid grid-flow-col items-center">

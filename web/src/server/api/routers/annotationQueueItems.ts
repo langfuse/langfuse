@@ -295,12 +295,14 @@ export const queueItemRouter = createTRPCRouter({
           },
           select: {
             name: true,
+            id: true,
           },
         });
 
         return {
           createdCount: count,
           queueName: queue?.name,
+          queueId: queue?.id,
         };
       } catch (error) {
         logger.error(error);

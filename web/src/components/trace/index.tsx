@@ -42,8 +42,10 @@ export function Trace(props: {
   scores: APIScore[];
   projectId: string;
   viewType?: "detailed" | "focused";
+  isValidObservationId?: boolean;
 }) {
   const viewType = props.viewType ?? "detailed";
+  const isValidObservationId = props.isValidObservationId ?? true;
   const capture = usePostHogClientCapture();
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -155,7 +157,7 @@ export function Trace(props: {
             commentCounts={traceCommentCounts.data}
             viewType={viewType}
           />
-        ) : (
+        ) : isValidObservationId ? (
           <ObservationPreview
             observations={props.observations}
             scores={props.scores}
@@ -165,7 +167,7 @@ export function Trace(props: {
             commentCounts={observationCommentCounts.data}
             viewType={viewType}
           />
-        )}
+        ) : null}
       </div>
       <div className="md:col-span-2 md:flex md:h-full md:flex-col md:overflow-hidden">
         <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">

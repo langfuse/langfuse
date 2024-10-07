@@ -54,11 +54,20 @@ const AnnotateIOView = ({
     `annotationQueuePanelSize-${projectId}`,
     65,
   );
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_, setCurrentObservationId] = useQueryParam(
+
+  const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
   );
+  useEffect(() => {
+    if (
+      view === "showTree" &&
+      item.objectType === AnnotationQueueObjectType.OBSERVATION
+    ) {
+      setCurrentObservationId(item.objectId);
+    } else setCurrentObservationId(undefined);
+  }, [view, item, setCurrentObservationId]);
+
   const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
 
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
@@ -73,10 +82,13 @@ const AnnotateIOView = ({
 
   if (trace.isLoading || !trace.data) return <div>Loading...</div>;
 
-  if (view === "showTree") {
-    if (item.objectType === AnnotationQueueObjectType.OBSERVATION)
-      setCurrentObservationId(item.objectId);
-    else setCurrentObservationId(undefined);
+  let isValidObservationId = false;
+
+  if (
+    currentObservationId &&
+    trace.data.observations.some(({ id }) => id === currentObservationId)
+  ) {
+    isValidObservationId = true;
   }
 
   return (
@@ -123,6 +135,7 @@ const AnnotateIOView = ({
                 projectId={trace.data.projectId}
                 observations={trace.data.observations}
                 viewType="focused"
+                isValidObservationId={isValidObservationId}
               />
             </div>
           </Card>
@@ -244,7 +257,9 @@ export const AnnotationQueueItemPage: React.FC<{
         title: "Item marked as complete",
         description: "The item is successfully marked as complete.",
       });
-      setProgressIndex(Math.max(progressIndex + 1, 0));
+      if (progressIndex + 1 < totalItems) {
+        setProgressIndex(Math.max(progressIndex + 1, 0));
+      }
       if (progressIndex >= seenItemIds.length - 1) {
         const nextItem = await fetchAndLockNextMutation.mutateAsync({
           queueId: annotationQueueId,
@@ -280,7 +295,10 @@ export const AnnotationQueueItemPage: React.FC<{
       router.push(
         {
           pathname: router.pathname,
-          query: { ...router.query, itemId: relevantItem.id },
+          query: {
+            ...router.query,
+            itemId: relevantItem.id,
+          },
         },
         undefined,
         { shallow: true },
@@ -335,7 +353,9 @@ export const AnnotationQueueItemPage: React.FC<{
               {progressIndex + 1} / {totalItems}
             </span>
             <Button
-              onClick={() => setProgressIndex(progressIndex - 1)}
+              onClick={() => {
+                setProgressIndex(progressIndex - 1);
+              }}
               variant="outline"
               disabled={progressIndex === 0 || !hasAccess}
               size="lg"

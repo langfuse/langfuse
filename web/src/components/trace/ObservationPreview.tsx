@@ -1,5 +1,9 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { type APIScore, type ScoreSource } from "@langfuse/shared";
+import {
+  AnnotationQueueObjectType,
+  type APIScore,
+  type ScoreSource,
+} from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -25,6 +29,8 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
+import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/CreateNewAnnotationQueueItem";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export const ObservationPreview = ({
   observations,
@@ -52,6 +58,7 @@ export const ObservationPreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
+  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
 
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: currentObservationId,
@@ -195,16 +202,26 @@ export const ObservationPreview = ({
                 objectType="OBSERVATION"
                 count={commentCounts?.get(preloadedObservation.id)}
               />
-              <AnnotateDrawer
-                projectId={projectId}
-                traceId={traceId}
-                observationId={preloadedObservation.id}
-                scores={scores}
-                emptySelectedConfigIds={emptySelectedConfigIds}
-                setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                type="observation"
-                key={"annotation-drawer" + preloadedObservation.id}
-              />
+              <div className="flex items-start">
+                <AnnotateDrawer
+                  projectId={projectId}
+                  traceId={traceId}
+                  observationId={preloadedObservation.id}
+                  scores={scores}
+                  emptySelectedConfigIds={emptySelectedConfigIds}
+                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                  type="observation"
+                  key={"annotation-drawer" + preloadedObservation.id}
+                />
+                {hasEntitlement && (
+                  <CreateNewAnnotationQueueItem
+                    projectId={projectId}
+                    objectId={preloadedObservation.id}
+                    objectType={AnnotationQueueObjectType.OBSERVATION}
+                  />
+                )}
+              </div>
+
               {observationWithInputAndOutput.data?.type === "GENERATION" && (
                 <JumpToPlaygroundButton
                   source="generation"

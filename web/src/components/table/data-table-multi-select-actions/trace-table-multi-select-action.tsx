@@ -78,7 +78,11 @@ export function TraceTableMultiSelectAction({
     onSuccess: (data) => {
       showSuccessToast({
         title: "Traces added to queue",
-        description: `${selectedTraceIds.length} traces added to queue "${data.queueName}"`,
+        description: `${selectedTraceIds.length} traces added to queue "${data.queueName}".`,
+        link: {
+          href: `/project/${projectId}/annotation-queues/${data.queueId}`,
+          text: `View queue "${data.queueName}"`,
+        },
       });
     },
   });
