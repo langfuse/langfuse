@@ -107,7 +107,6 @@
     "dd-trace": "^5.23.1",
     "decimal.js": "^10.4.3",
     "dompurify": "^3.1.5",
-    "env-nextjs@latest": "link:t3-oss/env-nextjs@latest",
     "graphql": "^16.9.0",
     "ioredis": "^5.4.1",
     "ip-address": "^9.0.5",

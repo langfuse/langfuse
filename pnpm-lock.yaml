@@ -540,9 +540,6 @@ importers:
       dompurify:
         specifier: ^3.1.5
         version: 3.1.5
-      env-nextjs@latest:
-        specifier: link:t3-oss/env-nextjs@latest
-        version: link:t3-oss/env-nextjs@latest
       graphql:
         specifier: ^16.9.0
         version: 16.9.0
