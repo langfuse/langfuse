@@ -144,7 +144,6 @@
     "use-query-params": "^2.2.1",
     "uuid": "^9.0.1",
     "vaul": "^0.9.1",
-    "webpack": "^5.95.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
