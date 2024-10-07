@@ -52,8 +52,6 @@ export default async function handler(
           });
         }
       }
-
-      logger.info("Service healthy");
     } catch (e) {
       logger.error("Couldn't fetch recent events: db not available", e);
       traceException(e);
