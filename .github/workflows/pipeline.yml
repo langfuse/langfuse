@@ -46,7 +46,7 @@ jobs:
 
       - name: Build and run both images from compose
         run: |
-          docker compose -f docker-compose.build.yml up
+          docker compose -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
       - name: Ensure no unhealthy status

@@ -254,7 +254,8 @@ export const env = createEnv({
         throw new Error(
           `Invalid value for NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: ${v}`,
         );
-      }),
+      })
+      .pipe(z.enum(["US", "EU", "STAGING", "DEV"]).optional()),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z
@@ -265,7 +266,8 @@ export const env = createEnv({
         if (v === "") return undefined;
         if (["true", "false"].includes(v)) return v;
         throw new Error(`Invalid value for NEXT_PUBLIC_SIGN_UP_DISABLED: ${v}`);
-      }),
+      })
+      .pipe(z.enum(["true", "false"]).optional()),
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
