@@ -441,6 +441,7 @@ export const queueRouter = createTRPCRouter({
       z.object({
         queueId: z.string(),
         projectId: z.string(),
+        seenItemIds: z.array(z.string()),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -465,7 +466,14 @@ export const queueRouter = createTRPCRouter({
             queueId: input.queueId,
             projectId: input.projectId,
             status: AnnotationQueueStatus.PENDING,
-            OR: [{ lockedAt: null }, { lockedAt: { lt: fiveMinutesAgo } }],
+            OR: [
+              { lockedAt: null },
+              { lockedAt: { lt: fiveMinutesAgo } },
+              { lockedByUserId: ctx.session.user.id },
+            ],
+            NOT: {
+              id: { in: input.seenItemIds },
+            },
           },
           orderBy: {
             createdAt: "asc",

@@ -799,6 +799,7 @@ export function AnnotateDrawerContent({
                                   ) : config.categories &&
                                     renderSelect(categories) ? (
                                     <Select
+                                      name={field.name}
                                       defaultValue={score.stringValue}
                                       disabled={config.isArchived}
                                       onValueChange={handleOnValueChange(

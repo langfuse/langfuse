@@ -186,14 +186,8 @@ export const AnnotationQueueItemPage: React.FC<{
   const [nextItemData, setNextItemData] = useState<
     RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
   >(null);
-  const [seenItemIds, setSeenItemIds] = useSessionStorage<string[]>(
-    `seenItemIds-${annotationQueueId}`,
-    [],
-  );
-  const [progressIndex, setProgressIndex] = useSessionStorage<number>(
-    `progressIndex-${annotationQueueId}`,
-    0,
-  );
+  const [seenItemIds, setSeenItemIds] = useState<string[]>([]);
+  const [progressIndex, setProgressIndex] = useState(0);
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -216,6 +210,7 @@ export const AnnotationQueueItemPage: React.FC<{
         const nextItem = await fetchAndLockNextMutation.mutateAsync({
           queueId: annotationQueueId,
           projectId,
+          seenItemIds,
         });
         setNextItemData(nextItem);
       }
@@ -266,6 +261,7 @@ export const AnnotationQueueItemPage: React.FC<{
         const nextItem = await fetchAndLockNextMutation.mutateAsync({
           queueId: annotationQueueId,
           projectId,
+          seenItemIds,
         });
         setNextItemData(nextItem);
       }
@@ -376,6 +372,7 @@ export const AnnotationQueueItemPage: React.FC<{
                   const nextItem = await fetchAndLockNextMutation.mutateAsync({
                     queueId: annotationQueueId,
                     projectId,
+                    seenItemIds,
                   });
                   setNextItemData(nextItem);
                 }
