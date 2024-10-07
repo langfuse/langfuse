@@ -1,26 +1,21 @@
 import { env } from "../env";
 import winston from "winston";
-import Transport from "winston-transport";
 import { getCurrentSpan } from "./instrumentation";
 
-class TracedTransport extends Transport {
-  constructor(opts: Transport.TransportStreamOptions = {}) {
-    super(opts);
-  }
-
-  log(info: Record<string, any>, callback: () => void): void {
-    setImmediate(() => {
-      this.emit("logged", info);
-    });
-
-    const currentSpan = getCurrentSpan();
-    info.trace_id = currentSpan?.spanContext().traceId;
-    info.span_id = currentSpan?.spanContext().spanId;
-    console.log(JSON.stringify(info));
-
-    callback();
-  }
-}
+const tracingFormat = function () {
+  return winston.format((info) => {
+    const span = getCurrentSpan();
+    if (span) {
+      const { spanId, traceId } = span.spanContext();
+      const traceIdEnd = traceId.slice(traceId.length / 2);
+      info["dd.trace_id"] = BigInt(`0x${traceIdEnd}`).toString();
+      info["dd.span_id"] = BigInt(`0x${spanId}`).toString();
+      info["trace_id"] = traceId;
+      info["span_id"] = spanId;
+    }
+    return info;
+  })();
+};
 
 const getWinstonLogger = (
   nodeEnv: "development" | "production" | "test",
@@ -39,19 +34,16 @@ const getWinstonLogger = (
   const jsonLoggerFormat = winston.format.combine(
     winston.format.errors({ stack: true }),
     winston.format.timestamp(),
+    tracingFormat(),
     winston.format.json(),
   );
 
   const format =
     env.LANGFUSE_LOG_FORMAT === "text" ? textLoggerFormat : jsonLoggerFormat;
-  const transport =
-    env.LANGFUSE_LOG_FORMAT === "text"
-      ? new winston.transports.Console()
-      : new TracedTransport();
   return winston.createLogger({
     level: minLevel,
     format: format,
-    transports: [transport],
+    transports: [new winston.transports.Console()],
   });
 };
 
