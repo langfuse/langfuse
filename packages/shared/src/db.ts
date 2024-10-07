@@ -16,8 +16,8 @@ import { logger } from "./server";
 export class PrismaClientSingleton {
   private static instance: PrismaClient;
 
-  public static getInstance(): PrismaClient {
-    if (PrismaClientSingleton.instance) {
+  public static getInstance(forceNew = false): PrismaClient {
+    if (!forceNew && PrismaClientSingleton.instance) {
       return PrismaClientSingleton.instance;
     }
 
@@ -55,12 +55,14 @@ export class PrismaClientSingleton {
 export class KyselySingleton {
   private static instance: { $kysely: Kysely<DB> };
 
-  public static getInstance() {
-    if (KyselySingleton.instance) {
+  public static getInstance(forceNew = false): { $kysely: Kysely<DB> } {
+    if (!forceNew && KyselySingleton.instance) {
       return KyselySingleton.instance;
     }
 
-    KyselySingleton.instance = PrismaClientSingleton.getInstance().$extends(
+    KyselySingleton.instance = PrismaClientSingleton.getInstance(
+      forceNew,
+    ).$extends(
       kyselyExtension({
         kysely: (driver) =>
           new Kysely<DB>({
@@ -73,7 +75,7 @@ export class KyselySingleton {
               createQueryCompiler: () => new PostgresQueryCompiler(),
             },
           }),
-      })
+      }),
     );
 
     return KyselySingleton.instance;
@@ -86,23 +88,9 @@ declare const globalThis: {
 } & typeof global;
 
 if (process.env.NODE_ENV === "development") {
-  globalThis.prismaGlobal ??= new PrismaClient(); // regular instantiation
-  globalThis.kyselyPrismaGlobal ??= globalThis.prismaGlobal.$extends(
-    kyselyExtension({
-      kysely: (driver) =>
-        new Kysely<DB>({
-          dialect: {
-            // This is where the magic happens!
-            createDriver: () => driver,
-            // Don't forget to customize these to match your database!
-            createAdapter: () => new PostgresAdapter(),
-            createIntrospector: (db) => new PostgresIntrospector(db),
-            createQueryCompiler: () => new PostgresQueryCompiler(),
-          },
-        }),
-    })
-  );
-};
+  globalThis.prismaGlobal ??= PrismaClientSingleton.getInstance(true);
+  globalThis.kyselyPrismaGlobal ??= KyselySingleton.getInstance(true);
+}
 
 export const prisma =
   globalThis.prismaGlobal ?? PrismaClientSingleton.getInstance();
