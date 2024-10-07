@@ -58,13 +58,13 @@ jobs:
             echo "All services are healthy"
           fi
 
-      - name: Check server health
-        run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
-
       - name: Check worker health
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+
+      - name: Check server health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
 
   tests-web:
     timeout-minutes: 20
