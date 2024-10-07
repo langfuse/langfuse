@@ -248,6 +248,7 @@ export const env = createEnv({
       .string()
       .optional()
       .transform((v) => {
+        // for some reason, empty strings are not being transformed to undefined
         if (v === undefined) return undefined;
         if (v === "") return undefined;
       })
@@ -258,6 +259,7 @@ export const env = createEnv({
       .string()
       .optional()
       .transform((v) => {
+        // for some reason, empty strings are not being transformed to undefined
         if (v === undefined) return undefined;
         if (v === "") return undefined;
       })
