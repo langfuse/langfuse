@@ -249,6 +249,7 @@ export const env = createEnv({
       .optional()
       .transform((v) => {
         if (v === undefined) return undefined;
+        if (v === "") return undefined;
         if (["US", "EU", "STAGING", "DEV"].includes(v)) return v;
         throw new Error(
           `Invalid value for NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: ${v}`,
@@ -261,6 +262,7 @@ export const env = createEnv({
       .optional()
       .transform((v) => {
         if (v === undefined) return undefined;
+        if (v === "") return undefined;
         if (["true", "false"].includes(v)) return v;
         throw new Error(`Invalid value for NEXT_PUBLIC_SIGN_UP_DISABLED: ${v}`);
       }),
