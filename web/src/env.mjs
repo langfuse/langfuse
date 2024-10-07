@@ -245,11 +245,25 @@ export const env = createEnv({
 
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-      .enum(["US", "EU", "STAGING", "DEV"])
-      .optional(),
+      .string()
+      .optional()
+      .transform((v) => {
+        if (v === undefined) return undefined;
+        if (["US", "EU", "STAGING", "DEV"].includes(v)) return v;
+        throw new Error(
+          `Invalid value for NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: ${v}`,
+        );
+      }),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
-    NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
+    NEXT_PUBLIC_SIGN_UP_DISABLED: z
+      .string()
+      .optional()
+      .transform((v) => {
+        if (v === undefined) return undefined;
+        if (["true", "false"].includes(v)) return v;
+        throw new Error(`Invalid value for NEXT_PUBLIC_SIGN_UP_DISABLED: ${v}`);
+      }),
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
