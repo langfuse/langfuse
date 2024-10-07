@@ -251,6 +251,7 @@ export const env = createEnv({
         // for some reason, empty strings are not being transformed to undefined
         if (v === undefined) return undefined;
         if (v === "") return undefined;
+        return v;
       })
       .pipe(z.enum(["US", "EU", "STAGING", "DEV"]).optional()),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
@@ -262,6 +263,7 @@ export const env = createEnv({
         // for some reason, empty strings are not being transformed to undefined
         if (v === undefined) return undefined;
         if (v === "") return undefined;
+        return v;
       })
       .pipe(z.enum(["true", "false"]).optional()),
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
