@@ -17,6 +17,7 @@ import { type Adapter } from "next-auth/adapters";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
+import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
 import EmailProvider from "next-auth/providers/email";
 import Auth0Provider from "next-auth/providers/auth0";
@@ -224,6 +225,16 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
     }),
+  );
+
+if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
+  staticProviders.push(
+    GitLabProvider({
+      clientId: env.AUTH_GITLAB_CLIENT_ID,
+      clientSecret: env.AUTH_GITLAB_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING === "true",
+    })
   );
 
 if (

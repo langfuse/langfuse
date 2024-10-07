@@ -5,7 +5,7 @@ import { TracePreview } from "./TracePreview";
 
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
-import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
+import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -26,7 +26,6 @@ import {
   Network,
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
-import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -35,6 +34,7 @@ import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore } from "@langfuse/shared";
 import { useSession } from "next-auth/react";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -253,7 +253,9 @@ export function TracePage({ traceId }: { traceId: string }) {
   const filterOptionTags = traceFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
 
-  const totalCost = calculateDisplayTotalCost(trace.data?.observations ?? []);
+  const totalCost = calculateDisplayTotalCost({
+    allObservations: trace.data?.observations ?? [],
+  });
 
   const [selectedTab, setSelectedTab] = useQueryParam(
     "display",
@@ -331,11 +333,9 @@ export function TracePage({ traceId }: { traceId: string }) {
             <Badge>User ID: {trace.data.userId}</Badge>
           </Link>
         ) : null}
-        <TraceAggUsageBadge observations={trace.data.observations} />
+        <AggUsageBadge observations={trace.data.observations} />
         {totalCost ? (
-          <Badge variant="outline">
-            Total cost: {usdFormatter(totalCost.toNumber())}
-          </Badge>
+          <Badge variant="outline">{usdFormatter(totalCost.toNumber())}</Badge>
         ) : undefined}
       </div>
       <div className="mt-3 rounded-lg border bg-card font-semibold text-card-foreground">
@@ -401,42 +401,3 @@ export function TracePage({ traceId }: { traceId: string }) {
     </FullScreenPage>
   );
 }
-
-export const calculateDisplayTotalCost = (
-  observations: ObservationReturnType[],
-) => {
-  return observations.reduce(
-    (prev: Decimal | undefined, curr: ObservationReturnType) => {
-      // if we don't have any calculated costs, we can't do anything
-      if (
-        !curr.calculatedTotalCost &&
-        !curr.calculatedInputCost &&
-        !curr.calculatedOutputCost
-      )
-        return prev;
-
-      // if we have either input or output cost, but not total cost, we can use that
-      if (
-        !curr.calculatedTotalCost &&
-        (curr.calculatedInputCost || curr.calculatedOutputCost)
-      ) {
-        return prev
-          ? prev.plus(
-              curr.calculatedInputCost ??
-                new Decimal(0).plus(
-                  curr.calculatedOutputCost ?? new Decimal(0),
-                ),
-            )
-          : curr.calculatedInputCost ?? curr.calculatedOutputCost ?? undefined;
-      }
-
-      if (!curr.calculatedTotalCost) return prev;
-
-      // if we have total cost, we can use that
-      return prev
-        ? prev.plus(curr.calculatedTotalCost)
-        : curr.calculatedTotalCost;
-    },
-    undefined,
-  );
-};
