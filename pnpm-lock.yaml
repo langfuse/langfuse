@@ -36,17 +36,17 @@ importers:
         specifier: workspace:*
         version: link:../packages/shared
       '@opentelemetry/api':
-        specifier: '>=1.0.0 <1.9.0'
-        version: 1.8.0
+        specifier: '>=1.0.0 <1.10.0'
+        version: 1.9.0
       axios:
         specifier: ^1.7.7
         version: 1.7.7
       next:
         specifier: ^14.2.6
-        version: 14.2.6(@opentelemetry/api@1.8.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       next-auth:
         specifier: ^4.24.7
-        version: 4.24.7(next@14.2.6(@opentelemetry/api@1.8.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 4.24.7(next@14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       zod:
         specifier: ^3.23.8
         version: 3.23.8
@@ -144,8 +144,8 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0(@langchain/core@0.3.3(openai@4.62.1(zod@3.23.8)))
       '@opentelemetry/api':
-        specifier: '>=1.0.0 <1.9.0'
-        version: 1.8.0
+        specifier: '>=1.0.0 <1.10.0'
+        version: 1.9.0
       '@prisma/client':
         specifier: ^5.20.0
         version: 5.20.0(prisma@5.20.0)
@@ -193,7 +193,7 @@ importers:
         version: 4.17.21
       next-auth:
         specifier: ^4.24.7
-        version: 4.24.7(next@14.2.6(@opentelemetry/api@1.8.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 4.24.7(next@14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       nodemailer:
         specifier: ^6.9.15
         version: 6.9.15
@@ -292,8 +292,8 @@ importers:
         specifier: ^0.0.4
         version: 0.0.4
       '@appsignal/opentelemetry-instrumentation-bullmq':
-        specifier: ^0.7.1
-        version: 0.7.1(bullmq@5.12.10)
+        specifier: ^0.7.2
+        version: 0.7.2(bullmq@5.12.10)
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.9.0)(@trpc/server@10.45.2)
@@ -777,8 +777,8 @@ importers:
         specifier: ^0.0.4
         version: 0.0.4
       '@appsignal/opentelemetry-instrumentation-bullmq':
-        specifier: ^0.7.1
-        version: 0.7.1(bullmq@5.12.10)
+        specifier: ^0.7.2
+        version: 0.7.2(bullmq@5.12.10)
       '@clickhouse/client':
         specifier: ^1.4.0
         version: 1.4.0
@@ -1046,8 +1046,8 @@ packages:
   '@anthropic-ai/tokenizer@0.0.4':
     resolution: {integrity: sha512-EHRKbxlxlc8W4KCBEseByJ7YwyYCmgu9OyN59H9+IYIGPoKv8tXyQXinkeGDI+cI8Tiuz9wk2jZb/kK7AyvL7g==}
 
-  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.1':
-    resolution: {integrity: sha512-pteS18B3yQuJLfEzdmO2zRM5LCJGHx2xCaS/X/PdakHXiV+5wqsyAQfGEDqyyN45ZC730lYHdeNwzan/b0zmlw==}
+  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.2':
+    resolution: {integrity: sha512-HWG46qW1xM4v2IiOu/LgHkKjC/O0XIY4eVGnWwJ3H6nJMpKRqqCGNCaPGkizuBKKyR6XwPeS0rvTiYTCOAM83A==}
     peerDependencies:
       bullmq: ^2 || ^3 || ^4 || ^5
     peerDependenciesMeta:
@@ -2816,12 +2816,6 @@ packages:
 
   '@opentelemetry/instrumentation-winston@0.40.0':
     resolution: {integrity: sha512-eMk2tKl86YJ8/yHvtDbyhrE35/R0InhO9zuHTflPx8T0+IvKVUhPV71MsJr32sImftqeOww92QHt4Jd+a5db4g==}
-    engines: {node: '>=14'}
-    peerDependencies:
-      '@opentelemetry/api': ^1.3.0
-
-  '@opentelemetry/instrumentation@0.34.0':
-    resolution: {integrity: sha512-VET/bOh4StOQV4vf1sAvn2JD67BhW2vPZ/ynl2gHXyafme2yB8Hs9+tr1TLzFwNGo7jwMFviFQkZjCYxMuK0AA==}
     engines: {node: '>=14'}
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
@@ -9941,10 +9935,6 @@ packages:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
     engines: {node: '>=0.10.0'}
 
-  require-in-the-middle@5.2.0:
-    resolution: {integrity: sha512-efCx3b+0Z69/LGJmm9Yvi4cqEdxnoGnxYxGxBghkkTTFeXRtTCmmhO0AnAfHz59k957uTSuy8WaHqOs8wbYUWg==}
-    engines: {node: '>=6'}
-
   require-in-the-middle@7.4.0:
     resolution: {integrity: sha512-X34iHADNbNDfr6OTStIAHWSAvvKQRYgLO6duASaVf7J2VA3lvmNYboAHOuLC2huav1IwgZJtyEcJCKVzFxOSMQ==}
     engines: {node: '>=8.6.0'}
@@ -11458,10 +11448,10 @@ snapshots:
       '@types/node': 18.19.25
       tiktoken: 1.0.15
 
-  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.1(bullmq@5.12.10)':
+  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.2(bullmq@5.12.10)':
     dependencies:
       '@opentelemetry/api': 1.9.0
-      '@opentelemetry/instrumentation': 0.34.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.27.0
       flat: 5.0.2
     optionalDependencies:
@@ -13855,15 +13845,6 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/api-logs': 0.53.0
       '@opentelemetry/instrumentation': 0.53.0(@opentelemetry/api@1.9.0)
-    transitivePeerDependencies:
-      - supports-color
-
-  '@opentelemetry/instrumentation@0.34.0(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@opentelemetry/api': 1.9.0
-      require-in-the-middle: 5.2.0
-      semver: 7.6.3
-      shimmer: 1.2.1
     transitivePeerDependencies:
       - supports-color
 
@@ -18774,7 +18755,7 @@ snapshots:
       eslint: 8.57.0
     optionalDependencies:
       '@typescript-eslint/eslint-plugin': 7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
-      vitest: 2.1.2
+      vitest: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.4.1(graphql@16.9.0)(typescript@5.4.5))(terser@5.34.1)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -21346,23 +21327,6 @@ snapshots:
     optionalDependencies:
       nodemailer: 6.9.15
 
-  next-auth@4.24.7(next@14.2.6(@opentelemetry/api@1.8.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(nodemailer@6.9.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.24.5
-      '@panva/hkdf': 1.1.1
-      cookie: 0.5.0
-      jose: 4.15.5
-      next: 14.2.6(@opentelemetry/api@1.8.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      oauth: 0.9.15
-      openid-client: 5.6.5
-      preact: 10.19.7
-      preact-render-to-string: 5.2.6(preact@10.19.7)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      uuid: 8.3.2
-    optionalDependencies:
-      nodemailer: 6.9.15
-
   next-query-params@5.0.0(next@14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)(use-query-params@2.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)):
     dependencies:
       next: 14.2.6(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -21397,33 +21361,6 @@ snapshots:
       '@next/swc-win32-ia32-msvc': 14.2.6
       '@next/swc-win32-x64-msvc': 14.2.6
       '@opentelemetry/api': 1.9.0
-      '@playwright/test': 1.47.2
-    transitivePeerDependencies:
-      - '@babel/core'
-      - babel-plugin-macros
-
-  next@14.2.6(@opentelemetry/api@1.8.0)(@playwright/test@1.47.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@next/env': 14.2.6
-      '@swc/helpers': 0.5.5
-      busboy: 1.6.0
-      caniuse-lite: 1.0.30001651
-      graceful-fs: 4.2.11
-      postcss: 8.4.31
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      styled-jsx: 5.1.1(@babel/core@7.24.3)(babel-plugin-macros@3.1.0)(react@18.2.0)
-    optionalDependencies:
-      '@next/swc-darwin-arm64': 14.2.6
-      '@next/swc-darwin-x64': 14.2.6
-      '@next/swc-linux-arm64-gnu': 14.2.6
-      '@next/swc-linux-arm64-musl': 14.2.6
-      '@next/swc-linux-x64-gnu': 14.2.6
-      '@next/swc-linux-x64-musl': 14.2.6
-      '@next/swc-win32-arm64-msvc': 14.2.6
-      '@next/swc-win32-ia32-msvc': 14.2.6
-      '@next/swc-win32-x64-msvc': 14.2.6
-      '@opentelemetry/api': 1.8.0
       '@playwright/test': 1.47.2
     transitivePeerDependencies:
       - '@babel/core'
@@ -22627,14 +22564,6 @@ snapshots:
   replace-string@3.1.0: {}
 
   require-directory@2.1.1: {}
-
-  require-in-the-middle@5.2.0:
-    dependencies:
-      debug: 4.3.6
-      module-details-from-path: 1.0.3
-      resolve: 1.22.8
-    transitivePeerDependencies:
-      - supports-color
 
   require-in-the-middle@7.4.0:
     dependencies:
@@ -23852,38 +23781,6 @@ snapshots:
       '@types/node': 20.11.29
       fsevents: 2.3.3
       terser: 5.34.1
-
-  vitest@2.1.2:
-    dependencies:
-      '@vitest/expect': 2.1.2
-      '@vitest/mocker': 2.1.2(@vitest/spy@2.1.2)(msw@2.4.1(graphql@16.9.0)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.34.1))
-      '@vitest/pretty-format': 2.1.2
-      '@vitest/runner': 2.1.2
-      '@vitest/snapshot': 2.1.2
-      '@vitest/spy': 2.1.2
-      '@vitest/utils': 2.1.2
-      chai: 5.1.1
-      debug: 4.3.7
-      magic-string: 0.30.11
-      pathe: 1.1.2
-      std-env: 3.7.0
-      tinybench: 2.9.0
-      tinyexec: 0.3.0
-      tinypool: 1.0.1
-      tinyrainbow: 1.2.0
-      vite: 5.2.14(@types/node@20.11.29)(terser@5.34.1)
-      vite-node: 2.1.2(@types/node@20.11.29)(terser@5.34.1)
-      why-is-node-running: 2.3.0
-    transitivePeerDependencies:
-      - less
-      - lightningcss
-      - msw
-      - sass
-      - stylus
-      - sugarss
-      - supports-color
-      - terser
-    optional: true
 
   vitest@2.1.2(@types/node@20.10.5):
     dependencies:
