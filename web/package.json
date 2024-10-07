@@ -57,7 +57,6 @@
     "@opentelemetry/sdk-node": "^0.53.0",
     "@opentelemetry/sdk-trace-base": "^1.26.0",
     "@opentelemetry/sdk-trace-node": "^1.26.0",
-    "@opentelemetry/winston-transport": "^0.6.0",
     "@prisma/instrumentation": "^5.20.0",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
