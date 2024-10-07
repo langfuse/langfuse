@@ -36,7 +36,7 @@ export const sendMembershipInvitationEmail = async ({
 }: SendMembershipInvitationParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
-      "Missing environment variables for sending membership invitation email.",
+      "Missing environment variables for sending membership invitation email."
     );
     return;
   }
@@ -51,7 +51,7 @@ export const sendMembershipInvitationEmail = async ({
   const authUrl = getAuthURL();
   if (!authUrl) {
     logger.error(
-      "Missing NEXTAUTH_URL or NEXT_PUBLIC_LANGFUSE_CLOUD_REGION environment variable.",
+      "Missing NEXTAUTH_URL or NEXT_PUBLIC_LANGFUSE_CLOUD_REGION environment variable."
     );
     return;
   }
@@ -68,7 +68,7 @@ export const sendMembershipInvitationEmail = async ({
         inviteLink: authUrl,
         emailFromAddress: env.EMAIL_FROM_ADDRESS,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      }),
+      })
     );
 
     await mailer.sendMail({
