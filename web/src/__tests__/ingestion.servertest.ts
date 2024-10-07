@@ -1638,8 +1638,6 @@ IB Home   /   . . .   /   News   /   News about the IB   /   Why ChatGPT is an o
     expect(response.body.successes.length).toEqual(1);
     expect(response.body.successes[0]?.id).toEqual(scoreEventId);
 
-    // TODO: Remove me
-    console.log(response.body);
     expect(response.body.errors.length).toEqual(4);
 
     const dbScore = await prisma.score.findUnique({

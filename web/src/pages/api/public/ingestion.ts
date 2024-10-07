@@ -168,7 +168,7 @@ export default async function handler(
         if (!isAuthorized(parsed.data, authCheck)) {
           authenticationErrors.push({
             id: parsed.data.id,
-            error: "Access Scope Denied",
+            error: new UnauthorizedError("Access Scope Denied"),
           });
           return [];
         }
@@ -308,7 +308,7 @@ export default async function handler(
 
     //  in case we did not return early, we return the result here
     handleBatchResult(
-      [...validationErrors, ...result.errors],
+      [...validationErrors, ...authenticationErrors, ...result.errors],
       result.results,
       res,
     );

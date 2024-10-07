@@ -97,7 +97,7 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          grep -v -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
+          grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
 
       - name: Run + migrate
         run: |
