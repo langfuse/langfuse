@@ -137,7 +137,7 @@
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "sonner": "^1.4.41",
-    "stripe": "^16.8.0",
+    "stripe": "^17.1.0",
     "superjson": "2.2.1",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
