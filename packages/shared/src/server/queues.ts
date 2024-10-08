@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ingestionBatchEvent, TCarrier } from ".";
+import { eventTypes, ingestionBatchEvent, TCarrier } from ".";
 
 export enum EventName {
   TraceUpsert = "TraceUpsert",
@@ -9,7 +9,8 @@ export enum EventName {
   CloudUsageMetering = "CloudUsageMetering",
 }
 
-export const LegacyIngestionEvent = z.object({
+export const LegacyIngestionEventFull = z.object({
+  useS3EventStore: z.literal(false),
   data: ingestionBatchEvent,
   authCheck: z.object({
     validKey: z.literal(true),
@@ -19,6 +20,29 @@ export const LegacyIngestionEvent = z.object({
     }),
   }),
 });
+
+export const LegacyIngestionEventMeta = z.object({
+  useS3EventStore: z.literal(true),
+  data: z.array(
+    z.object({
+      type: z.nativeEnum(eventTypes),
+      eventBodyId: z.string(),
+      eventId: z.string(),
+    }),
+  ),
+  authCheck: z.object({
+    validKey: z.literal(true),
+    scope: z.object({
+      projectId: z.string(),
+      accessLevel: z.enum(["all", "scores"]),
+    }),
+  }),
+});
+
+export const LegacyIngestionEvent = z.discriminatedUnion("useS3EventStore", [
+  LegacyIngestionEventFull,
+  LegacyIngestionEventMeta,
+]);
 
 export const BatchExportJobSchema = z.object({
   projectId: z.string(),
