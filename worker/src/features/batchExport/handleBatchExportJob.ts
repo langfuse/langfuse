@@ -320,17 +320,6 @@ export const handleBatchExportJob = async (
     },
   );
 
-  // Stream upload results to S3
-  const accessKeyId = env.S3_ACCESS_KEY_ID;
-  const secretAccessKey = env.S3_SECRET_ACCESS_KEY;
-  const bucketName = env.S3_BUCKET_NAME;
-  const endpoint = env.S3_ENDPOINT;
-  const region = env.S3_REGION;
-
-  if (!bucketName) {
-    throw new Error("No S3 bucket configured for exports.");
-  }
-
   const fileDate = new Date().toISOString();
   const fileExtension =
     exportOptions[jobDetails.format as BatchExportFileFormat].extension;
@@ -338,12 +327,19 @@ export const handleBatchExportJob = async (
   const expiresInSeconds =
     env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS * 3600;
 
+  // Stream upload results to S3
+  const bucketName = env.S3_BUCKET_NAME;
+  if (!bucketName) {
+    throw new Error("No S3 bucket configured for exports.");
+  }
+
   const { signedUrl } = await new S3StorageService({
-    accessKeyId,
-    secretAccessKey,
+    accessKeyId: env.S3_ACCESS_KEY_ID,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
     bucketName,
-    endpoint,
-    region,
+    endpoint: env.S3_ENDPOINT,
+    region: env.S3_REGION,
+    forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
   }).uploadFile({
     fileName,
     fileType:

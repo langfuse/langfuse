@@ -107,6 +107,7 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: z.string().optional(),
     S3_BUCKET_NAME: z.string().optional(),
     S3_REGION: z.string().optional(),
+    S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
     // Worker
@@ -170,6 +171,9 @@ export const env = createEnv({
     LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
     LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("false"),
     LANGFUSE_ASYNC_INGESTION_PROCESSING: z
       .enum(["true", "false"])
       .default("false"),
@@ -195,15 +199,42 @@ export const env = createEnv({
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_INIT_ORG_ID: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_ORG_NAME: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_PROJECT_ID: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_PROJECT_NAME: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_USER_EMAIL: z.union([z.string().email(), z.string().length(0)]).optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_USER_NAME: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_USER_PASSWORD: z.string().optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_ORG_ID: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_ORG_NAME: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_PROJECT_ID: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_PROJECT_NAME: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_PROJECT_SECRET_KEY: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_USER_EMAIL: z
+      .union([z.string().email(), z.string().length(0)])
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_USER_NAME: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_USER_PASSWORD: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
   },
 
   /**
@@ -218,11 +249,27 @@ export const env = createEnv({
 
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-      .enum(["US", "EU", "STAGING", "DEV"])
-      .optional(),
+      .string()
+      .optional()
+      .transform((v) => {
+        // for some reason, empty strings are not being transformed to undefined
+        if (v === undefined) return undefined;
+        if (v === "") return undefined;
+        return v;
+      })
+      .pipe(z.enum(["US", "EU", "STAGING", "DEV"]).optional()),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
-    NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
+    NEXT_PUBLIC_SIGN_UP_DISABLED: z
+      .string()
+      .optional()
+      .transform((v) => {
+        // for some reason, empty strings are not being transformed to undefined
+        if (v === undefined) return undefined;
+        if (v === "") return undefined;
+        return v;
+      })
+      .pipe(z.enum(["true", "false"]).optional()),
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
@@ -320,6 +367,7 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
     S3_REGION: process.env.S3_REGION,
+    S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
     // S3 event upload
     LANGFUSE_S3_EVENT_UPLOAD_ENABLED:
       process.env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED,
@@ -335,6 +383,8 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
     LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY:
       process.env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+    LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:
+      process.env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
     // Worker

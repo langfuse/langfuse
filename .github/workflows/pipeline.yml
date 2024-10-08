@@ -16,11 +16,11 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
@@ -35,10 +35,11 @@ jobs:
         run: pnpm run lint
 
   test-docker-build:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -48,14 +49,6 @@ jobs:
           docker compose -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
 
-      - name: Check server health
-        run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
-
-      - name: Check worker health
-        run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
-
       - name: Ensure no unhealthy status
         run: |
           if docker-compose ps | grep "(unhealthy)"; then
@@ -64,6 +57,14 @@ jobs:
           else
             echo "All services are healthy"
           fi
+
+      - name: Check worker health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+
+      - name: Check server health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
 
   tests-web:
     timeout-minutes: 20
@@ -79,12 +80,12 @@ jobs:
         with:
           swap-size-gb: 10
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -97,7 +98,7 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          grep -v -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
+          grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
 
       - name: Run + migrate
         run: |
@@ -144,13 +145,13 @@ jobs:
         with:
           swap-size-gb: 10
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -201,11 +202,11 @@ jobs:
   e2e-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
@@ -243,11 +244,11 @@ jobs:
   e2e-server-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
@@ -321,13 +322,13 @@ jobs:
         with:
           version: 9.5.0
       - name: Setup node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV

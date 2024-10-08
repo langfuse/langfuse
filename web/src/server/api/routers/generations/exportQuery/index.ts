@@ -67,21 +67,17 @@ export const generationsExportQuery = protectedProjectProcedure
     const fileExtension = exportOptions[input.fileFormat].extension;
     const fileName = `lf-export-${input.projectId}-${fileDate}.${fileExtension}`;
 
-    const accessKeyId = env.S3_ACCESS_KEY_ID;
-    const secretAccessKey = env.S3_SECRET_ACCESS_KEY;
-    const bucketName = env.S3_BUCKET_NAME;
-    const endpoint = env.S3_ENDPOINT;
-    const region = env.S3_REGION;
-
     // If bucketName is configured, we expect that the user has some valid S3 setup.
+    const bucketName = env.S3_BUCKET_NAME;
     if (bucketName) {
       logger.info(`Preparing export for ${fileName} on S3`);
       const { signedUrl } = await new S3StorageService({
-        accessKeyId,
-        secretAccessKey,
+        accessKeyId: env.S3_ACCESS_KEY_ID,
+        secretAccessKey: env.S3_SECRET_ACCESS_KEY,
         bucketName,
-        endpoint,
-        region,
+        endpoint: env.S3_ENDPOINT,
+        region: env.S3_REGION,
+        forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
       }).uploadFile({
         fileName,
         fileType: exportOptions[input.fileFormat].fileType,
