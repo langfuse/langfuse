@@ -309,7 +309,6 @@ export default async function handler(
      *******************/
     const result = await handleBatch(sortedBatch, authCheck, tokenCount);
 
-    // send out REST requests to worker for all trace types
     await addTracesToTraceUpsertQueue(
       result.results,
       authCheck.scope.projectId,

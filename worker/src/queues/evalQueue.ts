@@ -94,7 +94,7 @@ export const evalJobExecutorQueueProcessor = async (
       ?.count()
       .then((count) => {
         logger.debug(`Eval execution queue length: ${count}`);
-        recordGauge("eval_execution_queue_length", count, {
+        recordGauge("langfuse.queue.evaluation_execution.length", count, {
           unit: "records",
         });
         return count;
