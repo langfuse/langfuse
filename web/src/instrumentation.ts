@@ -9,7 +9,7 @@ export async function register() {
       : true;
 
   if (process.env.NEXT_RUNTIME === "nodejs" && isInitLoadingEnabled) {
-    await import("./datadog.server.config");
+    await import("./observability.config");
     await import("./initialize");
   }
 }

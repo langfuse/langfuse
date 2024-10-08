@@ -1,5 +1,10 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
-import { logger, createNewRedisInstance } from "@langfuse/shared/src/server";
+import {
+  logger,
+  createNewRedisInstance,
+  recordIncrement,
+  convertQueueNameToMetricName,
+} from "@langfuse/shared/src/server";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -53,9 +58,11 @@ export class WorkerManager {
         `Queue Job ${job?.name} with id ${job?.id} in ${queueName} failed`,
         err,
       );
+      recordIncrement(convertQueueNameToMetricName(queueName + ".failed"));
     });
     worker.on("error", (failedReason: Error) => {
       logger.error(`Queue worker ${queueName} failed: ${failedReason}`);
+      recordIncrement(convertQueueNameToMetricName(queueName + ".error"));
     });
   }
 }

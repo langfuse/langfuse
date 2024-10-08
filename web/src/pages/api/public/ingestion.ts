@@ -15,6 +15,8 @@ import {
   getCurrentSpan,
   LegacyIngestionQueue,
   addTraceContext,
+  S3StorageService,
+  instrumentAsync,
 } from "@langfuse/shared/src/server";
 import {
   SdkLogProcessor,
@@ -23,7 +25,6 @@ import {
   ScoreProcessor,
   TraceProcessor,
 } from "@langfuse/shared/src/server";
-import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
@@ -67,7 +68,9 @@ export default async function handler(
       redis,
     ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
-    if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
+    if (!authCheck.validKey) {
+      throw new UnauthorizedError(authCheck.error);
+    }
 
     const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
       authCheck.scope,
@@ -89,7 +92,7 @@ export default async function handler(
     );
 
     recordIncrement(
-      "ingestion_event",
+      "langfuse.ingestion.event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
 
@@ -123,8 +126,8 @@ export default async function handler(
 
     const validationErrors: { id: string; error: unknown }[] = [];
 
-    const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
-      parsedSchema.data.batch.map((event) => {
+    const batch: z.infer<typeof ingestionEvent>[] = parsedSchema.data.batch
+      .flatMap((event) => {
         const parsed = instrumentSync(
           { name: "ingestion-zod-parse-individual-event" },
           (span) => {
@@ -145,17 +148,58 @@ export default async function handler(
                 : "unknown",
             error: new InvalidRequestError(parsed.error.message),
           });
-          return undefined;
-        } else {
-          return parsed.data;
+          return [];
         }
+        return [parsed.data];
+      })
+      .flatMap((event) => {
+        if (event.type === eventTypes.SDK_LOG) {
+          // Log SDK_LOG events, but remove them from further processing
+          logger.info("SDK Log Event", { event });
+          return [];
+        }
+        return [event];
       });
-    const filteredBatch: z.infer<typeof ingestionEvent>[] =
-      batch.filter(isNotNullOrUndefined);
 
     await telemetry();
 
-    const sortedBatch = sortBatch(filteredBatch);
+    const sortedBatch = sortBatch(batch);
+
+    if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true") {
+      await instrumentAsync({ name: "s3-upload-events" }, async () => {
+        if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
+          logger.warn(
+            "S3 event upload activated, but no bucket configured. Skipping upload.",
+          );
+        } else {
+          const s3Client = new S3StorageService({
+            accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+            secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+            bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+            endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+            region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+          });
+          const results = await Promise.allSettled(
+            sortedBatch.map(async (event) => {
+              const eventName = event.type.split("-").shift();
+              return event.type !== eventTypes.SDK_LOG
+                ? s3Client.uploadJson(
+                    `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${eventName}/${event.body.id}/${event.id}.json`,
+                    event,
+                  )
+                : Promise.resolve();
+            }),
+          );
+          results.forEach((result) => {
+            if (result.status === "rejected") {
+              logger.error("Failed to upload event to S3", {
+                error: result.reason,
+              });
+            }
+          });
+        }
+      });
+    }
 
     if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" && redis) {
       // this function MUST NOT return but send the HTTP response directly
@@ -303,7 +347,6 @@ const accessCheckPerEvent = (
 /**
  * Sorts a batch of ingestion events. Orders by: updating events last, sorted by timestamp asc.
  */
-
 const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
   const updateEvents: (typeof eventTypes)[keyof typeof eventTypes][] = [
     eventTypes.GENERATION_UPDATE,

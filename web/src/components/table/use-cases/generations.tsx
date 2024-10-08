@@ -376,9 +376,9 @@ export default function GenerationsTable({
       enableSorting: true,
     },
     {
-      accessorKey: "timePerOutputToken",
-      id: "timePerOutputToken",
-      header: "Time per Output Token",
+      accessorKey: "tokensPerSecond",
+      id: "tokensPerSecond",
+      header: "Tokens per second",
       size: 200,
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
@@ -390,9 +390,9 @@ export default function GenerationsTable({
         return latency !== undefined &&
           (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
           <span>
-            {usage.completionTokens
-              ? formatIntervalSeconds(latency / usage.completionTokens)
-              : formatIntervalSeconds(latency / usage.totalTokens)}
+            {usage.completionTokens && latency
+              ? Number((usage.completionTokens / latency).toFixed(1))
+              : undefined}
           </span>
         ) : undefined;
       },

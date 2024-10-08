@@ -235,7 +235,7 @@ export const evaluate = async ({
     parsedVariableMapping
   );
 
-  logger.info(
+  logger.debug(
     `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `
   );
 
@@ -246,7 +246,7 @@ export const evaluate = async ({
     ),
   });
 
-  logger.info(
+  logger.debug(
     `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`
   );
 
