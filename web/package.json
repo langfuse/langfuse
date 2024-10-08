@@ -174,7 +174,7 @@
     "jest-environment-jsdom": "^29.7.0",
     "node-mocks-http": "^1.14.1",
     "postcss": "^8.4.38",
-    "prettier": "^3.2.5",
+    "prettier": "^3.3.3",
     "prettier-plugin-tailwindcss": "^0.6.6",
     "tailwindcss": "^3.4.13",
     "ts-node": "^10.9.2",
