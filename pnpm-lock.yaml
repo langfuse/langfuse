@@ -281,7 +281,7 @@ importers:
         version: 5.4.5
       vitest:
         specifier: ^2.1.2
-        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.4.1(graphql@16.9.0)(typescript@5.4.5))(terser@5.34.1)
+        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.4.9(typescript@5.4.5))(terser@5.34.1)
 
   web:
     dependencies:
@@ -922,8 +922,8 @@ importers:
         specifier: ^0.16.8
         version: 0.16.8(kysely@0.27.4)(pg@8.13.0)
       msw:
-        specifier: ^2.4.1
-        version: 2.4.1(graphql@16.9.0)(typescript@5.4.5)
+        specifier: ^2.4.9
+        version: 2.4.9(typescript@5.4.5)
       nodemon:
         specifier: ^3.1.7
         version: 3.1.7
@@ -944,7 +944,7 @@ importers:
         version: 5.4.5
       vitest:
         specifier: ^2.1.2
-        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.4.1(graphql@16.9.0)(typescript@5.4.5))(terser@5.34.1)
+        version: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.4.9(typescript@5.4.5))(terser@5.34.1)
 
 packages:
 
@@ -2325,8 +2325,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@mswjs/interceptors@0.29.1':
-    resolution: {integrity: sha512-3rDakgJZ77+RiQUuSK69t1F0m8BQKA8Vh5DCS5V0DWvNY67zob2JhhQrhCO0AKLGINTRSFd1tBaHcJTkhefoSw==}
+  '@mswjs/interceptors@0.35.9':
+    resolution: {integrity: sha512-SSnyl/4ni/2ViHKkiZb8eajA/eN1DNFaHjhGiLUdZvDz6PKF4COSf/17xqSz64nOo2Ia29SA6B2KNCsyCbVmaQ==}
     engines: {node: '>=18'}
 
   '@mui/base@5.0.0-beta.40':
@@ -8733,16 +8733,13 @@ packages:
   msgpackr@1.10.1:
     resolution: {integrity: sha512-r5VRLv9qouXuLiIBrLpl2d5ZvPt8svdQTl5/vMvE4nzDMyEX4sgW5yWhuBBj5UmgwOTWj8CIdSXn5sAfsHAWIQ==}
 
-  msw@2.4.1:
-    resolution: {integrity: sha512-HXcoQPzYTwEmVk+BGIcRa0vLabBT+J20SSSeYh/QfajaK5ceA6dlD4ZZjfz2dqGEq4vRNCPLP6eXsB94KllPFg==}
+  msw@2.4.9:
+    resolution: {integrity: sha512-1m8xccT6ipN4PTqLinPwmzhxQREuxaEJYdx4nIbggxP8aM7r1e71vE7RtOUSQoAm1LydjGfZKy7370XD/tsuYg==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
-      graphql: '>= 16.8.x'
-      typescript: '>= 4.7.x'
+      typescript: '>= 4.8.x'
     peerDependenciesMeta:
-      graphql:
-        optional: true
       typescript:
         optional: true
 
@@ -9078,8 +9075,8 @@ packages:
     resolution: {integrity: sha512-D2FR03Vir7FIu45XBY20mTb+/ZSWB00sjU9jdQXt83gDrI4Ztz5Fs7/yy74g2N5SVQY4xY1qDr4rNddwYRVX0g==}
     engines: {node: '>=0.10.0'}
 
-  outvariant@1.4.2:
-    resolution: {integrity: sha512-Ou3dJ6bA/UJ5GVHxah4LnqDwZRwAmWxrG3wtrHrbGnP4RnLCtA64A4F+ae7Y8ww660JaddSoArUR5HjipWSHAQ==}
+  outvariant@1.4.3:
+    resolution: {integrity: sha512-+Sl2UErvtsoajRDKCE5/dBz4DIvHXQQnAxtQTF04OJxY0+DyZXSo5P5Bb7XYWOh81syohlYL24hbDwxedPUJCA==}
 
   p-cancelable@3.0.0:
     resolution: {integrity: sha512-mlVgR3PGuzlo0MmTdk4cXqXWlwQDLnONTAg6sm62XkMJEiRxN3GL3SffkYvqwonbkJBcrI7Uvv5Zh9yjvn2iUw==}
@@ -9217,8 +9214,8 @@ packages:
   path-to-regexp@0.1.11:
     resolution: {integrity: sha512-c0t+KCuUkO/YDLPG4WWzEwx3J5F/GHXsD1h/SNZfySqAIKe/BaP95x8fWtOfRJokpS5yYHRJjMtYlXD8jxnpbw==}
 
-  path-to-regexp@6.2.2:
-    resolution: {integrity: sha512-GQX3SSMokngb36+whdpRXE+3f9V8UzyAorlYvOGx87ufGHehNTn5lCxrKtLyZ4Yl/wEKnNnr98ZzOwwDZV5ogw==}
+  path-to-regexp@6.3.0:
+    resolution: {integrity: sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ==}
 
   path-type@4.0.0:
     resolution: {integrity: sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==}
@@ -13271,13 +13268,13 @@ snapshots:
   '@msgpackr-extract/msgpackr-extract-win32-x64@3.0.3':
     optional: true
 
-  '@mswjs/interceptors@0.29.1':
+  '@mswjs/interceptors@0.35.9':
     dependencies:
       '@open-draft/deferred-promise': 2.2.0
       '@open-draft/logger': 0.3.0
       '@open-draft/until': 2.1.0
       is-node-process: 1.2.0
-      outvariant: 1.4.2
+      outvariant: 1.4.3
       strict-event-emitter: 0.5.1
 
   '@mui/base@5.0.0-beta.40(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
@@ -13524,7 +13521,7 @@ snapshots:
   '@open-draft/logger@0.3.0':
     dependencies:
       is-node-process: 1.2.0
-      outvariant: 1.4.2
+      outvariant: 1.4.3
 
   '@open-draft/until@2.1.0': {}
 
@@ -16610,13 +16607,13 @@ snapshots:
       chai: 5.1.1
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.2(@vitest/spy@2.1.2)(msw@2.4.1(graphql@16.9.0)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.34.1))':
+  '@vitest/mocker@2.1.2(@vitest/spy@2.1.2)(msw@2.4.9(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.34.1))':
     dependencies:
       '@vitest/spy': 2.1.2
       estree-walker: 3.0.3
       magic-string: 0.30.11
     optionalDependencies:
-      msw: 2.4.1(graphql@16.9.0)(typescript@5.4.5)
+      msw: 2.4.9(typescript@5.4.5)
       vite: 5.2.14(@types/node@20.11.29)(terser@5.34.1)
 
   '@vitest/mocker@2.1.2(@vitest/spy@2.1.2)(vite@5.2.14(@types/node@20.10.5))':
@@ -18774,7 +18771,7 @@ snapshots:
       eslint: 8.57.0
     optionalDependencies:
       '@typescript-eslint/eslint-plugin': 7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
-      vitest: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.4.1(graphql@16.9.0)(typescript@5.4.5))(terser@5.34.1)
+      vitest: 2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.4.9(typescript@5.4.5))(terser@5.34.1)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -21275,26 +21272,26 @@ snapshots:
     optionalDependencies:
       msgpackr-extract: 3.0.3
 
-  msw@2.4.1(graphql@16.9.0)(typescript@5.4.5):
+  msw@2.4.9(typescript@5.4.5):
     dependencies:
       '@bundled-es-modules/cookie': 2.0.0
       '@bundled-es-modules/statuses': 1.0.1
       '@bundled-es-modules/tough-cookie': 0.1.6
       '@inquirer/confirm': 3.1.6
-      '@mswjs/interceptors': 0.29.1
+      '@mswjs/interceptors': 0.35.9
       '@open-draft/until': 2.1.0
       '@types/cookie': 0.6.0
       '@types/statuses': 2.0.5
       chalk: 4.1.2
+      graphql: 16.9.0
       headers-polyfill: 4.0.3
       is-node-process: 1.2.0
-      outvariant: 1.4.2
-      path-to-regexp: 6.2.2
+      outvariant: 1.4.3
+      path-to-regexp: 6.3.0
       strict-event-emitter: 0.5.1
       type-fest: 4.18.2
       yargs: 17.7.2
     optionalDependencies:
-      graphql: 16.9.0
       typescript: 5.4.5
 
   mustache@4.2.0: {}
@@ -21648,7 +21645,7 @@ snapshots:
 
   os-tmpdir@1.0.2: {}
 
-  outvariant@1.4.2: {}
+  outvariant@1.4.3: {}
 
   p-cancelable@3.0.0: {}
 
@@ -21801,7 +21798,7 @@ snapshots:
 
   path-to-regexp@0.1.11: {}
 
-  path-to-regexp@6.2.2: {}
+  path-to-regexp@6.3.0: {}
 
   path-type@4.0.0: {}
 
@@ -23829,10 +23826,10 @@ snapshots:
       - terser
     optional: true
 
-  vitest@2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.4.1(graphql@16.9.0)(typescript@5.4.5))(terser@5.34.1):
+  vitest@2.1.2(@types/node@20.11.29)(jsdom@20.0.3)(msw@2.4.9(typescript@5.4.5))(terser@5.34.1):
     dependencies:
       '@vitest/expect': 2.1.2
-      '@vitest/mocker': 2.1.2(@vitest/spy@2.1.2)(msw@2.4.1(graphql@16.9.0)(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.34.1))
+      '@vitest/mocker': 2.1.2(@vitest/spy@2.1.2)(msw@2.4.9(typescript@5.4.5))(vite@5.2.14(@types/node@20.11.29)(terser@5.34.1))
       '@vitest/pretty-format': 2.1.2
       '@vitest/runner': 2.1.2
       '@vitest/snapshot': 2.1.2
