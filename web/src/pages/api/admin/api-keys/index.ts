@@ -11,8 +11,19 @@ We will work on admin APIs in the future. See the discussion here: https://githu
 */
 
 const DeleteApiKeySchema = z.object({
+  action: z.literal("delete"),
   projectIds: z.array(z.string()),
 });
+
+const InvalidateApiKeySchema = z.object({
+  action: z.literal("invalidate"),
+  projectIds: z.array(z.string()),
+});
+
+const ApiKeyAction = z.discriminatedUnion("action", [
+  DeleteApiKeySchema,
+  InvalidateApiKeySchema,
+]);
 
 export default async function handler(
   req: NextApiRequest,
@@ -51,45 +62,70 @@ export default async function handler(
       return;
     }
 
-    const body = DeleteApiKeySchema.safeParse(req.body);
+    const body = ApiKeyAction.safeParse(req.body);
 
     if (!body.success) {
       res.status(400).json({ error: body.error });
       return;
     }
 
-    logger.info(
-      `trying to remove API keys for projects ${body.data.projectIds.join(", ")}`,
-    );
+    if (body.data.action === "delete") {
+      logger.info(
+        `trying to remove API keys for projects ${body.data.projectIds.join(", ")}`,
+      );
 
-    // delete the API keys in the database first
-    const apiKeysToBeDeleted = await prisma.apiKey.findMany({
-      where: {
-        projectId: {
-          in: body.data.projectIds,
+      // delete the API keys in the database first
+      const apiKeysToBeDeleted = await prisma.apiKey.findMany({
+        where: {
+          projectId: {
+            in: body.data.projectIds,
+          },
         },
-      },
-    });
+      });
 
-    await prisma.apiKey.deleteMany({
-      where: {
-        projectId: {
-          in: body.data.projectIds,
+      await prisma.apiKey.deleteMany({
+        where: {
+          projectId: {
+            in: body.data.projectIds,
+          },
         },
-      },
-    });
+      });
 
-    // then delete from the cache
-    await new ApiAuthService(prisma, redis).invalidate(
-      apiKeysToBeDeleted,
-      `projects ${body.data.projectIds.join(", ")}`,
-    );
+      // then delete from the cache
+      await new ApiAuthService(prisma, redis).invalidate(
+        apiKeysToBeDeleted,
+        `projects ${body.data.projectIds.join(", ")}`,
+      );
 
-    logger.info(
-      `Removed API keys for projects ${body.data.projectIds.join(", ")}`,
-    );
+      logger.info(
+        `Removed API keys for projects ${body.data.projectIds.join(", ")}`,
+      );
 
-    res.status(200).json({ message: "API keys deleted" });
+      res.status(200).json({ message: "API keys deleted" });
+    } else if (body.data.action === "invalidate") {
+      // delete the API keys in the database first
+      const apiKeysToBeInvalidated = await prisma.apiKey.findMany({
+        where: {
+          projectId: {
+            in: body.data.projectIds,
+          },
+        },
+      });
+
+      // then delete from the cache
+      await new ApiAuthService(prisma, redis).invalidate(
+        apiKeysToBeInvalidated,
+        `projects ${body.data.projectIds.join(", ")}`,
+      );
+
+      logger.info(
+        `Removed API keys for projects ${body.data.projectIds.join(", ")}`,
+      );
+      res.status(200).json({ message: "API keys invalidated" });
+    }
+
+    // return not implemented error
+    res.status(404).json({ error: "Action does not exist" });
   } catch (e) {
     logger.error("failed to remove API keys", e);
     res.status(500).json({ error: e });
