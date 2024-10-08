@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
@@ -166,6 +166,7 @@ export function AnnotateDrawerContent({
 }) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
+  const [showSaving, setShowSaving] = useState(false);
 
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
@@ -270,6 +271,26 @@ export function AnnotateDrawerContent({
   const mutUpdateScores = api.scores.updateAnnotationScore.useMutation({
     onSettled: onSettledUpsert,
   });
+
+  useEffect(() => {
+    if (
+      mutUpdateScores.isLoading ||
+      mutCreateScores.isLoading ||
+      mutDeleteScore.isLoading
+    ) {
+      setShowSaving(true);
+    } else {
+      const timer = setTimeout(() => {
+        setShowSaving(false);
+      }, 1000); // Keep saving message for 1 second after loading
+
+      return () => clearTimeout(timer); // Cleanup timer on unmount or when loading state changes
+    }
+  }, [
+    mutUpdateScores.isLoading,
+    mutCreateScores.isLoading,
+    mutDeleteScore.isLoading,
+  ]);
 
   function handleOnCheckedChange(
     values: Record<string, string>[],
@@ -516,9 +537,7 @@ export function AnnotateDrawerContent({
             href: "https://langfuse.com/docs/scores/manually",
           }}
           actionButtons={[
-            (mutUpdateScores.isLoading ||
-              mutCreateScores.isLoading ||
-              mutDeleteScore.isLoading) && (
+            showSaving && (
               <div
                 className="flex items-center justify-end"
                 key="saving-spinner"
