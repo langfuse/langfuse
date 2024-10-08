@@ -61,7 +61,7 @@ export default withMiddlewares({
         : Prisma.empty;
       const tagsCondition = query.tags
         ? Prisma.sql`AND ARRAY[${Prisma.join(
-            (Array.isArray(query.tags) ? query.tags : [query.tags]).map(
+            (Array.isArray(query.tags) ? query.tags : query.tags.split(',')).map(
               (v) => Prisma.sql`${v}`,
             ),
             ", ",
@@ -169,7 +169,7 @@ export default withMiddlewares({
           },
           tags: query.tags
             ? {
-                hasEvery: Array.isArray(query.tags) ? query.tags : [query.tags],
+                hasEvery: Array.isArray(query.tags) ? query.tags : query.tags.split(','),
               }
             : undefined,
         },

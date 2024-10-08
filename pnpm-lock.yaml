@@ -289,8 +289,8 @@ importers:
         specifier: ^0.0.4
         version: 0.0.4
       '@appsignal/opentelemetry-instrumentation-bullmq':
-        specifier: ^0.7.2
-        version: 0.7.2(bullmq@5.12.10)
+        specifier: ^0.7.3
+        version: 0.7.3(bullmq@5.12.10)
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.9.0)(@trpc/server@10.45.2)
@@ -771,8 +771,8 @@ importers:
         specifier: ^0.0.4
         version: 0.0.4
       '@appsignal/opentelemetry-instrumentation-bullmq':
-        specifier: ^0.7.2
-        version: 0.7.2(bullmq@5.12.10)
+        specifier: ^0.7.3
+        version: 0.7.3(bullmq@5.12.10)
       '@clickhouse/client':
         specifier: ^1.4.0
         version: 1.4.0
@@ -1040,8 +1040,8 @@ packages:
   '@anthropic-ai/tokenizer@0.0.4':
     resolution: {integrity: sha512-EHRKbxlxlc8W4KCBEseByJ7YwyYCmgu9OyN59H9+IYIGPoKv8tXyQXinkeGDI+cI8Tiuz9wk2jZb/kK7AyvL7g==}
 
-  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.2':
-    resolution: {integrity: sha512-HWG46qW1xM4v2IiOu/LgHkKjC/O0XIY4eVGnWwJ3H6nJMpKRqqCGNCaPGkizuBKKyR6XwPeS0rvTiYTCOAM83A==}
+  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.3':
+    resolution: {integrity: sha512-BSkrRNu7nfywkY+GDXDTCE4U8wUtF95hHvtFjFzwoFH0fsMRY+IFjwHlNLC6b4+YavJEs2ykSqVgy4GM7hLE+Q==}
     peerDependencies:
       bullmq: ^2 || ^3 || ^4 || ^5
     peerDependenciesMeta:
@@ -11425,7 +11425,7 @@ snapshots:
       '@types/node': 18.19.25
       tiktoken: 1.0.15
 
-  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.2(bullmq@5.12.10)':
+  '@appsignal/opentelemetry-instrumentation-bullmq@0.7.3(bullmq@5.12.10)':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.0)
