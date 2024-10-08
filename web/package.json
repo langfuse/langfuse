@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
-    "@appsignal/opentelemetry-instrumentation-bullmq": "^0.7.2",
+    "@appsignal/opentelemetry-instrumentation-bullmq": "^0.7.3",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
     "@codemirror/lang-json": "^6.0.1",
     "@codemirror/lint": "^6.8.0",
