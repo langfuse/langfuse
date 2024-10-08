@@ -29,6 +29,12 @@ services:
       - "9091:9001"
     volumes:
       - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   miniocreatebucket:
     image: minio/mc
@@ -40,7 +46,8 @@ services:
        mc mb minio/mybucket && 
        mc policy set download minio/mybucket"
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
 
   redis:
     image: redis:7.2.4
