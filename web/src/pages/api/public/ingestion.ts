@@ -48,6 +48,22 @@ export const config = {
   },
 };
 
+let s3StorageServiceClient: S3StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = new S3StorageService({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
+
 /**
  * This handler performs multiple actions to ingest data. It is compatible with the new async workflow, but also
  * supports the old synchronous workflow which processes events in the web container.
@@ -195,15 +211,9 @@ export default async function handler(
         if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
           throw new Error("S3 event store is enabled but no bucket is set");
         }
-        const s3Client = new S3StorageService({
-          accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-          secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-          bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-          endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-          region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-          forcePathStyle:
-            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-        });
+        const s3Client = getS3StorageServiceClient(
+          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        );
         // S3 Event Upload is currently blocking, but non-failing.
         // If a promise rejects, we log it below, but do not throw an error.
         // In this case, we upload the full batch into the Redis queue.

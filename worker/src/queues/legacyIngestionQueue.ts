@@ -21,6 +21,22 @@ import {
 import { tokenCount } from "../features/tokenisation/usage";
 import { env } from "../env";
 
+let s3StorageServiceClient: S3StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = new S3StorageService({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
+
 export const legacyIngestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>,
 ) => {
@@ -38,15 +54,9 @@ export const legacyIngestionQueueProcessor: Processor = async (
         );
       }
       // If we used the S3 store we need to fetch the ingestionEvents from S3
-      const s3Client = new S3StorageService({
-        accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-        secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-        bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-        endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-        region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-        forcePathStyle:
-          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      });
+      const s3Client = getS3StorageServiceClient(
+        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+      );
       ingestionEvents = (
         await Promise.all(
           job.data.payload.data.map(async (record) => {
