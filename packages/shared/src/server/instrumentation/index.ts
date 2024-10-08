@@ -192,3 +192,15 @@ export const recordHistogram = (
 ) => {
   dd.dogstatsd.histogram(stat, value, tags);
 };
+
+/**
+ * Converts a queue name to the matching datadog metric name.
+ * Consumer only needs to append the relevant suffix.
+ *
+ * Example: `legacy-ingestion-queue` -> `langfuse.queue.legacy_ingestion`
+ */
+export const convertQueueNameToMetricName = (queueName: string): string => {
+  return (
+    "langfuse.queue." + queueName.replace(/-/g, "_").replace(/_queue$/, "")
+  );
+};
