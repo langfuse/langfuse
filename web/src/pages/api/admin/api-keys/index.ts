@@ -101,7 +101,7 @@ export default async function handler(
         `Removed API keys for projects ${body.data.projectIds.join(", ")}`,
       );
 
-      res.status(200).json({ message: "API keys deleted" });
+      return res.status(200).json({ message: "API keys deleted" });
     } else if (body.data.action === "invalidate") {
       // delete the API keys in the database first
       const apiKeysToBeInvalidated = await prisma.apiKey.findMany({
@@ -111,6 +111,7 @@ export default async function handler(
           },
         },
       });
+      console.log(apiKeysToBeInvalidated);
 
       // then delete from the cache
       await new ApiAuthService(prisma, redis).invalidate(
@@ -119,9 +120,9 @@ export default async function handler(
       );
 
       logger.info(
-        `Removed API keys for projects ${body.data.projectIds.join(", ")}`,
+        `Invalidated API keys for projects ${body.data.projectIds.join(", ")}`,
       );
-      res.status(200).json({ message: "API keys invalidated" });
+      return res.status(200).json({ message: "API keys invalidated" });
     }
 
     // return not implemented error
