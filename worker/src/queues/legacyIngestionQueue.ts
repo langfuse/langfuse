@@ -11,6 +11,7 @@ import {
   IngestionEventType,
   S3StorageService,
   ingestionBatchEvent,
+  ingestionEvent,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -53,13 +54,20 @@ export const legacyIngestionQueueProcessor: Processor = async (
             const file = await s3Client.download(
               `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${eventName}/${record.eventBodyId}/${record.eventId}.json`,
             );
-            const parsed = ingestionBatchEvent.safeParse(JSON.parse(file));
+            const parsedFile = JSON.parse(file);
+            const parsed = ingestionBatchEvent.safeParse(parsedFile);
             if (parsed.success) {
               return parsed.data;
             } else {
-              throw new Error(
-                `Failed to parse event from S3: ${parsed.error.message}`,
-              );
+              // Fallback to non-array format for backwards compatibility
+              const parsed = ingestionEvent.safeParse(parsedFile);
+              if (parsed.success) {
+                return [parsed.data];
+              } else {
+                throw new Error(
+                  `Failed to parse event from S3: ${parsed.error.message}`,
+                );
+              }
             }
           }),
         )
