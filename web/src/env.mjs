@@ -195,15 +195,42 @@ export const env = createEnv({
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_INIT_ORG_ID: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_ORG_NAME: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_PROJECT_ID: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_PROJECT_NAME: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_USER_EMAIL: z.union([z.string().email(), z.string().length(0)]).optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_USER_NAME: z.string().optional().transform((v) => v === "" ? undefined : v),
-    LANGFUSE_INIT_USER_PASSWORD: z.string().optional().transform((v) => v === "" ? undefined : v),
+    LANGFUSE_INIT_ORG_ID: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_ORG_NAME: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_PROJECT_ID: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_PROJECT_NAME: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_PROJECT_SECRET_KEY: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_USER_EMAIL: z
+      .union([z.string().email(), z.string().length(0)])
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_USER_NAME: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_USER_PASSWORD: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
   },
 
   /**
@@ -218,11 +245,27 @@ export const env = createEnv({
 
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-      .enum(["US", "EU", "STAGING", "DEV"])
-      .optional(),
+      .string()
+      .optional()
+      .transform((v) => {
+        // for some reason, empty strings are not being transformed to undefined
+        if (v === undefined) return undefined;
+        if (v === "") return undefined;
+        return v;
+      })
+      .pipe(z.enum(["US", "EU", "STAGING", "DEV"]).optional()),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
-    NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).optional(),
+    NEXT_PUBLIC_SIGN_UP_DISABLED: z
+      .string()
+      .optional()
+      .transform((v) => {
+        // for some reason, empty strings are not being transformed to undefined
+        if (v === undefined) return undefined;
+        if (v === "") return undefined;
+        return v;
+      })
+      .pipe(z.enum(["true", "false"]).optional()),
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
