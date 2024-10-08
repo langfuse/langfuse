@@ -465,6 +465,7 @@ export function AnnotateDrawerContent({
             comment: score.comment,
             observationId,
             value: Number(field.value),
+            queueId,
           });
 
           await mutUpdateScores.mutateAsync({
