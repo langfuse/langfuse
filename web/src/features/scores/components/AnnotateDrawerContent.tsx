@@ -65,7 +65,6 @@ import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { Spinner } from "@/src/components/layouts/spinner";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),

@@ -214,7 +214,7 @@ export const queueItemRouter = createTRPCRouter({
             projectId: input.projectId,
             status: AnnotationQueueStatus.PENDING,
             id: {
-              notIn: input.seenItemIds,
+              notIn: input.seenItemIds, // codespell-ignore
             },
           },
         });
