@@ -93,14 +93,8 @@ export const env = createEnv({
       .optional()
       .default(30 * 24 * 60), // default to 30 days
     // EMAIL
-    EMAIL_FROM_ADDRESS: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
-    SMTP_CONNECTION_URL: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
+    EMAIL_FROM_ADDRESS: z.string().optional(),
+    SMTP_CONNECTION_URL: z.string().optional(),
     // S3
     S3_ENDPOINT: z.string().optional(),
     S3_ACCESS_KEY_ID: z.string().optional(),
@@ -178,14 +172,12 @@ export const env = createEnv({
       .optional()
       .refine((value) => {
         if (!value) return true;
-
         const creators = value.split(",");
         const emailSchema = z.string().email();
         return creators.every(
           (creator) => emailSchema.safeParse(creator).success,
         );
-      }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses")
-      .transform((v) => (v === "" || v === undefined ? undefined : v)),
+      }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
     LANGFUSE_INGESTION_BUFFER_TTL_SECONDS: z.coerce
       .number()
       .positive()
@@ -195,42 +187,17 @@ export const env = createEnv({
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_INIT_ORG_ID: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
-    LANGFUSE_INIT_ORG_NAME: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
-    LANGFUSE_INIT_PROJECT_ID: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
-    LANGFUSE_INIT_PROJECT_NAME: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
-    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
-    LANGFUSE_INIT_PROJECT_SECRET_KEY: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
+    LANGFUSE_INIT_ORG_ID: z.string().optional(),
+    LANGFUSE_INIT_ORG_NAME: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
     LANGFUSE_INIT_USER_EMAIL: z
       .union([z.string().email(), z.string().length(0)])
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
-    LANGFUSE_INIT_USER_NAME: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
-    LANGFUSE_INIT_USER_PASSWORD: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
+      .optional(),
+    LANGFUSE_INIT_USER_NAME: z.string().optional(),
+    LANGFUSE_INIT_USER_PASSWORD: z.string().optional(),
   },
 
   /**
@@ -245,27 +212,11 @@ export const env = createEnv({
 
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-      .string()
-      .optional()
-      .transform((v) => {
-        // for some reason, empty strings are not being transformed to undefined
-        if (v === undefined) return undefined;
-        if (v === "") return undefined;
-        return v;
-      })
-      .pipe(z.enum(["US", "EU", "STAGING", "DEV"]).optional()),
+      .enum(["US", "EU", "STAGING", "DEV"])
+      .optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
-    NEXT_PUBLIC_SIGN_UP_DISABLED: z
-      .string()
-      .optional()
-      .transform((v) => {
-        // for some reason, empty strings are not being transformed to undefined
-        if (v === undefined) return undefined;
-        if (v === "") return undefined;
-        return v;
-      })
-      .pipe(z.enum(["true", "false"]).optional()),
+    NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
@@ -451,4 +402,5 @@ export const env = createEnv({
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
   skipValidation: process.env.DOCKER_BUILD === "1",
+  emptyStringAsUndefined: true,
 });
