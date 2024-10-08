@@ -33,12 +33,8 @@ export const ingestionFlushQueueProcessor: Processor = async (job) => {
 
         // Log wait time
         const waitTime = Date.now() - job.timestamp;
-        logger.debug(
-          `Received flush request after ${waitTime} ms for ${flushKey}`,
-        );
-
-        recordIncrement("ingestion_processing_request");
-        recordHistogram("ingestion_flush_wait_time", waitTime, {
+        recordIncrement("langfuse.queue.ingestion_flush.request");
+        recordHistogram("langfuse.queue.ingestion_flush.wait_time", waitTime, {
           unit: "milliseconds",
         });
 
@@ -64,16 +60,20 @@ export const ingestionFlushQueueProcessor: Processor = async (job) => {
           logger.debug(
             `Prepared and scheduled CH-write in ${processingTime} ms for ${flushKey}`,
           );
-          recordHistogram("ingestion_flush_processing_time", processingTime, {
-            unit: "milliseconds",
-          });
+          recordHistogram(
+            "langfuse.queue.ingestion_flush.processing_time",
+            processingTime,
+            {
+              unit: "milliseconds",
+            },
+          );
 
           // Log queue size
           await ingestionFlushQueue
             .count()
             .then((count) => {
               logger.debug(`Ingestion flush queue length: ${count}`);
-              recordGauge("ingestion_flush_queue_length", count, {
+              recordGauge("langfuse.queue.ingestion_flush.length", count, {
                 unit: "records",
               });
               return count;

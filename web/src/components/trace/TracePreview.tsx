@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
+import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
@@ -29,6 +29,9 @@ import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/CreateNewAnnotationQueueItem";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useMemo } from "react";
+import { usdFormatter } from "@/src/utils/numbers";
+import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 
 export const TracePreview = ({
   trace,
@@ -62,6 +65,14 @@ export const TracePreview = ({
     acc.get(score.source)?.push(score);
     return acc;
   }, new Map<ScoreSource, APIScore[]>());
+
+  const totalCost = useMemo(
+    () =>
+      calculateDisplayTotalCost({
+        allObservations: observations,
+      }),
+    [observations],
+  );
 
   return (
     <Card
@@ -113,12 +124,17 @@ export const TracePreview = ({
                     {formatIntervalSeconds(trace.latency)}
                   </Badge>
                 )}
-                <TraceAggUsageBadge observations={observations} />
+                <AggUsageBadge observations={observations} />
                 {!!trace.release && (
                   <Badge variant="outline">Release: {trace.release}</Badge>
                 )}
                 {!!trace.version && (
                   <Badge variant="outline">Version: {trace.version}</Badge>
+                )}
+                {totalCost && (
+                  <Badge variant="outline">
+                    ∑ {usdFormatter(totalCost.toNumber())}
+                  </Badge>
                 )}
               </div>
             )}

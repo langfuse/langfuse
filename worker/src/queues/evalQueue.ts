@@ -52,9 +52,8 @@ export const evalJobCreatorQueueProcessor = async (
         const startTime = Date.now();
 
         const waitTime = Date.now() - job.timestamp;
-
-        recordIncrement("trace_upsert_queue_request");
-        recordHistogram("trace_upsert_queue_wait_time", waitTime, {
+        recordIncrement("langfuse.queue.trace_upsert.request");
+        recordHistogram("langfuse.queue.trace_upsert.wait_time", waitTime, {
           unit: "milliseconds",
         });
 
@@ -71,7 +70,7 @@ export const evalJobCreatorQueueProcessor = async (
           })
           .catch();
         recordHistogram(
-          "trace_upsert_queue_processing_time",
+          "langfuse.queue.trace_upsert.processing_time",
           Date.now() - startTime,
           { unit: "milliseconds" },
         );
@@ -103,11 +102,14 @@ export const evalJobExecutorQueueProcessor = async (
         const startTime = Date.now();
 
         const waitTime = Date.now() - job.timestamp;
-
-        recordIncrement("eval_execution_queue_request");
-        recordHistogram("eval_execution_queue_wait_time", waitTime, {
-          unit: "milliseconds",
-        });
+        recordIncrement("langfuse.queue.evaluation_execution.request");
+        recordHistogram(
+          "langfuse.queue.evaluation_execution.wait_time",
+          waitTime,
+          {
+            unit: "milliseconds",
+          },
+        );
 
         await evaluate({ event: job.data.payload });
 
@@ -122,7 +124,7 @@ export const evalJobExecutorQueueProcessor = async (
           })
           .catch();
         recordHistogram(
-          "eval_execution_queue_processing_time",
+          "langfuse.queue.evaluation_execution.processing_time",
           Date.now() - startTime,
           { unit: "milliseconds" },
         );

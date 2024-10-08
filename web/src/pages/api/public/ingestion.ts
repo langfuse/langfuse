@@ -92,7 +92,7 @@ export default async function handler(
     );
 
     recordIncrement(
-      "ingestion_event",
+      "langfuse.ingestion.event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
 
