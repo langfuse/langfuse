@@ -111,7 +111,6 @@ export default async function handler(
           },
         },
       });
-      console.log(apiKeysToBeInvalidated);
 
       // then delete from the cache
       await new ApiAuthService(prisma, redis).invalidate(
