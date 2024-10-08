@@ -12,7 +12,6 @@ import {
   recordIncrement,
   getCurrentSpan,
   LegacyIngestionQueue,
-  addTraceContext,
   S3StorageService,
   instrumentAsync,
   getProcessorForEvent,
@@ -256,12 +255,12 @@ export default async function handler(
         try {
           await queue.add(
             QueueJobs.LegacyIngestionJob,
-            addTraceContext({
+            {
               payload: queuePayload,
               id: randomUUID(),
               timestamp: new Date(),
               name: QueueJobs.LegacyIngestionJob as const,
-            }),
+            },
             {
               removeOnFail: 1_000_000,
               removeOnComplete: true,
