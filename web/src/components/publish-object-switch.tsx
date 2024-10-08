@@ -93,7 +93,7 @@ const Base = (props: {
           "Loading.."
         ) : props.isPublic ? (
           <div
-            className="text-dark-green flex cursor-pointer items-center gap-1"
+            className="flex cursor-pointer items-center gap-1 text-dark-green"
             onClick={() => copyUrl()}
           >
             {isCopied ? "Link copied ..." : "Public"}
