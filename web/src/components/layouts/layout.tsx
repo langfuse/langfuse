@@ -34,16 +34,12 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api } from "@/src/utils/api";
 
 const signOutUser = async () => {
   localStorage.clear();
   sessionStorage.clear();
 
   await signOut();
-
-  const utils = api.useUtils();
-  utils.
 };
 
 const userNavigation = [
