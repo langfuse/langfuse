@@ -73,7 +73,7 @@
     "kysely-codegen": "^0.16.8",
     "msw": "^2.4.9",
     "nodemon": "^3.1.7",
-    "prettier": "^3.2.5",
+    "prettier": "^3.3.3",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "tsx": "^4.19.1",
