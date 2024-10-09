@@ -127,6 +127,7 @@ export const evalJobExecutorQueueProcessor = async (
     if (
       !(e instanceof BaseError && e.message.includes("API key for provider"))
     ) {
+      traceException(e);
       logger.error(
         `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
         e
