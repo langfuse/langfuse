@@ -150,7 +150,6 @@ const AnnotateIOView = ({
         minSize={30}
       >
         <Card className="col-span-2 flex h-full flex-col overflow-hidden">
-          {/* TODO: ensure configs keep their order */}
           <AnnotateDrawerContent
             key={"annotation-drawer-content" + item.objectId}
             traceId={traceId}

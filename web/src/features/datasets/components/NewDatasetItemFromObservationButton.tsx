@@ -81,7 +81,6 @@ export const NewDatasetItemFromTrace = (props: {
               <DropdownMenuItem
                 className="capitalize"
                 onClick={() => {
-                  console.log("open");
                   setIsFormOpen(true);
                 }}
               >

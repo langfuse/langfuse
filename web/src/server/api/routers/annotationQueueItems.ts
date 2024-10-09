@@ -412,6 +412,14 @@ export const queueItemRouter = createTRPCRouter({
           },
         });
 
+        await auditLog({
+          resourceType: "annotationQueueItem",
+          resourceId: item.id,
+          action: "complete",
+          after: item,
+          session: ctx.session,
+        });
+
         return item;
       } catch (error) {
         logger.error(error);
