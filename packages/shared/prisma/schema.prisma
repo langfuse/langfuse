@@ -49,6 +49,7 @@ model Account {
     id_token                 String? // @db.Text
     session_state            String?
     refresh_token_expires_in Int?
+    created_at               Int? // GitLab
     user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     @@unique([provider, providerAccountId])

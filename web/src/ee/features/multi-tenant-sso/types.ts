@@ -34,6 +34,7 @@ export const GitlabProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
+      issuer: z.string().optional(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
     })
     .nullish(),
