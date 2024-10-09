@@ -40,3 +40,5 @@ export { type DB } from "../prisma/generated/types";
 
 // errors
 export * from "./errors/index";
+
+export * from "./utils/environment";
