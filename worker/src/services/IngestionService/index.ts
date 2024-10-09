@@ -160,6 +160,7 @@ export class IngestionService {
           string_value: validatedScore.stringValue,
           created_at: Date.now(),
           updated_at: Date.now(),
+          event_ts: new Date(scoreEvent.timestamp).getTime(),
         };
       });
 
@@ -276,6 +277,7 @@ export class IngestionService {
         tags: [],
         bookmarked: false,
         public: false,
+        event_ts: Date.now(),
       };
 
       this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
@@ -560,7 +562,7 @@ export class IngestionService {
     const finalTotalCost =
       tokenCounts.total_usage_units != null && model?.totalPrice
         ? model.totalPrice.toNumber() * tokenCounts.total_usage_units
-        : finalInputCost ?? finalOutputCost
+        : (finalInputCost ?? finalOutputCost)
           ? (finalInputCost ?? 0) + (finalOutputCost ?? 0)
           : undefined;
 
@@ -649,7 +651,7 @@ export class IngestionService {
         session_id: trace.body.sessionId,
         created_at: Date.now(),
         updated_at: Date.now(),
-        event_ts: trace.timestamp,
+        event_ts: new Date(trace.timestamp).getTime(),
       };
 
       return traceRecord;
@@ -705,7 +707,7 @@ export class IngestionService {
         newInputCount &&
         newOutputCount
           ? newInputCount + newOutputCount
-          : newInputCount ?? newOutputCount);
+          : (newInputCount ?? newOutputCount));
 
       const newUnit = "usage" in obs.body ? obs.body.usage?.unit : undefined;
 
@@ -757,6 +759,7 @@ export class IngestionService {
         prompt_version: prompt?.version,
         created_at: Date.now(),
         updated_at: Date.now(),
+        event_ts: new Date(obs.timestamp).getDate(),
       };
 
       return observationRecord;
