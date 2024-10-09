@@ -28,7 +28,7 @@ export const LegacyIngestionEventMeta = z.object({
       type: z.nativeEnum(eventTypes),
       eventBodyId: z.string(),
       eventId: z.string(),
-    }),
+    })
   ),
   authCheck: z.object({
     validKey: z.literal(true),
@@ -55,6 +55,7 @@ export const TraceUpsertEventSchema = z.object({
 export const EvalExecutionEvent = z.object({
   projectId: z.string(),
   jobExecutionId: z.string(),
+  delay: z.number().nullish(),
 });
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
