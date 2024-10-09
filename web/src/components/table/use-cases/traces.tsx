@@ -291,7 +291,7 @@ export default function TracesTable({
         const value: TracesTableRow["id"] = row.getValue("id");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/traces/${value}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
             value={value}
           />
         ) : undefined;
@@ -692,7 +692,7 @@ export default function TracesTable({
 
   const rows = useMemo(() => {
     return traces.isSuccess
-      ? traceRowData?.rows?.map((trace) => {
+      ? (traceRowData?.rows?.map((trace) => {
           return {
             bookmarked: trace.bookmarked,
             id: trace.id,
@@ -721,7 +721,7 @@ export default function TracesTable({
             outputCost: trace.calculatedOutputCost ?? undefined,
             totalCost: trace.calculatedTotalCost ?? undefined,
           };
-        }) ?? []
+        }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
 

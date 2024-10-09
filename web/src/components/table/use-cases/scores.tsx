@@ -174,7 +174,7 @@ export default function ScoresTable({
         return typeof value === "string" ? (
           <>
             <TableLink
-              path={`/project/${projectId}/traces/${value}`}
+              path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
               value={value}
             />
           </>
@@ -194,7 +194,7 @@ export default function ScoresTable({
         const traceId = row.getValue("traceId") as ScoresTableRow["traceId"];
         return traceId && observationId ? (
           <TableLink
-            path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
             value={observationId}
           />
         ) : undefined;
@@ -236,7 +236,7 @@ export default function ScoresTable({
         return typeof value === "string" ? (
           <>
             <TableLink
-              path={`/project/${projectId}/users/${value}`}
+              path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
               value={value}
             />
           </>
@@ -396,7 +396,7 @@ export default function ScoresTable({
           ? score.value % 1 === 0
             ? String(score.value)
             : score.value.toFixed(4)
-          : score.stringValue ?? "",
+          : (score.stringValue ?? ""),
       author: {
         userId: score.authorUserId ?? undefined,
         image: score.authorUserImage ?? undefined,
