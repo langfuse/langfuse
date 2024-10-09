@@ -3,11 +3,29 @@
 import { useEffect } from "react";
 import { Crisp } from "crisp-sdk-web";
 import { env } from "@/src/env.mjs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const CrispChat = () => {
+  const capture = usePostHogClientCapture();
+
   useEffect(() => {
-    if (env.NEXT_PUBLIC_CRISP_WEBSITE_ID)
+    if (env.NEXT_PUBLIC_CRISP_WEBSITE_ID) {
       Crisp.configure(env.NEXT_PUBLIC_CRISP_WEBSITE_ID);
+      Crisp.chat.onChatInitiated(() => {
+        capture("support_chat:initiated");
+      });
+      Crisp.chat.onChatOpened(() => {
+        capture("support_chat:opened");
+      });
+      Crisp.message.onMessageSent(() => {
+        capture("support_chat:message_sent");
+      });
+      return () => {
+        Crisp.chat.offChatInitiated();
+        Crisp.chat.offChatOpened();
+        Crisp.message.offMessageSent();
+      };
+    }
   });
 
   return null;

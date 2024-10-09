@@ -128,6 +128,7 @@ const events = {
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
+  support_chat: ["initiated", "opened", "message_sent"],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"
