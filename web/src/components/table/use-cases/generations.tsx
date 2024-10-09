@@ -284,7 +284,7 @@ export default function GenerationsTable({
         return typeof observationId === "string" &&
           typeof traceId === "string" ? (
           <TableLink
-            path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
             value={observationId}
           />
         ) : null;
