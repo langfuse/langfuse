@@ -28,7 +28,7 @@ export const getEvalQueue = () => {
         QueueName.EvaluationExecution,
         {
           connection: connection,
-        },
+        }
       )
     : null;
 
@@ -36,7 +36,7 @@ export const getEvalQueue = () => {
 };
 
 export const evalJobCreatorQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
+  job: Job<TQueueJobTypes[QueueName.TraceUpsert]>
 ) => {
   try {
     const startTime = Date.now();
@@ -62,13 +62,13 @@ export const evalJobCreatorQueueProcessor = async (
     recordHistogram(
       "langfuse.queue.trace_upsert.processing_time",
       Date.now() - startTime,
-      { unit: "milliseconds" },
+      { unit: "milliseconds" }
     );
     return true;
   } catch (e) {
     logger.error(
       `Failed job Evaluation for traceId ${job.data.payload.traceId}`,
-      e,
+      e
     );
     traceException(e);
     throw e;
@@ -76,13 +76,15 @@ export const evalJobCreatorQueueProcessor = async (
 };
 
 export const evalJobExecutorQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>,
+  job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>
 ) => {
   try {
     logger.info("Executing Evaluation Execution Job", job.data);
     const startTime = Date.now();
 
-    const waitTime = Date.now() - job.timestamp;
+    // reduce the delay from the time to get the actual wait time
+    // from the point where the job was ready to be processed
+    const waitTime = Date.now() - job.timestamp - job.delay;
     recordIncrement("langfuse.queue.evaluation_execution.request");
     recordHistogram("langfuse.queue.evaluation_execution.wait_time", waitTime, {
       unit: "milliseconds",
@@ -103,7 +105,7 @@ export const evalJobExecutorQueueProcessor = async (
     recordHistogram(
       "langfuse.queue.evaluation_execution.processing_time",
       Date.now() - startTime,
-      { unit: "milliseconds" },
+      { unit: "milliseconds" }
     );
 
     return true;
@@ -128,7 +130,7 @@ export const evalJobExecutorQueueProcessor = async (
       traceException(e);
       logger.error(
         `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
-        e,
+        e
       );
     }
 
