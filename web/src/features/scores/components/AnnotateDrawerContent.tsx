@@ -6,6 +6,7 @@ import {
   X,
   Archive,
   Loader2,
+  Check,
 } from "lucide-react";
 import {
   type ControllerRenderProps,
@@ -189,8 +190,14 @@ export function AnnotateDrawerContent({
   const prevEmptySelectedConfigIdsRef = useRef(emptySelectedConfigIds);
 
   useEffect(() => {
-    // Only reset the form if emptySelectedConfigIds has changed
-    if (prevEmptySelectedConfigIdsRef.current !== emptySelectedConfigIds) {
+    // Only reset the form if emptySelectedConfigIds has changed, compare by value not reference
+    if (
+      prevEmptySelectedConfigIdsRef.current.length !==
+        emptySelectedConfigIds.length ||
+      !prevEmptySelectedConfigIdsRef.current.every(
+        (id, index) => id === emptySelectedConfigIds[index],
+      )
+    ) {
       form.reset({
         scoreData: getDefaultScoreData({
           scores,
@@ -282,7 +289,7 @@ export function AnnotateDrawerContent({
     } else {
       const timer = setTimeout(() => {
         setShowSaving(false);
-      }, 1000); // Keep saving message for 1 second after loading
+      }, 300); // Keep saving message for 1 second after loading
 
       return () => clearTimeout(timer); // Cleanup timer on unmount or when loading state changes
     }
@@ -537,20 +544,22 @@ export function AnnotateDrawerContent({
             href: "https://langfuse.com/docs/scores/manually",
           }}
           actionButtons={[
-            showSaving && (
-              <div
-                className="flex items-center justify-end"
-                key="saving-spinner"
-              >
-                <div className="mr-1 items-center justify-center">
+            <div className="flex items-center justify-end" key="saving-spinner">
+              <div className="mr-1 items-center justify-center">
+                {showSaving ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
-                </div>
-                <span className="text-xs text-muted-foreground">Saving...</span>
+                ) : (
+                  <Check className="h-3 w-3" />
+                )}
               </div>
-            ),
+              <span className="text-xs text-muted-foreground">
+                {showSaving ? "Saving score data" : "Score data saved"}
+              </span>
+            </div>,
             actionButtons,
           ]}
         ></Header>
+
         {!isSelectHidden && (
           <div className="grid grid-flow-col items-center">
             <MultiSelectKeyValues

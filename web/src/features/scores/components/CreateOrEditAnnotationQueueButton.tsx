@@ -167,9 +167,7 @@ export const CreateOrEditAnnotationQueueButton = ({
           </span>
         </Button>
       </DialogTrigger>
-      {configsData.isLoading && hasAccess && isOpen ? (
-        <div>Loading...</div>
-      ) : (
+      {configsData.data && (
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>

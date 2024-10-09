@@ -9,12 +9,16 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { AnnotationQueueItemPage } from "@/src/features/scores/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
 import { Goal, Network } from "lucide-react";
-import { useRouter } from "next/router";
 
-export default function AnnotationQueues() {
-  const router = useRouter();
-  const annotationQueueId = router.query.queueId as string;
-  const projectId = router.query.projectId as string;
+export const AnnotationQueuesItem = ({
+  annotationQueueId,
+  projectId,
+  itemId,
+}: {
+  annotationQueueId: string;
+  projectId: string;
+  itemId?: string;
+}) => {
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:read",
@@ -85,10 +89,11 @@ export default function AnnotationQueues() {
               projectId={projectId}
               annotationQueueId={annotationQueueId}
               view={view}
+              queryItemId={itemId}
             />
           </>
         }
       />
     </FullScreenPage>
   );
-}
+};

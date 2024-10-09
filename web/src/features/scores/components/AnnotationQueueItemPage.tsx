@@ -8,6 +8,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -77,6 +78,10 @@ const AnnotateIOView = ({
       },
     },
   );
+
+  const emptySelectedConfigIds = useMemo(() => {
+    return configs.map((c) => c.id);
+  }, [configs]);
 
   if (trace.isLoading || !trace.data) return <div>Loading...</div>;
 
@@ -152,7 +157,7 @@ const AnnotateIOView = ({
             scores={trace.data?.scores ?? []}
             observationId={item.parentTraceId ? item.objectId : undefined}
             configs={configs}
-            emptySelectedConfigIds={configs.map((c) => c.id)}
+            emptySelectedConfigIds={emptySelectedConfigIds}
             setEmptySelectedConfigIds={() => {}}
             projectId={item.projectId}
             type={item.objectType.toLowerCase() as "trace" | "observation"}
@@ -179,10 +184,10 @@ export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
   projectId: string;
   view: "showTree" | "hideTree";
-}> = ({ annotationQueueId, projectId, view }) => {
+  queryItemId?: string;
+}> = ({ annotationQueueId, projectId, view, queryItemId }) => {
   const router = useRouter();
   const isSingleItem = router.query.singleItem === "true";
-  const queryItemId = isSingleItem ? router.query.itemId : undefined;
   const [nextItemData, setNextItemData] = useState<
     RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
   >(null);
@@ -193,8 +198,7 @@ export const AnnotationQueueItemPage: React.FC<{
     projectId,
     scope: "annotationQueues:CUD",
   });
-  const itemId =
-    typeof queryItemId === "string" ? queryItemId : seenItemIds[progressIndex];
+  const itemId = isSingleItem ? queryItemId : seenItemIds[progressIndex];
 
   const seenItemData = api.annotationQueueItems.byId.useQuery(
     { projectId, itemId: itemId as string },
@@ -250,13 +254,9 @@ export const AnnotationQueueItemPage: React.FC<{
         description: "The item is successfully marked as complete.",
       });
       if (isSingleItem) {
-        router.back();
         return;
       }
 
-      if (progressIndex + 1 < totalItems) {
-        setProgressIndex(Math.max(progressIndex + 1, 0));
-      }
       if (progressIndex >= seenItemIds.length - 1) {
         const nextItem = await fetchAndLockNextMutation.mutateAsync({
           queueId: annotationQueueId,
@@ -264,6 +264,10 @@ export const AnnotationQueueItemPage: React.FC<{
           seenItemIds,
         });
         setNextItemData(nextItem);
+      }
+
+      if (progressIndex + 1 < totalItems) {
+        setProgressIndex(Math.max(progressIndex + 1, 0));
       }
     },
   });
@@ -275,7 +279,7 @@ export const AnnotationQueueItemPage: React.FC<{
   const configs = queueData.data?.scoreConfigs ?? [];
 
   const relevantItem = useMemo(() => {
-    if (typeof queryItemId === "string") return seenItemData.data;
+    if (isSingleItem) return seenItemData.data;
     else
       return progressIndex < seenItemIds.length
         ? seenItemData.data
@@ -285,24 +289,19 @@ export const AnnotationQueueItemPage: React.FC<{
     seenItemIds.length,
     seenItemData.data,
     nextItemData,
-    queryItemId,
+    isSingleItem,
   ]);
 
   useEffect(() => {
     if (relevantItem && router.query.itemId !== relevantItem.id) {
       router.push(
         {
-          pathname: router.pathname,
-          query: {
-            ...router.query,
-            itemId: relevantItem.id,
-          },
+          pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${relevantItem.id}`,
         },
         undefined,
-        { shallow: true },
       );
     }
-  }, [relevantItem, router]);
+  }, [relevantItem, router, projectId, annotationQueueId]);
 
   useEffect(() => {
     if (
@@ -320,7 +319,7 @@ export const AnnotationQueueItemPage: React.FC<{
     (fetchAndLockNextMutation.isLoading && !itemId) ||
     unseenPendingItemCount.isLoading
   ) {
-    return <div>Loading...</div>;
+    return <Skeleton className="h-full w-full" />;
   }
 
   if (!relevantItem && !(itemId && seenItemIds.includes(itemId))) {
@@ -367,7 +366,6 @@ export const AnnotationQueueItemPage: React.FC<{
           {!isSingleItem && (
             <Button
               onClick={async () => {
-                setProgressIndex(Math.max(progressIndex + 1, 0));
                 if (progressIndex >= seenItemIds.length - 1) {
                   const nextItem = await fetchAndLockNextMutation.mutateAsync({
                     queueId: annotationQueueId,
@@ -376,8 +374,9 @@ export const AnnotationQueueItemPage: React.FC<{
                   });
                   setNextItemData(nextItem);
                 }
+                setProgressIndex(Math.max(progressIndex + 1, 0));
               }}
-              disabled={!isNextItemAvailable || !hasAccess}
+              disabled={!isNextItemAvailable || !hasAccess} // Disable button during loading
               size="lg"
               className={`px-4 ${!relevantItem ? "w-full" : ""}`}
               variant="outline"
@@ -401,7 +400,9 @@ export const AnnotationQueueItemPage: React.FC<{
                 className="w-full"
                 disabled={completeMutation.isLoading || !hasAccess}
               >
-                {isSingleItem ? "Complete" : "Complete + Next"}
+                {isSingleItem || progressIndex + 1 === totalItems
+                  ? "Complete"
+                  : "Complete + Next"}
               </Button>
             ) : (
               <div className="text-dark-gree inline-flex h-9 w-full items-center justify-center rounded-md border border-dark-green bg-light-green px-8 text-sm font-medium">

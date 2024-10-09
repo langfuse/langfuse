@@ -95,7 +95,7 @@ export const CreateNewAnnotationQueueItem = ({
       <Button
         variant="secondary"
         disabled
-        className="rounded-l-none rounded-r-md border-l border-l-secondary-foreground"
+        className="rounded-l-none rounded-r-md border-l-2"
       >
         <ChevronDown className="h-3 w-3" />
       </Button>
@@ -116,7 +116,7 @@ export const CreateNewAnnotationQueueItem = ({
         <Button
           variant="secondary"
           disabled={!hasAccess}
-          className="rounded-l-none rounded-r-md border-l border-l-secondary-foreground"
+          className="rounded-l-none rounded-r-md border-l-2"
         >
           {queues.data?.totalCount ? (
             <span className="relative mr-1 text-xs">

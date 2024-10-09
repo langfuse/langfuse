@@ -399,7 +399,7 @@ export const queueItemRouter = createTRPCRouter({
           scope: "annotationQueues:CUD",
         });
 
-        const item = await ctx.prisma.annotationQueueItem.updateMany({
+        const item = await ctx.prisma.annotationQueueItem.update({
           where: {
             id: input.itemId,
             projectId: input.projectId,
@@ -417,6 +417,16 @@ export const queueItemRouter = createTRPCRouter({
         logger.error(error);
         if (error instanceof TRPCError) {
           throw error;
+        }
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message:
+              "The item to complete was not found, it was likely deleted.",
+          });
         }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",

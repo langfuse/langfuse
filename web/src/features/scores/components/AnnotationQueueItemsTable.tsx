@@ -5,11 +5,15 @@ import { api } from "@/src/utils/api";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { AnnotationQueueStatus } from "@langfuse/shared";
+import { type AnnotationQueueStatus } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { ChevronDown, ListTree, Trash } from "lucide-react";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/src/components/ui/avatar";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
@@ -30,8 +34,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Badge } from "@/src/components/ui/badge";
-import { cn } from "@/src/utils/tailwind";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -204,7 +207,7 @@ export function AnnotationQueueItemsTable({
         const id: QueueItemRowData["id"] = row.getValue("id");
         return (
           <TableLink
-            path={`/project/${projectId}/annotation-queues/${queueId}/items?itemId=${id}&singleItem=true`}
+            path={`/project/${projectId}/annotation-queues/${queueId}/items/${id}?singleItem=true`}
             value={id}
           />
         );
@@ -250,17 +253,11 @@ export function AnnotationQueueItemsTable({
       cell: ({ row }) => {
         const status: QueueItemRowData["status"] = row.getValue("status");
         return (
-          <Badge
-            className={cn(
-              "rounded-md capitalize",
-              status === AnnotationQueueStatus.COMPLETED
-                ? "bg-light-green text-dark-green"
-                : "bg-light-yellow text-dark-yellow",
-            )}
-            variant="outline"
-          >
-            {status.toLowerCase()}
-          </Badge>
+          <StatusBadge
+            className="capitalize"
+            type={status.toLowerCase()}
+            isLive={false}
+          />
         );
       },
     },
@@ -281,7 +278,7 @@ export function AnnotationQueueItemsTable({
       cell: ({ row }) => {
         const annotatorUser: QueueItemRowData["annotatorUser"] =
           row.getValue("annotatorUser");
-        if (!annotatorUser) return null;
+        if (!annotatorUser || !annotatorUser.userId) return null;
 
         const { userId, userName, image } = annotatorUser;
         return (
@@ -291,6 +288,15 @@ export function AnnotationQueueItemsTable({
                 src={image ?? undefined}
                 alt={userName ?? "User Avatar"}
               />
+              <AvatarFallback>
+                {userName
+                  ? userName
+                      .split(" ")
+                      .map((word) => word[0])
+                      .slice(0, 2)
+                      .concat("")
+                  : null}
+              </AvatarFallback>
             </Avatar>
             <span>{userName ?? userId}</span>
           </div>

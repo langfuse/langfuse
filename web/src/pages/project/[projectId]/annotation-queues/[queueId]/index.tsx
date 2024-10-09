@@ -22,6 +22,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 const TableWithMetadataWrapper = ({
   tableComponent,
@@ -141,13 +142,17 @@ export default function QueueItems() {
                 />
               }
               cardTitleChildren={
-                <>
-                  {queue.data?.name}
+                <div className="flex w-full flex-row items-center justify-between">
+                  {queue.data ? (
+                    <span>{queue.data.name}</span>
+                  ) : (
+                    <Skeleton className="h-full w-1/2" />
+                  )}
                   <CreateOrEditAnnotationQueueButton
                     projectId={projectId}
                     queueId={queueId}
                   />
-                </>
+                </div>
               }
               cardContentChildren={
                 <>
