@@ -1374,13 +1374,13 @@ async function generateQueues(
       id: `queue-${v4()}`,
       name: "Default",
       description: "Default queue",
-      scoreConfigs: configIdsAndNames.map((config) => config.id),
+      scoreConfigIds: configIdsAndNames.map((config) => config.id),
       projectId: project.id,
     },
     {
       id: `queue-${v4()}`,
       name: "Correction",
-      scoreConfigs: [configIdsAndNames[0].id],
+      scoreConfigIds: [configIdsAndNames[0].id],
       projectId: project.id,
     },
   ];

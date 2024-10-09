@@ -66,14 +66,14 @@ export const CreateOrEditAnnotationQueueButton = ({
       form.reset({
         name: queueQuery.data.name,
         description: queueQuery.data.description || undefined,
-        scoreConfigs: queueQuery.data.scoreConfigs.map(
+        scoreConfigIds: queueQuery.data.scoreConfigs.map(
           (config: ValidatedScoreConfig) => config.id,
         ),
       });
     } else {
       form.reset({
         name: "",
-        scoreConfigs: [],
+        scoreConfigIds: [],
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,17 +135,17 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const handleOnValueChange = (values: Record<string, string>[]) => {
     form.setValue(
-      "scoreConfigs",
+      "scoreConfigIds",
       values.map((value) => value.key),
     );
 
     if (values.length === 0) {
-      form.setError("scoreConfigs", {
+      form.setError("scoreConfigIds", {
         type: "manual",
         message: "At least 1 score config must be selected",
       });
     } else {
-      form.clearErrors("scoreConfigs");
+      form.clearErrors("scoreConfigIds");
     }
   };
 
@@ -217,7 +217,7 @@ export const CreateOrEditAnnotationQueueButton = ({
               />
               <FormField
                 control={form.control}
-                name="scoreConfigs"
+                name="scoreConfigIds"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Score Configs</FormLabel>

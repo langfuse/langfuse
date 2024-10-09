@@ -96,7 +96,7 @@ export type AnnotationQueue = {
     id: string;
     name: string;
     description: string | null;
-    score_configs: Generated<string[]>;
+    score_config_ids: Generated<string[]>;
     project_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;

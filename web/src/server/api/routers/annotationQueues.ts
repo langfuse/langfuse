@@ -46,7 +46,7 @@ export const queueRouter = createTRPCRouter({
               id: string;
               name: string;
               description?: string | null;
-              scoreConfigs: string[];
+              scoreConfigIds: string[];
               createdAt: string;
               countCompletedItems: number;
               countPendingItems: number;
@@ -56,14 +56,14 @@ export const queueRouter = createTRPCRouter({
             aq.id,
             aq.name,
             aq.description,
-            aq.score_configs AS "scoreConfigs",
+            aq.score_config_ids AS "scoreConfigIds",
             aq.created_at AS "createdAt",
             COALESCE(SUM(CASE WHEN aqi.status = 'COMPLETED' THEN 1 ELSE 0 END), 0) AS "countCompletedItems",
             COALESCE(SUM(CASE WHEN aqi.status = 'PENDING' THEN 1 ELSE 0 END), 0) AS "countPendingItems"
           FROM
             annotation_queues aq
           LEFT JOIN
-            annotation_queue_items aqi ON aq.id = aqi.queue_id AND aqi.project_id = ${input.projectId}
+            annotation_queue_items aqi ON aq.id = aqi.queue_id AND aqi.project_id = aq.project_id
           WHERE
             aq.project_id = ${input.projectId}
           GROUP BY
@@ -95,7 +95,7 @@ export const queueRouter = createTRPCRouter({
           queues: queues.map((queue) => ({
             ...queue,
             scoreConfigs: scoreConfigs.filter((config) =>
-              queue.scoreConfigs.includes(config.id),
+              queue.scoreConfigIds.includes(config.id),
             ),
           })),
         };
@@ -170,7 +170,7 @@ export const queueRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
             id: {
-              in: queue?.scoreConfigs ?? [],
+              in: queue?.scoreConfigIds ?? [],
             },
           },
         });
@@ -300,7 +300,7 @@ export const queueRouter = createTRPCRouter({
             name: input.name,
             projectId: input.projectId,
             description: input.description,
-            scoreConfigs: input.scoreConfigs,
+            scoreConfigIds: input.scoreConfigIds,
           },
         });
 
@@ -362,7 +362,7 @@ export const queueRouter = createTRPCRouter({
           data: {
             name: input.name,
             description: input.description,
-            scoreConfigs: input.scoreConfigs,
+            scoreConfigIds: input.scoreConfigIds,
           },
         });
 
