@@ -4,6 +4,9 @@ import { redis } from "@langfuse/shared/src/server";
 
 export const prepareClickhouse = async (projectIds: string[]) => {
   for (const projectId of projectIds) {
+    const numberTraces = 10000;
+    const numberObservations = 50000;
+
     console.log(`Preparing Clickhouse for project ${projectId}...`);
     const tracesQuery = `
       INSERT INTO traces
@@ -24,7 +27,7 @@ export const prepareClickhouse = async (projectIds: string[]) => {
         timestamp AS created_at,
         timestamp AS updated_at,
         timestamp AS event_ts
-      FROM numbers(10000);
+      FROM numbers(${numberTraces});
     `;
 
     const observationsQuery = `
@@ -77,7 +80,7 @@ export const prepareClickhouse = async (projectIds: string[]) => {
         start_time AS created_at,
         start_time AS updated_at,
         start_time AS event_ts
-      FROM numbers(10000);
+      FROM numbers(${numberObservations});
     `;
 
     const scoresQuery = `

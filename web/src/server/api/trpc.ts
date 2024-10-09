@@ -79,6 +79,7 @@ import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
 import { addUserToSpan } from "@langfuse/shared/src/server";
+import { getTrace } from "@/src/server/api/repositories/clickhouse";
 
 setUpSuperjson();
 
@@ -303,15 +304,8 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const traceId = result.data.traceId;
   const projectId = result.data.projectId;
 
-  const trace = await prisma.trace.findFirst({
-    where: {
-      id: traceId,
-      projectId: projectId,
-    },
-    select: {
-      public: true,
-    },
-  });
+  const trace = await getTrace(traceId, projectId);
+  console.log("huhuhuhuh", trace, traceId, projectId);
 
   if (!trace)
     throw new TRPCError({

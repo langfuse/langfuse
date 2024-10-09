@@ -34,6 +34,7 @@ import { TRPCError } from "@trpc/server";
 import type Decimal from "decimal.js";
 import { isClickhouseEligible } from "@/src/server/api/repositories/helper";
 import { getTracesTable } from "@/src/server/api/repositories/traces";
+import { getTrace } from "@/src/server/api/repositories/clickhouse";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -106,7 +107,7 @@ export const traceRouter = createTRPCRouter({
           ),
         };
       } else {
-        if (!isClickhouseEligible(ctx.session)) {
+        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",
@@ -115,7 +116,7 @@ export const traceRouter = createTRPCRouter({
 
         const res = await getTracesTable(ctx.session.projectId);
 
-        console.log(res[0]);
+        console.log(res[4]);
         return {
           traces: res,
         };
@@ -281,16 +282,32 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const trace = await ctx.prisma.trace.findFirstOrThrow({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-      });
-      return trace;
+      console.log("huhu", input.queryClickhouse);
+      if (!input.queryClickhouse) {
+        const trace = await ctx.prisma.trace.findFirstOrThrow({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+        });
+        return trace;
+      } else {
+        console.log("querying clickhouse");
+        if (!isClickhouseEligible(ctx.session.user?.admin === true)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        const res = await getTrace(input.traceId, input.projectId);
+
+        return res;
+      }
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(

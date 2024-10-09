@@ -818,7 +818,7 @@ const TracesDynamicCell = ({
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId, projectId, queryClickhouse: useClickhouse() },
     {
       enabled: typeof traceId === "string",
       trpc: {
