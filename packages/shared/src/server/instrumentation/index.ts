@@ -86,18 +86,6 @@ export function instrumentSync<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
-export const addTraceContext = <T extends Record<string, any>>(
-  input: T,
-): T & { _tracecontext?: TCarrier } => {
-  const context = {};
-  opentelemetry.propagation.inject(opentelemetry.context.active(), context);
-
-  return {
-    ...input,
-    _tracecontext: context,
-  };
-};
-
 export const traceException = (
   ex: unknown,
   span?: opentelemetry.Span,

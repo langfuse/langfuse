@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.83.0",
+  "version": "2.83.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
-    "@appsignal/opentelemetry-instrumentation-bullmq": "^0.7.2",
+    "@appsignal/opentelemetry-instrumentation-bullmq": "^0.7.3",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
     "@codemirror/lang-json": "^6.0.1",
     "@codemirror/lint": "^6.8.0",
@@ -115,7 +115,7 @@
     "langchain": "^0.3.2",
     "lodash": "^4.17.21",
     "lucide-react": "^0.447.0",
-    "next": "^14.2.14",
+    "next": "^14.2.6",
     "next-auth": "^4.24.7",
     "next-query-params": "^5.0.1",
     "next-themes": "^0.3.0",
