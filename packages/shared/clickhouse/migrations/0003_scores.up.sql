@@ -24,4 +24,3 @@ ORDER BY (
         name,
         id
     )
-SETTINGS deduplicate_merge_projection_mode='rebuild';
