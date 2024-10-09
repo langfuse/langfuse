@@ -56,8 +56,6 @@ const getUserNavigation = (isAdmin: boolean) => {
     },
   ];
 
-  console.log("isAdmin", isAdmin);
-
   return isAdmin
     ? [
         {
@@ -457,31 +455,29 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
+                <Menu.Items className="absolute bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
                   <span
                     className="block max-w-52 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
                     title={session.data?.user?.email ?? undefined}
                   >
                     {session.data?.user?.email}
                   </span>
-                  {getUserNavigation(session.data?.user?.admin === true).map(
-                    (item) => (
-                      <Menu.Item key={item.name}>
-                        {({ active }) => (
-                          <a
-                            onClick={() => void item.onClick()}
-                            className={cn(
-                              active ? "bg-primary-foreground" : "",
-                              "flex cursor-pointer items-center justify-between px-2 py-0.5 text-sm leading-6 text-primary",
-                            )}
-                          >
-                            {item.name}
-                            {item.content}
-                          </a>
-                        )}
-                      </Menu.Item>
-                    ),
-                  )}
+                  {getUserNavigation(cloudAdmin).map((item) => (
+                    <Menu.Item key={item.name}>
+                      {({ active }) => (
+                        <a
+                          onClick={() => void item.onClick()}
+                          className={cn(
+                            active ? "bg-primary-foreground" : "",
+                            "flex cursor-pointer items-center justify-between px-2 py-0.5 text-sm leading-6 text-primary",
+                          )}
+                        >
+                          {item.name}
+                          {item.content}
+                        </a>
+                      )}
+                    </Menu.Item>
+                  ))}
                 </Menu.Items>
               </Transition>
             </Menu>
@@ -534,24 +530,22 @@ export default function Layout(props: PropsWithChildren) {
                 >
                   {session.data?.user?.email}
                 </span>
-                {getUserNavigation(session.data?.user?.admin === true).map(
-                  (item) => (
-                    <Menu.Item key={item.name}>
-                      {({ active }) => (
-                        <a
-                          onClick={() => void item.onClick()}
-                          className={cn(
-                            active ? "bg-primary-foreground" : "",
-                            "flex cursor-pointer items-center justify-between px-2 py-1 text-sm leading-6 text-primary",
-                          )}
-                        >
-                          {item.name}
-                          {item.content}
-                        </a>
-                      )}
-                    </Menu.Item>
-                  ),
-                )}
+                {getUserNavigation(cloudAdmin).map((item) => (
+                  <Menu.Item key={item.name}>
+                    {({ active }) => (
+                      <a
+                        onClick={() => void item.onClick()}
+                        className={cn(
+                          active ? "bg-primary-foreground" : "",
+                          "flex cursor-pointer items-center justify-between px-2 py-1 text-sm leading-6 text-primary",
+                        )}
+                      >
+                        {item.name}
+                        {item.content}
+                      </a>
+                    )}
+                  </Menu.Item>
+                ))}
               </Menu.Items>
             </Transition>
           </Menu>
