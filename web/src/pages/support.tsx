@@ -5,6 +5,7 @@ export default function SupportPage() {
   return (
     <div className="md:container">
       <Header title="Support" />
+
       <div className="flex flex-col gap-10">
         <p>
           We are here to help in case of questions or issues. Pick the channel
