@@ -1,7 +1,6 @@
 import { clickhouseClient } from "@langfuse/shared/src/server";
 import { prisma } from "../../src/db";
 import { redis } from "@langfuse/shared/src/server";
-// execute the function below from main file
 
 export const prepareClickhouse = async (projectIds: string[]) => {
   for (const projectId of projectIds) {
