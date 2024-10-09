@@ -123,10 +123,6 @@ export default async function handler(
     recordIncrement(
       "langfuse.ingestion.event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
-      {
-        orgId: authCheck.scope.orgId,
-        projectId: authCheck.scope.projectId,
-      },
     );
 
     // add context of api call to the span
