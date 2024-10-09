@@ -78,6 +78,9 @@ async function main() {
     create: {
       id: seedOrgId,
       name: "Seed Org",
+      cloudConfig: {
+        plan: "Team",
+      },
     },
   });
 
