@@ -15,19 +15,6 @@ CREATE TABLE scores (
     `created_at` DateTime64(3) DEFAULT now(),
     `updated_at` DateTime64(3) DEFAULT now(),
     event_ts DateTime64(3),
-    --  PROJECTION average_scores_by_traces_and_name ( 
-    --       SELECT
-    --         project_id,
-    --         trace_id,
-    --         observation_id,
-    --         name,
-    --         avg(value) avg_value
-    --       GROUP BY
-    --         project_id,
-    --         trace_id,
-    --         observation_id,
-    --         name
-    --   ),
     INDEX idx_id id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_project_trace_observation (project_id, trace_id, observation_id) TYPE bloom_filter(0.001) GRANULARITY 1
 ) ENGINE = ReplacingMergeTree Partition by toYYYYMM(timestamp)
