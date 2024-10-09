@@ -6,7 +6,7 @@ export const useClickhouse = () => {
   const session = useSession();
   const [isEnabled] = useLocalStorage<boolean>("useClickhouseQueries", false);
 
-  return (isEnabled && session.data?.user?.admin === true).toString();
+  return isEnabled && session.data?.user?.admin === true;
 };
 
 export function ClickhouseAdminToggle() {
