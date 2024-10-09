@@ -139,6 +139,7 @@ export const createEvalJobs = async ({
           payload: {
             projectId: event.projectId,
             jobExecutionId: jobExecutionId,
+            delay: config.delay,
           },
         },
         {
