@@ -1,4 +1,4 @@
-import { replaceEmptyStringsWithNull } from "@langfuse/shared";
+import { removeEmptyEnvVariables } from "@langfuse/shared";
 import { z } from "zod";
 
 const EnvSchema = z.object({
@@ -112,4 +112,4 @@ const EnvSchema = z.object({
     .default("true"),
 });
 
-export const env = EnvSchema.parse(replaceEmptyStringsWithNull(process.env));
+export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));

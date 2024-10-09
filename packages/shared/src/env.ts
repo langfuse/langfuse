@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { replaceEmptyStringsWithNull } from "./utils/environment";
+import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
   NODE_ENV: z
@@ -46,4 +46,4 @@ const EnvSchema = z.object({
   LANGFUSE_LOG_FORMAT: z.enum(["text", "json"]).default("text"),
 });
 
-export const env = EnvSchema.parse(replaceEmptyStringsWithNull(process.env));
+export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));
