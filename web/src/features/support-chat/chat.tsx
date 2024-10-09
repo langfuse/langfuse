@@ -26,7 +26,7 @@ const CrispChat = () => {
         Crisp.message.offMessageSent();
       };
     }
-  });
+  }, [capture]);
 
   return null;
 };
