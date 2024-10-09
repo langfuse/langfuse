@@ -34,6 +34,7 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { ClickhouseAdminToggle } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -42,17 +43,32 @@ const signOutUser = async () => {
   await signOut();
 };
 
-const userNavigation = [
-  {
-    name: "Theme",
-    onClick: () => {},
-    content: <ThemeToggle />,
-  },
-  {
-    name: "Sign out",
-    onClick: signOutUser,
-  },
-];
+const getUserNavigation = (isAdmin: boolean) => {
+  const navigationItems = [
+    {
+      name: "Theme",
+      onClick: () => {},
+      content: <ThemeToggle />,
+    },
+    {
+      name: "Sign out",
+      onClick: signOutUser,
+    },
+  ];
+
+  console.log("isAdmin", isAdmin);
+
+  return isAdmin
+    ? [
+        {
+          name: "CH Query",
+          onClick: () => {},
+          content: <ClickhouseAdminToggle />,
+        },
+        ...navigationItems,
+      ]
+    : navigationItems;
+};
 
 const pathsWithoutNavigation: string[] = [
   "/onboarding",
@@ -186,7 +202,7 @@ export default function Layout(props: PropsWithChildren) {
 
     const href = (
       route.customizableHref
-        ? uiCustomization?.[route.customizableHref] ?? route.pathname
+        ? (uiCustomization?.[route.customizableHref] ?? route.pathname)
         : route.pathname
     )
       ?.replace("[projectId]", routerProjectId ?? "")
@@ -448,22 +464,24 @@ export default function Layout(props: PropsWithChildren) {
                   >
                     {session.data?.user?.email}
                   </span>
-                  {userNavigation.map((item) => (
-                    <Menu.Item key={item.name}>
-                      {({ active }) => (
-                        <a
-                          onClick={() => void item.onClick()}
-                          className={cn(
-                            active ? "bg-primary-foreground" : "",
-                            "flex cursor-pointer items-center justify-between px-2 py-0.5 text-sm leading-6 text-primary",
-                          )}
-                        >
-                          {item.name}
-                          {item.content}
-                        </a>
-                      )}
-                    </Menu.Item>
-                  ))}
+                  {getUserNavigation(session.data?.user?.admin === true).map(
+                    (item) => (
+                      <Menu.Item key={item.name}>
+                        {({ active }) => (
+                          <a
+                            onClick={() => void item.onClick()}
+                            className={cn(
+                              active ? "bg-primary-foreground" : "",
+                              "flex cursor-pointer items-center justify-between px-2 py-0.5 text-sm leading-6 text-primary",
+                            )}
+                          >
+                            {item.name}
+                            {item.content}
+                          </a>
+                        )}
+                      </Menu.Item>
+                    ),
+                  )}
                 </Menu.Items>
               </Transition>
             </Menu>
@@ -516,22 +534,24 @@ export default function Layout(props: PropsWithChildren) {
                 >
                   {session.data?.user?.email}
                 </span>
-                {userNavigation.map((item) => (
-                  <Menu.Item key={item.name}>
-                    {({ active }) => (
-                      <a
-                        onClick={() => void item.onClick()}
-                        className={cn(
-                          active ? "bg-primary-foreground" : "",
-                          "flex cursor-pointer items-center justify-between px-2 py-1 text-sm leading-6 text-primary",
-                        )}
-                      >
-                        {item.name}
-                        {item.content}
-                      </a>
-                    )}
-                  </Menu.Item>
-                ))}
+                {getUserNavigation(session.data?.user?.admin === true).map(
+                  (item) => (
+                    <Menu.Item key={item.name}>
+                      {({ active }) => (
+                        <a
+                          onClick={() => void item.onClick()}
+                          className={cn(
+                            active ? "bg-primary-foreground" : "",
+                            "flex cursor-pointer items-center justify-between px-2 py-1 text-sm leading-6 text-primary",
+                          )}
+                        >
+                          {item.name}
+                          {item.content}
+                        </a>
+                      )}
+                    </Menu.Item>
+                  ),
+                )}
               </Menu.Items>
             </Transition>
           </Menu>
