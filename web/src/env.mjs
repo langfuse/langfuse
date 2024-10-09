@@ -58,6 +58,7 @@ export const env = createEnv({
     AUTH_GITLAB_CLIENT_ID: z.string().optional(),
     AUTH_GITLAB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITLAB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_GITLAB_ISSUER: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
@@ -107,6 +108,7 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: z.string().optional(),
     S3_BUCKET_NAME: z.string().optional(),
     S3_REGION: z.string().optional(),
+    S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
     // Worker
@@ -170,6 +172,9 @@ export const env = createEnv({
     LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
     LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("false"),
     LANGFUSE_ASYNC_INGESTION_PROCESSING: z
       .enum(["true", "false"])
       .default("false"),
@@ -315,6 +320,7 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING,
+    AUTH_GITLAB_ISSUER: process.env.AUTH_GITLAB_ISSUER,
     AUTH_GITLAB_CLIENT_ID: process.env.AUTH_GITLAB_CLIENT_ID,
     AUTH_GITLAB_CLIENT_SECRET: process.env.AUTH_GITLAB_CLIENT_SECRET,
     AUTH_GITLAB_ALLOW_ACCOUNT_LINKING:
@@ -363,6 +369,7 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
     S3_REGION: process.env.S3_REGION,
+    S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
     // S3 event upload
     LANGFUSE_S3_EVENT_UPLOAD_ENABLED:
       process.env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED,
@@ -378,6 +385,8 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
     LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY:
       process.env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+    LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:
+      process.env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
     // Worker

@@ -81,6 +81,7 @@ export type Account = {
     id_token: string | null;
     session_state: string | null;
     refresh_token_expires_in: number | null;
+    created_at: number | null;
 };
 export type ApiKey = {
     id: string;
