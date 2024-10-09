@@ -115,7 +115,7 @@ export const traceRouter = createTRPCRouter({
 
         const res = await getTracesTable(ctx.session.projectId);
 
-        console.log(res);
+        console.log(res[0]);
         return {
           traces: res,
         };

@@ -49,6 +49,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -154,6 +155,7 @@ export default function TracesTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
+    queryClickhouse: useClickhouse(),
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter);
@@ -692,7 +694,7 @@ export default function TracesTable({
 
   const rows = useMemo(() => {
     return traces.isSuccess
-      ? traceRowData?.rows?.map((trace) => {
+      ? (traceRowData?.rows?.map((trace) => {
           return {
             bookmarked: trace.bookmarked,
             id: trace.id,
@@ -721,7 +723,7 @@ export default function TracesTable({
             outputCost: trace.calculatedOutputCost ?? undefined,
             totalCost: trace.calculatedTotalCost ?? undefined,
           };
-        }) ?? []
+        }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
 
