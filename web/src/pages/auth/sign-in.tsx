@@ -440,8 +440,10 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                     className="w-full"
                     loading={credentialsForm.formState.isSubmitting}
                     disabled={
-                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                      turnstileToken === undefined
+                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                        turnstileToken === undefined) ||
+                      credentialsForm.watch("email") === "" ||
+                      credentialsForm.watch("password") === ""
                     }
                     onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
                     data-testid="submit-email-password-sign-in-form"
@@ -455,8 +457,9 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                     variant="secondary"
                     loading={ssoLoading}
                     disabled={
-                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                      turnstileToken === undefined
+                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                        turnstileToken === undefined) ||
+                      credentialsForm.watch("email") === ""
                     }
                     onClick={handleSsoSignIn}
                   >
