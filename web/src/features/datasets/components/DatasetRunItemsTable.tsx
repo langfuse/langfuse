@@ -120,13 +120,13 @@ export function DatasetRunItemsTable(
         if (!trace) return null;
         return trace.observationId ? (
           <TableLink
-            path={`/project/${props.projectId}/traces/${trace.traceId}?observation=${trace.observationId}`}
+            path={`/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}?observation=${encodeURIComponent(trace.observationId)}`}
             value={`Trace: ${trace.traceId}, Observation: ${trace.observationId}`}
             icon={<ListTree className="h-4 w-4" />}
           />
         ) : (
           <TableLink
-            path={`/project/${props.projectId}/traces/${trace.traceId}`}
+            path={`/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}`}
             value={`Trace: ${trace.traceId}`}
             icon={<ListTree className="h-4 w-4" />}
           />

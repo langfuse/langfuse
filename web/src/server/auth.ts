@@ -234,7 +234,8 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       clientSecret: env.AUTH_GITLAB_CLIENT_SECRET,
       allowDangerousEmailAccountLinking:
         env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING === "true",
-    })
+      issuer: env.AUTH_GITLAB_ISSUER,
+    }),
   );
 
 if (
