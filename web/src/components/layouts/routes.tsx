@@ -14,6 +14,7 @@ import {
   Lightbulb,
   Grid2X2,
   Sparkle,
+  ClipboardPen,
 } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { type ReactNode } from "react";
@@ -85,6 +86,15 @@ export const ROUTES: Route[] = [
         pathname: `/project/[projectId]/models`,
       },
     ],
+  },
+  {
+    name: "Annotation Queues",
+    pathname: `/project/[projectId]/annotation-queues`,
+    icon: ClipboardPen,
+    label: "Beta",
+    projectRbacScope: "annotationQueues:read",
+    entitlement: "annotation-queues",
+    featureFlag: "annotationQueues",
   },
   {
     name: "Evaluation",
