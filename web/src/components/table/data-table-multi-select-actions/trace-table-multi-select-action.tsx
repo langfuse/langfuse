@@ -39,6 +39,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useSession } from "next-auth/react";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 const addToQueueFormSchema = z.object({
   queueId: z.string(),
@@ -70,6 +71,7 @@ export function TraceTableMultiSelectAction({
     },
   });
 
+  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
   const hasAddToQueueAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:CUD",
@@ -121,15 +123,17 @@ export function TraceTableMultiSelectAction({
             <Trash className="mr-2 h-4 w-4" />
             <span>Delete</span>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!hasAddToQueueAccess}
-            onClick={() => {
-              setAddToQueueDialogOpen(true);
-            }}
-          >
-            <ClipboardPen className="mr-2 h-4 w-4" />
-            <span>Add to Annotation Queue</span>
-          </DropdownMenuItem>
+          {hasEntitlement && (
+            <DropdownMenuItem
+              disabled={!hasAddToQueueAccess}
+              onClick={() => {
+                setAddToQueueDialogOpen(true);
+              }}
+            >
+              <ClipboardPen className="mr-2 h-4 w-4" />
+              <span>Add to Annotation Queue</span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
