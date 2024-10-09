@@ -241,9 +241,11 @@ export const CreateOrEditAnnotationQueueButton = ({
                         values={field.value.map((configId) => {
                           const config = configs.find(
                             (config) => config.id === configId,
-                          ) as ValidatedScoreConfig;
+                          );
                           return {
-                            value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+                            value: config
+                              ? `${getScoreDataTypeIcon(config.dataType)} ${config.name}`
+                              : `${configId}`,
                             key: configId,
                           };
                         })}
