@@ -123,15 +123,19 @@ export const evalJobExecutorQueueProcessor = async (
       .execute();
 
     // do not log expected errors (api failures + missing api keys not provided by the user)
+    traceException(e);
     if (
-      !(e instanceof ApiError) &&
       !(e instanceof BaseError && e.message.includes("API key for provider"))
     ) {
-      traceException(e);
       logger.error(
         `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
         e
       );
+    }
+
+    // for missing API keys, we do not want to retry.
+    if (e instanceof BaseError && e.message.includes("API key for provider")) {
+      return;
     }
 
     throw e;
