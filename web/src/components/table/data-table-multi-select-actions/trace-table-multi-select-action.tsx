@@ -97,7 +97,7 @@ export function TraceTableMultiSelectAction({
     {
       projectId,
     },
-    { enabled: session.status === "authenticated" },
+    { enabled: session.status === "authenticated" && hasEntitlement },
   );
 
   return (
