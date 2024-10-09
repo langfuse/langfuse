@@ -22,8 +22,9 @@ export const ingestionFlushQueueProcessor: Processor = async (job) => {
       throw new Error("Flushkey not provided");
     }
 
-    // Log wait time
-    const waitTime = Date.now() - job.timestamp;
+    // reduce the delay from the time to get the actual wait time
+    // from the point where the job was ready to be processed
+    const waitTime = Date.now() - job.timestamp - job.delay;
     recordIncrement("langfuse.queue.ingestion_flush.request");
     recordHistogram("langfuse.queue.ingestion_flush.wait_time", waitTime, {
       unit: "milliseconds",
@@ -43,20 +44,20 @@ export const ingestionFlushQueueProcessor: Processor = async (job) => {
         redis,
         prisma,
         ClickhouseWriter.getInstance(),
-        clickhouseClient,
+        clickhouseClient
       ).flush(flushKey);
 
       // Log processing time
       const processingTime = Date.now() - processingStartTime;
       logger.debug(
-        `Prepared and scheduled CH-write in ${processingTime} ms for ${flushKey}`,
+        `Prepared and scheduled CH-write in ${processingTime} ms for ${flushKey}`
       );
       recordHistogram(
         "langfuse.queue.ingestion_flush.processing_time",
         processingTime,
         {
           unit: "milliseconds",
-        },
+        }
       );
 
       // Log queue size
