@@ -1,5 +1,4 @@
 import { SupportChannels } from "@/src/components/Support";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import Header from "@/src/components/layouts/header";
 
 export default function SupportPage() {
@@ -8,7 +7,6 @@ export default function SupportPage() {
       <Header title="Support" />
 
       <div className="flex flex-col gap-10">
-        {useClickhouse()}
         <p>
           We are here to help in case of questions or issues. Pick the channel
           that is most convenient for you!
