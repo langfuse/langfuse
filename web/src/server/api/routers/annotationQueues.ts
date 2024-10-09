@@ -349,7 +349,6 @@ export const queueRouter = createTRPCRouter({
           where: {
             id: input.queueId,
             projectId: input.projectId,
-            name: input.name,
           },
         });
 
