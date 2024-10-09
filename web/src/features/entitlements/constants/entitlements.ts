@@ -8,6 +8,7 @@ const entitlements = [
   "cloud-billing",
   "integration-posthog",
   "batch-export",
+  "annotation-queues",
 ] as const;
 
 export type Entitlement = (typeof entitlements)[number];
@@ -23,9 +24,14 @@ const cloudAllPlansEntitlements: Entitlement[] = [
 export const entitlementAccess: Record<Plan, Entitlement[]> = {
   oss: [],
   "cloud:hobby": [...cloudAllPlansEntitlements],
-  "cloud:pro": [...cloudAllPlansEntitlements],
-  "cloud:team": [...cloudAllPlansEntitlements, "rbac-project-roles"],
+  "cloud:pro": [...cloudAllPlansEntitlements, "annotation-queues"],
+  "cloud:team": [
+    ...cloudAllPlansEntitlements,
+    "rbac-project-roles",
+    "annotation-queues",
+  ],
   "self-hosted:enterprise": [
+    // "annotation-queues", // TODO: include for non-beta release
     "playground",
     "rbac-project-roles",
     // `LANGFUSE_ALLOWED_ORGANIZATION_CREATORS` -> directly checked on instance level in auth.ts

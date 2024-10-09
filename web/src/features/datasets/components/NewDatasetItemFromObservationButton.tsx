@@ -1,4 +1,3 @@
-import { Button } from "@/src/components/ui/button";
 import { ChevronDown, LockIcon, PlusIcon } from "lucide-react";
 import {
   Dialog,
@@ -10,17 +9,18 @@ import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenu,
+  DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { type Prisma } from "@langfuse/shared";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { type Prisma } from "@langfuse/shared/src/db";
 import { useSession } from "next-auth/react";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const NewDatasetItemFromTrace = (props: {
@@ -31,7 +31,7 @@ export const NewDatasetItemFromTrace = (props: {
   output: Prisma.JsonValue;
   metadata: Prisma.JsonValue;
 }) => {
-  const [open, setOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const session = useSession();
   const observationInDatasets =
     api.datasets.datasetItemsBasedOnTraceOrObservation.useQuery(
@@ -58,7 +58,7 @@ export const NewDatasetItemFromTrace = (props: {
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" disabled={!hasAccess}>
                 <span>{`In ${observationInDatasets.data.length} dataset(s)`}</span>
-                <ChevronDown className="ml-2" />
+                <ChevronDown className="ml-2 h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -80,7 +80,9 @@ export const NewDatasetItemFromTrace = (props: {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="capitalize"
-                onClick={() => setOpen(true)}
+                onClick={() => {
+                  setIsFormOpen(true);
+                }}
               >
                 <PlusIcon size={16} className={cn("mr-2")} aria-hidden="true" />
                 Add new
@@ -91,7 +93,7 @@ export const NewDatasetItemFromTrace = (props: {
       ) : (
         <Button
           onClick={() => {
-            setOpen(true);
+            setIsFormOpen(true);
             capture("dataset_item:new_from_trace_form_open", {
               object: props.observationId ? "observation" : "trace",
             });
@@ -100,7 +102,10 @@ export const NewDatasetItemFromTrace = (props: {
           disabled={!hasAccess}
         >
           {hasAccess ? (
-            <PlusIcon className={cn("-ml-0.5 mr-1.5")} aria-hidden="true" />
+            <PlusIcon
+              className={cn("-ml-0.5 mr-1.5 h-4 w-4")}
+              aria-hidden="true"
+            />
           ) : null}
           Add to dataset
           {!hasAccess ? (
@@ -108,7 +113,7 @@ export const NewDatasetItemFromTrace = (props: {
           ) : null}
         </Button>
       )}
-      <Dialog open={hasAccess && open} onOpenChange={setOpen}>
+      <Dialog open={hasAccess && isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none">
           <DialogHeader>
             <DialogTitle>Add to dataset</DialogTitle>
@@ -120,7 +125,7 @@ export const NewDatasetItemFromTrace = (props: {
             input={props.input}
             output={props.output}
             metadata={props.metadata}
-            onFormSuccess={() => setOpen(false)}
+            onFormSuccess={() => setIsFormOpen(false)}
             className="h-full overflow-y-auto"
           />
         </DialogContent>

@@ -1,6 +1,13 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { MessageCircleMore, MessageCircle, X, Archive } from "lucide-react";
+import {
+  MessageCircleMore,
+  MessageCircle,
+  X,
+  Archive,
+  Loader2,
+  Check,
+} from "lucide-react";
 import {
   type ControllerRenderProps,
   useFieldArray,
@@ -141,6 +148,9 @@ export function AnnotateDrawerContent({
   projectId,
   type = "trace",
   source = "TraceDetail",
+  isSelectHidden = false,
+  queueId,
+  actionButtons,
 }: {
   traceId: string;
   scores: APIScore[];
@@ -151,9 +161,13 @@ export function AnnotateDrawerContent({
   projectId: string;
   type?: "trace" | "observation" | "session";
   source?: "TraceDetail" | "SessionDetail";
+  isSelectHidden?: boolean;
+  queueId?: string;
+  actionButtons?: React.ReactNode;
 }) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
+  const [showSaving, setShowSaving] = useState(false);
 
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
@@ -176,8 +190,14 @@ export function AnnotateDrawerContent({
   const prevEmptySelectedConfigIdsRef = useRef(emptySelectedConfigIds);
 
   useEffect(() => {
-    // Only reset the form if emptySelectedConfigIds has changed
-    if (prevEmptySelectedConfigIdsRef.current !== emptySelectedConfigIds) {
+    // Only reset the form if emptySelectedConfigIds has changed, compare by value not reference
+    if (
+      prevEmptySelectedConfigIdsRef.current.length !==
+        emptySelectedConfigIds.length ||
+      !prevEmptySelectedConfigIdsRef.current.every(
+        (id, index) => id === emptySelectedConfigIds[index],
+      )
+    ) {
       form.reset({
         scoreData: getDefaultScoreData({
           scores,
@@ -259,6 +279,26 @@ export function AnnotateDrawerContent({
     onSettled: onSettledUpsert,
   });
 
+  useEffect(() => {
+    if (
+      mutUpdateScores.isLoading ||
+      mutCreateScores.isLoading ||
+      mutDeleteScore.isLoading
+    ) {
+      setShowSaving(true);
+    } else {
+      const timer = setTimeout(() => {
+        setShowSaving(false);
+      }, 300); // Keep saving message for 1 second after loading
+
+      return () => clearTimeout(timer); // Cleanup timer on unmount or when loading state changes
+    }
+  }, [
+    mutUpdateScores.isLoading,
+    mutCreateScores.isLoading,
+    mutDeleteScore.isLoading,
+  ]);
+
   function handleOnCheckedChange(
     values: Record<string, string>[],
     changedValueId?: string,
@@ -329,6 +369,7 @@ export function AnnotateDrawerContent({
               observationId,
               value: newValue,
               stringValue,
+              queueId,
             });
 
             await mutUpdateScores.mutateAsync({
@@ -350,6 +391,7 @@ export function AnnotateDrawerContent({
               observationId,
               value: newValue,
               stringValue,
+              queueId,
             });
 
             await mutCreateScores.mutateAsync({
@@ -392,6 +434,7 @@ export function AnnotateDrawerContent({
           observationId,
           value,
           comment,
+          queueId,
         });
 
         await mutUpdateScores.mutateAsync({
@@ -450,6 +493,7 @@ export function AnnotateDrawerContent({
             comment: score.comment,
             observationId,
             value: Number(field.value),
+            queueId,
           });
 
           await mutUpdateScores.mutateAsync({
@@ -472,6 +516,7 @@ export function AnnotateDrawerContent({
             comment: score.comment,
             observationId,
             value: Number(field.value),
+            queueId,
           });
 
           await mutCreateScores.mutateAsync({
@@ -498,49 +543,67 @@ export function AnnotateDrawerContent({
             description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
             href: "https://langfuse.com/docs/scores/manually",
           }}
+          actionButtons={[
+            <div className="flex items-center justify-end" key="saving-spinner">
+              <div className="mr-1 items-center justify-center">
+                {showSaving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Check className="h-3 w-3" />
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {showSaving ? "Saving score data" : "Score data saved"}
+              </span>
+            </div>,
+            actionButtons,
+          ]}
         ></Header>
-        <div className="grid grid-flow-col items-center">
-          <MultiSelectKeyValues
-            title="Value"
-            align="end"
-            items="empty scores"
-            className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
-            onValueChange={handleOnCheckedChange}
-            options={configs
-              .filter(
-                (config) =>
-                  !config.isArchived ||
-                  fields.find((field) => field.configId === config.id),
-              )
-              .map((config) => ({
-                key: config.id,
-                value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-                disabled: fields.some(
-                  (field) => !!field.scoreId && field.configId === config.id,
-                ),
-                isArchived: config.isArchived,
-              }))}
-            values={fields
-              .filter((field) => !!field.configId)
-              .map((field) => ({
-                value: `${getScoreDataTypeIcon(field.dataType)} ${field.name}`,
-                key: field.configId as string,
-              }))}
-            controlButtons={
-              <CommandItem
-                onSelect={() => {
-                  capture("score_configs:manage_configs_item_click", {
-                    type: type,
-                    source: source,
-                  });
-                  router.push(`/project/${projectId}/settings/scores`);
-                }}
-              >
-                Manage score configs
-              </CommandItem>
-            }
-          />
-        </div>
+
+        {!isSelectHidden && (
+          <div className="grid grid-flow-col items-center">
+            <MultiSelectKeyValues
+              title="Value"
+              align="end"
+              items="empty scores"
+              className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
+              onValueChange={handleOnCheckedChange}
+              options={configs
+                .filter(
+                  (config) =>
+                    !config.isArchived ||
+                    fields.find((field) => field.configId === config.id),
+                )
+                .map((config) => ({
+                  key: config.id,
+                  value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+                  disabled: fields.some(
+                    (field) => !!field.scoreId && field.configId === config.id,
+                  ),
+                  isArchived: config.isArchived,
+                }))}
+              values={fields
+                .filter((field) => !!field.configId)
+                .map((field) => ({
+                  value: `${getScoreDataTypeIcon(field.dataType)} ${field.name}`,
+                  key: field.configId as string,
+                }))}
+              controlButtons={
+                <CommandItem
+                  onSelect={() => {
+                    capture("score_configs:manage_configs_item_click", {
+                      type: type,
+                      source: source,
+                    });
+                    router.push(`/project/${projectId}/settings/scores`);
+                  }}
+                >
+                  Manage score configs
+                </CommandItem>
+              }
+            />
+          </div>
+        )}
       </DrawerHeader>
       <Form {...form}>
         <form className="flex flex-col gap-4">
@@ -764,6 +827,7 @@ export function AnnotateDrawerContent({
                                   ) : config.categories &&
                                     renderSelect(categories) ? (
                                     <Select
+                                      name={field.name}
                                       defaultValue={score.stringValue}
                                       disabled={config.isArchived}
                                       onValueChange={handleOnValueChange(

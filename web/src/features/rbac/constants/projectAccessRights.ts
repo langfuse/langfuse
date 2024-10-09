@@ -18,6 +18,9 @@ const projectScopes = [
   "scoreConfigs:CUD",
   "scoreConfigs:read",
 
+  "annotationQueues:read",
+  "annotationQueues:CUD",
+
   "project:read",
   "project:update",
   "project:delete",
@@ -83,6 +86,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "batchExport:create",
     "comments:CUD",
     "comments:read",
+    "annotationQueues:read",
+    "annotationQueues:CUD",
   ],
   ADMIN: [
     "project:read",
@@ -115,6 +120,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "batchExport:create",
     "comments:CUD",
     "comments:read",
+    "annotationQueues:read",
+    "annotationQueues:CUD",
   ],
   MEMBER: [
     "project:read",
@@ -138,6 +145,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "batchExport:create",
     "comments:CUD",
     "comments:read",
+    "annotationQueues:read",
+    "annotationQueues:CUD",
   ],
   VIEWER: [
     "project:read",
@@ -148,6 +157,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalJobExecution:read",
     "llmApiKeys:read",
     "comments:read",
+    "annotationQueues:read",
   ],
   NONE: [],
 };
