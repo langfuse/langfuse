@@ -85,7 +85,7 @@ async function queryClickhouse(query: string) {
   ).json();
 }
 
-function convertObservations(jsonRecords: unknown[]): ObservationView[] {
+export function convertObservations(jsonRecords: unknown[]): ObservationView[] {
   const parsedRecord = z.array(observationRecordReadSchema).parse(jsonRecords);
 
   const parsedObservations = parsedRecord.map((record) => {

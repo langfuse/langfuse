@@ -1,22 +1,16 @@
 import { clickhouseClient } from "@langfuse/shared/src/server";
-import { prisma } from "../../src/db";
-import { redis } from "@langfuse/shared/src/server";
 
 export const prepareClickhouse = async (projectIds: string[]) => {
   for (const projectId of projectIds) {
-    const numberTraces = 10000;
-    const numberObservations = 50000;
-
-    console.log(`Preparing Clickhouse for project ${projectId}...`);
     const tracesQuery = `
       INSERT INTO traces
-      SELECT toString(floor(randUniform(0, 10000))) AS id,
-        now() - randUniform(0, 100) AS timestamp,
+      SELECT toString(floor(randUniform(0, 200000000))) AS id,
+        now() - randUniform(0, 10000000) AS timestamp,
         concat('name_', toString(rand() % 100)) AS name,
-        concat('user_id_', toString(randUniform(0, 100))) AS user_id,
+        concat('user_id_', toString(randUniform(0, 1000000000))) AS user_id,
         map('key', 'value') AS metadata,
-        concat('release_', toString(randUniform(0, 100))) AS release,
-        concat('version_', toString(randUniform(0, 100))) AS version,
+        concat('release_', toString(randUniform(0, 1000000000))) AS release,
+        concat('version_', toString(randUniform(0, 1000000000))) AS version,
         '${projectId}' AS project_id,
         if(rand() < 0.8, true, false) as public,
         if(rand() < 0.8, true, false) as bookmarked,
@@ -27,13 +21,13 @@ export const prepareClickhouse = async (projectIds: string[]) => {
         timestamp AS created_at,
         timestamp AS updated_at,
         timestamp AS event_ts
-      FROM numbers(${numberTraces});
+      FROM numbers(10000);
     `;
 
     const observationsQuery = `
       INSERT INTO observations
-      SELECT toString(floor(randUniform(0, 70000))) AS id,
-        toString(floor(randUniform(0, 10000))) AS trace_id,
+      SELECT toString(floor(randUniform(0, 1000000000))) AS id,
+        toString(floor(randUniform(0, 2000000))) AS trace_id,
         '${projectId}' AS project_id,
         multiIf(
           randUniform(0, 1) < 0.4,
@@ -43,7 +37,7 @@ export const prepareClickhouse = async (projectIds: string[]) => {
           'EVENT'
         ) AS type,
         toString(rand()) AS parent_observation_id,
-        now() - randUniform(0, 100) AS start_time,
+        now() - randUniform(0, 10000000) AS start_time,
         addSeconds(start_time, floor(randExponential(1 / 10))) AS end_time,
         concat('name', toString(rand() % 100)) AS name,
         map('key', 'value') AS metadata,
@@ -80,18 +74,18 @@ export const prepareClickhouse = async (projectIds: string[]) => {
         start_time AS created_at,
         start_time AS updated_at,
         start_time AS event_ts
-      FROM numbers(${numberObservations});
+      FROM numbers(10000);
     `;
 
     const scoresQuery = `
       INSERT INTO scores
-      SELECT toString(floor(randUniform(0, 100))) AS id,
-        now() - randUniform(0, 100) AS timestamp,
+      SELECT toString(floor(randUniform(0, 50000000))) AS id,
+        now() - randUniform(0, 10000000) AS timestamp,
         '${projectId}' AS project_id,
-        toString(floor(randUniform(0, 1000))) AS trace_id,
+        toString(floor(randUniform(0, 2000000))) AS trace_id,
         if(
           rand() > 0.9,
-          toString(floor(randUniform(0, 1000))),
+          toString(floor(randUniform(0, 10000000))),
           NULL
         ) AS observation_id,
         concat('name_', toString(rand() % 100)) AS name,
@@ -122,23 +116,3 @@ export const prepareClickhouse = async (projectIds: string[]) => {
     );
   }
 };
-
-async function main() {
-  try {
-    const projectIds = [
-      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      "239ad00f-562f-411d-af14-831c75ddd875",
-    ]; // Example project IDs
-    await prepareClickhouse(projectIds);
-    console.log("Clickhouse preparation completed successfully.");
-  } catch (error) {
-    console.error("Error during Clickhouse preparation:", error);
-  } finally {
-    await clickhouseClient.close();
-    await prisma.$disconnect();
-    redis?.disconnect();
-    console.log("Disconnected from Clickhouse.");
-  }
-}
-
-main();

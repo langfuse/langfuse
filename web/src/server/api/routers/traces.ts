@@ -32,6 +32,9 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import type Decimal from "decimal.js";
+import { isClickhouseEligible } from "@/src/server/api/repositories/helper";
+import { getTracesTable } from "@/src/server/api/repositories/traces";
+import { getTrace } from "@/src/server/api/repositories/clickhouse";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -64,40 +67,60 @@ export const traceRouter = createTRPCRouter({
       return hasAny !== null;
     }),
   all: protectedProjectProcedure
-    .input(TraceFilterOptions)
+    .input(
+      TraceFilterOptions.extend({
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      const {
-        filterCondition,
-        orderByCondition,
-        observationTimeseriesFilter,
-        searchCondition,
-      } = parseTraceAllFilters(input);
+      if (!input.queryClickhouse) {
+        const {
+          filterCondition,
+          orderByCondition,
+          observationTimeseriesFilter,
+          searchCondition,
+        } = parseTraceAllFilters(input);
 
-      const tracesQuery = createTracesQuery({
-        select: Prisma.sql`
+        const tracesQuery = createTracesQuery({
+          select: Prisma.sql`
           t.*,
           t."user_id" AS "userId",
           t.session_id AS "sessionId"
           `,
-        projectId: input.projectId,
-        observationTimeseriesFilter,
-        page: input.page,
-        limit: input.limit,
-        searchCondition,
-        filterCondition,
-        orderByCondition,
-      });
+          projectId: input.projectId,
+          observationTimeseriesFilter,
+          page: input.page,
+          limit: input.limit,
+          searchCondition,
+          filterCondition,
+          orderByCondition,
+        });
 
-      const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
+        const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
 
-      return {
-        traces: traces.map(
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          ({ input, output, metadata, ...trace }) => ({
-            ...trace,
-          }),
-        ),
-      };
+        return {
+          traces: traces.map(
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            ({ input, output, metadata, ...trace }) => ({
+              ...trace,
+            }),
+          ),
+        };
+      } else {
+        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        const res = await getTracesTable(ctx.session.projectId);
+
+        console.log(res[4]);
+        return {
+          traces: res,
+        };
+      }
     }),
   countAll: protectedProjectProcedure
     .input(TraceFilterOptions)
@@ -259,16 +282,32 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const trace = await ctx.prisma.trace.findFirstOrThrow({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-      });
-      return trace;
+      console.log("huhu", input.queryClickhouse);
+      if (!input.queryClickhouse) {
+        const trace = await ctx.prisma.trace.findFirstOrThrow({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+        });
+        return trace;
+      } else {
+        console.log("querying clickhouse");
+        if (!isClickhouseEligible(ctx.session.user?.admin === true)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        const res = await getTrace(input.traceId, input.projectId);
+
+        return res;
+      }
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(
