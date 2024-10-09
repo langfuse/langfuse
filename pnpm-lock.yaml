@@ -136,13 +136,13 @@ importers:
         version: 1.4.0
       '@langchain/anthropic':
         specifier: ^0.3.1
-        version: 0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+        version: 0.3.1(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))
       '@langchain/core':
-        specifier: ^0.3.7
-        version: 0.3.7(openai@4.62.1(zod@3.23.8))
+        specifier: ^0.3.8
+        version: 0.3.8(openai@4.62.1(zod@3.23.8))
       '@langchain/openai':
         specifier: ^0.3.0
-        version: 0.3.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+        version: 0.3.0(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))
       '@opentelemetry/api':
         specifier: '>=1.0.0 <1.10.0'
         version: 1.9.0
@@ -187,7 +187,7 @@ importers:
         version: 0.27.4
       langchain:
         specifier: ^0.3.2
-        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
+        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -326,13 +326,13 @@ importers:
         version: 3.3.4(react-hook-form@7.53.0(react@18.2.0))
       '@langchain/anthropic':
         specifier: ^0.3.1
-        version: 0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+        version: 0.3.1(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))
       '@langchain/core':
-        specifier: ^0.3.7
-        version: 0.3.7(openai@4.62.1(zod@3.23.8))
+        specifier: ^0.3.8
+        version: 0.3.8(openai@4.62.1(zod@3.23.8))
       '@langchain/openai':
         specifier: ^0.3.0
-        version: 0.3.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+        version: 0.3.0(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))
       '@langfuse/ee':
         specifier: workspace:*
         version: link:../ee
@@ -557,7 +557,7 @@ importers:
         version: 0.27.4
       langchain:
         specifier: ^0.3.2
-        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
+        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -2223,8 +2223,8 @@ packages:
     peerDependencies:
       '@langchain/core': '>=0.2.21 <0.4.0'
 
-  '@langchain/core@0.3.7':
-    resolution: {integrity: sha512-6wsnEtw5GlhmBhoLfw/g8Hrp09BNwQwDLXyuv3GyK+ay4/3H3YuhAphqQLO4HNphuZIZKlW9ihSrqdCMvvbvZQ==}
+  '@langchain/core@0.3.8':
+    resolution: {integrity: sha512-4IaJr1canfQZUJ60yopdI0zANiyaeFMMxn6X29Wxxs2Tws1bSQn5gxNMK51L6QVAVZBFcNCGp/xx88EBOOOm9Q==}
     engines: {node: '>=18'}
 
   '@langchain/openai@0.3.0':
@@ -13200,17 +13200,17 @@ snapshots:
     dependencies:
       jsep: 1.3.9
 
-  '@langchain/anthropic@0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))':
+  '@langchain/anthropic@0.3.1(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))':
     dependencies:
       '@anthropic-ai/sdk': 0.27.3
-      '@langchain/core': 0.3.7(openai@4.62.1(zod@3.23.8))
+      '@langchain/core': 0.3.8(openai@4.62.1(zod@3.23.8))
       fast-xml-parser: 4.5.0
       zod: 3.23.8
       zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
 
-  '@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8))':
+  '@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8))':
     dependencies:
       ansi-styles: 5.2.0
       camelcase: 6.3.0
@@ -13226,9 +13226,9 @@ snapshots:
     transitivePeerDependencies:
       - openai
 
-  '@langchain/openai@0.3.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))':
+  '@langchain/openai@0.3.0(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))':
     dependencies:
-      '@langchain/core': 0.3.7(openai@4.62.1(zod@3.23.8))
+      '@langchain/core': 0.3.8(openai@4.62.1(zod@3.23.8))
       js-tiktoken: 1.0.14
       openai: 4.62.1(zod@3.23.8)
       zod: 3.23.8
@@ -13236,9 +13236,9 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@langchain/textsplitters@0.1.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))':
+  '@langchain/textsplitters@0.1.0(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))':
     dependencies:
-      '@langchain/core': 0.3.7(openai@4.62.1(zod@3.23.8))
+      '@langchain/core': 0.3.8(openai@4.62.1(zod@3.23.8))
       js-tiktoken: 1.0.15
 
   '@lezer/common@1.2.1': {}
@@ -20720,11 +20720,11 @@ snapshots:
 
   kysely@0.27.4: {}
 
-  langchain@0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8)):
+  langchain@0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8)):
     dependencies:
-      '@langchain/core': 0.3.7(openai@4.62.1(zod@3.23.8))
-      '@langchain/openai': 0.3.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
-      '@langchain/textsplitters': 0.1.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+      '@langchain/core': 0.3.8(openai@4.62.1(zod@3.23.8))
+      '@langchain/openai': 0.3.0(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))
+      '@langchain/textsplitters': 0.1.0(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))
       js-tiktoken: 1.0.14
       js-yaml: 4.1.0
       jsonpointer: 5.0.1
@@ -20736,7 +20736,7 @@ snapshots:
       zod: 3.23.8
       zod-to-json-schema: 3.23.2(zod@3.23.8)
     optionalDependencies:
-      '@langchain/anthropic': 0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+      '@langchain/anthropic': 0.3.1(@langchain/core@0.3.8(openai@4.62.1(zod@3.23.8)))
       axios: 1.7.7
       handlebars: 4.7.8
     transitivePeerDependencies:

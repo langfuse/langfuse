@@ -36,7 +36,7 @@
     "@heroicons/react": "^2.1.5",
     "@hookform/resolvers": "^3.3.4",
     "@langchain/anthropic": "^0.3.1",
-    "@langchain/core": "^0.3.7",
+    "@langchain/core": "^0.3.8",
     "@langchain/openai": "^0.3.0",
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
