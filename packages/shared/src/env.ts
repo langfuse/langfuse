@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
   NODE_ENV: z
@@ -21,7 +22,7 @@ const EnvSchema = z.object({
     .string()
     .length(
       64,
-      "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
+      "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32"
     )
     .optional(),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -45,4 +46,4 @@ const EnvSchema = z.object({
   LANGFUSE_LOG_FORMAT: z.enum(["text", "json"]).default("text"),
 });
 
-export const env = EnvSchema.parse(process.env);
+export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));
