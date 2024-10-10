@@ -136,9 +136,11 @@ export function tableColumnsToSqlFilter(
         : [Prisma.empty, Prisma.empty];
     const [funcPrisma1, funcPrisma2] =
       filter.type === "arrayOptions" && filter.operator === "none of"
-        ? [Prisma.raw("NOT ("), Prisma.raw(")")]
+        ? (table==="prompts" 
+          ? [Prisma.raw("name NOT IN (SELECT DISTINCT name FROM prompts p WHERE "), Prisma.raw(")")] 
+          : [Prisma.raw("NOT ("), Prisma.raw(")")])
         : [Prisma.empty, Prisma.empty];
-
+    
     return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${castValueToPostgresTypes(filterAndColumn.column, filterAndColumn.table)}${valueSuffix}${funcPrisma2}`;
   });
   if (statements.length === 0) {
