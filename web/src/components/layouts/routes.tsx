@@ -8,13 +8,13 @@ import {
   type LucideIcon,
   Settings,
   UsersIcon,
-  PenSquareIcon,
   LibraryBig,
   TerminalIcon,
   Lightbulb,
   Grid2X2,
   Sparkle,
   ClipboardPen,
+  FileJson,
 } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { type ReactNode } from "react";
@@ -130,7 +130,7 @@ export const ROUTES: Route[] = [
   {
     name: "Prompts",
     pathname: "/project/[projectId]/prompts",
-    icon: PenSquareIcon,
+    icon: FileJson,
     projectRbacScope: "prompts:read",
   },
   {
