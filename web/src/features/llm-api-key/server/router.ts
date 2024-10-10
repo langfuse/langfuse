@@ -9,12 +9,11 @@ import {
 import {
   type ChatMessage,
   LLMApiKeySchema,
-  fetchLLMCompletion,
   ChatMessageRole,
   supportedModels,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
-import { logger } from "@langfuse/shared/src/server";
+import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 
 export function getDisplaySecretKey(secretKey: string) {
   return "..." + secretKey.slice(-4);
@@ -41,6 +40,7 @@ export const llmApiKeyRouter = createTRPCRouter({
             baseURL: input.baseURL,
             withDefaultModels: input.withDefaultModels,
             customModels: input.customModels,
+            config: input.config,
           },
         });
 
@@ -157,6 +157,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           messages: testMessages,
           streaming: false,
           maxRetries: 1,
+          config: input.config,
         });
 
         return { success: true };

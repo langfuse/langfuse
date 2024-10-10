@@ -14,7 +14,6 @@ import {
   availableEvalVariables,
   ChatMessageRole,
   evalTableCols,
-  fetchLLMCompletion,
   ForbiddenError,
   LangfuseNotFoundError,
   LLMApiKeySchema,
@@ -27,7 +26,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 
-import { logger } from "@langfuse/shared/src/server";
+import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 import { getEvalQueue } from "../../queues/evalQueue";
 
 // this function is used to determine which eval jobs to create for a given trace
@@ -302,6 +301,7 @@ export const evaluate = async ({
         ...modelParams,
       },
       structuredOutputSchema: evalScoreSchema,
+      config: parsedKey.data.config,
     });
   } catch (e) {
     throw new ApiError(`Failed to fetch LLM completion: ${e}`);

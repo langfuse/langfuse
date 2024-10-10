@@ -279,6 +279,7 @@ export type LlmApiKeys = {
     base_url: string | null;
     custom_models: Generated<string[]>;
     with_default_models: Generated<boolean>;
+    config: unknown | null;
     project_id: string;
 };
 export type MembershipInvitation = {

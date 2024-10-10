@@ -87,6 +87,7 @@ export const evalModelsByAdapter: Record<LLMAdapter, string[]> = {
   ] as const,
   [LLMAdapter.Anthropic]: [] as const,
   [LLMAdapter.Azure]: [] as const,
+  [LLMAdapter.Bedrock]: [] as const,
 };
 
 export const OutputSchema = z.object({
