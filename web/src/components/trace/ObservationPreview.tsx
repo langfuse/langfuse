@@ -32,11 +32,8 @@ import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/C
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
-import {
-  FeatureFlagToggle,
-  isFeatureFlagEnabled,
-} from "@/src/features/feature-flags/components/FeatureFlagToggle";
-import { useSession } from "next-auth/react";
+import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export const ObservationPreview = ({
   observations,
@@ -57,7 +54,7 @@ export const ObservationPreview = ({
   viewType?: "focused" | "detailed";
   className?: string;
 }) => {
-  const session = useSession();
+  const isFeatureFlagEnabled = useIsFeatureEnabled("annotationQueues");
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
     withDefault(StringParam, "preview"),
@@ -235,10 +232,7 @@ export const ObservationPreview = ({
                   emptySelectedConfigIds={emptySelectedConfigIds}
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                   type="observation"
-                  hasGroupedButton={
-                    hasEntitlement &&
-                    isFeatureFlagEnabled(session, "annotationQueues")
-                  }
+                  hasGroupedButton={hasEntitlement && isFeatureFlagEnabled}
                 />
                 {hasEntitlement && (
                   <FeatureFlagToggle

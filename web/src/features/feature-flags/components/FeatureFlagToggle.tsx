@@ -19,16 +19,6 @@ const isWhitelistedForFeature = (
   return flags !== undefined && flags[featureFlag];
 };
 
-export const isFeatureFlagEnabled = (
-  session: SessionContextValue,
-  featureFlag: Flag,
-): boolean => {
-  return (
-    isAdminOrExperimentalFeatures(session) ||
-    isWhitelistedForFeature(session, featureFlag)
-  );
-};
-
 export const FeatureFlagToggle = (props: {
   featureFlag: Flag;
   whenEnabled?: React.ReactNode;
