@@ -80,7 +80,7 @@ const PromptHistoryTraceNode = (props: {
             </span>
           </div>
         </div>
-        {isHovered && (
+        {(isHovered || props.currentPromptVersion === prompt.version) && (
           <div className="flex flex-row justify-end space-x-1">
             <SetPromptVersionLabels
               prompt={prompt}
