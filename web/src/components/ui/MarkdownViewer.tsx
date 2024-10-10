@@ -115,7 +115,9 @@ function MarkdownRenderer({
         },
         li({ children }) {
           return (
-            <li className="mb-1">{transformListItemChildren(children)}</li>
+            <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
+              {transformListItemChildren(children)}
+            </li>
           );
         },
         pre({ children }) {
