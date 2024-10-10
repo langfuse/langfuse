@@ -30,11 +30,13 @@ CREATE TABLE observations (
     `output_cost` Nullable(Decimal64(12)),
     `total_cost` Nullable(Decimal64(12)),
     `completion_start_time` Nullable(DateTime64(3)),
+    `time_to_first_token` Nullable(DateTime64(3)),
     `prompt_id` Nullable(String),
     `prompt_name` Nullable(String),
     `prompt_version` Nullable(UInt16),
     `created_at` DateTime64(3) DEFAULT now(),
     `updated_at` DateTime64(3) DEFAULT now(),
+    event_ts DateTime64(3),
     INDEX idx_id id TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_trace_id trace_id TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_project_id project_id TYPE bloom_filter() GRANULARITY 1,
@@ -44,7 +46,7 @@ CREATE TABLE observations (
 ORDER BY (
         project_id,
         `type`,
-        trace_id,
-        toUnixTimestamp(start_time),
-        id
+        toDate(start_time),
+        trace_id
     );
+
