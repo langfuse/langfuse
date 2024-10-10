@@ -89,6 +89,23 @@ export default async function handler(
      * VALIDATION *
      **************/
     await runMiddleware(req, res, cors);
+
+    // add context of api call to the span
+    const currentSpan = getCurrentSpan();
+
+    // get x-langfuse-xxx headers and add them to the span
+    Object.keys(req.headers).forEach((header) => {
+      if (
+        header.toLowerCase().startsWith("x-langfuse") ||
+        header.toLowerCase().startsWith("x_langfuse")
+      ) {
+        currentSpan?.setAttributes({
+          [`langfuse.header.${header.slice(10).toLowerCase()}`]:
+            req.headers[header],
+        });
+      }
+    });
+
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
@@ -124,21 +141,6 @@ export default async function handler(
       "langfuse.ingestion.event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
-
-    // add context of api call to the span
-    const currentSpan = getCurrentSpan();
-
-    // get x-langfuse-xxx headers and add them to the span
-    Object.keys(req.headers).forEach((header) => {
-      if (
-        header.toLowerCase().startsWith("x-langfuse") ||
-        header.toLowerCase().startsWith("x_langfuse")
-      ) {
-        currentSpan?.setAttributes({
-          [header]: req.headers[header],
-        });
-      }
-    });
 
     // add number of events to the span
     parsedSchema.data
