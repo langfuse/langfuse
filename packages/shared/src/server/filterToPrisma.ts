@@ -136,7 +136,7 @@ export function tableColumnsToSqlFilter(
         : [Prisma.empty, Prisma.empty];
     const [funcPrisma1, funcPrisma2] =
       filter.type === "arrayOptions" && filter.operator === "none of"
-        ? (table==="prompts" 
+        ? (table==="prompts" && filter.column === "Labels"
           ? [Prisma.raw("name NOT IN (SELECT DISTINCT name FROM prompts p WHERE "), Prisma.raw(")")] 
           : [Prisma.raw("NOT ("), Prisma.raw(")")])
         : [Prisma.empty, Prisma.empty];
