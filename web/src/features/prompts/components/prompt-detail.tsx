@@ -132,7 +132,10 @@ export const PromptDetail = () => {
                   </Button>
                 ) : (
                   <Button variant="outline" disabled>
-                    <Lock className="h-4 w-4" />
+                    <div className="flex flex-row items-center">
+                      <Lock className="h-3 w-3" />
+                      <span className="ml-2">New version</span>
+                    </div>
                   </Button>
                 )}
                 <JumpToPlaygroundButton
