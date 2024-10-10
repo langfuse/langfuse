@@ -32,6 +32,11 @@ import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { useMemo } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
+import {
+  FeatureFlagToggle,
+  isFeatureFlagEnabled,
+} from "@/src/features/feature-flags/components/FeatureFlagToggle";
+import { useSession } from "next-auth/react";
 
 export const TracePreview = ({
   trace,
@@ -48,6 +53,7 @@ export const TracePreview = ({
   viewType?: "detailed" | "focused";
   className?: string;
 }) => {
+  const session = useSession();
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
     withDefault(StringParam, "preview"),
@@ -149,19 +155,27 @@ export const TracePreview = ({
               />
               <div className="flex items-start">
                 <AnnotateDrawer
+                  key={"annotation-drawer" + trace.id}
                   projectId={trace.projectId}
                   traceId={trace.id}
                   scores={scores}
                   emptySelectedConfigIds={emptySelectedConfigIds}
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                  key={"annotation-drawer" + trace.id}
-                  hasGroupedButton={hasEntitlement}
+                  hasGroupedButton={
+                    hasEntitlement &&
+                    isFeatureFlagEnabled(session, "annotationQueues")
+                  }
                 />
                 {hasEntitlement && (
-                  <CreateNewAnnotationQueueItem
-                    projectId={trace.projectId}
-                    objectId={trace.id}
-                    objectType={AnnotationQueueObjectType.TRACE}
+                  <FeatureFlagToggle
+                    featureFlag="annotationQueues"
+                    whenEnabled={
+                      <CreateNewAnnotationQueueItem
+                        projectId={trace.projectId}
+                        objectId={trace.id}
+                        objectType={AnnotationQueueObjectType.TRACE}
+                      />
+                    }
                   />
                 )}
               </div>

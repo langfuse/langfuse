@@ -32,6 +32,11 @@ import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/C
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
+import {
+  FeatureFlagToggle,
+  isFeatureFlagEnabled,
+} from "@/src/features/feature-flags/components/FeatureFlagToggle";
+import { useSession } from "next-auth/react";
 
 export const ObservationPreview = ({
   observations,
@@ -52,6 +57,7 @@ export const ObservationPreview = ({
   viewType?: "focused" | "detailed";
   className?: string;
 }) => {
+  const session = useSession();
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
     withDefault(StringParam, "preview"),
@@ -221,6 +227,7 @@ export const ObservationPreview = ({
               />
               <div className="flex items-start">
                 <AnnotateDrawer
+                  key={"annotation-drawer" + preloadedObservation.id}
                   projectId={projectId}
                   traceId={traceId}
                   observationId={preloadedObservation.id}
@@ -228,13 +235,21 @@ export const ObservationPreview = ({
                   emptySelectedConfigIds={emptySelectedConfigIds}
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                   type="observation"
-                  key={"annotation-drawer" + preloadedObservation.id}
+                  hasGroupedButton={
+                    hasEntitlement &&
+                    isFeatureFlagEnabled(session, "annotationQueues")
+                  }
                 />
                 {hasEntitlement && (
-                  <CreateNewAnnotationQueueItem
-                    projectId={projectId}
-                    objectId={preloadedObservation.id}
-                    objectType={AnnotationQueueObjectType.OBSERVATION}
+                  <FeatureFlagToggle
+                    featureFlag="annotationQueues"
+                    whenEnabled={
+                      <CreateNewAnnotationQueueItem
+                        projectId={projectId}
+                        objectId={preloadedObservation.id}
+                        objectType={AnnotationQueueObjectType.OBSERVATION}
+                      />
+                    }
                   />
                 )}
               </div>
