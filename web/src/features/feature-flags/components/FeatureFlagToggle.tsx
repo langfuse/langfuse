@@ -24,8 +24,8 @@ export const isFeatureFlagEnabled = (
   featureFlag: Flag,
 ): boolean => {
   return (
-    isWhitelistedForFeature(session, featureFlag) ||
-    isAdminOrExperimentalFeatures(session)
+    isAdminOrExperimentalFeatures(session) ||
+    isWhitelistedForFeature(session, featureFlag)
   );
 };
 
