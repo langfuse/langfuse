@@ -44,6 +44,19 @@ const DocumentationReference = ({ href }) => (
     </a>{" "}
   </p>
 );
+/**
+ * The CodeExamples component displays code snippets in multiple programming languages
+ * in an accordion menu
+ *
+ * Each individual command is displayed in a separate code block that contains
+ * an explanatory comment and a command
+ *
+ * @param {string} title: the text that displays on the clickable panel to open the snippets
+ * @param {list} snippets: a set of code examples
+ * @param {list} descriptsions: a concise, descriptive phrase about what the code snippet does
+ * @param {string} docUrl: a link to relevant documentation
+ * @returns {JSX.Element}
+ */
 export const CodeExamples = ({ title, snippets, descriptions, docUrl }) => {
   const languageKeys = Object.keys(snippets);
   return (
