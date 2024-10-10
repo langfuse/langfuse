@@ -1,13 +1,8 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterOutputs } from "@/src/utils/api";
-import { Pencil, PencilOff } from "lucide-react";
-import Link from "next/link";
 import { type NextRouter, useRouter } from "next/router";
 import { useState } from "react";
 
@@ -20,13 +15,8 @@ const PromptHistoryTraceNode = (props: {
   projectId: string;
   totalCount: number;
 }) => {
-  const capture = usePostHogClientCapture();
   const [isHovered, setIsHovered] = useState(false);
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "prompts:CUD",
-  });
   const { prompt } = props;
   let badges: JSX.Element[] = prompt.labels
     .sort((a, b) =>
@@ -80,7 +70,7 @@ const PromptHistoryTraceNode = (props: {
             </span>
           </div>
         </div>
-        {isHovered && (
+        {(isHovered || props.currentPromptVersion === prompt.version) && (
           <div className="flex flex-row justify-end space-x-1">
             <SetPromptVersionLabels
               prompt={prompt}
@@ -90,31 +80,6 @@ const PromptHistoryTraceNode = (props: {
                 if (!open) setIsHovered(false);
               }}
             />
-            {hasAccess ? (
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-7 w-7 px-0"
-                onClick={() => {
-                  capture("prompts:update_form_open");
-                }}
-              >
-                <Link
-                  href={`/project/${props.projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Link>
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-7 w-7 px-0"
-                disabled
-              >
-                <PencilOff className="h-4 w-4" />
-              </Button>
-            )}
             <DeletePromptVersion
               promptVersionId={prompt.id}
               version={prompt.version}
