@@ -52,7 +52,7 @@ const DocumentationReference = ({ href }) => (
  * an explanatory comment and a command
  *
  * @param {string} title: the text that displays on the clickable panel to open the snippets
- * @param {list} snippets: a set of code examples
+ * @param {list} snippets: a group of code examples
  * @param {list} descriptsions: a concise, descriptive phrase about what the code snippet does
  * @param {string} docUrl: a link to relevant documentation
  * @returns {JSX.Element}
