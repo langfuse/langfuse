@@ -32,7 +32,6 @@ import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { useMemo } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
-import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export const TracePreview = ({
@@ -160,16 +159,11 @@ export const TracePreview = ({
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                   hasGroupedButton={hasEntitlement && isFeatureFlagEnabled}
                 />
-                {hasEntitlement && (
-                  <FeatureFlagToggle
-                    featureFlag="annotationQueues"
-                    whenEnabled={
-                      <CreateNewAnnotationQueueItem
-                        projectId={trace.projectId}
-                        objectId={trace.id}
-                        objectType={AnnotationQueueObjectType.TRACE}
-                      />
-                    }
+                {hasEntitlement && isFeatureFlagEnabled && (
+                  <CreateNewAnnotationQueueItem
+                    projectId={trace.projectId}
+                    objectId={trace.id}
+                    objectType={AnnotationQueueObjectType.TRACE}
                   />
                 )}
               </div>

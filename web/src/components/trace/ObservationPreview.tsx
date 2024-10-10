@@ -32,7 +32,6 @@ import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/C
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
-import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export const ObservationPreview = ({
@@ -234,16 +233,11 @@ export const ObservationPreview = ({
                   type="observation"
                   hasGroupedButton={hasEntitlement && isFeatureFlagEnabled}
                 />
-                {hasEntitlement && (
-                  <FeatureFlagToggle
-                    featureFlag="annotationQueues"
-                    whenEnabled={
-                      <CreateNewAnnotationQueueItem
-                        projectId={projectId}
-                        objectId={preloadedObservation.id}
-                        objectType={AnnotationQueueObjectType.OBSERVATION}
-                      />
-                    }
+                {hasEntitlement && isFeatureFlagEnabled && (
+                  <CreateNewAnnotationQueueItem
+                    projectId={projectId}
+                    objectId={preloadedObservation.id}
+                    objectType={AnnotationQueueObjectType.OBSERVATION}
                   />
                 )}
               </div>
