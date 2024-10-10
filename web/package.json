@@ -31,7 +31,7 @@
     "@dnd-kit/modifiers": "^7.0.0",
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@headlessui/react": "1.7.18",
+    "@headlessui/react": "2.1.9",
     "@headlessui/tailwindcss": "0.2.1",
     "@heroicons/react": "^2.1.5",
     "@hookform/resolvers": "^3.3.4",
