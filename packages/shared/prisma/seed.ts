@@ -502,7 +502,10 @@ async function uploadObjects(
     promises.push(
       prisma.traceSession.upsert({
         where: {
-          id_projectId: { id: chunk[0]!.id!, projectId: chunk[0]!.projectId },
+          id_projectId: {
+            id: chunk[0]!.id!,
+            projectId: chunk[0]!.projectId,
+          },
         },
         create: chunk[0]!,
         update: {},
@@ -682,6 +685,9 @@ function createObjects(
       metadata: {
         user: `user-${i}@langfuse.com`,
         more: "1,2,3;4?6",
+        nest: {
+          user: `user-${i}@langfuse.com`,
+        },
       },
       tags: tags as string[],
       userId: Math.random() > 0.3 ? `user-${i % 60}` : undefined,
@@ -914,6 +920,9 @@ function createObjects(
           },
           metadata: {
             user: `user-${i}@langfuse.com`,
+            nest: {
+              user: `user-${i}@langfuse.com`,
+            },
           },
           promptTokens,
           completionTokens,
