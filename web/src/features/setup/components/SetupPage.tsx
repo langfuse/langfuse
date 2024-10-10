@@ -9,6 +9,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { NewOrganizationForm } from "@/src/features/organizations/components/NewOrganizationForm";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { NewProjectForm } from "@/src/features/projects/components/NewProjectForm";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyButton";
@@ -48,19 +49,25 @@ export function SetupPage() {
         ? 3
         : 2;
 
-  const hasAnyTrace =
-    api.traces.hasAny.useQuery(
-      { projectId: queryProjectId as string },
-      {
-        enabled: queryProjectId !== undefined && stepInt === 4,
-        refetchInterval: 5000,
-        trpc: {
-          context: {
-            skipBatch: true,
-          },
+  const hasAnyTrace = api.traces.hasAny.useQuery(
+    { projectId: queryProjectId as string },
+    {
+      enabled: queryProjectId !== undefined && stepInt === 4,
+      refetchInterval: 5000,
+      trpc: {
+        context: {
+          skipBatch: true,
         },
       },
-    ).data ?? false;
+    },
+  ).data;
+
+  const capture = usePostHogClientCapture();
+  useEffect(() => {
+    if (hasAnyTrace !== undefined) {
+      capture("onboarding:tracing_check_active", { active: hasAnyTrace });
+    }
+  }, [hasAnyTrace, capture]);
 
   return (
     <div className="mb-12 md:container">
@@ -170,7 +177,7 @@ export function SetupPage() {
                 <Header title="API Keys" level="h3" />
                 <TracingSetup
                   projectId={project.id}
-                  hasAnyTrace={hasAnyTrace}
+                  hasAnyTrace={hasAnyTrace ?? false}
                 />
               </div>
             </div>

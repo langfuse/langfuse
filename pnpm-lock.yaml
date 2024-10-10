@@ -136,13 +136,13 @@ importers:
         version: 1.4.0
       '@langchain/anthropic':
         specifier: ^0.3.1
-        version: 0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+        version: 0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
       '@langchain/core':
-        specifier: ^0.3.7
-        version: 0.3.7(openai@4.62.1(zod@3.23.8))
+        specifier: ^0.3.9
+        version: 0.3.9(openai@4.62.1(zod@3.23.8))
       '@langchain/openai':
         specifier: ^0.3.0
-        version: 0.3.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+        version: 0.3.0(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
       '@opentelemetry/api':
         specifier: '>=1.0.0 <1.10.0'
         version: 1.9.0
@@ -187,7 +187,7 @@ importers:
         version: 0.27.4
       langchain:
         specifier: ^0.3.2
-        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
+        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -316,8 +316,8 @@ importers:
         specifier: ^3.2.2
         version: 3.2.2(react@18.2.0)
       '@headlessui/react':
-        specifier: 1.7.18
-        version: 1.7.18(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.1.9
+        version: 2.1.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@headlessui/tailwindcss':
         specifier: 0.2.1
         version: 0.2.1(tailwindcss@3.4.13(ts-node@10.9.2(@types/node@20.10.5)(typescript@5.4.5)))
@@ -326,16 +326,16 @@ importers:
         version: 2.1.5(react@18.2.0)
       '@hookform/resolvers':
         specifier: ^3.3.4
-        version: 3.3.4(react-hook-form@7.53.0(react@18.2.0))
+        version: 3.3.4(react-hook-form@7.51.5(react@18.2.0))
       '@langchain/anthropic':
         specifier: ^0.3.1
-        version: 0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+        version: 0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
       '@langchain/core':
-        specifier: ^0.3.7
-        version: 0.3.7(openai@4.62.1(zod@3.23.8))
+        specifier: ^0.3.9
+        version: 0.3.9(openai@4.62.1(zod@3.23.8))
       '@langchain/openai':
         specifier: ^0.3.0
-        version: 0.3.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+        version: 0.3.0(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
       '@langfuse/ee':
         specifier: workspace:*
         version: link:../ee
@@ -560,7 +560,7 @@ importers:
         version: 0.27.4
       langchain:
         specifier: ^0.3.2
-        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
+        version: 0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -604,8 +604,8 @@ importers:
         specifier: 18.2.0
         version: 18.2.0(react@18.2.0)
       react-hook-form:
-        specifier: ^7.53.0
-        version: 7.53.0(react@18.2.0)
+        specifier: ^7.51.5
+        version: 7.51.5(react@18.2.0)
       react-icons:
         specifier: ^5.2.1
         version: 5.2.1(react@18.2.0)
@@ -721,7 +721,7 @@ importers:
         version: 7.12.0(eslint@8.57.0)(typescript@5.4.5)
       autoprefixer:
         specifier: ^10.4.19
-        version: 10.4.19(postcss@8.4.38)
+        version: 10.4.19(postcss@8.4.47)
       dotenv-cli:
         specifier: ^7.4.2
         version: 7.4.2
@@ -741,8 +741,8 @@ importers:
         specifier: ^1.14.1
         version: 1.14.1
       postcss:
-        specifier: ^8.4.38
-        version: 8.4.38
+        specifier: ^8.4.47
+        version: 8.4.47
       prettier:
         specifier: ^3.3.3
         version: 3.3.3
@@ -2014,8 +2014,11 @@ packages:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
 
-  '@floating-ui/utils@0.2.1':
-    resolution: {integrity: sha512-9TANp6GPoMtYzQdt54kfAyMmz1+osLlXdg2ENroU7zzrtflTLrrC/lgrIfaSe+Wu0b89GKccT7vxXA0MoAIO+Q==}
+  '@floating-ui/react@0.26.24':
+    resolution: {integrity: sha512-2ly0pCkZIGEQUq5H8bBK0XJmc1xIK/RM3tvVzY3GBER7IOD1UgmC2Y2tjj4AuS+TC+vTE1KJv2053290jua0Sw==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
 
   '@floating-ui/utils@0.2.8':
     resolution: {integrity: sha512-kym7SodPp8/wloecOpcmSnWJsK7M0E5Wg8UcFA+uO4B9s5d0ywXOEro/8HM9x0rW+TljRzul/14UYz3TleT3ig==}
@@ -2029,19 +2032,19 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  '@headlessui/react@1.7.18':
-    resolution: {integrity: sha512-4i5DOrzwN4qSgNsL4Si61VMkUcWbcSKueUV7sFhpHzQcSShdlHENE5+QBntMSRvHt8NyoFO2AGG8si9lq+w4zQ==}
-    engines: {node: '>=10'}
-    peerDependencies:
-      react: ^16 || ^17 || ^18
-      react-dom: ^16 || ^17 || ^18
-
   '@headlessui/react@1.7.19':
     resolution: {integrity: sha512-Ll+8q3OlMJfJbAKM/+/Y2q6PPYbryqNTXDbryx7SXLIDamkF6iQFbriYHga0dY44PvDhvvBWCx1Xj4U5+G4hOw==}
     engines: {node: '>=10'}
     peerDependencies:
       react: ^16 || ^17 || ^18
       react-dom: ^16 || ^17 || ^18
+
+  '@headlessui/react@2.1.9':
+    resolution: {integrity: sha512-ckWw7vlKtnoa1fL2X0fx1a3t/Li9MIKDVXn3SgG65YlxvDAsNrY39PPCxVM7sQRA7go2fJsuHSSauKFNaJHH7A==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      react: ^18
+      react-dom: ^18
 
   '@headlessui/tailwindcss@0.2.1':
     resolution: {integrity: sha512-2+5+NZ+RzMyrVeCZOxdbvkUSssSxGvcUxphkIfSVLpRiKsj+/63T2TOL9dBYMXVfj/CGr6hMxSRInzXv6YY7sA==}
@@ -2226,8 +2229,8 @@ packages:
     peerDependencies:
       '@langchain/core': '>=0.2.21 <0.4.0'
 
-  '@langchain/core@0.3.7':
-    resolution: {integrity: sha512-6wsnEtw5GlhmBhoLfw/g8Hrp09BNwQwDLXyuv3GyK+ay4/3H3YuhAphqQLO4HNphuZIZKlW9ihSrqdCMvvbvZQ==}
+  '@langchain/core@0.3.9':
+    resolution: {integrity: sha512-Rttr9FuFwU+CWIoEyuLqQUPYg+3pKL1YpDgo3nvoDVhinoHqwGQ7aNGzZ/Sf+qASMi76sPSLm+75pHMJwwOiWg==}
     engines: {node: '>=18'}
 
   '@langchain/openai@0.3.0':
@@ -3748,6 +3751,27 @@ packages:
   '@radix-ui/rect@1.1.0':
     resolution: {integrity: sha512-A9+lCBZoaMJlVKcRBz2YByCG+Cp2t6nAnMnNba+XiWxnj6r4JUFqfsgwocMBZU9LPtdxC6wB56ySYpc7LQIoJg==}
 
+  '@react-aria/focus@3.18.3':
+    resolution: {integrity: sha512-WKUElg+5zS0D3xlVn8MntNnkzJql2J6MuzAMP8Sv5WTgFDse/XGR842dsxPTIyKKdrWVCRegCuwa4m3n/GzgJw==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0
+
+  '@react-aria/interactions@3.22.3':
+    resolution: {integrity: sha512-RRUb/aG+P0IKTIWikY/SylB6bIbLZeztnZY2vbe7RAG5MgVaCgn5HQ45SI15GlTmhsFG8CnF6slJsUFJiNHpbQ==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0
+
+  '@react-aria/ssr@3.9.6':
+    resolution: {integrity: sha512-iLo82l82ilMiVGy342SELjshuWottlb5+VefO3jOQqQRNYnJBFpUSadswDPbRimSgJUZuFwIEYs6AabkP038fA==}
+    engines: {node: '>= 12'}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0
+
+  '@react-aria/utils@3.25.3':
+    resolution: {integrity: sha512-PR5H/2vaD8fSq0H/UB9inNbc8KDcVmW6fYAfSWkkn+OAdhTTMVKqXXrZuZBWyFfSD5Ze7VN6acr4hrOQm2bmrA==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0
+
   '@react-email/body@0.0.8':
     resolution: {integrity: sha512-gqdkNYlIaIw0OdpWu8KjIcQSIFvx7t2bZpXVxMMvBS859Ia1+1X3b5RNbjI3S1ZqLddUf7owOHkO4MiXGE+nxg==}
     peerDependencies:
@@ -3869,6 +3893,16 @@ packages:
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.2.0
+
+  '@react-stately/utils@3.10.4':
+    resolution: {integrity: sha512-gBEQEIMRh5f60KCm7QKQ2WfvhB2gLUr9b72sqUdIZ2EG+xuPgaIlCBeSicvjmjBvYZwOjoOEnmIkcx2GHp/HWw==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0
+
+  '@react-types/shared@3.25.0':
+    resolution: {integrity: sha512-OZSyhzU6vTdW3eV/mz5i6hQwQUhkRs7xwY2d1aqPvTdMe0+2cY7Fwp45PAiwYLEj73i9ro2FxF9qC4DvHGSCgQ==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0
 
   '@release-it/bumper@6.0.1':
     resolution: {integrity: sha512-yeQsbGNMzzN0c/5JV1awXP6UHX/kJamXCKR6/daS0YQfj98SZXAcLn3JEq+qfK/Jq/cnATnlz5r6UY0cfBkm1A==}
@@ -4524,8 +4558,8 @@ packages:
       react: '>=16.8'
       react-dom: '>=16.8'
 
-  '@tanstack/react-virtual@3.5.0':
-    resolution: {integrity: sha512-rtvo7KwuIvqK9zb0VZ5IL7fiJAEnG+0EiFZz8FUOs+2mhGqdGmjKIaT1XU7Zq0eFqL0jonLlhbayJI/J2SA/Bw==}
+  '@tanstack/react-virtual@3.10.8':
+    resolution: {integrity: sha512-VbzbVGSsZlQktyLrP5nxE+vE1ZR+U0NFAWPbJLoG2+DKPwd2D7dVICTVIIaYlJqX1ZCEnYDbaOpmMwbsyhBoIA==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
@@ -4534,8 +4568,8 @@ packages:
     resolution: {integrity: sha512-P9dF7XbibHph2PFRz8gfBKEXEY/HJPOhym8CHmjF8y3q5mWpKx9xtZapXQUWCgkqvsK0R46Azuz+VaxD4Xl+Tg==}
     engines: {node: '>=12'}
 
-  '@tanstack/virtual-core@3.5.0':
-    resolution: {integrity: sha512-KnPRCkQTyqhanNC0K63GBG3wA8I+D1fQuVnAvcBF8f13akOKeQp1gSbu6f77zCxhEk727iV5oQnbHLYzHrECLg==}
+  '@tanstack/virtual-core@3.10.8':
+    resolution: {integrity: sha512-PBu00mtt95jbKFi6Llk9aik8bnR3tR/oQP1o3TSi+iG//+Q2RTIzCEgKkHG8BB86kxMNW6O8wku+Lmi+QFR6jA==}
 
   '@testing-library/dom@10.0.0':
     resolution: {integrity: sha512-PmJPnogldqoVFf+EwbHvbBJ98MmqASV8kLrBYgsDNxQcFMeIS7JFL48sfyXvuMtgmWO/wMhh25odr+8VhDmn4g==}
@@ -9444,10 +9478,6 @@ packages:
     resolution: {integrity: sha512-PS08Iboia9mts/2ygV3eLpY5ghnUcfLV/EXTOW1E2qYxJKGGBUtNjN76FYHnMs36RmARn41bC0AZmn+rR0OVpQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  postcss@8.4.38:
-    resolution: {integrity: sha512-Wglpdk03BSfXkHoQa3b/oulrotAkwrlLDRSOb9D0bN86FdRyE9lppSp33aHNPgBa0JKCoB+drFLZkQoRRYae5A==}
-    engines: {node: ^10 || ^12 || >=14}
-
   postcss@8.4.47:
     resolution: {integrity: sha512-56rxCq7G/XfB4EkXq9Egn5GCqugWvDFjafDOThIdMBsI15iqPqR5r15TfSr1YPYeEI19YeaXMCbY6u88Y76GLQ==}
     engines: {node: ^10 || ^12 || >=14}
@@ -9758,11 +9788,11 @@ packages:
     peerDependencies:
       react: ^18.2.0
 
-  react-hook-form@7.53.0:
-    resolution: {integrity: sha512-M1n3HhqCww6S2hxLxciEXy2oISPnAzxY7gvwVPrtlczTM/1dDadXgUxDpHMrMTblDOcm/AXtXxHwZ3jpg1mqKQ==}
-    engines: {node: '>=18.0.0'}
+  react-hook-form@7.51.5:
+    resolution: {integrity: sha512-J2ILT5gWx1XUIJRETiA7M19iXHlG74+6O3KApzvqB/w8S5NQR7AbU8HVZrMALdmDgWpRPYiZJl0zx8Z4L2mP6Q==}
+    engines: {node: '>=12.22.0'}
     peerDependencies:
-      react: ^16.8.0 || ^17 || ^18 || ^19
+      react: ^16.8.0 || ^17 || ^18
 
   react-icons@5.2.1:
     resolution: {integrity: sha512-zdbW5GstTzXaVKvGSyTaBalt7HSfuK5ovrzlpyiWHAFXndXTdd/1hdDHI4xBM1Mn7YriT6aqESucFl9kEXzrdw==}
@@ -10287,10 +10317,6 @@ packages:
   sort-package-json@2.8.0:
     resolution: {integrity: sha512-PxeNg93bTJWmDGnu0HADDucoxfFiKkIr73Kv85EBThlI1YQPdc0XovBgg2llD0iABZbu2SlKo8ntGmOP9wOj/g==}
     hasBin: true
-
-  source-map-js@1.2.0:
-    resolution: {integrity: sha512-itJW8lvSA0TXEphiRoawsCksnlf8SyvmFzIhltqAHluXd88pkCd+cXJVHTDwdCr0IzwptSm035IHQktUu1QUMg==}
-    engines: {node: '>=0.10.0'}
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
@@ -12828,7 +12854,7 @@ snapshots:
   '@floating-ui/dom@1.6.3':
     dependencies:
       '@floating-ui/core': 1.6.0
-      '@floating-ui/utils': 0.2.1
+      '@floating-ui/utils': 0.2.8
 
   '@floating-ui/react-dom@1.3.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
@@ -12850,7 +12876,13 @@ snapshots:
       react-dom: 18.2.0(react@18.2.0)
       tabbable: 6.2.0
 
-  '@floating-ui/utils@0.2.1': {}
+  '@floating-ui/react@0.26.24(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+    dependencies:
+      '@floating-ui/react-dom': 2.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@floating-ui/utils': 0.2.8
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      tabbable: 6.2.0
 
   '@floating-ui/utils@0.2.8': {}
 
@@ -12866,17 +12898,19 @@ snapshots:
       protobufjs: 7.3.2
       yargs: 17.7.2
 
-  '@headlessui/react@1.7.18(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@headlessui/react@1.7.19(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
-      '@tanstack/react-virtual': 3.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@tanstack/react-virtual': 3.10.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       client-only: 0.0.1
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
-  '@headlessui/react@1.7.19(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@headlessui/react@2.1.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
-      '@tanstack/react-virtual': 3.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      client-only: 0.0.1
+      '@floating-ui/react': 0.26.24(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@react-aria/focus': 3.18.3(react@18.2.0)
+      '@react-aria/interactions': 3.22.3(react@18.2.0)
+      '@tanstack/react-virtual': 3.10.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
@@ -12888,9 +12922,9 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@hookform/resolvers@3.3.4(react-hook-form@7.53.0(react@18.2.0))':
+  '@hookform/resolvers@3.3.4(react-hook-form@7.51.5(react@18.2.0))':
     dependencies:
-      react-hook-form: 7.53.0(react@18.2.0)
+      react-hook-form: 7.51.5(react@18.2.0)
 
   '@humanwhocodes/config-array@0.11.14':
     dependencies:
@@ -13203,17 +13237,17 @@ snapshots:
     dependencies:
       jsep: 1.3.9
 
-  '@langchain/anthropic@0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))':
+  '@langchain/anthropic@0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))':
     dependencies:
       '@anthropic-ai/sdk': 0.27.3
-      '@langchain/core': 0.3.7(openai@4.62.1(zod@3.23.8))
+      '@langchain/core': 0.3.9(openai@4.62.1(zod@3.23.8))
       fast-xml-parser: 4.5.0
       zod: 3.23.8
       zod-to-json-schema: 3.23.2(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
 
-  '@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8))':
+  '@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8))':
     dependencies:
       ansi-styles: 5.2.0
       camelcase: 6.3.0
@@ -13229,9 +13263,9 @@ snapshots:
     transitivePeerDependencies:
       - openai
 
-  '@langchain/openai@0.3.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))':
+  '@langchain/openai@0.3.0(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))':
     dependencies:
-      '@langchain/core': 0.3.7(openai@4.62.1(zod@3.23.8))
+      '@langchain/core': 0.3.9(openai@4.62.1(zod@3.23.8))
       js-tiktoken: 1.0.14
       openai: 4.62.1(zod@3.23.8)
       zod: 3.23.8
@@ -13239,9 +13273,9 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@langchain/textsplitters@0.1.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))':
+  '@langchain/textsplitters@0.1.0(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))':
     dependencies:
-      '@langchain/core': 0.3.7(openai@4.62.1(zod@3.23.8))
+      '@langchain/core': 0.3.9(openai@4.62.1(zod@3.23.8))
       js-tiktoken: 1.0.15
 
   '@lezer/common@1.2.1': {}
@@ -14966,6 +15000,37 @@ snapshots:
 
   '@radix-ui/rect@1.1.0': {}
 
+  '@react-aria/focus@3.18.3(react@18.2.0)':
+    dependencies:
+      '@react-aria/interactions': 3.22.3(react@18.2.0)
+      '@react-aria/utils': 3.25.3(react@18.2.0)
+      '@react-types/shared': 3.25.0(react@18.2.0)
+      '@swc/helpers': 0.5.5
+      clsx: 2.1.1
+      react: 18.2.0
+
+  '@react-aria/interactions@3.22.3(react@18.2.0)':
+    dependencies:
+      '@react-aria/ssr': 3.9.6(react@18.2.0)
+      '@react-aria/utils': 3.25.3(react@18.2.0)
+      '@react-types/shared': 3.25.0(react@18.2.0)
+      '@swc/helpers': 0.5.5
+      react: 18.2.0
+
+  '@react-aria/ssr@3.9.6(react@18.2.0)':
+    dependencies:
+      '@swc/helpers': 0.5.5
+      react: 18.2.0
+
+  '@react-aria/utils@3.25.3(react@18.2.0)':
+    dependencies:
+      '@react-aria/ssr': 3.9.6(react@18.2.0)
+      '@react-stately/utils': 3.10.4(react@18.2.0)
+      '@react-types/shared': 3.25.0(react@18.2.0)
+      '@swc/helpers': 0.5.5
+      clsx: 2.1.1
+      react: 18.2.0
+
   '@react-email/body@0.0.8(react@18.2.0)':
     dependencies:
       react: 18.2.0
@@ -15078,6 +15143,15 @@ snapshots:
       react: 18.2.0
 
   '@react-email/text@0.0.8(react@18.2.0)':
+    dependencies:
+      react: 18.2.0
+
+  '@react-stately/utils@3.10.4(react@18.2.0)':
+    dependencies:
+      '@swc/helpers': 0.5.5
+      react: 18.2.0
+
+  '@react-types/shared@3.25.0(react@18.2.0)':
     dependencies:
       react: 18.2.0
 
@@ -16020,15 +16094,15 @@ snapshots:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
-  '@tanstack/react-virtual@3.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@tanstack/react-virtual@3.10.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
-      '@tanstack/virtual-core': 3.5.0
+      '@tanstack/virtual-core': 3.10.8
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
   '@tanstack/table-core@8.20.5': {}
 
-  '@tanstack/virtual-core@3.5.0': {}
+  '@tanstack/virtual-core@3.10.8': {}
 
   '@testing-library/dom@10.0.0':
     dependencies:
@@ -17243,14 +17317,14 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  autoprefixer@10.4.19(postcss@8.4.38):
+  autoprefixer@10.4.19(postcss@8.4.47):
     dependencies:
       browserslist: 4.23.0
       caniuse-lite: 1.0.30001599
       fraction.js: 4.3.7
       normalize-range: 0.1.2
       picocolors: 1.0.0
-      postcss: 8.4.38
+      postcss: 8.4.47
       postcss-value-parser: 4.2.0
 
   available-typed-arrays@1.0.7:
@@ -20723,11 +20797,11 @@ snapshots:
 
   kysely@0.27.4: {}
 
-  langchain@0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8)):
+  langchain@0.3.2(@langchain/anthropic@0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8))))(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.62.1(zod@3.23.8)):
     dependencies:
-      '@langchain/core': 0.3.7(openai@4.62.1(zod@3.23.8))
-      '@langchain/openai': 0.3.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
-      '@langchain/textsplitters': 0.1.0(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+      '@langchain/core': 0.3.9(openai@4.62.1(zod@3.23.8))
+      '@langchain/openai': 0.3.0(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
+      '@langchain/textsplitters': 0.1.0(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
       js-tiktoken: 1.0.14
       js-yaml: 4.1.0
       jsonpointer: 5.0.1
@@ -20739,7 +20813,7 @@ snapshots:
       zod: 3.23.8
       zod-to-json-schema: 3.23.2(zod@3.23.8)
     optionalDependencies:
-      '@langchain/anthropic': 0.3.1(@langchain/core@0.3.7(openai@4.62.1(zod@3.23.8)))
+      '@langchain/anthropic': 0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
       axios: 1.7.7
       handlebars: 4.7.8
     transitivePeerDependencies:
@@ -22123,12 +22197,6 @@ snapshots:
       picocolors: 1.1.0
       source-map-js: 1.2.1
 
-  postcss@8.4.38:
-    dependencies:
-      nanoid: 3.3.7
-      picocolors: 1.0.0
-      source-map-js: 1.2.0
-
   postcss@8.4.47:
     dependencies:
       nanoid: 3.3.7
@@ -22432,7 +22500,7 @@ snapshots:
       react: 18.2.0
       scheduler: 0.23.0
 
-  react-hook-form@7.53.0(react@18.2.0):
+  react-hook-form@7.51.5(react@18.2.0):
     dependencies:
       react: 18.2.0
 
@@ -23082,8 +23150,6 @@ snapshots:
       globby: 13.2.2
       is-plain-obj: 4.1.0
       sort-object-keys: 1.1.3
-
-  source-map-js@1.2.0: {}
 
   source-map-js@1.2.1: {}
 

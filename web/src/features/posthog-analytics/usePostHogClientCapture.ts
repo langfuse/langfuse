@@ -103,7 +103,7 @@ const events = {
     "modal_open",
     "create_new_button_click",
   ],
-  onboarding: ["code_example_tab_switch"],
+  onboarding: ["code_example_tab_switch", "tracing_check_active"],
   user_settings: ["theme_changed"],
   project_settings: [
     "project_delete",
