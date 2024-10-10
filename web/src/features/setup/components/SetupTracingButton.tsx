@@ -6,6 +6,8 @@ import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { LockIcon } from "lucide-react";
 import { useRouter } from "next/router";
+import { useEffect } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const SetupTracingButton = () => {
   const { project } = useQueryProjectOrOrganization();
@@ -24,6 +26,13 @@ const SetupTracingButton = () => {
       },
     },
   );
+
+  const capture = usePostHogClientCapture();
+  useEffect(() => {
+    if (hasAnyTrace !== undefined) {
+      capture("onboarding:tracing_check_active", { active: hasAnyTrace });
+    }
+  }, [hasAnyTrace, capture]);
 
   const hasAccess = useHasProjectAccess({
     projectId: project?.id,
