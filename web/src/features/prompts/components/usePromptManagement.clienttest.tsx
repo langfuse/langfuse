@@ -28,7 +28,7 @@ const mockCodeDescriptions = [
 
 describe("CodeExamples component", () => {
   test("renders code snippets with descriptions for Python", async () => {
-    const result = render(
+    render(
       <CodeExamples
         title="Code samples for prompt management"
         snippets={mockCodeSnippets}

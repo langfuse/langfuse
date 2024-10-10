@@ -12,13 +12,7 @@ import {
   TabsTrigger,
 } from "@/src/components/ui/tabs";
 
-const SnippetBlocks = ({
-  snippets,
-  descriptions,
-  language,
-  langCode,
-  commentChar,
-}) => (
+const SnippetBlocks = ({ snippets, descriptions, langCode, commentChar }) => (
   <>
     {snippets.map((snippet, index) => (
       <div key={`${langCode}-${index}`}>
