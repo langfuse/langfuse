@@ -19,7 +19,7 @@ const SnippetBlocks = ({
   langCode,
   commentChar,
 }) => (
-  <TabsContent value={language}>
+  <>
     {snippets.map((snippet, index) => (
       <div key={`${langCode}-${index}`}>
         <CodeBlock
@@ -29,7 +29,7 @@ const SnippetBlocks = ({
         <br />
       </div>
     ))}
-  </TabsContent>
+  </>
 );
 const DocumentationReference = ({ href }) => (
   <p className="mt-6 text-xs text-muted-foreground">
@@ -59,30 +59,42 @@ const DocumentationReference = ({ href }) => (
  */
 export const CodeExamples = ({ title, snippets, descriptions, docUrl }) => {
   const languageKeys = Object.keys(snippets);
+  if (languageKeys.length === 0) {
+    return null;
+  }
+
   return (
     <Accordion type="single" collapsible className="mt-10">
       <AccordionItem value="item-1">
         <AccordionTrigger>{title}</AccordionTrigger>
         <AccordionContent>
-          <Tabs defaultValue={languageKeys[0]}>
-            <TabsList>
+          <Tabs key="code-tab" defaultValue={languageKeys[0]}>
+            <TabsList key="code-tab-triggers">
               {languageKeys.map((languageKey) => (
-                <TabsTrigger key={languageKey} value={languageKey}>
+                <TabsTrigger
+                  key={`tab-trigger-${languageKey}`}
+                  value={languageKey}
+                >
                   {languageKey}
                 </TabsTrigger>
               ))}
             </TabsList>
             {languageKeys.map((languageKey) => {
               const languageInfo = snippets[languageKey];
+
               return (
-                <SnippetBlocks
-                  key={languageKey}
-                  snippets={languageInfo.snippets}
-                  descriptions={descriptions}
-                  language={languageKey}
-                  langCode={languageInfo.langCode}
-                  commentChar={languageInfo.commentChar}
-                />
+                <TabsContent
+                  key={`tab-content-${languageKey}`}
+                  value={languageKey}
+                >
+                  <SnippetBlocks
+                    snippets={languageInfo.snippets}
+                    descriptions={descriptions}
+                    language={languageKey}
+                    langCode={languageInfo.langCode}
+                    commentChar={languageInfo.commentChar}
+                  />
+                </TabsContent>
               );
             })}
           </Tabs>
