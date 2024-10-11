@@ -32,7 +32,6 @@ import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queue
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export const ObservationPreview = ({
   observations,
