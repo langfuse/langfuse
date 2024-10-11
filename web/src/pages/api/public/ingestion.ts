@@ -100,7 +100,7 @@ export default async function handler(
         header.toLowerCase().startsWith("x_langfuse")
       ) {
         currentSpan?.setAttributes({
-          [`langfuse.header.${header.slice(10).toLowerCase()}`]:
+          [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
             req.headers[header],
         });
       }
