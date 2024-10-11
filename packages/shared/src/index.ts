@@ -3,6 +3,7 @@ export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";
 export * from "./interfaces/parseDbOrg";
+export * from "./interfaces/customLLMProviderConfigSchemas";
 export * from "./tableDefinitions";
 export * from "./types";
 export * from "./tracesTable";
@@ -18,7 +19,6 @@ export { env } from "./env";
 
 // llm api
 export * from "./server/llm/types";
-export * from "./server/llm/fetchLLMCompletion";
 
 // evals
 export * from "./features/evals/types";
