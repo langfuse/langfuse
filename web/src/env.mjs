@@ -172,6 +172,9 @@ export const env = createEnv({
     LANGFUSE_ASYNC_INGESTION_PROCESSING: z
       .enum(["true", "false"])
       .default("false"),
+    LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING: z
+      .enum(["true", "false"])
+      .default("false"),
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
       .optional()
@@ -385,6 +388,8 @@ export const env = createEnv({
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
     LANGFUSE_ASYNC_INGESTION_PROCESSING:
       process.env.LANGFUSE_ASYNC_INGESTION_PROCESSING,
+    LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING:
+      process.env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:

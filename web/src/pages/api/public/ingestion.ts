@@ -249,6 +249,7 @@ export default async function handler(
     if (
       env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" &&
       env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" &&
+      env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING === "true" &&
       redis &&
       !s3UploadErrored
     ) {
