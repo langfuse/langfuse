@@ -42,6 +42,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(100),
+  LANGFUSE_INGESTION_QEUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(100),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
@@ -95,7 +99,7 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  QUEUE_CONSUMER_INGESTION_FLUSH_QUEUE_IS_ENABLED: z
+  QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED: z

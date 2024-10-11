@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eventTypes, ingestionBatchEvent, TCarrier } from ".";
+import { eventTypes, ingestionBatchEvent } from ".";
 
 export enum EventName {
   TraceUpsert = "TraceUpsert",
@@ -28,7 +28,7 @@ export const LegacyIngestionEventMeta = z.object({
       type: z.nativeEnum(eventTypes),
       eventBodyId: z.string(),
       eventId: z.string(),
-    })
+    }),
   ),
   authCheck: z.object({
     validKey: z.literal(true),
@@ -43,6 +43,21 @@ export const LegacyIngestionEvent = z.discriminatedUnion("useS3EventStore", [
   LegacyIngestionEventFull,
   LegacyIngestionEventMeta,
 ]);
+
+export const IngestionEvent = z.object({
+  data: z.object({
+    type: z.nativeEnum(eventTypes),
+    eventBodyId: z.string(),
+    eventId: z.string(),
+  }),
+  authCheck: z.object({
+    validKey: z.literal(true),
+    scope: z.object({
+      projectId: z.string(),
+      accessLevel: z.enum(["all", "scores"]),
+    }),
+  }),
+});
 
 export const BatchExportJobSchema = z.object({
   projectId: z.string(),
@@ -62,6 +77,7 @@ export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceUpsertEventType = z.infer<typeof TraceUpsertEventSchema>;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
 export type LegacyIngestionEventType = z.infer<typeof LegacyIngestionEvent>;
+export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 
 export const EventBodySchema = z.union([
   z.object({
@@ -84,8 +100,8 @@ export enum QueueName {
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   BatchExport = "batch-export-queue",
   RepeatQueue = "repeat-queue",
-  IngestionFlushQueue = "ingestion-flush-queue",
-  LegacyIngestionQueue = "legacy-ingestion-queue",
+  IngestionQueue = "ingestion-queue", // Process single events with S3-merge
+  LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
 }
 
@@ -94,9 +110,9 @@ export enum QueueJobs {
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
   EnqueueBatchExportJobs = "enqueue-batch-export-jobs",
-  FlushIngestionEntity = "flush-ingestion-entity",
   LegacyIngestionJob = "legacy-ingestion-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
+  IngestionJob = "ingestion-job",
 }
 
 export type TQueueJobTypes = {
@@ -105,27 +121,29 @@ export type TQueueJobTypes = {
     id: string;
     payload: TraceUpsertEventType;
     name: QueueJobs.TraceUpsert;
-    _tracecontext?: TCarrier;
   };
   [QueueName.EvaluationExecution]: {
     timestamp: Date;
     id: string;
     payload: EvalExecutionEventType;
     name: QueueJobs.EvaluationExecution;
-    _tracecontext?: TCarrier;
   };
   [QueueName.BatchExport]: {
     timestamp: Date;
     id: string;
     payload: BatchExportJobType;
     name: QueueJobs.BatchExportJob;
-    _tracecontext?: TCarrier;
   };
   [QueueName.LegacyIngestionQueue]: {
     timestamp: Date;
     id: string;
     payload: LegacyIngestionEventType;
     name: QueueJobs.LegacyIngestionJob;
-    _tracecontext?: TCarrier;
+  };
+  [QueueName.IngestionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: IngestionEventQueueType;
+    name: QueueJobs.IngestionJob;
   };
 };
