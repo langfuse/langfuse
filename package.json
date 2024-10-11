@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "2.81.1",
+  "version": "2.84.1",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -33,7 +33,7 @@
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.2",
     "husky": "^9.0.11",
-    "prettier": "^3.2.5",
+    "prettier": "^3.3.3",
     "release-it": "^17.3.0",
     "turbo": "^1.13.4"
   },

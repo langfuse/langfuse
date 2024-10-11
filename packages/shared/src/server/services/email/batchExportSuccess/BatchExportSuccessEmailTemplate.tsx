@@ -19,7 +19,6 @@ interface BatchExportSuccessTemplateProps {
   receiverEmail: string;
   downloadLink: string;
   batchExportName: string;
-  expiresInHours: number;
 }
 
 export const BatchExportSuccessEmailTemplate = ({
@@ -27,7 +26,6 @@ export const BatchExportSuccessEmailTemplate = ({
   downloadLink,
   userName,
   batchExportName,
-  expiresInHours,
 }: BatchExportSuccessTemplateProps) => {
   const previewText = `Download your data export from Langfuse`;
 
@@ -56,8 +54,7 @@ export const BatchExportSuccessEmailTemplate = ({
             <Text className="text-sm leading-6 text-black">
               Your data export{" "}
               <span className="font-mono">{batchExportName}</span> is ready to
-              download. The download link will expire in{" "}
-              <strong>{expiresInHours} hours</strong>.
+              download. The download link is valid for a few hours.
             </Text>
             <Text className="text-sm leading-6 text-black">
               Please note data exports do not reflect custom column ordering or

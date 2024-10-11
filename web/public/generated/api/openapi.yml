@@ -63,7 +63,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security: &ref_0
+      security:
         - BasicAuth: []
       requestBody:
         required: true
@@ -141,7 +141,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/dataset-items/{id}:
     get:
       description: Get a dataset item
@@ -186,7 +187,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/dataset-run-items:
     post:
       description: Create a dataset run item
@@ -226,7 +228,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
       requestBody:
         required: true
         content:
@@ -286,7 +289,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
     post:
       description: Create a dataset
       operationId: datasets_create
@@ -325,7 +329,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
       requestBody:
         required: true
         content:
@@ -376,7 +381,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
       description: Get a dataset run and its items
@@ -426,7 +432,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/datasets/{datasetName}/runs:
     get:
       description: Get dataset runs
@@ -485,7 +492,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/health:
     get:
       description: Check health of API and database
@@ -580,7 +588,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
       requestBody:
         required: true
         content:
@@ -649,8 +658,8 @@ paths:
         - name: fromTimestamp
           in: query
           description: >-
-            Optional filter to only include traces on or after a certain
-            datetime (ISO 8601)
+            Optional filter to only include traces and observations on or after
+            a certain datetime (ISO 8601)
           required: false
           schema:
             type: string
@@ -659,8 +668,8 @@ paths:
         - name: toTimestamp
           in: query
           description: >-
-            Optional filter to only include traces before a certain datetime
-            (ISO 8601)
+            Optional filter to only include traces and observations before a
+            certain datetime (ISO 8601)
           required: false
           schema:
             type: string
@@ -698,7 +707,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/models:
     post:
       description: Create a model
@@ -738,7 +748,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
       requestBody:
         required: true
         content:
@@ -797,7 +808,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/models/{id}:
     get:
       description: Get a model
@@ -842,7 +854,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
     delete:
       description: >-
         Delete a model. Cannot delete models managed by Langfuse. You can create
@@ -885,7 +898,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/observations/{observationId}:
     get:
       description: Get a observation
@@ -933,7 +947,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/observations:
     get:
       description: Get a list of observations
@@ -1046,7 +1061,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/projects:
     get:
       description: Get Project associated with API key
@@ -1086,7 +1102,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/v2/prompts/{promptName}:
     get:
       description: Get a prompt
@@ -1148,7 +1165,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/v2/prompts:
     get:
       description: Get a list of prompt names with versions and labels
@@ -1240,7 +1258,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
     post:
       description: Create a new version for the prompt with the given `name`
       operationId: prompts_create
@@ -1279,7 +1298,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
       requestBody:
         required: true
         content:
@@ -1327,7 +1347,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
       requestBody:
         required: true
         content:
@@ -1388,7 +1409,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/score-configs/{configId}:
     get:
       description: Get a score config
@@ -1434,7 +1456,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/scores:
     post:
       description: Create a score
@@ -1474,7 +1497,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
       requestBody:
         required: true
         content:
@@ -1612,7 +1636,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/scores/{scoreId}:
     get:
       description: Get a score
@@ -1658,7 +1683,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
     delete:
       description: Delete a score
       operationId: score_delete
@@ -1699,7 +1725,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/sessions:
     get:
       description: Get sessions
@@ -1775,7 +1802,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/sessions/{sessionId}:
     get:
       description: >-
@@ -1824,7 +1852,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/traces/{traceId}:
     get:
       description: Get a specific trace
@@ -1870,7 +1899,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/traces:
     get:
       description: Get list of traces
@@ -1997,7 +2027,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
 components:
   schemas:
     Trace:
@@ -2696,6 +2727,7 @@ components:
             to exact match, use `(?i)^modelname$`
         startDate:
           type: string
+          format: date
           nullable: true
           description: Apply only to generations which are newer than this ISO date.
         unit:
@@ -3508,6 +3540,7 @@ components:
       properties:
         date:
           type: string
+          format: date
         countTraces:
           type: integer
         countObservations:
@@ -3592,6 +3625,7 @@ components:
             to exact match, use `(?i)^modelname$`
         startDate:
           type: string
+          format: date
           nullable: true
           description: Apply only to generations which are newer than this ISO date.
         unit:

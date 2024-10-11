@@ -86,18 +86,6 @@ export function instrumentSync<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
-export const addTraceContext = <T extends Record<string, any>>(
-  input: T,
-): T & { _tracecontext?: TCarrier } => {
-  const context = {};
-  opentelemetry.propagation.inject(opentelemetry.context.active(), context);
-
-  return {
-    ...input,
-    _tracecontext: context,
-  };
-};
-
 export const traceException = (
   ex: unknown,
   span?: opentelemetry.Span,
@@ -191,4 +179,16 @@ export const recordHistogram = (
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
   dd.dogstatsd.histogram(stat, value, tags);
+};
+
+/**
+ * Converts a queue name to the matching datadog metric name.
+ * Consumer only needs to append the relevant suffix.
+ *
+ * Example: `legacy-ingestion-queue` -> `langfuse.queue.legacy_ingestion`
+ */
+export const convertQueueNameToMetricName = (queueName: string): string => {
+  return (
+    "langfuse.queue." + queueName.replace(/-/g, "_").replace(/_queue$/, "")
+  );
 };

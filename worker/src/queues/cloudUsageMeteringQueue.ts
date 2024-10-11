@@ -4,7 +4,6 @@ import {
   logger,
   QueueName,
   QueueJobs,
-  instrumentAsync,
 } from "@langfuse/shared/src/server";
 import { handleCloudUsageMeteringJob } from "../ee/cloudUsageMetering/handleCloudUsageMeteringJob";
 import { env } from "../env";
@@ -36,20 +35,12 @@ if (cloudUsageMeteringQueue) {
 
 export const cloudUsageMeteringQueueProcessor: Processor = async (job) => {
   if (job.name === QueueJobs.CloudUsageMeteringJob) {
-    return instrumentAsync(
-      {
-        name: "cloudUsageMeteringJobExecutor",
-        traceContext: job.data?._tracecontext,
-      },
-      async () => {
-        logger.info("Executing Cloud Usage Metering Job", job.data);
-        try {
-          return await handleCloudUsageMeteringJob(job);
-        } catch (error) {
-          logger.error("Error executing Cloud Usage Metering Job", error);
-          throw error;
-        }
-      },
-    );
+    logger.info("Executing Cloud Usage Metering Job", job.data);
+    try {
+      return await handleCloudUsageMeteringJob(job);
+    } catch (error) {
+      logger.error("Error executing Cloud Usage Metering Job", error);
+      throw error;
+    }
   }
 };

@@ -1,3 +1,4 @@
+import { removeEmptyEnvVariables } from "@langfuse/shared";
 import { z } from "zod";
 
 const EnvSchema = z.object({
@@ -19,6 +20,17 @@ const EnvSchema = z.object({
   S3_BUCKET_NAME: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().optional(),
+  S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
+    .enum(["true", "false"])
+    .default("false"),
   BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS: z.coerce
     .number()
@@ -72,6 +84,10 @@ const EnvSchema = z.object({
     .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
 
+  // Otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
+  OTEL_SERVICE_NAME: z.string().default("worker"),
+
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
@@ -96,4 +112,4 @@ const EnvSchema = z.object({
     .default("true"),
 });
 
-export const env = EnvSchema.parse(process.env);
+export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));
