@@ -116,7 +116,7 @@ export const PromptDetail = () => {
               <>
                 {hasAccess ? (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => {
                       capture("prompts:update_form_open");
                     }}
@@ -131,7 +131,7 @@ export const PromptDetail = () => {
                     </Link>
                   </Button>
                 ) : (
-                  <Button variant="outline" disabled>
+                  <Button variant="secondary" disabled>
                     <div className="flex flex-row items-center">
                       <Lock className="h-3 w-3" />
                       <span className="ml-2">New version</span>
