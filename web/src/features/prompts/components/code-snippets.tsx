@@ -114,7 +114,6 @@ export const CodeExamples = ({
                   <SnippetBlocks
                     snippetLines={languageInfo.snippets}
                     descriptions={descriptions}
-                    language={languageKey}
                     langCode={languageInfo.langCode}
                     commentChar={languageInfo.commentChar}
                   />
