@@ -68,9 +68,23 @@ ORDER BY (
 
 CREATE MATERIALIZED VIEW mv_traces_to_observations_wide TO observations_wide AS
 SELECT 
+    argMax(t.`name`, o.event_ts) as trace_name,
+        argMax(t.timestamp, o.event_ts) as trace_timestamp,
+    argMax(t.user_id, o.event_ts) as trace_user_id,
+    argMax(t.metadata, o.event_ts) as trace_metadata,
+    argMax(t.release, o.event_ts) as trace_release,
+    argMax(t.version, o.event_ts) as trace_version,
+    argMax(t.project_id, o.event_ts) as trace_project_id,
+    argMax(t.public, o.event_ts) as trace_public,
+    argMax(t.bookmarked, o.event_ts) as trace_bookmarked,
+    argMax(t.tags, o.event_ts) as trace_tags,
+    argMax(t.input, o.event_ts) as trace_input,
+    argMax(t.output, o.event_ts) as trace_output,
+    argMax(t.session_id, o.event_ts) as trace_session_id,
+    argMax(t.event_ts, o.event_ts) as trace_event_ts,
     o.id as id,
     argMax(o.trace_id, o.event_ts) as trace_id,
-    argMax(o.name, o.event_ts) as name,
+    argMax(o.name, o.event_ts) as `name`,
     o.project_id as project_id,
     argMax(o.metadata, o.event_ts) as metadata,
     argMax(o.type, o.event_ts) as type,
@@ -99,27 +113,27 @@ SELECT
     argMax(o.time_to_first_token, o.event_ts) as time_to_first_token,
     argMax(o.prompt_id, o.event_ts) as prompt_id,
     argMax(o.prompt_name, o.event_ts) as prompt_name,
-    argMax(o.prompt_version, o.event_ts) as prompt_version,
-    argMax(t.timestamp, o.event_ts) as trace_timestamp,
-    argMax(t.name, o.event_ts) as trace_name,
-    argMax(t.user_id, o.event_ts) as trace_user_id,
-    argMax(t.metadata, o.event_ts) as trace_metadata,
-    argMax(t.release, o.event_ts) as trace_release,
-    argMax(t.version, o.event_ts) as trace_version,
-    argMax(t.project_id, o.event_ts) as trace_project_id,
-    argMax(t.public, o.event_ts) as trace_public,
-    argMax(t.bookmarked, o.event_ts) as trace_bookmarked,
-    argMax(t.tags, o.event_ts) as trace_tags,
-    argMax(t.input, o.event_ts) as trace_input,
-    argMax(t.output, o.event_ts) as trace_output,
-    argMax(t.session_id, o.event_ts) as trace_session_id,
-    argMax(t.event_ts, o.event_ts) as trace_event_ts
+    argMax(o.prompt_version, o.event_ts) as prompt_version
 FROM traces t
 INNER JOIN observations o ON t.id = o.trace_id
 GROUP BY o.id, o.project_id;
 
 CREATE MATERIALIZED VIEW mv_observations_to_observations_wide TO observations_wide AS
 SELECT 
+  argMax(t.timestamp, o.event_ts) as trace_timestamp,
+    argMax(t.name, o.event_ts) as trace_name,
+    argMax(t.user_id, o.event_ts) as trace_user_id,
+    argMax(t.metadata, o.event_ts) as trace_metadata,
+    argMax(t.release, o.event_ts) as trace_release,
+    argMax(t.version, o.event_ts) as trace_version,
+    argMax(t.project_id, o.event_ts) as trace_project_id,
+    argMax(t.public, o.event_ts) as trace_public,
+    argMax(t.bookmarked, o.event_ts) as trace_bookmarked,
+    argMax(t.tags, o.event_ts) as trace_tags,
+    argMax(t.input, o.event_ts) as trace_input,
+    argMax(t.output, o.event_ts) as trace_output,
+    argMax(t.session_id, o.event_ts) as trace_session_id,
+    argMax(t.event_ts, o.event_ts) as trace_event_ts,
     o.id as id,
     argMax(o.trace_id, o.event_ts) as trace_id,
     argMax(o.name, o.event_ts) as name,
@@ -151,21 +165,7 @@ SELECT
     argMax(o.time_to_first_token, o.event_ts) as time_to_first_token,
     argMax(o.prompt_id, o.event_ts) as prompt_id,
     argMax(o.prompt_name, o.event_ts) as prompt_name,
-    argMax(o.prompt_version, o.event_ts) as prompt_version,
-    argMax(t.timestamp, o.event_ts) as trace_timestamp,
-    argMax(t.name, o.event_ts) as trace_name,
-    argMax(t.user_id, o.event_ts) as trace_user_id,
-    argMax(t.metadata, o.event_ts) as trace_metadata,
-    argMax(t.release, o.event_ts) as trace_release,
-    argMax(t.version, o.event_ts) as trace_version,
-    argMax(t.project_id, o.event_ts) as trace_project_id,
-    argMax(t.public, o.event_ts) as trace_public,
-    argMax(t.bookmarked, o.event_ts) as trace_bookmarked,
-    argMax(t.tags, o.event_ts) as trace_tags,
-    argMax(t.input, o.event_ts) as trace_input,
-    argMax(t.output, o.event_ts) as trace_output,
-    argMax(t.session_id, o.event_ts) as trace_session_id,
-    argMax(t.event_ts, o.event_ts) as trace_event_ts
+    argMax(o.prompt_version, o.event_ts) as prompt_version
 FROM observations o
 LEFT OUTER JOIN traces t ON t.id = o.trace_id
 GROUP BY o.id, o.project_id;
