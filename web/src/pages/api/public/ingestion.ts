@@ -264,7 +264,6 @@ export default async function handler(
                   data: {
                     type: event.type,
                     eventBodyId: event.body.id ?? "",
-                    eventId: event.id,
                   },
                   authCheck,
                 },

@@ -48,7 +48,6 @@ export const IngestionEvent = z.object({
   data: z.object({
     type: z.nativeEnum(eventTypes),
     eventBodyId: z.string(),
-    eventId: z.string(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
