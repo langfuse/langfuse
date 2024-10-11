@@ -28,11 +28,10 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
-import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/CreateNewAnnotationQueueItem";
+import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export const ObservationPreview = ({
   observations,
@@ -53,7 +52,6 @@ export const ObservationPreview = ({
   viewType?: "focused" | "detailed";
   className?: string;
 }) => {
-  const isFeatureFlagEnabled = useIsFeatureEnabled("annotationQueues");
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
     withDefault(StringParam, "preview"),
@@ -231,9 +229,9 @@ export const ObservationPreview = ({
                   emptySelectedConfigIds={emptySelectedConfigIds}
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                   type="observation"
-                  hasGroupedButton={hasEntitlement && isFeatureFlagEnabled}
+                  hasGroupedButton={hasEntitlement}
                 />
-                {hasEntitlement && isFeatureFlagEnabled && (
+                {hasEntitlement && (
                   <CreateNewAnnotationQueueItem
                     projectId={projectId}
                     objectId={preloadedObservation.id}
