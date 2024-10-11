@@ -1,7 +1,12 @@
 import {
-  entitlementAccess,
+  type FeatureBasedEntitlement,
   type Entitlement,
+  type UsageBasedEntitlement,
 } from "@/src/features/entitlements/constants/entitlements";
+import {
+  getEntitlements,
+  hasUsageEntitlementQuota,
+} from "@/src/features/entitlements/server/hasEntitlement";
 import { type Plan } from "@langfuse/shared";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
@@ -38,19 +43,31 @@ export const useOrganizationPlan = (): Plan | undefined => {
  * Hook to get the entitlements of the current organization.
  */
 export const useOrgEntitlements = (): Entitlement[] => {
-  const plan = useOrganizationPlan();
-  const availableEntitlements = entitlementAccess[plan ?? "oss"];
-  return availableEntitlements;
+  const plan = useOrganizationPlan() ?? "oss";
+  return getEntitlements(plan);
 };
 
 /**
  * Hook to check if the current organization has a specific entitlement.
  */
-export const useHasOrgEntitlement = (entitlement: Entitlement): boolean => {
+export const useHasOrgEntitlement = (
+  entitlement: FeatureBasedEntitlement,
+): boolean => {
   const orgEntitlements = useOrgEntitlements();
 
   const session = useSession();
   if (session.data?.user?.admin) return true;
 
   return orgEntitlements.includes(entitlement);
+};
+
+/**
+ * Hook to check if the current organization has a specific usage-based entitlement.
+ */
+export const useHasOrgUsageBasedEntitlement = (
+  entitlement: UsageBasedEntitlement,
+  isViewOnly = false,
+): boolean => {
+  const plan = useOrganizationPlan() ?? "oss";
+  return hasUsageEntitlementQuota(entitlement, plan, isViewOnly);
 };
