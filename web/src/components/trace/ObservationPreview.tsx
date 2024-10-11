@@ -32,6 +32,7 @@ import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/C
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export const ObservationPreview = ({
   observations,
@@ -52,6 +53,7 @@ export const ObservationPreview = ({
   viewType?: "focused" | "detailed";
   className?: string;
 }) => {
+  const isFeatureFlagEnabled = useIsFeatureEnabled("annotationQueues");
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
     withDefault(StringParam, "preview"),
@@ -221,6 +223,7 @@ export const ObservationPreview = ({
               />
               <div className="flex items-start">
                 <AnnotateDrawer
+                  key={"annotation-drawer" + preloadedObservation.id}
                   projectId={projectId}
                   traceId={traceId}
                   observationId={preloadedObservation.id}
@@ -228,9 +231,9 @@ export const ObservationPreview = ({
                   emptySelectedConfigIds={emptySelectedConfigIds}
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                   type="observation"
-                  key={"annotation-drawer" + preloadedObservation.id}
+                  hasGroupedButton={hasEntitlement && isFeatureFlagEnabled}
                 />
-                {hasEntitlement && (
+                {hasEntitlement && isFeatureFlagEnabled && (
                   <CreateNewAnnotationQueueItem
                     projectId={projectId}
                     objectId={preloadedObservation.id}
