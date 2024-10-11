@@ -727,12 +727,10 @@ function createObjects(
     };
 
     const queueItem = [
-      ...(Math.random() > 0.9
+      ...(Math.random() > 0.9 && queueIds.get(projectId)?.[0]
         ? [
             {
-              queueId: queueIds.get(projectId)?.[
-                Math.floor(Math.random() * 2)
-              ] as string,
+              queueId: queueIds.get(projectId)?.[0] as string,
               objectId: trace.id,
               objectType: AnnotationQueueObjectType.TRACE,
               projectId,
@@ -1370,41 +1368,28 @@ async function generateQueues(
     categories: ConfigCategory[] | null;
   }[]
 ) {
-  const queueIds: string[] = [];
+  const queue = {
+    id: `queue-${v4()}`,
+    name: "Default",
+    description: "Default queue",
+    scoreConfigIds: configIdsAndNames.map((config) => config.id),
+    projectId: project.id,
+  };
 
-  const queues = [
-    {
-      id: `queue-${v4()}`,
-      name: "Default",
-      description: "Default queue",
-      scoreConfigIds: configIdsAndNames.map((config) => config.id),
-      projectId: project.id,
+  await prisma.annotationQueue.upsert({
+    where: {
+      projectId_name: {
+        projectId: queue.projectId,
+        name: queue.name,
+      },
     },
-    {
-      id: `queue-${v4()}`,
-      name: "Correction",
-      scoreConfigIds: [configIdsAndNames[0].id],
-      projectId: project.id,
+    create: {
+      ...queue,
     },
-  ];
+    update: {
+      id: queue.id,
+    },
+  });
 
-  for (const queue of queues) {
-    await prisma.annotationQueue.upsert({
-      where: {
-        projectId_name: {
-          projectId: queue.projectId,
-          name: queue.name,
-        },
-      },
-      create: {
-        ...queue,
-      },
-      update: {
-        id: queue.id,
-      },
-    });
-    queueIds.push(queue.id);
-  }
-
-  return queueIds;
+  return [queue.id];
 }
