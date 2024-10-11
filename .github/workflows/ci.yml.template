@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Start containers
         run: docker compose -f "docker-compose.yml" up -d --build
@@ -31,7 +31,7 @@ jobs:
         uses: pnpm/action-setup@v2.2.4
 
       - name: Setup Node 18
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 18
 

@@ -50,7 +50,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new PrismaInstrumentation(),
       new AwsInstrumentation(),
       new WinstonInstrumentation({ disableLogSending: true }),
-      new BullMQInstrumentation(),
+      new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),
     ],
     resourceDetectors: [
       envDetector,

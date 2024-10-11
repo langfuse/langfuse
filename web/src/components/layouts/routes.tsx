@@ -8,12 +8,13 @@ import {
   type LucideIcon,
   Settings,
   UsersIcon,
-  PenSquareIcon,
   LibraryBig,
   TerminalIcon,
   Lightbulb,
   Grid2X2,
   Sparkle,
+  ClipboardPen,
+  FileJson,
 } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { type ReactNode } from "react";
@@ -87,6 +88,15 @@ export const ROUTES: Route[] = [
     ],
   },
   {
+    name: "Annotation Queues",
+    pathname: `/project/[projectId]/annotation-queues`,
+    icon: ClipboardPen,
+    label: "Beta",
+    projectRbacScope: "annotationQueues:read",
+    entitlement: "annotation-queues",
+    featureFlag: "annotationQueues",
+  },
+  {
     name: "Evaluation",
     icon: Lightbulb,
     entitlement: "model-based-evaluations",
@@ -120,7 +130,7 @@ export const ROUTES: Route[] = [
   {
     name: "Prompts",
     pathname: "/project/[projectId]/prompts",
-    icon: PenSquareIcon,
+    icon: FileJson,
     projectRbacScope: "prompts:read",
   },
   {

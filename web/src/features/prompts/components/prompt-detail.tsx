@@ -26,14 +26,23 @@ import { CodeExamples } from "@/src/features/prompts/components/code-snippets";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { CommentList } from "@/src/features/comments/CommentList";
+import { Lock, Plus } from "lucide-react";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Button } from "@/src/components/ui/button";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
+  const capture = usePostHogClientCapture();
   const promptName = decodeURIComponent(useRouter().query.promptName as string);
   const [currentPromptVersion, setCurrentPromptVersion] = useQueryParam(
     "version",
     NumberParam,
   );
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "prompts:CUD",
+  });
   const promptHistory = api.prompts.allVersions.useQuery(
     {
       name: promptName,
@@ -136,6 +145,30 @@ export const PromptDetail = () => {
             ]}
             actionButtons={
               <>
+                {hasAccess ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      capture("prompts:update_form_open");
+                    }}
+                  >
+                    <Link
+                      href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                    >
+                      <div className="flex flex-row items-center">
+                        <Plus className="h-4 w-4" />
+                        <span className="ml-2">New version</span>
+                      </div>
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button variant="secondary" disabled>
+                    <div className="flex flex-row items-center">
+                      <Lock className="h-3 w-3" />
+                      <span className="ml-2">New version</span>
+                    </div>
+                  </Button>
+                )}
                 <JumpToPlaygroundButton
                   source="prompt"
                   prompt={prompt}

@@ -37,6 +37,16 @@ export const ScoreDataType = {
     BOOLEAN: "BOOLEAN"
 } as const;
 export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
+export const AnnotationQueueStatus = {
+    PENDING: "PENDING",
+    COMPLETED: "COMPLETED"
+} as const;
+export type AnnotationQueueStatus = (typeof AnnotationQueueStatus)[keyof typeof AnnotationQueueStatus];
+export const AnnotationQueueObjectType = {
+    TRACE: "TRACE",
+    OBSERVATION: "OBSERVATION"
+} as const;
+export type AnnotationQueueObjectType = (typeof AnnotationQueueObjectType)[keyof typeof AnnotationQueueObjectType];
 export const DatasetStatus = {
     ACTIVE: "ACTIVE",
     ARCHIVED: "ARCHIVED"
@@ -81,6 +91,30 @@ export type Account = {
     id_token: string | null;
     session_state: string | null;
     refresh_token_expires_in: number | null;
+    created_at: number | null;
+};
+export type AnnotationQueue = {
+    id: string;
+    name: string;
+    description: string | null;
+    score_config_ids: Generated<string[]>;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
+export type AnnotationQueueItem = {
+    id: string;
+    queue_id: string;
+    object_id: string;
+    object_type: AnnotationQueueObjectType;
+    status: Generated<AnnotationQueueStatus>;
+    locked_at: Timestamp | null;
+    locked_by_user_id: string | null;
+    annotator_user_id: string | null;
+    completed_at: Timestamp | null;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
 };
 export type ApiKey = {
     id: string;
@@ -410,6 +444,7 @@ export type Score = {
     observation_id: string | null;
     config_id: string | null;
     string_value: string | null;
+    queue_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     data_type: Generated<ScoreDataType>;
@@ -506,6 +541,8 @@ export type VerificationToken = {
 };
 export type DB = {
     Account: Account;
+    annotation_queue_items: AnnotationQueueItem;
+    annotation_queues: AnnotationQueue;
     api_keys: ApiKey;
     audit_logs: AuditLog;
     batch_exports: BatchExport;

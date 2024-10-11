@@ -26,7 +26,6 @@ export function CreateLLMApiKeyDialog({
     scope: "llmApiKeys:create",
   });
   const uiCustomization = useUiCustomization();
-  console.log("uiCustomization", uiCustomization);
 
   if (!hasAccess) return null;
 

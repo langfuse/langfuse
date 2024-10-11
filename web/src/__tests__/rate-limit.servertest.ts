@@ -39,6 +39,8 @@ describe("RateLimitService", () => {
       rateLimitOverrides: [],
     };
 
+    expect(redis).toBeDefined();
+
     const rateLimitService = new RateLimitService(redis!);
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 

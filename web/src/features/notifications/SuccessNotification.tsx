@@ -1,15 +1,21 @@
 import { BadgeCheck, X } from "lucide-react";
+import Link from "next/link";
 
 export type SuccessNotificationProps = {
   title: string;
   description: string;
   onDismiss: () => void;
+  link?: {
+    href: string;
+    text: string;
+  };
 };
 
 export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
   title,
   description,
   onDismiss,
+  link,
 }) => {
   return (
     <div className="flex justify-between">
@@ -22,7 +28,12 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
         </div>
         {description && (
           <div className="text-sm leading-tight text-primary-foreground">
-            {description}
+            {description}{" "}
+            {!!link && (
+              <Link href={link.href}>
+                <span className="hover:underline">{link.text}</span>
+              </Link>
+            )}
           </div>
         )}
       </div>
