@@ -49,7 +49,6 @@ export const TracePreview = ({
   viewType?: "detailed" | "focused";
   className?: string;
 }) => {
-  const isFeatureFlagEnabled = useIsFeatureEnabled("annotationQueues");
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
     withDefault(StringParam, "preview"),
@@ -157,9 +156,9 @@ export const TracePreview = ({
                   scores={scores}
                   emptySelectedConfigIds={emptySelectedConfigIds}
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                  hasGroupedButton={hasEntitlement && isFeatureFlagEnabled}
+                  hasGroupedButton={hasEntitlement}
                 />
-                {hasEntitlement && isFeatureFlagEnabled && (
+                {hasEntitlement && (
                   <CreateNewAnnotationQueueItem
                     projectId={trace.projectId}
                     objectId={trace.id}

@@ -21,7 +21,6 @@ import { CreateOrEditAnnotationQueueButton } from "@/src/ee/features/annotation-
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 const TableWithMetadataWrapper = ({
@@ -103,84 +102,75 @@ export default function QueueItems() {
 
   return (
     <FullScreenPage>
-      <FeatureFlagToggle
-        featureFlag="annotationQueues"
-        whenEnabled={
-          <>
-            <Header
-              title={queue.data?.name ?? queueId}
-              breadcrumb={[
-                {
-                  name: "Annotation Queues",
-                  href: `/project/${projectId}/annotation-queues`,
-                },
-                { name: queue.data?.name ?? queueId },
-              ]}
-              actionButtons={
-                !hasWriteAccess ? (
-                  <Button disabled>
-                    <Lock className="mr-1 h-4 w-4" />
-                    <span className="text-sm">Process queue</span>
-                  </Button>
-                ) : (
-                  <Button asChild>
-                    <Link
-                      href={`/project/${projectId}/annotation-queues/${queueId}/items`}
-                    >
-                      <ClipboardPen className="mr-1 h-4 w-4" />
-                      <span className="text-sm">Process queue</span>
-                    </Link>
-                  </Button>
-                )
-              }
+      <>
+        <Header
+          title={queue.data?.name ?? queueId}
+          breadcrumb={[
+            {
+              name: "Annotation Queues",
+              href: `/project/${projectId}/annotation-queues`,
+            },
+            { name: queue.data?.name ?? queueId },
+          ]}
+          actionButtons={
+            !hasWriteAccess ? (
+              <Button disabled>
+                <Lock className="mr-1 h-4 w-4" />
+                <span className="text-sm">Process queue</span>
+              </Button>
+            ) : (
+              <Button asChild>
+                <Link
+                  href={`/project/${projectId}/annotation-queues/${queueId}/items`}
+                >
+                  <ClipboardPen className="mr-1 h-4 w-4" />
+                  <span className="text-sm">Process queue</span>
+                </Link>
+              </Button>
+            )
+          }
+        />
+        <TableWithMetadataWrapper
+          tableComponent={
+            <AnnotationQueueItemsTable
+              projectId={projectId}
+              queueId={queueId}
             />
-            <TableWithMetadataWrapper
-              tableComponent={
-                <AnnotationQueueItemsTable
-                  projectId={projectId}
-                  queueId={queueId}
-                />
-              }
-              cardTitleChildren={
-                <div className="flex w-full flex-row items-center justify-between">
-                  {queue.data ? (
-                    <span>{queue.data.name}</span>
-                  ) : (
-                    <Skeleton className="h-full w-1/2" />
-                  )}
-                  <CreateOrEditAnnotationQueueButton
-                    projectId={projectId}
-                    queueId={queueId}
-                  />
-                </div>
-              }
-              cardContentChildren={
-                <>
-                  {queue.data?.description && (
-                    <CardDescription className="text-sm">
-                      {queue.data?.description}
-                    </CardDescription>
-                  )}
-                  <Separator orientation="horizontal" />
-                  <h5 className="text-md font-bold leading-7 sm:tracking-tight">
-                    Score Configs
-                  </h5>
-                  {queue.data?.scoreConfigs.map((scoreConfig) => (
-                    <Badge
-                      key={scoreConfig.id}
-                      className="mr-2"
-                      variant="outline"
-                    >
-                      {getScoreDataTypeIcon(scoreConfig.dataType)}
-                      <span className="ml-0.5">{scoreConfig.name}</span>
-                    </Badge>
-                  ))}
-                </>
-              }
-            />
-          </>
-        }
-      />
+          }
+          cardTitleChildren={
+            <div className="flex w-full flex-row items-center justify-between">
+              {queue.data ? (
+                <span>{queue.data.name}</span>
+              ) : (
+                <Skeleton className="h-full w-1/2" />
+              )}
+              <CreateOrEditAnnotationQueueButton
+                projectId={projectId}
+                queueId={queueId}
+              />
+            </div>
+          }
+          cardContentChildren={
+            <>
+              {queue.data?.description && (
+                <CardDescription className="text-sm">
+                  {queue.data?.description}
+                </CardDescription>
+              )}
+              <Separator orientation="horizontal" />
+              <h5 className="text-md font-bold leading-7 sm:tracking-tight">
+                Score Configs
+              </h5>
+              {queue.data?.scoreConfigs.map((scoreConfig) => (
+                <Badge key={scoreConfig.id} className="mr-2" variant="outline">
+                  {getScoreDataTypeIcon(scoreConfig.dataType)}
+                  <span className="ml-0.5">{scoreConfig.name}</span>
+                </Badge>
+              ))}
+            </>
+          }
+        />
+      </>
     </FullScreenPage>
   );
 }

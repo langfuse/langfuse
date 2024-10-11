@@ -53,7 +53,6 @@ export const ObservationPreview = ({
   viewType?: "focused" | "detailed";
   className?: string;
 }) => {
-  const isFeatureFlagEnabled = useIsFeatureEnabled("annotationQueues");
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
     withDefault(StringParam, "preview"),
@@ -231,9 +230,9 @@ export const ObservationPreview = ({
                   emptySelectedConfigIds={emptySelectedConfigIds}
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                   type="observation"
-                  hasGroupedButton={hasEntitlement && isFeatureFlagEnabled}
+                  hasGroupedButton={hasEntitlement}
                 />
-                {hasEntitlement && isFeatureFlagEnabled && (
+                {hasEntitlement && (
                   <CreateNewAnnotationQueueItem
                     projectId={projectId}
                     objectId={preloadedObservation.id}

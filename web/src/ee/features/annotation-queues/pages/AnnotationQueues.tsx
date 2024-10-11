@@ -5,7 +5,6 @@ import { AnnotationQueuesTable } from "@/src/ee/features/annotation-queues/compo
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
 
 export default function AnnotationQueues() {
   const router = useRouter();
@@ -19,22 +18,17 @@ export default function AnnotationQueues() {
 
   return (
     <FullScreenPage>
-      <FeatureFlagToggle
-        featureFlag="annotationQueues"
-        whenEnabled={
-          <>
-            <Header
-              title="Annotation Queues"
-              help={{
-                description:
-                  "Annotation queues are used to manage scoring workflows for your LLM projects. See docs to learn more.",
-                href: "https://langfuse.com/docs/scores/annotation",
-              }}
-            />
-            <AnnotationQueuesTable projectId={projectId} />
-          </>
-        }
-      />
+      <>
+        <Header
+          title="Annotation Queues"
+          help={{
+            description:
+              "Annotation queues are used to manage scoring workflows for your LLM projects. See docs to learn more.",
+            href: "https://langfuse.com/docs/scores/annotation",
+          }}
+        />
+        <AnnotationQueuesTable projectId={projectId} />
+      </>
     </FullScreenPage>
   );
 }
