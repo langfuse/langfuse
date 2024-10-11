@@ -12,9 +12,29 @@ import {
   TabsTrigger,
 } from "@/src/components/ui/tabs";
 
-const SnippetBlocks = ({ snippets, descriptions, langCode, commentChar }) => (
+interface Snippet {
+  langCode: string;
+  commentChar: string;
+  snippets: string[];
+}
+
+interface Snippets {
+  [key: string]: Snippet;
+}
+
+const SnippetBlocks = ({
+  snippetLines,
+  descriptions,
+  langCode,
+  commentChar,
+}: {
+  snippetLines: string[];
+  descriptions: string[];
+  langCode: string;
+  commentChar: string;
+}) => (
   <>
-    {snippets.map((snippet, index) => (
+    {snippetLines.map((snippet, index) => (
       <div key={`${langCode}-${index}`}>
         <CodeBlock
           language={langCode}
@@ -25,7 +45,7 @@ const SnippetBlocks = ({ snippets, descriptions, langCode, commentChar }) => (
     ))}
   </>
 );
-const DocumentationReference = ({ href }) => (
+const DocumentationReference = ({ href }: { href: string }) => (
   <p className="mt-6 text-xs text-muted-foreground">
     For more information see the{" "}
     <a
@@ -46,13 +66,23 @@ const DocumentationReference = ({ href }) => (
  * an explanatory comment and a command
  *
  * @param {string} title: the text that displays on the clickable panel to open the snippets
- * @param {list} snippets: a group of code examples
+ * @param {list} snippetLanguageConfig: a group of code examples
  * @param {list} descriptions: a concise, descriptive phrase about what the code snippet does
  * @param {string} docUrl: a link to relevant documentation
  * @returns {JSX.Element}
  */
-export const CodeExamples = ({ title, snippets, descriptions, docUrl }) => {
-  const languageKeys = Object.keys(snippets);
+export const CodeExamples = ({
+  title,
+  snippetLanguageConfig,
+  descriptions,
+  docUrl,
+}: {
+  title: string;
+  snippetLanguageConfig: Snippets;
+  descriptions: string[];
+  docUrl: string;
+}) => {
+  const languageKeys = Object.keys(snippetLanguageConfig);
   if (languageKeys.length === 0) {
     return null;
   }
@@ -74,7 +104,7 @@ export const CodeExamples = ({ title, snippets, descriptions, docUrl }) => {
               ))}
             </TabsList>
             {languageKeys.map((languageKey) => {
-              const languageInfo = snippets[languageKey];
+              const languageInfo = snippetLanguageConfig[languageKey];
 
               return (
                 <TabsContent
@@ -82,7 +112,7 @@ export const CodeExamples = ({ title, snippets, descriptions, docUrl }) => {
                   value={languageKey}
                 >
                   <SnippetBlocks
-                    snippets={languageInfo.snippets}
+                    snippetLines={languageInfo.snippets}
                     descriptions={descriptions}
                     language={languageKey}
                     langCode={languageInfo.langCode}

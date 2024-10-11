@@ -208,7 +208,7 @@ export const PromptDetail = () => {
           )}
           <CodeExamples
             title="Code samples for prompt management"
-            snippets={codeSnippets}
+            snippetLanguageConfig={codeSnippets}
             descriptions={codeDescriptions}
             docUrl="https://langfuse.com/docs/prompts"
           />
