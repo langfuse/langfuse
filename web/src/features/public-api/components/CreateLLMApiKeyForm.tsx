@@ -33,7 +33,7 @@ import { type useUiCustomization } from "@/src/ee/features/ui-customization/useU
 
 const formSchema = z
   .object({
-    secretKey: z.string().min(1),
+    secretKey: z.string().optional(),
     provider: z
       .string()
       .min(1, "Please add a provider name that identifies this connection."),
@@ -59,7 +59,11 @@ const formSchema = z
       message: "AWS credentials are required when using Bedrock adapter.",
       path: ["adapter"],
     },
-  );
+  )
+  .refine((data) => data.adapter === LLMAdapter.Bedrock || data.secretKey, {
+    message: "Secret key is required.",
+    path: ["secretKey"],
+  });
 
 export function CreateLLMApiKeyForm({
   projectId,
@@ -157,7 +161,7 @@ export function CreateLLMApiKeyForm({
 
     const newKey = {
       projectId,
-      secretKey,
+      secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
       baseURL: values.baseURL || undefined,
