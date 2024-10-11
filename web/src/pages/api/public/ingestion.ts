@@ -119,13 +119,19 @@ export default async function handler(
       throw new UnauthorizedError(authCheck.error);
     }
 
-    const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
-      authCheck.scope,
-      "ingestion",
-    );
+    try {
+      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+        authCheck.scope,
+        "ingestion",
+      );
 
-    if (rateLimitCheck?.isRateLimited()) {
-      return rateLimitCheck.sendRestResponseIfLimited(res);
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
+      }
+    } catch (e) {
+      // If rate-limiter returns an error, we log it and continue processing.
+      // This allows us to fail open instead of reject requests.
+      logger.error("Error while rate limiting", e);
     }
 
     const batchType = z.object({
