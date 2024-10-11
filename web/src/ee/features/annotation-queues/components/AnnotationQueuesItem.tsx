@@ -6,7 +6,7 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/Suppo
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { FeatureFlagToggle } from "@/src/features/feature-flags/components/FeatureFlagToggle";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { AnnotationQueueItemPage } from "@/src/features/scores/components/AnnotationQueueItemPage";
+import { AnnotationQueueItemPage } from "@/src/ee/features/annotation-queues/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
 import { Goal, Network } from "lucide-react";
 

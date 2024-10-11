@@ -28,7 +28,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
-import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/CreateNewAnnotationQueueItem";
+import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
