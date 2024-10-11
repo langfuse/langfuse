@@ -727,7 +727,7 @@ function createObjects(
     };
 
     const queueItem = [
-      ...(Math.random() > 0.9
+      ...(Math.random() > 0.9 && queueIds.get(projectId)?.[0]
         ? [
             {
               queueId: queueIds.get(projectId)?.[0] as string,
