@@ -19,7 +19,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Edit, LockIcon, PlusIcon } from "lucide-react";
+import { CircleAlert, Edit, LockIcon, PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -34,6 +34,12 @@ import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-sel
 import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useOrganizationPlan } from "@/src/features/entitlements/hooks";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 
 export const CreateOrEditAnnotationQueueButton = ({
   projectId,
@@ -50,11 +56,12 @@ export const CreateOrEditAnnotationQueueButton = ({
     scope: "annotationQueues:CUD",
   });
   const router = useRouter();
+  const plan = useOrganizationPlan();
   const capture = usePostHogClientCapture();
 
   const queueQuery = api.annotationQueues.byId.useQuery(
     { projectId, queueId: queueId as string },
-    { enabled: !!queueId },
+    { enabled: !!queueId && hasAccess },
   );
 
   const form = useForm<CreateQueue>({
@@ -96,6 +103,11 @@ export const CreateOrEditAnnotationQueueButton = ({
     },
   });
 
+  const queueCountData = api.annotationQueues.count.useQuery(
+    { projectId },
+    { enabled: hasAccess },
+  );
+
   const configsData = api.scoreConfigs.all.useQuery(
     {
       projectId,
@@ -111,10 +123,48 @@ export const CreateOrEditAnnotationQueueButton = ({
     return (
       <Button variant={variant} disabled={true} className="justify-start">
         <LockIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
-        <span className="text-sm font-normal">
-          {queueId ? "Edit" : "New queue"}
-        </span>
+        <span className="text-sm">{queueId ? "Edit" : "New queue"}</span>
       </Button>
+    );
+  }
+
+  if (queueCountData.isLoading) return null;
+
+  // gate cloud hobby usage of annotation queue
+  if (plan === "cloud:hobby" && !!queueCountData.data && !queueId) {
+    return (
+      <HoverCard>
+        <HoverCardTrigger asChild>
+          <Button
+            variant={variant}
+            className="relative grid grid-flow-row items-start justify-start overflow-hidden py-0 disabled:cursor-default"
+            disabled
+          >
+            <div className="mt-2 flex h-6 flex-row items-center justify-center">
+              <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              <span className="text-sm">New queue</span>
+            </div>
+            <div className="absolute top-0 flex h-3 w-full items-center justify-center bg-primary-accent">
+              <CircleAlert
+                className="mr-1 h-2 w-2 text-white"
+                aria-hidden="true"
+              />
+              <span className="text-xs text-white">At usage limit</span>
+            </div>
+          </Button>
+        </HoverCardTrigger>
+        <HoverCardContent className="w-80" align="start" side="right">
+          <div className="flex justify-between space-x-4">
+            <div className="space-y-1">
+              <h4 className="text-sm font-semibold">Usage Limit Reached</h4>
+              <p className="text-xs">
+                You have reached the maximum number of annotation queues allowed
+                on the Hobby plan. Upgrade your plan to create more queues.
+              </p>
+            </div>
+          </div>
+        </HoverCardContent>
+      </HoverCard>
     );
   }
 

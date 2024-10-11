@@ -1,4 +1,4 @@
-import { AnnotationQueuesItem } from "@/src/features/scores/components/AnnotationQueuesItem";
+import { AnnotationQueuesItem } from "@/src/ee/features/annotation-queues/components/AnnotationQueuesItem";
 import { useRouter } from "next/router";
 
 export default function AnnotationQueues() {
