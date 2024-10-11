@@ -88,13 +88,12 @@ export const ROUTES: Route[] = [
     ],
   },
   {
-    name: "Annotation Queues",
+    name: "Annotate",
     pathname: `/project/[projectId]/annotation-queues`,
     icon: ClipboardPen,
     label: "Beta",
     projectRbacScope: "annotationQueues:read",
     entitlement: "annotation-queues",
-    featureFlag: "annotationQueues",
   },
   {
     name: "Evaluation",

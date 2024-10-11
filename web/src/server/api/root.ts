@@ -24,8 +24,8 @@ import { batchExportRouter } from "@/src/server/api/routers/batchExport";
 import { utilsRouter } from "@/src/server/api/routers/utilities";
 import { uiCustomizationRouter } from "@/src/ee/features/ui-customization/uiCustomizationRouter";
 import { commentsRouter } from "@/src/server/api/routers/comments";
-import { queueRouter } from "@/src/server/api/routers/annotationQueues";
-import { queueItemRouter } from "@/src/server/api/routers/annotationQueueItems";
+import { queueRouter } from "@/src/ee/features/annotation-queues/server/annotationQueues";
+import { queueItemRouter } from "@/src/ee/features/annotation-queues/server/annotationQueueItems";
 
 /**
  * This is the primary router for your server.

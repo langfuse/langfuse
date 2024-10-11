@@ -7,7 +7,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/scores/components/CreateOrEditAnnotationQueueButton";
+import { CreateOrEditAnnotationQueueButton } from "@/src/ee/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { type ScoreDataType } from "@langfuse/shared";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import {
@@ -18,11 +18,11 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ClipboardPen, Lock, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { DeleteAnnotationQueueButton } from "@/src/features/scores/components/DeleteAnnotationQueueButton";
 import { cn } from "@/src/utils/tailwind";
 import TableLink from "@/src/components/table/table-link";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { DeleteAnnotationQueueButton } from "@/src/ee/features/annotation-queues/components/DeleteAnnotationQueueButton";
 
 type RowData = {
   key: {
