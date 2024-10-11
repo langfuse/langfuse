@@ -1,5 +1,4 @@
 import z from "zod";
-import { LLMAdapter } from "../..";
 
 export const langfuseObjects = [
   "trace",

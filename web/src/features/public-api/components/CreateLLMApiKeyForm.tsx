@@ -43,7 +43,6 @@ const formSchema = z
     customModels: z.array(z.object({ value: z.string().min(1) })),
     awsAccessKeyId: z.string().optional(),
     awsSecretAccessKey: z.string().optional(),
-    awsSessionToken: z.string().optional(),
     awsRegion: z.string().optional(),
   })
   .refine((data) => data.withDefaultModels || data.customModels.length > 0, {
@@ -150,7 +149,6 @@ export function CreateLLMApiKeyForm({
       const credentials: BedrockCredential = {
         accessKeyId: values.awsAccessKeyId ?? "",
         secretAccessKey: values.awsSecretAccessKey ?? "",
-        sessionToken: values.awsSessionToken,
       };
       secretKey = JSON.stringify(credentials);
 
@@ -329,6 +327,10 @@ export function CreateLLMApiKeyForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>AWS Access Key ID</FormLabel>
+                  <FormDescription>
+                    These should be long-lived credentials for an AWS user with
+                    the appropriate Bedrock permissions.
+                  </FormDescription>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -344,19 +346,6 @@ export function CreateLLMApiKeyForm({
                   <FormLabel>AWS Secret Access Key</FormLabel>
                   <FormControl>
                     <Input {...field} type="password" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="awsSessionToken"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>AWS Session Token (optional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -16,7 +16,9 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 
 export function getDisplaySecretKey(secretKey: string) {
-  return "..." + secretKey.slice(-4);
+  return secretKey.endsWith('"}')
+    ? "..." + secretKey.slice(-6, -2)
+    : "..." + secretKey.slice(-4);
 }
 
 export const llmApiKeyRouter = createTRPCRouter({
