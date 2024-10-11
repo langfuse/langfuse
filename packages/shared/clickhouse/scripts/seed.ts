@@ -4,13 +4,13 @@ import { redis } from "@langfuse/shared/src/server";
 
 export const prepareClickhouse = async (projectIds: string[]) => {
   for (const projectId of projectIds) {
-    const numberTraces = 10000;
-    const numberObservations = 50000;
+    const numberTraces = 80;
+    const numberObservations = 500;
 
     console.log(`Preparing Clickhouse for project ${projectId}...`);
     const tracesQuery = `
       INSERT INTO traces
-      SELECT toString(floor(randUniform(0, 10000))) AS id,
+      SELECT toString(floor(randUniform(0, 100))) AS id,
         now() - randUniform(0, 100) AS timestamp,
         concat('name_', toString(rand() % 100)) AS name,
         concat('user_id_', toString(randUniform(0, 100))) AS user_id,
@@ -32,8 +32,8 @@ export const prepareClickhouse = async (projectIds: string[]) => {
 
     const observationsQuery = `
       INSERT INTO observations
-      SELECT toString(floor(randUniform(0, 70000))) AS id,
-        toString(floor(randUniform(0, 10000))) AS trace_id,
+      SELECT toString(floor(randUniform(0, 400))) AS id,
+        toString(floor(randUniform(0, 80))) AS trace_id,
         '${projectId}' AS project_id,
         multiIf(
           randUniform(0, 1) < 0.4,
@@ -85,10 +85,10 @@ export const prepareClickhouse = async (projectIds: string[]) => {
 
     const scoresQuery = `
       INSERT INTO scores
-      SELECT toString(floor(randUniform(0, 100))) AS id,
+      SELECT toString(floor(randUniform(0, 400))) AS id,
         now() - randUniform(0, 100) AS timestamp,
         '${projectId}' AS project_id,
-        toString(floor(randUniform(0, 1000))) AS trace_id,
+        toString(floor(randUniform(0, 80))) AS trace_id,
         if(
           rand() > 0.9,
           toString(floor(randUniform(0, 1000))),
