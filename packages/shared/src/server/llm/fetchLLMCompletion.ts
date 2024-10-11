@@ -13,7 +13,10 @@ import {
 } from "@langchain/core/output_parsers";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { ChatOpenAI } from "@langchain/openai";
-import { BedrockConfigSchema, BedrockCredentialSchema } from "@langfuse/shared";
+import {
+  BedrockConfigSchema,
+  BedrockCredentialSchema,
+} from "../../interfaces/customLLMProviderConfigSchemas";
 
 import { ChatMessage, ChatMessageRole, LLMAdapter, ModelParams } from "./types";
 
