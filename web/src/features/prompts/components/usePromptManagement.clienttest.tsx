@@ -31,7 +31,7 @@ describe("CodeExamples component", () => {
     render(
       <CodeExamples
         title="Code samples for prompt management"
-        snippets={mockCodeSnippets}
+        snippetLanguageConfig={mockCodeSnippets}
         descriptions={mockCodeDescriptions}
         docUrl="https://langfuse.com/docs/prompts"
       />,
