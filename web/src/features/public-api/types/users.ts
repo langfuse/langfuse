@@ -1,9 +1,6 @@
 import { z } from "zod";
 import {
-  jsonSchema,
   paginationZod,
-  paginationMetaResponseZod,
-  queryStringZod,
 } from "@langfuse/shared";
 import { stringDateTime} from "@langfuse/shared/src/server";
 
@@ -19,5 +16,5 @@ export const GetUsersQuery = z.object({
 });
 
 export const GetUsersResponse = z.object({
-  users: z.array(APIUser), // dataset run names
+  users: z.array(APIUser), // users
 }).strict();
