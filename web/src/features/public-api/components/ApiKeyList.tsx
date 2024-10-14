@@ -66,7 +66,7 @@ export function ApiKeyList(props: { projectId: string }) {
               <TableHead className="hidden text-primary md:table-cell">
                 Created
               </TableHead>
-              {/* <TableHead className="text-primary">Note</TableHead> */}
+              <TableHead className="text-primary">Note</TableHead>
               <TableHead className="text-primary">Public Key</TableHead>
               <TableHead className="text-primary">Secret Key</TableHead>
               {/* <TableHead className="text-primary">Last used</TableHead> */}
@@ -89,7 +89,7 @@ export function ApiKeyList(props: { projectId: string }) {
                   <TableCell className="hidden md:table-cell">
                     {apiKey.createdAt.toLocaleDateString()}
                   </TableCell>
-                  {/* <TableCell>{apiKey.note ?? ""}</TableCell> */}
+                  <TableCell>{apiKey.note ?? "No note"}</TableCell>
                   <TableCell className="font-mono">
                     <CodeView
                       className="inline-block text-xs"

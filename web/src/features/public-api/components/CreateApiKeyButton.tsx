@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PlusIcon } from "lucide-react";
 import {
   Dialog,
@@ -14,6 +14,8 @@ import { QuickstartExamples } from "@/src/features/public-api/components/Quickst
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useUtils();
@@ -31,48 +33,87 @@ export function CreateApiKeyButton(props: { projectId: string }) {
     secretKey: string;
     publicKey: string;
   } | null>(null);
+  const [note, setNote] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const createApiKey = () => {
-    if (open) {
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
       setOpen(false);
       setGeneratedKeys(null);
+      setNote("");
     } else {
-      mutCreateApiKey
-        .mutateAsync({
-          projectId: props.projectId,
-        })
-        .then(({ secretKey, publicKey }) => {
-          setGeneratedKeys({
-            secretKey,
-            publicKey,
-          });
-          setOpen(true);
-          capture("project_settings:api_key_create");
-        })
-        .catch((error) => {
-          console.error(error);
+      setOpen(true);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  };
+
+  const handleCreateApiKey = () => {
+    mutCreateApiKey
+      .mutateAsync({
+        projectId: props.projectId,
+        note: note || undefined,
+      })
+      .then(({ secretKey, publicKey }) => {
+        setGeneratedKeys({
+          secretKey,
+          publicKey,
         });
+        capture("project_settings:api_key_create");
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  };
+
+  const handleKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter") {
+      handleCreateApiKey();
     }
   };
 
   if (!hasAccess) return null;
 
   return (
-    <Dialog open={open} onOpenChange={createApiKey}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="secondary" loading={mutCreateApiKey.isLoading}>
           <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-          Create new API keys
+          Create new API key
         </Button>
       </DialogTrigger>
       <DialogContent
         onPointerDownOutside={(e) => e.preventDefault()}
         className="flex max-h-screen w-full flex-col md:max-w-xl"
       >
-        <DialogTitle>API Keys</DialogTitle>
-        <div className="shrink overflow-x-hidden overflow-y-scroll">
-          <ApiKeyRender generatedKeys={generatedKeys ?? undefined} />
-          {generatedKeys && (
+        <DialogTitle>Create new API key</DialogTitle>
+        {!generatedKeys ? (
+          <div className="mt-4 space-y-4">
+            <div>
+              <Label htmlFor="note">Note (optional)</Label>
+              <p className="text-sm text-muted-foreground">
+                Add a note to help you remember what this key is for.
+              </p>
+              <Input
+                id="note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="Add a note for this API key"
+                className="mt-2"
+                ref={inputRef}
+              />
+            </div>
+            <Button
+              variant="secondary"
+              onClick={handleCreateApiKey}
+              loading={mutCreateApiKey.isLoading}
+            >
+              Create API Key
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            <ApiKeyRender generatedKeys={generatedKeys} />
             <div className="mt-4 max-w-full">
               <div className="text-md my-2 font-semibold">Usage</div>
               <QuickstartExamples
@@ -80,8 +121,8 @@ export function CreateApiKeyButton(props: { projectId: string }) {
                 publicKey={generatedKeys.publicKey}
               />
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
