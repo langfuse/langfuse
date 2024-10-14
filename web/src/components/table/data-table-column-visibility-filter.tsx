@@ -217,9 +217,10 @@ function setAllColumns<TData, TValue>(
     columns.forEach((col) => {
       if (groupName && col.header === groupName && col.columns) {
         col.columns.forEach((subCol) => {
-          newColumnVisibility[subCol.accessorKey] = visible;
+          if (subCol.enableHiding)
+            newColumnVisibility[subCol.accessorKey] = visible;
         });
-      } else if (!groupName) {
+      } else if (!groupName && col.enableHiding) {
         newColumnVisibility[col.accessorKey] = visible;
         if (col.columns) {
           col.columns.forEach((subCol) => {
