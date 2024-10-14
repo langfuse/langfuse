@@ -378,6 +378,14 @@ types:
         type: optional<unknown>
       isLangfuseManaged:
         type: boolean
+    User:
+      properties:
+        userId:
+          docs: User ID of this user
+          type: string
+        lastTrace:
+          docs: Timestamp of the most recent trace of this user
+          type: optional<string>
 
   # Utilities
   ModelUsageUnit:

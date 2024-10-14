@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  paginationMetaResponseZod,
   paginationZod,
 } from "@langfuse/shared";
 import { stringDateTime} from "@langfuse/shared/src/server";
@@ -16,5 +17,6 @@ export const GetUsersQuery = z.object({
 });
 
 export const GetUsersResponse = z.object({
-  users: z.array(APIUser), // users
+  data: z.array(APIUser), // users
+  meta: paginationMetaResponseZod,
 }).strict();

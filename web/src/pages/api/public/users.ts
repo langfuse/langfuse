@@ -5,6 +5,8 @@ import {
   GetUsersQuery,
   GetUsersResponse,
 } from "@/src/features/public-api/types/users";
+import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { groupBy } from "lodash";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -37,8 +39,24 @@ export default withMiddlewares({
           LIMIT
             ${query.limit} OFFSET ${skipValue};
         `
+      const totalUsers = await prisma.$queryRaw<
+          Array<{
+            totalCount: bigint;
+          }>
+        >`
+          SELECT COUNT(DISTINCT t.user_id) AS "totalCount"
+          FROM traces t
+          WHERE t.project_id = ${auth.scope.projectId}
+        `
+      console.log(totalUsers[0].totalCount)
       return {
-        users:users
+        data:users,
+        meta: {
+          page: query.page,
+          limit: query.limit,
+          totalItems: Number(totalUsers[0].totalCount),
+          totalPages: Math.ceil(Number(totalUsers[0].totalCount)/ query.limit),
+        }
       };
     },
   }),

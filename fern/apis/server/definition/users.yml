@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+  list:
+      method: GET
+      docs: Get all datasets
+      path: /users
+      request:
+        name: GetUsersRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedUsers
+types:
+  PaginatedDatasets:
+    properties:
+      data: list<commons.User>
+      meta: pagination.MetaResponse
+  

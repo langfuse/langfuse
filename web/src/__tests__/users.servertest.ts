@@ -23,13 +23,13 @@ describe("/api/public/users API Endpoint", () => {
       "/api/public/users/"
     );
 
-    expect(users.body.users.length).toBe(0);
+    expect(users.body.data.length).toBe(0);
   });
 
   it("should create 2 traces and get the userIDs in order from /api/public/users", async () => {
     await pruneDatabase();
 
-    const traceCreate1 = await makeZodVerifiedAPICall(
+    await makeZodVerifiedAPICall(
       PostTracesV1Response,
       "POST",
       "/api/public/traces",
@@ -65,16 +65,16 @@ describe("/api/public/users API Endpoint", () => {
       "/api/public/users/"
     );
 
-    expect(users.body.users[1].userId).toBe("user-1");
-    expect(users.body.users[1].lastTrace).toBe("2021-01-01T00:00:00.000Z");
-    expect(users.body.users[0].userId).toBe("user-2");
-    expect(users.body.users[0].lastTrace).toBe("2021-01-02T00:00:00.000Z");
+    expect(users.body.data[1].userId).toBe("user-1");
+    expect(users.body.data[1].lastTrace).toBe("2021-01-01T00:00:00.000Z");
+    expect(users.body.data[0].userId).toBe("user-2");
+    expect(users.body.data[0].lastTrace).toBe("2021-01-02T00:00:00.000Z");
   });
 
   it("should create 3 traces and get the relevant userIDs on each page from /api/public/users", async () => {
     await pruneDatabase();
 
-    const traceCreate1 = await makeZodVerifiedAPICall(
+    await makeZodVerifiedAPICall(
       PostTracesV1Response,
       "POST",
       "/api/public/traces",
@@ -89,7 +89,7 @@ describe("/api/public/users API Endpoint", () => {
       },
     );
 
-    const traceCreate2 = await makeZodVerifiedAPICall(
+    await makeZodVerifiedAPICall(
       PostTracesV1Response,
       "POST",
       "/api/public/traces",
@@ -104,7 +104,7 @@ describe("/api/public/users API Endpoint", () => {
       },
     );
 
-    const traceCreate3 = await makeZodVerifiedAPICall(
+    await makeZodVerifiedAPICall(
       PostTracesV1Response,
       "POST",
       "/api/public/traces",
@@ -125,9 +125,13 @@ describe("/api/public/users API Endpoint", () => {
       "/api/public/users?page=1&limit=2",
     );
     
-    expect(users1.body.users.length).toBe(2);
-    expect(users1.body.users[1].userId).toBe("user-1");
-    expect(users1.body.users[0].userId).toBe("user-2");
+    expect(users1.body.meta.totalItems).toBe(3)
+    expect(users1.body.meta.page).toBe(1)
+    expect(users1.body.meta.limit).toBe(2)
+    expect(users1.body.meta.totalPages).toBe(2)
+    expect(users1.body.data.length).toBe(2);
+    expect(users1.body.data[1].userId).toBe("user-1");
+    expect(users1.body.data[0].userId).toBe("user-2");
 
     const users2 = await makeZodVerifiedAPICall(
       GetUsersResponse,
@@ -135,7 +139,11 @@ describe("/api/public/users API Endpoint", () => {
       "/api/public/users?page=2&limit=2",
     );
 
-    expect(users2.body.users.length).toBe(1);
-    expect(users2.body.users[0].userId).toBe("user-3");
+    expect(users2.body.meta.totalItems).toBe(3)
+    expect(users2.body.meta.page).toBe(2)
+    expect(users2.body.meta.limit).toBe(2)
+    expect(users2.body.meta.totalPages).toBe(2)
+    expect(users2.body.data.length).toBe(1);
+    expect(users2.body.data[0].userId).toBe("user-3");
   });
 });
