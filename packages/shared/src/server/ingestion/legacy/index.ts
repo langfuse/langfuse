@@ -7,12 +7,11 @@ import { TraceUpsertEventType } from "../../queues";
 import {
   convertTraceUpsertEventsToRedisEvents,
   getTraceUpsertQueue,
-} from "../../redis/trace-upsert";
+} from "../../redis/traceUpsert";
 import { ApiAccessScope } from "../../auth/types";
 import { redis } from "../../redis/redis";
 import { backOff } from "exponential-backoff";
 import { Model } from "../../..";
-import { enqueueIngestionEvents } from "./enqueueIngestionEvents";
 import { logger } from "../../logger";
 
 export type BatchResult = {
@@ -82,15 +81,6 @@ export const handleBatch = async (
         id: singleEvent.id,
         type: singleEvent.type,
       });
-    }
-  }
-
-  if (env.CLICKHOUSE_URL) {
-    try {
-      await enqueueIngestionEvents(authCheck.scope.projectId, events);
-      logger.info(`Added ${events.length} ingestion events to queue`);
-    } catch (err) {
-      logger.error("Error adding ingestion events to queue", err);
     }
   }
 

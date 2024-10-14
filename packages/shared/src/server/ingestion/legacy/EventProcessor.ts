@@ -1,7 +1,7 @@
 import { v4 } from "uuid";
 import { type z } from "zod";
 import Decimal from "decimal.js";
-import { findModel } from "../model-match";
+import { findModel } from "../modelMatch";
 import {
   ObservationEvent,
   eventTypes,
@@ -117,11 +117,11 @@ export class ObservationProcessor implements EventProcessor {
               projectId: apiScope.projectId,
               model:
                 "model" in this.event.body
-                  ? this.event.body.model ?? undefined
+                  ? (this.event.body.model ?? undefined)
                   : undefined,
               unit:
                 "usage" in this.event.body
-                  ? this.event.body.usage?.unit ?? undefined
+                  ? (this.event.body.usage?.unit ?? undefined)
                   : undefined,
               startTime: this.event.body.startTime
                 ? new Date(this.event.body.startTime)
@@ -158,10 +158,10 @@ export class ObservationProcessor implements EventProcessor {
 
     const newTotalCount =
       "usage" in this.event.body
-        ? this.event.body.usage?.total ??
+        ? (this.event.body.usage?.total ??
           (newInputCount != null || newOutputCount != null
             ? (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined)
+            : undefined))
         : undefined;
 
     const userProvidedTokenCosts = {
@@ -245,7 +245,7 @@ export class ObservationProcessor implements EventProcessor {
         model: "model" in this.event.body ? this.event.body.model : undefined,
         modelParameters:
           "modelParameters" in this.event.body
-            ? this.event.body.modelParameters ?? undefined
+            ? (this.event.body.modelParameters ?? undefined)
             : undefined,
         input: this.event.body.input ?? undefined,
         output: this.event.body.output ?? undefined,
@@ -254,7 +254,7 @@ export class ObservationProcessor implements EventProcessor {
         totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
-            ? this.event.body.usage?.unit ?? internalModel?.unit
+            ? (this.event.body.usage?.unit ?? internalModel?.unit)
             : internalModel?.unit,
         level: this.event.body.level ?? undefined,
         statusMessage: this.event.body.statusMessage ?? undefined,
@@ -300,7 +300,7 @@ export class ObservationProcessor implements EventProcessor {
         model: "model" in this.event.body ? this.event.body.model : undefined,
         modelParameters:
           "modelParameters" in this.event.body
-            ? this.event.body.modelParameters ?? undefined
+            ? (this.event.body.modelParameters ?? undefined)
             : undefined,
         input: this.event.body.input ?? undefined,
         output: this.event.body.output ?? undefined,
@@ -309,7 +309,7 @@ export class ObservationProcessor implements EventProcessor {
         totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
-            ? this.event.body.usage?.unit ?? internalModel?.unit
+            ? (this.event.body.usage?.unit ?? internalModel?.unit)
             : internalModel?.unit,
         level: this.event.body.level ?? undefined,
         statusMessage: this.event.body.statusMessage ?? undefined,
@@ -448,7 +448,7 @@ export class ObservationProcessor implements EventProcessor {
     const finalTotalCost =
       tokenCounts.total !== undefined && model?.totalPrice
         ? model.totalPrice.mul(tokenCounts.total)
-        : finalInputCost ?? finalOutputCost
+        : (finalInputCost ?? finalOutputCost)
           ? new Decimal(finalInputCost ?? 0).add(finalOutputCost ?? 0)
           : undefined;
 
