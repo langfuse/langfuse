@@ -24,6 +24,7 @@ import {
   ChevronsUpDown,
   ListTree,
   Network,
+  Percent,
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useCallback, useState } from "react";
@@ -57,6 +58,10 @@ export function Trace(props: {
     "scoresOnObservationTree",
     true,
   );
+  const [
+    colorCodeMetricsOnObservationTree,
+    setColorCodeMetricsOnObservationTree,
+  ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
 
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
@@ -201,6 +206,14 @@ export function Trace(props: {
               <ChevronsUpDown className="h-4 w-4" />
             )}
           </Toggle>
+          <Toggle
+            pressed={colorCodeMetricsOnObservationTree}
+            onPressedChange={(e) => setColorCodeMetricsOnObservationTree(e)}
+            size="xs"
+            title="Color code metrics (>50% yellow, >75% red)"
+          >
+            <Percent className="h-4 w-4" />
+          </Toggle>
         </div>
 
         <ObservationTree
@@ -215,6 +228,7 @@ export function Trace(props: {
           setCurrentObservationId={setCurrentObservationId}
           showMetrics={metricsOnObservationTree}
           showScores={scoresOnObservationTree}
+          colorCodeMetrics={colorCodeMetricsOnObservationTree}
           observationCommentCounts={observationCommentCounts.data}
           traceCommentCounts={traceCommentCounts.data}
           className="flex w-full flex-col overflow-y-auto"
