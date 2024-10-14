@@ -106,8 +106,6 @@ export const env = createEnv({
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
     // Worker
-    LANGFUSE_WORKER_HOST: z.string().optional(),
-    LANGFUSE_WORKER_PASSWORD: z.string().optional(),
     TURNSTILE_SECRET_KEY: z.string().optional(),
 
     // Otel
@@ -344,8 +342,6 @@ export const env = createEnv({
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
     // Worker
-    LANGFUSE_WORKER_HOST: process.env.LANGFUSE_WORKER_HOST,
-    LANGFUSE_WORKER_PASSWORD: process.env.LANGFUSE_WORKER_PASSWORD,
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,

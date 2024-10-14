@@ -42,7 +42,6 @@
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
-    "express-basic-auth": "^1.2.1",
     "handlebars": "^4.7.8",
     "helmet": "^7.1.0",
     "ioredis": "^5.4.1",

@@ -1,13 +1,79 @@
-import { Job, Processor, Worker, WorkerOptions } from "bullmq";
+import { Job, Processor, Queue, Worker, WorkerOptions } from "bullmq";
 import {
-  logger,
-  createNewRedisInstance,
-  recordIncrement,
+  BatchExportQueue,
   convertQueueNameToMetricName,
+  createNewRedisInstance,
+  IngestionQueue,
+  LegacyIngestionQueue,
+  logger,
+  QueueName,
+  recordGauge,
+  recordHistogram,
+  recordIncrement,
+  TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
+import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
+import { EvalExecutionQueue } from "./evalQueue";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
+
+  private static getQueue(queueName: QueueName): Queue | null {
+    switch (queueName) {
+      case QueueName.LegacyIngestionQueue:
+        return LegacyIngestionQueue.getInstance();
+      case QueueName.BatchExport:
+        return BatchExportQueue.getInstance();
+      case QueueName.CloudUsageMeteringQueue:
+        return CloudUsageMeteringQueue.getInstance();
+      case QueueName.EvaluationExecution:
+        return EvalExecutionQueue.getInstance();
+      case QueueName.TraceUpsert:
+        return TraceUpsertQueue.getInstance();
+      case QueueName.IngestionQueue:
+        return IngestionQueue.getInstance();
+      default:
+        throw new Error(`Queue ${queueName} not found`);
+    }
+  }
+
+  private static metricWrapper(
+    processor: Processor,
+    queueName: QueueName,
+  ): Processor {
+    return async (job: Job) => {
+      const startTime = Date.now();
+      const waitTime = Date.now() - job.timestamp;
+      recordIncrement(convertQueueNameToMetricName(queueName + ".request"));
+      recordHistogram(
+        convertQueueNameToMetricName(queueName + ".wait_time"),
+        waitTime,
+        {
+          unit: "milliseconds",
+        },
+      );
+      const result = await processor(job);
+      await WorkerManager.getQueue(queueName)
+        ?.count()
+        .then((count) => {
+          recordGauge(
+            convertQueueNameToMetricName(queueName + ".length"),
+            count,
+            {
+              unit: "records",
+            },
+          );
+          return count;
+        })
+        .catch();
+      recordHistogram(
+        convertQueueNameToMetricName(queueName + ".processing_time"),
+        Date.now() - startTime,
+        { unit: "milliseconds" },
+      );
+      return result;
+    };
+  }
 
   public static async closeWorkers(): Promise<void> {
     await Promise.all(
@@ -17,7 +83,7 @@ export class WorkerManager {
   }
 
   public static register(
-    queueName: string,
+    queueName: QueueName,
     processor: Processor,
     additionalOptions: Partial<WorkerOptions> = {},
   ): void {
@@ -45,10 +111,14 @@ export class WorkerManager {
     }
 
     // Register worker
-    const worker = new Worker(queueName, processor, {
-      connection: redisInstance,
-      ...additionalOptions,
-    });
+    const worker = new Worker(
+      queueName,
+      WorkerManager.metricWrapper(processor, queueName),
+      {
+        connection: redisInstance,
+        ...additionalOptions,
+      },
+    );
     WorkerManager.workers[queueName] = worker;
     logger.info(`${queueName} executor started: ${worker.isRunning()}`);
 

@@ -1,11 +1,7 @@
 import { Job, Processor } from "bullmq";
 import {
   traceException,
-  LegacyIngestionQueue,
   QueueName,
-  recordIncrement,
-  recordGauge,
-  recordHistogram,
   TQueueJobTypes,
   logger,
   IngestionEventType,
@@ -41,8 +37,6 @@ export const legacyIngestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>,
 ) => {
   try {
-    const startTime = Date.now();
-
     let ingestionEvents: IngestionEventType[] = [];
     if (job.data.payload.useS3EventStore) {
       if (
@@ -108,12 +102,6 @@ export const legacyIngestionQueueProcessor: Processor = async (
       }),
     });
 
-    const waitTime = Date.now() - job.timestamp;
-    recordIncrement("langfuse.queue.legacy_ingestion.request");
-    recordHistogram("langfuse.queue.legacy_ingestion.wait_time", waitTime, {
-      unit: "milliseconds",
-    });
-
     const result = await handleBatch(
       ingestionEvents,
       job.data.payload.authCheck,
@@ -124,23 +112,6 @@ export const legacyIngestionQueueProcessor: Processor = async (
     await addTracesToTraceUpsertQueue(
       result.results,
       job.data.payload.authCheck.scope.projectId,
-    );
-
-    // Log queue size
-    await LegacyIngestionQueue.getInstance()
-      ?.count()
-      .then((count) => {
-        logger.debug(`Legacy Ingestion queue length: ${count}`);
-        recordGauge("langfuse.queue.legacy_ingestion.length", count, {
-          unit: "records",
-        });
-        return count;
-      })
-      .catch();
-    recordHistogram(
-      "langfuse.queue.legacy_ingestion.processing_time",
-      Date.now() - startTime,
-      { unit: "milliseconds" },
     );
   } catch (e) {
     logger.error(

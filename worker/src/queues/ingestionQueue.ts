@@ -42,8 +42,6 @@ export const ingestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.IngestionQueue]>,
 ) => {
   try {
-    const startTime = Date.now();
-
     if (
       env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED !== "true" ||
       !env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET
@@ -114,29 +112,6 @@ export const ingestionQueueProcessor: Processor = async (
       job.data.payload.authCheck.scope.projectId,
       job.data.payload.data.eventBodyId,
       events,
-    );
-
-    const waitTime = Date.now() - job.timestamp;
-    recordIncrement("langfuse.queue.ingestion.request");
-    recordHistogram("langfuse.queue.ingestion.wait_time", waitTime, {
-      unit: "milliseconds",
-    });
-
-    // Log queue size
-    await IngestionQueue.getInstance()
-      ?.count()
-      .then((count) => {
-        logger.debug(`Ingestion queue length: ${count}`);
-        recordGauge("langfuse.queue.ingestion.length", count, {
-          unit: "records",
-        });
-        return count;
-      })
-      .catch();
-    recordHistogram(
-      "langfuse.queue.ingestion.processing_time",
-      Date.now() - startTime,
-      { unit: "milliseconds" },
     );
   } catch (e) {
     logger.error(
