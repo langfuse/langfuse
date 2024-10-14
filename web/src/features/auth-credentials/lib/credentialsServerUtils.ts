@@ -21,9 +21,10 @@ export async function createUserEmailPassword(
 
   const hashedPassword = await hashPassword(password);
   // check that no user exists with this email
+  const lowerCasedEmail = email.toLowerCase();
   const user = await prisma.user.findUnique({
     where: {
-      email: email.toLowerCase(),
+      email: lowerCasedEmail,
     },
   });
   if (user !== null) {
@@ -36,7 +37,7 @@ export async function createUserEmailPassword(
 
   const newUser = await prisma.user.create({
     data: {
-      email: email.toLowerCase(),
+      email: lowerCasedEmail,
       password: hashedPassword,
       name,
     },
