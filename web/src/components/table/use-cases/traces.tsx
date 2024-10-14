@@ -57,7 +57,7 @@ export type TracesTableRow = {
   name: string;
   userId: string;
   level?: ObservationLevel;
-  observationCount?: number;
+  observationCount?: bigint;
   // scores holds grouped column with individual scores
   scores?: ScoreAggregate;
   latency?: number;
@@ -602,7 +602,7 @@ export default function TracesTable({
         const value: TracesTableRow["observationCount"] =
           row.getValue("observationCount");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{value}</span>;
+        return <span>{numberFormatter(value, 0)}</span>;
       },
     },
     {
