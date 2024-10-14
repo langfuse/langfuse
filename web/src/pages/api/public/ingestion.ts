@@ -11,6 +11,7 @@ import {
   handleBatch,
   recordIncrement,
   getCurrentSpan,
+  IngestionQueue,
   LegacyIngestionQueue,
   S3StorageService,
   instrumentAsync,
@@ -247,6 +248,42 @@ export default async function handler(
             });
           }
         });
+      });
+    }
+
+    // Send each event individually to IngestionQueue for new processing
+    if (
+      env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" &&
+      env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" &&
+      env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING === "true" &&
+      redis &&
+      !s3UploadErrored
+    ) {
+      const queue = IngestionQueue.getInstance();
+      const results = await Promise.allSettled(
+        sortedBatch.map(async (event) => {
+          return queue
+            ? queue.add(QueueJobs.IngestionJob, {
+                id: randomUUID(),
+                timestamp: new Date(),
+                name: QueueJobs.IngestionJob as const,
+                payload: {
+                  data: {
+                    type: event.type,
+                    eventBodyId: event.body.id ?? "",
+                  },
+                  authCheck,
+                },
+              })
+            : Promise.reject("Failed to instantiate queue");
+        }),
+      );
+      results.forEach((result) => {
+        if (result.status === "rejected") {
+          logger.error("Failed to add event to IngestionQueue", {
+            error: result.reason,
+          });
+        }
       });
     }
 

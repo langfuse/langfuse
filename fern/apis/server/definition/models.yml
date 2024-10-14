@@ -55,7 +55,7 @@ types:
         type: string
       startDate:
         docs: Apply only to generations which are newer than this ISO date.
-        type: optional<date>
+        type: optional<datetime>
       unit:
         docs: Unit used by this model.
         type: commons.ModelUsageUnit
