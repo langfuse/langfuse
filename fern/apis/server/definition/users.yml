@@ -8,7 +8,7 @@ service:
   endpoints:
   list:
       method: GET
-      docs: Get all datasets
+      docs: Get all users
       path: /users
       request:
         name: GetUsersRequest
@@ -21,7 +21,7 @@ service:
             docs: limit of items per page
       response: PaginatedUsers
 types:
-  PaginatedDatasets:
+  PaginatedUsers:
     properties:
       data: list<commons.User>
       meta: pagination.MetaResponse
