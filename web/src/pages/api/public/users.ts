@@ -5,8 +5,6 @@ import {
   GetUsersQuery,
   GetUsersResponse,
 } from "@/src/features/public-api/types/users";
-import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { groupBy } from "lodash";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({

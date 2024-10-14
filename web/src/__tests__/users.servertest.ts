@@ -44,7 +44,7 @@ describe("/api/public/users API Endpoint", () => {
       },
     );
 
-    const traceCreate2 = await makeZodVerifiedAPICall(
+    await makeZodVerifiedAPICall(
       PostTracesV1Response,
       "POST",
       "/api/public/traces",
