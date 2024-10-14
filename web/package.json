@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.85.0",
+  "version": "2.85.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -188,5 +188,10 @@
   },
   "optionalDependencies": {
     "crisp-sdk-web": "^1.0.25"
+  },
+  "pnpm": {
+    "overrides": {
+      "jsonpath-plus": "10.0.0"
+    }
   }
 }
