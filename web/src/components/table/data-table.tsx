@@ -77,6 +77,11 @@ function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {
   }, []);
 }
 
+function isValidCssVariableName(name: string) {
+  const regex = /^(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/;
+  return regex.test(name);
+}
+
 export function DataTable<TData extends object, TValue>({
   columns,
   data,
@@ -204,6 +209,11 @@ export function DataTable<TData extends object, TValue>({
                     const columnDef = header.column
                       .columnDef as LangfuseColumnDef<ModelTableRow>;
                     const sortingEnabled = columnDef.enableSorting;
+                    // if the header id does not translate to a valid css variable name, default to 150px as width
+                    // may only happen for dynamic columns, as column names are user defined
+                    const width = isValidCssVariableName(header.id)
+                      ? `calc(var(--header-${header.id}-size) * 1px)`
+                      : 150;
 
                     return header.column.getIsVisible() ? (
                       <TableHead
@@ -212,9 +222,7 @@ export function DataTable<TData extends object, TValue>({
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
                         )}
-                        style={{
-                          width: `calc(var(--header-${header.id}-size) * 1px)`,
-                        }}
+                        style={{ width }}
                         onClick={(event) => {
                           event.preventDefault();
 
