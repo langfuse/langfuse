@@ -329,7 +329,7 @@ export function CreateLLMApiKeyForm({
                   <FormLabel>AWS Access Key ID</FormLabel>
                   <FormDescription>
                     These should be long-lived credentials for an AWS user with
-                    the appropriate Bedrock permissions.
+                    `bedrock:InvokeModel` permission.
                   </FormDescription>
                   <FormControl>
                     <Input {...field} />
