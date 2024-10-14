@@ -12,10 +12,10 @@ export default withMiddlewares({
     querySchema: GetUsersQuery,
     responseSchema: GetUsersResponse,
     fn: async ({ query, auth }) => {
-      console.log(query.page)
-      const skipValue = (query.page - 1) * query.limit;
-      await prisma.account.findMany()
-       const users = await prisma.$queryRaw<
+      // Disallow negative page numbers
+      const skipValue = Math.max((query.page - 1) * query.limit,0);
+      // Get this page's users and total user count in parallel
+       const [users, totalUsers] = await Promise.all([prisma.$queryRaw<
        Array<{
             userId: string;
             lastTrace:string;
@@ -36,8 +36,8 @@ export default withMiddlewares({
             "lastTrace" DESC NULLS LAST
           LIMIT
             ${query.limit} OFFSET ${skipValue};
-        `
-      const totalUsers = await prisma.$queryRaw<
+        `,
+        prisma.$queryRaw<
           Array<{
             totalCount: bigint;
           }>
@@ -46,7 +46,7 @@ export default withMiddlewares({
           FROM traces t
           WHERE t.project_id = ${auth.scope.projectId}
         `
-      console.log(totalUsers[0].totalCount)
+      ])
       return {
         data:users,
         meta: {

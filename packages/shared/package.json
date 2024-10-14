@@ -35,7 +35,7 @@
     "dev": "tsc --watch",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "db:migrate": "set DISABLE_ERD=false&& dotenv -e ../../.env -- npx prisma migrate dev",
+    "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
     "db:reset": "dotenv -e ../../.env npx -- prisma migrate reset",
     "db:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy",
