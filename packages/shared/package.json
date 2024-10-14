@@ -112,5 +112,10 @@
   "peerDependencies": {
     "@types/react": "~18.2.79",
     "react": "~18.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "jsonpath-plus": "10.0.0"
+    }
   }
 }

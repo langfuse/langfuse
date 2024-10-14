@@ -81,5 +81,10 @@
     "tsx": "^4.19.1",
     "typescript": "^5.4.5",
     "vitest": "^2.1.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "jsonpath-plus": "10.0.0"
+    }
   }
 }
