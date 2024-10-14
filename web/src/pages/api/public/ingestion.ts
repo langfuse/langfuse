@@ -19,6 +19,7 @@ import {
   type AuthHeaderValidVerificationResult,
   type LegacyIngestionEventType,
   type IngestionEventType,
+  getClickhouseEntityType,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -228,13 +229,12 @@ export default async function handler(
         // In this case, we upload the full batch into the Redis queue.
         const results = await Promise.allSettled(
           sortedBatch.map(async (event) => {
-            const eventName = event.type.split("-").shift();
             // We upload the event in an array to the S3 bucket.
             // This should allow us to eventually batch events together and increase cost-efficiency through
             // reduced write operations.
             return event.type !== eventTypes.SDK_LOG
               ? s3Client.uploadJson(
-                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${eventName}/${event.body.id}/${event.id}.json`,
+                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(event.type)}/${event.body.id}/${event.id}.json`,
                   [event],
                 )
               : Promise.resolve();

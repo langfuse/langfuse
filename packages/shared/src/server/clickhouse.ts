@@ -1,7 +1,8 @@
 import { createClient } from "@clickhouse/client";
 
 import { env } from "../env";
-import { eventTypes, IngestionEventType } from "./ingestion/types";
+import { eventTypes } from "./ingestion/types";
+import { LangfuseNotFoundError } from "../errors";
 
 export enum ClickhouseEntityType {
   Trace = "trace",
@@ -11,9 +12,9 @@ export enum ClickhouseEntityType {
 }
 
 export function getClickhouseEntityType(
-  event: IngestionEventType,
+  eventType: string,
 ): ClickhouseEntityType {
-  switch (event.type) {
+  switch (eventType) {
     case eventTypes.TRACE_CREATE:
       return ClickhouseEntityType.Trace;
     case eventTypes.OBSERVATION_CREATE:
@@ -28,6 +29,8 @@ export function getClickhouseEntityType(
       return ClickhouseEntityType.Score;
     case eventTypes.SDK_LOG:
       return ClickhouseEntityType.SdkLog;
+    default:
+      throw new LangfuseNotFoundError(`Unknown event type: ${eventType}`);
   }
 }
 
