@@ -94,10 +94,12 @@ export const CreateNewAnnotationQueueItem = ({
     return (
       <Button
         variant="secondary"
-        disabled
+        disabled={session.status !== "authenticated"}
         className="rounded-l-none rounded-r-md border-l-2"
       >
-        <ChevronDown className="h-3 w-3" />
+        <span className="relative mr-1 text-xs">
+          <ChevronDown className="h-3 w-3" />
+        </span>
       </Button>
     );
   }
