@@ -6,13 +6,19 @@ import {
   createNewRedisInstance,
 } from "@langfuse/shared/src/server";
 import { handleCloudUsageMeteringJob } from "../ee/cloudUsageMetering/handleCloudUsageMeteringJob";
+import { env } from "../env";
 
 export class CloudUsageMeteringQueue {
   private static instance: Queue | null = null;
 
   public static getInstance(): Queue | null {
-    if (CloudUsageMeteringQueue.instance)
+    if (!env.STRIPE_SECRET_KEY) {
+      return null;
+    }
+
+    if (CloudUsageMeteringQueue.instance) {
       return CloudUsageMeteringQueue.instance;
+    }
 
     const newRedis = createNewRedisInstance({ enableOfflineQueue: false });
 
