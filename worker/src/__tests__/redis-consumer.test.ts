@@ -41,8 +41,8 @@ describe.sequential("handle redis events", () => {
   }, 20_000);
 
   test("handle no matching queue worker", async () => {
-    // IngestionFlushQueue worker vs TraceUpsert producer
-    WorkerManager.register(QueueName.IngestionFlushQueue, async () => true);
+    // IngestionQueue worker vs TraceUpsert producer
+    WorkerManager.register(QueueName.IngestionQueue, async () => true);
 
     const traceUpsertQueue = getTraceUpsertQueue();
 
