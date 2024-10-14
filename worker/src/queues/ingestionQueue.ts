@@ -56,10 +56,6 @@ export const ingestionQueueProcessor: Processor = async (
     const s3Client = getS3StorageServiceClient(
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
     );
-    const eventName = job.data.payload.data.type.split("-").shift();
-    if (!eventName) {
-      throw new Error("Event name not found");
-    }
 
     logger.info("Processing ingestion event", {
       projectId: job.data.payload.authCheck.scope.projectId,
@@ -68,7 +64,7 @@ export const ingestionQueueProcessor: Processor = async (
 
     // Download all events from folder into a local array
     const eventFiles = await s3Client.listFiles(
-      `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${eventName}/${job.data.payload.data.eventBodyId}/`,
+      `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/`,
     );
 
     const events: IngestionEventType[] = (
@@ -110,7 +106,7 @@ export const ingestionQueueProcessor: Processor = async (
       ClickhouseWriter.getInstance(),
       clickhouseClient,
     ).mergeAndWrite(
-      getClickhouseEntityType(events[0]),
+      getClickhouseEntityType(events[0].type),
       job.data.payload.authCheck.scope.projectId,
       job.data.payload.data.eventBodyId,
       events,
