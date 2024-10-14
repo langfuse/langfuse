@@ -77,8 +77,16 @@ function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {
   }, []);
 }
 
-function isValidCssVariableName(name: string) {
-  const regex = /^(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/;
+function isValidCssVariableName({
+  name,
+  includesHyphens = true,
+}: {
+  name: string;
+  includesHyphens?: boolean;
+}) {
+  const regex = includesHyphens
+    ? /^--(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/
+    : /^(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/;
   return regex.test(name);
 }
 
@@ -211,7 +219,10 @@ export function DataTable<TData extends object, TValue>({
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const width = isValidCssVariableName(header.id)
+                    const width = isValidCssVariableName({
+                      name: header.id,
+                      includesHyphens: false,
+                    })
                       ? `calc(var(--header-${header.id}-size) * 1px)`
                       : 150;
 
