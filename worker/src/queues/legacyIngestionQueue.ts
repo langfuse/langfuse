@@ -61,9 +61,17 @@ export const legacyIngestionQueueProcessor: Processor = async (
       ingestionEvents = (
         await Promise.all(
           job.data.payload.data.map(async (record) => {
-            const file = await s3Client.download(
-              `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(record.type)}/${record.eventBodyId}/${record.eventId}.json`,
-            );
+            let file = "";
+            try {
+              file = await s3Client.download(
+                `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(record.type)}/${record.eventBodyId}/${record.eventId}.json`,
+              );
+            } catch {
+              const eventName = record.type.split("-").shift();
+              file = await s3Client.download(
+                `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${eventName}/${record.eventBodyId}/${record.eventId}.json`,
+              );
+            }
             const parsedFile = JSON.parse(file);
             const parsed = ingestionBatchEvent.safeParse(parsedFile);
             if (parsed.success) {
