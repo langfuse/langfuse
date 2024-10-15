@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LLMAdapter } from "@langfuse/shared";
+import { LLMAdapter, BedrockConfigSchema } from "@langfuse/shared";
 
 export const CreateLlmApiKey = z.object({
   projectId: z.string(),
@@ -9,4 +9,5 @@ export const CreateLlmApiKey = z.object({
   baseURL: z.string().url().optional(),
   withDefaultModels: z.boolean().optional(),
   customModels: z.array(z.string().min(1)).optional(),
+  config: BedrockConfigSchema.optional(),
 });

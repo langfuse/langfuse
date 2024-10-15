@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.84.0",
+  "version": "2.85.1",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -34,6 +34,8 @@
     "@opentelemetry/resource-detector-container": "^0.4.2",
     "@opentelemetry/resources": "^1.26.0",
     "@opentelemetry/sdk-node": "^0.53.0",
+    "@opentelemetry/sdk-trace-base": "^1.26.0",
+    "@opentelemetry/sdk-trace-node": "^1.26.0",
     "@prisma/instrumentation": "^5.20.0",
     "backoff": "^2.5.0",
     "bullmq": "^5.12.10",
@@ -79,5 +81,10 @@
     "tsx": "^4.19.1",
     "typescript": "^5.4.5",
     "vitest": "^2.1.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "jsonpath-plus": "10.0.0"
+    }
   }
 }

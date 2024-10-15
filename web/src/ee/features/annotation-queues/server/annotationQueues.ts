@@ -146,6 +146,24 @@ export const queueRouter = createTRPCRouter({
         });
       }
     }),
+  count: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        return ctx.prisma.annotationQueue.count({
+          where: { projectId: input.projectId },
+        });
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching annotation queue count failed.",
+        });
+      }
+    }),
   byId: protectedProjectProcedure
     .input(z.object({ queueId: z.string(), projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -280,6 +298,28 @@ export const queueRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "annotationQueues:CUD",
         });
+
+        // gate usage on cloud:hobby
+        const org = ctx.session.user.organizations.find((org) =>
+          org.projects.some((proj) => proj.id === input.projectId),
+        );
+        const plan = org?.plan ?? "oss";
+
+        if (plan === "cloud:hobby") {
+          if (
+            (await ctx.prisma.annotationQueue.count({
+              where: {
+                projectId: input.projectId,
+              },
+            })) >= 1
+          ) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message:
+                "Maximum number of annotation queues reached on Hobby plan.",
+            });
+          }
+        }
 
         const existingQueue = await ctx.prisma.annotationQueue.findFirst({
           where: {

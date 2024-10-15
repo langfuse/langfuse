@@ -113,6 +113,7 @@ export const env = createEnv({
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
     OTEL_SERVICE_NAME: z.string().default("web"),
+    OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
 
     // clickhouse
     CLICKHOUSE_URL: z.string().optional(),
@@ -170,6 +171,9 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
     LANGFUSE_ASYNC_INGESTION_PROCESSING: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING: z
       .enum(["true", "false"])
       .default("false"),
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
@@ -314,6 +318,7 @@ export const env = createEnv({
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
+    OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
     // S3
     S3_ENDPOINT: process.env.S3_ENDPOINT,
     S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
@@ -385,6 +390,8 @@ export const env = createEnv({
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
     LANGFUSE_ASYNC_INGESTION_PROCESSING:
       process.env.LANGFUSE_ASYNC_INGESTION_PROCESSING,
+    LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING:
+      process.env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:

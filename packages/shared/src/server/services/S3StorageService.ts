@@ -1,6 +1,7 @@
 import type { Readable } from "stream";
 import {
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -100,6 +101,23 @@ export class S3StorageService {
     } catch (err) {
       logger.error(`Failed to download file from S3 ${path}`, err);
       throw Error("Failed to download file from S3");
+    }
+  }
+
+  public async listFiles(prefix: string): Promise<string[]> {
+    const listCommand = new ListObjectsV2Command({
+      Bucket: this.bucketName,
+      Prefix: prefix,
+    });
+
+    try {
+      const response = await this.client.send(listCommand);
+      return (
+        response.Contents?.flatMap((file) => (file.Key ? [file.Key] : [])) ?? []
+      );
+    } catch (err) {
+      logger.error(`Failed to list files from S3 ${prefix}`, err);
+      throw Error("Failed to list files from S3");
     }
   }
 

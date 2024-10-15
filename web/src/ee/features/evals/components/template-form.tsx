@@ -195,7 +195,7 @@ export const InnerEvalTemplateForm = (props: {
     setModelParamEnabled,
     availableModels,
     availableProviders,
-  } = useModelParams({ evalModelsOnly: true });
+  } = useModelParams();
 
   useEffect(() => {
     if (props.preFilledFormValues?.selectedModel) {

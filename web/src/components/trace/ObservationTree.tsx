@@ -31,6 +31,7 @@ export const ObservationTree = (props: {
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics: boolean;
   showScores: boolean;
+  colorCodeMetrics: boolean;
   observationCommentCounts?: Map<string, number>;
   traceCommentCounts?: Map<string, number>;
   className?: string;
@@ -70,7 +71,7 @@ export const ObservationTree = (props: {
         setCurrentObservationId={props.setCurrentObservationId}
         showMetrics={props.showMetrics}
         showScores={props.showScores}
-        colorCodeMetrics={props.observations.length >= 3}
+        colorCodeMetrics={props.colorCodeMetrics}
         parentTotalCost={totalCost}
         parentTotalDuration={
           props.trace.latency ? props.trace.latency * 1000 : undefined

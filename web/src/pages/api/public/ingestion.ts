@@ -11,6 +11,7 @@ import {
   handleBatch,
   recordIncrement,
   getCurrentSpan,
+  IngestionQueue,
   LegacyIngestionQueue,
   S3StorageService,
   instrumentAsync,
@@ -18,6 +19,7 @@ import {
   type AuthHeaderValidVerificationResult,
   type LegacyIngestionEventType,
   type IngestionEventType,
+  getClickhouseEntityType,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -89,6 +91,23 @@ export default async function handler(
      * VALIDATION *
      **************/
     await runMiddleware(req, res, cors);
+
+    // add context of api call to the span
+    const currentSpan = getCurrentSpan();
+
+    // get x-langfuse-xxx headers and add them to the span
+    Object.keys(req.headers).forEach((header) => {
+      if (
+        header.toLowerCase().startsWith("x-langfuse") ||
+        header.toLowerCase().startsWith("x_langfuse")
+      ) {
+        currentSpan?.setAttributes({
+          [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
+            req.headers[header],
+        });
+      }
+    });
+
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
@@ -101,13 +120,19 @@ export default async function handler(
       throw new UnauthorizedError(authCheck.error);
     }
 
-    const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
-      authCheck.scope,
-      "ingestion",
-    );
+    try {
+      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+        authCheck.scope,
+        "ingestion",
+      );
 
-    if (rateLimitCheck?.isRateLimited()) {
-      return rateLimitCheck.sendRestResponseIfLimited(res);
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
+      }
+    } catch (e) {
+      // If rate-limiter returns an error, we log it and continue processing.
+      // This allows us to fail open instead of reject requests.
+      logger.error("Error while rate limiting", e);
     }
 
     const batchType = z.object({
@@ -124,21 +149,6 @@ export default async function handler(
       "langfuse.ingestion.event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
-
-    // add context of api call to the span
-    const currentSpan = getCurrentSpan();
-
-    // get x-langfuse-xxx headers and add them to the span
-    Object.keys(req.headers).forEach((header) => {
-      if (
-        header.toLowerCase().startsWith("x-langfuse") ||
-        header.toLowerCase().startsWith("x_langfuse")
-      ) {
-        currentSpan?.setAttributes({
-          [header]: req.headers[header],
-        });
-      }
-    });
 
     // add number of events to the span
     parsedSchema.data
@@ -219,13 +229,12 @@ export default async function handler(
         // In this case, we upload the full batch into the Redis queue.
         const results = await Promise.allSettled(
           sortedBatch.map(async (event) => {
-            const eventName = event.type.split("-").shift();
             // We upload the event in an array to the S3 bucket.
             // This should allow us to eventually batch events together and increase cost-efficiency through
             // reduced write operations.
             return event.type !== eventTypes.SDK_LOG
               ? s3Client.uploadJson(
-                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${eventName}/${event.body.id}/${event.id}.json`,
+                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(event.type)}/${event.body.id}/${event.id}.json`,
                   [event],
                 )
               : Promise.resolve();
@@ -239,6 +248,42 @@ export default async function handler(
             });
           }
         });
+      });
+    }
+
+    // Send each event individually to IngestionQueue for new processing
+    if (
+      env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" &&
+      env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" &&
+      env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING === "true" &&
+      redis &&
+      !s3UploadErrored
+    ) {
+      const queue = IngestionQueue.getInstance();
+      const results = await Promise.allSettled(
+        sortedBatch.map(async (event) => {
+          return queue
+            ? queue.add(QueueJobs.IngestionJob, {
+                id: randomUUID(),
+                timestamp: new Date(),
+                name: QueueJobs.IngestionJob as const,
+                payload: {
+                  data: {
+                    type: event.type,
+                    eventBodyId: event.body.id ?? "",
+                  },
+                  authCheck,
+                },
+              })
+            : Promise.reject("Failed to instantiate queue");
+        }),
+      );
+      results.forEach((result) => {
+        if (result.status === "rejected") {
+          logger.error("Failed to add event to IngestionQueue", {
+            error: result.reason,
+          });
+        }
       });
     }
 

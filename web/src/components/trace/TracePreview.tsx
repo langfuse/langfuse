@@ -27,7 +27,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
-import { CreateNewAnnotationQueueItem } from "@/src/features/scores/components/CreateNewAnnotationQueueItem";
+import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { useMemo } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -149,12 +149,12 @@ export const TracePreview = ({
               />
               <div className="flex items-start">
                 <AnnotateDrawer
+                  key={"annotation-drawer" + trace.id}
                   projectId={trace.projectId}
                   traceId={trace.id}
                   scores={scores}
                   emptySelectedConfigIds={emptySelectedConfigIds}
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                  key={"annotation-drawer" + trace.id}
                   hasGroupedButton={hasEntitlement}
                 />
                 {hasEntitlement && (
