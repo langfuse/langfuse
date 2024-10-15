@@ -23,7 +23,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { DrawerHeader } from "@/src/components/ui/drawer";
+import { DrawerHeader, DrawerTitle } from "@/src/components/ui/drawer";
 import {
   type APIScore,
   isPresent,
@@ -559,6 +559,7 @@ export function AnnotateDrawerContent({
             actionButtons,
           ]}
         ></Header>
+        <DrawerTitle className="sr-only">Annotate</DrawerTitle>
 
         {!isSelectHidden && (
           <div className="grid grid-flow-col items-center">
