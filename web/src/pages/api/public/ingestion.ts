@@ -263,12 +263,10 @@ export default async function handler(
             // That way we batch updates from the same invocation into a single file and reduce
             // write operations on S3.
             const { data, key, type } = sortedBatchByEventBodyId[eventBodyId];
-            return type !== eventTypes.SDK_LOG
-              ? s3Client.uploadJson(
-                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`,
-                  data,
-                )
-              : Promise.resolve();
+            return s3Client.uploadJson(
+              `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`,
+              data,
+            );
           }),
         );
         results.forEach((result) => {
@@ -292,23 +290,22 @@ export default async function handler(
     ) {
       const queue = IngestionQueue.getInstance();
       const results = await Promise.allSettled(
-        Object.keys(sortedBatchByEventBodyId).map(async (eventBodyId) => {
-          const { data, key, type } = sortedBatchByEventBodyId[eventBodyId];
-          return queue
+        Object.keys(sortedBatchByEventBodyId).map(async (eventBodyId) =>
+          queue
             ? queue.add(QueueJobs.IngestionJob, {
                 id: randomUUID(),
                 timestamp: new Date(),
                 name: QueueJobs.IngestionJob as const,
                 payload: {
                   data: {
-                    type,
+                    type: sortedBatchByEventBodyId[eventBodyId].type,
                     eventBodyId,
                   },
                   authCheck,
                 },
               })
-            : Promise.reject("Failed to instantiate queue");
-        }),
+            : Promise.reject("Failed to instantiate queue"),
+        ),
       );
       results.forEach((result) => {
         if (result.status === "rejected") {
@@ -345,24 +342,12 @@ export default async function handler(
             : { data: sortedBatch, authCheck, useS3EventStore: false };
 
         try {
-          await queue.add(
-            QueueJobs.LegacyIngestionJob,
-            {
-              payload: queuePayload,
-              id: randomUUID(),
-              timestamp: new Date(),
-              name: QueueJobs.LegacyIngestionJob as const,
-            },
-            {
-              removeOnFail: 1_000_000,
-              removeOnComplete: true,
-              attempts: 5,
-              backoff: {
-                type: "exponential",
-                delay: 1000,
-              },
-            },
-          );
+          await queue.add(QueueJobs.LegacyIngestionJob, {
+            payload: queuePayload,
+            id: randomUUID(),
+            timestamp: new Date(),
+            name: QueueJobs.LegacyIngestionJob as const,
+          });
         } catch (e: unknown) {
           logger.warn(
             "Failed to add batch to queue, falling back to sync processing",
