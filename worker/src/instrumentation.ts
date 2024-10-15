@@ -58,7 +58,6 @@ const sdk = new NodeSDK({
     awsEcsDetectorSync,
     containerDetector,
   ],
-  sampler: new TraceIdRatioBasedSampler(env.OTEL_TRACE_SAMPLING_RATIO),
 });
 
 sdk.start();
