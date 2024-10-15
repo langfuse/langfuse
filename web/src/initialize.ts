@@ -65,8 +65,9 @@ if (env.LANGFUSE_INIT_ORG_ID) {
 
   // Create User: Org -> User
   if (env.LANGFUSE_INIT_USER_EMAIL && env.LANGFUSE_INIT_USER_PASSWORD) {
+    const email = env.LANGFUSE_INIT_USER_EMAIL.toLowerCase();
     const existingUser = await prisma.user.findUnique({
-      where: { email: env.LANGFUSE_INIT_USER_EMAIL },
+      where: { email },
     });
 
     let userId = existingUser?.id;
@@ -74,7 +75,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
     // Create user if it doesn't exist yet
     if (!userId) {
       userId = await createUserEmailPassword(
-        env.LANGFUSE_INIT_USER_EMAIL,
+        email,
         env.LANGFUSE_INIT_USER_PASSWORD,
         env.LANGFUSE_INIT_USER_NAME ?? "Provisioned User",
       );
