@@ -351,6 +351,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           return {
             ...session,
+            debug: true,
             environment: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
