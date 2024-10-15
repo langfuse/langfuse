@@ -5,6 +5,7 @@ import {
   GetUsersQuery,
   GetUsersResponse,
 } from "@/src/features/public-api/types/users";
+import { InternalServerError } from "@langfuse/shared";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -47,6 +48,11 @@ export default withMiddlewares({
           WHERE t.project_id = ${auth.scope.projectId}
         `
       ])
+      if (totalUsers.length != 1){
+        // If we are here something is seriously wrong
+        throw new InternalServerError("Users not found");
+      }
+
       return {
         data:users,
         meta: {
