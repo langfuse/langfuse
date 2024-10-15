@@ -167,23 +167,25 @@ export function AnnotationQueueItemsTable({
       isPinned: true,
       header: ({ table }) => {
         return (
-          <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected()
-                ? true
-                : table.getIsSomePageRowsSelected()
-                  ? "indeterminate"
-                  : false
-            }
-            onCheckedChange={(value) => {
-              table.toggleAllPageRowsSelected(!!value);
-              if (!value) {
-                setSelectedRows({});
+          <div className="mt-1 h-5">
+            <Checkbox
+              checked={
+                table.getIsAllPageRowsSelected()
+                  ? true
+                  : table.getIsSomePageRowsSelected()
+                    ? "indeterminate"
+                    : false
               }
-            }}
-            aria-label="Select all"
-            className="mt-1 opacity-60 data-[state=checked]:mt-[6px] data-[state=indeterminate]:mt-[6px]"
-          />
+              onCheckedChange={(value) => {
+                table.toggleAllPageRowsSelected(!!value);
+                if (!value) {
+                  setSelectedRows({});
+                }
+              }}
+              aria-label="Select all"
+              className="opacity-60"
+            />
+          </div>
         );
       },
       cell: ({ row }) => {
