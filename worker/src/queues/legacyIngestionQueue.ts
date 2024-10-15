@@ -8,6 +8,7 @@ import {
   S3StorageService,
   ingestionBatchEvent,
   ingestionEvent,
+  getClickhouseEntityType,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -54,9 +55,8 @@ export const legacyIngestionQueueProcessor: Processor = async (
       ingestionEvents = (
         await Promise.all(
           job.data.payload.data.map(async (record) => {
-            const eventName = record.type.split("-").shift();
             const file = await s3Client.download(
-              `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${eventName}/${record.eventBodyId}/${record.eventId}.json`,
+              `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(record.type)}/${record.eventBodyId}/${record.eventId}.json`,
             );
             const parsedFile = JSON.parse(file);
             const parsed = ingestionBatchEvent.safeParse(parsedFile);

@@ -42,9 +42,10 @@ export default function UserPage() {
   };
 
   const handleTabChange = async (tab: string) => {
-    if (router.query.filter) {
+    if (router.query.filter || router.query.orderBy) {
       const newQuery = { ...router.query };
       delete newQuery.filter;
+      delete newQuery.orderBy;
       await router.replace({ query: newQuery });
     }
     setCurrentTab(tab);
