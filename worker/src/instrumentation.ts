@@ -1,6 +1,5 @@
 import dd from "dd-trace";
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import { TraceIdRatioBasedSampler } from "@opentelemetry/sdk-trace-base";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
