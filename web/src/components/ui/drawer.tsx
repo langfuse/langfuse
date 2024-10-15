@@ -28,6 +28,7 @@ const Drawer = ({
     <DrawerPrimitive.Root
       shouldScaleBackground={shouldScaleBackground}
       direction={direction}
+      // modal={false} // TODO: allow scrolling on overlay
       {...props}
     />
   );
