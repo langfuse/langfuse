@@ -212,6 +212,36 @@ export default async function handler(
 
     const sortedBatch = sortBatch(batch);
 
+    // We group events by eventBodyId which allows us to store and process them
+    // as one which reduces infra interactions per event. Only used in the S3 case.
+    const sortedBatchByEventBodyId = sortedBatch.reduce(
+      (
+        acc: Record<
+          string,
+          {
+            data: IngestionEventType[];
+            key: string;
+            type: (typeof eventTypes)[keyof typeof eventTypes];
+          }
+        >,
+        event,
+      ) => {
+        if (!event.body?.id) {
+          return acc;
+        }
+        if (!acc[event.body.id]) {
+          acc[event.body.id] = {
+            data: [],
+            key: event.id,
+            type: event.type,
+          };
+        }
+        acc[event.body.id].data.push(event);
+        return acc;
+      },
+      {},
+    );
+
     /********************
      * ASYNC PROCESSING *
      ********************/
@@ -228,14 +258,15 @@ export default async function handler(
         // If a promise rejects, we log it below, but do not throw an error.
         // In this case, we upload the full batch into the Redis queue.
         const results = await Promise.allSettled(
-          sortedBatch.map(async (event) => {
-            // We upload the event in an array to the S3 bucket.
-            // This should allow us to eventually batch events together and increase cost-efficiency through
-            // reduced write operations.
-            return event.type !== eventTypes.SDK_LOG
+          Object.keys(sortedBatchByEventBodyId).map(async (eventBodyId) => {
+            // We upload the event in an array to the S3 bucket grouped by the eventBodyId.
+            // That way we batch updates from the same invocation into a single file and reduce
+            // write operations on S3.
+            const { data, key, type } = sortedBatchByEventBodyId[eventBodyId];
+            return type !== eventTypes.SDK_LOG
               ? s3Client.uploadJson(
-                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(event.type)}/${event.body.id}/${event.id}.json`,
-                  [event],
+                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`,
+                  data,
                 )
               : Promise.resolve();
           }),
@@ -261,7 +292,8 @@ export default async function handler(
     ) {
       const queue = IngestionQueue.getInstance();
       const results = await Promise.allSettled(
-        sortedBatch.map(async (event) => {
+        Object.keys(sortedBatchByEventBodyId).map(async (eventBodyId) => {
+          const { data, key, type } = sortedBatchByEventBodyId[eventBodyId];
           return queue
             ? queue.add(QueueJobs.IngestionJob, {
                 id: randomUUID(),
@@ -269,8 +301,8 @@ export default async function handler(
                 name: QueueJobs.IngestionJob as const,
                 payload: {
                   data: {
-                    type: event.type,
-                    eventBodyId: event.body.id ?? "",
+                    type,
+                    eventBodyId,
                   },
                   authCheck,
                 },
@@ -297,11 +329,16 @@ export default async function handler(
         const queuePayload: LegacyIngestionEventType =
           env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" && !s3UploadErrored
             ? {
-                data: sortedBatch.map((event) => ({
-                  type: event.type,
-                  eventBodyId: event.body.id ?? "",
-                  eventId: event.id,
-                })),
+                data: Object.keys(sortedBatchByEventBodyId).map(
+                  (eventBodyId) => {
+                    const { key, type } = sortedBatchByEventBodyId[eventBodyId];
+                    return {
+                      type,
+                      eventBodyId,
+                      eventId: key,
+                    };
+                  },
+                ),
                 authCheck,
                 useS3EventStore: true,
               }
