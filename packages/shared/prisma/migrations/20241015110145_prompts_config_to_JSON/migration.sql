@@ -1,0 +1,1 @@
+ALTER TABLE prompts ALTER COLUMN config TYPE JSON USING config::JSON;
