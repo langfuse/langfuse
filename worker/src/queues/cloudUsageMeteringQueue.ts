@@ -27,7 +27,7 @@ export class CloudUsageMeteringQueue {
           connection: newRedis,
           defaultJobOptions: {
             removeOnComplete: true,
-            removeOnFail: 100_000,
+            removeOnFail: 100,
             attempts: 5,
             backoff: {
               type: "exponential",
