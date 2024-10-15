@@ -40,7 +40,6 @@
     "backoff": "^2.5.0",
     "bullmq": "^5.12.10",
     "cors": "^2.8.5",
-    "csv-parser": "^3.0.0",
     "dd-trace": "^5.23.1",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
