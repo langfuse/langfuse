@@ -5,6 +5,7 @@ import {
   Drawer,
   DrawerContent,
   DrawerHeader,
+  DrawerTitle,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
 import { type APIScore } from "@langfuse/shared";
@@ -117,6 +118,7 @@ export function AnnotateDrawer({
                 href: "https://langfuse.com/docs/scores/manually",
               }}
             ></Header>
+            <DrawerTitle className="sr-only">Annotate</DrawerTitle>
             <div className="flex min-h-[9rem] items-center justify-center rounded border border-dashed p-2">
               <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin text-muted-foreground" />
               <span className="text-xs text-muted-foreground opacity-60">
