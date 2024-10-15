@@ -316,17 +316,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
       strategy: "jwt",
       maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
     },
-    logger: {
-      error(code, metadata) {
-        logger.error(code, metadata);
-      },
-      warn(code) {
-        logger.warn(code);
-      },
-      debug(code, metadata) {
-        logger.debug(code, metadata);
-      },
-    },
+
     callbacks: {
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async () => {
@@ -362,7 +352,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           return {
             ...session,
-            debug: true,
             environment: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
