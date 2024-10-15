@@ -34,8 +34,6 @@
     "@opentelemetry/resource-detector-container": "^0.4.2",
     "@opentelemetry/resources": "^1.26.0",
     "@opentelemetry/sdk-node": "^0.53.0",
-    "@opentelemetry/sdk-trace-base": "^1.26.0",
-    "@opentelemetry/sdk-trace-node": "^1.26.0",
     "@prisma/instrumentation": "^5.20.0",
     "backoff": "^2.5.0",
     "bullmq": "^5.12.10",
