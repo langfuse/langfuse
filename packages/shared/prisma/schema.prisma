@@ -726,7 +726,7 @@ model Prompt {
     version  Int
     type     String   @default("text")
     isActive Boolean? @map("is_active") // Deprecated. To be removed once 'production' labels work as expected.
-    config   Json     @default("{}")
+    config   Json     @default("{}") @db.Json
     tags     String[] @default([])
     labels   String[] @default([])
 

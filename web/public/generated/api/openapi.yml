@@ -1774,6 +1774,13 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: queueId
+          in: query
+          description: Retrieve only scores with a specific annotation queueId.
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: dataType
           in: query
           description: Retrieve only scores with a specific dataType.
@@ -2683,6 +2690,12 @@ components:
             Reference a score config on a score. When set, config and score name
             must be equal and value must comply to optionally defined numerical
             range
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            Reference an annotation queue on a score. Populated if the score was
+            initially created in an annotation queue.
       required:
         - id
         - traceId

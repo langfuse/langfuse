@@ -240,6 +240,9 @@ types:
       configId:
         type: optional<string>
         docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
+      queueId:
+        type: optional<string>
+        docs: Reference an annotation queue on a score. Populated if the score was initially created in an annotation queue.
   NumericScore:
     extends: BaseScore
     properties:

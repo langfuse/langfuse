@@ -21,7 +21,7 @@ export class LegacyIngestionQueue {
             connection: newRedis,
             defaultJobOptions: {
               removeOnComplete: true,
-              removeOnFail: 100_000,
+              removeOnFail: 500_000,
               attempts: 5,
               backoff: {
                 type: "exponential",

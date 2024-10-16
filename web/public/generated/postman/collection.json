@@ -1244,7 +1244,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&source=&operator=&value=&scoreIds=&configId=&dataType=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1308,6 +1308,11 @@
                   "key": "configId",
                   "value": "",
                   "description": "Retrieve only scores with a specific configId."
+                },
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific annotation queueId."
                 },
                 {
                   "key": "dataType",
