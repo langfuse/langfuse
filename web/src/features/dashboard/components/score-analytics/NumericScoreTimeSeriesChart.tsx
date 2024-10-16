@@ -12,13 +12,13 @@ import {
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
-import { NoData } from "@/src/features/dashboard/components/NoData";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -109,6 +109,6 @@ export function NumericScoreTimeSeriesChart(props: {
       />
     </Card>
   ) : (
-    <NoData noDataText="No data" className="h-[21rem]"></NoData>
+    <NoDataOrLoading isLoading={scores.isLoading} />
   );
 }
