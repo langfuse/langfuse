@@ -268,6 +268,13 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                           <Input
                             {...field}
                             value={field.value ?? ""}
+                            // manually manage controlled input state
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(
+                                value === "" ? undefined : Number(value),
+                              );
+                            }}
                             type="number"
                           />
                         </FormControl>
@@ -285,6 +292,13 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                           <Input
                             {...field}
                             value={field.value ?? ""}
+                            // manually manage controlled input state
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(
+                                value === "" ? undefined : Number(value),
+                              );
+                            }}
                             type="number"
                           />
                         </FormControl>

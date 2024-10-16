@@ -797,6 +797,15 @@ export function AnnotateDrawerContent({
                                     <Input
                                       {...field}
                                       value={field.value ?? ""}
+                                      // manually manage controlled input state
+                                      onChange={(e) => {
+                                        const value = e.target.value;
+                                        field.onChange(
+                                          value === ""
+                                            ? undefined
+                                            : Number(value),
+                                        );
+                                      }}
                                       type="number"
                                       className="text-xs"
                                       disabled={config.isArchived}
