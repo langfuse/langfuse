@@ -221,6 +221,7 @@ export default async function handler(
           {
             data: IngestionEventType[];
             key: string;
+            eventBodyId: string;
             type: (typeof eventTypes)[keyof typeof eventTypes];
           }
         >,
@@ -229,14 +230,16 @@ export default async function handler(
         if (!event.body?.id) {
           return acc;
         }
-        if (!acc[event.body.id]) {
-          acc[event.body.id] = {
+        const key = `${getClickhouseEntityType(event.type)}-${event.body.id}`;
+        if (!acc[key]) {
+          acc[key] = {
             data: [],
             key: event.id,
             type: event.type,
+            eventBodyId: event.body.id,
           };
         }
-        acc[event.body.id].data.push(event);
+        acc[key].data.push(event);
         return acc;
       },
       {},
@@ -258,11 +261,12 @@ export default async function handler(
         // If a promise rejects, we log it below, but do not throw an error.
         // In this case, we upload the full batch into the Redis queue.
         const results = await Promise.allSettled(
-          Object.keys(sortedBatchByEventBodyId).map(async (eventBodyId) => {
+          Object.keys(sortedBatchByEventBodyId).map(async (id) => {
             // We upload the event in an array to the S3 bucket grouped by the eventBodyId.
             // That way we batch updates from the same invocation into a single file and reduce
             // write operations on S3.
-            const { data, key, type } = sortedBatchByEventBodyId[eventBodyId];
+            const { data, key, type, eventBodyId } =
+              sortedBatchByEventBodyId[id];
             return s3Client.uploadJson(
               `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`,
               data,
@@ -290,7 +294,7 @@ export default async function handler(
     ) {
       const queue = IngestionQueue.getInstance();
       const results = await Promise.allSettled(
-        Object.keys(sortedBatchByEventBodyId).map(async (eventBodyId) =>
+        Object.keys(sortedBatchByEventBodyId).map(async (id) =>
           queue
             ? queue.add(QueueJobs.IngestionJob, {
                 id: randomUUID(),
@@ -298,8 +302,8 @@ export default async function handler(
                 name: QueueJobs.IngestionJob as const,
                 payload: {
                   data: {
-                    type: sortedBatchByEventBodyId[eventBodyId].type,
-                    eventBodyId,
+                    type: sortedBatchByEventBodyId[id].type,
+                    eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
                   },
                   authCheck,
                 },
@@ -326,16 +330,15 @@ export default async function handler(
         const queuePayload: LegacyIngestionEventType =
           env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" && !s3UploadErrored
             ? {
-                data: Object.keys(sortedBatchByEventBodyId).map(
-                  (eventBodyId) => {
-                    const { key, type } = sortedBatchByEventBodyId[eventBodyId];
-                    return {
-                      type,
-                      eventBodyId,
-                      eventId: key,
-                    };
-                  },
-                ),
+                data: Object.keys(sortedBatchByEventBodyId).map((id) => {
+                  const { key, type, eventBodyId } =
+                    sortedBatchByEventBodyId[id];
+                  return {
+                    type,
+                    eventBodyId,
+                    eventId: key,
+                  };
+                }),
                 authCheck,
                 useS3EventStore: true,
               }
