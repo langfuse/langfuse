@@ -286,6 +286,18 @@ types:
       - double
       - string
     docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
+
+  Comment:
+    properties:
+      id: string
+      projectId: string
+      createdAt: datetime
+      updatedAt: datetime
+      objectType: CommentObjectType
+      objectId: string
+      content: string
+      authorUserId: optional<string>
+
   Dataset:
     properties:
       id: string
@@ -405,6 +417,12 @@ types:
       - optional<integer>
       - optional<boolean>
       - optional<list<string>>
+  CommentObjectType:
+    enum:
+      - TRACE
+      - OBSERVATION
+      - SESSION
+      - PROMPT
   DatasetStatus:
     enum:
       - ACTIVE
