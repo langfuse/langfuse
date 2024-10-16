@@ -27,7 +27,9 @@ const APIComment = z
  */
 
 // POST /comments
-export const PostCommentsV1Body = CreateCommentData.strict();
+export const PostCommentsV1Body = CreateCommentData.extend({
+  authorUserId: z.string().nullish(),
+});
 export const PostCommentsV1Response = z.object({ id: z.string() }).strict();
 
 // GET /comments
