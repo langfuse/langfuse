@@ -40,20 +40,39 @@
 </div>
 </br>
 
-## Langfuse Overview
 
-_Unmute video for voice-over_
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+
+## 🚀 Langfuse: Open Source LLM Engineering Platform
+LLM Observability, Prompt Management, Evaluations, Datasets, Metrics, and Prompt Playground
+
+## 📹 Langfuse Overview
+Watch our 3-minute Langfuse Overview Video for a complete introduction.
+🔊 Unmute for voice-over!
+
+
 
 https://github.com/langfuse/langfuse/assets/2834609/a94062e9-c782-4ee9-af59-dee6370149a8
 
-### Develop
+
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+
+###🛠️ Develop with Langfuse
 
 - **LLM Observability:** Instrument your app and start ingesting traces to Langfuse ([Quickstart](https://langfuse.com/docs/get-started), [Integrations](https://langfuse.com/docs/integrations) [Tracing](https://langfuse.com/docs/tracing))
 - **Langfuse UI:** Inspect and debug complex logs ([Demo](https://langfuse.com/docs/demo), [Tracing](https://langfuse.com/docs/tracing))
 - **Prompt Management:** Manage, version and deploy prompts from within Langfuse ([Prompt Management](https://langfuse.com/docs/prompts/get-started))
 - **Prompt Engineering:** Test and iterate on your prompts with the [LLM Playground](https://langfuse.com/docs/playground)
 
-### Monitor
+
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+### 📊 Monitor with Langfuse
 
 - **LLM Analytics:** Track metrics (cost, latency, quality) and gain insights from dashboards & data exports ([Analytics](https://langfuse.com/docs/analytics))
 - **LLM Evaluations:** Collect and calculate scores for your LLM completions ([Scores & Evaluations](https://langfuse.com/docs/scores))
@@ -61,23 +80,35 @@ https://github.com/langfuse/langfuse/assets/2834609/a94062e9-c782-4ee9-af59-dee6
   - Collect user feedback ([User Feedback](https://langfuse.com/docs/scores/user-feedback))
   - Manually score LLM outputs in Langfuse ([Manual Scores](https://langfuse.com/docs/scores/manually))
 
-### Test
+
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+### 🧪 Test and Experiment
 
 - **Experiments:** Track and test app behaviour before deploying a new version
   - Datasets let you test expected in and output pairs and benchmark performance before deploying ([Datasets](https://langfuse.com/docs/datasets))
   - Track versions and releases in your application ([Experimentation](https://langfuse.com/docs/experimentation), [Prompt Management](https://langfuse.com/docs/prompts))
+  - 
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
 
-## Get started
 
-### Langfuse Cloud
+##🎯 Get Started with Langfuse
+
+###☁️ Langfuse Cloud
 
 Managed deployment by the Langfuse team, generous free-tier (hobby plan), no credit card required.
 
 **[» Langfuse Cloud](https://cloud.langfuse.com)**
 
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+
 ## Self-Hosting Open Source LLM Observability with Langfuse
 
-### Localhost (docker)
+### 🐳Localhost (docker)
 
 ```bash
 # Clone repository
@@ -90,16 +121,24 @@ docker compose up -d
 
 [→ Learn more about deploying locally](https://langfuse.com/docs/deployment/local)
 
-### Self-host (docker)
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+
+###🐳 Self-host (docker)
 
 Langfuse is simple to self-host and keep updated. It currently requires only a single docker container and a postgres database.
 [→ Self Hosting Instructions](https://langfuse.com/docs/deployment/self-host)
 
 Templated deployments: [Railway, GCP, AWS, Azure, Kubernetes and others](https://langfuse.com/docs/deployment/self-host#platform-specific-information)
 
-## Get Started
 
-### API Keys
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+## 🌐Get Started
+
+### 🔑 API Keys 
 
 You need a Langfuse public and secret key to get started. Sign up [here](https://cloud.langfuse.com) and find them in your project settings.
 
@@ -109,9 +148,13 @@ Note: We recommend using our fully async, typed [SDKs](https://langfuse.com/docs
 
 See the [→ Quickstart](https://langfuse.com/docs/get-started) to integrate Langfuse.
 
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+
 ### LLM Observability Integrations
 
-| Integration                                                                  | Supports                   | Description                                                                                                                                      |
+| 🔌Integration                                                                  | Supports                   | Description                                                                                                                                      |
 | ---------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [SDK](https://langfuse.com/docs/sdk)                                         | Python, JS/TS              | Manual instrumentation using the SDKs for full flexibility.                                                                                      |
 | [OpenAI](https://langfuse.com/docs/integrations/openai)                      | Python, JS/TS              | Automated instrumentation using drop-in replacement of OpenAI SDK.                                                                               |
@@ -122,7 +165,10 @@ See the [→ Quickstart](https://langfuse.com/docs/get-started) to integrate Lan
 | [Vercel AI SDK](https://langfuse.com/docs/integrations/vercel-ai-sdk)        | JS/TS                      | TypeScript toolkit designed to help developers build AI-powered applications with React, Next.js, Vue, Svelte, Node.js.                          |
 | [API](https://langfuse.com/docs/api)                                         |                            | Directly call the public API. OpenAPI spec available.                                                                                            |
 
-Packages integrated with Langfuse:
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+📦Packages integrated with Langfuse:
 
 | Name                                                            | Description                                                                                                             |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -133,15 +179,25 @@ Packages integrated with Langfuse:
 | [Flowise](https://langfuse.com/docs/integrations/flowise)       | JS/TS no-code builder for customized LLM flows.                                                                         |
 | [Langflow](https://langfuse.com/docs/integrations/langflow)     | Python-based UI for LangChain, designed with react-flow to provide an effortless way to experiment and prototype flows. |
 
-## Questions and feedback
 
-### Ideas and roadmap
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+
+##❓ Questions & Feedback 💬
+
+###💡 Ideas & Roadmap 🛤️
 
 - [Roadmap](https://langfuse.com/roadmap)
 - [GitHub Discussions](https://github.com/orgs/langfuse/discussions)
 - [Feature Requests](https://langfuse.com/ideas)
 
-### Support and feedback
+  
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+
+### 💬Support and feedback
 
 In order of preference the best way to communicate with us:
 
@@ -149,15 +205,24 @@ In order of preference the best way to communicate with us:
 - [Discord](https://langfuse.com/discord): community support
 - Privately: contact at langfuse dot com
 
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
 ## Contributing to Langfuse
 
 - Vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas)
 - Raise and comment on [Issues](https://github.com/langfuse/langfuse/issues)
 - Open a PR - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
 
-## License
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+##📜 License
 
 This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
+
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
 
 ## Misc
 
@@ -165,9 +230,15 @@ This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICE
 
 [**GET routes**](https://langfuse.com/docs/integrations/api) to use data in downstream applications (e.g. embedded analytics). You can also access them conveniently via the SDKs ([docs](https://langfuse.com/docs/query-traces)).
 
-### Security & Privacy
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
+
+### 🔒Security & Privacy
 
 We take data security and privacy seriously. Please refer to our [Security and Privacy](https://langfuse.com/security) page for more information.
+
+<!--Line-->
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900">
 
 ### Telemetry
 
