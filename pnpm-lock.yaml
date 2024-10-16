@@ -848,9 +848,6 @@ importers:
       express:
         specifier: ^4.21.0
         version: 4.21.0
-      express-basic-auth:
-        specifier: ^1.2.1
-        version: 1.2.1
       handlebars:
         specifier: ^4.7.8
         version: 4.7.8
@@ -5698,10 +5695,6 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  basic-auth@2.0.1:
-    resolution: {integrity: sha512-NF+epuEdnUYVlGuhaxbbq+dvJttwLnGY+YixlXlME5KpQ5W3CnXA5cVTneY3SPbPDRkcjMbifrwmFYcClgOZeg==}
-    engines: {node: '>= 0.8'}
-
   basic-ftp@5.0.5:
     resolution: {integrity: sha512-4Bcg1P8xhUuqcii/S0Z9wiHIrQVPMermM1any+MX5GeGD7faD3/msQUDGLol9wOcz4/jbg/WJnGqoJF6LiBdtg==}
     engines: {node: '>=10.0.0'}
@@ -7132,9 +7125,6 @@ packages:
 
   exponential-backoff@3.1.1:
     resolution: {integrity: sha512-dX7e/LHVJ6W3DE1MHWi9S1EYzDESENfLrYohG2G++ovZrYOkm4Knwa0mc1cn84xJOR4KEU0WSchhLbd0UklbHw==}
-
-  express-basic-auth@1.2.1:
-    resolution: {integrity: sha512-L6YQ1wQ/mNjVLAmK3AG1RK6VkokA1BIY6wmiH304Xtt/cLTps40EusZsU1Uop+v9lTDPxdtzbFmdXfFO3KEnwA==}
 
   express@4.21.0:
     resolution: {integrity: sha512-VqcNGcj/Id5ZT1LZ/cfihi3ttTn+NJmkli2eZADigjq29qTlWi/hAQ43t/VLPq8+UX06FCEx3ByOYet6ZFblng==}
@@ -18095,10 +18085,6 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  basic-auth@2.0.1:
-    dependencies:
-      safe-buffer: 5.1.2
-
   basic-ftp@5.0.5: {}
 
   bcryptjs@2.4.3: {}
@@ -19808,10 +19794,6 @@ snapshots:
       jest-util: 29.7.0
 
   exponential-backoff@3.1.1: {}
-
-  express-basic-auth@1.2.1:
-    dependencies:
-      basic-auth: 2.0.1
 
   express@4.21.0:
     dependencies:
