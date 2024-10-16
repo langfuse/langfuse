@@ -169,6 +169,25 @@ describe("GET /api/public/comments API Endpoint", () => {
     expect(comments.body.data).toHaveLength(5);
   });
 
+  it("should return comments for a specific objectId and objectType", async () => {
+    const objectId = "trace-2021-01-01";
+    const objectType = "TRACE";
+
+    const comments = await makeZodVerifiedAPICall(
+      GetCommentsV1Response,
+      "GET",
+      `/api/public/comments?objectType=${objectType}&objectId=${objectId}`,
+    );
+
+    expect(comments.body.data).toHaveLength(4);
+    expect(comments.body.data.map((comment) => comment.id)).toEqual([
+      "comment-2021-01-01",
+      "comment-2021-03-01",
+      "comment-2021-04-01",
+      "comment-2021-05-01",
+    ]);
+  });
+
   it("should return comments linked to a specific object and by a specific author", async () => {
     const authorUserId = "user-1";
     const objectId = "trace-2021-01-01";
@@ -185,6 +204,33 @@ describe("GET /api/public/comments API Endpoint", () => {
       "comment-2021-01-01",
       "comment-2021-03-01",
     ]);
+  });
+
+  it("should return an empty array when no comments match the criteria", async () => {
+    const comments = await makeZodVerifiedAPICall(
+      GetCommentsV1Response,
+      "GET",
+      "/api/public/comments?authorUserId=non-existent-user",
+    );
+
+    expect(comments.body.data).toHaveLength(0);
+  });
+
+  it("should throw 400 error with descriptive error message if objectType is provided but invalid", async () => {
+    try {
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "GET",
+        "/api/public/comments?objectType=INVALID_TYPE",
+      );
+    } catch (error) {
+      expect((error as Error).message).toContain(
+        "API call did not return 200, returned status 400",
+      );
+    }
   });
 
   it("should return all trace comments if objectType is provided and objectId is not", async () => {

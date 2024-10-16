@@ -2222,7 +2222,9 @@ components:
             session, prompt).
         objectId:
           type: string
-          description: The id of the object to attach the comment to.
+          description: >-
+            The id of the object to attach the comment to. If this does not
+            reference a valid existing object, an error will be thrown.
         content:
           type: string
           description: >-
