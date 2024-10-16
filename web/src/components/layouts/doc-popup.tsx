@@ -10,9 +10,14 @@ import { Info } from "lucide-react";
 export type DocPopupProps = {
   description: React.ReactNode;
   href?: string;
+  className?: string;
 };
 
-export default function DocPopup({ description, href }: DocPopupProps) {
+export default function DocPopup({
+  description,
+  href,
+  className,
+}: DocPopupProps) {
   const capture = usePostHogClientCapture();
 
   return (
@@ -49,7 +54,12 @@ export default function DocPopup({ description, href }: DocPopupProps) {
       </HoverCardTrigger>
       <HoverCardContent>
         {typeof description === "string" ? (
-          <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
+          <div
+            className={cn(
+              "whitespace-break-spaces text-xs font-normal text-primary sm:pl-0",
+              className,
+            )}
+          >
             {description}
           </div>
         ) : (

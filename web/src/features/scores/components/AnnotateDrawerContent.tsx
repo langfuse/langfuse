@@ -536,30 +536,35 @@ export function AnnotateDrawerContent({
   return (
     <div className="mx-auto w-full overflow-y-auto md:max-h-full">
       <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
-        <Header
-          title="Annotate"
-          level="h3"
-          help={{
-            description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
-            href: "https://langfuse.com/docs/scores/manually",
-          }}
-          actionButtons={[
-            <div className="flex items-center justify-end" key="saving-spinner">
-              <div className="mr-1 items-center justify-center">
-                {showSaving ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Check className="h-3 w-3" />
-                )}
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {showSaving ? "Saving score data" : "Score data saved"}
-              </span>
-            </div>,
-            actionButtons,
-          ]}
-        ></Header>
-        <DrawerTitle className="sr-only">Annotate</DrawerTitle>
+        <DrawerTitle>
+          <Header
+            title="Annotate"
+            level="h3"
+            help={{
+              description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
+              href: "https://langfuse.com/docs/scores/manually",
+              className: "leading-relaxed",
+            }}
+            actionButtons={[
+              <div
+                className="flex items-center justify-end"
+                key="saving-spinner"
+              >
+                <div className="mr-1 items-center justify-center">
+                  {showSaving ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Check className="h-3 w-3" />
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {showSaving ? "Saving score data" : "Score data saved"}
+                </span>
+              </div>,
+              actionButtons,
+            ]}
+          ></Header>
+        </DrawerTitle>
 
         {!isSelectHidden && (
           <div className="grid grid-flow-col items-center">
