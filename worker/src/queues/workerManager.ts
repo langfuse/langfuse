@@ -27,18 +27,7 @@ export class WorkerManager {
     }
 
     // Create redis connection for queue worker
-    const redisInstance = createNewRedisInstance({
-      retryStrategy: (times: number) => {
-        // https://docs.bullmq.io/guide/going-to-production#retrystrategy
-        // Retries forever. Waits at least 1s and at most 20s between retries.
-        logger.debug(`Connection to redis lost. Retry attempt: ${times}`);
-        return Math.max(Math.min(Math.exp(times), 20000), 1000);
-      },
-      reconnectOnError: (err: Error) => {
-        logger.warn(`Failed to connect to redis: ${err}. Reconnecting...`);
-        return true;
-      },
-    });
+    const redisInstance = createNewRedisInstance();
     if (!redisInstance) {
       logger.error("Failed to initialize redis connection");
       return;
