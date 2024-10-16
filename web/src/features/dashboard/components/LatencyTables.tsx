@@ -4,7 +4,7 @@ import { DashboardTable } from "@/src/features/dashboard/components/cards/Dashbo
 import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 
-import { type DatabaseRow } from "@/src/server/api/services/query-builder";
+import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { truncate } from "@/src/utils/string";

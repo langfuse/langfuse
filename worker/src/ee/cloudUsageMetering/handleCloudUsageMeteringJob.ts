@@ -7,7 +7,7 @@ import {
   cloudUsageMeteringDbCronJobName,
   CloudUsageMeteringDbCronJobStates,
 } from "./constants";
-import { cloudUsageMeteringQueue } from "../../queues/cloudUsageMeteringQueue";
+import { CloudUsageMeteringQueue } from "../../queues/cloudUsageMeteringQueue";
 import {
   QueueJobs,
   recordGauge,
@@ -162,6 +162,9 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     recordGauge("cloud_usage_metering_scheduled_catchup_jobs", 1, {
       unit: "jobs",
     });
-    await cloudUsageMeteringQueue?.add(QueueJobs.CloudUsageMeteringJob, {});
+    await CloudUsageMeteringQueue.getInstance()?.add(
+      QueueJobs.CloudUsageMeteringJob,
+      {},
+    );
   }
 };
