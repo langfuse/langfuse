@@ -4,6 +4,7 @@ import {
   Drawer,
   DrawerContent,
   DrawerHeader,
+  DrawerTitle,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
@@ -56,7 +57,9 @@ export function CommentDrawerButton({
       <DrawerContent className="h-1/3" overlayClassName="bg-primary/10">
         <div className="mx-auto w-full overflow-y-auto md:max-h-full">
           <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
-            <Header title="Comments" level="h3"></Header>
+            <DrawerTitle>
+              <Header title="Comments" level="h3"></Header>
+            </DrawerTitle>
           </DrawerHeader>
           <div data-vaul-no-drag className="px-2">
             <CommentList
