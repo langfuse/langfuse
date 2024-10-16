@@ -18,7 +18,7 @@ import {
   isEmptyBarChart,
   transformCategoricalScoresToChartData,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { NoData } from "@/src/features/dashboard/components/NoData";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
@@ -114,7 +114,7 @@ export function CategoricalScoreChart(props: {
   const colors = getColorsForCategories(chartLabels);
 
   return isEmptyBarChart({ data: chartData }) ? (
-    <NoData noDataText="No data" className="h-[21rem]"></NoData>
+    <NoDataOrLoading isLoading={scores.isLoading} />
   ) : (
     <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
       <BarChart

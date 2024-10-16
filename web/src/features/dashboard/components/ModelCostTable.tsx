@@ -98,6 +98,7 @@ export const ModelCostTable = ({
           <RightAlignedCell key="cost">USD</RightAlignedCell>,
         ]}
         rows={metricsData}
+        isLoading={metrics.isLoading}
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric
