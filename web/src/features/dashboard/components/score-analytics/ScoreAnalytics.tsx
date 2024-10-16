@@ -15,8 +15,9 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDeta
 import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesChart";
 import { CategoricalScoreChart } from "@/src/features/dashboard/components/score-analytics/CategoricalScoreChart";
 import { NumericScoreHistogram } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogram";
-import { NoData } from "@/src/features/dashboard/components/NoData";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Flex, Text } from "@tremor/react";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -174,14 +175,18 @@ export function ScoreAnalytics(props: {
             );
           })}
         </div>
+      ) : Boolean(scoreKeysAndProps.data?.length) ? (
+        <Flex
+          alignItems="center"
+          justifyContent="center"
+          className="min-h-[9rem] w-full flex-1 rounded-tremor-default border"
+        >
+          <Text className="text-tremor-content">
+            Select a score to view analytics
+          </Text>
+        </Flex>
       ) : (
-        <NoData
-          noDataText={
-            Boolean(scoreKeysAndProps.data?.length)
-              ? "Select a score to view analytics"
-              : "No data"
-          }
-        ></NoData>
+        <NoDataOrLoading isLoading={scoreKeysAndProps.isLoading} />
       )}
     </DashboardCard>
   );
