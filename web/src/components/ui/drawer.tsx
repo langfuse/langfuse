@@ -66,6 +66,9 @@ const DrawerContent = React.forwardRef<
       )}
       {...props}
     >
+      <DrawerDescription className="sr-only">
+        {props.title ?? ""}
+      </DrawerDescription>
       {children}
     </DrawerPrimitive.Content>
   </DrawerPortal>

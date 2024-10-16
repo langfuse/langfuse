@@ -1022,6 +1022,76 @@ describe("/api/public/scores API Endpoint", () => {
       }
     });
 
+    describe("should Filter scores by queueId", () => {
+      describe("queueId filtering", () => {
+        let queueId: string;
+        const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+        beforeEach(async () => {
+          queueId = uuidv4();
+
+          await Promise.all([
+            prisma.score.create({
+              data: {
+                observationId: generationId,
+                name: "annotation-score-1",
+                value: 100.5,
+                traceId: traceId,
+                comment: "comment 1",
+                queueId,
+                source: "ANNOTATION",
+                project: { connect: { id: projectId } },
+                dataType: "NUMERIC",
+              },
+            }),
+            prisma.score.create({
+              data: {
+                observationId: generationId,
+                name: "annotation-score-2",
+                value: 75.0,
+                traceId: traceId,
+                comment: "comment 2",
+                queueId,
+                source: "ANNOTATION",
+                project: { connect: { id: projectId } },
+                dataType: "NUMERIC",
+              },
+            }),
+          ]);
+        });
+
+        afterEach(async () => {
+          await prisma.score.deleteMany({
+            where: { queueId, projectId },
+          });
+        });
+
+        it("get all scores for queueId", async () => {
+          const getAllScore = await makeZodVerifiedAPICall(
+            GetScoresResponse,
+            "GET",
+            `/api/public/scores?queueId=${queueId}`,
+          );
+
+          expect(getAllScore.status).toBe(200);
+          expect(getAllScore.body.meta).toMatchObject({
+            page: 1,
+            limit: 50,
+            totalItems: 2,
+            totalPages: 1,
+          });
+          for (const val of getAllScore.body.data) {
+            expect(val).toMatchObject({
+              traceId: traceId,
+              observationId: generationId,
+              queueId: queueId,
+              source: "ANNOTATION",
+            });
+          }
+        });
+      });
+    });
+
     it("test only operator", async () => {
       const getScore = await makeZodVerifiedAPICall(
         GetScoresResponse,
