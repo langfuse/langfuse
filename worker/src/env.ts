@@ -14,7 +14,6 @@ const EnvSchema = z.object({
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(3030),
-  LANGFUSE_WORKER_PASSWORD: z.string(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_BUCKET_NAME: z.string().optional(),
@@ -109,9 +108,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
-  QUEUE_CONSUMER_REPEAT_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
 });

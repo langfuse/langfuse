@@ -1,5 +1,5 @@
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import { type DatabaseRow } from "@/src/server/api/services/query-builder";
+import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 
 // types
 type HistogramBin = { binLabel: string; count: number };

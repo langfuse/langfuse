@@ -11,7 +11,6 @@ import {
   evalJobExecutorQueueProcessor,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
-import { repeatQueueProcessor } from "./queues/repeatQueue";
 import { onShutdown } from "./utils/shutdown";
 
 import helmet from "helmet";
@@ -37,10 +36,6 @@ app.use("/api", api);
 
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
-
-if (env.QUEUE_CONSUMER_REPEAT_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(QueueName.RepeatQueue, repeatQueueProcessor);
-}
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.TraceUpsert, evalJobCreatorQueueProcessor, {

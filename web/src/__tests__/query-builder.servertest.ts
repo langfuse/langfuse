@@ -3,7 +3,7 @@ import {
   createQuery,
   enrichAndCreateQuery,
   executeQuery,
-} from "@/src/server/api/services/query-builder";
+} from "@/src/server/api/services/queryBuilder";
 import { type aggregations } from "@/src/server/api/services/sqlInterface";
 import { prisma } from "@langfuse/shared/src/db";
 import { type z } from "zod";
