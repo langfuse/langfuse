@@ -1,7 +1,8 @@
 import { type z } from "zod";
-import { singleFilter } from "./interfaces/filters";
+import { singleFilter, timeFilter } from "./interfaces/filters";
 
 // to be sent to the server
+export type TimeFilter = z.infer<typeof timeFilter>;
 export type FilterCondition = z.infer<typeof singleFilter>;
 export type FilterState = FilterCondition[];
 

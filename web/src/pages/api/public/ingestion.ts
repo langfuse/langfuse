@@ -8,22 +8,19 @@ import {
   traceException,
   redis,
   logger,
-  type AuthHeaderValidVerificationResult,
-  type ingestionBatchEvent,
   handleBatch,
   recordIncrement,
   getCurrentSpan,
+  IngestionQueue,
   LegacyIngestionQueue,
-  addTraceContext,
+  S3StorageService,
+  instrumentAsync,
+  getProcessorForEvent,
+  type AuthHeaderValidVerificationResult,
+  type LegacyIngestionEventType,
+  type IngestionEventType,
+  getClickhouseEntityType,
 } from "@langfuse/shared/src/server";
-import {
-  SdkLogProcessor,
-  type EventProcessor,
-  ObservationProcessor,
-  ScoreProcessor,
-  TraceProcessor,
-} from "@langfuse/shared/src/server";
-import { isNotNullOrUndefined } from "@/src/utils/types";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
@@ -35,7 +32,7 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import {
-  sendToWorkerIfEnvironmentConfigured,
+  addTracesToTraceUpsertQueue,
   QueueJobs,
   instrumentSync,
 } from "@langfuse/shared/src/server";
@@ -53,12 +50,64 @@ export const config = {
   },
 };
 
+let s3StorageServiceClient: S3StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = new S3StorageService({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
+
+/**
+ * This handler performs multiple actions to ingest data. It is compatible with the new async workflow, but also
+ * supports the old synchronous workflow which processes events in the web container.
+ * Overall, the processing of each incoming request happens in three stages
+ * 1. Validation
+ *   - Check that the user has permissions
+ *   - Check whether rate-limits are breached
+ *   - Check that the request is well-formed
+ * 2. Async Processing
+ *   - Upload each event to S3 for long-term storage and as an event cache
+ *   - Add the event batch to the queue for async processing
+ *   - Fallback to sync processing on errors
+ * 3. Sync Processing
+ * @param req
+ * @param res
+ */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   try {
+    /**************
+     * VALIDATION *
+     **************/
     await runMiddleware(req, res, cors);
+
+    // add context of api call to the span
+    const currentSpan = getCurrentSpan();
+
+    // get x-langfuse-xxx headers and add them to the span
+    Object.keys(req.headers).forEach((header) => {
+      if (
+        header.toLowerCase().startsWith("x-langfuse") ||
+        header.toLowerCase().startsWith("x_langfuse")
+      ) {
+        currentSpan?.setAttributes({
+          [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
+            req.headers[header],
+        });
+      }
+    });
+
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
@@ -67,15 +116,23 @@ export default async function handler(
       redis,
     ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
-    if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
+    if (!authCheck.validKey) {
+      throw new UnauthorizedError(authCheck.error);
+    }
 
-    const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
-      authCheck.scope,
-      "ingestion",
-    );
+    try {
+      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+        authCheck.scope,
+        "ingestion",
+      );
 
-    if (rateLimitCheck?.isRateLimited()) {
-      return rateLimitCheck.sendRestResponseIfLimited(res);
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
+      }
+    } catch (e) {
+      // If rate-limiter returns an error, we log it and continue processing.
+      // This allows us to fail open instead of reject requests.
+      logger.error("Error while rate limiting", e);
     }
 
     const batchType = z.object({
@@ -89,24 +146,9 @@ export default async function handler(
     );
 
     recordIncrement(
-      "ingestion_event",
+      "langfuse.ingestion.event",
       parsedSchema.success ? parsedSchema.data.batch.length : 0,
     );
-
-    // add context of api call to the span
-    const currentSpan = getCurrentSpan();
-
-    // get x-langfuse-xxx headers and add them to the span
-    Object.keys(req.headers).forEach((header) => {
-      if (
-        header.toLowerCase().startsWith("x-langfuse") ||
-        header.toLowerCase().startsWith("x_langfuse")
-      ) {
-        currentSpan?.setAttributes({
-          [header]: req.headers[header],
-        });
-      }
-    });
 
     // add number of events to the span
     parsedSchema.data
@@ -122,9 +164,10 @@ export default async function handler(
     }
 
     const validationErrors: { id: string; error: unknown }[] = [];
+    const authenticationErrors: { id: string; error: unknown }[] = [];
 
-    const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
-      parsedSchema.data.batch.map((event) => {
+    const batch: z.infer<typeof ingestionEvent>[] = parsedSchema.data.batch
+      .flatMap((event) => {
         const parsed = instrumentSync(
           { name: "ingestion-zod-parse-individual-event" },
           (span) => {
@@ -145,37 +188,134 @@ export default async function handler(
                 : "unknown",
             error: new InvalidRequestError(parsed.error.message),
           });
-          return undefined;
-        } else {
-          return parsed.data;
+          return [];
         }
+        if (!isAuthorized(parsed.data, authCheck)) {
+          authenticationErrors.push({
+            id: parsed.data.id,
+            error: new UnauthorizedError("Access Scope Denied"),
+          });
+          return [];
+        }
+        return [parsed.data];
+      })
+      .flatMap((event) => {
+        if (event.type === eventTypes.SDK_LOG) {
+          // Log SDK_LOG events, but remove them from further processing
+          logger.info("SDK Log Event", { event });
+          return [];
+        }
+        return [event];
       });
-    const filteredBatch: z.infer<typeof ingestionEvent>[] =
-      batch.filter(isNotNullOrUndefined);
 
     await telemetry();
 
-    const sortedBatch = sortBatch(filteredBatch);
+    const sortedBatch = sortBatch(batch);
 
+    /********************
+     * ASYNC PROCESSING *
+     ********************/
+    let s3UploadErrored = false;
+    if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true") {
+      await instrumentAsync({ name: "s3-upload-events" }, async () => {
+        if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
+          throw new Error("S3 event store is enabled but no bucket is set");
+        }
+        const s3Client = getS3StorageServiceClient(
+          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        );
+        // S3 Event Upload is currently blocking, but non-failing.
+        // If a promise rejects, we log it below, but do not throw an error.
+        // In this case, we upload the full batch into the Redis queue.
+        const results = await Promise.allSettled(
+          sortedBatch.map(async (event) => {
+            // We upload the event in an array to the S3 bucket.
+            // This should allow us to eventually batch events together and increase cost-efficiency through
+            // reduced write operations.
+            return event.type !== eventTypes.SDK_LOG
+              ? s3Client.uploadJson(
+                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(event.type)}/${event.body.id}/${event.id}.json`,
+                  [event],
+                )
+              : Promise.resolve();
+          }),
+        );
+        results.forEach((result) => {
+          if (result.status === "rejected") {
+            s3UploadErrored = true;
+            logger.error("Failed to upload event to S3", {
+              error: result.reason,
+            });
+          }
+        });
+      });
+    }
+
+    // Send each event individually to IngestionQueue for new processing
+    if (
+      env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" &&
+      env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" &&
+      env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING === "true" &&
+      redis &&
+      !s3UploadErrored
+    ) {
+      const queue = IngestionQueue.getInstance();
+      const results = await Promise.allSettled(
+        sortedBatch.map(async (event) => {
+          return queue
+            ? queue.add(QueueJobs.IngestionJob, {
+                id: randomUUID(),
+                timestamp: new Date(),
+                name: QueueJobs.IngestionJob as const,
+                payload: {
+                  data: {
+                    type: event.type,
+                    eventBodyId: event.body.id ?? "",
+                  },
+                  authCheck,
+                },
+              })
+            : Promise.reject("Failed to instantiate queue");
+        }),
+      );
+      results.forEach((result) => {
+        if (result.status === "rejected") {
+          logger.error("Failed to add event to IngestionQueue", {
+            error: result.reason,
+          });
+        }
+      });
+    }
+
+    // As part of the legacy processing we sent the entire batch to the worker.
     if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" && redis) {
-      // this function MUST NOT return but send the HTTP response directly
       const queue = LegacyIngestionQueue.getInstance();
 
       if (queue) {
-        // still need to check auth scope for all events individually
-
-        const failedAccessScope = accessCheckPerEvent(sortedBatch, authCheck);
-
         let addToQueueFailed = false;
+
+        const queuePayload: LegacyIngestionEventType =
+          env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" && !s3UploadErrored
+            ? {
+                data: sortedBatch.map((event) => ({
+                  type: event.type,
+                  eventBodyId: event.body.id ?? "",
+                  eventId: event.id,
+                })),
+                authCheck,
+                useS3EventStore: true,
+              }
+            : { data: sortedBatch, authCheck, useS3EventStore: false };
+
         try {
           await queue.add(
             QueueJobs.LegacyIngestionJob,
-            addTraceContext({
-              payload: { data: sortedBatch, authCheck: authCheck },
+            {
+              payload: queuePayload,
               id: randomUUID(),
               timestamp: new Date(),
               name: QueueJobs.LegacyIngestionJob as const,
-            }),
+            },
             {
               removeOnFail: 1_000_000,
               removeOnComplete: true,
@@ -196,13 +336,8 @@ export default async function handler(
 
         if (!addToQueueFailed) {
           return handleBatchResult(
-            [
-              ...validationErrors,
-              ...failedAccessScope.map((e) => ({
-                id: e.id,
-                error: "Access Scope Denied",
-              })),
-            ], // we are not sending additional server errors to the client in case of early return
+            // we are not sending additional server errors to the client in case of early return
+            [...validationErrors, ...authenticationErrors],
             sortedBatch.map((event) => ({ id: event.id, result: event })),
             res,
           );
@@ -214,17 +349,19 @@ export default async function handler(
       }
     }
 
+    /*******************
+     * SYNC PROCESSING *
+     *******************/
     const result = await handleBatch(sortedBatch, authCheck, tokenCount);
 
-    // send out REST requests to worker for all trace types
-    await sendToWorkerIfEnvironmentConfigured(
+    await addTracesToTraceUpsertQueue(
       result.results,
       authCheck.scope.projectId,
     );
 
     //  in case we did not return early, we return the result here
     handleBatchResult(
-      [...validationErrors, ...result.errors],
+      [...validationErrors, ...authenticationErrors, ...result.errors],
       result.results,
       res,
     );
@@ -263,47 +400,21 @@ export default async function handler(
   }
 }
 
-const accessCheckPerEvent = (
-  events: z.infer<typeof ingestionBatchEvent>,
-  authCheck: AuthHeaderValidVerificationResult,
-) => {
-  const unauthorizedEvents: { id: string; type: string }[] = [];
-
-  for (const event of events) {
-    try {
-      let processor: EventProcessor;
-      switch (event.type) {
-        case eventTypes.TRACE_CREATE:
-          processor = new TraceProcessor(event);
-          break;
-        case eventTypes.OBSERVATION_CREATE:
-        case eventTypes.OBSERVATION_UPDATE:
-        case eventTypes.EVENT_CREATE:
-        case eventTypes.SPAN_CREATE:
-        case eventTypes.SPAN_UPDATE:
-        case eventTypes.GENERATION_CREATE:
-        case eventTypes.GENERATION_UPDATE:
-          processor = new ObservationProcessor(event, tokenCount);
-          break;
-        case eventTypes.SCORE_CREATE:
-          processor = new ScoreProcessor(event);
-          break;
-        case eventTypes.SDK_LOG:
-          processor = new SdkLogProcessor(event);
-          break;
-      }
-      processor.auth(authCheck.scope);
-    } catch (error) {
-      unauthorizedEvents.push({ id: event.id, type: event.type });
-    }
+const isAuthorized = (
+  event: IngestionEventType,
+  authScope: AuthHeaderValidVerificationResult,
+): boolean => {
+  try {
+    getProcessorForEvent(event, tokenCount).auth(authScope.scope);
+    return true;
+  } catch (error) {
+    return false;
   }
-  return unauthorizedEvents;
 };
 
 /**
  * Sorts a batch of ingestion events. Orders by: updating events last, sorted by timestamp asc.
  */
-
 const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
   const updateEvents: (typeof eventTypes)[keyof typeof eventTypes][] = [
     eventTypes.GENERATION_UPDATE,

@@ -32,6 +32,7 @@ const CreateAnnotationScoreBase = z.object({
   configId: z.string().optional(),
   observationId: z.string().optional(),
   comment: z.string().nullish(),
+  queueId: z.string().nullish(),
 });
 
 const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({
@@ -57,3 +58,15 @@ export const UpdateAnnotationScoreData = z.discriminatedUnion("dataType", [
   UpdateAnnotationScoreBase.merge(CategoricalData),
   UpdateAnnotationScoreBase.merge(BooleanData),
 ]);
+
+// annotation queues
+
+export const CreateQueueData = z.object({
+  name: z.string().min(1).max(35),
+  description: z.string().max(1000).optional(),
+  scoreConfigIds: z.array(z.string()).min(1, {
+    message: "At least 1 score config must be selected",
+  }),
+});
+
+export type CreateQueue = z.infer<typeof CreateQueueData>;

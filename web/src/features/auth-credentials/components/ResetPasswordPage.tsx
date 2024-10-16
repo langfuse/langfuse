@@ -240,7 +240,7 @@ export function ResetPasswordPage({
           <div className="mx-auto mt-10 max-w-lg text-center text-xs text-muted-foreground">
             You will only receive an email if an account with this email exists
             and you have signed up with email and password. If you used an
-            authentication provider like Google, Okta, or GitHub, please{" "}
+            authentication provider like Google, Gitlab, Okta, or GitHub, please{" "}
             <Link href="/auth/sign-in" className="underline">
               sign in
             </Link>

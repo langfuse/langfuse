@@ -15,7 +15,7 @@ export function HostNameProject() {
             When connecting to Langfuse, use this hostname / baseurl.
           </div>
           <CodeView
-            content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH}`}
+            content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
           />
         </div>
       </Card>

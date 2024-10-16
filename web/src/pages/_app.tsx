@@ -32,7 +32,6 @@ import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
-import { shutdown } from "@/src/utils/shutdown";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 
@@ -96,11 +95,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
             session={session}
             refetchOnWindowFocus={true}
             refetchInterval={5 * 60} // 5 minutes
-            basePath={
-              env.NEXT_PUBLIC_BASE_PATH
-                ? `${env.NEXT_PUBLIC_BASE_PATH}/api/auth`
-                : undefined
-            }
+            basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
           >
             <DetailPageListsProvider>
               <MarkdownContextProvider>
@@ -234,7 +229,11 @@ function UserTracking() {
   return null;
 }
 
-if (process.env.NEXT_MANUAL_SIG_HANDLE) {
+if (
+  process.env.NEXT_RUNTIME === "nodejs" &&
+  process.env.NEXT_MANUAL_SIG_HANDLE
+) {
+  const { shutdown } = await import("@/src/utils/shutdown");
   prexit(async (signal) => {
     console.log("Signal: ", signal);
     return await shutdown(signal);

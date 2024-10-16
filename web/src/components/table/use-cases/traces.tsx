@@ -33,6 +33,7 @@ import {
   type TraceOptions,
   tracesTableColsWithOptions,
   type ObservationLevel,
+  BatchExportTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -47,6 +48,7 @@ import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndivi
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -55,7 +57,7 @@ export type TracesTableRow = {
   name: string;
   userId: string;
   level?: ObservationLevel;
-  observationCount?: number;
+  observationCount?: bigint;
   // scores holds grouped column with individual scores
   scores?: ScoreAggregate;
   latency?: number;
@@ -229,30 +231,32 @@ export default function TracesTable({
       size: 30,
       isPinned: true,
       header: ({ table }) => (
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected()
-              ? true
-              : table.getIsSomePageRowsSelected()
-                ? "indeterminate"
-                : false
-          }
-          onCheckedChange={(value) => {
-            table.toggleAllPageRowsSelected(!!value);
-            if (!value) {
-              setSelectedRows({});
+        <div className="mt-1 h-5">
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected()
+                ? true
+                : table.getIsSomePageRowsSelected()
+                  ? "indeterminate"
+                  : false
             }
-          }}
-          aria-label="Select all"
-          className="mt-1 opacity-60 data-[state=checked]:mt-[6px] data-[state=indeterminate]:mt-[6px]"
-        />
+            onCheckedChange={(value) => {
+              table.toggleAllPageRowsSelected(!!value);
+              if (!value) {
+                setSelectedRows({});
+              }
+            }}
+            aria-label="Select all"
+            className="opacity-60"
+          />
+        </div>
       ),
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
+          className="opacity-60"
         />
       ),
     },
@@ -289,7 +293,7 @@ export default function TracesTable({
         const value: TracesTableRow["id"] = row.getValue("id");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/traces/${value}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
             value={value}
           />
         ) : undefined;
@@ -600,7 +604,7 @@ export default function TracesTable({
         const value: TracesTableRow["observationCount"] =
           row.getValue("observationCount");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{value}</span>;
+        return <span>{numberFormatter(value, 0)}</span>;
       },
     },
     {
@@ -690,7 +694,7 @@ export default function TracesTable({
 
   const rows = useMemo(() => {
     return traces.isSuccess
-      ? traceRowData?.rows?.map((trace) => {
+      ? (traceRowData?.rows?.map((trace) => {
           return {
             bookmarked: trace.bookmarked,
             id: trace.id,
@@ -719,7 +723,7 @@ export default function TracesTable({
             outputCost: trace.calculatedOutputCost ?? undefined,
             totalCost: trace.calculatedTotalCost ?? undefined,
           };
-        }) ?? []
+        }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
 
@@ -736,7 +740,7 @@ export default function TracesTable({
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
         columnsWithCustomSelect={["name", "tags"]}
-        actionButtons={
+        actionButtons={[
           Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),
           ).length > 0 ? (
@@ -750,8 +754,13 @@ export default function TracesTable({
                 setSelectedRows({});
               }}
             />
-          ) : null
-        }
+          ) : null,
+          <BatchExportTableButton
+            {...{ projectId, filterState, orderByState }}
+            tableName={BatchExportTableName.Traces}
+            key="batchExport"
+          />,
+        ]}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}

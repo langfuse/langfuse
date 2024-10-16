@@ -13,11 +13,20 @@ const DEFAULT_RESPONSE = {
       message: {
         role: "assistant",
         content: null,
-        function_call: {
-          name: "evaluate",
-          arguments:
-            '{"score":0.2,"reasoning":"The language used in the conversation was respectful and there were no personal attacks. However, there were some sarcastic comments which could be perceived as slightly negative."}',
-        },
+        tool_calls: [
+          {
+            function: {
+              name: "extract",
+              arguments: JSON.stringify({
+                score: 0,
+                reasoning:
+                  "The provided text is a harmless play on words that poses no risk of harm or offense. It is a lighthearted joke that uses wordplay to create humor without targeting or derogating any group of people.",
+              }),
+              type: "tool_call",
+              id: "call_cJ6HLI1gZSIRJVOrFsChO1SI",
+            },
+          },
+        ],
       },
       logprobs: null,
       finish_reason: "stop",
@@ -47,7 +56,7 @@ function ErrorCompletionHandler(status: number, statusText: string) {
     new HttpResponse(null, {
       status,
       statusText,
-    }),
+    })
   );
 }
 
@@ -69,7 +78,7 @@ export class OpenAIServer {
 
     this.hasActiveKey = hasActiveKey;
     this.internalServer = setupServer(
-      ...(useDefaultResponse ? [JsonCompletionHandler(DEFAULT_RESPONSE)] : []),
+      ...(useDefaultResponse ? [JsonCompletionHandler(DEFAULT_RESPONSE)] : [])
     );
     if (hasActiveKey) {
       this.internalServer.events.on("response:bypass", async ({ response }) => {

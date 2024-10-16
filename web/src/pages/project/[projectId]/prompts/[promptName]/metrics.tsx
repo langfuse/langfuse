@@ -20,6 +20,7 @@ import { type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -345,6 +346,11 @@ export default function PromptVersionTable() {
       columns,
     );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<PromptVersionTableRow>(
+    "promptVersionsColumnOrder",
+    columns,
+  );
+
   const totalCount = promptVersions?.data?.totalCount ?? null;
 
   const { combinedData } = joinPromptCoreAndMetricData(
@@ -426,6 +432,8 @@ export default function PromptVersionTable() {
           setColumnVisibility={setColumnVisibilityState}
           selectedOption={selectedOption}
           setDateRangeAndOption={setDateRangeAndOption}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
         />
       </div>
       <DataTable
@@ -454,6 +462,8 @@ export default function PromptVersionTable() {
         orderBy={orderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibilityState}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </div>

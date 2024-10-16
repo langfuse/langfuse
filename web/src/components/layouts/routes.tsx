@@ -8,12 +8,13 @@ import {
   type LucideIcon,
   Settings,
   UsersIcon,
-  PenSquareIcon,
   LibraryBig,
   TerminalIcon,
   Lightbulb,
   Grid2X2,
   Sparkle,
+  ClipboardPen,
+  FileJson,
 } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { type ReactNode } from "react";
@@ -22,6 +23,7 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
+import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 
 export type Route = {
   name: string;
@@ -47,6 +49,7 @@ export const ROUTES: Route[] = [
     pathname: "/",
     icon: LangfuseIcon,
     label: <VersionLabel className="-ml-3" />,
+    // node is overridden in layout.tsx if uiCustomization.logoLightModeHref and uiCustomization.logoDarkModeHref are set
   },
   {
     name: "Projects",
@@ -85,6 +88,14 @@ export const ROUTES: Route[] = [
     ],
   },
   {
+    name: "Annotate",
+    pathname: `/project/[projectId]/annotation-queues`,
+    icon: ClipboardPen,
+    label: "Beta",
+    projectRbacScope: "annotationQueues:read",
+    entitlement: "annotation-queues",
+  },
+  {
     name: "Evaluation",
     icon: Lightbulb,
     entitlement: "model-based-evaluations",
@@ -118,7 +129,7 @@ export const ROUTES: Route[] = [
   {
     name: "Prompts",
     pathname: "/project/[projectId]/prompts",
-    icon: PenSquareIcon,
+    icon: FileJson,
     projectRbacScope: "prompts:read",
   },
   {
@@ -140,6 +151,7 @@ export const ROUTES: Route[] = [
     entitlement: "cloud-billing",
     organizationRbacScope: "langfuseCloudBilling:CRUD",
     show: ({ organization }) => organization?.plan === "cloud:hobby",
+    label: <UsageTracker />,
   },
   {
     name: "Upgrade",
@@ -149,6 +161,7 @@ export const ROUTES: Route[] = [
     entitlement: "cloud-billing",
     organizationRbacScope: "langfuseCloudBilling:CRUD",
     show: ({ organization }) => organization?.plan === "cloud:hobby",
+    label: <UsageTracker />,
   },
   {
     name: "Settings",

@@ -35,7 +35,7 @@ const getBaseUrl = () => {
         ? `https://${process.env.VERCEL_URL}`
         : `http://localhost:${process.env.PORT ?? 3000}`;
 
-  return `${hostname}${env.NEXT_PUBLIC_BASE_PATH}`;
+  return `${hostname}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 };
 
 // global build id used to compare versions to show refresh toast on stale cache hit serving deprecated files

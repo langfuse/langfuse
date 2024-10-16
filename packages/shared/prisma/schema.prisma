@@ -34,21 +34,23 @@ generator kysely {
 
 // Necessary for Next auth
 model Account {
-    id                String  @id @default(cuid())
-    userId            String  @map("user_id")
-    type              String
-    provider          String
-    providerAccountId String
-    refresh_token     String? // @db.Text
-    access_token      String? // @db.Text
-    expires_at        Int?
-    expires_in        Int?
-    ext_expires_in    Int?
-    token_type        String?
-    scope             String?
-    id_token          String? // @db.Text
-    session_state     String?
-    user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    id                       String  @id @default(cuid())
+    userId                   String  @map("user_id")
+    type                     String
+    provider                 String
+    providerAccountId        String
+    refresh_token            String? // @db.Text
+    access_token             String? // @db.Text
+    expires_at               Int?
+    expires_in               Int?
+    ext_expires_in           Int?
+    token_type               String?
+    scope                    String?
+    id_token                 String? // @db.Text
+    session_state            String?
+    refresh_token_expires_in Int?
+    created_at               Int? // GitLab
+    user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     @@unique([provider, providerAccountId])
     @@index([userId])
@@ -78,6 +80,8 @@ model User {
     createdAt               DateTime                 @default(now()) @map("created_at")
     updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at")
     featureFlags            String[]                 @default([]) @map("feature_flags")
+    annotatedLockedItem     AnnotationQueueItem[]    @relation("LockedByUser")
+    annotatedCompletedItem  AnnotationQueueItem[]    @relation("AnnotatorUser")
 
     @@map("users")
 }
@@ -105,31 +109,33 @@ model Organization {
 }
 
 model Project {
-    id                 String                 @id @default(cuid())
-    orgId              String                 @map("org_id")
-    createdAt          DateTime               @default(now()) @map("created_at")
-    updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at")
-    name               String
-    projectMembers     ProjectMembership[]
-    organization       Organization           @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-    traces             Trace[]
-    observations       Observation[]
-    apiKeys            ApiKey[]
-    dataset            Dataset[]
-    RawEvents          Events[]
-    invitations        MembershipInvitation[]
-    sessions           TraceSession[]
-    Prompt             Prompt[]
-    Model              Model[]
-    EvalTemplate       EvalTemplate[]
-    JobConfiguration   JobConfiguration[]
-    JobExecution       JobExecution[]
-    LlmApiKeys         LlmApiKeys[]
-    PosthogIntegration PosthogIntegration[]
-    Score              Score[]
-    scoreConfig        ScoreConfig[]
-    BatchExport        BatchExport[]
-    comment            Comment[]
+    id                  String                 @id @default(cuid())
+    orgId               String                 @map("org_id")
+    createdAt           DateTime               @default(now()) @map("created_at")
+    updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
+    name                String
+    projectMembers      ProjectMembership[]
+    organization        Organization           @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+    traces              Trace[]
+    observations        Observation[]
+    apiKeys             ApiKey[]
+    dataset             Dataset[]
+    RawEvents           Events[]
+    invitations         MembershipInvitation[]
+    sessions            TraceSession[]
+    Prompt              Prompt[]
+    Model               Model[]
+    EvalTemplate        EvalTemplate[]
+    JobConfiguration    JobConfiguration[]
+    JobExecution        JobExecution[]
+    LlmApiKeys          LlmApiKeys[]
+    PosthogIntegration  PosthogIntegration[]
+    Score               Score[]
+    scoreConfig         ScoreConfig[]
+    BatchExport         BatchExport[]
+    comment             Comment[]
+    annotationQueue     AnnotationQueue[]
+    annotationQueueItem AnnotationQueueItem[]
 
     @@index([orgId])
     @@map("projects")
@@ -167,12 +173,12 @@ model LlmApiKeys {
     baseURL           String?  @map("base_url")
     customModels      String[] @default([]) @map("custom_models")
     withDefaultModels Boolean  @default(true) @map("with_default_models")
+    config            Json?
 
     projectId String  @map("project_id")
     project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
     @@unique([projectId, provider])
-    @@index([projectId, provider])
     @@map("llm_api_keys")
 }
 
@@ -189,7 +195,6 @@ model OrganizationMembership {
 
     @@unique([orgId, userId])
     @@index([userId])
-    @@index([orgId])
     @@map("organization_memberships")
 }
 
@@ -282,7 +287,6 @@ model Trace {
 
     JobExecution JobExecution[]
 
-    @@index([projectId])
     @@index([projectId, timestamp])
     @@index([sessionId])
     @@index([name])
@@ -373,12 +377,9 @@ model Observation {
     @@index([projectId, internalModel, startTime, unit])
     @@index([traceId, projectId, type, startTime])
     @@index([traceId, projectId, startTime])
-    @@index([traceId, projectId])
-    @@index([traceId])
     @@index([type])
     @@index(startTime)
     @@index(createdAt)
-    @@index(projectId)
     @@index(model)
     @@index(internalModel)
     @@index([projectId, promptId])
@@ -464,6 +465,7 @@ model Score {
     observationId String?        @map("observation_id")
     configId      String?        @map("config_id")
     stringValue   String?        @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
+    queueId       String?        @map("queue_id")
     createdAt     DateTime       @default(now()) @map("created_at")
     updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
     dataType      ScoreDataType  @default(NUMERIC) @map("data_type")
@@ -473,7 +475,6 @@ model Score {
     @@unique([id, projectId]) // used for upserts via prisma
     @@index(timestamp)
     @@index([value])
-    @@index([projectId])
     @@index([projectId, name])
     @@index([authorUserId])
     @@index([configId])
@@ -521,6 +522,59 @@ enum ScoreDataType {
     BOOLEAN
 }
 
+model AnnotationQueue {
+    id                  String                @id @default(cuid())
+    name                String
+    description         String?
+    scoreConfigIds      String[]              @default([]) @map("score_config_ids")
+    projectId           String                @map("project_id")
+    project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt           DateTime              @default(now()) @map("created_at")
+    updatedAt           DateTime              @default(now()) @updatedAt @map("updated_at")
+    annotationQueueItem AnnotationQueueItem[]
+
+    @@unique([projectId, name])
+    @@index([id, projectId])
+    @@index([projectId, createdAt])
+    @@map("annotation_queues")
+}
+
+model AnnotationQueueItem {
+    id              String                    @id @default(cuid())
+    queueId         String                    @map("queue_id")
+    queue           AnnotationQueue           @relation(fields: [queueId], references: [id], onDelete: Cascade)
+    objectId        String                    @map("object_id")
+    objectType      AnnotationQueueObjectType @map("object_type")
+    status          AnnotationQueueStatus     @default(PENDING)
+    lockedAt        DateTime?                 @map("locked_at")
+    lockedByUserId  String?                   @map("locked_by_user_id")
+    lockedByUser    User?                     @relation("LockedByUser", fields: [lockedByUserId], references: [id], onDelete: SetNull)
+    annotatorUserId String?                   @map("annotator_user_id")
+    annotatorUser   User?                     @relation("AnnotatorUser", fields: [annotatorUserId], references: [id], onDelete: SetNull)
+    completedAt     DateTime?                 @map("completed_at")
+    projectId       String                    @map("project_id")
+    project         Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt       DateTime                  @default(now()) @map("created_at")
+    updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at")
+
+    @@index([id, projectId])
+    @@index([projectId, queueId, status])
+    @@index([objectId, objectType, projectId, queueId])
+    @@index([annotatorUserId])
+    @@index([createdAt])
+    @@map("annotation_queue_items")
+}
+
+enum AnnotationQueueStatus {
+    PENDING
+    COMPLETED
+}
+
+enum AnnotationQueueObjectType {
+    TRACE
+    OBSERVATION
+}
+
 model CronJobs {
     name         String    @id
     lastRun      DateTime? @map("last_run")
@@ -544,7 +598,6 @@ model Dataset {
 
     @@id([id, projectId])
     @@unique([projectId, name])
-    @@index([projectId], type: Hash)
     @@index([createdAt])
     @@index([updatedAt])
     @@map("datasets")
@@ -678,9 +731,7 @@ model Prompt {
     labels   String[] @default([])
 
     @@unique([projectId, name, version])
-    @@index([projectId, name, version])
     @@index([projectId, id])
-    @@index([projectId])
     @@index([createdAt])
     @@index([updatedAt])
     @@index([tags(ops: ArrayOps)], type: Gin)
@@ -707,8 +758,6 @@ model Model {
     tokenizerConfig Json?     @map("tokenizer_config")
 
     @@unique([projectId, modelName, startDate, unit])
-    @@index([projectId, modelName, startDate, unit])
-    @@index([projectId, modelName])
     @@index(modelName)
     @@map("models")
 }
@@ -757,7 +806,6 @@ model EvalTemplate {
 
     @@unique([projectId, name, version])
     @@index([projectId, id])
-    @@index([projectId])
     @@map("eval_templates")
 }
 
@@ -792,7 +840,6 @@ model JobConfiguration {
     JobExecution    JobExecution[]
 
     @@index([projectId, id])
-    @@index([projectId])
     @@map("job_configurations")
 }
 
@@ -827,7 +874,6 @@ model JobExecution {
 
     @@index([projectId, status])
     @@index([projectId, id])
-    @@index([projectId])
     @@index([jobConfigurationId])
     @@index([jobOutputScoreId])
     @@index([jobInputTraceId])
@@ -860,7 +906,6 @@ model PosthogIntegration {
     enabled                Boolean
     createdAt              DateTime  @default(now()) @map("created_at")
 
-    @@index([projectId])
     @@map("posthog_integrations")
 }
 

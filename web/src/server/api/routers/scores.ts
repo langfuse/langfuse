@@ -213,6 +213,7 @@ export const scoresRouter = createTRPCRouter({
             stringValue: input.stringValue,
             comment: input.comment,
             authorUserId: ctx.session.user.id,
+            queueId: input.queueId,
           },
         });
         await auditLog({
@@ -239,6 +240,7 @@ export const scoresRouter = createTRPCRouter({
           comment: input.comment,
           authorUserId: ctx.session.user.id,
           source: "ANNOTATION",
+          queueId: input.queueId,
         },
       });
 
@@ -279,6 +281,7 @@ export const scoresRouter = createTRPCRouter({
           stringValue: input.stringValue,
           comment: input.comment,
           authorUserId: ctx.session.user.id,
+          queueId: input.queueId,
         },
       });
 

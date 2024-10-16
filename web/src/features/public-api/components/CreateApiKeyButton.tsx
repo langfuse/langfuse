@@ -110,7 +110,7 @@ export const ApiKeyRender = ({
       <div>
         <div className="text-md mb-2 font-semibold">Host</div>
         <CodeView
-          content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH}`}
+          content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
         />
       </div>
     </>

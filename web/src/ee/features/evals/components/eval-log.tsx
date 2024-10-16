@@ -179,7 +179,7 @@ export default function EvalLogTable({
   };
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
@@ -216,6 +216,6 @@ export default function EvalLogTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
       />
-    </div>
+    </>
   );
 }

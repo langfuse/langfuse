@@ -34,6 +34,7 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { ClickhouseAdminToggle } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -42,17 +43,30 @@ const signOutUser = async () => {
   await signOut();
 };
 
-const userNavigation = [
-  {
-    name: "Theme",
-    onClick: () => {},
-    content: <ThemeToggle />,
-  },
-  {
-    name: "Sign out",
-    onClick: signOutUser,
-  },
-];
+const getUserNavigation = (isAdmin: boolean) => {
+  const navigationItems = [
+    {
+      name: "Theme",
+      onClick: () => {},
+      content: <ThemeToggle />,
+    },
+    {
+      name: "Sign out",
+      onClick: signOutUser,
+    },
+  ];
+
+  return isAdmin
+    ? [
+        {
+          name: "CH Query",
+          onClick: () => {},
+          content: <ClickhouseAdminToggle />,
+        },
+        ...navigationItems,
+      ]
+    : navigationItems;
+};
 
 const pathsWithoutNavigation: string[] = [
   "/onboarding",
@@ -186,7 +200,7 @@ export default function Layout(props: PropsWithChildren) {
 
     const href = (
       route.customizableHref
-        ? uiCustomization?.[route.customizableHref] ?? route.pathname
+        ? (uiCustomization?.[route.customizableHref] ?? route.pathname)
         : route.pathname
     )
       ?.replace("[projectId]", routerProjectId ?? "")
@@ -252,13 +266,20 @@ export default function Layout(props: PropsWithChildren) {
     session.status === "authenticated" &&
     unauthenticatedPaths.includes(router.pathname)
   ) {
-    const targetPath = router.query.targetPath as string | undefined;
+    const queryTargetPath = router.query.targetPath as string | undefined;
 
-    const sanitizedTargetPath = targetPath
-      ? DOMPurify.sanitize(targetPath)
+    const sanitizedTargetPath = queryTargetPath
+      ? DOMPurify.sanitize(queryTargetPath)
       : undefined;
 
-    void router.replace(sanitizedTargetPath ?? "/");
+    // only allow relative links
+    const targetPath =
+      sanitizedTargetPath?.startsWith("/") &&
+      !sanitizedTargetPath.startsWith("//")
+        ? sanitizedTargetPath
+        : "/";
+
+    void router.replace(targetPath);
     return <Spinner message="Redirecting" />;
   }
 
@@ -281,19 +302,19 @@ export default function Layout(props: PropsWithChildren) {
         <link
           rel="apple-touch-icon"
           sizes="180x180"
-          href="/apple-touch-icon.png"
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/apple-touch-icon.png`}
         />
         <link
           rel="icon"
           type="image/png"
           sizes="32x32"
-          href="/favicon-32x32.png"
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-32x32.png`}
         />
         <link
           rel="icon"
           type="image/png"
           sizes="16x16"
-          href="/favicon-16x16.png"
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16.png`}
         />
       </Head>
       <div>
@@ -434,14 +455,14 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
+                <Menu.Items className="absolute bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
                   <span
                     className="block max-w-52 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
                     title={session.data?.user?.email ?? undefined}
                   >
                     {session.data?.user?.email}
                   </span>
-                  {userNavigation.map((item) => (
+                  {getUserNavigation(cloudAdmin).map((item) => (
                     <Menu.Item key={item.name}>
                       {({ active }) => (
                         <a
@@ -509,7 +530,7 @@ export default function Layout(props: PropsWithChildren) {
                 >
                   {session.data?.user?.email}
                 </span>
-                {userNavigation.map((item) => (
+                {getUserNavigation(cloudAdmin).map((item) => (
                   <Menu.Item key={item.name}>
                     {({ active }) => (
                       <a
@@ -577,6 +598,8 @@ const MainNavigation: React.FC<{
     {},
   );
 
+  const uiCustomization = useUiCustomization();
+
   return (
     <li className={className}>
       <ul role="list" className="-mx-2 space-y-1">
@@ -594,34 +617,44 @@ const MainNavigation: React.FC<{
                 onClick={onNavitemClick}
                 target={item.newTab ? "_blank" : undefined}
               >
-                {item.icon && (
-                  <item.icon
-                    className={clsx(
-                      item.current
-                        ? "text-primary-accent"
-                        : "text-muted-foreground group-hover:text-primary-accent",
-                      "h-5 w-5 shrink-0",
+                {item.pathname === "/" &&
+                uiCustomization?.logoLightModeHref &&
+                uiCustomization?.logoDarkModeHref ? (
+                  // override the default logo with the uiCustomization logo if the pathname is "/"
+                  <LangfuseLogo size="sm" version />
+                ) : (
+                  // default node for all other routes
+                  <>
+                    {item.icon && (
+                      <item.icon
+                        className={clsx(
+                          item.current
+                            ? "text-primary-accent"
+                            : "text-muted-foreground group-hover:text-primary-accent",
+                          "h-5 w-5 shrink-0",
+                        )}
+                        aria-hidden="true"
+                      />
                     )}
-                    aria-hidden="true"
-                  />
+                    {item.name}
+                    {item.label &&
+                      (typeof item.label === "string" ? (
+                        <span
+                          className={cn(
+                            "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                            item.current
+                              ? "border-primary-accent text-primary-accent"
+                              : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                      ) : (
+                        // ReactNode
+                        item.label
+                      ))}
+                  </>
                 )}
-                {item.name}
-                {item.label &&
-                  (typeof item.label === "string" ? (
-                    <span
-                      className={cn(
-                        "-my-0.5 self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
-                        item.current
-                          ? "border-primary-accent text-primary-accent"
-                          : "border-border text-muted-foreground group-hover:border-primary-accent group-hover:text-primary-accent",
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  ) : (
-                    // ReactNode
-                    item.label
-                  ))}
               </Link>
             ) : item.children && item.children.length > 0 ? (
               <Disclosure

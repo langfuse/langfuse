@@ -3,10 +3,12 @@ import { pipeline } from "stream";
 import {
   BatchExportFileFormat,
   BatchExportQuerySchema,
+  BatchExportQueryType,
   BatchExportStatus,
   exportOptions,
   FilterCondition,
   Prisma,
+  TimeFilter,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -16,10 +18,247 @@ import {
   sendBatchExportSuccessEmail,
   streamTransformations,
   BatchExportJobType,
+  createTracesQuery,
+  createGenerationsQuery,
+  parseGetAllGenerationsInput,
+  parseTraceAllFilters,
+  FullObservationsWithScores,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
+import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
+
+const tableNameToTimeFilterColumn = {
+  sessions: "createdAt",
+  traces: "timestamp",
+  generations: "startTime",
+};
+
+const isGenerationTimestampFilter = (
+  filter: FilterCondition,
+): filter is TimeFilter => {
+  return filter.column === "Start Time" && filter.type === "datetime";
+};
+
+const isTraceTimestampFilter = (
+  filter: FilterCondition,
+): filter is TimeFilter => {
+  return filter.column === "Timestamp" && filter.type === "datetime";
+};
+
+const getEmptyScoreColumns = async (
+  projectId: string,
+  cutoffCreatedAt: Date,
+  filter: FilterCondition[],
+  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter,
+) => {
+  const scoreTimestampFilter = filter?.find(isTimestampFilter);
+
+  const scoreTimestampFilterCondition = scoreTimestampFilter
+    ? Prisma.sql`AND s.timestamp >= ${scoreTimestampFilter.value}`
+    : Prisma.empty;
+
+  const distinctScoreNames = await prisma.$queryRaw<{ name: string }[]>`
+        SELECT DISTINCT name
+        FROM scores s
+        WHERE s.project_id = ${projectId}
+        AND s.created_at <= ${cutoffCreatedAt}
+        ${scoreTimestampFilterCondition}
+      `;
+
+  return distinctScoreNames.reduce(
+    (acc, { name }) => ({ ...acc, [name]: null }),
+    {} as Record<string, null>,
+  );
+};
+
+const getChunkWithFlattenedScores = <
+  T extends BatchExportTracesRow[] | FullObservationsWithScores,
+>(
+  chunk: T,
+  emptyScoreColumns: Record<string, null>,
+) => {
+  return chunk.map((row) => {
+    const { scores, ...data } = row;
+    if (!scores) return { ...data, ...emptyScoreColumns };
+    const scoreColumns = Object.entries(scores).reduce<
+      Record<string, string[] | number[] | null>
+    >((acc, [key, value]) => {
+      if (key in emptyScoreColumns) {
+        return {
+          ...acc,
+          [key]: value,
+        };
+      } else {
+        return acc;
+      }
+    }, emptyScoreColumns);
+    return {
+      ...data,
+      ...scoreColumns,
+    };
+  });
+};
+
+const getDatabaseReadStream = async ({
+  projectId,
+  tableName,
+  filter,
+  orderBy,
+  cutoffCreatedAt,
+}: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+} & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
+  // Set createdAt cutoff to prevent exporting data that was created after the job was queued
+  const createdAtCutoffFilter: FilterCondition = {
+    column: tableNameToTimeFilterColumn[tableName],
+    operator: "<",
+    value: cutoffCreatedAt,
+    type: "datetime",
+  };
+
+  switch (tableName) {
+    case "sessions":
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const query = createSessionsAllQuery(
+            Prisma.sql`
+            s.id,
+            s."created_at" AS "createdAt",
+            s.bookmarked,
+            s.public,
+            t."userIds",
+            t."countTraces",
+            o."sessionDuration",
+            o."inputCost" AS "inputCost",
+            o."outputCost" AS "outputCost",
+            o."totalCost" AS "totalCost",
+            o."promptTokens" AS "inputTokens",
+            o."completionTokens" AS "outputTokens",
+            o."totalTokens" AS "totalTokens",
+            t."tags" AS "traceTags",
+            (count(*) OVER ())::int AS "totalCount" 
+          `,
+            {
+              projectId,
+              filter: filter
+                ? [...filter, createdAtCutoffFilter]
+                : [createdAtCutoffFilter],
+              orderBy,
+              limit: pageSize,
+              page: Math.floor(offset / pageSize),
+            },
+          );
+          return prisma.$queryRaw<BatchExportSessionsRow[]>(query);
+        },
+        1000,
+        env.BATCH_EXPORT_ROW_LIMIT,
+      );
+    case "generations": {
+      const { orderByCondition, filterCondition, datetimeFilter } =
+        parseGetAllGenerationsInput({
+          projectId,
+          orderBy,
+          filter: filter
+            ? [...filter, createdAtCutoffFilter]
+            : [createdAtCutoffFilter],
+        });
+
+      const emptyScoreColumns = await getEmptyScoreColumns(
+        projectId,
+        cutoffCreatedAt,
+        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter],
+        isGenerationTimestampFilter,
+      );
+
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const query = createGenerationsQuery({
+            projectId,
+            limit: pageSize,
+            page: Math.floor(offset / pageSize),
+            filterCondition,
+            orderByCondition,
+            datetimeFilter,
+            selectScoreValues: true,
+            selectIOAndMetadata: true,
+          });
+          const chunk =
+            await prisma.$queryRaw<FullObservationsWithScores>(query);
+
+          return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
+        },
+        1000,
+        env.BATCH_EXPORT_ROW_LIMIT,
+      );
+    }
+    case "traces": {
+      const { orderByCondition, filterCondition, observationTimeseriesFilter } =
+        parseTraceAllFilters({
+          projectId,
+          orderBy,
+          filter: filter
+            ? [...filter, createdAtCutoffFilter]
+            : [createdAtCutoffFilter],
+        });
+
+      const emptyScoreColumns = await getEmptyScoreColumns(
+        projectId,
+        cutoffCreatedAt,
+        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter],
+        isTraceTimestampFilter,
+      );
+
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const query = createTracesQuery({
+            select: Prisma.sql`
+              t."bookmarked",
+              t."id",
+              t."timestamp",
+              t."name",
+              t."user_id" AS "userId",
+              observation_metrics."level" AS "level",
+              observation_metrics."observationCount" AS "observationCount",
+              s_avg."scores_values" AS "scores",
+              observation_metrics.latency AS "latency",
+              t."release",
+              t."version",
+              t.session_id AS "sessionId",
+              t."input",
+              t."output",
+              t."metadata",
+              t."tags",
+              COALESCE(generation_metrics."promptTokens", 0)::bigint AS "usage.promptTokens",
+              COALESCE(generation_metrics."completionTokens", 0)::bigint AS "usage.completionTokens",
+              COALESCE(generation_metrics."totalTokens", 0)::bigint AS "usage.totalTokens",
+              COALESCE(generation_metrics."calculatedInputCost", 0)::numeric AS "inputCost",
+              COALESCE(generation_metrics."calculatedOutputCost", 0)::numeric AS "outputCost",
+              COALESCE(generation_metrics."calculatedTotalCost", 0)::numeric AS "totalCost"
+              `,
+            projectId,
+            limit: pageSize,
+            page: Math.floor(offset / pageSize),
+            filterCondition,
+            orderByCondition,
+            observationTimeseriesFilter,
+            selectScoreValues: true,
+          });
+          const chunk = await prisma.$queryRaw<BatchExportTracesRow[]>(query);
+
+          return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
+        },
+        1000,
+        env.BATCH_EXPORT_ROW_LIMIT,
+      );
+    }
+    default:
+      throw new Error("Invalid table name: " + tableName);
+  }
+};
+
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
 ) => {
@@ -34,10 +273,14 @@ export const handleBatchExportJob = async (
   });
 
   if (!jobDetails) {
-    throw new Error("Job not found");
+    throw new Error(
+      `Job not found for project: ${projectId} and export ${batchExportId}`,
+    );
   }
   if (jobDetails.status !== BatchExportStatus.QUEUED) {
-    throw new Error("Job has invalid status: " + jobDetails.status);
+    throw new Error(
+      `Job ${batchExportId} has invalid status: ${jobDetails.status}`,
+    );
   }
 
   // Set job status to processing
@@ -54,57 +297,17 @@ export const handleBatchExportJob = async (
   // Parse query from job
   const parsedQuery = BatchExportQuerySchema.safeParse(jobDetails.query);
   if (!parsedQuery.success) {
-    throw new Error("Failed to parse query: " + parsedQuery.error.message);
+    throw new Error(
+      `Failed to parse query for ${batchExportId}: ${parsedQuery.error.message}`,
+    );
   }
 
-  // Get database read stream
-  let { filter, orderBy, tableName } = parsedQuery.data;
-
-  // Set createdAt cutoff to prevent exporting data that was created after the job was queued
-  const createdAtCutoffFilter: FilterCondition = {
-    column: "createdAt",
-    operator: "<",
-    value: jobDetails.createdAt,
-    type: "datetime",
-  };
-
-  const dbReadStream = new DatabaseReadStream<unknown>(
-    async (pageSize: number, offset: number) => {
-      const query = createSessionsAllQuery(
-        Prisma.sql`
-          s.id,
-          s. "created_at" AS "createdAt",
-          s.bookmarked,
-          s.public,
-          t. "userIds",
-          t. "countTraces",
-          o. "sessionDuration",
-          o. "totalCost" AS "totalCost",
-          o. "inputCost" AS "inputCost",
-          o. "outputCost" AS "outputCost",
-          o. "promptTokens" AS "promptTokens",
-          o. "completionTokens" AS "completionTokens",
-          o. "totalTokens" AS "totalTokens",
-          (count(*) OVER ())::int AS "totalCount"
-        `,
-        {
-          projectId,
-          filter: filter
-            ? [...filter, createdAtCutoffFilter]
-            : [createdAtCutoffFilter],
-          orderBy,
-          limit: pageSize,
-          page: Math.floor(offset / pageSize),
-        },
-      );
-
-      const chunk = await prisma.$queryRaw<unknown[]>(query);
-
-      return chunk;
-    },
-    1000,
-    env.BATCH_EXPORT_ROW_LIMIT,
-  );
+  // handle db read stream
+  const dbReadStream = await getDatabaseReadStream({
+    projectId,
+    cutoffCreatedAt: jobDetails.createdAt,
+    ...parsedQuery.data,
+  });
 
   // Transform data to desired format
   const fileStream = pipeline(
@@ -117,30 +320,26 @@ export const handleBatchExportJob = async (
     },
   );
 
-  // Stream upload results to S3
-  const accessKeyId = env.S3_ACCESS_KEY_ID;
-  const secretAccessKey = env.S3_SECRET_ACCESS_KEY;
-  const bucketName = env.S3_BUCKET_NAME;
-  const endpoint = env.S3_ENDPOINT;
-  const region = env.S3_REGION;
-
-  if (!accessKeyId || !secretAccessKey || !bucketName || !endpoint || !region) {
-    throw new Error("S3 credentials not found");
-  }
-
   const fileDate = new Date().toISOString();
   const fileExtension =
     exportOptions[jobDetails.format as BatchExportFileFormat].extension;
-  const fileName = `${fileDate}-lf-${tableName}-export-${projectId}.${fileExtension}`;
+  const fileName = `${fileDate}-lf-${parsedQuery.data.tableName}-export-${projectId}.${fileExtension}`;
   const expiresInSeconds =
     env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS * 3600;
 
+  // Stream upload results to S3
+  const bucketName = env.S3_BUCKET_NAME;
+  if (!bucketName) {
+    throw new Error("No S3 bucket configured for exports.");
+  }
+
   const { signedUrl } = await new S3StorageService({
-    accessKeyId,
-    secretAccessKey,
+    accessKeyId: env.S3_ACCESS_KEY_ID,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
     bucketName,
-    endpoint,
-    region,
+    endpoint: env.S3_ENDPOINT,
+    region: env.S3_REGION,
+    forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
   }).uploadFile({
     fileName,
     fileType:
@@ -149,7 +348,7 @@ export const handleBatchExportJob = async (
     expiresInSeconds,
   });
 
-  logger.info(`Batch export file uploaded to S3`);
+  logger.info(`Batch export file ${fileName} uploaded to S3`);
 
   // Update job status
   await prisma.batchExport.update({
@@ -179,7 +378,6 @@ export const handleBatchExportJob = async (
       downloadLink: signedUrl,
       userName: user?.name || "",
       batchExportName: jobDetails.name,
-      expiresInHours: env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS,
     });
 
     logger.info(`Batch export success email sent to user ${user.id}`);

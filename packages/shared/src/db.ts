@@ -13,40 +13,81 @@ import {
 import { DB } from ".";
 import { logger } from "./server";
 
-// Instantiated according to the Prisma documentation
-// https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
+export class PrismaClientSingleton {
+  private static instance: PrismaClient;
 
-const prismaClientSingleton = () => {
-  const client = new PrismaClient<
-    Prisma.PrismaClientOptions,
-    "warn" | "error" | "query"
-  >({
-    log: [
-      { emit: "event", level: "query" },
-      { emit: "event", level: "error" },
-      { emit: "event", level: "warn" },
-    ],
-  });
+  public static getInstance(): PrismaClient {
+    if (PrismaClientSingleton.instance) {
+      return PrismaClientSingleton.instance;
+    }
 
-  if (env.NODE_ENV === "development") {
-    client.$on("query", (event) => {
-      logger.info(`prisma:query ${event.query}, ${event.duration}ms`);
+    const client = new PrismaClient<
+      Prisma.PrismaClientOptions,
+      "warn" | "error" | "query"
+    >({
+      log: [
+        { emit: "event", level: "query" },
+        { emit: "event", level: "error" },
+        { emit: "event", level: "warn" },
+      ],
     });
+
+    if (env.NODE_ENV === "development") {
+      client.$on("query", (event) => {
+        logger.info(`prisma:query ${event.query}, ${event.duration}ms`);
+      });
+    }
+
+    client.$on("warn", (event) => {
+      logger.warn(`prisma:warn ${event.message}`);
+    });
+
+    client.$on("error", (event) => {
+      logger.error(`prisma:error ${event.message}`);
+    });
+
+    PrismaClientSingleton.instance = client;
+
+    return PrismaClientSingleton.instance;
   }
+}
 
-  client.$on("warn", (event) => {
-    logger.warn(`prisma:warn ${event.message}`);
-  });
+export class KyselySingleton {
+  private static instance: { $kysely: Kysely<DB> };
 
-  client.$on("error", (event) => {
-    logger.error(`prisma:error ${event.message}`);
-  });
+  public static getInstance() {
+    if (KyselySingleton.instance) {
+      return KyselySingleton.instance;
+    }
 
-  return client;
-};
+    KyselySingleton.instance = PrismaClientSingleton.getInstance().$extends(
+      kyselyExtension({
+        kysely: (driver) =>
+          new Kysely<DB>({
+            dialect: {
+              // This is where the magic happens!
+              createDriver: () => driver,
+              // Don't forget to customize these to match your database!
+              createAdapter: () => new PostgresAdapter(),
+              createIntrospector: (db) => new PostgresIntrospector(db),
+              createQueryCompiler: () => new PostgresQueryCompiler(),
+            },
+          }),
+      })
+    );
 
-const kyselySingleton = (prismaClient: PrismaClient) => {
-  return prismaClient.$extends(
+    return KyselySingleton.instance;
+  }
+}
+
+declare const globalThis: {
+  prismaGlobal: PrismaClient | undefined;
+  kyselyPrismaGlobal: { $kysely: Kysely<DB> } | undefined;
+} & typeof global;
+
+if (process.env.NODE_ENV === "development") {
+  globalThis.prismaGlobal ??= new PrismaClient(); // regular instantiation
+  globalThis.kyselyPrismaGlobal ??= globalThis.prismaGlobal.$extends(
     kyselyExtension({
       kysely: (driver) =>
         new Kysely<DB>({
@@ -59,18 +100,13 @@ const kyselySingleton = (prismaClient: PrismaClient) => {
             createQueryCompiler: () => new PostgresQueryCompiler(),
           },
         }),
-    }),
+    })
   );
 };
-declare global {
-  // eslint-disable-next-line no-var
-  var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
-  var kyselyPrisma: undefined | ReturnType<typeof kyselySingleton>;
-}
 
-export const prisma = globalThis.prisma ?? prismaClientSingleton();
-export const kyselyPrisma = globalThis.kyselyPrisma ?? kyselySingleton(prisma);
+export const prisma =
+  globalThis.prismaGlobal ?? PrismaClientSingleton.getInstance();
+export const kyselyPrisma =
+  globalThis.kyselyPrismaGlobal ?? KyselySingleton.getInstance();
 
 export * from "@prisma/client";
-
-if (process.env.NODE_ENV !== "production") globalThis.prisma = prisma;

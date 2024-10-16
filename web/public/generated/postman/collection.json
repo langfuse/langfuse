@@ -639,12 +639,12 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces on or after a certain datetime (ISO 8601)"
+                  "description": "Optional filter to only include traces and observations on or after a certain datetime (ISO 8601)"
                 },
                 {
                   "key": "toTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces before a certain datetime (ISO 8601)"
+                  "description": "Optional filter to only include traces and observations before a certain datetime (ISO 8601)"
                 }
               ],
               "variable": []
@@ -686,7 +686,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"modelName\": \"example\",\n    \"matchPattern\": \"example\",\n    \"startDate\": \"1994-11-05\",\n    \"unit\": \"CHARACTERS\",\n    \"inputPrice\": 0,\n    \"outputPrice\": 0,\n    \"totalPrice\": 0,\n    \"tokenizerId\": \"example\",\n    \"tokenizerConfig\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"modelName\": \"example\",\n    \"matchPattern\": \"example\",\n    \"startDate\": \"1994-11-05T13:15:30Z\",\n    \"unit\": \"CHARACTERS\",\n    \"inputPrice\": 0,\n    \"outputPrice\": 0,\n    \"totalPrice\": 0,\n    \"tokenizerId\": \"example\",\n    \"tokenizerConfig\": \"UNKNOWN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

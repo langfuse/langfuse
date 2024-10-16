@@ -9,14 +9,19 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   EvalTargetObject,
-  LLMAdapter,
-} from "@langfuse/shared";
-import {
   ZodModelConfig,
   singleFilter,
   variableMapping,
+  ChatMessageRole,
 } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  fetchLLMCompletion,
+  LLMApiKeySchema,
+  logger,
+} from "@langfuse/shared/src/server";
+import { TRPCError } from "@trpc/server";
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
@@ -292,7 +297,7 @@ export const evalRouter = createTRPCRouter({
         });
 
         if (!evalTemplate) {
-          console.log(
+          logger.warn(
             `Template not found for project ${input.projectId} and id ${input.evalTemplateId}`,
           );
           throw new Error("Template not found");
@@ -319,7 +324,7 @@ export const evalRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -344,13 +349,45 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      if (!matchingLLMKey) {
+      const parsedKey = LLMApiKeySchema.safeParse(matchingLLMKey);
+
+      if (!matchingLLMKey || !parsedKey.success) {
         throw new Error("No matching LLM key found for provider");
       }
 
-      // check that the adapter on the api key is openai for evals
-      if (matchingLLMKey.adapter !== LLMAdapter.OpenAI) {
-        throw new Error("Only OpenAI models are supported for evals");
+      // Make a test structured output call to validate the LLM key
+      try {
+        await fetchLLMCompletion({
+          streaming: false,
+          apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
+          baseURL: parsedKey.data.baseURL ?? undefined,
+          messages: [
+            {
+              role: ChatMessageRole.System,
+              content: "You are an expert at evaluating LLM outputs.",
+            },
+            { role: ChatMessageRole.User, content: input.prompt },
+          ],
+          modelParams: {
+            provider: input.provider,
+            model: input.model,
+            adapter: parsedKey.data.adapter,
+            ...input.modelParams,
+          },
+          structuredOutputSchema: z.object({
+            score: z.string(),
+            reasoning: z.string(),
+          }),
+          config: parsedKey.data.config,
+        });
+      } catch (err) {
+        logger.error(err);
+
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Selected model is not supported for evaluations. Test tool call failed.",
+        });
       }
 
       const latestTemplate = await ctx.prisma.evalTemplate.findFirst({

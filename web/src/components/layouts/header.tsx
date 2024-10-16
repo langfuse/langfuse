@@ -48,7 +48,7 @@ export default function Header({
     text: string;
     href: string;
   };
-  help?: { description: string; href?: string };
+  help?: { description: string; href?: string; className?: string };
   featureBetaURL?: string;
   actionButtons?: React.ReactNode;
   level?: "h2" | "h3";
@@ -77,6 +77,7 @@ export default function Header({
               <DocPopup
                 description={props.help.description}
                 href={props.help.href}
+                className={props.help.className}
               />
             ) : null}
             {props.featureBetaURL ? (

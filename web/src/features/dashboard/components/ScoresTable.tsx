@@ -1,5 +1,3 @@
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { NoData } from "@/src/features/dashboard/components/NoData";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import {
@@ -16,6 +14,7 @@ import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-u
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { type DatabaseRow } from "@/src/server/api/services/query-builder";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 const dropValuesForCategoricalScores = (
   value: number,
@@ -126,7 +125,7 @@ export const ScoresTable = ({
   if (!zeroValueScores || !oneValueScores) {
     return (
       <DashboardCard title={"Scores"} isLoading={false}>
-        <NoData noDataText="No data" />
+        <NoDataOrLoading isLoading={false} />
       </DashboardCard>
     );
   }
@@ -212,13 +211,16 @@ export const ScoresTable = ({
           </RightAlignedCell>,
         ])}
         collapse={{ collapsed: 5, expanded: 20 }}
-        noDataChildren={
-          <DocPopup
-            description="Scores evaluate LLM quality and can be created manually or using the SDK."
-            href="https://langfuse.com/docs/scores"
-          />
+        isLoading={
+          metrics.isLoading ||
+          zeroValueScores.isLoading ||
+          oneValueScores.isLoading
         }
-        noDataClassName="mt-0"
+        noDataProps={{
+          description:
+            "Scores evaluate LLM quality and can be created manually or using the SDK.",
+          href: "https://langfuse.com/docs/scores",
+        }}
       >
         <TotalMetric
           metric={totalScores ? compactNumberFormatter(totalScores) : "0"}

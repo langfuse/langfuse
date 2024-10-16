@@ -34,7 +34,7 @@ export function RequestResetPasswordEmailButton({
     try {
       const res = await signIn("email", {
         email: email,
-        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH}/auth/reset-password`,
+        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
         redirect: false,
       });
       if (res?.error) {

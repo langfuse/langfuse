@@ -15,8 +15,8 @@ import {
   singleFilter,
   timeFilter,
   type TraceOptions,
-  tracesTableCols,
 } from "@langfuse/shared";
+
 import {
   type ObservationLevel,
   type ObservationView,
@@ -26,13 +26,13 @@ import {
 import {
   datetimeFilterToPrisma,
   datetimeFilterToPrismaSql,
-  orderByToPrismaSql,
-  tableColumnsToSqlFilterAndPrefix,
   traceException,
+  createTracesQuery,
+  parseTraceAllFilters,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-
 import type Decimal from "decimal.js";
+
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   searchQuery: z.string().nullable(),
@@ -135,15 +135,15 @@ export const traceRouter = createTRPCRouter({
       const tracesQuery = createTracesQuery({
         select: Prisma.sql`
           t.id,
-          COALESCE(tm."promptTokens", 0)::bigint AS "promptTokens",
-          COALESCE(tm."completionTokens", 0)::bigint AS "completionTokens",
-          COALESCE(tm."totalTokens", 0)::bigint AS "totalTokens",
-          tl.latency AS "latency",
-          tl."observationCount" AS "observationCount",
-          COALESCE(tm."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
-          COALESCE(tm."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
-          COALESCE(tm."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
-          tm."level" AS "level"
+          COALESCE(generation_metrics."promptTokens", 0)::bigint AS "promptTokens",
+          COALESCE(generation_metrics."completionTokens", 0)::bigint AS "completionTokens",
+          COALESCE(generation_metrics."totalTokens", 0)::bigint AS "totalTokens",
+          observation_metrics.latency AS "latency",
+          observation_metrics."observationCount" AS "observationCount",
+          COALESCE(generation_metrics."calculatedTotalCost", 0)::numeric AS "calculatedTotalCost",
+          COALESCE(generation_metrics."calculatedInputCost", 0)::numeric AS "calculatedInputCost",
+          COALESCE(generation_metrics."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
+          observation_metrics."level" AS "level"
         `,
         projectId: input.projectId,
         filterCondition: Prisma.sql`AND t.id IN (${Prisma.join(input.traceIds)})`,
@@ -157,10 +157,9 @@ export const traceRouter = createTRPCRouter({
             promptTokens: bigint;
             completionTokens: bigint;
             totalTokens: bigint;
-            totalCount: number;
             latency: number | null;
             level: ObservationLevel;
-            observationCount: number;
+            observationCount: bigint;
             calculatedTotalCost: Decimal | null;
             calculatedInputCost: Decimal | null;
             calculatedOutputCost: Decimal | null;
@@ -547,125 +546,3 @@ export const traceRouter = createTRPCRouter({
       }
     }),
 });
-
-function parseTraceAllFilters(input: TraceFilterOptions) {
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    input.filter ?? [],
-    tracesTableCols,
-    "traces",
-  );
-  const orderByCondition = orderByToPrismaSql(input.orderBy, tracesTableCols);
-
-  // to improve query performance, add timeseries filter to observation queries as well
-  const timeseriesFilter = input.filter?.find(
-    (f) => f.column === "Timestamp" && f.type === "datetime",
-  );
-
-  const observationTimeseriesFilter =
-    timeseriesFilter && timeseriesFilter.type === "datetime"
-      ? datetimeFilterToPrismaSql(
-          "start_time",
-          timeseriesFilter.operator,
-          timeseriesFilter.value,
-        )
-      : Prisma.empty;
-
-  const searchCondition = input.searchQuery
-    ? Prisma.sql`AND (
-    t."id" ILIKE ${`%${input.searchQuery}%`} OR 
-    t."external_id" ILIKE ${`%${input.searchQuery}%`} OR 
-    t."user_id" ILIKE ${`%${input.searchQuery}%`} OR 
-    t."name" ILIKE ${`%${input.searchQuery}%`}
-  )`
-    : Prisma.empty;
-
-  return {
-    filterCondition,
-    orderByCondition,
-    observationTimeseriesFilter,
-    searchCondition,
-  };
-}
-
-function createTracesQuery({
-  select,
-  projectId,
-  observationTimeseriesFilter = Prisma.empty,
-  page,
-  limit,
-  searchCondition = Prisma.empty,
-  filterCondition = Prisma.empty,
-  orderByCondition = Prisma.empty,
-}: {
-  select: Prisma.Sql;
-  projectId: string;
-  observationTimeseriesFilter?: Prisma.Sql;
-  page?: number;
-  limit?: number;
-  searchCondition?: Prisma.Sql;
-  filterCondition?: Prisma.Sql;
-  orderByCondition?: Prisma.Sql;
-}) {
-  return Prisma.sql`
-  SELECT
-      ${select}
-  FROM
-    "traces" AS t
-  LEFT JOIN LATERAL (
-    SELECT
-      SUM(prompt_tokens) AS "promptTokens",
-      SUM(completion_tokens) AS "completionTokens",
-      SUM(total_tokens) AS "totalTokens",
-      SUM(calculated_total_cost) AS "calculatedTotalCost",
-      SUM(calculated_input_cost) AS "calculatedInputCost",
-      SUM(calculated_output_cost) AS "calculatedOutputCost",
-      COALESCE(  
-        MAX(CASE WHEN level = 'ERROR' THEN 'ERROR' END),  
-        MAX(CASE WHEN level = 'WARNING' THEN 'WARNING' END),  
-        MAX(CASE WHEN level = 'DEFAULT' THEN 'DEFAULT' END),  
-        'DEBUG'  
-      ) AS "level"
-    FROM
-      "observations_view"
-    WHERE
-      trace_id = t.id
-      AND "type" = 'GENERATION'
-      AND "project_id" = ${projectId}
-      ${observationTimeseriesFilter}
-  ) AS tm ON true
-  LEFT JOIN LATERAL (
-    SELECT
-      COUNT(*) AS "observationCount",
-      EXTRACT(EPOCH FROM COALESCE(MAX("end_time"), MAX("start_time"))) - EXTRACT(EPOCH FROM MIN("start_time"))::double precision AS "latency"
-    FROM
-        "observations"
-    WHERE
-        trace_id = t.id
-        AND "project_id" = ${projectId}
-         ${observationTimeseriesFilter}
-  ) AS tl ON true
-  LEFT JOIN LATERAL (
-    SELECT
-        jsonb_object_agg(name::text, avg_value::double precision) AS "scores_avg"
-    FROM (
-        SELECT
-            name,
-            AVG(value) avg_value
-        FROM
-            scores
-        WHERE
-            trace_id = t.id
-            AND scores."data_type" IN ('NUMERIC', 'BOOLEAN')
-        GROUP BY
-            name
-    ) tmp
-  ) AS s_avg ON true
-  WHERE 
-    t."project_id" = ${projectId}
-    ${searchCondition}
-    ${filterCondition}
-  ${orderByCondition}
-  ${limit ? Prisma.sql`LIMIT ${limit}` : Prisma.empty}
-  ${page && limit ? Prisma.sql`OFFSET ${page * limit}` : Prisma.empty}
-`;
-}
