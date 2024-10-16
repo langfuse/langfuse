@@ -10,11 +10,11 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { latencyFormatter } from "@/src/utils/numbers";
-import { NoData } from "@/src/features/dashboard/components/NoData";
 import {
   dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export const GenerationLatencyChart = ({
   className,
@@ -126,7 +126,7 @@ export const GenerationLatencyChart = ({
                     valueFormatter={latencyFormatter}
                   />
                 ) : (
-                  <NoData noDataText="No data" />
+                  <NoDataOrLoading isLoading={latencies.isLoading} />
                 )}
               </>
             ),

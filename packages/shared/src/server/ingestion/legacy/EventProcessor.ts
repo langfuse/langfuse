@@ -1,7 +1,7 @@
 import { v4 } from "uuid";
 import { type z } from "zod";
 import Decimal from "decimal.js";
-import { findModel } from "../model-match";
+import { findModel } from "../modelMatch";
 import {
   ObservationEvent,
   eventTypes,
@@ -10,6 +10,7 @@ import {
   traceEvent,
   scoreEvent,
   sdkLogEvent,
+  ingestionEvent,
 } from "../types";
 import { validateAndInflateScore } from "../validateAndInflateScore";
 import { Trace, Observation, Score, Prisma, Model } from "@prisma/client";
@@ -19,15 +20,40 @@ import { jsonSchema } from "../../../utils/zod";
 import { prisma } from "../../../db";
 import { LegacyIngestionAccessScope } from ".";
 import { logger } from "../../logger";
-import { ApiAccessScope } from "../../auth/types";
 
 export interface EventProcessor {
   auth(apiScope: LegacyIngestionAccessScope): void;
 
   process(
-    apiScope: LegacyIngestionAccessScope
+    apiScope: LegacyIngestionAccessScope,
   ): Promise<Trace | Observation | Score> | undefined;
 }
+
+export const getProcessorForEvent = (
+  event: z.infer<typeof ingestionEvent>,
+  calculateTokenDelegate: (p: {
+    model: Model;
+    text: unknown;
+  }) => number | undefined,
+): EventProcessor => {
+  switch (event.type) {
+    case eventTypes.TRACE_CREATE:
+      return new TraceProcessor(event);
+    case eventTypes.OBSERVATION_CREATE:
+    case eventTypes.OBSERVATION_UPDATE:
+    case eventTypes.EVENT_CREATE:
+    case eventTypes.SPAN_CREATE:
+    case eventTypes.SPAN_UPDATE:
+    case eventTypes.GENERATION_CREATE:
+    case eventTypes.GENERATION_UPDATE:
+      return new ObservationProcessor(event, calculateTokenDelegate);
+    case eventTypes.SCORE_CREATE: {
+      return new ScoreProcessor(event);
+    }
+    case eventTypes.SDK_LOG:
+      return new SdkLogProcessor(event);
+  }
+};
 
 export class ObservationProcessor implements EventProcessor {
   event: ObservationEvent;
@@ -41,7 +67,7 @@ export class ObservationProcessor implements EventProcessor {
     calculateTokenDelegate: (p: {
       model: Model;
       text: unknown;
-    }) => number | undefined
+    }) => number | undefined,
   ) {
     this.event = event;
     this.calculateTokenDelegate = calculateTokenDelegate;
@@ -49,7 +75,7 @@ export class ObservationProcessor implements EventProcessor {
 
   async convertToObservation(
     apiScope: LegacyIngestionAccessScope,
-    existingObservation: Omit<Observation, "input" | "output"> | null
+    existingObservation: Omit<Observation, "input" | "output"> | null,
   ): Promise<{
     id: string;
     create: Prisma.ObservationUncheckedCreateInput;
@@ -79,7 +105,7 @@ export class ObservationProcessor implements EventProcessor {
       !existingObservation
     ) {
       throw new LangfuseNotFoundError(
-        `Observation with id ${this.event.id} not found`
+        `Observation with id ${this.event.id} not found`,
       );
     }
 
@@ -91,11 +117,11 @@ export class ObservationProcessor implements EventProcessor {
               projectId: apiScope.projectId,
               model:
                 "model" in this.event.body
-                  ? this.event.body.model ?? undefined
+                  ? (this.event.body.model ?? undefined)
                   : undefined,
               unit:
                 "usage" in this.event.body
-                  ? this.event.body.usage?.unit ?? undefined
+                  ? (this.event.body.usage?.unit ?? undefined)
                   : undefined,
               startTime: this.event.body.startTime
                 ? new Date(this.event.body.startTime)
@@ -126,16 +152,16 @@ export class ObservationProcessor implements EventProcessor {
             this.event.body,
             this.calculateTokenDelegate,
             internalModel ?? undefined,
-            existingObservation ?? undefined
+            existingObservation ?? undefined,
           )
         : [undefined, undefined];
 
     const newTotalCount =
       "usage" in this.event.body
-        ? this.event.body.usage?.total ??
+        ? (this.event.body.usage?.total ??
           (newInputCount != null || newOutputCount != null
             ? (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined)
+            : undefined))
         : undefined;
 
     const userProvidedTokenCosts = {
@@ -162,7 +188,7 @@ export class ObservationProcessor implements EventProcessor {
     const calculatedCosts = ObservationProcessor.calculateTokenCosts(
       internalModel,
       userProvidedTokenCosts,
-      tokenCounts
+      tokenCounts,
     );
 
     // merge metadata from existingObservation.metadata and metadata
@@ -170,7 +196,7 @@ export class ObservationProcessor implements EventProcessor {
       existingObservation?.metadata
         ? jsonSchema.parse(existingObservation.metadata)
         : undefined,
-      this.event.body.metadata ?? undefined
+      this.event.body.metadata ?? undefined,
     );
 
     const prompt =
@@ -219,7 +245,7 @@ export class ObservationProcessor implements EventProcessor {
         model: "model" in this.event.body ? this.event.body.model : undefined,
         modelParameters:
           "modelParameters" in this.event.body
-            ? this.event.body.modelParameters ?? undefined
+            ? (this.event.body.modelParameters ?? undefined)
             : undefined,
         input: this.event.body.input ?? undefined,
         output: this.event.body.output ?? undefined,
@@ -228,7 +254,7 @@ export class ObservationProcessor implements EventProcessor {
         totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
-            ? this.event.body.usage?.unit ?? internalModel?.unit
+            ? (this.event.body.usage?.unit ?? internalModel?.unit)
             : internalModel?.unit,
         level: this.event.body.level ?? undefined,
         statusMessage: this.event.body.statusMessage ?? undefined,
@@ -274,7 +300,7 @@ export class ObservationProcessor implements EventProcessor {
         model: "model" in this.event.body ? this.event.body.model : undefined,
         modelParameters:
           "modelParameters" in this.event.body
-            ? this.event.body.modelParameters ?? undefined
+            ? (this.event.body.modelParameters ?? undefined)
             : undefined,
         input: this.event.body.input ?? undefined,
         output: this.event.body.output ?? undefined,
@@ -283,7 +309,7 @@ export class ObservationProcessor implements EventProcessor {
         totalTokens: newTotalCount,
         unit:
           "usage" in this.event.body
-            ? this.event.body.usage?.unit ?? internalModel?.unit
+            ? (this.event.body.usage?.unit ?? internalModel?.unit)
             : internalModel?.unit,
         level: this.event.body.level ?? undefined,
         statusMessage: this.event.body.statusMessage ?? undefined,
@@ -323,7 +349,7 @@ export class ObservationProcessor implements EventProcessor {
       text: unknown;
     }) => number | undefined,
     model?: Model,
-    existingObservation?: Omit<Observation, "input" | "output">
+    existingObservation?: Omit<Observation, "input" | "output">,
   ) {
     let newPromptTokens = body.usage?.input;
     if (newPromptTokens === undefined && model && model.tokenizerId) {
@@ -334,7 +360,7 @@ export class ObservationProcessor implements EventProcessor {
         });
       } else {
         logger.info(
-          `No input provided, trying to calculate for id: ${existingObservation?.id}`
+          `No input provided, trying to calculate for id: ${existingObservation?.id}`,
         );
         const observationInput = await prisma.observation.findFirst({
           where: { id: existingObservation?.id, projectId: projectId },
@@ -360,7 +386,7 @@ export class ObservationProcessor implements EventProcessor {
         });
       } else {
         logger.info(
-          `No output provided, trying to calculate for id: ${existingObservation?.id}`
+          `No output provided, trying to calculate for id: ${existingObservation?.id}`,
         );
         const observationOutput = await prisma.observation.findFirst({
           where: { id: existingObservation?.id, projectId: projectId },
@@ -385,7 +411,7 @@ export class ObservationProcessor implements EventProcessor {
       outputCost?: Decimal | null;
       totalCost?: Decimal | null;
     },
-    tokenCounts: { input?: number; output?: number; total?: number }
+    tokenCounts: { input?: number; output?: number; total?: number },
   ): {
     inputCost?: Decimal | null;
     outputCost?: Decimal | null;
@@ -402,7 +428,7 @@ export class ObservationProcessor implements EventProcessor {
         totalCost:
           userProvidedCosts.totalCost ??
           (userProvidedCosts.inputCost ?? new Decimal(0)).add(
-            userProvidedCosts.outputCost ?? new Decimal(0)
+            userProvidedCosts.outputCost ?? new Decimal(0),
           ),
       };
     }
@@ -422,7 +448,7 @@ export class ObservationProcessor implements EventProcessor {
     const finalTotalCost =
       tokenCounts.total !== undefined && model?.totalPrice
         ? model.totalPrice.mul(tokenCounts.total)
-        : finalInputCost ?? finalOutputCost
+        : (finalInputCost ?? finalOutputCost)
           ? new Decimal(finalInputCost ?? 0).add(finalOutputCost ?? 0)
           : undefined;
 
@@ -488,7 +514,7 @@ export class ObservationProcessor implements EventProcessor {
       existingObservation.projectId !== apiScope.projectId
     ) {
       throw new ForbiddenError(
-        `Access denied for observation creation ${existingObservation.projectId} `
+        `Access denied for observation creation ${existingObservation.projectId} `,
       );
     }
 
@@ -505,6 +531,7 @@ export class ObservationProcessor implements EventProcessor {
     });
   }
 }
+
 export class TraceProcessor implements EventProcessor {
   event: z.infer<typeof traceEvent>;
 
@@ -518,7 +545,7 @@ export class TraceProcessor implements EventProcessor {
   }
 
   async process(
-    apiScope: LegacyIngestionAccessScope
+    apiScope: LegacyIngestionAccessScope,
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
@@ -527,7 +554,7 @@ export class TraceProcessor implements EventProcessor {
     const internalId = body.id ?? v4();
 
     logger.debug(
-      `Trying to create trace, project ${apiScope.projectId}, id: ${internalId}`
+      `Trying to create trace, project ${apiScope.projectId}, id: ${internalId}`,
     );
 
     const existingTrace = await prisma.trace.findFirst({
@@ -538,7 +565,7 @@ export class TraceProcessor implements EventProcessor {
 
     if (existingTrace && existingTrace.projectId !== apiScope.projectId) {
       throw new ForbiddenError(
-        `Access denied for trace creation ${existingTrace.projectId}`
+        `Access denied for trace creation ${existingTrace.projectId}`,
       );
     }
 
@@ -546,7 +573,7 @@ export class TraceProcessor implements EventProcessor {
       existingTrace?.metadata
         ? jsonSchema.parse(existingTrace.metadata)
         : undefined,
-      body.metadata ?? undefined
+      body.metadata ?? undefined,
     );
 
     const mergedTags =
@@ -614,6 +641,7 @@ export class TraceProcessor implements EventProcessor {
     return upsertedTrace;
   }
 }
+
 export class ScoreProcessor implements EventProcessor {
   event: z.infer<typeof scoreEvent>;
 
@@ -624,12 +652,12 @@ export class ScoreProcessor implements EventProcessor {
   auth(apiScope: LegacyIngestionAccessScope) {
     if (apiScope.accessLevel !== "scores" && apiScope.accessLevel !== "all")
       throw new ForbiddenError(
-        `Access denied for score creation, ${apiScope.accessLevel}`
+        `Access denied for score creation, ${apiScope.accessLevel}`,
       );
   }
 
   async process(
-    apiScope: LegacyIngestionAccessScope
+    apiScope: LegacyIngestionAccessScope,
   ): Promise<Trace | Observation | Score> {
     const { body } = this.event;
 
@@ -647,7 +675,7 @@ export class ScoreProcessor implements EventProcessor {
     });
     if (existingScore && existingScore.projectId !== apiScope.projectId) {
       throw new ForbiddenError(
-        `Access denied for score creation ${existingScore.projectId}`
+        `Access denied for score creation ${existingScore.projectId}`,
       );
     }
 

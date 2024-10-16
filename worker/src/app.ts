@@ -11,7 +11,6 @@ import {
   evalJobExecutorQueueProcessor,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
-import { ingestionFlushQueueProcessor } from "./queues/ingestionFlushQueueExecutor";
 import { repeatQueueProcessor } from "./queues/repeatQueue";
 import { onShutdown } from "./utils/shutdown";
 
@@ -21,6 +20,7 @@ import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQue
 import { WorkerManager } from "./queues/workerManager";
 import { QueueName } from "@langfuse/shared/src/server";
 import { env } from "./env";
+import { ingestionQueueProcessor } from "./queues/ingestionQueue";
 
 const app = express();
 
@@ -69,14 +69,10 @@ if (env.QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED === "true") {
   });
 }
 
-if (env.QUEUE_CONSUMER_INGESTION_FLUSH_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.IngestionFlushQueue,
-    ingestionFlushQueueProcessor,
-    {
-      concurrency: env.LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY,
-    },
-  );
+if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.IngestionQueue, ingestionQueueProcessor, {
+    concurrency: env.LANGFUSE_INGESTION_QEUEUE_PROCESSING_CONCURRENCY,
+  });
 }
 
 if (

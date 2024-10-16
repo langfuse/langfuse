@@ -1,6 +1,7 @@
 import type { Readable } from "stream";
 import {
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -25,11 +26,10 @@ export class S3StorageService {
     bucketName: string;
     endpoint: string | undefined;
     region: string | undefined;
+    forcePathStyle: boolean;
   }) {
-    const { accessKeyId, secretAccessKey, bucketName, endpoint, region } =
-      params;
-
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
+    const { accessKeyId, secretAccessKey } = params;
     const credentials =
       accessKeyId !== undefined && secretAccessKey !== undefined
         ? {
@@ -40,10 +40,11 @@ export class S3StorageService {
 
     this.client = new S3Client({
       credentials,
-      endpoint,
-      region,
+      endpoint: params.endpoint,
+      region: params.region,
+      forcePathStyle: params.forcePathStyle,
     });
-    this.bucketName = bucketName;
+    this.bucketName = params.bucketName;
   }
 
   public async uploadFile({
@@ -72,7 +73,7 @@ export class S3StorageService {
     }
   }
 
-  public async uploadJson(path: string, body: Record<string, unknown>) {
+  public async uploadJson(path: string, body: Record<string, unknown>[]) {
     const putCommand = new PutObjectCommand({
       Bucket: this.bucketName,
       Key: path,
@@ -85,6 +86,38 @@ export class S3StorageService {
     } catch (err) {
       logger.error(`Failed to upload JSON to S3 ${path}`, err);
       throw Error("Failed to upload JSON to S3");
+    }
+  }
+
+  public async download(path: string): Promise<string> {
+    const getCommand = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: path,
+    });
+
+    try {
+      const response = await this.client.send(getCommand);
+      return (await response.Body?.transformToString()) ?? "";
+    } catch (err) {
+      logger.error(`Failed to download file from S3 ${path}`, err);
+      throw Error("Failed to download file from S3");
+    }
+  }
+
+  public async listFiles(prefix: string): Promise<string[]> {
+    const listCommand = new ListObjectsV2Command({
+      Bucket: this.bucketName,
+      Prefix: prefix,
+    });
+
+    try {
+      const response = await this.client.send(listCommand);
+      return (
+        response.Contents?.flatMap((file) => (file.Key ? [file.Key] : [])) ?? []
+      );
+    } catch (err) {
+      logger.error(`Failed to list files from S3 ${prefix}`, err);
+      throw Error("Failed to list files from S3");
     }
   }
 

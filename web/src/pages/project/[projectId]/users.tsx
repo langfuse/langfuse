@@ -239,8 +239,8 @@ export default function UsersPage() {
                 <TableLink
                   path={
                     value.observationId
-                      ? `/project/${projectId}/traces/${value.traceId}?observation=${value.observationId}`
-                      : `/project/${projectId}/traces/${value.traceId}`
+                      ? `/project/${projectId}/traces/${encodeURIComponent(value.traceId)}?observation=${encodeURIComponent(value.observationId)}`
+                      : `/project/${projectId}/traces/${encodeURIComponent(value.traceId)}`
                   }
                   value={value.traceId}
                 />

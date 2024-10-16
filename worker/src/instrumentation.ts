@@ -49,7 +49,7 @@ const sdk = new NodeSDK({
     new PrismaInstrumentation(),
     new AwsInstrumentation(),
     new WinstonInstrumentation({ disableLogSending: true }),
-    new BullMQInstrumentation(),
+    new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),
   ],
   resourceDetectors: [
     envDetector,

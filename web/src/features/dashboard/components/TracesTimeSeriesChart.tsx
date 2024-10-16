@@ -4,13 +4,12 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import DocPopup from "@/src/components/layouts/doc-popup";
 import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
-import { NoData } from "@/src/features/dashboard/components/NoData";
 import {
   dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export const TracesTimeSeriesChart = ({
   className,
@@ -91,12 +90,11 @@ export const TracesTimeSeriesChart = ({
           chartType="area"
         />
       ) : (
-        <NoData noDataText="No data available">
-          <DocPopup
-            description="Traces contain details about LLM applications and can be created using the SDK."
-            href="https://langfuse.com/docs/tracing"
-          />
-        </NoData>
+        <NoDataOrLoading
+          isLoading={traces.isLoading}
+          description="Traces contain details about LLM applications and can be created using the SDK."
+          href="https://langfuse.com/docs/tracing"
+        />
       )}
     </DashboardCard>
   );

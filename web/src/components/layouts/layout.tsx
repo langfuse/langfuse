@@ -34,6 +34,7 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { ClickhouseAdminToggle } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -42,17 +43,30 @@ const signOutUser = async () => {
   await signOut();
 };
 
-const userNavigation = [
-  {
-    name: "Theme",
-    onClick: () => {},
-    content: <ThemeToggle />,
-  },
-  {
-    name: "Sign out",
-    onClick: signOutUser,
-  },
-];
+const getUserNavigation = (isAdmin: boolean) => {
+  const navigationItems = [
+    {
+      name: "Theme",
+      onClick: () => {},
+      content: <ThemeToggle />,
+    },
+    {
+      name: "Sign out",
+      onClick: signOutUser,
+    },
+  ];
+
+  return isAdmin
+    ? [
+        {
+          name: "CH Query",
+          onClick: () => {},
+          content: <ClickhouseAdminToggle />,
+        },
+        ...navigationItems,
+      ]
+    : navigationItems;
+};
 
 const pathsWithoutNavigation: string[] = [
   "/onboarding",
@@ -186,7 +200,7 @@ export default function Layout(props: PropsWithChildren) {
 
     const href = (
       route.customizableHref
-        ? uiCustomization?.[route.customizableHref] ?? route.pathname
+        ? (uiCustomization?.[route.customizableHref] ?? route.pathname)
         : route.pathname
     )
       ?.replace("[projectId]", routerProjectId ?? "")
@@ -441,14 +455,14 @@ export default function Layout(props: PropsWithChildren) {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute -top-full bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
+                <Menu.Items className="absolute bottom-1 right-0 z-10 overflow-hidden rounded-md bg-background py-2 shadow-lg ring-1 ring-border focus:outline-none">
                   <span
                     className="block max-w-52 overflow-hidden truncate border-b px-3 pb-2 text-sm leading-6 text-muted-foreground"
                     title={session.data?.user?.email ?? undefined}
                   >
                     {session.data?.user?.email}
                   </span>
-                  {userNavigation.map((item) => (
+                  {getUserNavigation(cloudAdmin).map((item) => (
                     <Menu.Item key={item.name}>
                       {({ active }) => (
                         <a
@@ -516,7 +530,7 @@ export default function Layout(props: PropsWithChildren) {
                 >
                   {session.data?.user?.email}
                 </span>
-                {userNavigation.map((item) => (
+                {getUserNavigation(cloudAdmin).map((item) => (
                   <Menu.Item key={item.name}>
                     {({ active }) => (
                       <a

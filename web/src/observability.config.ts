@@ -1,5 +1,6 @@
 import dd from "dd-trace";
 import { NodeSDK } from "@opentelemetry/sdk-node";
+import { TraceIdRatioBasedSampler } from "@opentelemetry/sdk-trace-base";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
@@ -50,7 +51,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new PrismaInstrumentation(),
       new AwsInstrumentation(),
       new WinstonInstrumentation({ disableLogSending: true }),
-      new BullMQInstrumentation(),
+      new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),
     ],
     resourceDetectors: [
       envDetector,
@@ -58,6 +59,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       awsEcsDetectorSync,
       containerDetector,
     ],
+    sampler: new TraceIdRatioBasedSampler(env.OTEL_TRACE_SAMPLING_RATIO),
   });
 
   sdk.start();

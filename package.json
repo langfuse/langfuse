@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "2.82.0",
+  "version": "2.85.1",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -33,7 +33,7 @@
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.2",
     "husky": "^9.0.11",
-    "prettier": "^3.2.5",
+    "prettier": "^3.3.3",
     "release-it": "^17.3.0",
     "turbo": "^1.13.4"
   },
@@ -78,6 +78,11 @@
         "issue": ":rocket: _This issue has been resolved in v${version}. See [${releaseName}](${releaseUrl}) for release notes._",
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
+    }
+  },
+  "pnpm": {
+    "overrides": {
+      "jsonpath-plus": "10.0.0"
     }
   },
   "packageManager": "pnpm@9.5.0"

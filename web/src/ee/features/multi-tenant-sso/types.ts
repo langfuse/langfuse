@@ -28,6 +28,18 @@ export const GithubProviderSchema = base.extend({
     .nullish(),
 });
 
+export const GitlabProviderSchema = base.extend({
+  authProvider: z.literal("gitlab"),
+  authConfig: z
+    .object({
+      clientId: z.string(),
+      clientSecret: z.string(),
+      issuer: z.string().optional(),
+      allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+    })
+    .nullish(),
+});
+
 export const Auth0ProviderSchema = base.extend({
   authProvider: z.literal("auth0"),
   authConfig: z
@@ -92,6 +104,7 @@ export const CustomProviderSchema = base.extend({
 
 export type GoogleProviderSchema = z.infer<typeof GoogleProviderSchema>;
 export type GithubProviderSchema = z.infer<typeof GithubProviderSchema>;
+export type GitlabProviderSchema = z.infer<typeof GitlabProviderSchema>;
 export type Auth0ProviderSchema = z.infer<typeof Auth0ProviderSchema>;
 export type OktaProviderSchema = z.infer<typeof OktaProviderSchema>;
 export type AzureAdProviderSchema = z.infer<typeof AzureAdProviderSchema>;
@@ -101,6 +114,7 @@ export type CustomProviderSchema = z.infer<typeof CustomProviderSchema>;
 export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   GoogleProviderSchema,
   GithubProviderSchema,
+  GitlabProviderSchema,
   Auth0ProviderSchema,
   OktaProviderSchema,
   AzureAdProviderSchema,
