@@ -2,28 +2,35 @@ import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
 import { createNewRedisInstance } from "./redis";
 
-let batchExportQueue: Queue<TQueueJobTypes[QueueName.BatchExport]> | null =
-  null;
+export class BatchExportQueue {
+  private static instance: Queue<TQueueJobTypes[QueueName.BatchExport]> | null =
+    null;
 
-export const getBatchExportQueue = () => {
-  if (batchExportQueue) return batchExportQueue;
+  public static getInstance(): Queue<
+    TQueueJobTypes[QueueName.BatchExport]
+  > | null {
+    if (BatchExportQueue.instance) return BatchExportQueue.instance;
 
-  const connection = createNewRedisInstance();
+    const newRedis = createNewRedisInstance({ enableOfflineQueue: false });
 
-  batchExportQueue = connection
-    ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(QueueName.BatchExport, {
-        connection: connection,
-        defaultJobOptions: {
-          removeOnComplete: true,
-          removeOnFail: 10_000,
-          attempts: 2,
-          backoff: {
-            type: "exponential",
-            delay: 5000,
+    BatchExportQueue.instance = newRedis
+      ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(
+          QueueName.BatchExport,
+          {
+            connection: newRedis,
+            defaultJobOptions: {
+              removeOnComplete: true,
+              removeOnFail: 10_000,
+              attempts: 2,
+              backoff: {
+                type: "exponential",
+                delay: 5000,
+              },
+            },
           },
-        },
-      })
-    : null;
+        )
+      : null;
 
-  return batchExportQueue;
-};
+    return BatchExportQueue.instance;
+  }
+}
