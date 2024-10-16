@@ -98,7 +98,6 @@ export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   BatchExport = "batch-export-queue",
-  RepeatQueue = "repeat-queue",
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",

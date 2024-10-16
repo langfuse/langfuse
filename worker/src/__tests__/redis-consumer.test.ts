@@ -1,9 +1,9 @@
 import { expect, test, describe, vi, afterEach } from "vitest";
 import { randomUUID } from "crypto";
 import {
-  getTraceUpsertQueue,
   QueueJobs,
   QueueName,
+  TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { WorkerManager } from "../queues/workerManager";
 
@@ -15,7 +15,7 @@ describe.sequential("handle redis events", () => {
   test("handle redis job succeeding", async () => {
     WorkerManager.register(QueueName.TraceUpsert, async () => true);
 
-    const traceUpsertQueue = getTraceUpsertQueue();
+    const traceUpsertQueue = TraceUpsertQueue.getInstance();
 
     expect(traceUpsertQueue).toBeDefined();
 
@@ -44,7 +44,7 @@ describe.sequential("handle redis events", () => {
     // IngestionQueue worker vs TraceUpsert producer
     WorkerManager.register(QueueName.IngestionQueue, async () => true);
 
-    const traceUpsertQueue = getTraceUpsertQueue();
+    const traceUpsertQueue = TraceUpsertQueue.getInstance();
 
     expect(traceUpsertQueue).toBeDefined();
 
