@@ -1,6 +1,6 @@
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState, type ReactNode } from "react";
-import { NoData } from "../NoData";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 type TableHeaders = ReactNode[];
 type TableRows = ReactNode[][];
@@ -12,8 +12,11 @@ type DashboardTableProps = {
     collapsed: number;
     expanded: number;
   };
-  noDataChildren?: ReactNode;
-  noDataClassName?: string;
+  noDataProps?: {
+    description: string;
+    href: string;
+  };
+  isLoading: boolean;
 };
 
 export const DashboardTable = ({
@@ -21,8 +24,8 @@ export const DashboardTable = ({
   rows,
   children,
   collapse,
-  noDataChildren,
-  noDataClassName,
+  noDataProps,
+  isLoading,
 }: DashboardTableProps) => {
   const [isExpanded, setExpanded] = useState(false);
   return (
@@ -88,9 +91,7 @@ export const DashboardTable = ({
           ) : null}
         </div>
       ) : (
-        <NoData className={noDataClassName} noDataText="No data">
-          {noDataChildren}
-        </NoData>
+        <NoDataOrLoading isLoading={isLoading} {...noDataProps} />
       )}
     </>
   );

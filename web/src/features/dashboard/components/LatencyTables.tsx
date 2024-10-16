@@ -162,6 +162,7 @@ export const LatencyTables = ({
                 return { ...item, name: item.traceName as string };
               }),
           )}
+          isLoading={tracesLatencies.isLoading}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
@@ -181,6 +182,7 @@ export const LatencyTables = ({
             <RightAlignedCell key="99th">99th</RightAlignedCell>,
           ]}
           rows={generateLatencyData(generationsLatencies.data)}
+          isLoading={generationsLatencies.isLoading}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
@@ -200,6 +202,7 @@ export const LatencyTables = ({
             <RightAlignedCell key="99th">99th</RightAlignedCell>,
           ]}
           rows={generateLatencyData(spansLatencies.data)}
+          isLoading={spansLatencies.isLoading}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
