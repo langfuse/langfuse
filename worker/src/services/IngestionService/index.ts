@@ -738,7 +738,7 @@ export class IngestionService {
         prompt_version: prompt?.version,
         created_at: Date.now(),
         updated_at: Date.now(),
-        event_ts: new Date(obs.timestamp).getDate(),
+        event_ts: new Date(obs.timestamp).getTime(),
       };
 
       return observationRecord;

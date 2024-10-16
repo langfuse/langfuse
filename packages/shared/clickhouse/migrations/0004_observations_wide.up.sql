@@ -4,7 +4,6 @@ CREATE TABLE observations_wide
     trace_id Nullable(String),
     `name` Nullable(String),
     `project_id` String,
-    `timestamp` DateTime64(3),
     `user_id` Nullable(String),
     `metadata` Map(String, String),
     `release` Nullable(String),
@@ -69,7 +68,7 @@ ORDER BY (
 CREATE MATERIALIZED VIEW mv_traces_to_observations_wide TO observations_wide AS
 SELECT 
     argMax(t.`name`, o.event_ts) as trace_name,
-        argMax(t.timestamp, o.event_ts) as trace_timestamp,
+    argMax(t.timestamp, o.event_ts) as trace_timestamp,
     argMax(t.user_id, o.event_ts) as trace_user_id,
     argMax(t.metadata, o.event_ts) as trace_metadata,
     argMax(t.release, o.event_ts) as trace_release,
@@ -113,7 +112,10 @@ SELECT
     argMax(o.time_to_first_token, o.event_ts) as time_to_first_token,
     argMax(o.prompt_id, o.event_ts) as prompt_id,
     argMax(o.prompt_name, o.event_ts) as prompt_name,
-    argMax(o.prompt_version, o.event_ts) as prompt_version
+    argMax(o.prompt_version, o.event_ts) as prompt_version,
+    argMax(o.created_at, o.event_ts) as created_at,
+    argMax(o.updated_at, o.event_ts) as updated_at,
+    argMax(o.event_ts, o.event_ts) as event_ts
 FROM traces t
 INNER JOIN observations o ON t.id = o.trace_id
 GROUP BY o.id, o.project_id;
@@ -165,7 +167,10 @@ SELECT
     argMax(o.time_to_first_token, o.event_ts) as time_to_first_token,
     argMax(o.prompt_id, o.event_ts) as prompt_id,
     argMax(o.prompt_name, o.event_ts) as prompt_name,
-    argMax(o.prompt_version, o.event_ts) as prompt_version
+    argMax(o.prompt_version, o.event_ts) as prompt_version,
+    argMax(o.created_at, o.event_ts) as created_at,
+    argMax(o.updated_at, o.event_ts) as updated_at,
+    argMax(o.event_ts, o.event_ts) as event_ts
 FROM observations o
 LEFT OUTER JOIN traces t ON t.id = o.trace_id
 GROUP BY o.id, o.project_id;
