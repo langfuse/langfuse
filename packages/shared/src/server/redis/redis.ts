@@ -5,6 +5,9 @@ import { logger } from "../logger";
 const defaultRedisOptions: Partial<RedisOptions> = {
   maxRetriesPerRequest: null,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
+};
+
+export const redisQueueRetryOptions: Partial<RedisOptions> = {
   retryStrategy: (times: number) => {
     // Retries forever. Waits at least 1s and at most 20s between retries.
     logger.warn(`Connection to redis lost. Retry attempt: ${times}`);
@@ -17,13 +20,6 @@ const defaultRedisOptions: Partial<RedisOptions> = {
   },
 };
 
-/**
- * Create a new redis client instance. We automatically disable retries per request which means that commands will wait
- * forever until connection is live again, enable auto pipelining, and auto-reconnect on READONLY errors which
- * is necessary for AWS ElastiCache failovers. With return `2` we also resend the command that failed automatically.
- * Additional options accepts a RedisOptions object which extends the default and overwrites for overlapping keys.
- * @param additionalOptions
- */
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ) => {

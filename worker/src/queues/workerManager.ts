@@ -10,6 +10,7 @@ import {
   recordGauge,
   recordHistogram,
   recordIncrement,
+  redisQueueRetryOptions,
   TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
@@ -93,7 +94,7 @@ export class WorkerManager {
     }
 
     // Create redis connection for queue worker
-    const redisInstance = createNewRedisInstance();
+    const redisInstance = createNewRedisInstance(redisQueueRetryOptions);
     if (!redisInstance) {
       logger.error("Failed to initialize redis connection");
       return;
