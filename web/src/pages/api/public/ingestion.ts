@@ -212,6 +212,39 @@ export default async function handler(
 
     const sortedBatch = sortBatch(batch);
 
+    // We group events by eventBodyId which allows us to store and process them
+    // as one which reduces infra interactions per event. Only used in the S3 case.
+    const sortedBatchByEventBodyId = sortedBatch.reduce(
+      (
+        acc: Record<
+          string,
+          {
+            data: IngestionEventType[];
+            key: string;
+            eventBodyId: string;
+            type: (typeof eventTypes)[keyof typeof eventTypes];
+          }
+        >,
+        event,
+      ) => {
+        if (!event.body?.id) {
+          return acc;
+        }
+        const key = `${getClickhouseEntityType(event.type)}-${event.body.id}`;
+        if (!acc[key]) {
+          acc[key] = {
+            data: [],
+            key: event.id,
+            type: event.type,
+            eventBodyId: event.body.id,
+          };
+        }
+        acc[key].data.push(event);
+        return acc;
+      },
+      {},
+    );
+
     /********************
      * ASYNC PROCESSING *
      ********************/
@@ -228,16 +261,16 @@ export default async function handler(
         // If a promise rejects, we log it below, but do not throw an error.
         // In this case, we upload the full batch into the Redis queue.
         const results = await Promise.allSettled(
-          sortedBatch.map(async (event) => {
-            // We upload the event in an array to the S3 bucket.
-            // This should allow us to eventually batch events together and increase cost-efficiency through
-            // reduced write operations.
-            return event.type !== eventTypes.SDK_LOG
-              ? s3Client.uploadJson(
-                  `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(event.type)}/${event.body.id}/${event.id}.json`,
-                  [event],
-                )
-              : Promise.resolve();
+          Object.keys(sortedBatchByEventBodyId).map(async (id) => {
+            // We upload the event in an array to the S3 bucket grouped by the eventBodyId.
+            // That way we batch updates from the same invocation into a single file and reduce
+            // write operations on S3.
+            const { data, key, type, eventBodyId } =
+              sortedBatchByEventBodyId[id];
+            return s3Client.uploadJson(
+              `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`,
+              data,
+            );
           }),
         );
         results.forEach((result) => {
@@ -261,22 +294,22 @@ export default async function handler(
     ) {
       const queue = IngestionQueue.getInstance();
       const results = await Promise.allSettled(
-        sortedBatch.map(async (event) => {
-          return queue
+        Object.keys(sortedBatchByEventBodyId).map(async (id) =>
+          queue
             ? queue.add(QueueJobs.IngestionJob, {
                 id: randomUUID(),
                 timestamp: new Date(),
                 name: QueueJobs.IngestionJob as const,
                 payload: {
                   data: {
-                    type: event.type,
-                    eventBodyId: event.body.id ?? "",
+                    type: sortedBatchByEventBodyId[id].type,
+                    eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
                   },
                   authCheck,
                 },
               })
-            : Promise.reject("Failed to instantiate queue");
-        }),
+            : Promise.reject("Failed to instantiate queue"),
+        ),
       );
       results.forEach((result) => {
         if (result.status === "rejected") {
@@ -297,35 +330,27 @@ export default async function handler(
         const queuePayload: LegacyIngestionEventType =
           env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" && !s3UploadErrored
             ? {
-                data: sortedBatch.map((event) => ({
-                  type: event.type,
-                  eventBodyId: event.body.id ?? "",
-                  eventId: event.id,
-                })),
+                data: Object.keys(sortedBatchByEventBodyId).map((id) => {
+                  const { key, type, eventBodyId } =
+                    sortedBatchByEventBodyId[id];
+                  return {
+                    type,
+                    eventBodyId,
+                    eventId: key,
+                  };
+                }),
                 authCheck,
                 useS3EventStore: true,
               }
             : { data: sortedBatch, authCheck, useS3EventStore: false };
 
         try {
-          await queue.add(
-            QueueJobs.LegacyIngestionJob,
-            {
-              payload: queuePayload,
-              id: randomUUID(),
-              timestamp: new Date(),
-              name: QueueJobs.LegacyIngestionJob as const,
-            },
-            {
-              removeOnFail: 1_000_000,
-              removeOnComplete: true,
-              attempts: 5,
-              backoff: {
-                type: "exponential",
-                delay: 1000,
-              },
-            },
-          );
+          await queue.add(QueueJobs.LegacyIngestionJob, {
+            payload: queuePayload,
+            id: randomUUID(),
+            timestamp: new Date(),
+            name: QueueJobs.LegacyIngestionJob as const,
+          });
         } catch (e: unknown) {
           logger.warn(
             "Failed to add batch to queue, falling back to sync processing",
