@@ -13,7 +13,7 @@ import {
   orderBy,
   paginationZod,
   singleFilter,
-  timeFilter,
+  type timeFilter,
   type TraceOptions,
 } from "@langfuse/shared";
 
@@ -192,21 +192,49 @@ export const traceRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        timestampFilter: timeFilter.optional(),
+        timestampFilterFrom: z.date().optional(),
+        timestampFilterTo: z.date().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const { timestampFilter } = input;
-      const prismaTimestampFilter = timestampFilter
-        ? datetimeFilterToPrisma(timestampFilter)
+      const timestampFilterFrom: z.infer<typeof timeFilter> | undefined =
+        input.timestampFilterFrom
+          ? {
+              column: "Timestamp",
+              type: "datetime",
+              operator: ">=",
+              value: input.timestampFilterFrom,
+            }
+          : undefined;
+      const timestampFilterTo: z.infer<typeof timeFilter> | undefined =
+        input.timestampFilterTo
+          ? {
+              column: "Timestamp",
+              type: "datetime",
+              operator: "<=",
+              value: input.timestampFilterTo,
+            }
+          : undefined;
+      const prismaTimestampFilterFrom = timestampFilterFrom
+        ? datetimeFilterToPrisma(timestampFilterFrom)
         : {};
-
-      const rawTimestampFilter =
-        timestampFilter && timestampFilter.type === "datetime"
+      const prismaTimestampFilterTo = timestampFilterTo
+        ? datetimeFilterToPrisma(timestampFilterTo)
+        : {};
+      const rawTimestampFilterFrom =
+        timestampFilterFrom && timestampFilterFrom
           ? datetimeFilterToPrismaSql(
               "timestamp",
-              timestampFilter.operator,
-              timestampFilter.value,
+              timestampFilterFrom.operator,
+              timestampFilterFrom.value,
+            )
+          : Prisma.empty;
+      const rawTimestampFilterTo =
+        timestampFilterTo && timestampFilterTo
+          ? datetimeFilterToPrismaSql(
+              "timestamp",
+              timestampFilterTo.operator,
+              timestampFilterTo.value,
             )
           : Prisma.empty;
 
@@ -214,7 +242,10 @@ export const traceRouter = createTRPCRouter({
         ctx.prisma.score.groupBy({
           where: {
             projectId: input.projectId,
-            timestamp: prismaTimestampFilter,
+            timestamp: {
+              ...prismaTimestampFilterFrom,
+              ...prismaTimestampFilterTo,
+            },
             dataType: { in: ["NUMERIC", "BOOLEAN"] },
           },
           take: 1000,
@@ -224,7 +255,10 @@ export const traceRouter = createTRPCRouter({
         ctx.prisma.trace.groupBy({
           where: {
             projectId: input.projectId,
-            timestamp: prismaTimestampFilter,
+            timestamp: {
+              ...prismaTimestampFilterFrom,
+              ...prismaTimestampFilterTo,
+            },
           },
           by: ["name"],
           // limiting to 1k trace names to avoid performance issues.
@@ -236,7 +270,7 @@ export const traceRouter = createTRPCRouter({
         ctx.prisma.$queryRaw<{ value: string }[]>`
           SELECT tags.tag as value
           FROM traces, UNNEST(traces.tags) AS tags(tag)
-          WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
+          WHERE traces.project_id = ${input.projectId} ${rawTimestampFilterFrom} ${rawTimestampFilterTo}
           GROUP BY tags.tag
           ORDER BY tags.tag ASC
           LIMIT 1000
