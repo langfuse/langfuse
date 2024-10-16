@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import { createNewRedisInstance } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
 
 export class BatchExportQueue {
   private static instance: Queue<TQueueJobTypes[QueueName.BatchExport]> | null =
@@ -11,7 +11,10 @@ export class BatchExportQueue {
   > | null {
     if (BatchExportQueue.instance) return BatchExportQueue.instance;
 
-    const newRedis = createNewRedisInstance({ enableOfflineQueue: false });
+    const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
+      ...redisQueueRetryOptions,
+    });
 
     BatchExportQueue.instance = newRedis
       ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(
