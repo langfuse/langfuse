@@ -5,6 +5,7 @@ import {
   Drawer,
   DrawerContent,
   DrawerHeader,
+  DrawerTitle,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
 import { type APIScore } from "@langfuse/shared";
@@ -109,14 +110,16 @@ export function AnnotateDrawer({
       <DrawerContent className="h-1/3">
         {configsData.isLoading ? (
           <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
-            <Header
-              title="Annotate"
-              level="h3"
-              help={{
-                description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
-                href: "https://langfuse.com/docs/scores/manually",
-              }}
-            ></Header>
+            <DrawerTitle>
+              <Header
+                title="Annotate"
+                level="h3"
+                help={{
+                  description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
+                  href: "https://langfuse.com/docs/scores/manually",
+                }}
+              ></Header>
+            </DrawerTitle>
             <div className="flex min-h-[9rem] items-center justify-center rounded border border-dashed p-2">
               <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin text-muted-foreground" />
               <span className="text-xs text-muted-foreground opacity-60">
