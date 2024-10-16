@@ -44,9 +44,9 @@ export class WorkerManager {
     return async (job: Job) => {
       const startTime = Date.now();
       const waitTime = Date.now() - job.timestamp;
-      recordIncrement(convertQueueNameToMetricName(queueName + ".request"));
+      recordIncrement(convertQueueNameToMetricName(queueName) + ".request");
       recordHistogram(
-        convertQueueNameToMetricName(queueName + ".wait_time"),
+        convertQueueNameToMetricName(queueName) + ".wait_time",
         waitTime,
         {
           unit: "milliseconds",
@@ -57,7 +57,7 @@ export class WorkerManager {
         ?.count()
         .then((count) => {
           recordGauge(
-            convertQueueNameToMetricName(queueName + ".length"),
+            convertQueueNameToMetricName(queueName) + ".length",
             count,
             {
               unit: "records",
@@ -67,7 +67,7 @@ export class WorkerManager {
         })
         .catch();
       recordHistogram(
-        convertQueueNameToMetricName(queueName + ".processing_time"),
+        convertQueueNameToMetricName(queueName) + ".processing_time",
         Date.now() - startTime,
         { unit: "milliseconds" },
       );
@@ -128,11 +128,11 @@ export class WorkerManager {
         `Queue Job ${job?.name} with id ${job?.id} in ${queueName} failed`,
         err,
       );
-      recordIncrement(convertQueueNameToMetricName(queueName + ".failed"));
+      recordIncrement(convertQueueNameToMetricName(queueName) + ".failed");
     });
     worker.on("error", (failedReason: Error) => {
       logger.error(`Queue worker ${queueName} failed: ${failedReason}`);
-      recordIncrement(convertQueueNameToMetricName(queueName + ".error"));
+      recordIncrement(convertQueueNameToMetricName(queueName) + ".error");
     });
   }
 }
