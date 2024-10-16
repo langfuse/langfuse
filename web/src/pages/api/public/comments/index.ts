@@ -42,7 +42,7 @@ export default withMiddlewares({
     querySchema: GetCommentsV1Query,
     responseSchema: GetCommentsV1Response,
     fn: async ({ query, auth }) => {
-      const { objectType, objectId, authorUserId } = query;
+      const { objectType, objectId, authorUserId, limit, page } = query;
 
       const comments = await prisma.comment.findMany({
         where: {
@@ -51,6 +51,8 @@ export default withMiddlewares({
           objectId: objectId ?? undefined,
           authorUserId: authorUserId ?? undefined,
         },
+        take: limit,
+        skip: (page - 1) * limit,
       });
 
       return { data: comments };
