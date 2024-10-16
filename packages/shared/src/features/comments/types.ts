@@ -12,6 +12,7 @@ export const CreateCommentData = z.object({
   content: z.string().trim().min(1).max(500),
   objectId: z.string(),
   objectType: z.enum(COMMENT_OBJECT_TYPES),
+  authorUserId: z.string().nullish(),
 });
 
 export const DeleteCommentData = z.object({

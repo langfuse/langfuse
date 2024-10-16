@@ -39,6 +39,7 @@ describe("Create and get comments", () => {
         objectId: traceId,
         objectType: "TRACE",
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        authorUserId: "user-1",
       },
     );
 
@@ -57,7 +58,7 @@ describe("Create and get comments", () => {
       objectId: traceId,
       objectType: "TRACE",
       content: "hello",
-      authorUserId: null,
+      authorUserId: "user-1",
     });
   });
 

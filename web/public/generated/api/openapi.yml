@@ -65,7 +65,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security: &ref_0
+      security:
         - BasicAuth: []
       requestBody:
         required: true
@@ -152,7 +152,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/comments/{commentId}:
     get:
       description: Get a comment by id
@@ -198,7 +199,8 @@ paths:
           content:
             application/json:
               schema: {}
-      security: *ref_0
+      security:
+        - BasicAuth: []
   /api/public/dataset-items:
     post:
       description: Create a dataset item
@@ -2226,6 +2228,10 @@ components:
           description: >-
             The content of the comment. May include markdown. Currently limited
             to 500 characters.
+        authorUserId:
+          type: string
+          nullable: true
+          description: The id of the user who created the comment.
       required:
         - projectId
         - objectType

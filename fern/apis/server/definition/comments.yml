@@ -59,6 +59,9 @@ types:
       content:
         type: string
         docs: The content of the comment. May include markdown. Currently limited to 500 characters.
+      authorUserId:
+        type: optional<string>
+        docs: The id of the user who created the comment.
   CreateCommentResponse:
     properties:
       id:

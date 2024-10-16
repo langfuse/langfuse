@@ -65,7 +65,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"projectId\": \"example\",\n    \"objectType\": \"example\",\n    \"objectId\": \"example\",\n    \"content\": \"example\"\n}",
+              "raw": "{\n    \"projectId\": \"example\",\n    \"objectType\": \"example\",\n    \"objectId\": \"example\",\n    \"content\": \"example\",\n    \"authorUserId\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
