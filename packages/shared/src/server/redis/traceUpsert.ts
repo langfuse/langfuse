@@ -6,7 +6,7 @@ import {
   TraceUpsertEventType,
 } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
 
 export class TraceUpsertQueue {
   private static instance: Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null =
@@ -17,7 +17,10 @@ export class TraceUpsertQueue {
   > | null {
     if (TraceUpsertQueue.instance) return TraceUpsertQueue.instance;
 
-    const newRedis = createNewRedisInstance({ enableOfflineQueue: false });
+    const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
+      ...redisQueueRetryOptions,
+    });
 
     TraceUpsertQueue.instance = newRedis
       ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(
