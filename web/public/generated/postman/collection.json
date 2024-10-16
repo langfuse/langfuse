@@ -40,6 +40,129 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Comments",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a comment. Comments may be attached to different object types (trace, observation, session, prompt).",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/comments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "comments"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"projectId\": \"example\",\n    \"objectType\": \"example\",\n    \"objectId\": \"example\",\n    \"content\": \"example\",\n    \"authorUserId\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get all comments",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/comments?page=&limit=&objectType=&objectId=&authorUserId=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "comments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page number, starts at 1."
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit"
+                },
+                {
+                  "key": "objectType",
+                  "value": "",
+                  "description": "Filter comments by object type (trace, observation, session, prompt)."
+                },
+                {
+                  "key": "objectId",
+                  "value": "",
+                  "description": "Filter comments by object id. If objectType is not provided, an error will be thrown."
+                },
+                {
+                  "key": "authorUserId",
+                  "value": "",
+                  "description": "Filter comments by author user id."
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get By Id",
+          "request": {
+            "description": "Get a comment by id",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/comments/:commentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "comments",
+                ":commentId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "commentId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a comment"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Dataset Items",
       "item": [
         {
