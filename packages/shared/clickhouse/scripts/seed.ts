@@ -64,7 +64,6 @@ export const prepareClickhouse = async (projectIds: string[]) => {
         1000 AS output_cost,
         1000 AS total_cost,
         start_time AS completion_start_time,
-        start_time AS time_to_first_token,
         toString(rand()) AS prompt_id,
         toString(rand()) AS prompt_name,
         1000 AS prompt_version,
