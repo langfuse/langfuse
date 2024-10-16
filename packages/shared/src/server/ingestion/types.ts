@@ -122,12 +122,10 @@ export const CreateGenerationBody = CreateSpanBody.extend({
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
-  // ensure that either promptName and promptVersion are set, or none
-
   if (!value.promptName && !value.promptVersion) return true;
   if (value.promptName && value.promptVersion) return true;
   return false;
-});
+}, "Either both 'promptName' and 'promptVersion' must be provided, or neither.");
 
 export const UpdateGenerationBody = UpdateSpanBody.extend({
   completionStartTime: stringDateTime,
@@ -150,12 +148,10 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
-  // ensure that either promptName and promptVersion are set, or none
-
   if (!value.promptName && !value.promptVersion) return true;
   if (value.promptName && value.promptVersion) return true;
   return false;
-});
+}, "Either both 'promptName' and 'promptVersion' must be provided, or neither.");
 
 const BaseScoreBody = z.object({
   id: z.string().nullish(),
