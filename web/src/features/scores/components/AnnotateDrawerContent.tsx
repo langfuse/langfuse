@@ -795,7 +795,7 @@ export function AnnotateDrawerContent({
                                   {isNumericDataType(score.dataType) ? (
                                     <Input
                                       {...field}
-                                      value={field.value ?? undefined}
+                                      value={field.value ?? ""}
                                       type="number"
                                       className="text-xs"
                                       disabled={config.isArchived}

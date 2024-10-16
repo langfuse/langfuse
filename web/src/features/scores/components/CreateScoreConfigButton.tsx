@@ -263,9 +263,13 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                     name="minValue"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Minimum (optional)</FormLabel>
+                        <FormLabel>Minimum (optional) </FormLabel>
                         <FormControl>
-                          <Input {...field} type="number" />
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            type="number"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -278,7 +282,11 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                       <FormItem>
                         <FormLabel>Maximum (optional)</FormLabel>
                         <FormControl>
-                          <Input {...field} type="number" />
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            type="number"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
