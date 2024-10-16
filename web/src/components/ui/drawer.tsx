@@ -28,6 +28,7 @@ const Drawer = ({
     <DrawerPrimitive.Root
       shouldScaleBackground={shouldScaleBackground}
       direction={direction}
+      // modal={false} // TODO: allow scrolling on overlay
       {...props}
     />
   );
@@ -66,6 +67,9 @@ const DrawerContent = React.forwardRef<
       )}
       {...props}
     >
+      <DrawerDescription className="sr-only">
+        {props.title ?? ""}
+      </DrawerDescription>
       {children}
     </DrawerPrimitive.Content>
   </DrawerPortal>
