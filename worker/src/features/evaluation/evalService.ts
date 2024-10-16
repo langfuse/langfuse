@@ -262,8 +262,8 @@ export const evaluate = async ({
   }
 
   const evalScoreSchema = z.object({
-    score: z.number().describe(parsedOutputSchema.score),
     reasoning: z.string().describe(parsedOutputSchema.reasoning),
+    score: z.number().describe(parsedOutputSchema.score),
   });
 
   const modelParams = ZodModelConfig.parse(template.model_params);

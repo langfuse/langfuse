@@ -47,7 +47,8 @@
     "ch:up": "bash clickhouse/scripts/up.sh",
     "ch:down": "bash clickhouse/scripts/down.sh",
     "ch:drop": "bash clickhouse/scripts/drop.sh",
-    "ch:reset": "pnpm run ch:down && pnpm run ch:up"
+    "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed",
+    "ch:seed": "dotenv -e ../../.env -- tsx clickhouse/scripts/seed.ts"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
@@ -106,6 +107,7 @@
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
+    "tsx": "^4.19.1",
     "typescript": "^5.4.5",
     "vitest": "^2.1.2"
   },
