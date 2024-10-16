@@ -1,5 +1,4 @@
 import z from "zod";
-import { LLMAdapter } from "../..";
 
 export const langfuseObjects = [
   "trace",
@@ -76,18 +75,6 @@ export const availableEvalVariables = [
     availableColumns: observationCols,
   },
 ];
-
-export const evalModelsByAdapter: Record<LLMAdapter, string[]> = {
-  [LLMAdapter.OpenAI]: [
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4o-2024-08-06", // cheaper than gpt-4o
-    "gpt-4-turbo-preview",
-    "gpt-3.5-turbo",
-  ] as const,
-  [LLMAdapter.Anthropic]: [] as const,
-  [LLMAdapter.Azure]: [] as const,
-};
 
 export const OutputSchema = z.object({
   reasoning: z.string(),

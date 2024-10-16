@@ -47,6 +47,6 @@ ORDER BY (
         project_id,
         `type`,
         toDate(start_time),
-        trace_id
+        id
     );
 

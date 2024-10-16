@@ -35,15 +35,9 @@ export const prepareClickhouse = async (projectIds: string[]) => {
       SELECT toString(floor(randUniform(0, 400))) AS id,
         toString(floor(randUniform(0, 80))) AS trace_id,
         '${projectId}' AS project_id,
-        multiIf(
-          randUniform(0, 1) < 0.4,
-          'SPAN',
-          randUniform(0, 1) < 0.8,
-          'GENERATION',
-          'EVENT'
-        ) AS type,
+       'GENERATION' AS type,
         toString(rand()) AS parent_observation_id,
-        now() - randUniform(0, 100) AS start_time,
+        '2024-07-31 09:47:59.270' AS start_time,
         addSeconds(start_time, floor(randExponential(1 / 10))) AS end_time,
         concat('name', toString(rand() % 100)) AS name,
         map('key', 'value') AS metadata,

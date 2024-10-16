@@ -1,3 +1,4 @@
+import { removeEmptyEnvVariables } from "@langfuse/shared";
 import { z } from "zod";
 
 const EnvSchema = z.object({
@@ -38,6 +39,10 @@ const EnvSchema = z.object({
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(100),
+  LANGFUSE_INGESTION_QEUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
     .default(100),
@@ -94,7 +99,7 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  QUEUE_CONSUMER_INGESTION_FLUSH_QUEUE_IS_ENABLED: z
+  QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED: z
@@ -111,4 +116,4 @@ const EnvSchema = z.object({
     .default("true"),
 });
 
-export const env = EnvSchema.parse(process.env);
+export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));

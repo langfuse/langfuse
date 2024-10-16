@@ -217,17 +217,10 @@ export class ApiAuthService {
         };
       }
     } catch (error: unknown) {
-      if (
-        !(
-          error instanceof Error &&
-          error.message.includes("Invalid credentials")
-        )
-      ) {
-        logger.error(
-          `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
-          error,
-        );
-      }
+      logger.error(
+        `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
+        error,
+      );
 
       if (isPrismaException(error)) {
         throw error;

@@ -9,8 +9,6 @@ import {
   convertTraceReadToInsert,
   eventTypes,
   findModel,
-  ingestionEventWithProjectId,
-  IngestionEventWithProjectIdType,
   ObservationEvent,
   observationRecordInsertSchema,
   ObservationRecordInsertType,
@@ -25,9 +23,9 @@ import {
   traceRecordReadSchema,
   ClickhouseClientType,
   validateAndInflateScore,
-  IngestionUtils,
   ClickhouseEntityType,
   PromptService,
+  IngestionEventType,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -75,53 +73,34 @@ export class IngestionService {
     this.promptService = new PromptService(prisma, redis);
   }
 
-  public async flush(flushKey: string): Promise<void> {
-    const bufferKey = IngestionUtils.getBufferKey(flushKey);
-    const eventList = (await this.redis.lrange(bufferKey, 0, -1))
-      .map((serializedEventData) => {
-        const parsed = ingestionEventWithProjectId.safeParse(
-          JSON.parse(serializedEventData)
-        );
-
-        if (!parsed.success) {
-          logger.error(
-            `Failed to parse event ${serializedEventData} : ${parsed.error}`
-          );
-
-          return null;
-        }
-
-        return parsed.data;
-      })
-      .filter(Boolean) as IngestionEventWithProjectIdType[];
-
-    if (eventList.length === 0) {
-      throw new Error(
-        `No valid events found in buffer for flushKey ${flushKey}`
-      );
-    }
-
-    const { projectId, eventType, entityId } =
-      IngestionUtils.parseFlushKey(flushKey);
+  public async mergeAndWrite(
+    eventType: ClickhouseEntityType,
+    projectId: string,
+    eventBodyId: string,
+    events: IngestionEventType[]
+  ): Promise<void> {
+    logger.info(
+      `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`
+    );
 
     switch (eventType) {
       case ClickhouseEntityType.Trace:
         return await this.processTraceEventList({
           projectId,
-          entityId,
-          traceEventList: eventList as TraceEventType[],
+          entityId: eventBodyId,
+          traceEventList: events as TraceEventType[],
         });
       case ClickhouseEntityType.Observation:
         return await this.processObservationEventList({
           projectId,
-          entityId,
-          observationEventList: eventList as ObservationEvent[],
+          entityId: eventBodyId,
+          observationEventList: events as ObservationEvent[],
         });
       case ClickhouseEntityType.Score: {
         return await this.processScoreEventList({
           projectId,
-          entityId,
-          scoreEventList: eventList as ScoreEventType[],
+          entityId: eventBodyId,
+          scoreEventList: events as ScoreEventType[],
         });
       }
     }
@@ -759,7 +738,7 @@ export class IngestionService {
         prompt_version: prompt?.version,
         created_at: Date.now(),
         updated_at: Date.now(),
-        event_ts: new Date(obs.timestamp).getDate(),
+        event_ts: new Date(obs.timestamp).getTime(),
       };
 
       return observationRecord;

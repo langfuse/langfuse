@@ -180,10 +180,9 @@ export const traceRouter = createTRPCRouter({
             promptTokens: bigint;
             completionTokens: bigint;
             totalTokens: bigint;
-            totalCount: number;
             latency: number | null;
             level: ObservationLevel;
-            observationCount: number;
+            observationCount: bigint;
             calculatedTotalCost: Decimal | null;
             calculatedInputCost: Decimal | null;
             calculatedOutputCost: Decimal | null;

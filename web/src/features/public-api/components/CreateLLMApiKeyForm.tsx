@@ -1,6 +1,10 @@
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LLMAdapter } from "@langfuse/shared";
+import {
+  type BedrockConfig,
+  type BedrockCredential,
+  LLMAdapter,
+} from "@langfuse/shared";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
@@ -29,7 +33,7 @@ import { type useUiCustomization } from "@/src/ee/features/ui-customization/useU
 
 const formSchema = z
   .object({
-    secretKey: z.string().min(1),
+    secretKey: z.string().optional(),
     provider: z
       .string()
       .min(1, "Please add a provider name that identifies this connection."),
@@ -37,11 +41,27 @@ const formSchema = z
     baseURL: z.union([z.literal(""), z.string().url()]),
     withDefaultModels: z.boolean(),
     customModels: z.array(z.object({ value: z.string().min(1) })),
+    awsAccessKeyId: z.string().optional(),
+    awsSecretAccessKey: z.string().optional(),
+    awsRegion: z.string().optional(),
   })
   .refine((data) => data.withDefaultModels || data.customModels.length > 0, {
     message:
       "At least one custom model name is required when default models are disabled.",
     path: ["withDefaultModels"],
+  })
+  .refine(
+    (data) =>
+      data.adapter !== LLMAdapter.Bedrock ||
+      (data.awsAccessKeyId && data.awsSecretAccessKey && data.awsRegion),
+    {
+      message: "AWS credentials are required when using Bedrock adapter.",
+      path: ["adapter"],
+    },
+  )
+  .refine((data) => data.adapter === LLMAdapter.Bedrock || data.secretKey, {
+    message: "Secret key is required.",
+    path: ["secretKey"],
   });
 
 export function CreateLLMApiKeyForm({
@@ -122,13 +142,29 @@ export function CreateLLMApiKeyForm({
       provider: values.provider,
     });
 
+    let secretKey = values.secretKey;
+    let config: BedrockConfig | undefined;
+
+    if (currentAdapter === LLMAdapter.Bedrock) {
+      const credentials: BedrockCredential = {
+        accessKeyId: values.awsAccessKeyId ?? "",
+        secretAccessKey: values.awsSecretAccessKey ?? "",
+      };
+      secretKey = JSON.stringify(credentials);
+
+      config = {
+        region: values.awsRegion ?? "",
+      };
+    }
+
     const newKey = {
       projectId,
-      secretKey: values.secretKey,
+      secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
       baseURL: values.baseURL || undefined,
       withDefaultModels: values.withDefaultModels,
+      config,
       customModels: values.customModels
         .map((m) => m.value.trim())
         .filter(Boolean),
@@ -232,59 +268,108 @@ export function CreateLLMApiKeyForm({
         />
 
         {/* baseURL */}
-        <FormField
-          control={form.control}
-          name="baseURL"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>API Base URL</FormLabel>
-              <FormDescription>
-                Leave blank to use the default base URL for the given LLM
-                adapter.{" "}
-                {currentAdapter === LLMAdapter.OpenAI && (
-                  <span>OpenAI default: https://api.openai.com/v1</span>
-                )}
-                {currentAdapter === LLMAdapter.Azure && (
-                  <span>
-                    Please add the base URL in the following format (or
-                    compatible API):
-                    https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
-                  </span>
-                )}
-                {currentAdapter === LLMAdapter.Anthropic && (
-                  <span>
-                    Anthropic default: https://api.anthropic.com (excluding
-                    /v1/messages)
-                  </span>
-                )}
-              </FormDescription>
+        {currentAdapter !== LLMAdapter.Bedrock && (
+          <FormField
+            control={form.control}
+            name="baseURL"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>API Base URL</FormLabel>
+                <FormDescription>
+                  Leave blank to use the default base URL for the given LLM
+                  adapter.{" "}
+                  {currentAdapter === LLMAdapter.OpenAI && (
+                    <span>OpenAI default: https://api.openai.com/v1</span>
+                  )}
+                  {currentAdapter === LLMAdapter.Azure && (
+                    <span>
+                      Please add the base URL in the following format (or
+                      compatible API):
+                      https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
+                    </span>
+                  )}
+                  {currentAdapter === LLMAdapter.Anthropic && (
+                    <span>
+                      Anthropic default: https://api.anthropic.com (excluding
+                      /v1/messages)
+                    </span>
+                  )}
+                </FormDescription>
 
-              <FormControl>
-                <Input {...field} placeholder="default" />
-              </FormControl>
+                <FormControl>
+                  <Input {...field} placeholder="default" />
+                </FormControl>
 
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
-        {/* API key */}
-        <FormField
-          control={form.control}
-          name="secretKey"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>API Key</FormLabel>
-              <FormDescription>
-                Your API keys are stored encrypted on our servers.
-              </FormDescription>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {currentAdapter === LLMAdapter.Bedrock ? (
+          <>
+            <FormField
+              control={form.control}
+              name="awsRegion"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>AWS Region</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="awsAccessKeyId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>AWS Access Key ID</FormLabel>
+                  <FormDescription>
+                    These should be long-lived credentials for an AWS user with
+                    `bedrock:InvokeModel` permission.
+                  </FormDescription>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="awsSecretAccessKey"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>AWS Secret Access Key</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="password" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        ) : (
+          <FormField
+            control={form.control}
+            name="secretKey"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>API Key</FormLabel>
+                <FormDescription>
+                  Your API keys are stored encrypted on our servers.
+                </FormDescription>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* With default models */}
         <FormField
@@ -305,13 +390,25 @@ export function CreateLLMApiKeyForm({
                       add a custom model with your deployment name.
                     </FormDescription>
                   )}
+                  {currentAdapter === LLMAdapter.Bedrock && (
+                    <FormDescription className="text-dark-yellow">
+                      Bedrock LLM adapter does not support default models.
+                      Please add your enabled Bedrock model IDs.
+                    </FormDescription>
+                  )}
                 </span>
 
                 <FormControl>
                   <Switch
-                    disabled={currentAdapter === LLMAdapter.Azure}
+                    disabled={
+                      currentAdapter === LLMAdapter.Azure ||
+                      currentAdapter === LLMAdapter.Bedrock
+                    }
                     checked={
-                      currentAdapter === LLMAdapter.Azure ? false : field.value
+                      currentAdapter === LLMAdapter.Azure ||
+                      currentAdapter === LLMAdapter.Bedrock
+                        ? false
+                        : field.value
                     }
                     onCheckedChange={field.onChange}
                   />
@@ -337,6 +434,14 @@ export function CreateLLMApiKeyForm({
                 <FormDescription className="text-dark-yellow">
                   {
                     "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities."
+                  }
+                </FormDescription>
+              )}
+
+              {currentAdapter === LLMAdapter.Bedrock && (
+                <FormDescription className="text-dark-yellow">
+                  {
+                    "For Bedrock, the model name is the Bedrock model ID, e.g. 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'"
                   }
                 </FormDescription>
               )}

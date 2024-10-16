@@ -42,9 +42,10 @@ export default function UserPage() {
   };
 
   const handleTabChange = async (tab: string) => {
-    if (router.query.filter) {
+    if (router.query.filter || router.query.orderBy) {
       const newQuery = { ...router.query };
       delete newQuery.filter;
+      delete newQuery.orderBy;
       await router.replace({ query: newQuery });
     }
     setCurrentTab(tab);
@@ -188,8 +189,8 @@ function OverviewTab({ userId, projectId }: TabProps) {
                 <TableLink
                   path={
                     user.data.lastScore.observationId
-                      ? `/project/${projectId}/traces/${user.data.lastScore.traceId}?observation=${user.data.lastScore.observationId}`
-                      : `/project/${projectId}/traces/${user.data.lastScore.traceId}`
+                      ? `/project/${projectId}/traces/${encodeURIComponent(user.data.lastScore.traceId)}?observation=${encodeURIComponent(user.data.lastScore.observationId)}`
+                      : `/project/${projectId}/traces/${encodeURIComponent(user.data.lastScore.traceId)}`
                   }
                   value={user.data.lastScore.traceId}
                 />

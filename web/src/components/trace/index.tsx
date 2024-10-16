@@ -24,6 +24,7 @@ import {
   ChevronsUpDown,
   ListTree,
   Network,
+  Percent,
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useCallback, useState } from "react";
@@ -41,7 +42,11 @@ export function Trace(props: {
   trace: Trace;
   scores: APIScore[];
   projectId: string;
+  viewType?: "detailed" | "focused";
+  isValidObservationId?: boolean;
 }) {
+  const viewType = props.viewType ?? "detailed";
+  const isValidObservationId = props.isValidObservationId ?? true;
   const capture = usePostHogClientCapture();
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -53,6 +58,10 @@ export function Trace(props: {
     "scoresOnObservationTree",
     true,
   );
+  const [
+    colorCodeMetricsOnObservationTree,
+    setColorCodeMetricsOnObservationTree,
+  ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
 
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
@@ -151,8 +160,9 @@ export function Trace(props: {
             observations={props.observations}
             scores={props.scores}
             commentCounts={traceCommentCounts.data}
+            viewType={viewType}
           />
-        ) : (
+        ) : isValidObservationId ? (
           <ObservationPreview
             observations={props.observations}
             scores={props.scores}
@@ -160,8 +170,9 @@ export function Trace(props: {
             currentObservationId={currentObservationId}
             traceId={props.trace.id}
             commentCounts={observationCommentCounts.data}
+            viewType={viewType}
           />
-        )}
+        ) : null}
       </div>
       <div className="md:col-span-2 md:flex md:h-full md:flex-col md:overflow-hidden">
         <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">
@@ -195,6 +206,14 @@ export function Trace(props: {
               <ChevronsUpDown className="h-4 w-4" />
             )}
           </Toggle>
+          <Toggle
+            pressed={colorCodeMetricsOnObservationTree}
+            onPressedChange={(e) => setColorCodeMetricsOnObservationTree(e)}
+            size="xs"
+            title="Color code metrics (>50% yellow, >75% red)"
+          >
+            <Percent className="h-4 w-4" />
+          </Toggle>
         </div>
 
         <ObservationTree
@@ -209,6 +228,7 @@ export function Trace(props: {
           setCurrentObservationId={setCurrentObservationId}
           showMetrics={metricsOnObservationTree}
           showScores={scoresOnObservationTree}
+          colorCodeMetrics={colorCodeMetricsOnObservationTree}
           observationCommentCounts={observationCommentCounts.data}
           traceCommentCounts={traceCommentCounts.data}
           className="flex w-full flex-col overflow-y-auto"

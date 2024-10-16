@@ -28,7 +28,7 @@ export const getEvalQueue = () => {
         QueueName.EvaluationExecution,
         {
           connection: connection,
-        },
+        }
       )
     : null;
 
@@ -36,7 +36,7 @@ export const getEvalQueue = () => {
 };
 
 export const evalJobCreatorQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
+  job: Job<TQueueJobTypes[QueueName.TraceUpsert]>
 ) => {
   try {
     const startTime = Date.now();
@@ -62,13 +62,13 @@ export const evalJobCreatorQueueProcessor = async (
     recordHistogram(
       "langfuse.queue.trace_upsert.processing_time",
       Date.now() - startTime,
-      { unit: "milliseconds" },
+      { unit: "milliseconds" }
     );
     return true;
   } catch (e) {
     logger.error(
       `Failed job Evaluation for traceId ${job.data.payload.traceId}`,
-      e,
+      e
     );
     traceException(e);
     throw e;
@@ -76,17 +76,32 @@ export const evalJobCreatorQueueProcessor = async (
 };
 
 export const evalJobExecutorQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>,
+  job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>
 ) => {
   try {
     logger.info("Executing Evaluation Execution Job", job.data);
     const startTime = Date.now();
 
-    const waitTime = Date.now() - job.timestamp;
+    // reduce the delay from the time to get the actual wait time
+    // from the point where the job was ready to be processed
+    // reduce the delay by expo backoff: 2 ^ (attempts - 1) * delay, delay: 1000ms
+    const estimatedBackoffTime =
+      job.attemptsMade > 0 ? 1000 * Math.pow(2, job.attemptsMade - 1) : 0;
+
+    const normalisedWaitTime =
+      Date.now() -
+      job.timestamp -
+      (job.data.payload.delay ?? 0) -
+      estimatedBackoffTime;
+
     recordIncrement("langfuse.queue.evaluation_execution.request");
-    recordHistogram("langfuse.queue.evaluation_execution.wait_time", waitTime, {
-      unit: "milliseconds",
-    });
+    recordHistogram(
+      "langfuse.queue.evaluation_execution.wait_time",
+      normalisedWaitTime,
+      {
+        unit: "milliseconds",
+      }
+    );
 
     await evaluate({ event: job.data.payload });
 
@@ -103,7 +118,7 @@ export const evalJobExecutorQueueProcessor = async (
     recordHistogram(
       "langfuse.queue.evaluation_execution.processing_time",
       Date.now() - startTime,
-      { unit: "milliseconds" },
+      { unit: "milliseconds" }
     );
 
     return true;
@@ -122,14 +137,24 @@ export const evalJobExecutorQueueProcessor = async (
 
     // do not log expected errors (api failures + missing api keys not provided by the user)
     if (
-      !(e instanceof ApiError) &&
-      !(e instanceof BaseError && e.message.includes("API key for provider"))
+      !(e instanceof BaseError && e.message.includes("API key for provider")) &&
+      !(
+        e instanceof BaseError &&
+        e.message.includes(
+          "Please ensure the mapped data exists and consider extending the job delay."
+        )
+      )
     ) {
       traceException(e);
       logger.error(
         `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
-        e,
+        e
       );
+    }
+
+    // for missing API keys, we do not want to retry.
+    if (e instanceof BaseError && e.message.includes("API key for provider")) {
+      return;
     }
 
     throw e;
