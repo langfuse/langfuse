@@ -114,7 +114,7 @@ SELECT
     argMax(o.updated_at, t.event_ts) as updated_at,
     argMax(o.event_ts, t.event_ts) as event_ts
 FROM traces t
-INNER JOIN observations o ON t.id = o.trace_id
+LEFT JOIN observations o ON t.id = o.trace_id
 GROUP BY o.id, o.project_id;
 
 CREATE MATERIALIZED VIEW mv_observations_to_traces_wide TO traces_wide AS
@@ -167,6 +167,6 @@ SELECT
     argMax(o.updated_at, o.event_ts) as updated_at,
     argMax(o.event_ts, o.event_ts) as event_ts
 FROM observations o
-LEFT JOIN traces t ON t.id = o.trace_id
+INNER JOIN traces t ON t.id = o.trace_id
 WHERE t.id IS NOT NULL
 GROUP BY o.id, o.project_id;
