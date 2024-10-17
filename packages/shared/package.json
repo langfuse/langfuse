@@ -57,7 +57,7 @@
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@aws-sdk/client-s3": "^3.627.0",
     "@aws-sdk/lib-storage": "^3.667.0",
-    "@aws-sdk/s3-request-presigner": "^3.554.0",
+    "@aws-sdk/s3-request-presigner": "^3.674.0",
     "@clickhouse/client": "^1.4.0",
     "@langchain/anthropic": "^0.3.1",
     "@langchain/aws": "^0.1.0",
