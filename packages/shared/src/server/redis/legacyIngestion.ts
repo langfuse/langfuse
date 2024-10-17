@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
 import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { logger } from "../logger";
 
 export class LegacyIngestionQueue {
   private static instance: Queue<
@@ -34,6 +35,10 @@ export class LegacyIngestionQueue {
           },
         )
       : null;
+
+    LegacyIngestionQueue.instance?.on("error", (err) => {
+      logger.error("LegacyIngestionQueue error", err);
+    });
 
     return LegacyIngestionQueue.instance;
   }

@@ -41,6 +41,10 @@ export class CloudUsageMeteringQueue {
         })
       : null;
 
+    CloudUsageMeteringQueue.instance?.on("error", (err) => {
+      logger.error("CloudUsageMeteringQueue error", err);
+    });
+
     if (CloudUsageMeteringQueue.instance) {
       CloudUsageMeteringQueue.instance.add(
         QueueJobs.CloudUsageMeteringJob,

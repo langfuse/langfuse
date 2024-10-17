@@ -45,6 +45,10 @@ export class EvalExecutionQueue {
         )
       : null;
 
+    EvalExecutionQueue.instance?.on("error", (err) => {
+      logger.error("EvalExecutionQueue error", err);
+    });
+
     return EvalExecutionQueue.instance;
   }
 }
