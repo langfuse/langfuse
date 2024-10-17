@@ -187,7 +187,7 @@ export const env = createEnv({
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
     LANGFUSE_INGESTION_QUEUE_DELAY_SECONDS: z.coerce
       .number()
-      .positive()
+      .nonnegative()
       .default(0),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
