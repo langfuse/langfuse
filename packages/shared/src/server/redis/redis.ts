@@ -23,7 +23,7 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ) => {
-  return env.REDIS_CONNECTION_STRING
+  const instance = env.REDIS_CONNECTION_STRING
     ? new Redis(env.REDIS_CONNECTION_STRING, {
         ...defaultRedisOptions,
         ...additionalOptions,
@@ -37,6 +37,12 @@ export const createNewRedisInstance = (
           ...additionalOptions,
         })
       : null;
+
+  instance?.on("error", (error) => {
+    logger.error("Redis error", error);
+  });
+
+  return instance;
 };
 
 const createRedisClient = () => {

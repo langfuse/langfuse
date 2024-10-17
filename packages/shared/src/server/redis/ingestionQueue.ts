@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
 import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { logger } from "../logger";
 
 export class IngestionQueue {
   private static instance: Queue<
@@ -34,6 +35,10 @@ export class IngestionQueue {
           },
         )
       : null;
+
+    IngestionQueue.instance?.on("error", (err) => {
+      logger.error("IngestionQueue error", err);
+    });
 
     return IngestionQueue.instance;
   }

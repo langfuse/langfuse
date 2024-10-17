@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
 import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { logger } from "../logger";
 
 export class BatchExportQueue {
   private static instance: Queue<TQueueJobTypes[QueueName.BatchExport]> | null =
@@ -33,6 +34,10 @@ export class BatchExportQueue {
           },
         )
       : null;
+
+    BatchExportQueue.instance?.on("error", (err) => {
+      logger.error("BatchExportQueue error", err);
+    });
 
     return BatchExportQueue.instance;
   }
