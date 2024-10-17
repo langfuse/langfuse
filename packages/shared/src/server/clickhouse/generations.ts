@@ -100,7 +100,7 @@ from observations_wide o final
          left join scores_avg s on s.project_id = o.project_id and s.observation_id = o.id and s.trace_id = o.trace_id
 WHERE o.project_id = {projectId: String}
 order by o.start_time desc
-limit {limit: Int32}offset {offset: Int32};
+limit {limit: Int32} offset {offset: Int32};
     `;
 
   const rows = await clickhouseClient.query({
