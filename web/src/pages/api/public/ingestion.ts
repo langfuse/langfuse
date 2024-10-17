@@ -307,6 +307,9 @@ export default async function handler(
                   },
                   authCheck,
                 },
+
+              }, {
+                delay: env.LANGFUSE_INGESTION_QUEUE_DELAY,
               })
             : Promise.reject("Failed to instantiate queue"),
         ),
