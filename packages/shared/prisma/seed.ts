@@ -16,7 +16,6 @@ import { ModelUsageUnit } from "../src";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { encrypt } from "../src/encryption";
 import { redis } from "../src/server/redis/redis";
-import { prepareClickhouse } from "../clickhouse/seed";
 
 const LOAD_TRACE_VOLUME = 10_000;
 
