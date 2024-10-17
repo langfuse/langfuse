@@ -267,7 +267,7 @@ export function MarkdownView({
             <Button
               title="Disable Markdown"
               variant="ghost"
-              size="xs"
+              size="icon-xs"
               type="button"
               onClick={() => {
                 setIsMarkdownEnabled(false);
@@ -282,10 +282,10 @@ export function MarkdownView({
             <Button
               title="Copy to clipboard"
               variant="ghost"
-              size="xs"
+              size="icon-xs"
               type="button"
               onClick={handleCopy}
-              className="hover:bg-border"
+              className="-mr-2 hover:bg-border"
             >
               {isCopied ? (
                 <Check className="h-3 w-3" />
