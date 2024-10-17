@@ -105,13 +105,9 @@ export const evalJobExecutorQueueProcessor = async (
         `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
         e
       );
+      throw e;
     }
 
-    // for missing API keys, we do not want to retry.
-    if (e instanceof BaseError && e.message.includes("API key for provider")) {
-      return;
-    }
-
-    throw e;
+    return;
   }
 };
