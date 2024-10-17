@@ -9,6 +9,7 @@ import {
   TQueueJobTypes,
   logger,
   traceException,
+  redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
 
 export class EvalExecutionQueue {
@@ -21,7 +22,10 @@ export class EvalExecutionQueue {
   > | null {
     if (EvalExecutionQueue.instance) return EvalExecutionQueue.instance;
 
-    const newRedis = createNewRedisInstance({ enableOfflineQueue: false });
+    const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
+      ...redisQueueRetryOptions,
+    });
 
     EvalExecutionQueue.instance = newRedis
       ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
@@ -40,6 +44,10 @@ export class EvalExecutionQueue {
           },
         )
       : null;
+
+    EvalExecutionQueue.instance?.on("error", (err) => {
+      logger.error("EvalExecutionQueue error", err);
+    });
 
     return EvalExecutionQueue.instance;
   }

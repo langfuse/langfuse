@@ -4,6 +4,7 @@ import {
   QueueName,
   QueueJobs,
   createNewRedisInstance,
+  redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
 import { handleCloudUsageMeteringJob } from "../ee/cloudUsageMetering/handleCloudUsageMeteringJob";
 import { env } from "../env";
@@ -20,7 +21,10 @@ export class CloudUsageMeteringQueue {
       return CloudUsageMeteringQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({ enableOfflineQueue: false });
+    const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
+      ...redisQueueRetryOptions,
+    });
 
     CloudUsageMeteringQueue.instance = newRedis
       ? new Queue(QueueName.CloudUsageMeteringQueue, {
@@ -36,6 +40,10 @@ export class CloudUsageMeteringQueue {
           },
         })
       : null;
+
+    CloudUsageMeteringQueue.instance?.on("error", (err) => {
+      logger.error("CloudUsageMeteringQueue error", err);
+    });
 
     if (CloudUsageMeteringQueue.instance) {
       CloudUsageMeteringQueue.instance.add(

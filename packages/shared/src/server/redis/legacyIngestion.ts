@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import { createNewRedisInstance } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { logger } from "../logger";
 
 export class LegacyIngestionQueue {
   private static instance: Queue<
@@ -12,7 +13,10 @@ export class LegacyIngestionQueue {
   > | null {
     if (LegacyIngestionQueue.instance) return LegacyIngestionQueue.instance;
 
-    const newRedis = createNewRedisInstance({ enableOfflineQueue: false });
+    const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
+      ...redisQueueRetryOptions,
+    });
 
     LegacyIngestionQueue.instance = newRedis
       ? new Queue<TQueueJobTypes[QueueName.LegacyIngestionQueue]>(
@@ -31,6 +35,10 @@ export class LegacyIngestionQueue {
           },
         )
       : null;
+
+    LegacyIngestionQueue.instance?.on("error", (err) => {
+      logger.error("LegacyIngestionQueue error", err);
+    });
 
     return LegacyIngestionQueue.instance;
   }
