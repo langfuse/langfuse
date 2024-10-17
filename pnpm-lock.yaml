@@ -936,6 +936,9 @@ importers:
       prettier:
         specifier: ^3.3.3
         version: 3.3.3
+      rus-diff:
+        specifier: ^1.1.0
+        version: 1.1.0
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@20.11.29)(typescript@5.4.5)
@@ -8268,6 +8271,9 @@ packages:
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
+  json-hash@1.2.0:
+    resolution: {integrity: sha512-lL0pLS/jguRLPZZZUEoNNoOxXtBHiM+iNsaTbPG0W8s/HpGuRNOw+LztiYaSo6Q8YWShEyIM++jM1jvvNcl0tw==}
+
   json-parse-even-better-errors@2.3.1:
     resolution: {integrity: sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==}
 
@@ -10205,6 +10211,9 @@ packages:
 
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
+
+  rus-diff@1.1.0:
+    resolution: {integrity: sha512-h2SBIrpYQ0eevfvghEA67QQbc3fD2KJl/aERQuvi8AF8g0FSvZpSEwIeJgcoBDteFB5TmXtGkw6aLn5uhMYxYw==}
 
   rusha@0.8.14:
     resolution: {integrity: sha512-cLgakCUf6PedEu15t8kbsjnwIFFR2D4RfL+W3iWFJ4iac7z4B0ZI8fxy4R3J956kAI68HclCFGL8MPoUVC3qVA==}
@@ -21305,6 +21314,8 @@ snapshots:
 
   json-buffer@3.0.1: {}
 
+  json-hash@1.2.0: {}
+
   json-parse-even-better-errors@2.3.1: {}
 
   json-schema-traverse@0.4.1: {}
@@ -23541,6 +23552,10 @@ snapshots:
   run-parallel@1.2.0:
     dependencies:
       queue-microtask: 1.2.3
+
+  rus-diff@1.1.0:
+    dependencies:
+      json-hash: 1.2.0
 
   rusha@0.8.14: {}
 

@@ -1,4 +1,5 @@
 import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import { parseJsonPrioritised } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
@@ -6,11 +7,25 @@ import {
   clickhouseStringDateSchema,
   logger,
 } from "@langfuse/shared/src/server";
+// @ts-ignore
+import { diff } from "rus-diff";
+
+const getErrorMessage = (params: {
+  type: "observation" | "trace" | "score";
+  projectId: string;
+  id: string;
+  key: string;
+  pgValue: any;
+  chValue: any;
+}) => {
+  const delta = `[${params.projectId}-${params.type}-${params.id}] Mismatch between Postgres and Clickhouse:\n${JSON.stringify(params, null, 2)}\n${JSON.stringify(diff(params.pgValue, params.chValue), null, 2)}`;
+  return delta;
+};
 
 // Constants
 const LIMIT = 100;
 const ITERATIONS = 10;
-const DATE_START = new Date("2024-08-15T00:00:00.000Z");
+const DATE_START = new Date("2024-10-17T00:00:00.000Z");
 const DATE_END = new Date(Date.now() - 1000 * 60 * 15); // 15 minutes ago
 
 const TABLE_SAMPLE_RATE = 0.05;
@@ -118,7 +133,7 @@ async function main(params: MainParams) {
     // Check traces
     let traces: unknown[] = [];
     if (overwriteTraceIds.length > 0) {
-      const traces = await prisma.$queryRaw<unknown[]>(
+      traces = await prisma.$queryRaw<unknown[]>(
         Prisma.sql`
           SELECT *
           FROM traces
@@ -234,13 +249,14 @@ async function main(params: MainParams) {
   logger.info(`Total scores verified: ${totalScoreCount}`);
 
   if (failedObservationList.length > 0) {
-    await writeFile(
-      `src/scripts/output/${new Date().toISOString()}_failedObservations.txt`,
-      failedObservationList.join("\n"),
-    ),
-      logger.error(
-        `Failed to verify ${failedObservationList.length} out of ${totalObservationCount} observations`,
-      );
+    const outPath = path.join(
+      process.cwd(),
+      `/output/${new Date().toISOString()}_failedObservations.txt`,
+    );
+    await writeFile(outPath, failedObservationList.join("\n"));
+    logger.error(
+      `Failed to verify ${failedObservationList.length} out of ${totalObservationCount} observations`,
+    );
   } else {
     logger.info(
       `All ${totalObservationCount} observations verified successfully`,
@@ -248,11 +264,11 @@ async function main(params: MainParams) {
   }
 
   if (failedTraceList.length > 0) {
-    await writeFile(
-      `src/scripts/output/${new Date().toISOString()}_failedTraces.txt`,
-      failedTraceList.join("\n"),
+    const outPath = path.join(
+      process.cwd(),
+      `/output/${new Date().toISOString()}_failedTraces.txt`,
     );
-
+    await writeFile(outPath, failedTraceList.join("\n"));
     logger.error(
       `Failed to verify ${failedTraceList.length} out of ${totalTraceCount} traces`,
     );
@@ -261,11 +277,11 @@ async function main(params: MainParams) {
   }
 
   if (failedScoreList.length > 0) {
-    await writeFile(
-      `src/scripts/output/${new Date().toISOString()}_failedScores.txt`,
-      failedScoreList.join("\n"),
+    const outPath = path.join(
+      process.cwd(),
+      `/output/${new Date().toISOString()}_failedScores.txt`,
     );
-
+    await writeFile(outPath, failedScoreList.join("\n"));
     logger.error(
       `Failed to verify ${failedScoreList.length} out of ${totalScoreCount} scores`,
     );
@@ -281,19 +297,16 @@ async function verifyClickhouseObservation(postgresObservation: any) {
     format: "JSONEachRow",
   });
 
-  const clickhouseRecord = (await clickhouseResult.json())[0];
+  const clickhouseRecord = (await clickhouseResult.json()).shift();
   if (!clickhouseRecord) {
     throw new Error(
       `Observation ${observationId} not found in Clickhouse for project ${projectId}`,
     );
   }
 
-  const getErrorMessage = (params: {
-    key: string;
-    pgValue: any;
-    chValue: any;
-  }) =>
-    `[${projectId}-observation-${observationId}] Mismatch between Postgres and Clickhouse:\n${JSON.stringify({ key: params.key, pg: params.pgValue, ch: params.chValue }, null, 2)}`;
+  logger.info(
+    `Comparing delta for observation ${projectId}-${observationId}, ${JSON.stringify(diff(postgresObservation, clickhouseRecord), null, 2)}`,
+  );
 
   for (const key in postgresObservation) {
     const pgValue = postgresObservation[key];
@@ -323,7 +336,16 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "internal_model_id":
       case "unit": {
         if (pgValue && pgValue !== chValue) {
-          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+          throw new Error(
+            getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
+              key,
+              pgValue,
+              chValue,
+            }),
+          );
         }
 
         break;
@@ -337,7 +359,16 @@ async function verifyClickhouseObservation(postgresObservation: any) {
           typeof pgValue.toISOString() !==
             typeof clickhouseStringDateSchema.parse(chValue)
         ) {
-          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+          throw new Error(
+            getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
+              key,
+              pgValue,
+              chValue,
+            }),
+          );
         }
 
         break;
@@ -351,7 +382,16 @@ async function verifyClickhouseObservation(postgresObservation: any) {
           chValue &&
           pgValue.toISOString() !== clickhouseStringDateSchema.parse(chValue)
         ) {
-          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+          throw new Error(
+            getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
+              key,
+              pgValue,
+              chValue,
+            }),
+          );
         }
 
         break;
@@ -366,7 +406,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
             : Object.fromEntries(
                 Object.entries(chValue).map(([k, v]) => [
                   k,
-                  JSON.parse(v as any),
+                  v ? JSON.parse(v as any) : null,
                 ]),
               );
 
@@ -380,7 +420,14 @@ async function verifyClickhouseObservation(postgresObservation: any) {
           )
         ) {
           throw new Error(
-            getErrorMessage({ key, pgValue, chValue: parsedChMetadata }),
+            getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
+              key,
+              pgValue,
+              chValue: parsedChMetadata,
+            }),
           );
         }
 
@@ -389,7 +436,16 @@ async function verifyClickhouseObservation(postgresObservation: any) {
 
       case "model":
         if (pgValue !== (clickhouseRecord as any)["provided_model_name"]) {
-          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+          throw new Error(
+            getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
+              key,
+              pgValue,
+              chValue,
+            }),
+          );
         }
 
         break;
@@ -409,6 +465,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue: JSON.stringify(parsedPgValue),
               chValue: JSON.stringify(parsedChValue),
@@ -431,7 +490,14 @@ async function verifyClickhouseObservation(postgresObservation: any) {
             JSON.stringify(parsedChValue, Object.keys(parsedChValue).sort())
         ) {
           throw new Error(
-            getErrorMessage({ key, pgValue, chValue: parsedChValue }),
+            getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
+              key,
+              pgValue,
+              chValue: parsedChValue,
+            }),
           );
         }
 
@@ -445,6 +511,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue,
               chValue: (clickhouseRecord as any)["output_usage_units"],
@@ -462,6 +531,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue,
               chValue: (clickhouseRecord as any)["input_usage_units"],
@@ -479,6 +551,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue,
               chValue: (clickhouseRecord as any)["total_usage_units"],
@@ -497,6 +572,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue,
               chValue: (clickhouseRecord as any)["input_cost"],
@@ -515,6 +593,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue,
               chValue: (clickhouseRecord as any)["output_cost"],
@@ -533,6 +614,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue,
               chValue: (clickhouseRecord as any)["total_cost"],
@@ -552,6 +636,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue,
               chValue: (clickhouseRecord as any)["provided_input_cost"],
@@ -571,6 +658,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue,
               chValue: (clickhouseRecord as any)["provided_output_cost"],
@@ -590,6 +680,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: observationId,
+              type: "observation",
               key,
               pgValue: Number(pgValue),
               chValue: (clickhouseRecord as any)["provided_total_cost"],
@@ -621,13 +714,6 @@ async function verifyClickhouseTrace(postgresTrace: any) {
     );
   }
 
-  const getErrorMessage = (params: {
-    key: string;
-    pgValue: any;
-    chValue: any;
-  }) =>
-    `[${projectId}-trace-${traceId}] Mismatch between Postgres and Clickhouse:\n${JSON.stringify({ key: params.key, pg: params.pgValue, ch: params.chValue }, null, 2)}`;
-
   for (const key of Object.keys(postgresTrace)) {
     const pgValue = postgresTrace[key];
     const chValue = (clickhouseTrace as any)[key];
@@ -653,7 +739,16 @@ async function verifyClickhouseTrace(postgresTrace: any) {
       case "session_id":
       case "version": {
         if (pgValue && pgValue !== chValue) {
-          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+          throw new Error(
+            getErrorMessage({
+              projectId,
+              id: traceId,
+              type: "trace",
+              key,
+              pgValue,
+              chValue,
+            }),
+          );
         }
 
         break;
@@ -667,7 +762,16 @@ async function verifyClickhouseTrace(postgresTrace: any) {
           typeof pgValue.toISOString() !==
             typeof clickhouseStringDateSchema.parse(chValue)
         ) {
-          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+          throw new Error(
+            getErrorMessage({
+              projectId,
+              id: traceId,
+              type: "trace",
+              key,
+              pgValue,
+              chValue,
+            }),
+          );
         }
 
         break;
@@ -696,7 +800,14 @@ async function verifyClickhouseTrace(postgresTrace: any) {
           )
         ) {
           throw new Error(
-            getErrorMessage({ key, pgValue, chValue: parsedChMetadata }),
+            getErrorMessage({
+              projectId,
+              id: traceId,
+              type: "trace",
+              key,
+              pgValue,
+              chValue: parsedChMetadata,
+            }),
           );
         }
 
@@ -705,7 +816,16 @@ async function verifyClickhouseTrace(postgresTrace: any) {
 
       case "tags":
         if (JSON.stringify(pgValue) !== JSON.stringify(chValue)) {
-          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+          throw new Error(
+            getErrorMessage({
+              projectId,
+              id: traceId,
+              type: "trace",
+              key,
+              pgValue,
+              chValue,
+            }),
+          );
         }
 
         break;
@@ -727,6 +847,9 @@ async function verifyClickhouseTrace(postgresTrace: any) {
         ) {
           throw new Error(
             getErrorMessage({
+              projectId,
+              id: traceId,
+              type: "trace",
               key,
               pgValue: JSON.stringify(parsedPgValue),
               chValue: JSON.stringify(parsedChValue),
@@ -738,7 +861,7 @@ async function verifyClickhouseTrace(postgresTrace: any) {
       }
 
       default:
-        throw Error("Unhandled observation key: " + key);
+        throw Error("Unhandled trace key: " + key);
     }
   }
 }
@@ -758,13 +881,6 @@ async function verifyClickhouseScore(postgresScore: any) {
     );
   }
 
-  const getErrorMessage = (params: {
-    key: string;
-    pgValue: any;
-    chValue: any;
-  }) =>
-    `[${projectId}-score-${scoreId}] Mismatch between Postgres and Clickhouse:\n${JSON.stringify({ key: params.key, pg: params.pgValue, ch: params.chValue }, null, 2)}`;
-
   for (const key of Object.keys(postgresScore)) {
     const pgValue = postgresScore[key];
     const chValue = (clickhouseScore as any)[key];
@@ -778,6 +894,7 @@ async function verifyClickhouseScore(postgresScore: any) {
       // Same in PG as in CH
       case "id":
       case "name":
+      case "queue_id":
       case "project_id":
       case "value":
       case "observation_id":
@@ -788,8 +905,23 @@ async function verifyClickhouseScore(postgresScore: any) {
       case "config_id":
       case "string_value":
       case "data_type": {
-        if (pgValue && pgValue !== chValue) {
-          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+        // If types are numeric, we just check that they are very close to each other
+        if (
+          pgValue &&
+          ((typeof pgValue === "number" &&
+            Math.abs(pgValue - chValue) >= 0.00001) ||
+            pgValue !== chValue)
+        ) {
+          throw new Error(
+            getErrorMessage({
+              projectId,
+              id: scoreId,
+              type: "score",
+              key,
+              pgValue,
+              chValue,
+            }),
+          );
         }
 
         break;
@@ -803,14 +935,23 @@ async function verifyClickhouseScore(postgresScore: any) {
           typeof pgValue.toISOString() !==
             typeof clickhouseStringDateSchema.parse(chValue)
         ) {
-          throw new Error(getErrorMessage({ key, pgValue, chValue }));
+          throw new Error(
+            getErrorMessage({
+              projectId,
+              id: scoreId,
+              type: "score",
+              key,
+              pgValue,
+              chValue,
+            }),
+          );
         }
 
         break;
       }
 
       default:
-        throw Error("Unhandled observation key: " + key);
+        throw Error("Unhandled score key: " + key);
     }
   }
 }
