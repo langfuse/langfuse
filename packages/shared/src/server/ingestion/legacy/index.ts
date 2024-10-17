@@ -6,7 +6,7 @@ import { getProcessorForEvent } from "./EventProcessor";
 import { TraceUpsertEventType } from "../../queues";
 import {
   convertTraceUpsertEventsToRedisEvents,
-  getTraceUpsertQueue,
+  TraceUpsertQueue,
 } from "../../redis/traceUpsert";
 import { ApiAccessScope } from "../../auth/types";
 import { redis } from "../../redis/redis";
@@ -190,7 +190,7 @@ export const addTracesToTraceUpsertQueue = async (
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && redis) {
       logger.info(`Sending ${traceEvents.length} events to worker via Redis`);
 
-      const queue = getTraceUpsertQueue();
+      const queue = TraceUpsertQueue.getInstance();
       if (!queue) {
         logger.error("TraceUpsertQueue not initialized");
         return;

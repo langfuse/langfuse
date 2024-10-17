@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { executeQuery } from "@/src/server/api/services/query-builder";
+import { executeQuery } from "@/src/server/api/services/queryBuilder";
 import {
   filterInterface,
   sqlInterface,

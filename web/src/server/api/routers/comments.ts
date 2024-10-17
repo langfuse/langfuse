@@ -9,46 +9,7 @@ import { CommentObjectType } from "@langfuse/shared";
 import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
-
-const COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL = {
-  [CommentObjectType.TRACE]: "trace",
-  [CommentObjectType.OBSERVATION]: "observation",
-  [CommentObjectType.SESSION]: "traceSession",
-  [CommentObjectType.PROMPT]: "prompt",
-} as const;
-
-const validateCommentReferenceObject = async ({
-  ctx,
-  input,
-}: {
-  ctx: any;
-  input: z.infer<typeof CreateCommentData>;
-}): Promise<void> => {
-  const { objectId, objectType, projectId } = input;
-  const prismaModel = COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL[objectType];
-
-  if (!prismaModel) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: `No prisma model for object type ${objectType}`,
-    });
-  }
-
-  const model = ctx.prisma[prismaModel];
-  const object = await model.findFirst({
-    where: {
-      id: objectId,
-      projectId,
-    },
-  });
-
-  if (!object) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: `No ${prismaModel} with id ${objectId} in project ${projectId}`,
-    });
-  }
-};
+import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -61,7 +22,17 @@ export const commentsRouter = createTRPCRouter({
           scope: "comments:CUD",
         });
 
-        validateCommentReferenceObject({ ctx, input });
+        const result = await validateCommentReferenceObject({
+          ctx,
+          input,
+        });
+
+        if (result.errorMessage) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: result.errorMessage,
+          });
+        }
 
         const comment = await ctx.prisma.comment.create({
           data: {

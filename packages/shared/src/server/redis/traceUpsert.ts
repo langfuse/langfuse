@@ -6,33 +6,48 @@ import {
   TraceUpsertEventType,
 } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { logger } from "../logger";
 
-let traceUpsertQueue: Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null =
-  null;
+export class TraceUpsertQueue {
+  private static instance: Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null =
+    null;
 
-export const getTraceUpsertQueue = () => {
-  if (traceUpsertQueue) return traceUpsertQueue;
+  public static getInstance(): Queue<
+    TQueueJobTypes[QueueName.TraceUpsert]
+  > | null {
+    if (TraceUpsertQueue.instance) return TraceUpsertQueue.instance;
 
-  const connection = createNewRedisInstance();
+    const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
+      ...redisQueueRetryOptions,
+    });
 
-  traceUpsertQueue = connection
-    ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(QueueName.TraceUpsert, {
-        connection: connection,
-        defaultJobOptions: {
-          removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
-          removeOnFail: 100_000,
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 5000,
+    TraceUpsertQueue.instance = newRedis
+      ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(
+          QueueName.TraceUpsert,
+          {
+            connection: newRedis,
+            defaultJobOptions: {
+              removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
+              removeOnFail: 100_000,
+              attempts: 5,
+              backoff: {
+                type: "exponential",
+                delay: 5000,
+              },
+            },
           },
-        },
-      })
-    : null;
+        )
+      : null;
 
-  return traceUpsertQueue;
-};
+    TraceUpsertQueue.instance?.on("error", (err) => {
+      logger.error("TraceUpsertQueue error", err);
+    });
+
+    return TraceUpsertQueue.instance;
+  }
+}
 
 export function convertTraceUpsertEventsToRedisEvents(
   events: TraceUpsertEventType[],
@@ -45,7 +60,7 @@ export function convertTraceUpsertEventsToRedisEvents(
     return acc;
   }, new Map<string, Set<string>>());
 
-  const jobs = [...uniqueTracesPerProject.entries()]
+  return [...uniqueTracesPerProject.entries()]
     .map((tracesPerProject) => {
       const [projectId, traceIds] = tracesPerProject;
 
@@ -72,5 +87,4 @@ export function convertTraceUpsertEventsToRedisEvents(
       }));
     })
     .flat();
-  return jobs;
 }

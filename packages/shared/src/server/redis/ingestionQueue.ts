@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import { createNewRedisInstance } from "./redis";
+import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { logger } from "../logger";
 
 export class IngestionQueue {
   private static instance: Queue<
@@ -12,7 +13,10 @@ export class IngestionQueue {
   > | null {
     if (IngestionQueue.instance) return IngestionQueue.instance;
 
-    const newRedis = createNewRedisInstance({ enableOfflineQueue: false });
+    const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
+      ...redisQueueRetryOptions,
+    });
 
     IngestionQueue.instance = newRedis
       ? new Queue<TQueueJobTypes[QueueName.IngestionQueue]>(
@@ -31,6 +35,10 @@ export class IngestionQueue {
           },
         )
       : null;
+
+    IngestionQueue.instance?.on("error", (err) => {
+      logger.error("IngestionQueue error", err);
+    });
 
     return IngestionQueue.instance;
   }

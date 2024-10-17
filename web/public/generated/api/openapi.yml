@@ -24,6 +24,183 @@ info:
     - Postman collection:
     https://cloud.langfuse.com/generated/postman/collection.json
 paths:
+  /api/public/comments:
+    post:
+      description: >-
+        Create a comment. Comments may be attached to different object types
+        (trace, observation, session, prompt).
+      operationId: comments_create
+      tags:
+        - Comments
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCommentResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+    get:
+      description: Get all comments
+      operationId: comments_get
+      tags:
+        - Comments
+      parameters:
+        - name: page
+          in: query
+          description: Page number, starts at 1.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: objectType
+          in: query
+          description: >-
+            Filter comments by object type (trace, observation, session,
+            prompt).
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: objectId
+          in: query
+          description: >-
+            Filter comments by object id. If objectType is not provided, an
+            error will be thrown.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: authorUserId
+          in: query
+          description: Filter comments by author user id.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCommentsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/comments/{commentId}:
+    get:
+      description: Get a comment by id
+      operationId: comments_get-by-id
+      tags:
+        - Comments
+      parameters:
+        - name: commentId
+          in: path
+          description: The unique langfuse identifier of a comment
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/dataset-items:
     post:
       description: Create a dataset item
@@ -1597,6 +1774,13 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: queueId
+          in: query
+          description: Retrieve only scores with a specific annotation queueId.
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: dataType
           in: query
           description: Retrieve only scores with a specific dataType.
@@ -2031,6 +2215,59 @@ paths:
         - BasicAuth: []
 components:
   schemas:
+    CreateCommentRequest:
+      title: CreateCommentRequest
+      type: object
+      properties:
+        projectId:
+          type: string
+          description: The id of the project to attach the comment to.
+        objectType:
+          type: string
+          description: >-
+            The type of the object to attach the comment to (trace, observation,
+            session, prompt).
+        objectId:
+          type: string
+          description: >-
+            The id of the object to attach the comment to. If this does not
+            reference a valid existing object, an error will be thrown.
+        content:
+          type: string
+          description: >-
+            The content of the comment. May include markdown. Currently limited
+            to 500 characters.
+        authorUserId:
+          type: string
+          nullable: true
+          description: The id of the user who created the comment.
+      required:
+        - projectId
+        - objectType
+        - objectId
+        - content
+    CreateCommentResponse:
+      title: CreateCommentResponse
+      type: object
+      properties:
+        id:
+          type: string
+          description: The id of the created object in Langfuse
+      required:
+        - id
+    GetCommentsResponse:
+      title: GetCommentsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
     Trace:
       title: Trace
       type: object
@@ -2453,6 +2690,12 @@ components:
             Reference a score config on a score. When set, config and score name
             must be equal and value must comply to optionally defined numerical
             range
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            Reference an annotation queue on a score. Populated if the score was
+            initially created in an annotation queue.
       required:
         - id
         - traceId
@@ -2558,6 +2801,37 @@ components:
       description: >-
         The value of the score. Must be passed as string for categorical scores,
         and numeric for boolean and numeric scores
+    Comment:
+      title: Comment
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        objectType:
+          $ref: '#/components/schemas/CommentObjectType'
+        objectId:
+          type: string
+        content:
+          type: string
+        authorUserId:
+          type: string
+          nullable: true
+      required:
+        - id
+        - projectId
+        - createdAt
+        - updatedAt
+        - objectType
+        - objectId
+        - content
     Dataset:
       title: Dataset
       type: object
@@ -2801,6 +3075,14 @@ components:
           items:
             type: string
           nullable: true
+    CommentObjectType:
+      title: CommentObjectType
+      type: string
+      enum:
+        - TRACE
+        - OBSERVATION
+        - SESSION
+        - PROMPT
     DatasetStatus:
       title: DatasetStatus
       type: string

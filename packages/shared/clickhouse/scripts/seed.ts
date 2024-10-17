@@ -4,14 +4,11 @@ import { redis } from "@langfuse/shared/src/server";
 
 export const prepareClickhouse = async (projectIds: string[]) => {
   for (const projectId of projectIds) {
-    const numberTraces = 80;
-    const numberObservations = 500;
-
     console.log(`Preparing Clickhouse for project ${projectId}...`);
     const tracesQuery = `
       INSERT INTO traces
-      SELECT toString(floor(randUniform(0, 100))) AS id,
-        now() - randUniform(0, 100) AS timestamp,
+      SELECT toString(floor(randUniform(0, 10000))) AS id,
+        '2024-07-31 09:47:59.270' AS timestamp,
         concat('name_', toString(rand() % 100)) AS name,
         concat('user_id_', toString(randUniform(0, 100))) AS user_id,
         map('key', 'value') AS metadata,
@@ -27,13 +24,13 @@ export const prepareClickhouse = async (projectIds: string[]) => {
         timestamp AS created_at,
         timestamp AS updated_at,
         timestamp AS event_ts
-      FROM numbers(${numberTraces});
+      FROM numbers(10000);
     `;
 
     const observationsQuery = `
       INSERT INTO observations
-      SELECT toString(floor(randUniform(0, 400))) AS id,
-        toString(floor(randUniform(0, 80))) AS trace_id,
+      SELECT toString(floor(randUniform(0, 70000))) AS id,
+        toString(floor(randUniform(0, 10000))) AS trace_id,
         '${projectId}' AS project_id,
        'GENERATION' AS type,
         toString(rand()) AS parent_observation_id,
@@ -67,22 +64,21 @@ export const prepareClickhouse = async (projectIds: string[]) => {
         1000 AS output_cost,
         1000 AS total_cost,
         start_time AS completion_start_time,
-        start_time AS time_to_first_token,
         toString(rand()) AS prompt_id,
         toString(rand()) AS prompt_name,
         1000 AS prompt_version,
         start_time AS created_at,
         start_time AS updated_at,
         start_time AS event_ts
-      FROM numbers(${numberObservations});
+      FROM numbers(10000);
     `;
 
     const scoresQuery = `
       INSERT INTO scores
-      SELECT toString(floor(randUniform(0, 400))) AS id,
+      SELECT toString(floor(randUniform(0, 100))) AS id,
         now() - randUniform(0, 100) AS timestamp,
         '${projectId}' AS project_id,
-        toString(floor(randUniform(0, 80))) AS trace_id,
+        toString(floor(randUniform(0, 1000))) AS trace_id,
         if(
           rand() > 0.9,
           toString(floor(randUniform(0, 1000))),
