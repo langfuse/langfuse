@@ -185,10 +185,10 @@ export const env = createEnv({
           (creator) => emailSchema.safeParse(creator).success,
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
-    LANGFUSE_INGESTION_BUFFER_TTL_SECONDS: z.coerce
+    LANGFUSE_INGESTION_QUEUE_DELAY_SECONDS: z.coerce
       .number()
       .positive()
-      .default(60 * 10),
+      .default(10),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
@@ -390,8 +390,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
-    LANGFUSE_INGESTION_BUFFER_TTL_SECONDS:
-      process.env.LANGFUSE_INGESTION_BUFFER_TTL_SECONDS,
+    LANGFUSE_INGESTION_QUEUE_DELAY_SECONDS:
+      process.env.LANGFUSE_INGESTION_QUEUE_DELAY_SECONDS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
