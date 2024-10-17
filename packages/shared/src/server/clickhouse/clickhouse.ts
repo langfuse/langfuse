@@ -1,8 +1,8 @@
 import { createClient } from "@clickhouse/client";
 
-import { env } from "../env";
-import { eventTypes } from "./ingestion/types";
-import { LangfuseNotFoundError } from "../errors";
+import { env } from "../../env";
+import { eventTypes } from "../ingestion/types";
+import { LangfuseNotFoundError } from "../../errors";
 
 export enum ClickhouseEntityType {
   Trace = "trace",
@@ -12,7 +12,7 @@ export enum ClickhouseEntityType {
 }
 
 export function getClickhouseEntityType(
-  eventType: string,
+  eventType: string
 ): ClickhouseEntityType {
   switch (eventType) {
     case eventTypes.TRACE_CREATE:

@@ -114,7 +114,12 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        const res = await getTracesTable(ctx.session.projectId);
+        const res = await getTracesTable(
+          ctx.session.projectId,
+          input.filter ?? [],
+          input.limit,
+          input.page,
+        );
 
         console.log(res[4]);
         return {
