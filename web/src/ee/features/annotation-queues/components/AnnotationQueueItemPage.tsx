@@ -200,7 +200,7 @@ const AnnotateIOView = ({
                     <AccordionTrigger
                       onClick={() => setShowComments(!showComments)}
                     >
-                      Add comment
+                      Comments
                     </AccordionTrigger>
                   </div>
                   <AccordionContent>
