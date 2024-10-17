@@ -119,7 +119,7 @@
     "next-auth": "^4.24.7",
     "next-query-params": "^5.0.1",
     "next-themes": "^0.3.0",
-    "posthog-js": "^1.161.3",
+    "posthog-js": "^1.174.0",
     "posthog-node": "^3.6.3",
     "prexit": "^2.2.0",
     "prisma": "^5.20.0",
