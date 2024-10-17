@@ -1,6 +1,12 @@
 import { Trace } from "@/src/components/trace";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 import { TracePreview } from "@/src/components/trace/TracePreview";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/src/components/ui/accordion";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
@@ -10,6 +16,7 @@ import {
 } from "@/src/components/ui/resizable";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { CommentList } from "@/src/features/comments/CommentList";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
@@ -49,6 +56,10 @@ const AnnotateIOView = ({
   const session = useSession();
   const traceId = item.parentTraceId ?? item.objectId;
   const projectId = router.query.projectId as string;
+  const [showComments, setShowComments] = useSessionStorage(
+    `annotationQueueShowComments-${projectId}`,
+    false,
+  );
   const [panelSize, setPanelSize] = useSessionStorage(
     `annotationQueuePanelSize-${projectId}`,
     65,
@@ -129,7 +140,7 @@ const AnnotateIOView = ({
             />
           )
         ) : (
-          <Card className="col-span-2 flex h-full flex-col overflow-hidden p-2">
+          <Card className="col-span-2 flex h-full flex-col overflow-hidden p-4">
             <div className="overflow-x-auto md:overflow-hidden">
               <Trace
                 key={trace.data.id}
@@ -150,29 +161,61 @@ const AnnotateIOView = ({
         minSize={30}
       >
         <Card className="col-span-2 flex h-full flex-col overflow-hidden">
-          <AnnotateDrawerContent
-            key={"annotation-drawer-content" + item.objectId}
-            traceId={traceId}
-            scores={trace.data?.scores ?? []}
-            observationId={item.parentTraceId ? item.objectId : undefined}
-            configs={configs}
-            emptySelectedConfigIds={emptySelectedConfigIds}
-            setEmptySelectedConfigIds={() => {}}
-            projectId={item.projectId}
-            type={item.objectType.toLowerCase() as "trace" | "observation"}
-            isSelectHidden
-            queueId={item.queueId}
-            actionButtons={
-              isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
-                <div className="flex items-center justify-center rounded-sm border border-dark-red bg-light-red p-1">
-                  <TriangleAlertIcon className="mr-1 h-4 w-4 text-dark-red" />
-                  <span className="text-xs text-dark-red">
-                    Currently edited by {item.lockedByUser.name}
-                  </span>
-                </div>
-              ) : undefined
-            }
-          />
+          <div className="grid h-full w-full grid-cols-1 grid-rows-[minmax(auto,1fr),minmax(min-content,auto)] justify-between">
+            <div className="w-full overflow-auto">
+              <AnnotateDrawerContent
+                key={"annotation-drawer-content" + item.objectId}
+                traceId={traceId}
+                scores={trace.data?.scores ?? []}
+                observationId={item.parentTraceId ? item.objectId : undefined}
+                configs={configs}
+                emptySelectedConfigIds={emptySelectedConfigIds}
+                setEmptySelectedConfigIds={() => {}}
+                projectId={item.projectId}
+                type={item.objectType.toLowerCase() as "trace" | "observation"}
+                isSelectHidden
+                queueId={item.queueId}
+                actionButtons={
+                  isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
+                    <div className="flex items-center justify-center rounded-sm border border-dark-red bg-light-red p-1">
+                      <TriangleAlertIcon className="mr-1 h-4 w-4 text-dark-red" />
+                      <span className="text-xs text-dark-red">
+                        Currently edited by {item.lockedByUser.name}
+                      </span>
+                    </div>
+                  ) : undefined
+                }
+              />
+            </div>
+            <div className="relative max-h-64 overflow-auto">
+              <Accordion
+                type="single"
+                collapsible
+                className="mx-4 mt-4"
+                value={showComments ? "item-1" : ""}
+                onValueChange={(value) => setShowComments(value === "item-1")}
+              >
+                <AccordionItem value="item-1" className="border-none">
+                  <div className="sticky top-0 z-10 border-b bg-background">
+                    <AccordionTrigger
+                      onClick={() => setShowComments(!showComments)}
+                    >
+                      Add comment
+                    </AccordionTrigger>
+                  </div>
+                  <AccordionContent>
+                    <CommentList
+                      projectId={item.projectId}
+                      objectId={item.objectId}
+                      objectType={item.objectType}
+                      className="rounded-t-none border-t-transparent"
+                      cardView
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
+          </div>
         </Card>
       </ResizablePanel>
     </ResizablePanelGroup>
