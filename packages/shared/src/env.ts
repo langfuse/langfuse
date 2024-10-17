@@ -30,6 +30,7 @@ const EnvSchema = z.object({
   CLICKHOUSE_URL: z.string().url().optional(),
   CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_PASSWORD: z.string().optional(),
+  SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .optional(),
