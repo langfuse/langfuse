@@ -580,11 +580,13 @@ export function AnnotateDrawerContent({
             observationId={observationId}
           />
         ) : (
-          <AnnotateHeader
-            showSaving={showSaving}
-            actionButtons={actionButtons}
-            observationId={observationId}
-          />
+          <DrawerTitle>
+            <AnnotateHeader
+              showSaving={showSaving}
+              actionButtons={actionButtons}
+              observationId={observationId}
+            />
+          </DrawerTitle>
         )}
 
         {!isSelectHidden && (
