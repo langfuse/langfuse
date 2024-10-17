@@ -296,18 +296,24 @@ export default async function handler(
       const results = await Promise.allSettled(
         Object.keys(sortedBatchByEventBodyId).map(async (id) =>
           queue
-            ? queue.add(QueueJobs.IngestionJob, {
-                id: randomUUID(),
-                timestamp: new Date(),
-                name: QueueJobs.IngestionJob as const,
-                payload: {
-                  data: {
-                    type: sortedBatchByEventBodyId[id].type,
-                    eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
+            ? queue.add(
+                QueueJobs.IngestionJob,
+                {
+                  id: randomUUID(),
+                  timestamp: new Date(),
+                  name: QueueJobs.IngestionJob as const,
+                  payload: {
+                    data: {
+                      type: sortedBatchByEventBodyId[id].type,
+                      eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
+                    },
+                    authCheck,
                   },
-                  authCheck,
                 },
-              })
+                {
+                  delay: env.LANGFUSE_INGESTION_QUEUE_DELAY_SECONDS,
+                },
+              )
             : Promise.reject("Failed to instantiate queue"),
         ),
       );
