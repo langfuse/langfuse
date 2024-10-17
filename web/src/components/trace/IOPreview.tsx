@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Fragment } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { MarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
+import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import {
   ChatMlArraySchema,
   type ChatMlMessageSchema,
@@ -37,8 +37,8 @@ function MarkdownOrJsonView({
   className?: string;
   customCodeHeaderClassName?: string;
 }) {
-  const validatedMarkdown = useMemo(
-    () => MarkdownSchema.safeParse(content),
+  const stringOrValidatedMarkdown = useMemo(
+    () => StringOrMarkdownSchema.safeParse(content),
     [content],
   );
   const validatedOpenAIContent = useMemo(
@@ -54,7 +54,7 @@ function MarkdownOrJsonView({
 
   return isMarkdownEnabled && canEnableMarkdown ? (
     <MarkdownView
-      markdown={validatedMarkdown.data ?? content}
+      markdown={stringOrValidatedMarkdown.data ?? content}
       title={title}
       className={className}
       customCodeHeaderClassName={customCodeHeaderClassName}
@@ -90,7 +90,7 @@ export const IOPreview: React.FC<{
     outLegacyCompletionSchema.safeParse(output);
   const outputClean = outLegacyCompletionSchemaParsed.success
     ? outLegacyCompletionSchemaParsed.data
-    : props.output ?? null;
+    : (props.output ?? null);
 
   // ChatML format
   let inChatMlArray = ChatMlArraySchema.safeParse(input);
@@ -120,8 +120,8 @@ export const IOPreview: React.FC<{
     Array.isArray(output) ? output : [output],
   );
 
-  const inMarkdown = MarkdownSchema.safeParse(input);
-  const outMarkdown = MarkdownSchema.safeParse(output);
+  const inMarkdown = StringOrMarkdownSchema.safeParse(input);
+  const outMarkdown = StringOrMarkdownSchema.safeParse(output);
 
   const isPrettyViewAvailable =
     inChatMlArray.success || inMarkdown.success || outMarkdown.success;
@@ -270,7 +270,9 @@ export const OpenAiMessageView: React.FC<{
                 {!!message.json && (
                   <JSONView
                     title={
-                      message.content ? undefined : message.name ?? message.role
+                      message.content
+                        ? undefined
+                        : (message.name ?? message.role)
                     }
                     json={message.json}
                     className={cn(
