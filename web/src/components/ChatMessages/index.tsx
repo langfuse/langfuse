@@ -52,11 +52,14 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
     if (active && over && active.id !== over.id) {
       if (isString(active.id) && isString(over.id)) {
         const newIndex = messages.findIndex((m) => m.id === over.id);
+        const oldIndex = messages.findIndex((m) => m.id === active.id);
+        if (newIndex < 0 || oldIndex < 0) {
+          return;
+        }
         // prevent reordering system messages
         if (messages[newIndex].role === ChatMessageRole.System) {
           return;
         }
-        const oldIndex = messages.findIndex((m) => m.id === active.id);
         const newMessages = arrayMove(messages, oldIndex, newIndex);
         props.setMessages(newMessages);
       }
