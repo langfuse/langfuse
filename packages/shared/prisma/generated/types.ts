@@ -402,6 +402,15 @@ export type PosthogIntegration = {
     enabled: boolean;
     created_at: Generated<Timestamp>;
 };
+export type Price = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string | null;
+    model_id: string;
+    item_name: string;
+    price: string | null;
+};
 export type Project = {
     id: string;
     org_id: string;
@@ -565,6 +574,7 @@ export type DB = {
     organization_memberships: OrganizationMembership;
     organizations: Organization;
     posthog_integrations: PosthogIntegration;
+    prices: Price;
     project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;
