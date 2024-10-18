@@ -38,7 +38,7 @@ export const prepareClickhouse = async (projectIds: string[]) => {
         addSeconds(start_time, floor(randExponential(1 / 10))) AS end_time,
         concat('name', toString(rand() % 100)) AS name,
         map('key', 'value') AS metadata,
-        'level' AS level,
+        'DEBUG' AS level,
         'status_message' AS status_message,
         'version' AS version,
         repeat('input', toInt64(randExponential(1 / 100))) AS input,
