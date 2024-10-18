@@ -170,23 +170,22 @@ const sendCloudWatchMetric = (key: string, value: number | undefined) => {
     !cloudWatchLastSubmitted[key] ||
     currentTime - cloudWatchLastSubmitted[key] >= interval
   ) {
-    // Update the last executed time for the key
     cloudWatchLastSubmitted[key] = currentTime;
-
-    // Execute the callback function
-    const putMetricCommand = new PutMetricDataCommand({
-      Namespace: "Langfuse",
-      MetricData: [
-        {
-          MetricName: key,
-          Value: value,
-        },
-      ],
-    });
-    // We do not await the promise to keep metric submission non-blocking
-    cloudWatchClient.send(putMetricCommand).catch((error) => {
-      logger.warn("Failed to send metric to CloudWatch", error);
-    });
+    cloudWatchClient
+      .send(
+        new PutMetricDataCommand({
+          Namespace: "Langfuse",
+          MetricData: [
+            {
+              MetricName: key,
+              Value: value,
+            },
+          ],
+        }),
+      )
+      .catch((error) => {
+        logger.warn("Failed to send metric to CloudWatch", error);
+      });
   }
 };
 
