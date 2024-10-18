@@ -136,6 +136,7 @@ model Project {
     comment             Comment[]
     annotationQueue     AnnotationQueue[]
     annotationQueueItem AnnotationQueueItem[]
+    Price               Price[]
 
     @@index([orgId])
     @@map("projects")
@@ -756,10 +757,30 @@ model Model {
     unit            String // TOKENS, CHARACTERS, MILLISECONDS, SECONDS, REQUESTS, or IMAGES
     tokenizerId     String?   @map("tokenizer_id")
     tokenizerConfig Json?     @map("tokenizer_config")
+    Price           Price[]
 
     @@unique([projectId, modelName, startDate, unit])
     @@index(modelName)
     @@map("models")
+}
+
+model Price {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+    projectId String?  @map("project_id")
+    Project   Project? @relation(fields: [projectId], references: [id])
+
+    modelId String @map("model_id")
+    Model   Model  @relation(fields: [modelId], references: [id])
+
+    itemName String   @map("item_name")
+    price    Decimal?
+
+    @@unique([projectId, modelId, itemName])
+    @@index(modelId)
+    @@map("prices")
 }
 
 // No FK constraints to preserve audit logs
