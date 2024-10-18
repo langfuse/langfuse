@@ -235,6 +235,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
         messages,
         addMessage,
+        setMessages,
         updateMessage,
         deleteMessage,
 
