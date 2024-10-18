@@ -10,7 +10,13 @@ import {
 } from "tiktoken";
 
 import { z } from "zod";
-import { instrumentSync, logger } from "@langfuse/shared/src/server";
+import {
+  instrumentSync,
+  logger,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
+
+const tokenCountMetric = "langfuse.tokenisedTokens";
 
 const OpenAiTokenConfig = z.object({
   tokenizerModel: z.string().refine(isTiktokenModel, {
@@ -112,11 +118,20 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
           JSON.stringify(parsedText)
         );
   }
+
+  recordIncrement(tokenCountMetric, result);
+
   return result;
 }
 
 function claudeTokenCount(text: unknown) {
-  return isString(text) ? countTokens(text) : countTokens(JSON.stringify(text));
+  const result = isString(text)
+    ? countTokens(text)
+    : countTokens(JSON.stringify(text));
+
+  recordIncrement(tokenCountMetric, result);
+
+  return result;
 }
 
 function openAiChatTokenCount(params: {
