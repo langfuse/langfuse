@@ -119,7 +119,9 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
         );
   }
 
-  recordIncrement(tokenCountMetric, result);
+  if (result) {
+    recordIncrement(tokenCountMetric, result);
+  }
 
   return result;
 }
