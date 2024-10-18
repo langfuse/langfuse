@@ -1,5 +1,11 @@
 import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
+import { env } from "../../env";
+import {
+  CloudWatchClient,
+  PutMetricDataCommand,
+} from "@aws-sdk/client-cloudwatch";
+import { logger } from "../logger";
 
 // type CallbackFn<T> = () => T;
 
@@ -153,6 +159,36 @@ export const addUserToSpan = (
 
 export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
 
+const cloudWatchClient = new CloudWatchClient();
+const cloudWatchLastSubmitted: Record<string, number> = {};
+const sendCloudWatchMetric = (key: string, value: number | undefined) => {
+  const currentTime = Date.now();
+  const interval = 30 * 1000;
+
+  // Check if the function has been executed in the last 30s for this key
+  if (
+    !cloudWatchLastSubmitted[key] ||
+    currentTime - cloudWatchLastSubmitted[key] >= interval
+  ) {
+    cloudWatchLastSubmitted[key] = currentTime;
+    cloudWatchClient
+      .send(
+        new PutMetricDataCommand({
+          Namespace: "Langfuse",
+          MetricData: [
+            {
+              MetricName: key,
+              Value: value ?? 0,
+            },
+          ],
+        }),
+      )
+      .catch((error) => {
+        logger.warn("Failed to send metric to CloudWatch", error);
+      });
+  }
+};
+
 export const recordGauge = (
   stat: string,
   value?: number | undefined,
@@ -162,6 +198,9 @@ export const recordGauge = (
       }
     | undefined,
 ) => {
+  if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
+    sendCloudWatchMetric(stat, value);
+  }
   dd.dogstatsd.gauge(stat, value, tags);
 };
 
@@ -170,6 +209,9 @@ export const recordIncrement = (
   value?: number | undefined,
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
+  if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
+    sendCloudWatchMetric(stat, value);
+  }
   dd.dogstatsd.increment(stat, value, tags);
 };
 
@@ -178,6 +220,9 @@ export const recordHistogram = (
   value?: number | undefined,
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
+  if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
+    sendCloudWatchMetric(stat, value);
+  }
   dd.dogstatsd.histogram(stat, value, tags);
 };
 
