@@ -178,7 +178,7 @@ const sendCloudWatchMetric = (key: string, value: number | undefined) => {
           MetricData: [
             {
               MetricName: key,
-              Value: value,
+              Value: value ?? 0,
             },
           ],
         }),
