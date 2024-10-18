@@ -174,7 +174,7 @@ const sendCloudWatchMetric = (key: string, value: number | undefined) => {
     cloudWatchLastSubmitted[key] = currentTime;
 
     // Execute the callback function
-    const putMetricComment = new PutMetricDataCommand({
+    const putMetricCommand = new PutMetricDataCommand({
       Namespace: "Langfuse",
       MetricData: [
         {
@@ -184,7 +184,7 @@ const sendCloudWatchMetric = (key: string, value: number | undefined) => {
       ],
     });
     // We do not await the promise to keep metric submission non-blocking
-    cloudWatchClient.send(putMetricComment).catch((error) => {
+    cloudWatchClient.send(putMetricCommand).catch((error) => {
       logger.warn("Failed to send metric to CloudWatch", error);
     });
   }
