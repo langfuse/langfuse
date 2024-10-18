@@ -1,11 +1,14 @@
 import { capitalize } from "lodash";
-import { MinusCircleIcon } from "lucide-react";
+import { GripVertical, MinusCircleIcon } from "lucide-react";
 import { type ChangeEvent, useEffect, useState, useRef } from "react";
 import { ChatMessageRole, type ChatMessageWithId } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Textarea } from "@/src/components/ui/textarea";
 import type { MessagesContext } from "./types";
+import { useSortable } from "@dnd-kit/sortable";
+import { cn } from "@/src/utils/tailwind";
+import { CSS } from "@dnd-kit/utilities";
 
 type ChatMessageProps = Pick<
   MessagesContext,
@@ -21,6 +24,15 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const [textAreaRows, setTextAreaRows] = useState(1);
   const [roleIndex, setRoleIndex] = useState(1);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: message.id });
 
   const toggleRole = () => {
     if (message.role === ChatMessageRole.System) return;
@@ -61,8 +73,27 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   }, [message.content]);
 
   return (
-    <Card className="p-3">
-      <CardContent className="flex flex-row space-x-1 p-0">
+    <Card
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={cn(
+        isDragging ? "opacity-80" : "opacity-100",
+        "group relative whitespace-nowrap p-3",
+      )}
+    >
+      {message.role !== ChatMessageRole.System && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute bottom-0 left-0 top-4 flex w-6 cursor-move justify-center"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+      )}
+      <CardContent className="ml-4 flex flex-row space-x-1 p-0">
         <div className="min-w-[6rem]">
           <Button
             onClick={toggleRole}
