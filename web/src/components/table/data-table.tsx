@@ -342,6 +342,7 @@ export function DataTable<TData extends object, TValue>({
         >
           <DataTablePagination
             table={table}
+            isLoading={data.isLoading}
             paginationOptions={pagination.options}
           />
         </div>
