@@ -16,7 +16,7 @@ import remarkMath from "remark-math";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
 import { Button } from "@/src/components/ui/button";
-import { Check, Copy, ImageOff } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, ImageOff } from "lucide-react";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
@@ -299,22 +299,23 @@ export function MarkdownView({
       <div className="grid grid-flow-row gap-2 p-3">
         {typeof markdown === "string" ? (
           // plain string
-          <MarkdownRenderer
-            markdown={markdown}
+          <ExpandableMarkdown
+            content={markdown}
             theme={theme}
-            className={className}
+            className="className"
             customCodeHeaderClassName={customCodeHeaderClassName}
           />
         ) : (
           // content parts (multi-modal)
           markdown.map((content, index) =>
             content.type === "text" ? (
-              <MarkdownRenderer
-                key={index}
-                markdown={content.text}
+              <ExpandableMarkdown
+                content={content}
+                index={index}
                 theme={theme}
-                className={className}
                 customCodeHeaderClassName={customCodeHeaderClassName}
+                className={className}
+                key={index}
               />
             ) : OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
               <div key={index}>
@@ -336,3 +337,73 @@ export function MarkdownView({
     </div>
   );
 }
+
+function ExpandableMarkdown({
+  content,
+  theme,
+  className,
+  customCodeHeaderClassName,
+  index,
+}: {
+  content: string | { text: string; type: "text" };
+  theme?: string;
+  index?: number;
+  className?: string;
+  customCodeHeaderClassName?: string;
+}) {
+  console.log(content);
+
+  const ContentType = typeof content === "string" ? content : content.text;
+
+  const [visibleWords, setVisibleWords] = useState(20); // Start with 20 words visible
+
+  // Function to show 20 more words when clicking the expand button
+  const handleExpand = () => {
+    setVisibleWords((prevWords) => prevWords + 20);
+  };
+
+  // Function to collapse back by 20 words
+  const handleCollapse = () => {
+    setVisibleWords((prevWords) => Math.max(20, prevWords - 20));
+  };
+
+  // Split the content into words
+  const words = ContentType.split(" ");
+  const isExpandable = visibleWords < words.length;
+  const isCollapsible = visibleWords > 20;
+
+  // Get the text to display based on the current number of visible words
+  const displayedText = words.slice(0, visibleWords).join(" ");
+
+  return (
+    <>
+      <MarkdownRenderer
+        key={index}
+        markdown={displayedText}
+        theme={theme}
+        className={className}
+        customCodeHeaderClassName={customCodeHeaderClassName}
+      />
+      <div className="flex items-center justify-end gap-2">
+        {isExpandable && (
+          <button
+            onClick={handleExpand}
+            className="text-slate-600 hover:text-blue-50"
+          >
+            <ChevronDown />
+          </button>
+        )}
+        {isCollapsible && (
+          <button
+            onClick={handleCollapse}
+            className="text-slate-600 hover:text-slate-50"
+          >
+            <ChevronUp />
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+export default ExpandableMarkdown;
