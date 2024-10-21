@@ -9,7 +9,8 @@
     "lib": ["ES2021"],
     "outDir": "./dist",
     "types": ["node"],
-    "downlevelIteration": true
+    "downlevelIteration": true,
+    "resolveJsonModule": true
   },
   "include": ["."],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts"]

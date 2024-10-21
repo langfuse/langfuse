@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 
@@ -17,6 +17,8 @@ export async function getDefaultModelPrices() {
       total_price: Decimal | null;
       created_at: Date | null;
       updated_at: Date | null;
+      tokenizer_config: Prisma.JsonValue | null;
+      tokenizer_id: string | null;
     }[]
   >`
     SELECT DISTINCT ON (model_name)
@@ -27,7 +29,9 @@ export async function getDefaultModelPrices() {
       output_price,
       total_price,
       created_at,
-      updated_at
+      updated_at,
+      tokenizer_config,
+      tokenizer_id
     FROM
       models
     WHERE
@@ -45,10 +49,12 @@ export async function getDefaultModelPrices() {
       created_at: modelPrice.created_at,
       updated_at: modelPrice.updated_at,
       prices: {
-        input_price: modelPrice.input_price?.toNumber(),
-        output_price: modelPrice.output_price?.toNumber(),
-        total_price: modelPrice.total_price?.toNumber(),
+        input: modelPrice.input_price?.toNumber(),
+        output: modelPrice.output_price?.toNumber(),
+        total: modelPrice.total_price?.toNumber(),
       },
+      tokenizer_config: modelPrice.tokenizer_config,
+      tokenizer_id: modelPrice.tokenizer_id,
     };
   });
 }

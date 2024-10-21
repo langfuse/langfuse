@@ -136,7 +136,6 @@ model Project {
     comment             Comment[]
     annotationQueue     AnnotationQueue[]
     annotationQueueItem AnnotationQueueItem[]
-    Price               Price[]
 
     @@index([orgId])
     @@map("projects")
@@ -754,7 +753,7 @@ model Model {
     inputPrice      Decimal?  @map("input_price")
     outputPrice     Decimal?  @map("output_price")
     totalPrice      Decimal?  @map("total_price")
-    unit            String // TOKENS, CHARACTERS, MILLISECONDS, SECONDS, REQUESTS, or IMAGES
+    unit            String? // TOKENS, CHARACTERS, MILLISECONDS, SECONDS, REQUESTS, or IMAGES
     tokenizerId     String?   @map("tokenizer_id")
     tokenizerConfig Json?     @map("tokenizer_config")
     Price           Price[]
@@ -769,16 +768,13 @@ model Price {
     createdAt DateTime @default(now()) @map("created_at")
     updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-    projectId String?  @map("project_id")
-    Project   Project? @relation(fields: [projectId], references: [id])
-
-    modelId String @map("model_id")
-    Model   Model  @relation(fields: [modelId], references: [id])
+    modelId String @map("model_id") // Model is already linked to project (or default), so we don't need projectId here
+    Model   Model  @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
     itemName String   @map("item_name")
     price    Decimal?
 
-    @@unique([projectId, modelId, itemName])
+    @@unique([modelId, itemName])
     @@index(modelId)
     @@map("prices")
 }

@@ -304,7 +304,7 @@ export type Model = {
     input_price: string | null;
     output_price: string | null;
     total_price: string | null;
-    unit: string;
+    unit: string | null;
     tokenizer_id: string | null;
     tokenizer_config: unknown | null;
 };
@@ -406,7 +406,6 @@ export type Price = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
-    project_id: string | null;
     model_id: string;
     item_name: string;
     price: string | null;
