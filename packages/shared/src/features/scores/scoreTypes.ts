@@ -236,6 +236,7 @@ export const GetScoresQuery = z.object({
   dataType: z.enum(ScoreDataType).nullish(),
   configId: z.string().nullish(),
   queueId: z.string().nullish(),
+  traceTags: z.union([z.array(z.string()), z.string()]).nullish(),
   name: z.string().nullish(),
   fromTimestamp: stringDateTime,
   toTimestamp: stringDateTime,
@@ -257,6 +258,7 @@ const LegacyGetScoreResponseDataV1 = z.intersection(
   z.object({
     trace: z.object({
       userId: z.string().nullish(),
+      tags: z.array(z.string()).nullish(),
     }),
   })
 );
