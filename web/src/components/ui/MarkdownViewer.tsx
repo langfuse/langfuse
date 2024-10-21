@@ -302,7 +302,7 @@ export function MarkdownView({
           <ExpandableMarkdown
             content={markdown}
             theme={theme}
-            className="className"
+            className={className}
             customCodeHeaderClassName={customCodeHeaderClassName}
           />
         ) : (
@@ -351,8 +351,6 @@ function ExpandableMarkdown({
   className?: string;
   customCodeHeaderClassName?: string;
 }) {
-  console.log(content);
-
   const ContentType = typeof content === "string" ? content : content.text;
 
   const [visibleWords, setVisibleWords] = useState(20); // Start with 20 words visible
