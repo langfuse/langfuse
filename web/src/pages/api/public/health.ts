@@ -19,7 +19,7 @@ export default async function handler(
         const now = Date.now();
         const trace = await prisma.trace.findFirst({
           where: {
-            timestamp: {
+            createdAt: {
               gte: new Date(now - 180000), // 3 minutes ago
               lte: new Date(now),
             },
@@ -30,7 +30,7 @@ export default async function handler(
         });
         const observation = await prisma.observation.findFirst({
           where: {
-            startTime: {
+            createdAt: {
               gte: new Date(now - 180000), // 3 minutes ago
               lte: new Date(now),
             },
