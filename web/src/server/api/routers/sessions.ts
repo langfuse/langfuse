@@ -274,7 +274,7 @@ export const sessionRouter = createTRPCRouter({
             AND t."project_id" = ${input.projectId}
         `;
 
-        const [scores, costData] = await Promise.all([
+        const [scores, costData, traceCommentCounts] = await Promise.all([
           ctx.prisma.score.findMany({
             where: {
               traceId: {
@@ -285,6 +285,18 @@ export const sessionRouter = createTRPCRouter({
           }),
           // costData
           ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(totalCostQuery),
+          // traceCommentCounts
+          ctx.prisma.comment.groupBy({
+            by: ["objectId"],
+            where: {
+              objectId: { in: session.traces.map((t) => t.id) },
+              projectId: input.projectId,
+              objectType: "TRACE",
+            },
+            _count: {
+              objectId: true,
+            },
+          }),
         ]);
 
         const validatedScores = filterAndValidateDbScoreList(
@@ -297,6 +309,9 @@ export const sessionRouter = createTRPCRouter({
           traces: session.traces.map((t) => ({
             ...t,
             scores: validatedScores.filter((s) => s.traceId === t.id),
+            commentCount:
+              traceCommentCounts.find((c) => c.objectId === t.id)?._count
+                .objectId ?? 0,
           })),
           totalCost: costData[0].totalCost ?? 0,
           users: [

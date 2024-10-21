@@ -32,12 +32,14 @@ export function CommentList({
   objectType,
   cardView = false,
   className,
+  invalidateSessions = false,
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
   cardView?: boolean;
   className?: string;
+  invalidateSessions?: boolean;
 }) {
   const session = useSession();
   const hasReadAccess = useHasProjectAccess({
@@ -78,14 +80,20 @@ export function CommentList({
 
   const createCommentMutation = api.comments.create.useMutation({
     onSuccess: async () => {
-      await Promise.all([utils.comments.invalidate()]);
+      await Promise.all([
+        utils.comments.invalidate(),
+        invalidateSessions ? utils.sessions.invalidate() : Promise.resolve(),
+      ]);
       form.reset();
     },
   });
 
   const deleteCommentMutation = api.comments.delete.useMutation({
     onSuccess: async () => {
-      await Promise.all([utils.comments.invalidate()]);
+      await Promise.all([
+        utils.comments.invalidate(),
+        invalidateSessions ? utils.sessions.invalidate() : Promise.resolve(),
+      ]);
     },
   });
 
@@ -192,7 +200,7 @@ export function CommentList({
                       .map((word) => word[0])
                       .slice(0, 2)
                       .concat("")
-                  : comment.authorUserId ?? "U"}
+                  : (comment.authorUserId ?? "U")}
               </AvatarFallback>
             </Avatar>
             <div className="relative rounded-md border">

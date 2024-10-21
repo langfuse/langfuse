@@ -53,7 +53,7 @@ export const SessionPage: React.FC<{
     string[]
   >("emptySelectedConfigIds", []);
 
-  const commentCounts = api.comments.getCountByObjectId.useQuery(
+  const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId,
       objectId: sessionId,
@@ -103,7 +103,7 @@ export const SessionPage: React.FC<{
             projectId={projectId}
             objectId={sessionId}
             objectType="SESSION"
-            count={commentCounts.data?.get(sessionId)}
+            count={sessionCommentCounts.data?.get(sessionId)}
           />,
         ]}
       />
@@ -148,17 +148,27 @@ export const SessionPage: React.FC<{
               <div className="mb-1 flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>
-              <AnnotateDrawer
-                projectId={projectId}
-                traceId={trace.id}
-                scores={trace.scores}
-                emptySelectedConfigIds={emptySelectedConfigIds}
-                setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                variant="badge"
-                type="session"
-                source="SessionDetail"
-                key={"annotation-drawer" + trace.id}
-              />
+              <div className="flex items-center gap-1">
+                <AnnotateDrawer
+                  projectId={projectId}
+                  traceId={trace.id}
+                  scores={trace.scores}
+                  emptySelectedConfigIds={emptySelectedConfigIds}
+                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                  variant="badge"
+                  type="session"
+                  source="SessionDetail"
+                  key={"annotation-drawer" + trace.id}
+                />
+                <CommentDrawerButton
+                  projectId={projectId}
+                  objectId={trace.id}
+                  objectType="TRACE"
+                  count={trace.commentCount}
+                  className="h-6 rounded-full text-xs"
+                  invalidateSessions={true}
+                />
+              </div>
             </div>
           </Card>
         ))}
