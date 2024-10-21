@@ -48,7 +48,8 @@
     "ch:down": "bash clickhouse/scripts/down.sh",
     "ch:drop": "bash clickhouse/scripts/drop.sh",
     "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed",
-    "ch:seed": "dotenv -e ../../.env -- tsx clickhouse/scripts/seed.ts"
+    "ch:seed": "dotenv -e ../../.env -- tsx clickhouse/scripts/seed.ts",
+    "load:setup": "dotenv -e ../../.env -- tsx scripts/load.ts"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
