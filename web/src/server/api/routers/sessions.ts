@@ -285,18 +285,21 @@ export const sessionRouter = createTRPCRouter({
           }),
           // costData
           ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(totalCostQuery),
-          // traceCommentCounts
-          ctx.prisma.comment.groupBy({
-            by: ["objectId"],
-            where: {
-              objectId: { in: session.traces.map((t) => t.id) },
-              projectId: input.projectId,
-              objectType: "TRACE",
-            },
-            _count: {
-              objectId: true,
-            },
-          }),
+          // traceCommentCounts with timeout
+          Promise.race([
+            ctx.prisma.comment.groupBy({
+              by: ["objectId"],
+              where: {
+                objectId: { in: session.traces.map((t) => t.id) },
+                projectId: input.projectId,
+                objectType: "TRACE",
+              },
+              _count: {
+                objectId: true,
+              },
+            }),
+            new Promise<[]>((resolve) => setTimeout(() => resolve([]), 500)), // TODO: add DD metric in case of timeout
+          ]),
         ]);
 
         const validatedScores = filterAndValidateDbScoreList(
