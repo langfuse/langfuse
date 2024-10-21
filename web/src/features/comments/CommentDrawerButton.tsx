@@ -21,7 +21,6 @@ export function CommentDrawerButton({
   count,
   variant = "secondary",
   className,
-  invalidateSessions = false,
 }: {
   projectId: string;
   objectId: string;
@@ -29,7 +28,6 @@ export function CommentDrawerButton({
   count?: number;
   variant?: "secondary" | "outline";
   className?: string;
-  invalidateSessions?: boolean;
 }) {
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -75,7 +73,6 @@ export function CommentDrawerButton({
               projectId={projectId}
               objectId={objectId}
               objectType={objectType}
-              invalidateSessions={invalidateSessions}
             />
           </div>
         </div>

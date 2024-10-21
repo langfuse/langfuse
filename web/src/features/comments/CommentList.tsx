@@ -32,14 +32,12 @@ export function CommentList({
   objectType,
   cardView = false,
   className,
-  invalidateSessions = false,
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
   cardView?: boolean;
   className?: string;
-  invalidateSessions?: boolean;
 }) {
   const session = useSession();
   const hasReadAccess = useHasProjectAccess({
@@ -58,7 +56,7 @@ export function CommentList({
       objectId,
       objectType,
     },
-    { enabled: hasReadAccess },
+    { enabled: hasReadAccess && session.status === "authenticated" },
   );
 
   const form = useForm<z.infer<typeof CreateCommentData>>({
@@ -80,20 +78,14 @@ export function CommentList({
 
   const createCommentMutation = api.comments.create.useMutation({
     onSuccess: async () => {
-      await Promise.all([
-        utils.comments.invalidate(),
-        invalidateSessions ? utils.sessions.invalidate() : Promise.resolve(),
-      ]);
+      await Promise.all([utils.comments.invalidate()]);
       form.reset();
     },
   });
 
   const deleteCommentMutation = api.comments.delete.useMutation({
     onSuccess: async () => {
-      await Promise.all([
-        utils.comments.invalidate(),
-        invalidateSessions ? utils.sessions.invalidate() : Promise.resolve(),
-      ]);
+      await Promise.all([utils.comments.invalidate()]);
     },
   });
 
@@ -104,7 +96,11 @@ export function CommentList({
     }));
   }, [comments.data]);
 
-  if (!hasReadAccess || (!hasWriteAccess && comments.data?.length === 0))
+  if (
+    !hasReadAccess ||
+    (!hasWriteAccess && comments.data?.length === 0) ||
+    session.status !== "authenticated"
+  )
     return null;
 
   function onSubmit(values: z.infer<typeof CreateCommentData>) {

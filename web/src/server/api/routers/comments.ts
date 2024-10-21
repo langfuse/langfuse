@@ -288,4 +288,64 @@ export const commentsRouter = createTRPCRouter({
         });
       }
     }),
+  getTraceCommentCountsBySessionId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), sessionId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        const session = await ctx.prisma.traceSession.findFirst({
+          where: {
+            id: input.sessionId,
+            projectId: input.projectId,
+          },
+          include: {
+            traces: {
+              orderBy: {
+                timestamp: "asc",
+              },
+              select: {
+                id: true,
+                userId: true,
+                name: true,
+                timestamp: true,
+              },
+            },
+          },
+        });
+        if (!session) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Session not found in project",
+          });
+        }
+
+        // traceCommentCounts
+        const traceCommentCounts = await ctx.prisma.comment.groupBy({
+          by: ["objectId"],
+          where: {
+            objectId: { in: session.traces.map((t) => t.id) },
+            projectId: input.projectId,
+            objectType: "TRACE",
+          },
+          _count: {
+            objectId: true,
+          },
+        });
+
+        return new Map(
+          traceCommentCounts.map(({ objectId, _count }) => [
+            objectId,
+            _count.objectId,
+          ]),
+        );
+      } catch (error) {
+        console.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching trace comment counts by session id failed.",
+        });
+      }
+    }),
 });

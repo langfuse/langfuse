@@ -17,6 +17,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { useSession } from "next-auth/react";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -26,6 +27,7 @@ export const SessionPage: React.FC<{
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const { setDetailPageList } = useDetailPageLists();
+  const userSession = useSession();
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const session = api.sessions.byId.useQuery(
     {
@@ -59,8 +61,17 @@ export const SessionPage: React.FC<{
       objectId: sessionId,
       objectType: "SESSION",
     },
-    { enabled: session.isSuccess },
+    { enabled: session.isSuccess && userSession.status === "authenticated" },
   );
+
+  const traceCommentCounts =
+    api.comments.getTraceCommentCountsBySessionId.useQuery(
+      {
+        projectId,
+        sessionId,
+      },
+      { enabled: session.isSuccess && userSession.status === "authenticated" },
+    );
 
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
@@ -164,9 +175,8 @@ export const SessionPage: React.FC<{
                   projectId={projectId}
                   objectId={trace.id}
                   objectType="TRACE"
-                  count={trace.commentCount}
+                  count={traceCommentCounts.data?.get(trace.id)}
                   className="h-6 rounded-full text-xs"
-                  invalidateSessions={true}
                 />
               </div>
             </div>
