@@ -128,7 +128,7 @@ export const prepareClickhouse = async (
     const scoresQuery = `
     INSERT INTO scores
     SELECT toString(floor(randUniform(0, 100))) AS id,
-      now() - randUniform(0, 100) AS timestamp,
+      toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
       '${projectId}' AS project_id,
       toString(floor(randUniform(0, ${tracesPerProject}))) AS trace_id,
       if(
@@ -185,6 +185,35 @@ export const prepareClickhouse = async (
     console.log(
       `${table.charAt(0).toUpperCase() + table.slice(1)} per Project:`
     );
+    console.log(await result.text());
+  }
+
+  const tablesWithDateColumns = [
+    { name: "traces", dateColumn: "timestamp" },
+    { name: "scores", dateColumn: "timestamp" },
+    { name: "observations", dateColumn: "start_time" },
+  ];
+
+  for (const { name: table, dateColumn } of tablesWithDateColumns) {
+    const query = `
+            SELECT
+            toDate(${dateColumn}) AS event_date,
+            count() AS per_date_count,
+            bar(per_date_count, 0, (
+                SELECT count(*)
+                FROM ${table}
+            ), 50) AS bar_representation
+          FROM ${table}
+          GROUP BY event_date
+          ORDER BY event_date desc
+          `;
+
+    const result = await clickhouseClient.query({
+      query,
+      format: "TabSeparated",
+    });
+
+    console.log(`${table.charAt(0).toUpperCase() + table.slice(1)} per Date:`);
     console.log(await result.text());
   }
 };
