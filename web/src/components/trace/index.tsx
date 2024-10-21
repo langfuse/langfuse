@@ -33,9 +33,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore } from "@langfuse/shared";
-import { useSession } from "next-auth/react";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -67,7 +67,9 @@ export function Trace(props: {
     [],
   );
 
-  const session = useSession();
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    props.projectId,
+  );
 
   const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
     {
@@ -81,7 +83,7 @@ export function Trace(props: {
         },
       },
       refetchOnMount: false, // prevents refetching loops
-      enabled: session.status === "authenticated",
+      enabled: isAuthenticatedAndProjectMember,
     },
   );
 
@@ -98,7 +100,7 @@ export function Trace(props: {
         },
       },
       refetchOnMount: false, // prevents refetching loops
-      enabled: session.status === "authenticated",
+      enabled: isAuthenticatedAndProjectMember,
     },
   );
 
@@ -242,7 +244,9 @@ export function TracePage({ traceId }: { traceId: string }) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const utils = api.useUtils();
-  const session = useSession();
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    router.query.projectId as string,
+  );
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     { traceId, projectId: router.query.projectId as string },
     {
@@ -266,7 +270,7 @@ export function TracePage({ traceId }: { traceId: string }) {
       enabled:
         !!trace.data?.projectId &&
         trace.isSuccess &&
-        session.status === "authenticated",
+        isAuthenticatedAndProjectMember,
     },
   );
 
