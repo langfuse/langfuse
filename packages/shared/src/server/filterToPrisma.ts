@@ -26,7 +26,7 @@ const arrayOperatorReplacements = {
 export function tableColumnsToSqlFilterAndPrefix(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
-  table: TableNames
+  table: TableNames,
 ): Prisma.Sql {
   const sql = tableColumnsToSqlFilter(filters, tableColumns, table);
   if (sql === Prisma.empty) {
@@ -42,14 +42,14 @@ export function tableColumnsToSqlFilterAndPrefix(
 export function tableColumnsToSqlFilter(
   filters: FilterState,
   tableColumns: ColumnDefinition[],
-  table: TableNames
+  table: TableNames,
 ): Prisma.Sql {
   const internalFilters = filters.map((filter) => {
     // Get column definition to map column to internal name, e.g. "t.id"
     const col = tableColumns.find(
       (c) =>
         // TODO: Only use id instead of name
-        c.name === filter.column || c.id === filter.column
+        c.name === filter.column || c.id === filter.column,
     );
     if (!col) {
       logger.error("Invalid filter column", filter.column);
@@ -71,13 +71,13 @@ export function tableColumnsToSqlFilter(
         ? Prisma.raw(
             arrayOperatorReplacements[
               filter.operator as keyof typeof arrayOperatorReplacements
-            ]
+            ],
           )
         : filter.operator in operatorReplacements
           ? Prisma.raw(
               operatorReplacements[
                 filter.operator as keyof typeof operatorReplacements
-              ]
+              ],
             )
           : Prisma.raw(filter.operator); //checked by zod
 
@@ -97,13 +97,13 @@ export function tableColumnsToSqlFilter(
         break;
       case "stringOptions":
         valuePrisma = Prisma.sql`(${Prisma.join(
-          filter.value.map((v) => Prisma.sql`${v}`)
+          filter.value.map((v) => Prisma.sql`${v}`),
         )})`;
         break;
       case "arrayOptions":
         valuePrisma = Prisma.sql`ARRAY[${Prisma.join(
           filter.value.map((v) => Prisma.sql`${v}`),
-          ", "
+          ", ",
         )}] `;
         break;
 
@@ -111,10 +111,11 @@ export function tableColumnsToSqlFilter(
         valuePrisma = Prisma.sql`${filter.value}`;
         break;
     }
-    const jsonKeyPrisma =
+    const jsonPathPrisma =
       filter.type === "stringObject" || filter.type === "numberObject"
-        ? Prisma.sql`->>${filter.key}`
+        ? buildJsonPath(filter.key)
         : Prisma.empty;
+
     const [cast1, cast2] =
       filter.type === "numberObject"
         ? [Prisma.raw("cast("), Prisma.raw(" as double precision)")]
@@ -123,12 +124,12 @@ export function tableColumnsToSqlFilter(
       filter.type === "string" || filter.type === "stringObject"
         ? [
             ["contains", "does not contain", "ends with"].includes(
-              filter.operator
+              filter.operator,
             )
               ? Prisma.raw("'%' || ")
               : Prisma.empty,
             ["contains", "does not contain", "starts with"].includes(
-              filter.operator
+              filter.operator,
             )
               ? Prisma.raw(" || '%'")
               : Prisma.empty,
@@ -139,7 +140,7 @@ export function tableColumnsToSqlFilter(
         ? [Prisma.raw("NOT ("), Prisma.raw(")")]
         : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${castValueToPostgresTypes(filterAndColumn.column, filterAndColumn.table)}${valueSuffix}${funcPrisma2}`;
+    return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonPathPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${castValueToPostgresTypes(filterAndColumn.column, filterAndColumn.table)}${valueSuffix}${funcPrisma2}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;
@@ -150,9 +151,22 @@ export function tableColumnsToSqlFilter(
   return Prisma.join(statements, " AND ");
 }
 
+const buildJsonPath = (key: string): Prisma.Sql => {
+  let jsonPathPrisma = Prisma.empty;
+  const keys = key.split(".");
+  keys.forEach((key, index) => {
+    if (index < keys.length - 1) {
+      jsonPathPrisma = Prisma.sql`${jsonPathPrisma}->${key}`;
+    } else {
+      jsonPathPrisma = Prisma.sql`${jsonPathPrisma}->>${key}`;
+    }
+  });
+  return jsonPathPrisma;
+};
+
 const castValueToPostgresTypes = (
   column: ColumnDefinition,
-  table: TableNames
+  table: TableNames,
 ) => {
   return column.name === "type" &&
     (table === "observations" ||
@@ -168,7 +182,7 @@ const dateOperators = filterOperators["datetime"];
 export const datetimeFilterToPrismaSql = (
   safeColumn: string,
   operator: (typeof dateOperators)[number],
-  value: Date
+  value: Date,
 ) => {
   if (!dateOperators.includes(operator)) {
     throw new Error("Invalid operator: " + operator);
@@ -178,12 +192,12 @@ export const datetimeFilterToPrismaSql = (
   }
 
   return Prisma.sql`AND ${Prisma.raw(safeColumn)} ${Prisma.raw(
-    operator
+    operator,
   )} ${value}::timestamp with time zone at time zone 'UTC'`;
 };
 
 export const datetimeFilterToPrisma = (
-  timestampFilter: z.infer<typeof timeFilter>
+  timestampFilter: z.infer<typeof timeFilter>,
 ) => {
   const prismaTimestampFilter =
     timestampFilter.operator === ">="
