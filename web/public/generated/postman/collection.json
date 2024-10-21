@@ -1244,7 +1244,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1318,6 +1318,11 @@
                   "key": "dataType",
                   "value": "",
                   "description": "Retrieve only scores with a specific dataType."
+                },
+                {
+                  "key": "traceTags",
+                  "value": "",
+                  "description": "Only scores linked to traces that include all of these tags will be returned."
                 }
               ],
               "variable": []
