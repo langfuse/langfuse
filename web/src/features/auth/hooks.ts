@@ -3,7 +3,9 @@ import { useSession } from "next-auth/react";
 /**
  * Hook to check if the user is authenticated and a member of the project.
  */
-export const useIsAuthenticatedAndProjectMember = (projectId: string) => {
+export const useIsAuthenticatedAndProjectMember = (
+  projectId: string,
+): boolean => {
   const session = useSession();
 
   return (
