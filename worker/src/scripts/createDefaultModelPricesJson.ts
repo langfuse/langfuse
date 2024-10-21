@@ -15,6 +15,8 @@ export async function getDefaultModelPrices() {
       input_price: Decimal | null;
       output_price: Decimal | null;
       total_price: Decimal | null;
+      created_at: Date | null;
+      updated_at: Date | null;
     }[]
   >`
     SELECT DISTINCT ON (model_name)
@@ -23,7 +25,9 @@ export async function getDefaultModelPrices() {
       match_pattern,
       input_price,
       output_price,
-      total_price
+      total_price,
+      created_at,
+      updated_at
     FROM
       models
     WHERE
@@ -38,6 +42,8 @@ export async function getDefaultModelPrices() {
       id: modelPrice.id,
       model_name: modelPrice.model_name,
       match_pattern: modelPrice.match_pattern,
+      created_at: modelPrice.created_at,
+      updated_at: modelPrice.updated_at,
       prices: {
         input_price: modelPrice.input_price?.toNumber(),
         output_price: modelPrice.output_price?.toNumber(),
