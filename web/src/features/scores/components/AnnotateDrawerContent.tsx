@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
@@ -175,22 +175,6 @@ function AnnotateHeader({
   );
 }
 
-function useCustomOptimistic<State, Action>(
-  initialState: State,
-  reducer: (state: State, action: Action) => State,
-): [State, (action: Action) => void] {
-  const [state, setState] = useState<State>(initialState);
-
-  const dispatch = useCallback(
-    (action: Action) => {
-      setState((currentState) => reducer(currentState, action));
-    },
-    [reducer],
-  );
-
-  return [state, dispatch];
-}
-
 export function AnnotateDrawerContent({
   traceId,
   scores,
@@ -233,42 +217,6 @@ export function AnnotateDrawerContent({
         observationId,
       }),
     },
-  });
-
-  const [optimisticScores, setOptimisticScore] = useCustomOptimistic<
-    AnnotateFormSchemaType["scoreData"],
-    {
-      index: number;
-      value: number | null;
-      stringValue: string | null;
-      name?: string | null;
-      dataType?: ScoreDataType | null;
-      configId?: string | null;
-    }
-  >(form.getValues().scoreData, (state, updatedScore) => {
-    const stateCopy = state.map((score, idx) =>
-      idx === updatedScore.index
-        ? {
-            ...score,
-            value: updatedScore.value,
-            stringValue: updatedScore.stringValue ?? undefined,
-          }
-        : score,
-    );
-    if (updatedScore.index === stateCopy.length) {
-      const { name, dataType, configId } = updatedScore;
-      return [
-        ...stateCopy,
-        {
-          name,
-          dataType,
-          configId,
-          value: updatedScore.value,
-          stringValue: updatedScore.stringValue,
-        },
-      ];
-    }
-    return stateCopy;
   });
 
   const { fields, remove, update, replace } = useFieldArray({
@@ -411,14 +359,6 @@ export function AnnotateDrawerContent({
     const index = fields.findIndex(({ configId }) => configId === id);
 
     if (index === -1) {
-      setOptimisticScore({
-        index: fields.length,
-        value: null,
-        stringValue: null,
-        name,
-        dataType,
-        configId: id,
-      });
       replace([
         ...fields,
         {
@@ -448,9 +388,9 @@ export function AnnotateDrawerContent({
       if (selectedCategory) {
         const newValue = Number(selectedCategory.value);
 
-        setOptimisticScore({ index, value: newValue, stringValue });
-        form.setValue(`scoreData.${index}.value`, newValue, {
-          shouldValidate: true,
+        update(index, {
+          ...score,
+          value: newValue,
         });
 
         if (!!stringValue) {
@@ -666,15 +606,9 @@ export function AnnotateDrawerContent({
                 .map((config) => ({
                   key: config.id,
                   value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-                  disabled:
-                    fields.some(
-                      (field) =>
-                        !!field.scoreId && field.configId === config.id,
-                    ) ||
-                    optimisticScores.some(
-                      (score) => score.configId === config.id && !!score.value,
-                    ) ||
-                    mutDeleteScore.isLoading,
+                  disabled: fields.some(
+                    (field) => !!field.scoreId && field.configId === config.id,
+                  ),
                   isArchived: config.isArchived,
                 }))}
               values={fields
@@ -890,20 +824,15 @@ export function AnnotateDrawerContent({
                                   {isNumericDataType(score.dataType) ? (
                                     <Input
                                       {...field}
-                                      value={
-                                        optimisticScores[index].value ?? ""
-                                      }
+                                      value={field.value ?? ""}
                                       // manually manage controlled input state
                                       onChange={(e) => {
                                         const value = e.target.value;
-                                        const numValue =
-                                          value === "" ? null : Number(value);
-                                        setOptimisticScore({
-                                          index,
-                                          value: numValue,
-                                          stringValue: null,
-                                        });
-                                        field.onChange(numValue);
+                                        field.onChange(
+                                          value === ""
+                                            ? undefined
+                                            : Number(value),
+                                        );
                                       }}
                                       type="number"
                                       className="text-xs"
@@ -937,10 +866,6 @@ export function AnnotateDrawerContent({
                                     renderSelect(categories) ? (
                                     <Select
                                       name={field.name}
-                                      value={
-                                        optimisticScores[index].stringValue ??
-                                        ""
-                                      }
                                       defaultValue={score.stringValue}
                                       disabled={config.isArchived}
                                       onValueChange={handleOnValueChange(
@@ -971,10 +896,6 @@ export function AnnotateDrawerContent({
                                   ) : (
                                     <ToggleGroup
                                       type="single"
-                                      value={
-                                        optimisticScores[index].stringValue ??
-                                        ""
-                                      }
                                       defaultValue={score.stringValue}
                                       disabled={config.isArchived}
                                       className={`grid grid-cols-${categories.length}`}
@@ -1037,11 +958,6 @@ export function AnnotateDrawerContent({
                                     loading={mutDeleteScore.isLoading}
                                     onClick={async () => {
                                       if (score.scoreId) {
-                                        setOptimisticScore({
-                                          index,
-                                          value: null,
-                                          stringValue: null,
-                                        });
                                         await mutDeleteScore.mutateAsync({
                                           id: score.scoreId,
                                           projectId,
@@ -1071,11 +987,6 @@ export function AnnotateDrawerContent({
                               loading={mutDeleteScore.isLoading}
                               onClick={async () => {
                                 if (score.scoreId) {
-                                  setOptimisticScore({
-                                    index,
-                                    value: null,
-                                    stringValue: null,
-                                  });
                                   await mutDeleteScore.mutateAsync({
                                     id: score.scoreId,
                                     projectId,
