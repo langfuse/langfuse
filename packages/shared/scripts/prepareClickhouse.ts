@@ -51,7 +51,7 @@ export const prepareClickhouse = async (
       observationsPerProject,
       scoresPerProject,
     } = data;
-    console.log(
+    logger.info(
       `Preparing Clickhouse for ${projectId}: Traces: ${tracesPerProject}, Scores: ${scoresPerProject}, Observations: ${observationsPerProject}`
     );
 
