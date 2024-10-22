@@ -5,7 +5,7 @@ CREATE TABLE "prices" (
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "model_id" TEXT NOT NULL,
     "item_name" TEXT NOT NULL,
-    "price" DECIMAL(65,30),
+    "price" DECIMAL(65,30) NOT NULL,
 
     CONSTRAINT "prices_pkey" PRIMARY KEY ("id")
 );

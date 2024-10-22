@@ -2,7 +2,7 @@ import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 
-import { Model, PrismaClient, Prompt } from "@langfuse/shared";
+import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
 import {
   convertObservationReadToInsert,
   convertScoreReadToInsert,
@@ -26,6 +26,7 @@ import {
   ClickhouseEntityType,
   PromptService,
   IngestionEventType,
+  UsageCostType,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -66,7 +67,7 @@ export class IngestionService {
 
   constructor(
     private redis: Redis,
-    prisma: PrismaClient,
+    private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
     private clickhouseClient: ClickhouseClientType
   ) {
@@ -418,54 +419,56 @@ export class IngestionService {
   }): Promise<
     | Pick<
         ObservationRecordInsertType,
-        | "input_usage_units"
-        | "output_usage_units"
-        | "total_usage_units"
-        | "input_cost"
-        | "output_cost"
-        | "total_cost"
-        | "internal_model_id"
+        "usage_details" | "cost_details" | "total_cost" | "internal_model_id"
       >
     | {}
   > {
     const { projectId, observationRecord } = params;
-
     const internalModel = await findModel({
       event: {
         projectId,
         model: observationRecord.provided_model_name ?? undefined,
-        unit: observationRecord.unit ?? undefined,
       },
     });
 
-    const tokenCounts = this.getTokenCounts(observationRecord, internalModel);
-    const tokenCosts = IngestionService.calculateTokenCosts(
-      internalModel,
+    const final_usage_details = this.getUsageUnits(
       observationRecord,
-      tokenCounts
+      internalModel
+    );
+    const modelPrices = await this.getModelPrices(internalModel?.id);
+    const final_cost_details = IngestionService.calculateUsageCosts(
+      modelPrices,
+      observationRecord,
+      final_usage_details.usage_details ?? {}
     );
 
     return {
-      ...tokenCounts,
-      ...tokenCosts,
+      ...final_usage_details,
+      ...final_cost_details,
       internal_model_id: internalModel?.id,
-      unit: observationRecord.unit ?? internalModel?.unit,
     };
   }
 
-  private getTokenCounts(
+  private async getModelPrices(modelId?: string): Promise<Price[]> {
+    return modelId
+      ? ((await this.prisma.price.findMany({ where: { modelId } })) ?? [])
+      : [];
+  }
+
+  private getUsageUnits(
     observationRecord: ObservationRecordInsertType,
     model: Model | null | undefined
-  ): Pick<
-    ObservationRecordInsertType,
-    "input_usage_units" | "output_usage_units" | "total_usage_units"
-  > {
+  ): Pick<ObservationRecordInsertType, "usage_details"> {
+    const providedUsageKeys = Object.entries(
+      observationRecord.provided_usage_details ?? {}
+    )
+      .filter(([_, value]) => value != null)
+      .map(([key]) => key);
+
     if (
-      // No user provided usage. Note only two equal signs operator here to check for null and undefined
+      // Manual tokenisation when no user provided usage
       model &&
-      observationRecord.provided_input_usage_units == null &&
-      observationRecord.provided_output_usage_units == null &&
-      observationRecord.provided_total_usage_units == null
+      providedUsageKeys.length === 0
     ) {
       const newInputCount = tokenCount({
         text: observationRecord.input,
@@ -482,72 +485,74 @@ export class IngestionService {
           : undefined;
 
       return {
-        input_usage_units: newInputCount,
-        output_usage_units: newOutputCount,
-        total_usage_units: newTotalCount,
+        usage_details: {
+          input: newInputCount,
+          output: newOutputCount,
+          total: newTotalCount,
+        },
       };
     }
 
     return {
-      input_usage_units: observationRecord.provided_input_usage_units,
-      output_usage_units: observationRecord.provided_output_usage_units,
-      total_usage_units: observationRecord.provided_total_usage_units,
+      usage_details: observationRecord.provided_usage_details,
     };
   }
 
-  static calculateTokenCosts(
-    model: Model | null | undefined,
+  static calculateUsageCosts(
+    modelPrices: Price[] | null | undefined,
     observationRecord: ObservationRecordInsertType,
-    tokenCounts: {
-      input_usage_units?: number | null;
-      output_usage_units?: number | null;
-      total_usage_units?: number | null;
-    }
-  ): {
-    input_cost: number | null | undefined;
-    output_cost: number | null | undefined;
-    total_cost: number | null | undefined;
-  } {
-    const { provided_input_cost, provided_output_cost, provided_total_cost } =
-      observationRecord;
+    usageUnits: UsageCostType
+  ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
+    const { provided_cost_details } = observationRecord;
 
-    // If user has provided any cost point, do not calculate anything else
-    if (
-      provided_input_cost != null ||
-      provided_output_cost != null ||
-      provided_total_cost != null
-    ) {
+    const providedCostKeys = Object.entries(provided_cost_details ?? {})
+      .filter(([_, value]) => value != null)
+      .map(([key]) => key);
+
+    // If user has provided any cost point, do not calculate any other cost points
+    if (providedCostKeys.length) {
       return {
-        input_cost: provided_input_cost,
-        output_cost: provided_output_cost,
+        cost_details: provided_cost_details,
         total_cost:
-          provided_total_cost ??
-          (provided_input_cost ?? 0) + (provided_output_cost ?? 0),
+          // Use provided total cost if available
+          ((provided_cost_details ?? {})["total"] ??
+          // Use provided input and output cost if available, but only if no other cost points are provided
+          providedCostKeys.every((key) => ["input", "output"].includes(key)))
+            ? ((provided_cost_details ?? {})["input"] ?? 0) +
+              ((provided_cost_details ?? {})["output"] ?? 0)
+            : undefined,
       };
     }
 
-    const finalInputCost =
-      tokenCounts.input_usage_units != null && model?.inputPrice
-        ? model.inputPrice.toNumber() * tokenCounts.input_usage_units
-        : undefined;
+    const finalCostEntries: [string, number][] = [];
 
-    const finalOutputCost =
-      tokenCounts.output_usage_units != null && model?.outputPrice
-        ? model.outputPrice.toNumber() * tokenCounts.output_usage_units
-        : finalInputCost
-          ? 0
-          : undefined;
+    for (const [key, units] of Object.entries(usageUnits)) {
+      const price = modelPrices?.find((price) => price.itemName === key);
 
-    const finalTotalCost =
-      tokenCounts.total_usage_units != null && model?.totalPrice
-        ? model.totalPrice.toNumber() * tokenCounts.total_usage_units
-        : (finalInputCost ?? finalOutputCost)
-          ? (finalInputCost ?? 0) + (finalOutputCost ?? 0)
-          : undefined;
+      if (units != null && price) {
+        finalCostEntries.push([key, price.price.mul(units).toNumber()]);
+      }
+    }
+
+    const finalCostDetails = Object.fromEntries(finalCostEntries);
+
+    let finalTotalCost;
+    if (
+      Object.prototype.hasOwnProperty.call(finalCostDetails, "total") &&
+      finalCostDetails.total != null
+    ) {
+      finalTotalCost = finalCostDetails.total;
+    } else if (finalCostEntries.length > 0) {
+      finalTotalCost = finalCostEntries.reduce(
+        (acc, [_, cost]) => acc + cost,
+        0
+      );
+
+      finalCostDetails.total = finalTotalCost;
+    }
 
     return {
-      input_cost: finalInputCost,
-      output_cost: finalOutputCost,
+      cost_details: finalCostDetails,
       total_cost: finalTotalCost,
     };
   }
@@ -688,8 +693,6 @@ export class IngestionService {
           ? newInputCount + newOutputCount
           : (newInputCount ?? newOutputCount));
 
-      const newUnit = "usage" in obs.body ? obs.body.usage?.unit : undefined;
-
       const observationRecord: ObservationRecordInsertType = {
         id: entityId,
         trace_id: obs.body.traceId ?? v4(),
@@ -718,21 +721,21 @@ export class IngestionService {
             : undefined,
         input: this.stringify(obs.body.input),
         output: this.stringify(obs.body.output),
-        provided_input_usage_units: newInputCount,
-        provided_output_usage_units: newOutputCount,
-        provided_total_usage_units: newTotalCount,
-        unit: newUnit,
+        provided_usage_details: {
+          input: newInputCount,
+          output: newOutputCount,
+          total: newTotalCount,
+        },
+        provided_cost_details: {
+          input: "usage" in obs.body ? obs.body.usage?.inputCost : undefined,
+          output: "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
+          total: "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
+        },
         level: obs.body.level ?? "DEFAULT",
         status_message: obs.body.statusMessage ?? undefined,
         parent_observation_id: obs.body.parentObservationId ?? undefined,
         version: obs.body.version ?? undefined,
         project_id: projectId,
-        provided_input_cost:
-          "usage" in obs.body ? obs.body.usage?.inputCost : undefined,
-        provided_output_cost:
-          "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
-        provided_total_cost:
-          "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
         prompt_id: prompt?.id,
         prompt_name: prompt?.name,
         prompt_version: prompt?.version,

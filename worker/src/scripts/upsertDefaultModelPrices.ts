@@ -14,9 +14,9 @@ const DefaultModelPriceSchema = z.object({
   tokenizer_id: z.string().nullish(),
 });
 
-export const upsertDefaultModelPrices = async () => {
+export const upsertDefaultModelPrices = async (force = false) => {
   try {
-    logger.debug("Starting upsert of default model prices");
+    logger.debug(`Starting upsert of default model prices (force = ${force})`);
 
     const parsedDefaultModelPrices = z
       .array(DefaultModelPriceSchema)
@@ -57,6 +57,7 @@ export const upsertDefaultModelPrices = async () => {
         );
 
         if (
+          !force &&
           existingModelUpdateDate &&
           existingModelUpdateDate > defaultModelPrice.updated_at
         ) {
@@ -67,6 +68,7 @@ export const upsertDefaultModelPrices = async () => {
         }
 
         if (
+          !force &&
           existingModelUpdateDate &&
           existingModelUpdateDate.getTime() ==
             defaultModelPrice.updated_at.getTime()

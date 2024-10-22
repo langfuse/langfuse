@@ -408,7 +408,7 @@ export type Price = {
     updated_at: Generated<Timestamp>;
     model_id: string;
     item_name: string;
-    price: string | null;
+    price: string;
 };
 export type Project = {
     id: string;
