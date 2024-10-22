@@ -30,12 +30,17 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore } from "@langfuse/shared";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import {
+  TabsBar,
+  TabsBarContent,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -375,53 +380,46 @@ export function TracePage({ traceId }: { traceId: string }) {
           />
         </div>
       </div>
-      <Tabs
+      <TabsBar
         value={selectedTab}
         onValueChange={(tab) => {
           setSelectedTab(tab);
           capture("trace_detail:display_mode_switch", { view: tab });
         }}
-        className="mt-2 flex w-full justify-end border-b bg-transparent"
       >
-        <TabsList className="bg-transparent py-0">
-          <TabsTrigger
-            value="details"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
+        <TabsBarList className="mt-2 w-full justify-end">
+          <TabsBarTrigger value="details">
             <Network className="mr-1 h-4 w-4"></Network>
             Tree
-          </TabsTrigger>
-          <TabsTrigger
-            value="timeline"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
+          </TabsBarTrigger>
+          <TabsBarTrigger value="timeline">
             <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-      {selectedTab === "details" && (
-        <div className="mt-5 flex-1 overflow-hidden">
-          <Trace
-            key={trace.data.id}
-            trace={trace.data}
-            scores={trace.data.scores}
-            projectId={trace.data.projectId}
-            observations={trace.data.observations}
-          />
-        </div>
-      )}
-      {selectedTab === "timeline" && (
-        <div className="mt-5 max-h-[calc(100dvh-16rem)] flex-1 flex-col space-y-5 overflow-hidden">
-          <TraceTimelineView
-            key={trace.data.id}
-            trace={trace.data}
-            scores={trace.data.scores}
-            observations={trace.data.observations}
-            projectId={trace.data.projectId}
-          />
-        </div>
-      )}
+          </TabsBarTrigger>
+        </TabsBarList>
+        <TabsBarContent value="details">
+          <div className="mt-5 flex-1 overflow-hidden">
+            <Trace
+              key={trace.data.id}
+              trace={trace.data}
+              scores={trace.data.scores}
+              projectId={trace.data.projectId}
+              observations={trace.data.observations}
+            />
+          </div>
+        </TabsBarContent>
+        <TabsBarContent value="timeline">
+          <div className="mt-5 max-h-[calc(100dvh-16rem)] flex-1 flex-col space-y-5 overflow-hidden">
+            <TraceTimelineView
+              key={trace.data.id}
+              trace={trace.data}
+              scores={trace.data.scores}
+              observations={trace.data.observations}
+              projectId={trace.data.projectId}
+            />
+          </div>
+        </TabsBarContent>
+      </TabsBar>
     </FullScreenPage>
   );
 }

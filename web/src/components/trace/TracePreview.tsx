@@ -33,6 +33,11 @@ import { useMemo } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 
 export const TracePreview = ({
   trace,
@@ -87,28 +92,14 @@ export const TracePreview = ({
     >
       {viewType === "detailed" && (
         <div className="flex flex-shrink-0 flex-row justify-end gap-2">
-          <Tabs
-            value={selectedTab}
-            onValueChange={setSelectedTab}
-            className="flex w-full justify-end border-b bg-background"
-          >
-            <TabsList className="bg-background py-0">
-              <TabsTrigger
-                value="preview"
-                className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-              >
-                Preview
-              </TabsTrigger>
+          <TabsBar value={selectedTab} onValueChange={setSelectedTab}>
+            <TabsBarList>
+              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
               {isAuthenticatedAndProjectMember && (
-                <TabsTrigger
-                  value="scores"
-                  className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-                >
-                  Scores
-                </TabsTrigger>
+                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
-            </TabsList>
-          </Tabs>
+            </TabsBarList>
+          </TabsBar>
         </div>
       )}
       <div className="flex w-full flex-col overflow-y-auto">
