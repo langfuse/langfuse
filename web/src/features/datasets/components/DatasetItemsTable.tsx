@@ -14,7 +14,6 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Archive, ListTree, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect } from "react";
