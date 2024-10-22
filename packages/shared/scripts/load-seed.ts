@@ -6,6 +6,7 @@ import {
   hashSecretKey,
 } from "../src/server";
 import { prepareClickhouse } from "./prepareClickhouse";
+import { redis } from "@langfuse/shared/src/server";
 
 const createRandomProjectId = () => randomUUID().toString();
 
@@ -48,17 +49,16 @@ const prepareProjectsAndApiKeys = async (
       where: { id: apiKeyId },
     });
     if (!apiKeyExists) {
+      const sk = await hashSecretKey(
+        `sk-${Math.random().toString(36).substr(2, 9)}`
+      );
       await prisma.apiKey.create({
         data: {
           id: apiKeyId,
           note: `API Key for ${projectId}`,
           publicKey: `pk-${Math.random().toString(36).substr(2, 9)}`,
-          hashedSecretKey: await hashSecretKey(
-            `sk-${Math.random().toString(36).substr(2, 9)}`
-          ),
-          displaySecretKey: getDisplaySecretKey(
-            `sk-${Math.random().toString(36).substr(2, 9)}`
-          ),
+          hashedSecretKey: sk,
+          displaySecretKey: getDisplaySecretKey(sk),
           project: {
             connect: {
               id: projectId,
