@@ -18,12 +18,26 @@ export const upsertDefaultModelPrices = async () => {
   try {
     logger.debug("Starting upsert of default model prices");
 
-    // Parse the default model prices
     const parsedDefaultModelPrices = z
       .array(DefaultModelPriceSchema)
       .parse(defaultModelPrices);
 
-    // Upsert in batches to avoid timeouts
+    // Fetch existing default models. Store in a map for O(1) lookup.
+    const existingModelUpdateDates = new Map(
+      (
+        await prisma.model.findMany({
+          where: {
+            projectId: null,
+          },
+          select: {
+            id: true,
+            updatedAt: true,
+          },
+        })
+      ).map((model) => [model.id, model.updatedAt])
+    );
+
+    // Upsert in batches
     const batchSize = 10;
     const batches = Math.ceil(parsedDefaultModelPrices.length / batchSize);
 
@@ -38,89 +52,97 @@ export const upsertDefaultModelPrices = async () => {
       const promises = [];
 
       for (const defaultModelPrice of batch) {
+        const existingModelUpdateDate = existingModelUpdateDates.get(
+          defaultModelPrice.id
+        );
+
+        if (
+          existingModelUpdateDate &&
+          existingModelUpdateDate > defaultModelPrice.updated_at
+        ) {
+          logger.error(
+            `Model drift detected for default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}). updatedAt ${existingModelUpdateDate} after ${defaultModelPrice.updated_at}.`
+          );
+          continue;
+        }
+
+        if (
+          existingModelUpdateDate &&
+          existingModelUpdateDate.getTime() ==
+            defaultModelPrice.updated_at.getTime()
+        ) {
+          logger.debug(
+            `Default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}) already up to date. Skipping.`
+          );
+          continue;
+        }
+
         // Upsert model and prices in a transaction
         promises.push(
-          await prisma.$transaction(async (tx) => {
-            const existingModel = await tx.model.findUnique({
-              where: {
-                id: defaultModelPrice.id,
-              },
-            });
-
-            if (
-              existingModel &&
-              existingModel.updatedAt > defaultModelPrice.updated_at
-            ) {
-              throw new Error(
-                `Model drift detected for default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}). updatedAt ${existingModel.updatedAt} after ${defaultModelPrice.updated_at}.`
-              );
-            }
-
-            if (
-              existingModel &&
-              existingModel.updatedAt.getTime() ==
-                defaultModelPrice.updated_at.getTime()
-            ) {
-              logger.debug(
-                `Default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}) already up to date. Skipping.`
-              );
-              return;
-            }
-
-            await tx.model.upsert({
-              where: {
-                projectId: null,
-                id: defaultModelPrice.id,
-              },
-              update: {
-                modelName: defaultModelPrice.model_name,
-                matchPattern: defaultModelPrice.match_pattern,
-                updatedAt: defaultModelPrice.updated_at,
-                tokenizerConfig:
-                  defaultModelPrice.tokenizer_config ?? undefined,
-                tokenizerId: defaultModelPrice.tokenizer_id,
-              },
-              create: {
-                projectId: null,
-                id: defaultModelPrice.id,
-                modelName: defaultModelPrice.model_name,
-                matchPattern: defaultModelPrice.match_pattern,
-                tokenizerConfig:
-                  defaultModelPrice.tokenizer_config ?? undefined,
-                tokenizerId: defaultModelPrice.tokenizer_id,
-                createdAt: defaultModelPrice.created_at,
-                updatedAt: defaultModelPrice.updated_at,
-              },
-            });
-
-            for (const [itemName, price] of Object.entries(
-              defaultModelPrice.prices
-            )) {
-              await tx.price.upsert({
+          await prisma
+            .$transaction(async (tx) => {
+              await tx.model.upsert({
                 where: {
-                  modelId_itemName: {
-                    modelId: defaultModelPrice.id,
-                    itemName,
-                  },
+                  projectId: null,
+                  id: defaultModelPrice.id,
                 },
                 update: {
-                  price,
+                  modelName: defaultModelPrice.model_name,
+                  matchPattern: defaultModelPrice.match_pattern,
                   updatedAt: defaultModelPrice.updated_at,
+                  tokenizerConfig:
+                    defaultModelPrice.tokenizer_config ?? undefined,
+                  tokenizerId: defaultModelPrice.tokenizer_id,
                 },
                 create: {
-                  modelId: defaultModelPrice.id,
-                  itemName,
-                  price,
+                  projectId: null,
+                  id: defaultModelPrice.id,
+                  modelName: defaultModelPrice.model_name,
+                  matchPattern: defaultModelPrice.match_pattern,
+                  tokenizerConfig:
+                    defaultModelPrice.tokenizer_config ?? undefined,
+                  tokenizerId: defaultModelPrice.tokenizer_id,
                   createdAt: defaultModelPrice.created_at,
                   updatedAt: defaultModelPrice.updated_at,
                 },
               });
-            }
 
-            logger.info(
-              `Upserted default model ${defaultModelPrice.model_name} (${defaultModelPrice.id})`
-            );
-          })
+              for (const [itemName, price] of Object.entries(
+                defaultModelPrice.prices
+              )) {
+                await tx.price.upsert({
+                  where: {
+                    modelId_itemName: {
+                      modelId: defaultModelPrice.id,
+                      itemName,
+                    },
+                  },
+                  update: {
+                    price,
+                    updatedAt: defaultModelPrice.updated_at,
+                  },
+                  create: {
+                    modelId: defaultModelPrice.id,
+                    itemName,
+                    price,
+                    createdAt: defaultModelPrice.created_at,
+                    updatedAt: defaultModelPrice.updated_at,
+                  },
+                });
+              }
+
+              logger.info(
+                `Upserted default model ${defaultModelPrice.model_name} (${defaultModelPrice.id})`
+              );
+            })
+            .catch((error) => {
+              logger.error(
+                `Error upserting default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}): ${error.message}`,
+                {
+                  error,
+                }
+              );
+            })
         );
       }
 
@@ -138,5 +160,3 @@ export const upsertDefaultModelPrices = async () => {
     );
   }
 };
-
-upsertDefaultModelPrices();
