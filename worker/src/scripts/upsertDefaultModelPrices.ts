@@ -14,6 +14,29 @@ const DefaultModelPriceSchema = z.object({
   tokenizer_id: z.string().nullish(),
 });
 
+/**
+ * Upserts default model prices into the database into models and prices tables.
+ *
+ * This function performs the following operations:
+ * 1. Fetches existing default models from the database (single query, not in transaction).
+ * 2. Parses and validates the default model prices from the JSON file in the constants folder.
+ * 3. Processes the default model prices in batches.
+ *
+ * Transaction behavior:
+ * - Each batch is processed in parallel
+ * - Within a batch, each model upsert and corresponding price upsert are in the same transaction
+ *
+ * Batching:
+ * - Default model prices are processed in batches of 10 to optimize performance / not overwhelm the database
+ *
+ * Server start-time overhead:
+ * - If all models are up-to-date and 'force' is false, only the initial query to fetch
+ *   existing model update dates will be executed.
+ *
+ * @param force - If true, updates all models regardless of their last update time.
+ *                If false, only updates models that are outdated.
+ */
+
 export const upsertDefaultModelPrices = async (force = false) => {
   try {
     logger.debug(`Starting upsert of default model prices (force = ${force})`);
@@ -39,10 +62,10 @@ export const upsertDefaultModelPrices = async (force = false) => {
 
     // Upsert in batches
     const batchSize = 10;
-    const batches = Math.ceil(parsedDefaultModelPrices.length / batchSize);
+    const numBatches = Math.ceil(parsedDefaultModelPrices.length / batchSize);
 
-    for (let i = 0; i < batches; i++) {
-      logger.debug(`Processing batch ${i + 1} of ${batches}...`);
+    for (let i = 0; i < numBatches; i++) {
+      logger.debug(`Processing batch ${i + 1} of ${numBatches}...`);
 
       const batch = parsedDefaultModelPrices.slice(
         i * batchSize,
@@ -149,7 +172,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
       }
 
       await Promise.all(promises);
-      logger.debug(`Completed batch ${i + 1} of ${batches}.`);
+      logger.debug(`Completed batch ${i + 1} of ${numBatches}.`);
     }
 
     logger.debug("Finished upserting default model prices.");
