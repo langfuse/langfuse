@@ -32,13 +32,15 @@ export function AppSidebar({
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader>
         <div className="flex items-center gap-2 p-2">
-          <LangfuseLogo version showEnvLabel />
+          <LangfuseLogo version />
         </div>
-        <DemoBadge />
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navItems} />
         <div className="flex-1" />
+        <div className="p-2">
+          <DemoBadge />
+        </div>
         <NavMain items={secondaryNavItems} showFeedbackButton />
       </SidebarContent>
       <SidebarFooter>

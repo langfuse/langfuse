@@ -36,6 +36,8 @@ import {
   createProjectRoute,
 } from "@/src/features/setup/setupRoutes";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
+import { SidebarTrigger } from "@/src/components/ui/sidebar";
+import { EnvLabel } from "@/src/components/EnvLabel";
 
 export default function Header({
   level = "h2",
@@ -55,12 +57,25 @@ export default function Header({
   className?: string;
 }) {
   return (
-    <div className={cn(level === "h2" ? "mb-4" : "mb-2", props.className)}>
-      <div>
-        {level === "h2" ? (
-          <BreadcrumbComponent items={props.breadcrumb} />
-        ) : null}
-      </div>
+    <div
+      className={cn(
+        level === "h2" ? "mb-2 border-b p-3" : "mb-2",
+        props.className,
+      )}
+    >
+      {level === "h2" && (
+        <div className="flex items-center">
+          <SidebarTrigger />
+          <div className="ml-3">
+            <EnvLabel />
+          </div>
+          <BreadcrumbComponent
+            items={props.breadcrumb}
+            className="ml-3 border-l pl-3"
+          />
+        </div>
+      )}
+
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3 md:gap-5">
           <div className="flex min-w-0 flex-row justify-center align-middle">
@@ -119,8 +134,10 @@ const LoadingMenuItem = () => (
 
 const BreadcrumbComponent = ({
   items,
+  className,
 }: {
   items?: { name: string; href?: string }[];
+  className?: string;
 }) => {
   const router = useRouter();
   const session = useSession();
@@ -168,7 +185,7 @@ const BreadcrumbComponent = ({
       : `/organization/${orgId}`;
 
   return (
-    <Breadcrumb>
+    <Breadcrumb className={className}>
       <BreadcrumbList>
         {organization && (
           <DropdownMenu>

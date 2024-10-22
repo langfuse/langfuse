@@ -4,7 +4,6 @@ import { useRouter } from "next/router";
 import { getSession, signOut, useSession } from "next-auth/react";
 import Head from "next/head";
 import { env } from "@/src/env.mjs";
-import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { Spinner } from "@/src/components/layouts/spinner";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Toaster } from "@/src/components/ui/sonner";
@@ -19,11 +18,7 @@ import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { ClickhouseAdminToggle } from "@/src/components/layouts/ClickhouseAdminToggle";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/src/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/app-sidebar";
 
 const signOutUser = async () => {
@@ -318,20 +313,8 @@ export default function Layout(props: PropsWithChildren) {
             }}
           />
           <SidebarInset className="max-w-full overflow-x-hidden">
-            <div className="flex items-center gap-x-6 bg-background px-4 py-4 shadow-sm sm:px-6 md:hidden">
-              <SidebarTrigger className="-ml-1" />
-              <LangfuseLogo
-                version
-                className="flex-1"
-                showEnvLabel={session.data?.user?.email?.endsWith(
-                  "@langfuse.com",
-                )}
-              />
-            </div>
-            <div>
-              <main className="p-3">{props.children}</main>
-              <Toaster visibleToasts={1} />
-            </div>
+            <main>{props.children}</main>
+            <Toaster visibleToasts={1} />
           </SidebarInset>
         </SidebarProvider>
       </div>

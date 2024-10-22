@@ -1,6 +1,5 @@
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
-import { EnvLabel } from "./EnvLabel";
 import { VersionLabel } from "./VersionLabel";
 import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
@@ -76,12 +75,10 @@ export const LangfuseLogo = ({
   className,
   size = "sm",
   version = false,
-  showEnvLabel = false,
 }: {
   size?: "sm" | "xl";
   className?: string;
   version?: boolean;
-  showEnvLabel?: boolean;
 }) => {
   return (
     <div
@@ -90,10 +87,6 @@ export const LangfuseLogo = ({
         className,
       )}
     >
-      {/* Environment Labeling for Langfuse Maintainers */}
-      {showEnvLabel && (
-        <EnvLabel className="group-data-[collapsible=icon]:hidden" />
-      )}
       {/* Langfuse Logo */}
       <div className="flex items-center">
         <Link href="/" className="flex items-center">
