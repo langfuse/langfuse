@@ -32,6 +32,7 @@ import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { useMemo } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 export const TracePreview = ({
   trace,
@@ -56,6 +57,9 @@ export const TracePreview = ({
     string[]
   >("emptySelectedConfigIds", []);
   const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    trace.projectId,
+  );
 
   const traceScores = scores.filter((s) => s.observationId === null);
   const traceScoresBySource = traceScores.reduce((acc, score) => {
@@ -95,12 +99,14 @@ export const TracePreview = ({
               >
                 Preview
               </TabsTrigger>
-              <TabsTrigger
-                value="scores"
-                className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-              >
-                Scores
-              </TabsTrigger>
+              {isAuthenticatedAndProjectMember && (
+                <TabsTrigger
+                  value="scores"
+                  className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+                >
+                  Scores
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
         </div>
