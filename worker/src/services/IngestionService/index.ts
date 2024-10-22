@@ -581,7 +581,7 @@ export class IngestionService {
 
     return await instrumentAsync({ name: `get-${table}` }, async () => {
       const queryResult = await this.clickhouseClient.query({
-        query: `SELECT * FROM ${table} WHERE project_id = '${projectId}' AND id = '${entityId}' ORDER BY updated_at DESC LIMIT 1`,
+        query: `SELECT * FROM ${table} WHERE (project_id, id) IN (SELECT project_id, id FROM ${table} WHERE project_id = '${projectId}' AND id = '${entityId}') ORDER BY event_ts DESC LIMIT 1 by id`,
         format: "JSONEachRow",
       });
 
