@@ -1,4 +1,4 @@
-import { clickhouseClient } from "../src/server";
+import { clickhouseClient, logger } from "../src/server";
 
 function randn_bm(min: number, max: number, skew: number) {
   let u = 0,
@@ -25,7 +25,7 @@ export const prepareClickhouse = async (
     totalObservations: number;
   }
 ) => {
-  console.log(
+  logger.info(
     `Preparing Clickhouse for ${projectIds.length} projects and ${opts.numberOfDays} days.`
   );
 
@@ -153,6 +153,7 @@ export const prepareClickhouse = async (
     const queries = [tracesQuery, scoresQuery, observationsQuery];
 
     for (const query of queries) {
+      logger.info(`Executing query: ${query}`);
       await clickhouseClient.command({
         query,
         clickhouse_settings: {
@@ -182,10 +183,10 @@ export const prepareClickhouse = async (
       format: "TabSeparated",
     });
 
-    console.log(
+    logger.info(
       `${table.charAt(0).toUpperCase() + table.slice(1)} per Project:`
     );
-    console.log(await result.text());
+    logger.info(await result.text());
   }
 
   const tablesWithDateColumns = [
@@ -213,7 +214,7 @@ export const prepareClickhouse = async (
       format: "TabSeparated",
     });
 
-    console.log(`${table.charAt(0).toUpperCase() + table.slice(1)} per Date:`);
-    console.log(await result.text());
+    logger.info(`${table.charAt(0).toUpperCase() + table.slice(1)} per Date:`);
+    logger.info(await result.text());
   }
 };
