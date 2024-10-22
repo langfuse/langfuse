@@ -4,6 +4,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
@@ -40,7 +41,9 @@ export const NewDatasetItemButton = (props: {
         </Button>
       </DialogTrigger>
       <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none items-start">
-        <DialogHeader>Create new dataset item</DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Create new dataset item</DialogTitle>
+        </DialogHeader>
         <NewDatasetItemForm
           projectId={props.projectId}
           datasetId={props.datasetId}
