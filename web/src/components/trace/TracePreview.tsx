@@ -18,7 +18,6 @@ import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
