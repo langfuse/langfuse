@@ -511,16 +511,25 @@ export class IngestionService {
 
     // If user has provided any cost point, do not calculate any other cost points
     if (providedCostKeys.length) {
+      const cost_details = { ...provided_cost_details };
+      const finalTotalCost =
+        (provided_cost_details ?? {})["total"] ??
+        // Use provided input and output cost if available, but only if no other cost points are provided
+        (providedCostKeys.every((key) => ["input", "output"].includes(key))
+          ? ((provided_cost_details ?? {})["input"] ?? 0) +
+            ((provided_cost_details ?? {})["output"] ?? 0)
+          : undefined);
+
+      if (
+        !Object.prototype.hasOwnProperty.call(cost_details, "total") &&
+        finalTotalCost != null
+      ) {
+        cost_details.total = finalTotalCost;
+      }
+
       return {
-        cost_details: provided_cost_details,
-        total_cost:
-          // Use provided total cost if available
-          ((provided_cost_details ?? {})["total"] ??
-          // Use provided input and output cost if available, but only if no other cost points are provided
-          providedCostKeys.every((key) => ["input", "output"].includes(key)))
-            ? ((provided_cost_details ?? {})["input"] ?? 0) +
-              ((provided_cost_details ?? {})["output"] ?? 0)
-            : undefined,
+        cost_details,
+        total_cost: finalTotalCost,
       };
     }
 
