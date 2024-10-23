@@ -104,7 +104,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
 
         // Upsert model and prices in a transaction
         promises.push(
-          await prisma
+          prisma
             .$transaction(async (tx) => {
               await tx.model.upsert({
                 where: {
