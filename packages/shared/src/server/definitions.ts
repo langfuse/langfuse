@@ -7,7 +7,7 @@ export const clickhouseStringDateSchema = z
   .transform((str) => str.replace(" ", "T") + "Z")
   .pipe(z.string().datetime());
 
-export const UsageCostSchema = z.record(z.string(), z.number());
+export const UsageCostSchema = z.record(z.string(), z.coerce.number());
 export type UsageCostType = z.infer<typeof UsageCostSchema>;
 
 export const observationRecordBaseSchema = z.object({
