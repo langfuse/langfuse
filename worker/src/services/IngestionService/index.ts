@@ -577,26 +577,28 @@ export class IngestionService {
       scores: scoreRecordReadSchema,
       observations: observationRecordReadSchema,
     };
-    const { projectId, entityId, table } = params;
+    // const { projectId, entityId, table } = params;
 
-    return await instrumentAsync({ name: `get-${table}` }, async () => {
-      const queryResult = await this.clickhouseClient.query({
-        query: `SELECT * FROM ${table} WHERE project_id = '${projectId}' AND id = '${entityId}' ORDER BY updated_at DESC LIMIT 1`,
-        format: "JSONEachRow",
-      });
+    // return await instrumentAsync({ name: `get-${table}` }, async () => {
+    //   const queryResult = await this.clickhouseClient.query({
+    //     query: `SELECT * FROM ${table} WHERE project_id = '${projectId}' AND id = '${entityId}' ORDER BY updated_at DESC LIMIT 1`,
+    //     format: "JSONEachRow",
+    //   });
 
-      const result = await queryResult.json();
+    //   const result = await queryResult.json();
 
-      if (result.length === 0) return null;
+    //   if (result.length === 0) return null;
 
-      return table === TableName.Traces
-        ? convertTraceReadToInsert(recordParser[table].parse(result[0]))
-        : table === TableName.Scores
-          ? convertScoreReadToInsert(recordParser[table].parse(result[0]))
-          : convertObservationReadToInsert(
-              recordParser[table].parse(result[0])
-            );
-    });
+    //   return table === TableName.Traces
+    //     ? convertTraceReadToInsert(recordParser[table].parse(result[0]))
+    //     : table === TableName.Scores
+    //       ? convertScoreReadToInsert(recordParser[table].parse(result[0]))
+    //       : convertObservationReadToInsert(
+    //           recordParser[table].parse(result[0])
+    //         );
+    // });
+
+    return null;
   }
 
   private mapTraceEventsToRecords(params: {
