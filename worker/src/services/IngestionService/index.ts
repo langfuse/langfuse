@@ -140,6 +140,7 @@ export class IngestionService {
           created_at: Date.now(),
           updated_at: Date.now(),
           event_ts: new Date(scoreEvent.timestamp).getTime(),
+          is_deleted: 0,
         };
       });
 
@@ -631,6 +632,7 @@ export class IngestionService {
         created_at: Date.now(),
         updated_at: Date.now(),
         event_ts: new Date(trace.timestamp).getTime(),
+        is_deleted: 0,
       };
 
       return traceRecord;
@@ -739,6 +741,7 @@ export class IngestionService {
         created_at: Date.now(),
         updated_at: Date.now(),
         event_ts: new Date(obs.timestamp).getTime(),
+        is_deleted: 0,
       };
 
       return observationRecord;
