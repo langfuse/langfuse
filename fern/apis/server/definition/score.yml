@@ -58,7 +58,11 @@ service:
           dataType:
             type: optional<commons.ScoreDataType>
             docs: Retrieve only scores with a specific dataType.
-      response: Scores
+          traceTags:
+            type: optional<list<string>>
+            allow-multiple: true
+            docs: Only scores linked to traces that include all of these tags will be returned.
+      response: GetScoresResponse
     get-by-id:
       docs: Get a score
       method: GET
@@ -135,7 +139,19 @@ types:
       id:
         type: string
         docs: The id of the created object in Langfuse
-  Scores:
+  GetScoresResponseTraceData:
     properties:
-      data: list<commons.Score>
+      userId:
+        type: optional<string>
+        docs: The user ID associated with the trace referenced by score
+      tags:
+        type: optional<list<string>>
+        docs: A list of tags associated with the trace referenced by score
+  GetScoresResponseData:
+    properties:
+      <<: commons.Score
+      trace: GetScoresResponseTraceData
+  GetScoresResponse:
+    properties:
+      data: list<GetScoresResponseData>
       meta: pagination.MetaResponse

@@ -1788,13 +1788,24 @@ paths:
           schema:
             $ref: '#/components/schemas/ScoreDataType'
             nullable: true
+        - name: traceTags
+          in: query
+          description: >-
+            Only scores linked to traces that include all of these tags will be
+            returned.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
       responses:
         '200':
           description: ''
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Scores'
+                $ref: '#/components/schemas/GetScoresResponse'
         '400':
           description: ''
           content:
@@ -4305,14 +4316,39 @@ components:
           description: The id of the created object in Langfuse
       required:
         - id
-    Scores:
-      title: Scores
+    GetScoresResponseTraceData:
+      title: GetScoresResponseTraceData
+      type: object
+      properties:
+        userId:
+          type: string
+          nullable: true
+          description: The user ID associated with the trace referenced by score
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: A list of tags associated with the trace referenced by score
+    GetScoresResponseData:
+      title: GetScoresResponseData
+      type: object
+      properties:
+        '<<':
+          $ref: '#/components/schemas/Score'
+        trace:
+          $ref: '#/components/schemas/GetScoresResponseTraceData'
+      required:
+        - '<<'
+        - trace
+    GetScoresResponse:
+      title: GetScoresResponse
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/Score'
+            $ref: '#/components/schemas/GetScoresResponseData'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
       required:

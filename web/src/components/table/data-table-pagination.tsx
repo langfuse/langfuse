@@ -21,11 +21,13 @@ import { useEffect, useState } from "react";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
+  isLoading: boolean;
   paginationOptions?: number[];
 }
 
 export function DataTablePagination<TData>({
   table,
+  isLoading,
   paginationOptions = [10, 20, 30, 40, 50],
 }: DataTablePaginationProps<TData>) {
   const capture = usePostHogClientCapture();
@@ -129,7 +131,11 @@ export function DataTablePagination<TData>({
           ) : (
             <span>
               of{" "}
-              <LoaderCircle className="ml-1 inline-block h-3 w-3 animate-spin text-muted-foreground" />
+              {isLoading ? (
+                <LoaderCircle className="ml-1 inline-block h-3 w-3 animate-spin text-muted-foreground" />
+              ) : (
+                1
+              )}
             </span>
           )}
         </div>
@@ -172,7 +178,7 @@ export function DataTablePagination<TData>({
                 type: "nextPage",
               });
             }}
-            disabled={!table.getCanNextPage()}
+            disabled={!table.getCanNextPage() || pageCount === -1}
           >
             <span className="sr-only">Go to next page</span>
             <ChevronRightIcon className="h-4 w-4" />

@@ -4,6 +4,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
@@ -32,7 +33,7 @@ export const NewDatasetItemButton = (props: {
           onClick={() => capture("dataset_item:new_form_open")}
         >
           {hasAccess ? (
-            <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+            <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
           ) : (
             <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
           )}
@@ -40,7 +41,9 @@ export const NewDatasetItemButton = (props: {
         </Button>
       </DialogTrigger>
       <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none items-start">
-        <DialogHeader>Create new dataset item</DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Create new dataset item</DialogTitle>
+        </DialogHeader>
         <NewDatasetItemForm
           projectId={props.projectId}
           datasetId={props.datasetId}
