@@ -258,6 +258,7 @@ export class IngestionService {
         bookmarked: false,
         public: false,
         event_ts: Date.now(),
+        is_deleted: 0
       };
 
       this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
