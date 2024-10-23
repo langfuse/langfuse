@@ -53,14 +53,19 @@ CREATE TABLE traces_wide
     trace_session_id Nullable(String),
     trace_event_ts DateTime64(3)
 ) ENGINE = ReplacingMergeTree Partition by toYYYYMM(start_time)
+PRIMARY KEY (
+        project_id,
+        `type`,
+        toDate(trace_timestamp)
+    )
 ORDER BY (
         project_id,
         `type`,
-        toDate(start_time),
+        toDate(trace_timestamp),
         id
     );
 
-CREATE MATERIALIZED VIEW mv_traces_to_traces_wide TO traces_wide AS
+CREATE MATERIALIZED VIEW traces_to_traces_wide TO traces_wide AS
 SELECT 
     argMax(t.`name`, t.event_ts) as trace_name,
     argMax(t.timestamp, t.event_ts) as trace_timestamp,
@@ -109,9 +114,12 @@ SELECT
     argMax(o.event_ts, t.event_ts) as event_ts
 FROM traces t
 LEFT JOIN observations o ON t.id = o.trace_id
-GROUP BY o.id, o.project_id;
+GROUP BY o.id, o.project_id
+ORDER BY event_ts desc
+LIMIT 1 by o.id;
 
-CREATE MATERIALIZED VIEW mv_observations_to_traces_wide TO traces_wide AS
+
+CREATE MATERIALIZED VIEW observations_to_traces_wide TO traces_wide AS
 SELECT 
     argMax(t.timestamp, o.event_ts) as trace_timestamp,
     argMax(t.name, o.event_ts) as trace_name,
@@ -161,4 +169,7 @@ SELECT
 FROM observations o
 INNER JOIN traces t ON t.id = o.trace_id
 WHERE t.id IS NOT NULL
-GROUP BY o.id, o.project_id;
+GROUP BY o.id, o.project_id
+ORDER BY event_ts desc
+LIMIT 1 by o.id;
+
