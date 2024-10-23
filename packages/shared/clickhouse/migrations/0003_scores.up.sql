@@ -18,6 +18,11 @@ CREATE TABLE scores (
     INDEX idx_id id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_project_trace_observation (project_id, trace_id, observation_id) TYPE bloom_filter(0.001) GRANULARITY 1
 ) ENGINE = ReplacingMergeTree Partition by toYYYYMM(timestamp)
+PRIMARY KEY (
+        project_id,
+        toDate(timestamp),
+        name
+    )
 ORDER BY (
         project_id,
         toDate(timestamp),

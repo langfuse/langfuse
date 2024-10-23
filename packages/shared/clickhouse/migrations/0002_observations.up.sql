@@ -34,6 +34,12 @@ CREATE TABLE observations (
     INDEX idx_res_metadata_key mapKeys(metadata) TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_res_metadata_value mapValues(metadata) TYPE bloom_filter() GRANULARITY 1
 ) ENGINE = ReplacingMergeTree Partition by toYYYYMM(start_time)
+PRIMARY KEY (
+        project_id,
+        `type`,
+        toDate(start_time)
+    )
+
 ORDER BY (
         project_id,
         `type`,
