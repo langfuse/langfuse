@@ -20,6 +20,10 @@ CREATE TABLE traces (
     INDEX idx_res_metadata_key mapKeys(metadata) TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_res_metadata_value mapValues(metadata) TYPE bloom_filter(0.01) GRANULARITY 1
 ) ENGINE = ReplacingMergeTree Partition by toYYYYMM(timestamp)
+PRIMARY KEY (
+        project_id,
+        toDate(timestamp)
+)
 ORDER BY (
         project_id,
         toDate(timestamp),
