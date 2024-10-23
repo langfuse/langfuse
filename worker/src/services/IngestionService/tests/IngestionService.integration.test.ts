@@ -990,6 +990,8 @@ describe("Ingestion end-to-end tests", () => {
       generationId
     );
 
+    console.log(generationId);
+
     expect(generation.id).toBe(generationId);
     expect(generation.trace_id).toBe(traceId);
     expect(generation.output).toEqual(
