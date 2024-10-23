@@ -1,6 +1,6 @@
 import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
-import { v4 } from "uuid";
+import { v4, version } from "uuid";
 
 import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
 import {
@@ -484,13 +484,13 @@ export class IngestionService {
           ? (newInputCount ?? 0) + (newOutputCount ?? 0)
           : undefined;
 
-      return {
-        usage_details: {
-          input: newInputCount,
-          output: newOutputCount,
-          total: newTotalCount,
-        },
-      };
+      const usage_details: Record<string, number> = {};
+
+      if (newInputCount != null) usage_details.input = newInputCount;
+      if (newOutputCount != null) usage_details.output = newOutputCount;
+      if (newTotalCount != null) usage_details.total = newTotalCount;
+
+      return { usage_details };
     }
 
     return {
@@ -693,6 +693,23 @@ export class IngestionService {
           ? newInputCount + newOutputCount
           : (newInputCount ?? newOutputCount));
 
+      const provided_usage_details: Record<string, number> = {};
+
+      if (newInputCount != null) provided_usage_details.input = newInputCount;
+      if (newOutputCount != null)
+        provided_usage_details.output = newOutputCount;
+      if (newTotalCount != null) provided_usage_details.total = newTotalCount;
+
+      const provided_cost_details: Record<string, number> = {};
+
+      if ("usage" in obs.body) {
+        const { inputCost, outputCost, totalCost } = obs.body.usage ?? {};
+
+        if (inputCost != null) provided_cost_details.input = inputCost;
+        if (outputCost != null) provided_cost_details.output = outputCost;
+        if (totalCost != null) provided_cost_details.total = totalCost;
+      }
+
       const observationRecord: ObservationRecordInsertType = {
         id: entityId,
         trace_id: obs.body.traceId ?? v4(),
@@ -721,16 +738,10 @@ export class IngestionService {
             : undefined,
         input: this.stringify(obs.body.input),
         output: this.stringify(obs.body.output),
-        provided_usage_details: {
-          input: newInputCount,
-          output: newOutputCount,
-          total: newTotalCount,
-        },
-        provided_cost_details: {
-          input: "usage" in obs.body ? obs.body.usage?.inputCost : undefined,
-          output: "usage" in obs.body ? obs.body.usage?.outputCost : undefined,
-          total: "usage" in obs.body ? obs.body.usage?.totalCost : undefined,
-        },
+        provided_usage_details,
+        provided_cost_details,
+        usage_details: provided_usage_details,
+        cost_details: provided_cost_details,
         level: obs.body.level ?? "DEFAULT",
         status_message: obs.body.statusMessage ?? undefined,
         parent_observation_id: obs.body.parentObservationId ?? undefined,

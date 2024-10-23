@@ -7,7 +7,7 @@ export const clickhouseStringDateSchema = z
   .transform((str) => str.replace(" ", "T") + "Z")
   .pipe(z.string().datetime());
 
-export const UsageCostSchema = z.record(z.string(), z.number().nullish());
+export const UsageCostSchema = z.record(z.string(), z.number());
 export type UsageCostType = z.infer<typeof UsageCostSchema>;
 
 export const observationRecordBaseSchema = z.object({
@@ -26,10 +26,10 @@ export const observationRecordBaseSchema = z.object({
   provided_model_name: z.string().nullish(),
   internal_model_id: z.string().nullish(),
   model_parameters: z.string().nullish(),
-  provided_usage_details: UsageCostSchema.nullish(),
-  provided_cost_details: UsageCostSchema.nullish(),
-  usage_details: UsageCostSchema.nullish(),
-  cost_details: UsageCostSchema.nullish(),
+  provided_usage_details: UsageCostSchema,
+  provided_cost_details: UsageCostSchema,
+  usage_details: UsageCostSchema,
+  cost_details: UsageCostSchema,
   total_cost: z.number().nullish(),
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
