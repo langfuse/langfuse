@@ -162,7 +162,7 @@ model ApiKey {
 }
 
 model BackgroundMigration {
-  id           String    @id @unique @default(cuid())
+  id           String    @id @default(cuid())
   name         String    @unique
   script       String    @map("script")
   args         Json      @map("args")
