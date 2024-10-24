@@ -688,7 +688,7 @@ export const InnerEvalConfigForm = (props: {
                 <FormItem>
                   <FormLabel>Delay (seconds)</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} type="number" />
                   </FormControl>
                   <FormDescription>
                     Time between first Trace event and evaluation execution to
