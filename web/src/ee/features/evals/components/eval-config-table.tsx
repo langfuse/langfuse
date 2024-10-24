@@ -78,7 +78,11 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
       size: 200,
       cell: (row) => {
         const node = row.getValue();
-        return <InlineFilterState filterState={node} />;
+        return (
+          <div className="flex h-full overflow-x-auto">
+            <InlineFilterState filterState={node} />
+          </div>
+        );
       },
     }),
   ] as LangfuseColumnDef<EvalConfigRow>[];
