@@ -9,10 +9,20 @@ import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
-export default function TemplatesPage() {
+export default function LogPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJobExecution:read",
+  });
+
+  if (!hasReadAccess) {
+    return null;
+  }
 
   return (
     <FullScreenPage>

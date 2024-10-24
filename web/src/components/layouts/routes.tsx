@@ -97,29 +97,11 @@ export const ROUTES: Route[] = [
   },
   {
     name: "Evaluation",
+    pathname: `/project/[projectId]/evals/configs`,
     icon: Lightbulb,
-    entitlement: "model-based-evaluations",
     label: "Beta",
-    children: [
-      {
-        name: "Templates",
-        pathname: `/project/[projectId]/evals/templates`,
-        entitlement: "model-based-evaluations",
-        projectRbacScope: "evalTemplate:read",
-      },
-      {
-        name: "Configs",
-        pathname: `/project/[projectId]/evals/configs`,
-        entitlement: "model-based-evaluations",
-        projectRbacScope: "evalJob:read",
-      },
-      {
-        name: "Log",
-        pathname: `/project/[projectId]/evals/log`,
-        entitlement: "model-based-evaluations",
-        projectRbacScope: "evalJobExecution:read",
-      },
-    ],
+    entitlement: "model-based-evaluations",
+    projectRbacScope: "evalJob:read",
   },
   {
     name: "Users",

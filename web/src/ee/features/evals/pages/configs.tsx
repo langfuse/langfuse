@@ -18,6 +18,15 @@ export default function ConfigsPage() {
     scope: "evalJob:CUD",
   });
 
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJob:read",
+  });
+
+  if (!hasReadAccess) {
+    return null;
+  }
+
   return (
     <FullScreenPage>
       <Header

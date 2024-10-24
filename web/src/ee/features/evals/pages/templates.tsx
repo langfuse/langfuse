@@ -17,6 +17,15 @@ export default function TemplatesPage() {
     scope: "evalTemplate:create",
   });
 
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
+
+  if (!hasReadAccess) {
+    return null;
+  }
+
   return (
     <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden md:h-[calc(100vh-2rem)]">
       <Header
