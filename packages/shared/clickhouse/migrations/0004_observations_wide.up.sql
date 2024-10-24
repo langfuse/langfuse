@@ -11,8 +11,6 @@ CREATE TABLE observations_wide
     `public` Bool,
     `bookmarked` Bool,
     `tags` Array(String),
-    `input` Nullable(String),
-    `output` Nullable(String),
     `session_id` Nullable(String),
     `created_at` DateTime64(3),
     `updated_at` DateTime64(3),
@@ -52,11 +50,14 @@ CREATE TABLE observations_wide
     trace_public Bool,
     trace_bookmarked Bool,
     trace_tags Array(String),
-    trace_input Nullable(String),
-    trace_output Nullable(String),
     trace_session_id Nullable(String),
     trace_event_ts DateTime64(3)
 ) ENGINE = ReplacingMergeTree Partition by toYYYYMM(start_time)
+PRIMARY KEY (
+        project_id,
+        `type`,
+        toDate(start_time)
+    )
 ORDER BY (
         project_id,
         `type`,
@@ -64,7 +65,7 @@ ORDER BY (
         id
     );
 
-CREATE MATERIALIZED VIEW mv_traces_to_observations_wide TO observations_wide AS
+CREATE MATERIALIZED VIEW traces_to_observations_wide TO observations_wide AS
 SELECT 
     argMax(t.`name`, o.event_ts) as trace_name,
     argMax(t.timestamp, o.event_ts) as trace_timestamp,
@@ -76,8 +77,6 @@ SELECT
     argMax(t.public, o.event_ts) as trace_public,
     argMax(t.bookmarked, o.event_ts) as trace_bookmarked,
     argMax(t.tags, o.event_ts) as trace_tags,
-    argMax(t.input, o.event_ts) as trace_input,
-    argMax(t.output, o.event_ts) as trace_output,
     argMax(t.session_id, o.event_ts) as trace_session_id,
     argMax(t.event_ts, o.event_ts) as trace_event_ts,
     o.id as id,
@@ -116,9 +115,11 @@ SELECT
     argMax(o.event_ts, o.event_ts) as event_ts
 FROM traces t
 INNER JOIN observations o ON t.id = o.trace_id
-GROUP BY o.id, o.project_id;
+GROUP BY o.id, o.project_id
+ORDER BY event_ts desc
+LIMIT 1 by o.id;
 
-CREATE MATERIALIZED VIEW mv_observations_to_observations_wide TO observations_wide AS
+CREATE MATERIALIZED VIEW observations_to_observations_wide TO observations_wide AS
 SELECT 
   argMax(t.timestamp, o.event_ts) as trace_timestamp,
     argMax(t.name, o.event_ts) as trace_name,
@@ -130,8 +131,6 @@ SELECT
     argMax(t.public, o.event_ts) as trace_public,
     argMax(t.bookmarked, o.event_ts) as trace_bookmarked,
     argMax(t.tags, o.event_ts) as trace_tags,
-    argMax(t.input, o.event_ts) as trace_input,
-    argMax(t.output, o.event_ts) as trace_output,
     argMax(t.session_id, o.event_ts) as trace_session_id,
     argMax(t.event_ts, o.event_ts) as trace_event_ts,
     o.id as id,
@@ -170,6 +169,8 @@ SELECT
     argMax(o.event_ts, o.event_ts) as event_ts
 FROM observations o
 LEFT OUTER JOIN traces t ON t.id = o.trace_id
-GROUP BY o.id, o.project_id;
+GROUP BY o.id, o.project_id 
+ORDER BY event_ts desc
+LIMIT 1 by o.id;
 
 

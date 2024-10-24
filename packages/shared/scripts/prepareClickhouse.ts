@@ -184,9 +184,9 @@ export const prepareClickhouse = async (
     });
 
     logger.info(
-      `${table.charAt(0).toUpperCase() + table.slice(1)} per Project:`
+      `${table.charAt(0).toUpperCase() + table.slice(1)} per Project: \n` +
+        (await result.text())
     );
-    logger.info(await result.text());
   }
 
   const tablesWithDateColumns = [
@@ -214,7 +214,9 @@ export const prepareClickhouse = async (
       format: "TabSeparated",
     });
 
-    logger.info(`${table.charAt(0).toUpperCase() + table.slice(1)} per Date:`);
-    logger.info(await result.text());
+    logger.info(
+      `${table.charAt(0).toUpperCase() + table.slice(1)} per Date: \n` +
+        (await result.text())
+    );
   }
 };
