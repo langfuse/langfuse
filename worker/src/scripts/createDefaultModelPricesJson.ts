@@ -41,22 +41,24 @@ export async function getDefaultModelPrices() {
       start_date DESC NULLS LAST;
   `;
 
-  return modelPricesFromDb.map((modelPrice) => {
-    return {
-      id: modelPrice.id,
-      model_name: modelPrice.model_name,
-      match_pattern: modelPrice.match_pattern,
-      created_at: modelPrice.created_at,
-      updated_at: modelPrice.updated_at,
-      prices: {
-        input: modelPrice.input_price?.toNumber(),
-        output: modelPrice.output_price?.toNumber(),
-        total: modelPrice.total_price?.toNumber(),
-      },
-      tokenizer_config: modelPrice.tokenizer_config,
-      tokenizer_id: modelPrice.tokenizer_id,
-    };
-  });
+  return modelPricesFromDb
+    .map((modelPrice) => {
+      return {
+        id: modelPrice.id,
+        model_name: modelPrice.model_name,
+        match_pattern: modelPrice.match_pattern,
+        created_at: modelPrice.created_at,
+        updated_at: modelPrice.updated_at,
+        prices: {
+          input: modelPrice.input_price?.toNumber(),
+          output: modelPrice.output_price?.toNumber(),
+          total: modelPrice.total_price?.toNumber(),
+        },
+        tokenizer_config: modelPrice.tokenizer_config,
+        tokenizer_id: modelPrice.tokenizer_id,
+      };
+    })
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 async function main() {
