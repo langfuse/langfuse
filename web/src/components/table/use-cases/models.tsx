@@ -276,7 +276,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         ? new Decimal(model.outputPrice)
         : undefined,
       totalPrice: model.totalPrice ? new Decimal(model.totalPrice) : undefined,
-      unit: model.unit,
+      unit: model.unit ?? "",
       tokenizerId: model.tokenizerId ?? undefined,
       config: model.tokenizerConfig,
     };

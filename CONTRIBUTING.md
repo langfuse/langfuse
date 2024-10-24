@@ -432,6 +432,20 @@ Example:
 op run --env-file="./.env" -- pnpm --filter=shared run db:deploy
 ```
 
+### Editing default models and prices
+
+You can update the default AI models and prices by adding or updating an entry in `worker/src/constants/default-model-prices.json`.
+
+Please note that
+
+- prices are in USD
+- the list is ordered by ID, so make sure to keep this order
+- the `updated_at` field must be updated with the current date in ISO 8601 format. Otherwise, the change will be ignored.
+
+### Transition period until V3 release
+
+Until the V3 release, both the JSON record must be updated **and** a migration must be created to continue supporting self-hosted users. Note that the migration must updated both the `models` as well as the `prices` table accordingly.
+
 ## License
 
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.

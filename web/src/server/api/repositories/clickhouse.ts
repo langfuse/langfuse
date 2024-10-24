@@ -105,7 +105,7 @@ export function convertObservations(jsonRecords: unknown[]): ObservationView[] {
       output:
         (record.output ? parseJsonPrioritised(record.output) : undefined) ??
         null,
-      unit: record.unit ?? null,
+      unit: null,
 
       createdAt: new Date(record.created_at),
       updatedAt: new Date(record.updated_at),
@@ -125,13 +125,14 @@ export function convertObservations(jsonRecords: unknown[]): ObservationView[] {
           )
         : null,
 
-      promptTokens: record.provided_input_usage_units ?? 0,
-      completionTokens: record.provided_output_usage_units ?? 0,
-      totalTokens: record.provided_total_usage_units ?? 0,
+      promptTokens: record.usage_details.input ?? 0,
+      completionTokens: record.usage_details.output ?? 0,
+      totalTokens: record.usage_details.total ?? 0,
 
-      calculatedInputCost: new Decimal(record.input_cost ?? 0) || null,
-      calculatedOutputCost: new Decimal(record.output_cost ?? 0) || null,
-      calculatedTotalCost: new Decimal(record.total_cost ?? 0) || null,
+      calculatedInputCost: new Decimal(record.cost_details.input ?? 0) || null,
+      calculatedOutputCost:
+        new Decimal(record.cost_details.output ?? 0) || null,
+      calculatedTotalCost: new Decimal(record.cost_details.total ?? 0) || null,
 
       promptId: record.prompt_id ?? null,
       promptName: record.prompt_name ?? null,

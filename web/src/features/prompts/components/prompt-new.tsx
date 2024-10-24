@@ -14,7 +14,11 @@ export const NewPrompt = () => {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       id: initialPromptId ?? "",
     },
-    { enabled: Boolean(initialPromptId && projectId) },
+    {
+      enabled: Boolean(initialPromptId && projectId),
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
   );
 
   if (isInitialLoading) {
