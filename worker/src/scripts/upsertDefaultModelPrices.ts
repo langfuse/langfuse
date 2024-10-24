@@ -80,7 +80,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
           defaultModelPrice.id
         );
 
-        const toleranceInMs = 1000 * 60 * 60; // 1 hour. US and EU databases have different update times for when the migration was applied.
+        const toleranceInMs = 1000 * 60 * 60 * 3; // 3 hours. US and EU databases have different update times for when the migration was applied.
 
         if (
           !force &&
