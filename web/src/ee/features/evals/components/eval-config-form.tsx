@@ -142,29 +142,30 @@ export const EvalConfigForm = (props: {
                 <CommandList>
                   <CommandEmpty>No template found.</CommandEmpty>
                   <CommandGroup>
-                    {Object.keys(templatesByName).map((name) => (
-                      <CommandItem
-                        key={name}
-                        onSelect={() => {
-                          setSelectedTemplateName(name);
-                          const templateVersions = templatesByName[name];
-                          const latestVersion =
-                            templateVersions[templateVersions.length - 1];
-                          setSelectedTemplateVersion(latestVersion.version);
-                          setEvalTemplate(latestVersion.id);
-                        }}
-                      >
-                        {name}
-                        <CheckIcon
-                          className={cn(
-                            "ml-auto h-4 w-4",
-                            name === selectedTemplateName
-                              ? "opacity-100"
-                              : "opacity-0",
-                          )}
-                        />
-                      </CommandItem>
-                    ))}
+                    {Object.entries(templatesByName).map(
+                      ([name, templateData]) => (
+                        <CommandItem
+                          key={name}
+                          onSelect={() => {
+                            setSelectedTemplateName(name);
+                            const latestVersion =
+                              templateData[templateData.length - 1];
+                            setSelectedTemplateVersion(latestVersion.version);
+                            setEvalTemplate(latestVersion.id);
+                          }}
+                        >
+                          {name}
+                          <CheckIcon
+                            className={cn(
+                              "ml-auto h-4 w-4",
+                              name === selectedTemplateName
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                          />
+                        </CommandItem>
+                      ),
+                    )}
                   </CommandGroup>
                   <CommandSeparator alwaysRender />
                   <CommandGroup forceMount>
