@@ -110,30 +110,29 @@ describe("Ingestion end-to-end tests", () => {
         outputCost: 456,
         totalCost: 789,
       },
-      expectedUnit: ModelUsageUnit.Characters,
-      expectedPromptTokens: 100,
-      expectedCompletionTokens: 200,
-      expectedTotalTokens: 100,
+      expectedInputUnits: 100,
+      expectedOutputUnits: 200,
+      expectedTotalUnits: 100,
     },
     {
       usage: {
         total: 100,
         unit: ModelUsageUnit.Characters,
       },
-      expectedUnit: ModelUsageUnit.Characters,
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
-      expectedTotalTokens: 100,
+
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
+      expectedTotalUnits: 100,
     },
     {
       usage: {
         total: 100,
         unit: ModelUsageUnit.Milliseconds,
       },
-      expectedUnit: ModelUsageUnit.Milliseconds,
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
-      expectedTotalTokens: 100,
+
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
+      expectedTotalUnits: 100,
     },
     {
       usage: {
@@ -141,10 +140,10 @@ describe("Ingestion end-to-end tests", () => {
         output: 2,
         unit: ModelUsageUnit.Images,
       },
-      expectedUnit: ModelUsageUnit.Images,
-      expectedPromptTokens: 1,
-      expectedCompletionTokens: 2,
-      expectedTotalTokens: 3,
+
+      expectedInputUnits: 1,
+      expectedOutputUnits: 2,
+      expectedTotalUnits: 3,
     },
     {
       usage: {
@@ -152,10 +151,10 @@ describe("Ingestion end-to-end tests", () => {
         output: 2,
         unit: ModelUsageUnit.Requests,
       },
-      expectedUnit: ModelUsageUnit.Requests,
-      expectedPromptTokens: 1,
-      expectedCompletionTokens: 2,
-      expectedTotalTokens: 3,
+
+      expectedInputUnits: 1,
+      expectedOutputUnits: 2,
+      expectedTotalUnits: 3,
     },
     {
       usage: {
@@ -163,40 +162,37 @@ describe("Ingestion end-to-end tests", () => {
         output: 10,
         unit: ModelUsageUnit.Seconds,
       },
-      expectedUnit: ModelUsageUnit.Seconds,
-      expectedPromptTokens: 30,
-      expectedCompletionTokens: 10,
-      expectedTotalTokens: 40,
+
+      expectedInputUnits: 30,
+      expectedOutputUnits: 10,
+      expectedTotalUnits: 40,
     },
     {
       usage: {
         total: 100,
       },
-      expectedUnit: null,
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
-      expectedTotalTokens: 100,
+
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
+      expectedTotalUnits: 100,
     },
     {
       usage: undefined,
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
-      expectedTotalTokens: null,
-      expectedUnit: null,
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
+      expectedTotalUnits: undefined,
     },
     {
       usage: null,
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
-      expectedTotalTokens: null,
-      expectedUnit: null,
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
+      expectedTotalUnits: undefined,
     },
     {
       usage: {},
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
-      expectedTotalTokens: null,
-      expectedUnit: null,
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
+      expectedTotalUnits: undefined,
     },
   ].forEach((testConfig) => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
@@ -344,16 +340,15 @@ describe("Ingestion end-to-end tests", () => {
       expect(parseMetadata(generation.metadata)).toEqual({ key: "value" });
       expect(generation.version).toBe("2.0.0");
       expect(generation.internal_model_id).toBeNull();
-      expect(generation.input_usage_units).toEqual(
-        testConfig.expectedPromptTokens
+      expect(generation.usage_details.input).toEqual(
+        testConfig.expectedInputUnits
       );
-      expect(generation.output_usage_units).toEqual(
-        testConfig.expectedCompletionTokens
+      expect(generation.usage_details.output).toEqual(
+        testConfig.expectedOutputUnits
       );
-      expect(generation.total_usage_units).toEqual(
-        testConfig.expectedTotalTokens
+      expect(generation.usage_details.total).toEqual(
+        testConfig.expectedTotalUnits
       );
-      expect(generation.unit).toEqual(testConfig.expectedUnit);
       expect(generation.output).toEqual(
         JSON.stringify({
           key: "this is a great gpt output",
@@ -387,8 +382,8 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id",
-      expectedPromptTokens: 5,
-      expectedCompletionTokens: 7,
+      expectedInputUnits: 5,
+      expectedOutputUnits: 7,
       models: [
         {
           id: "custom-model-id",
@@ -405,8 +400,8 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id",
-      expectedPromptTokens: 5,
-      expectedCompletionTokens: 7,
+      expectedInputUnits: 5,
+      expectedOutputUnits: 7,
       models: [
         {
           id: "custom-model-id",
@@ -423,8 +418,8 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id",
-      expectedPromptTokens: 5,
-      expectedCompletionTokens: 7,
+      expectedInputUnits: 5,
+      expectedOutputUnits: 7,
       models: [
         {
           id: "custom-model-id",
@@ -441,8 +436,8 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-2",
-      expectedPromptTokens: 5,
-      expectedCompletionTokens: 7,
+      expectedInputUnits: 5,
+      expectedOutputUnits: 7,
       models: [
         {
           id: "custom-model-id-1",
@@ -468,8 +463,8 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-02T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-2",
-      expectedPromptTokens: 5,
-      expectedCompletionTokens: 7,
+      expectedInputUnits: 5,
+      expectedOutputUnits: 7,
       models: [
         {
           id: "custom-model-id-1",
@@ -495,8 +490,8 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-1",
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
       models: [
         {
           id: "custom-model-id-1",
@@ -513,8 +508,8 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-1",
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
       models: [
         {
           id: "custom-model-id-1",
@@ -531,8 +526,8 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: null,
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
       models: [
         {
           id: "custom-model-id-1",
@@ -549,8 +544,8 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Characters,
       expectedInternalModelId: null,
-      expectedPromptTokens: null,
-      expectedCompletionTokens: null,
+      expectedInputUnits: undefined,
+      expectedOutputUnits: undefined,
       models: [
         {
           id: "custom-model-id-1",
@@ -654,11 +649,11 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.provided_model_name).toBe(
         testConfig.observationExternalModel
       );
-      // expect(generation.input_usage_units).toBe(
-      //   testConfig.expectedPromptTokens
-      // );
-      expect(generation.output_usage_units).toBe(
-        testConfig.expectedCompletionTokens
+      expect(generation.usage_details.input).toBe(
+        testConfig.expectedInputUnits
+      );
+      expect(generation.usage_details.output).toBe(
+        testConfig.expectedOutputUnits
       );
       expect(generation.internal_model_id).toBe(
         testConfig.expectedInternalModelId
@@ -1197,23 +1192,21 @@ describe("Ingestion end-to-end tests", () => {
       generationId
     );
 
-    expect(generation.provided_input_usage_units).toEqual(1285);
-    expect(generation.provided_output_usage_units).toEqual(513);
-    expect(generation.provided_total_usage_units).toEqual(1798);
+    expect(generation.usage_details.input).toEqual(1285);
+    expect(generation.usage_details.output).toEqual(513);
+    expect(generation.usage_details.total).toEqual(1798);
 
-    expect(generation.input_usage_units).toEqual(1285);
-    expect(generation.output_usage_units).toEqual(513);
-    expect(generation.total_usage_units).toEqual(1798);
+    expect(generation.usage_details.input).toEqual(1285);
+    expect(generation.usage_details.output).toEqual(513);
+    expect(generation.usage_details.total).toEqual(1798);
 
-    expect(generation.provided_input_cost).toEqual(0.0006425);
-    expect(generation.provided_output_cost).toEqual(0.0007695);
-    expect(generation.provided_total_cost).toEqual(0.001412);
+    expect(generation.cost_details.input).toEqual(0.0006425);
+    expect(generation.cost_details.output).toEqual(0.0007695);
+    expect(generation.cost_details.total).toEqual(0.001412);
 
-    expect(generation.provided_input_cost).toEqual(0.0006425);
-    expect(generation.provided_output_cost).toEqual(0.0007695);
-    expect(generation.provided_total_cost).toEqual(0.001412);
-
-    expect(generation.unit).toEqual("TOKENS");
+    expect(generation.provided_cost_details.input).toEqual(0.0006425);
+    expect(generation.provided_cost_details.output).toEqual(0.0007695);
+    expect(generation.provided_cost_details.total).toEqual(0.001412);
   });
 
   it("should update all token counts if update does not contain model name", async () => {
@@ -1310,8 +1303,8 @@ describe("Ingestion end-to-end tests", () => {
     expect(generation?.output).toEqual(
       JSON.stringify({ key: "this is a great gpt output" })
     );
-    expect(generation?.input_usage_units).toEqual(5);
-    expect(generation?.output_usage_units).toEqual(11);
+    expect(generation?.usage_details.input).toEqual(5);
+    expect(generation?.usage_details.output).toEqual(11);
   });
 
   it("should update all token counts if update does not contain model name and events come in wrong order", async () => {
@@ -1403,8 +1396,8 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation?.output).toEqual(
       JSON.stringify({ key: "this is a great gpt output" })
     );
-    expect(observation?.input_usage_units).toEqual(5);
-    expect(observation?.output_usage_units).toEqual(11);
+    expect(observation?.usage_details.input).toEqual(5);
+    expect(observation?.usage_details.output).toEqual(11);
   });
 
   it("null does not override set values", async () => {
