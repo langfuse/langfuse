@@ -39,6 +39,7 @@ export const observationRecordBaseSchema = z.object({
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   prompt_version: z.number().nullish(),
+  is_deleted: z.number(),
 });
 export type ObservationRecordBaseType = z.infer<
   typeof observationRecordBaseSchema
@@ -84,6 +85,7 @@ export const traceRecordBaseSchema = z.object({
   input: z.string().nullish(),
   output: z.string().nullish(),
   session_id: z.string().nullish(),
+  is_deleted: z.number(),
 });
 export type TraceRecordBaseType = z.infer<typeof traceRecordBaseSchema>;
 
@@ -116,6 +118,7 @@ export const scoreRecordBaseSchema = z.object({
   config_id: z.string().nullish(),
   data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
   string_value: z.string().nullish(),
+  is_deleted: z.number(),
 });
 export type ScoreRecordBaseType = z.infer<typeof scoreRecordBaseSchema>;
 
