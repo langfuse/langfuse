@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Lock } from "lucide-react";
+import { Lock, Plus } from "lucide-react";
 import EvalConfigTable from "@/src/ee/features/evals/components/eval-config-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
@@ -32,14 +32,19 @@ export default function ConfigsPage() {
             disabled={!hasWriteAccess}
             onClick={() => capture("eval_config:new_form_open")}
             asChild
+            variant="secondary"
           >
             <Link
               href={
                 hasWriteAccess ? `/project/${projectId}/evals/configs/new` : "#"
               }
             >
-              {!hasWriteAccess && <Lock size={16} className="mr-2" />}
-              Add eval config
+              {hasWriteAccess ? (
+                <Plus className="mr-2 h-4 w-4" />
+              ) : (
+                <Lock className="mr-2 h-4 w-4" />
+              )}
+              New config
             </Link>
           </Button>
         }
