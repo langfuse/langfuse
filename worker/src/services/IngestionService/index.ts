@@ -243,9 +243,6 @@ export class IngestionService {
       observationRecords,
       clickhouseObservationRecord,
     });
-
-    logger.info(`Final observation: ${JSON.stringify(finalObservationRecord)}`);
-
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
       const traceId = randomUUID();
