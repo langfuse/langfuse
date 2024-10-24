@@ -536,7 +536,7 @@ export class IngestionService {
     const finalCostEntries: [string, number][] = [];
 
     for (const [key, units] of Object.entries(usageUnits)) {
-      const price = modelPrices?.find((price) => price.itemName === key);
+      const price = modelPrices?.find((price) => price.usageType === key);
 
       if (units != null && price) {
         finalCostEntries.push([key, price.price.mul(units).toNumber()]);

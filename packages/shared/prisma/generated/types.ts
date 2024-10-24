@@ -407,7 +407,7 @@ export type Price = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     model_id: string;
-    item_name: string;
+    usage_type: string;
     price: string;
 };
 export type Project = {

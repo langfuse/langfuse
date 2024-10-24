@@ -53,18 +53,18 @@ describe("Token Cost Calculation", () => {
     },
   };
 
-  const modelPrices: Pick<Price, "price" | "itemName">[] = [
+  const modelPrices: Pick<Price, "price" | "usageType">[] = [
     {
       price: new Decimal(0.01),
-      itemName: "input",
+      usageType: "input",
     },
     {
       price: new Decimal(0.02),
-      itemName: "output",
+      usageType: "output",
     },
     {
       price: new Decimal(0.03),
-      itemName: "total",
+      usageType: "total",
     },
   ];
 
@@ -77,7 +77,7 @@ describe("Token Cost Calculation", () => {
       prisma.price.createMany({
         data: modelPrices.map((price) => ({
           modelId,
-          itemName: price.itemName,
+          usageType: price.usageType,
           price: price.price,
         })),
       }),

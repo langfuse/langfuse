@@ -132,14 +132,14 @@ export const upsertDefaultModelPrices = async (force = false) => {
                 },
               });
 
-              for (const [itemName, price] of Object.entries(
+              for (const [usageType, price] of Object.entries(
                 defaultModelPrice.prices
               )) {
                 await tx.price.upsert({
                   where: {
-                    modelId_itemName: {
+                    modelId_usageType: {
                       modelId: defaultModelPrice.id,
-                      itemName,
+                      usageType,
                     },
                   },
                   update: {
@@ -148,7 +148,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
                   },
                   create: {
                     modelId: defaultModelPrice.id,
-                    itemName,
+                    usageType,
                     price,
                     createdAt: defaultModelPrice.created_at,
                     updatedAt: defaultModelPrice.updated_at,
