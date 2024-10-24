@@ -143,6 +143,17 @@ export type AuditLog = {
     before: string | null;
     after: string | null;
 };
+export type BackgroundMigration = {
+    id: string;
+    name: string;
+    script: string;
+    args: unknown;
+    finished_at: Timestamp | null;
+    failed_at: Timestamp | null;
+    failed_reason: string | null;
+    worker_id: string | null;
+    locked_at: Timestamp | null;
+};
 export type BatchExport = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -546,6 +557,7 @@ export type DB = {
     annotation_queues: AnnotationQueue;
     api_keys: ApiKey;
     audit_logs: AuditLog;
+    background_migrations: BackgroundMigration;
     batch_exports: BatchExport;
     comments: Comment;
     cron_jobs: CronJobs;
