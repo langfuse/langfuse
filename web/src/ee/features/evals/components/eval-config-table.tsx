@@ -1,5 +1,6 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -7,6 +8,7 @@ import { InlineFilterState } from "@/src/features/filters/components/filter-buil
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
+import { type ReactNode } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { z } from "zod";
 
@@ -19,7 +21,13 @@ export type EvalConfigRow = {
   filter: FilterState;
 };
 
-export default function EvalConfigTable({ projectId }: { projectId: string }) {
+export default function EvalConfigTable({
+  projectId,
+  menuItems,
+}: {
+  projectId: string;
+  menuItems?: ReactNode;
+}) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -106,30 +114,33 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
   };
 
   return (
-    <DataTable
-      columns={columns}
-      data={
-        templates.isLoading
-          ? { isLoading: true, isError: false }
-          : templates.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: templates.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: templates.data.configs.map((t) => convertToTableRow(t)),
-              }
-      }
-      pagination={{
-        totalCount,
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-      columnVisibility={columnVisibility}
-      onColumnVisibilityChange={setColumnVisibility}
-    />
+    <>
+      <DataTableToolbar columns={columns} actionButtons={menuItems} />
+      <DataTable
+        columns={columns}
+        data={
+          templates.isLoading
+            ? { isLoading: true, isError: false }
+            : templates.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: templates.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: templates.data.configs.map((t) => convertToTableRow(t)),
+                }
+        }
+        pagination={{
+          totalCount,
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+      />
+    </>
   );
 }
