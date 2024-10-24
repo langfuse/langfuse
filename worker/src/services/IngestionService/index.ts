@@ -141,6 +141,7 @@ export class IngestionService {
           created_at: Date.now(),
           updated_at: Date.now(),
           event_ts: new Date(scoreEvent.timestamp).getTime(),
+          is_deleted: 0,
         };
       });
 
@@ -243,7 +244,6 @@ export class IngestionService {
       observationRecords,
       clickhouseObservationRecord,
     });
-
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
       const traceId = randomUUID();
@@ -258,6 +258,7 @@ export class IngestionService {
         bookmarked: false,
         public: false,
         event_ts: Date.now(),
+        is_deleted: 0,
       };
 
       this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
@@ -285,7 +286,12 @@ export class IngestionService {
       immutableEntityKeys[TableName.Scores]
     );
 
-    return scoreRecordInsertSchema.parse(mergedRecord);
+    const parsedRecord = scoreRecordInsertSchema.parse(mergedRecord);
+    parsedRecord.event_ts = Math.max(
+      ...scoreRecords.map((r) => r.event_ts),
+      clickhouseScoreRecord?.event_ts ?? -Infinity
+    );
+    return parsedRecord;
   }
 
   private async mergeTraceRecords(params: {
@@ -303,7 +309,12 @@ export class IngestionService {
       immutableEntityKeys[TableName.Traces]
     );
 
-    return traceRecordInsertSchema.parse(mergedRecord);
+    const parsedRecord = traceRecordInsertSchema.parse(mergedRecord);
+    parsedRecord.event_ts = Math.max(
+      ...traceRecords.map((r) => r.event_ts),
+      clickhouseTraceRecord?.event_ts ?? -Infinity
+    );
+    return parsedRecord;
   }
 
   private async mergeObservationRecords(params: {
@@ -339,7 +350,14 @@ export class IngestionService {
       observationRecord: parsedObservationRecord,
     });
 
-    return { ...parsedObservationRecord, ...generationUsage };
+    return {
+      ...parsedObservationRecord,
+      ...generationUsage,
+      event_ts: Math.max(
+        ...observationRecords.map((r) => r.event_ts),
+        clickhouseObservationRecord?.event_ts ?? -Infinity
+      ),
+    };
   }
 
   private mergeRecords<T extends InsertRecord>(
@@ -645,6 +663,7 @@ export class IngestionService {
         created_at: Date.now(),
         updated_at: Date.now(),
         event_ts: new Date(trace.timestamp).getTime(),
+        is_deleted: 0,
       };
 
       return traceRecord;
@@ -762,6 +781,7 @@ export class IngestionService {
         created_at: Date.now(),
         updated_at: Date.now(),
         event_ts: new Date(obs.timestamp).getTime(),
+        is_deleted: 0,
       };
 
       return observationRecord;
