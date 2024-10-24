@@ -19,7 +19,10 @@
     "test:e2e": "dotenv -e ../.env -- playwright test",
     "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --testPathPattern='__e2e__'",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
-    "generationCost:backfill": "dotenv -e ../.env -- tsx scripts/observations-backfill-calculated-cost.ts"
+    "generationCost:backfill": "dotenv -e ../.env -- tsx scripts/observations-backfill-calculated-cost.ts",
+    "clickhouseMigration:traces": "dotenv -e ../.env -- tsx scripts/migration-traces-postgres-to-clickhouse.ts",
+    "clickhouseMigration:observations": "dotenv -e ../.env -- tsx scripts/migration-observations-postgres-to-clickhouse.ts",
+    "clickhouseMigration:scores": "dotenv -e ../.env -- tsx scripts/migration-scores-postgres-to-clickhouse.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
