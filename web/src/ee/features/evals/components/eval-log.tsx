@@ -9,6 +9,7 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
+import { type ReactNode } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type JobExecutionRow = {
@@ -27,9 +28,11 @@ export type JobExecutionRow = {
 export default function EvalLogTable({
   projectId,
   jobConfigurationId,
+  menuItems,
 }: {
   projectId: string;
   jobConfigurationId?: string;
+  menuItems?: ReactNode;
 }) {
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("evalLogs", "s");
   const [paginationState, setPaginationState] = useQueryParams({
@@ -188,6 +191,7 @@ export default function EvalLogTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={menuItems}
       />
       <DataTable
         columns={columns}

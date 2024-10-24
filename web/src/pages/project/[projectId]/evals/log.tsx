@@ -7,6 +7,8 @@ import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import Link from "next/link";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -21,7 +23,26 @@ export default function TemplatesPage() {
           href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
       />
-      <EvalLogTable projectId={projectId} />
+      <EvalLogTable
+        projectId={projectId}
+        menuItems={
+          <Tabs value="log">
+            <TabsList>
+              <TabsTrigger value="configs" asChild>
+                <Link href={`/project/${projectId}/evals/configs`}>
+                  Configs
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="templates" asChild>
+                <Link href={`/project/${projectId}/evals/templates`}>
+                  Templates
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="log">Log</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
     </FullScreenPage>
   );
 }

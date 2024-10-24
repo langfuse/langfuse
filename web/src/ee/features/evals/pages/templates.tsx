@@ -6,6 +6,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Lock } from "lucide-react";
 import EvalsTemplateTable from "@/src/ee/features/evals/components/eval-templates-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -44,7 +45,24 @@ export default function TemplatesPage() {
           </Button>
         }
       />
-      <EvalsTemplateTable projectId={projectId} />
+      <EvalsTemplateTable
+        projectId={projectId}
+        menuItems={
+          <Tabs value="templates">
+            <TabsList>
+              <TabsTrigger value="configs" asChild>
+                <Link href={`/project/${projectId}/evals/configs`}>
+                  Configs
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="templates">Templates</TabsTrigger>
+              <TabsTrigger value="log" asChild>
+                <Link href={`/project/${projectId}/evals/log`}>Log</Link>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
     </div>
   );
 }

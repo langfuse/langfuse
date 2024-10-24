@@ -7,6 +7,7 @@ import { Lock } from "lucide-react";
 import EvalConfigTable from "@/src/ee/features/evals/components/eval-config-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 export default function ConfigsPage() {
   const router = useRouter();
@@ -43,7 +44,24 @@ export default function ConfigsPage() {
           </Button>
         }
       />
-      <EvalConfigTable projectId={projectId} />
+      <EvalConfigTable
+        projectId={projectId}
+        menuItems={
+          <Tabs value="configs">
+            <TabsList>
+              <TabsTrigger value="configs">Configs</TabsTrigger>
+              <TabsTrigger value="templates" asChild>
+                <Link href={`/project/${projectId}/evals/templates`}>
+                  Templates
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="log" asChild>
+                <Link href={`/project/${projectId}/evals/log`}>Log</Link>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
     </FullScreenPage>
   );
 }
