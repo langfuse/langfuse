@@ -36,7 +36,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   }
   if (cron.lastRun.getTime() % 3600000 !== 0) {
     throw new Error(
-      "Cloud Usage Metering Cron Job last run is not on the full hour",
+      "Cloud Usage Metering Cron Job last run is not on the full hour"
     );
   }
   if (cron.lastRun.getTime() + delayFromStartOfInterval > Date.now()) {
@@ -50,7 +50,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       cron.jobStartedAt < new Date(Date.now() - 1200000)
     ) {
       logger.warn(
-        "Last cloud usage metering job started at is older than 20 minutes, retrying job",
+        "Last cloud usage metering job started at is older than 20 minutes, retrying job"
       );
     } else {
       logger.warn("Cloud Usage Metering Job already in progress");
@@ -70,7 +70,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   const meterIntervalStart = cron.lastRun;
   const meterIntervalEnd = new Date(cron.lastRun.getTime() + 3600000);
   logger.info(
-    `Cloud Usage Metering Job running for interval ${meterIntervalStart.toISOString()} - ${meterIntervalEnd.toISOString()}`,
+    `Cloud Usage Metering Job running for interval ${meterIntervalStart.toISOString()} - ${meterIntervalEnd.toISOString()}`
   );
 
   // find all organizations which have a stripe org id set up
@@ -85,7 +85,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     })
   ).map(parseDbOrg);
   logger.info(
-    `Cloud Usage Metering Job for ${organizations.length} organizations`,
+    `Cloud Usage Metering Job for ${organizations.length} organizations`
   );
 
   // setup stripe client
@@ -94,6 +94,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   // for each org, calculate the meter and push to stripe
   let countProcessedOrgs = 0;
   let countProcessedObservations = 0;
+  let countProcessedEvents = 0;
   for (const org of organizations) {
     // update progress to prevent job from being stalled
     job.updateProgress(countProcessedOrgs / organizations.length);
@@ -106,6 +107,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       continue;
     }
 
+    // Observations (legacy)
     const countObservations = await prisma.observation.count({
       where: {
         project: {
@@ -118,9 +120,8 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       },
     });
     logger.info(
-      `Cloud Usage Metering Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
+      `Cloud Usage Metering Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`
     );
-
     if (countObservations > 0) {
       await stripe.billing.meterEvents.create({
         event_name: "tracing_observations",
@@ -132,8 +133,47 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       });
     }
 
+    // Events
+    const countScores = await prisma.score.count({
+      where: {
+        project: {
+          orgId: org.id,
+        },
+        createdAt: {
+          gte: meterIntervalStart,
+          lt: meterIntervalEnd,
+        },
+      },
+    });
+    const countTraces = await prisma.trace.count({
+      where: {
+        project: {
+          orgId: org.id,
+        },
+        createdAt: {
+          gte: meterIntervalStart,
+          lt: meterIntervalEnd,
+        },
+      },
+    });
+    const countEvents = countScores + countTraces + countObservations;
+    logger.info(
+      `Cloud Usage Metering Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countEvents} events`
+    );
+    if (countEvents > 0) {
+      await stripe.billing.meterEvents.create({
+        event_name: "tracing_events",
+        timestamp: meterIntervalEnd.getTime() / 1000,
+        payload: {
+          stripe_customer_id: stripeCustomerId,
+          value: countEvents.toString(), // value is a string in stripe
+        },
+      });
+    }
+
     countProcessedOrgs++;
     countProcessedObservations += countObservations;
+    countProcessedEvents += countEvents;
   }
 
   recordGauge("cloud_usage_metering_processed_orgs", countProcessedOrgs, {
@@ -144,8 +184,11 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     countProcessedObservations,
     {
       unit: "observations",
-    },
+    }
   );
+  recordGauge("cloud_usage_metering_processed_events", countProcessedEvents, {
+    unit: "events",
+  });
 
   // update cron job
   await prisma.cronJobs.update({
@@ -164,7 +207,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     });
     await CloudUsageMeteringQueue.getInstance()?.add(
       QueueJobs.CloudUsageMeteringJob,
-      {},
+      {}
     );
   }
 };
