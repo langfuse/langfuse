@@ -38,6 +38,7 @@ const DefaultModelPriceSchema = z.object({
  */
 
 export const upsertDefaultModelPrices = async (force = false) => {
+  const startTime = Date.now();
   try {
     logger.debug(`Starting upsert of default model prices (force = ${force})`);
 
@@ -172,13 +173,17 @@ export const upsertDefaultModelPrices = async (force = false) => {
       }
 
       await Promise.all(promises);
-      logger.debug(`Completed batch ${i + 1} of ${numBatches}.`);
+      logger.debug(`Completed batch ${i + 1} of ${numBatches}`);
     }
 
-    logger.debug("Finished upserting default model prices.");
+    logger.info(
+      `Finished upserting default model prices in ${Date.now() - startTime}ms`
+    );
   } catch (error) {
     logger.error(
-      `Error upserting default model prices: ${error instanceof Error ? error.message : ""}`,
+      `Error upserting default model prices after ${Date.now() - startTime}ms: ${
+        error instanceof Error ? error.message : ""
+      }`,
       {
         error,
       }
