@@ -131,7 +131,7 @@ export const EvalConfigForm = (props: {
               </Button>
             </PopoverTrigger>
             <PopoverContent
-              className="max-h-[40vh] w-[--radix-popover-trigger-width] overflow-auto p-0"
+              className="w-[--radix-popover-trigger-width] overflow-auto p-0"
               align="start"
             >
               <Command>
@@ -194,7 +194,7 @@ export const EvalConfigForm = (props: {
               </Button>
             </PopoverTrigger>
             <PopoverContent
-              className="max-h-[40vh] w-[--radix-popover-trigger-width] overflow-auto p-0"
+              className="w-[--radix-popover-trigger-width] overflow-auto p-0"
               align="start"
             >
               <Command>
