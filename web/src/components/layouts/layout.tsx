@@ -312,7 +312,7 @@ export default function Layout(props: PropsWithChildren) {
               },
             }}
           />
-          <SidebarInset className="max-w-full overflow-x-hidden">
+          <SidebarInset className="max-w-full">
             <main>{props.children}</main>
             <Toaster visibleToasts={1} />
           </SidebarInset>

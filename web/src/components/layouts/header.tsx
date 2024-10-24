@@ -55,11 +55,18 @@ export default function Header({
   actionButtons?: React.ReactNode;
   level?: "h2" | "h3";
   className?: string;
+  tabs?: {
+    title: string;
+    href: string;
+    isActive: boolean;
+  }[];
 }) {
   return (
     <div
       className={cn(
-        level === "h2" ? "mb-2 border-b p-3" : "mb-2",
+        level === "h2"
+          ? "sticky top-0 z-10 mb-2 border-b bg-background p-3"
+          : "mb-2",
         props.className,
       )}
     >
