@@ -44,6 +44,7 @@ export const EvalTemplateForm = (props: {
   onFormSuccess?: () => void;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
+  preventRedirect?: boolean;
 }) => {
   const [langfuseTemplate, setLangfuseTemplate] = useState<string | null>(null);
 
@@ -182,6 +183,7 @@ export const InnerEvalTemplateForm = (props: {
   onFormSuccess?: () => void;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
+  preventRedirect?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
@@ -305,6 +307,9 @@ export const InnerEvalTemplateForm = (props: {
         props.onFormSuccess?.();
         form.reset();
         props.setIsEditing?.(false);
+        if (props.preventRedirect) {
+          return;
+        }
         void router.push(
           `/project/${props.projectId}/evals/templates/${res.id}`,
         );
