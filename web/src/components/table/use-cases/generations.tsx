@@ -55,6 +55,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { ChevronDownIcon, Loader } from "lucide-react";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type GenerationsTableRow = {
   id: string;
@@ -187,6 +188,7 @@ export default function GenerationsTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
+    queryClickhouse: useClickhouse(),
   };
 
   const generations = api.generations.all.useQuery(getAllPayload);
