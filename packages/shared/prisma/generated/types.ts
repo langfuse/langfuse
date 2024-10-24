@@ -304,7 +304,7 @@ export type Model = {
     input_price: string | null;
     output_price: string | null;
     total_price: string | null;
-    unit: string;
+    unit: string | null;
     tokenizer_id: string | null;
     tokenizer_config: unknown | null;
 };
@@ -401,6 +401,14 @@ export type PosthogIntegration = {
     last_sync_at: Timestamp | null;
     enabled: boolean;
     created_at: Generated<Timestamp>;
+};
+export type Price = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    model_id: string;
+    usage_type: string;
+    price: string;
 };
 export type Project = {
     id: string;
@@ -565,6 +573,7 @@ export type DB = {
     organization_memberships: OrganizationMembership;
     organizations: Organization;
     posthog_integrations: PosthogIntegration;
+    prices: Price;
     project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;
