@@ -122,19 +122,22 @@ export class BackgroundMigrationManager {
         try {
           await migration.run(args);
 
-          await prisma.backgroundMigration.update({
-            where: {
-              id: BackgroundMigrationManager.activeMigration.id,
-              workerId: BackgroundMigrationManager.workerId,
-            },
-            data: {
-              finishedAt: new Date(),
-              lockedAt: null,
-            },
-          });
-          logger.info(
-            `Finished background migration ${BackgroundMigrationManager.activeMigration.name}`,
-          );
+          if (BackgroundMigrationManager.activeMigration !== undefined) {
+            // Only mark as complete if still active. Otherwise, it was aborted.
+            await prisma.backgroundMigration.update({
+              where: {
+                id: BackgroundMigrationManager.activeMigration.id,
+                workerId: BackgroundMigrationManager.workerId,
+              },
+              data: {
+                finishedAt: new Date(),
+                lockedAt: null,
+              },
+            });
+            logger.info(
+              `Finished background migration ${BackgroundMigrationManager.activeMigration.name}`,
+            );
+          }
         } catch (err) {
           logger.error(
             `Failed to run background migration ${BackgroundMigrationManager.activeMigration.name}: ${err}`,
@@ -169,6 +172,7 @@ export class BackgroundMigrationManager {
           lockedAt: null,
         },
       });
+      BackgroundMigrationManager.activeMigration = undefined;
     }
   }
 }

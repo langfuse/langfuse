@@ -6,6 +6,15 @@ They are used to fill new optional columns, migrate data between tables or syste
 that would take too long to run in a standard migration.
 A good threshold is something that takes more than 5 minutes to run or is not an atomic operation.
 
+You can execute a background migration locally using
+```bash
+$ cd worker
+$ dotenv -e ../.env -- npx ts-node src/backgroundMigrations/<script-name>.ts
+
+# Example
+$ dotenv -e ../.env -- npx ts-node src/backgroundMigrations/addGenerationsCostBackfill.ts
+```
+
 ## Requirements
 
 - The background migration must be recoverable at all times, i.e. it can be interrupted and must be resumed at any stage of the operation.
