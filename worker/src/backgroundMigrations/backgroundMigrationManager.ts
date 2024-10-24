@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { instrumentAsync, logger } from "@langfuse/shared/src/server";
 
 export class BackgroundMigrationManager {
   private static workerId = randomUUID();
@@ -36,119 +36,122 @@ export class BackgroundMigrationManager {
   }
 
   public static async run(): Promise<void> {
-    let migrationToRun = true;
+    await instrumentAsync({ name: "background-migration-run" }, async () => {
+      let migrationToRun = true;
 
-    while (migrationToRun) {
-      await prisma.$transaction(
-        async (tx) => {
-          // Read background migrations from database
-          const migration = await tx.backgroundMigration.findFirst({
-            where: {
-              finishedAt: null,
-              failedAt: null,
-            },
-            orderBy: { name: "asc" },
-          });
+      while (migrationToRun) {
+        await prisma.$transaction(
+          async (tx) => {
+            // Read background migrations from database
+            const migration = await tx.backgroundMigration.findFirst({
+              where: {
+                finishedAt: null,
+                failedAt: null,
+              },
+              orderBy: { name: "asc" },
+            });
 
-          // Abort if there is no migration to run or migration was locked less than 60s ago
-          // We do not check lockedAt in the DB query, because findFirst might return other uncompleted migrations
-          // which would lead to concurrent execution.
-          if (
-            !migration ||
-            (migration.lockedAt &&
-              migration.lockedAt > new Date(Date.now() - 60 * 1000))
-          ) {
-            logger.info("No background migrations to run");
-            migrationToRun = false;
-            return;
-          }
+            // Abort if there is no migration to run or migration was locked less than 60s ago
+            // We do not check lockedAt in the DB query, because findFirst might return other uncompleted migrations
+            // which would lead to concurrent execution.
+            if (
+              !migration ||
+              (migration.lockedAt &&
+                migration.lockedAt > new Date(Date.now() - 60 * 1000))
+            ) {
+              logger.info("No background migrations to run");
+              migrationToRun = false;
+              return;
+            }
 
-          logger.info(`Found background migrations ${migration.name} to run`);
+            logger.info(`Found background migrations ${migration.name} to run`);
 
-          // Acquire lock
-          await tx.backgroundMigration.update({
-            where: {
+            // Acquire lock
+            await tx.backgroundMigration.update({
+              where: {
+                id: migration.id,
+              },
+              data: {
+                workerId: BackgroundMigrationManager.workerId,
+                lockedAt: new Date(),
+              },
+            });
+            logger.info(
+              `Acquired lock for background migration ${migration.name}`,
+            );
+            BackgroundMigrationManager.activeMigration = {
               id: migration.id,
+              name: migration.name,
+              args: migration.args as any,
+              migration: new (require(`./${migration.script}`).default)(),
+            };
+          },
+          {
+            maxWait: 5000,
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          },
+        );
+
+        if (!BackgroundMigrationManager.activeMigration) {
+          continue;
+        }
+
+        // Initiate heartbeats every couple seconds
+        await BackgroundMigrationManager.heartBeat();
+
+        const { migration, args } = BackgroundMigrationManager.activeMigration;
+        const { valid, invalidReason } = await migration.validate(args);
+        if (!valid) {
+          logger.error(
+            `Validation failed for background migration ${BackgroundMigrationManager.activeMigration.name}: ${invalidReason}`,
+          );
+          await prisma.backgroundMigration.update({
+            where: {
+              id: BackgroundMigrationManager.activeMigration.id,
+              workerId: BackgroundMigrationManager.workerId,
             },
             data: {
-              workerId: BackgroundMigrationManager.workerId,
-              lockedAt: new Date(),
+              lockedAt: null,
+              failedAt: new Date(),
+              failedReason: invalidReason,
             },
           });
-          logger.info(
-            `Acquired lock for background migration ${migration.name}`,
+          continue;
+        }
+
+        try {
+          await migration.run(args);
+
+          await prisma.backgroundMigration.update({
+            where: {
+              id: BackgroundMigrationManager.activeMigration.id,
+              workerId: BackgroundMigrationManager.workerId,
+            },
+            data: {
+              finishedAt: new Date(),
+              lockedAt: null,
+            },
+          });
+        } catch (err) {
+          logger.error(
+            `Failed to run background migration ${BackgroundMigrationManager.activeMigration.name}: ${err}`,
           );
-          BackgroundMigrationManager.activeMigration = {
-            id: migration.id,
-            name: migration.name,
-            args: migration.args as any,
-            migration: new (require(`./${migration.script}`).default)(),
-          };
-        },
-        {
-          maxWait: 5000,
-          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-        },
-      );
-
-      if (!BackgroundMigrationManager.activeMigration) {
-        continue;
+          await prisma.backgroundMigration.update({
+            where: {
+              id: BackgroundMigrationManager.activeMigration.id,
+              workerId: BackgroundMigrationManager.workerId,
+            },
+            data: {
+              lockedAt: null,
+              failedAt: new Date(),
+              failedReason:
+                err instanceof Error ? err.message : "Unknown error",
+            },
+          });
+        }
+        BackgroundMigrationManager.activeMigration = undefined;
       }
-
-      // Initiate heartbeats every couple seconds
-      await BackgroundMigrationManager.heartBeat();
-
-      const { migration, args } = BackgroundMigrationManager.activeMigration;
-      const { valid, invalidReason } = await migration.validate(args);
-      if (!valid) {
-        logger.error(
-          `Validation failed for background migration ${BackgroundMigrationManager.activeMigration.name}: ${invalidReason}`,
-        );
-        await prisma.backgroundMigration.update({
-          where: {
-            id: BackgroundMigrationManager.activeMigration.id,
-            workerId: BackgroundMigrationManager.workerId,
-          },
-          data: {
-            lockedAt: null,
-            failedAt: new Date(),
-            failedReason: invalidReason,
-          },
-        });
-        continue;
-      }
-
-      try {
-        await migration.run(args);
-
-        await prisma.backgroundMigration.update({
-          where: {
-            id: BackgroundMigrationManager.activeMigration.id,
-            workerId: BackgroundMigrationManager.workerId,
-          },
-          data: {
-            finishedAt: new Date(),
-            lockedAt: null,
-          },
-        });
-      } catch (err) {
-        logger.error(
-          `Failed to run background migration ${BackgroundMigrationManager.activeMigration.name}: ${err}`,
-        );
-        await prisma.backgroundMigration.update({
-          where: {
-            id: BackgroundMigrationManager.activeMigration.id,
-            workerId: BackgroundMigrationManager.workerId,
-          },
-          data: {
-            lockedAt: null,
-            failedAt: new Date(),
-            failedReason: err instanceof Error ? err.message : "Unknown error",
-          },
-        });
-      }
-      BackgroundMigrationManager.activeMigration = undefined;
-    }
+    });
   }
 
   public static async close(): Promise<void> {
