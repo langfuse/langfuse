@@ -202,6 +202,7 @@ export const EvalConfigForm = (props: {
                   <CommandEmpty>No version found.</CommandEmpty>
                   <CommandGroup>
                     {selectedTemplateName &&
+                    templatesByName[selectedTemplateName] ? (
                       templatesByName[selectedTemplateName].map((template) => (
                         <CommandItem
                           key={template.id}
@@ -220,7 +221,10 @@ export const EvalConfigForm = (props: {
                             )}
                           />
                         </CommandItem>
-                      ))}
+                      ))
+                    ) : (
+                      <CommandItem disabled>No versions available</CommandItem>
+                    )}
                   </CommandGroup>
                 </CommandList>
               </Command>
