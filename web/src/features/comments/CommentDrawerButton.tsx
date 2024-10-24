@@ -20,12 +20,14 @@ export function CommentDrawerButton({
   objectType,
   count,
   variant = "secondary",
+  className,
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
   count?: number;
   variant?: "secondary" | "outline";
+  className?: string;
 }) {
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -38,7 +40,7 @@ export function CommentDrawerButton({
 
   if (!hasReadAccess || (!hasWriteAccess && !count))
     return (
-      <Button type="button" variant="secondary" disabled>
+      <Button type="button" variant="secondary" className={className} disabled>
         <MessageCircleOff className="h-4 w-4 text-muted-foreground" />
       </Button>
     );
@@ -46,7 +48,12 @@ export function CommentDrawerButton({
   return (
     <Drawer>
       <DrawerTrigger asChild>
-        <Button type="button" variant={variant} size="icon">
+        <Button
+          type="button"
+          variant={variant}
+          size="icon"
+          className={className}
+        >
           {!!count ? (
             <CommentCountIcon count={count} />
           ) : (
