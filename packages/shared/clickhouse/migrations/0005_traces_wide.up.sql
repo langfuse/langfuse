@@ -51,8 +51,9 @@ CREATE TABLE traces_wide
     trace_bookmarked Bool,
     trace_tags Array(String),
     trace_session_id Nullable(String),
-    trace_event_ts DateTime64(3)
-) ENGINE = ReplacingMergeTree Partition by toYYYYMM(start_time)
+    trace_event_ts DateTime64(3),
+    is_deleted UInt8
+) ENGINE = ReplacingMergeTree(event_ts, is_deleted) Partition by toYYYYMM(start_time)
 PRIMARY KEY (
         project_id,
         `type`,
