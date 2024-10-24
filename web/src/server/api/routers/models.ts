@@ -132,19 +132,42 @@ export const modelRouter = createTRPCRouter({
         });
       }
 
-      const createdModel = await ctx.prisma.model.create({
-        data: {
-          projectId: input.projectId,
-          modelName: input.modelName,
-          matchPattern: input.matchPattern,
-          startDate: input.startDate,
-          inputPrice: input.inputPrice,
-          outputPrice: input.outputPrice,
-          totalPrice: input.totalPrice,
-          unit: input.unit,
-          tokenizerId: input.tokenizerId,
-          tokenizerConfig: input.tokenizerConfig,
-        },
+      const createdModel = await ctx.prisma.$transaction(async (tx) => {
+        const createdModel = await tx.model.create({
+          data: {
+            projectId: input.projectId,
+            modelName: input.modelName,
+            matchPattern: input.matchPattern,
+            startDate: input.startDate,
+            inputPrice: input.inputPrice,
+            outputPrice: input.outputPrice,
+            totalPrice: input.totalPrice,
+            unit: input.unit,
+            tokenizerId: input.tokenizerId,
+            tokenizerConfig: input.tokenizerConfig,
+          },
+        });
+
+        // Populate prices table
+        const prices = [
+          { usageType: "input", price: input.inputPrice },
+          { usageType: "output", price: input.outputPrice },
+          { usageType: "total", price: input.totalPrice },
+        ];
+
+        for (const { usageType, price } of prices) {
+          if (price != null) {
+            await tx.price.create({
+              data: {
+                modelId: createdModel.id,
+                usageType,
+                price,
+              },
+            });
+          }
+        }
+
+        return createdModel;
       });
 
       await auditLog({
