@@ -108,7 +108,10 @@ export function PopoverFilterBuilder({
             <Filter className="h-4 w-4" />
             <span className="hidden @6xl:ml-2 @6xl:inline">Filter</span>
             {filterState.length > 0 && filterState.length < 3 ? (
-              <InlineFilterState filterState={filterState} className="hidden" />
+              <InlineFilterState
+                filterState={filterState}
+                className="hidden @6xl:block"
+              />
             ) : null}
             {filterState.length > 0 && (
               <span
@@ -160,7 +163,7 @@ export function InlineFilterState({
       <span
         key={i}
         className={cn(
-          "ml-2 whitespace-nowrap rounded-md bg-input px-2 py-1 text-xs @6xl:block",
+          "ml-2 whitespace-nowrap rounded-md bg-input px-2 py-1 text-xs",
           className,
         )}
       >
