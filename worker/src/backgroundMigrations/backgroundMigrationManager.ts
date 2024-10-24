@@ -132,6 +132,9 @@ export class BackgroundMigrationManager {
               lockedAt: null,
             },
           });
+          logger.info(
+            `Finished background migration ${BackgroundMigrationManager.activeMigration.name}`,
+          );
         } catch (err) {
           logger.error(
             `Failed to run background migration ${BackgroundMigrationManager.activeMigration.name}: ${err}`,
