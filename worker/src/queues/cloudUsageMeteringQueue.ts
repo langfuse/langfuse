@@ -51,13 +51,13 @@ export class CloudUsageMeteringQueue {
         {},
         {
           repeat: { pattern: "5 * * * *" },
-        },
+        }
       );
 
       CloudUsageMeteringQueue.instance.add(
         QueueJobs.CloudUsageMeteringJob,
         {},
-        {},
+        {}
       );
     }
 

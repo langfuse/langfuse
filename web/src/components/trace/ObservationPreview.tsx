@@ -32,6 +32,7 @@ import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queue
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 export const ObservationPreview = ({
   observations,
@@ -60,6 +61,8 @@ export const ObservationPreview = ({
     string[]
   >("emptySelectedConfigIds", []);
   const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
 
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: currentObservationId,
@@ -120,12 +123,14 @@ export const ObservationPreview = ({
               >
                 Preview
               </TabsTrigger>
-              <TabsTrigger
-                value="scores"
-                className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-              >
-                Scores
-              </TabsTrigger>
+              {isAuthenticatedAndProjectMember && (
+                <TabsTrigger
+                  value="scores"
+                  className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+                >
+                  Scores
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
         </div>

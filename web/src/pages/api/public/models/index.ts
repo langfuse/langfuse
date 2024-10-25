@@ -78,13 +78,39 @@ export default withMiddlewares({
         );
       }
       const { tokenizerConfig, ...rest } = body;
-      const model = await prisma.model.create({
-        data: {
-          ...rest,
-          tokenizerConfig: tokenizerConfig ?? undefined,
-          projectId: auth.scope.projectId,
-        },
+
+      const model = await prisma.$transaction(async (tx) => {
+        const createdModel = await tx.model.create({
+          data: {
+            ...rest,
+            tokenizerConfig: tokenizerConfig ?? undefined,
+            projectId: auth.scope.projectId,
+          },
+        });
+
+        const prices = [
+          { usageType: "input", price: body.inputPrice },
+          { usageType: "output", price: body.outputPrice },
+          { usageType: "total", price: body.totalPrice },
+        ];
+
+        await Promise.all(
+          prices
+            .filter(({ price }) => price != null)
+            .map(({ usageType, price }) =>
+              tx.price.create({
+                data: {
+                  modelId: createdModel.id,
+                  usageType,
+                  price: price as number, // type guard checked in array filter
+                },
+              }),
+            ),
+        );
+
+        return createdModel;
       });
+
       return prismaToApiModelDefinition(model);
     },
   }),

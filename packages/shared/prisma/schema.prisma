@@ -753,13 +753,28 @@ model Model {
     inputPrice      Decimal?  @map("input_price")
     outputPrice     Decimal?  @map("output_price")
     totalPrice      Decimal?  @map("total_price")
-    unit            String // TOKENS, CHARACTERS, MILLISECONDS, SECONDS, REQUESTS, or IMAGES
+    unit            String? // TOKENS, CHARACTERS, MILLISECONDS, SECONDS, REQUESTS, or IMAGES
     tokenizerId     String?   @map("tokenizer_id")
     tokenizerConfig Json?     @map("tokenizer_config")
+    Price           Price[]
 
     @@unique([projectId, modelName, startDate, unit])
     @@index(modelName)
     @@map("models")
+}
+
+model Price {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+    modelId   String   @map("model_id") // Model is already linked to project (or default), so we don't need projectId here
+    Model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+    usageType String   @map("usage_type")
+    price     Decimal
+
+    @@unique([modelId, usageType])
+    @@index(modelId)
+    @@map("prices")
 }
 
 // No FK constraints to preserve audit logs
