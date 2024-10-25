@@ -3,7 +3,7 @@ import { clickhouseClient, logger } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
-import { Trace } from "@prisma/client";
+import { Score } from "@prisma/client";
 
 async function addTemporaryColumnIfNotExists() {
   const columnExists = await prisma.$queryRaw<{ column_exists: boolean }[]>(
@@ -31,31 +31,6 @@ export default class MigrateScoresFromPostgresToClickhouse
 {
   private isAborted = false;
 
-  private mapToClickHouseRow = (row: any) => {
-    return {
-      id: row.id,
-      timestamp:
-        row.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      project_id: row.projectId,
-      trace_id: row.traceId,
-      observation_id: row.observationId || null,
-      name: row.name,
-      value: row.value ?? null,
-      source: row.source,
-      comment: row.comment || null,
-      author_user_id: row.authorUserId || null,
-      config_id: row.configId || null,
-      data_type: row.dataType,
-      string_value: row.stringValue || null,
-      created_at:
-        row.createdAt?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      updated_at:
-        row.updatedAt?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      event_ts:
-        row.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-    };
-  };
-
   async validate(
     args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
@@ -81,7 +56,7 @@ export default class MigrateScoresFromPostgresToClickhouse
 
     let processedRows = 0;
     while (!this.isAborted && processedRows < maxRowsToProcess) {
-      const scores = await prisma.$queryRaw<Array<Trace>>(Prisma.sql`
+      const scores = await prisma.$queryRaw<Array<Score>>(Prisma.sql`
         SELECT id, timestamp, project_id, trace_id, observation_id, name, value, source, comment, author_user_id, config_id, data_type, string_value, created_at, updated_at
         FROM scores
         WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
@@ -92,14 +67,24 @@ export default class MigrateScoresFromPostgresToClickhouse
         break;
       }
 
-      const clickhouseScores = scores.map(this.mapToClickHouseRow);
       await clickhouseClient.insert({
         table: "scores",
-        values: clickhouseScores,
+        values: scores.map((score) => ({
+          ...score,
+          timestamp:
+            score.timestamp?.toISOString().replace("T", " ").slice(0, -1) ??
+            null,
+          created_at:
+            score.createdAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            null,
+          updated_at:
+            score.updatedAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            null,
+        })),
         format: "JSONEachRow",
       });
 
-      logger.info(`Inserted ${clickhouseScores.length} scores into Clickhouse`);
+      logger.info(`Inserted ${scores.length} scores into Clickhouse`);
 
       await prisma.$executeRaw`
         UPDATE scores

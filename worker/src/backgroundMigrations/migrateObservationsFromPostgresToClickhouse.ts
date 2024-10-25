@@ -3,7 +3,7 @@ import { clickhouseClient, logger } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
-import { Trace } from "@prisma/client";
+import { Observation } from "@prisma/client";
 
 async function addTemporaryColumnIfNotExists() {
   const columnExists = await prisma.$queryRaw<{ column_exists: boolean }[]>(
@@ -88,7 +88,9 @@ export default class MigrateObservationsFromPostgresToClickhouse
 
     let processedRows = 0;
     while (!this.isAborted && processedRows < maxRowsToProcess) {
-      const observations = await prisma.$queryRaw<Array<Trace>>(Prisma.sql`
+      const observations = await prisma.$queryRaw<
+        Array<Observation>
+      >(Prisma.sql`
         SELECT id, trace_id, project_id, type, parent_observation_id, start_time, end_time, name, metadata, level, status_message, version, input, output, unit, prompt_id, input_cost, output_cost, total_cost, created_at, updated_at
         FROM observations
         WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
@@ -99,15 +101,34 @@ export default class MigrateObservationsFromPostgresToClickhouse
         break;
       }
 
-      const clickhouseObservations = observations.map(this.mapToClickHouseRow);
       await clickhouseClient.insert({
         table: "observations",
-        values: clickhouseObservations,
+        values: observations.map((observation) => ({
+          ...observation,
+          start_time:
+            observation.startTime
+              ?.toISOString()
+              .replace("T", " ")
+              .slice(0, -1) ?? null,
+          end_time:
+            observation.endTime?.toISOString().replace("T", " ").slice(0, -1) ??
+            null,
+          created_at:
+            observation.createdAt
+              ?.toISOString()
+              .replace("T", " ")
+              .slice(0, -1) ?? null,
+          updated_at:
+            observation.updatedAt
+              ?.toISOString()
+              .replace("T", " ")
+              .slice(0, -1) ?? null,
+        })),
         format: "JSONEachRow",
       });
 
       logger.info(
-        `Inserted ${clickhouseObservations.length} observations into Clickhouse`,
+        `Inserted ${observations.length} observations into Clickhouse`,
       );
 
       await prisma.$executeRaw`

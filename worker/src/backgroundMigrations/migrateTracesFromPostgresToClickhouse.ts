@@ -31,32 +31,6 @@ export default class MigrateTracesFromPostgresToClickhouse
 {
   private isAborted = false;
 
-  private mapToClickHouseRow = (row: any) => {
-    return {
-      id: row.id,
-      timestamp:
-        row.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      name: row.name,
-      user_id: row.userId || null,
-      metadata: row.metadata ?? {},
-      release: row.release || null,
-      version: row.version || null,
-      project_id: row.projectId,
-      public: row.public,
-      bookmarked: row.bookmarked,
-      tags: row.tags || [],
-      input: row.input ? JSON.stringify(row.input) : null,
-      output: row.output ? JSON.stringify(row.output) : null,
-      session_id: row.sessionId || null,
-      created_at:
-        row.createdAt?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      updated_at:
-        row.updatedAt?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      event_ts:
-        row.timestamp.toISOString().replace("T", " ").slice(0, -1) ?? null,
-    };
-  };
-
   async validate(
     args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
@@ -93,14 +67,24 @@ export default class MigrateTracesFromPostgresToClickhouse
         break;
       }
 
-      const clickhouseTraces = traces.map(this.mapToClickHouseRow);
       await clickhouseClient.insert({
         table: "traces",
-        values: clickhouseTraces,
+        values: traces.map((trace) => ({
+          ...trace,
+          timestamp:
+            trace.timestamp?.toISOString().replace("T", " ").slice(0, -1) ??
+            null,
+          created_at:
+            trace.createdAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            null,
+          updated_at:
+            trace.updatedAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            null,
+        })),
         format: "JSONEachRow",
       });
 
-      logger.info(`Inserted ${clickhouseTraces.length} traces into Clickhouse`);
+      logger.info(`Inserted ${traces.length} traces into Clickhouse`);
 
       await prisma.$executeRaw`
         UPDATE traces
