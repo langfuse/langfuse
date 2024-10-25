@@ -31,38 +31,6 @@ export default class MigrateObservationsFromPostgresToClickhouse
 {
   private isAborted = false;
 
-  private mapToClickHouseRow = (row: any) => {
-    return {
-      id: row.id,
-      trace_id: row.traceId || null,
-      project_id: row.projectId,
-      type: row.type,
-      parent_observation_id: row.parentObservationId || null,
-      start_time:
-        row.startTime?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      end_time:
-        row.endTime?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      name: row.name,
-      metadata: row.metadata ?? {},
-      level: row.level,
-      status_message: row.statusMessage || null,
-      version: row.version || null,
-      input: row.input ? JSON.stringify(row.input) : null,
-      output: row.output ? JSON.stringify(row.output) : null,
-      unit: row.unit || null,
-      prompt_id: row.promptId || null,
-      input_cost: row.inputCost || null,
-      output_cost: row.outputCost || null,
-      total_cost: row.totalCost || null,
-      created_at:
-        row.createdAt?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      updated_at:
-        row.updatedAt?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-      event_ts:
-        row.startTime?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-    };
-  };
-
   async validate(
     args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
