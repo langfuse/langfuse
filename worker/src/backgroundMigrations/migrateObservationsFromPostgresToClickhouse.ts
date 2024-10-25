@@ -43,10 +43,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
       end_time:
         row.endTime?.toISOString().replace("T", " ").slice(0, -1) ?? null,
       name: row.name,
-      metadata: Object.entries(row.metadata || {}).map(([key, value]) => [
-        key,
-        value?.toString() ?? "",
-      ]),
+      metadata: row.metadata ?? {},
       level: row.level,
       status_message: row.statusMessage || null,
       version: row.version || null,
@@ -103,43 +100,10 @@ export default class MigrateObservationsFromPostgresToClickhouse
       }
 
       const clickhouseObservations = observations.map(this.mapToClickHouseRow);
-      const insertQuery = `INSERT INTO observations (id, trace_id, project_id, type, parent_observation_id, start_time, end_time, name, metadata, level, status_message, version, input, output, unit, prompt_id, input_cost, output_cost, total_cost, created_at, updated_at, event_ts) VALUES `;
-
-      const values = clickhouseObservations
-        .map(
-          (row: any) => `(
-            '${row.id}',
-            ${row.trace_id ? `'${row.trace_id}'` : "NULL"},
-            '${row.project_id}',
-            '${row.type}',
-            ${row.parent_observation_id ? `'${row.parent_observation_id}'` : "NULL"},
-            ${row.start_time ? `'${row.start_time}'` : "NULL"},
-            ${row.end_time ? `'${row.end_time}'` : "NULL"},
-            '${row.name}',
-            ${row.metadata ? `map(${row.metadata.map(([k, v]: any) => `'${k}', '${v}'`).join(", ")})` : "map()"},
-            '${row.level}',
-            ${row.status_message ? `'${row.status_message}'` : "NULL"},
-            ${row.version ? `'${row.version}'` : "NULL"},
-            ${row.input ? `'${row.input.replace(/'/g, "\\'")}'` : "NULL"},
-            ${row.output ? `'${row.output.replace(/'/g, "\\'")}'` : "NULL"},
-            ${row.unit ? `'${row.unit}'` : "NULL"},
-            ${row.prompt_id ? `'${row.prompt_id}'` : "NULL"},
-            ${row.input_cost || "NULL"},
-            ${row.output_cost || "NULL"},
-            ${row.total_cost || "NULL"},
-            ${row.created_at ? `'${row.created_at}'` : "NULL"},
-            ${row.updated_at ? `'${row.updated_at}'` : "NULL"},
-            ${row.event_ts ? `'${row.event_ts}'` : "NULL"}
-          )`,
-        )
-        .join(",");
-
-      const query = insertQuery + values;
-      await clickhouseClient.command({
-        query,
-        clickhouse_settings: {
-          wait_end_of_query: 1,
-        },
+      await clickhouseClient.insert({
+        table: "observations",
+        values: clickhouseObservations,
+        format: "JSONEachRow",
       });
 
       logger.info(

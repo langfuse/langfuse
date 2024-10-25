@@ -93,37 +93,10 @@ export default class MigrateScoresFromPostgresToClickhouse
       }
 
       const clickhouseScores = scores.map(this.mapToClickHouseRow);
-      const insertQuery = `INSERT INTO scores (id, timestamp, project_id, trace_id, observation_id, name, value, source, comment, author_user_id, config_id, data_type, string_value, created_at, updated_at, event_ts) VALUES `;
-
-      const values = clickhouseScores
-        .map(
-          (row: any) => `(
-            '${row.id}',
-            ${row.timestamp ? `'${row.timestamp}'` : "NULL"},
-            '${row.project_id}',
-            '${row.trace_id}',
-            ${row.observation_id ? `'${row.observation_id}'` : "NULL"},
-            '${row.name}',
-            ${row.value !== null ? row.value : "NULL"},
-            '${row.source}',
-            ${row.comment ? `'${row.comment.replace(/'/g, "\\'")}'` : "NULL"},
-            ${row.author_user_id ? `'${row.author_user_id}'` : "NULL"},
-            ${row.config_id ? `'${row.config_id}'` : "NULL"},
-            '${row.data_type}',
-            ${row.string_value ? `'${row.string_value.replace(/'/g, "\\'")}'` : "NULL"},
-            ${row.created_at ? `'${row.created_at}'` : "NULL"},
-            ${row.updated_at ? `'${row.updated_at}'` : "NULL"},
-            ${row.event_ts ? `'${row.event_ts}'` : "NULL"}
-          )`,
-        )
-        .join(",");
-
-      const query = insertQuery + values;
-      await clickhouseClient.command({
-        query,
-        clickhouse_settings: {
-          wait_end_of_query: 1,
-        },
+      await clickhouseClient.insert({
+        table: "scores",
+        values: clickhouseScores,
+        format: "JSONEachRow",
       });
 
       logger.info(`Inserted ${clickhouseScores.length} scores into Clickhouse`);

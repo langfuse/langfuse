@@ -38,10 +38,7 @@ export default class MigrateTracesFromPostgresToClickhouse
         row.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
       name: row.name,
       user_id: row.userId || null,
-      metadata: Object.entries(row.metadata || {}).map(([key, value]) => [
-        key,
-        value?.toString() ?? "",
-      ]),
+      metadata: row.metadata ?? {},
       release: row.release || null,
       version: row.version || null,
       project_id: row.projectId,
@@ -97,38 +94,10 @@ export default class MigrateTracesFromPostgresToClickhouse
       }
 
       const clickhouseTraces = traces.map(this.mapToClickHouseRow);
-      const insertQuery = `INSERT INTO traces (id, timestamp, name, user_id, metadata, release, version, project_id, public, bookmarked, tags, input, output, session_id, created_at, updated_at, event_ts) VALUES `;
-
-      const values = clickhouseTraces
-        .map(
-          (row: any) => `(
-            '${row.id}',
-            ${row.timestamp ? `'${row.timestamp}'` : "NULL"},
-            '${row.name}',
-            ${row.user_id ? `'${row.user_id}'` : "NULL"},
-            ${row.metadata ? `map(${row.metadata.map(([k, v]: any) => `'${k}', '${v}'`).join(", ")})` : "map()"},
-            ${row.release ? `'${row.release}'` : "NULL"},
-            ${row.version ? `'${row.version}'` : "NULL"},
-            '${row.project_id}',
-            ${row.public ? "1" : "0"},
-            ${row.bookmarked ? "1" : "0"},
-            array(${row.tags.map((tag: string) => `'${tag}'`).join(", ")}),
-            ${row.input ? `'${row.input.replace(/'/g, "\\'")}'` : "NULL"},
-            ${row.output ? `'${row.output.replace(/'/g, "\\'")}'` : "NULL"},
-            ${row.session_id ? `'${row.session_id}'` : "NULL"},
-            ${row.created_at ? `'${row.created_at}'` : "NULL"},
-            ${row.updated_at ? `'${row.updated_at}'` : "NULL"},
-            ${row.event_ts ? `'${row.event_ts}'` : "NULL"}
-          )`,
-        )
-        .join(",");
-
-      const query = insertQuery + values;
-      await clickhouseClient.command({
-        query,
-        clickhouse_settings: {
-          wait_end_of_query: 1,
-        },
+      await clickhouseClient.insert({
+        table: "traces",
+        values: clickhouseTraces,
+        format: "JSONEachRow",
       });
 
       logger.info(`Inserted ${clickhouseTraces.length} traces into Clickhouse`);
@@ -184,7 +153,7 @@ if (require.main === module) {
       process.exit(0);
     })
     .catch((error) => {
-      logger.error(`Migration execution failed: ${error}`);
+      logger.error(`Migration execution failed: ${error}`, error);
       process.exit(1); // Exit with an error code
     });
 }
