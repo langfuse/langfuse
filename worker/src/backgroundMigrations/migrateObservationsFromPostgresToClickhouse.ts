@@ -59,7 +59,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
       const observations = await prisma.$queryRaw<
         Array<Observation>
       >(Prisma.sql`
-        SELECT id, trace_id, project_id, type, parent_observation_id, start_time, end_time, name, metadata, level, status_message, version, input, output, unit, prompt_id, input_cost, output_cost, total_cost, created_at, updated_at
+        SELECT id, trace_id, project_id, type, parent_observation_id, start_time, end_time, name, metadata, level, status_message, version, input, output, unit, completion_start_time, internal_model_id, prompt_id, input_cost, output_cost, total_cost, created_at, updated_at
         FROM observations
         WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
         LIMIT ${batchSize};
@@ -88,6 +88,11 @@ export default class MigrateObservationsFromPostgresToClickhouse
               .slice(0, -1) ?? null,
           updated_at:
             observation.updatedAt
+              ?.toISOString()
+              .replace("T", " ")
+              .slice(0, -1) ?? null,
+          completion_start_time:
+            observation.completionStartTime
               ?.toISOString()
               .replace("T", " ")
               .slice(0, -1) ?? null,
