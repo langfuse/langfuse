@@ -176,6 +176,9 @@ export class BackgroundMigrationManager {
           lockedAt: null,
         },
       });
+      logger.info(
+        `[Background Migration] Aborted active migration ${BackgroundMigrationManager.activeMigration.name}`,
+      );
       BackgroundMigrationManager.activeMigration = undefined;
     }
   }
