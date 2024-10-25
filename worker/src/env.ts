@@ -48,11 +48,11 @@ const EnvSchema = z.object({
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
-    .default(1000),
+    .default(10000),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce
     .number()
     .positive()
-    .default(3000),
+    .default(10000),
   LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: z.coerce
     .number()
     .positive()

@@ -89,6 +89,7 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
       {...{
         messages,
         addMessage,
+        setMessages,
         deleteMessage,
         updateMessage,
         availableRoles,

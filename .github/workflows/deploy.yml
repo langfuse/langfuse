@@ -19,7 +19,7 @@ on:
         type: choice
         options:
           - staging
-          - prod-eu-temp
+          - prod-eu
           - prod-us
         required: true
 
@@ -78,7 +78,7 @@ jobs:
                 return `["staging"]`
               }
               if (context.ref === "refs/heads/production") {
-                return `["prod-eu-temp", "prod-us"]`
+                return `["prod-eu", "prod-us"]`
               }
             }
             return "[]"

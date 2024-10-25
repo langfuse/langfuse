@@ -16,18 +16,10 @@ CREATE TABLE observations (
     `provided_model_name` Nullable(String),
     `internal_model_id` Nullable(String),
     `model_parameters` Nullable(String),
-    `provided_input_usage_units` Nullable(Decimal64(12)),
-    `provided_output_usage_units` Nullable(Decimal64(12)),
-    `provided_total_usage_units` Nullable(Decimal64(12)),
-    `input_usage_units` Nullable(Decimal64(12)),
-    `output_usage_units` Nullable(Decimal64(12)),
-    `total_usage_units` Nullable(Decimal64(12)),
-    `unit` Nullable(String),
-    `provided_input_cost` Nullable(Decimal64(12)),
-    `provided_output_cost` Nullable(Decimal64(12)),
-    `provided_total_cost` Nullable(Decimal64(12)),
-    `input_cost` Nullable(Decimal64(12)),
-    `output_cost` Nullable(Decimal64(12)),
+    `provided_usage_details` Map(LowCardinality(String), UInt64),
+    `usage_details` Map(LowCardinality(String), UInt64),
+    `provided_cost_details` Map(LowCardinality(String), Decimal64(12)),
+    `cost_details` Map(LowCardinality(String), Decimal64(12)),
     `total_cost` Nullable(Decimal64(12)),
     `completion_start_time` Nullable(DateTime64(3)),
     `prompt_id` Nullable(String),
@@ -36,12 +28,19 @@ CREATE TABLE observations (
     `created_at` DateTime64(3) DEFAULT now(),
     `updated_at` DateTime64(3) DEFAULT now(),
     event_ts DateTime64(3),
+    is_deleted UInt8,
     INDEX idx_id id TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_trace_id trace_id TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_project_id project_id TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_res_metadata_key mapKeys(metadata) TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_res_metadata_value mapValues(metadata) TYPE bloom_filter() GRANULARITY 1
-) ENGINE = ReplacingMergeTree Partition by toYYYYMM(start_time)
+) ENGINE = ReplacingMergeTree(event_ts, is_deleted) Partition by toYYYYMM(start_time)
+PRIMARY KEY (
+        project_id,
+        `type`,
+        toDate(start_time)
+    )
+
 ORDER BY (
         project_id,
         `type`,

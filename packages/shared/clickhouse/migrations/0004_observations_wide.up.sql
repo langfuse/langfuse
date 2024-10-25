@@ -11,8 +11,6 @@ CREATE TABLE observations_wide
     `public` Bool,
     `bookmarked` Bool,
     `tags` Array(String),
-    `input` Nullable(String),
-    `output` Nullable(String),
     `session_id` Nullable(String),
     `created_at` DateTime64(3),
     `updated_at` DateTime64(3),
@@ -26,18 +24,10 @@ CREATE TABLE observations_wide
     `provided_model_name` Nullable(String),
     `internal_model_id` Nullable(String),
     `model_parameters` Nullable(String),
-    `provided_input_usage_units` Nullable(Decimal64(12)),
-    `provided_output_usage_units` Nullable(Decimal64(12)),
-    `provided_total_usage_units` Nullable(Decimal64(12)),
-    `input_usage_units` Nullable(Decimal64(12)),
-    `output_usage_units` Nullable(Decimal64(12)),
-    `total_usage_units` Nullable(Decimal64(12)),
-    `unit` Nullable(String),
-    `provided_input_cost` Nullable(Decimal64(12)),
-    `provided_output_cost` Nullable(Decimal64(12)),
-    `provided_total_cost` Nullable(Decimal64(12)),
-    `input_cost` Nullable(Decimal64(12)),
-    `output_cost` Nullable(Decimal64(12)),
+    `provided_usage_details` Map(LowCardinality(String), UInt64),
+    `usage_details` Map(LowCardinality(String), UInt64),
+    `provided_cost_details` Map(LowCardinality(String), Decimal64(12)),
+    `cost_details` Map(LowCardinality(String), Decimal64(12)),
     `total_cost` Nullable(Decimal64(12)),
     `completion_start_time` Nullable(DateTime64(3)),
     `prompt_id` Nullable(String),
@@ -52,11 +42,15 @@ CREATE TABLE observations_wide
     trace_public Bool,
     trace_bookmarked Bool,
     trace_tags Array(String),
-    trace_input Nullable(String),
-    trace_output Nullable(String),
     trace_session_id Nullable(String),
-    trace_event_ts DateTime64(3)
-) ENGINE = ReplacingMergeTree Partition by toYYYYMM(start_time)
+    trace_event_ts DateTime64(3),
+    is_deleted UInt8,
+) ENGINE = ReplacingMergeTree(event_ts, is_deleted) Partition by toYYYYMM(start_time)
+PRIMARY KEY (
+        project_id,
+        `type`,
+        toDate(start_time)
+    )
 ORDER BY (
         project_id,
         `type`,
@@ -64,7 +58,7 @@ ORDER BY (
         id
     );
 
-CREATE MATERIALIZED VIEW mv_traces_to_observations_wide TO observations_wide AS
+CREATE MATERIALIZED VIEW traces_to_observations_wide TO observations_wide AS
 SELECT 
     argMax(t.`name`, o.event_ts) as trace_name,
     argMax(t.timestamp, o.event_ts) as trace_timestamp,
@@ -76,8 +70,6 @@ SELECT
     argMax(t.public, o.event_ts) as trace_public,
     argMax(t.bookmarked, o.event_ts) as trace_bookmarked,
     argMax(t.tags, o.event_ts) as trace_tags,
-    argMax(t.input, o.event_ts) as trace_input,
-    argMax(t.output, o.event_ts) as trace_output,
     argMax(t.session_id, o.event_ts) as trace_session_id,
     argMax(t.event_ts, o.event_ts) as trace_event_ts,
     o.id as id,
@@ -94,18 +86,10 @@ SELECT
     argMax(o.provided_model_name, o.event_ts) as provided_model_name,
     argMax(o.internal_model_id, o.event_ts) as internal_model_id,
     argMax(o.model_parameters, o.event_ts) as model_parameters,
-    argMax(o.provided_input_usage_units, o.event_ts) as provided_input_usage_units,
-    argMax(o.provided_output_usage_units, o.event_ts) as provided_output_usage_units,
-    argMax(o.provided_total_usage_units, o.event_ts) as provided_total_usage_units,
-    argMax(o.input_usage_units, o.event_ts) as input_usage_units,
-    argMax(o.output_usage_units, o.event_ts) as output_usage_units,
-    argMax(o.total_usage_units, o.event_ts) as total_usage_units,
-    argMax(o.unit, o.event_ts) as unit,
-    argMax(o.provided_input_cost, o.event_ts) as provided_input_cost,
-    argMax(o.provided_output_cost, o.event_ts) as provided_output_cost,
-    argMax(o.provided_total_cost, o.event_ts) as provided_total_cost,
-    argMax(o.input_cost, o.event_ts) as input_cost,
-    argMax(o.output_cost, o.event_ts) as output_cost,
+    argMax(o.provided_usage_details, o.event_ts) as provided_usage_details,
+    argMax(o.provided_cost_details, o.event_ts) as provided_cost_details,
+    argMax(o.usage_details, o.event_ts) as usage_details,
+    argMax(o.cost_details, o.event_ts) as cost_details,
     argMax(o.total_cost, o.event_ts) as total_cost,
     argMax(o.completion_start_time, o.event_ts) as completion_start_time,
     argMax(o.prompt_id, o.event_ts) as prompt_id,
@@ -116,9 +100,11 @@ SELECT
     argMax(o.event_ts, o.event_ts) as event_ts
 FROM traces t
 INNER JOIN observations o ON t.id = o.trace_id
-GROUP BY o.id, o.project_id;
+GROUP BY o.id, o.project_id
+ORDER BY event_ts desc
+LIMIT 1 by o.id;
 
-CREATE MATERIALIZED VIEW mv_observations_to_observations_wide TO observations_wide AS
+CREATE MATERIALIZED VIEW observations_to_observations_wide TO observations_wide AS
 SELECT 
   argMax(t.timestamp, o.event_ts) as trace_timestamp,
     argMax(t.name, o.event_ts) as trace_name,
@@ -130,8 +116,6 @@ SELECT
     argMax(t.public, o.event_ts) as trace_public,
     argMax(t.bookmarked, o.event_ts) as trace_bookmarked,
     argMax(t.tags, o.event_ts) as trace_tags,
-    argMax(t.input, o.event_ts) as trace_input,
-    argMax(t.output, o.event_ts) as trace_output,
     argMax(t.session_id, o.event_ts) as trace_session_id,
     argMax(t.event_ts, o.event_ts) as trace_event_ts,
     o.id as id,
@@ -148,18 +132,10 @@ SELECT
     argMax(o.provided_model_name, o.event_ts) as provided_model_name,
     argMax(o.internal_model_id, o.event_ts) as internal_model_id,
     argMax(o.model_parameters, o.event_ts) as model_parameters,
-    argMax(o.provided_input_usage_units, o.event_ts) as provided_input_usage_units,
-    argMax(o.provided_output_usage_units, o.event_ts) as provided_output_usage_units,
-    argMax(o.provided_total_usage_units, o.event_ts) as provided_total_usage_units,
-    argMax(o.input_usage_units, o.event_ts) as input_usage_units,
-    argMax(o.output_usage_units, o.event_ts) as output_usage_units,
-    argMax(o.total_usage_units, o.event_ts) as total_usage_units,
-    argMax(o.unit, o.event_ts) as unit,
-    argMax(o.provided_input_cost, o.event_ts) as provided_input_cost,
-    argMax(o.provided_output_cost, o.event_ts) as provided_output_cost,
-    argMax(o.provided_total_cost, o.event_ts) as provided_total_cost,
-    argMax(o.input_cost, o.event_ts) as input_cost,
-    argMax(o.output_cost, o.event_ts) as output_cost,
+    argMax(o.provided_usage_details, o.event_ts) as provided_usage_details,
+    argMax(o.provided_cost_details, o.event_ts) as provided_cost_details,
+    argMax(o.usage_details, o.event_ts) as usage_details,
+    argMax(o.cost_details, o.event_ts) as cost_details,
     argMax(o.total_cost, o.event_ts) as total_cost,
     argMax(o.completion_start_time, o.event_ts) as completion_start_time,
     argMax(o.prompt_id, o.event_ts) as prompt_id,
@@ -170,6 +146,8 @@ SELECT
     argMax(o.event_ts, o.event_ts) as event_ts
 FROM observations o
 LEFT OUTER JOIN traces t ON t.id = o.trace_id
-GROUP BY o.id, o.project_id;
+GROUP BY o.id, o.project_id 
+ORDER BY event_ts desc
+LIMIT 1 by o.id;
 
 
