@@ -135,8 +135,8 @@ importers:
         specifier: ^3.675.0
         version: 3.675.0(@aws-sdk/client-s3@3.675.0)
       '@aws-sdk/s3-request-presigner':
-        specifier: ^3.675.0
-        version: 3.675.0
+        specifier: ^3.679.0
+        version: 3.679.0
       '@clickhouse/client':
         specifier: ^1.4.0
         version: 1.4.0
@@ -216,14 +216,14 @@ importers:
         specifier: ^9.0.1
         version: 9.0.1
       winston:
-        specifier: ^3.14.2
-        version: 3.14.2
+        specifier: ^3.15.0
+        version: 3.15.0
       zod:
         specifier: ^3.23.8
         version: 3.23.8
       zod-to-json-schema:
-        specifier: ^3.23.2
-        version: 3.23.2(zod@3.23.8)
+        specifier: ^3.23.5
+        version: 3.23.5(zod@3.23.8)
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -335,7 +335,7 @@ importers:
         version: 2.1.5(react@18.2.0)
       '@hookform/resolvers':
         specifier: ^3.3.4
-        version: 3.3.4(react-hook-form@7.51.5(react@18.2.0))
+        version: 3.3.4(react-hook-form@7.53.1(react@18.2.0))
       '@langchain/anthropic':
         specifier: ^0.3.1
         version: 0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
@@ -589,8 +589,8 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       posthog-js:
-        specifier: ^1.161.3
-        version: 1.161.3
+        specifier: ^1.176.0
+        version: 1.176.0
       posthog-node:
         specifier: ^3.6.3
         version: 3.6.3
@@ -613,8 +613,8 @@ importers:
         specifier: 18.2.0
         version: 18.2.0(react@18.2.0)
       react-hook-form:
-        specifier: ^7.51.5
-        version: 7.51.5(react@18.2.0)
+        specifier: ^7.53.1
+        version: 7.53.1(react@18.2.0)
       react-icons:
         specifier: ^5.2.1
         version: 5.2.1(react@18.2.0)
@@ -1135,6 +1135,10 @@ packages:
     resolution: {integrity: sha512-pMcDVI7Tmdsc8R3sDv0Omj/4iRParGY+uJtAfF669WnZfDfaBQaix2Mq7+Mu08vdjqO9K3gicFvjk9S1VLmOKA==}
     engines: {node: '>=16.0.0'}
 
+  '@aws-sdk/core@3.679.0':
+    resolution: {integrity: sha512-CS6PWGX8l4v/xyvX8RtXnBisdCa5+URzKd0L6GvHChype9qKUVxO/Gg6N/y43Hvg7MNWJt9FBPNWIxUB+byJwg==}
+    engines: {node: '>=16.0.0'}
+
   '@aws-sdk/credential-provider-env@3.667.0':
     resolution: {integrity: sha512-zZbrkkaPc54WXm+QAnpuv0LPNfsts0HPPd+oCECGs7IQRaFsGj187cwvPg9RMWDFZqpm64MdBDoA8OQHsqzYCw==}
     engines: {node: '>=16.0.0'}
@@ -1219,6 +1223,10 @@ packages:
     resolution: {integrity: sha512-IvXnWrKy4mO+I44kLYHd6Wlw+FdB4sg1jvHCmnZo1KNaAFIA3x1iXgOaZynKoBdEmol3xfr2uDbeXUQvIwoIgg==}
     engines: {node: '>=16.0.0'}
 
+  '@aws-sdk/middleware-sdk-s3@3.679.0':
+    resolution: {integrity: sha512-4zcT193F7RkEfqlS6ZdwyNQ0UUp9s66msNXgItugasTbjf7oqfWDas7N+BG8ADB/Ql3wvRUh9I+zdrVkxxw3BQ==}
+    engines: {node: '>=16.0.0'}
+
   '@aws-sdk/middleware-ssec@3.667.0':
     resolution: {integrity: sha512-1wuAUZIkmZIvOmGg5qNQU821CGFHhkuKioxXgNh0DpUxZ9+AeiV7yorJr+bqkb2KBFv1i1TnzGRecvKf/KvZIQ==}
     engines: {node: '>=16.0.0'}
@@ -1235,12 +1243,16 @@ packages:
     resolution: {integrity: sha512-iNr+JhhA902JMKHG9IwT9YdaEx6KGl6vjAL5BRNeOjfj4cZYMog6Lz/IlfOAltMtT0w88DAHDEFrBd2uO0l2eg==}
     engines: {node: '>=16.0.0'}
 
-  '@aws-sdk/s3-request-presigner@3.675.0':
-    resolution: {integrity: sha512-/2KWrFjB2FWTKV8nKK1gbufY1IX9GZy4yXVVKjdLxMpM0O6JIg79S0KGvkEZtCZW4SKen0sExsCU5Dsc1RMfwA==}
+  '@aws-sdk/s3-request-presigner@3.679.0':
+    resolution: {integrity: sha512-ZP3f21TwEWLLBgbQUPAzmI4MxG3vAniwu1plgQnbFVK+hEhutrh58OU5xFRMZ3diEI2tPJlnQ4ZkLI14IEohXA==}
     engines: {node: '>=16.0.0'}
 
   '@aws-sdk/signature-v4-multi-region@3.674.0':
     resolution: {integrity: sha512-VMQWbtcbg4FV/fILrODADV21pPg9AghuEzQlW2kH0hCtacvBwFl7eBxIiCBLLtkNple+CVPJvyBcqOZdBkEv/w==}
+    engines: {node: '>=16.0.0'}
+
+  '@aws-sdk/signature-v4-multi-region@3.679.0':
+    resolution: {integrity: sha512-g1D57e7YBhgXihCWIRBcTUvKquS3FS27xuA24EynY9teiTIq7vHkASxxDnMMMcmKHnCKLI5pkznjk0PuDJ4uJw==}
     engines: {node: '>=16.0.0'}
 
   '@aws-sdk/token-providers@3.667.0':
@@ -1253,16 +1265,24 @@ packages:
     resolution: {integrity: sha512-gYq0xCsqFfQaSL/yT1Gl1vIUjtsg7d7RhnUfsXaHt8xTxOKRTdH9GjbesBjXOzgOvB0W0vfssfreSNGFlOOMJg==}
     engines: {node: '>=16.0.0'}
 
+  '@aws-sdk/types@3.679.0':
+    resolution: {integrity: sha512-NwVq8YvInxQdJ47+zz4fH3BRRLC6lL+WLkvr242PVBbUOLRyK/lkwHlfiKUoeVIMyK5NF+up6TRg71t/8Bny6Q==}
+    engines: {node: '>=16.0.0'}
+
   '@aws-sdk/util-arn-parser@3.568.0':
     resolution: {integrity: sha512-XUKJWWo+KOB7fbnPP0+g/o5Ulku/X53t7i/h+sPHr5xxYTJJ9CYnbToo95mzxe7xWvkLrsNtJ8L+MnNn9INs2w==}
+    engines: {node: '>=16.0.0'}
+
+  '@aws-sdk/util-arn-parser@3.679.0':
+    resolution: {integrity: sha512-CwzEbU8R8rq9bqUFryO50RFBlkfufV9UfMArHPWlo+lmsC+NlSluHQALoj6Jkq3zf5ppn1CN0c1DDLrEqdQUXg==}
     engines: {node: '>=16.0.0'}
 
   '@aws-sdk/util-endpoints@3.667.0':
     resolution: {integrity: sha512-X22SYDAuQJWnkF1/q17pkX3nGw5XMD9YEUbmt87vUnRq7iyJ3JOpl6UKOBeUBaL838wA5yzdbinmCITJ/VZ1QA==}
     engines: {node: '>=16.0.0'}
 
-  '@aws-sdk/util-format-url@3.667.0':
-    resolution: {integrity: sha512-S0D731SnEPnTfbJ/Dldw5dDrOc8uipK6NLXHDs2xIq0t61iwZLMEiN8yWCs2wAZVVJKpldUM1THLaaufU9SSSA==}
+  '@aws-sdk/util-format-url@3.679.0':
+    resolution: {integrity: sha512-pqV1b/hJ/kumtF8AwObJ7bsGgs/2zuAdZtalSD8Pu4jdjOji3IBwP79giAHyhVwoXaMjkpG3mG4ldn9CVtzZJA==}
     engines: {node: '>=16.0.0'}
 
   '@aws-sdk/util-locate-window@3.568.0':
@@ -9404,8 +9424,8 @@ packages:
   postgres-range@1.1.4:
     resolution: {integrity: sha512-i/hbxIE9803Alj/6ytL7UHQxRvZkI9O4Sy+J3HGc4F4oo/2eQAjTSNJ0bfxyse3bH0nuVesCk+3IRLaMtG3H6w==}
 
-  posthog-js@1.161.3:
-    resolution: {integrity: sha512-TQ77jtLemkUJUyJAPrwGay6tLqcAmXEM1IJgXOx5Tr4UohiTx8JTznzrCuh/SdwPIrbcSM1r2YPwb72XwTC3wg==}
+  posthog-js@1.176.0:
+    resolution: {integrity: sha512-T5XKNtRzp7q6CGb7Vc7wAI76rWap9fiuDUPxPsyPBPDkreKya91x9RIsSapAVFafwD1AEin1QMczCmt9Le9BWw==}
 
   posthog-node@3.6.3:
     resolution: {integrity: sha512-JB+ei0LkwE+rKHyW5z79Nd1jUaGxU6TvkfjFqY9vQaHxU5aU8dRl0UUaEmZdZbHwjp3WmXCBQQRNyimwbNQfCw==}
@@ -9675,11 +9695,11 @@ packages:
     peerDependencies:
       react: ^18.2.0
 
-  react-hook-form@7.51.5:
-    resolution: {integrity: sha512-J2ILT5gWx1XUIJRETiA7M19iXHlG74+6O3KApzvqB/w8S5NQR7AbU8HVZrMALdmDgWpRPYiZJl0zx8Z4L2mP6Q==}
-    engines: {node: '>=12.22.0'}
+  react-hook-form@7.53.1:
+    resolution: {integrity: sha512-6aiQeBda4zjcuaugWvim9WsGqisoUk+etmFEsSUMm451/Ic8L/UAb7sRtMj3V+Hdzm6mMjU1VhiSzYUZeBm0Vg==}
+    engines: {node: '>=18.0.0'}
     peerDependencies:
-      react: ^16.8.0 || ^17 || ^18
+      react: ^16.8.0 || ^17 || ^18 || ^19
 
   react-icons@5.2.1:
     resolution: {integrity: sha512-zdbW5GstTzXaVKvGSyTaBalt7HSfuK5ovrzlpyiWHAFXndXTdd/1hdDHI4xBM1Mn7YriT6aqESucFl9kEXzrdw==}
@@ -11187,8 +11207,8 @@ packages:
     resolution: {integrity: sha512-wQCXXVgfv/wUPOfb2x0ruxzwkcZfxcktz6JIMUaPLmcNhO4bZTwA/WtDWK74xV3F2dKu8YadrFv0qhwYjVEwhA==}
     engines: {node: '>= 12.0.0'}
 
-  winston@3.14.2:
-    resolution: {integrity: sha512-CO8cdpBB2yqzEf8v895L+GNKYJiEq8eKlHU38af3snQBQ+sdAIUepjMSguOIJC7ICbzm0ZI+Af2If4vIJrtmOg==}
+  winston@3.15.0:
+    resolution: {integrity: sha512-RhruH2Cj0bV0WgNL+lOfoUBI4DVfdUNjVnJGVovWZmrcKtrFTTRzgXYK2O9cymSGjrERCtaAeHwMNnUWXlwZow==}
     engines: {node: '>= 12.0.0'}
 
   wordwrap@1.0.0:
@@ -11303,6 +11323,11 @@ packages:
 
   zod-to-json-schema@3.23.2:
     resolution: {integrity: sha512-uSt90Gzc/tUfyNqxnjlfBs8W6WSGpNBv0rVsNxP/BVSMHMKGdthPYff4xtCHYloJGM0CFxFsb3NbC0eqPhfImw==}
+    peerDependencies:
+      zod: ^3.23.3
+
+  zod-to-json-schema@3.23.5:
+    resolution: {integrity: sha512-5wlSS0bXfF/BrL4jPAbz9da5hDlDptdEppYfe+x4eIJ7jioqKG9uUxOwPzqof09u/XeVdrgFu29lZi+8XNDJtA==}
     peerDependencies:
       zod: ^3.23.3
 
@@ -12007,6 +12032,20 @@ snapshots:
       fast-xml-parser: 4.4.1
       tslib: 2.6.3
 
+  '@aws-sdk/core@3.679.0':
+    dependencies:
+      '@aws-sdk/types': 3.679.0
+      '@smithy/core': 2.4.8
+      '@smithy/node-config-provider': 3.1.8
+      '@smithy/property-provider': 3.1.7
+      '@smithy/protocol-http': 4.1.4
+      '@smithy/signature-v4': 4.2.0
+      '@smithy/smithy-client': 3.4.0
+      '@smithy/types': 3.5.0
+      '@smithy/util-middleware': 3.0.7
+      fast-xml-parser: 4.4.1
+      tslib: 2.6.3
+
   '@aws-sdk/credential-provider-env@3.667.0':
     dependencies:
       '@aws-sdk/core': 3.667.0
@@ -12355,6 +12394,23 @@ snapshots:
       '@smithy/util-utf8': 3.0.0
       tslib: 2.6.3
 
+  '@aws-sdk/middleware-sdk-s3@3.679.0':
+    dependencies:
+      '@aws-sdk/core': 3.679.0
+      '@aws-sdk/types': 3.679.0
+      '@aws-sdk/util-arn-parser': 3.679.0
+      '@smithy/core': 2.4.8
+      '@smithy/node-config-provider': 3.1.8
+      '@smithy/protocol-http': 4.1.4
+      '@smithy/signature-v4': 4.2.0
+      '@smithy/smithy-client': 3.4.0
+      '@smithy/types': 3.5.0
+      '@smithy/util-config-provider': 3.0.0
+      '@smithy/util-middleware': 3.0.7
+      '@smithy/util-stream': 3.1.9
+      '@smithy/util-utf8': 3.0.0
+      tslib: 2.6.3
+
   '@aws-sdk/middleware-ssec@3.667.0':
     dependencies:
       '@aws-sdk/types': 3.667.0
@@ -12390,11 +12446,11 @@ snapshots:
       '@smithy/util-middleware': 3.0.7
       tslib: 2.6.3
 
-  '@aws-sdk/s3-request-presigner@3.675.0':
+  '@aws-sdk/s3-request-presigner@3.679.0':
     dependencies:
-      '@aws-sdk/signature-v4-multi-region': 3.674.0
-      '@aws-sdk/types': 3.667.0
-      '@aws-sdk/util-format-url': 3.667.0
+      '@aws-sdk/signature-v4-multi-region': 3.679.0
+      '@aws-sdk/types': 3.679.0
+      '@aws-sdk/util-format-url': 3.679.0
       '@smithy/middleware-endpoint': 3.1.4
       '@smithy/protocol-http': 4.1.4
       '@smithy/smithy-client': 3.4.0
@@ -12405,6 +12461,15 @@ snapshots:
     dependencies:
       '@aws-sdk/middleware-sdk-s3': 3.674.0
       '@aws-sdk/types': 3.667.0
+      '@smithy/protocol-http': 4.1.4
+      '@smithy/signature-v4': 4.2.0
+      '@smithy/types': 3.5.0
+      tslib: 2.6.3
+
+  '@aws-sdk/signature-v4-multi-region@3.679.0':
+    dependencies:
+      '@aws-sdk/middleware-sdk-s3': 3.679.0
+      '@aws-sdk/types': 3.679.0
       '@smithy/protocol-http': 4.1.4
       '@smithy/signature-v4': 4.2.0
       '@smithy/types': 3.5.0
@@ -12433,7 +12498,16 @@ snapshots:
       '@smithy/types': 3.5.0
       tslib: 2.6.3
 
+  '@aws-sdk/types@3.679.0':
+    dependencies:
+      '@smithy/types': 3.5.0
+      tslib: 2.6.3
+
   '@aws-sdk/util-arn-parser@3.568.0':
+    dependencies:
+      tslib: 2.6.3
+
+  '@aws-sdk/util-arn-parser@3.679.0':
     dependencies:
       tslib: 2.6.3
 
@@ -12444,9 +12518,9 @@ snapshots:
       '@smithy/util-endpoints': 2.1.3
       tslib: 2.6.3
 
-  '@aws-sdk/util-format-url@3.667.0':
+  '@aws-sdk/util-format-url@3.679.0':
     dependencies:
-      '@aws-sdk/types': 3.667.0
+      '@aws-sdk/types': 3.679.0
       '@smithy/querystring-builder': 3.0.7
       '@smithy/types': 3.5.0
       tslib: 2.6.3
@@ -13338,9 +13412,9 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@hookform/resolvers@3.3.4(react-hook-form@7.51.5(react@18.2.0))':
+  '@hookform/resolvers@3.3.4(react-hook-form@7.53.1(react@18.2.0))':
     dependencies:
-      react-hook-form: 7.51.5(react@18.2.0)
+      react-hook-form: 7.53.1(react@18.2.0)
 
   '@humanwhocodes/config-array@0.11.14':
     dependencies:
@@ -13623,7 +13697,7 @@ snapshots:
       '@langchain/core': 0.3.9(openai@4.62.1(zod@3.23.8))
       fast-xml-parser: 4.5.0
       zod: 3.23.8
-      zod-to-json-schema: 3.23.2(zod@3.23.8)
+      zod-to-json-schema: 3.23.5(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
 
@@ -13635,7 +13709,7 @@ snapshots:
       '@aws-sdk/credential-provider-node': 3.668.0(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)
       '@langchain/core': 0.3.9(openai@4.62.1(zod@3.23.8))
       zod: 3.23.8
-      zod-to-json-schema: 3.23.2(zod@3.23.8)
+      zod-to-json-schema: 3.23.5(zod@3.23.8)
     transitivePeerDependencies:
       - '@aws-sdk/client-sso-oidc'
       - '@aws-sdk/client-sts'
@@ -13649,7 +13723,7 @@ snapshots:
       '@aws-sdk/credential-provider-node': 3.668.0(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))(@aws-sdk/client-sts@3.675.0)
       '@langchain/core': 0.3.9(openai@4.62.1(zod@3.23.8))
       zod: 3.23.8
-      zod-to-json-schema: 3.23.2(zod@3.23.8)
+      zod-to-json-schema: 3.23.5(zod@3.23.8)
     transitivePeerDependencies:
       - '@aws-sdk/client-sso-oidc'
       - '@aws-sdk/client-sts'
@@ -13668,7 +13742,7 @@ snapshots:
       p-retry: 4.6.2
       uuid: 10.0.0
       zod: 3.23.8
-      zod-to-json-schema: 3.23.2(zod@3.23.8)
+      zod-to-json-schema: 3.23.5(zod@3.23.8)
     transitivePeerDependencies:
       - openai
 
@@ -13678,7 +13752,7 @@ snapshots:
       js-tiktoken: 1.0.14
       openai: 4.62.1(zod@3.23.8)
       zod: 3.23.8
-      zod-to-json-schema: 3.23.2(zod@3.23.8)
+      zod-to-json-schema: 3.23.5(zod@3.23.8)
     transitivePeerDependencies:
       - encoding
 
@@ -20866,7 +20940,7 @@ snapshots:
       uuid: 10.0.0
       yaml: 2.5.1
       zod: 3.23.8
-      zod-to-json-schema: 3.23.2(zod@3.23.8)
+      zod-to-json-schema: 3.23.5(zod@3.23.8)
     optionalDependencies:
       '@langchain/anthropic': 0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
       '@langchain/aws': 0.1.0(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
@@ -20890,7 +20964,7 @@ snapshots:
       uuid: 10.0.0
       yaml: 2.5.1
       zod: 3.23.8
-      zod-to-json-schema: 3.23.2(zod@3.23.8)
+      zod-to-json-schema: 3.23.5(zod@3.23.8)
     optionalDependencies:
       '@langchain/anthropic': 0.3.1(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
       '@langchain/aws': 0.1.0(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.9(openai@4.62.1(zod@3.23.8)))
@@ -22305,8 +22379,9 @@ snapshots:
 
   postgres-range@1.1.4: {}
 
-  posthog-js@1.161.3:
+  posthog-js@1.176.0:
     dependencies:
+      core-js: 3.38.1
       fflate: 0.4.8
       preact: 10.19.7
       web-vitals: 4.2.3
@@ -22580,7 +22655,7 @@ snapshots:
       react: 18.2.0
       scheduler: 0.23.0
 
-  react-hook-form@7.51.5(react@18.2.0):
+  react-hook-form@7.53.1(react@18.2.0):
     dependencies:
       react: 18.2.0
 
@@ -24423,7 +24498,7 @@ snapshots:
       readable-stream: 3.6.2
       triple-beam: 1.4.1
 
-  winston@3.14.2:
+  winston@3.15.0:
     dependencies:
       '@colors/colors': 1.6.0
       '@dabh/diagnostics': 2.0.3
@@ -24532,6 +24607,10 @@ snapshots:
       readable-stream: 3.6.2
 
   zod-to-json-schema@3.23.2(zod@3.23.8):
+    dependencies:
+      zod: 3.23.8
+
+  zod-to-json-schema@3.23.5(zod@3.23.8):
     dependencies:
       zod: 3.23.8
 
