@@ -18,6 +18,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -65,11 +66,23 @@ export const EvalConfigDetail = () => {
         <Header
           title={`${config.data?.id}` ?? "Loading..."}
           actionButtons={
-            <DeactivateConfig
-              projectId={projectId}
-              config={config.data ?? undefined}
-              isLoading={config.isLoading}
-            />
+            <>
+              <DeactivateConfig
+                projectId={projectId}
+                config={config.data ?? undefined}
+                isLoading={config.isLoading}
+              />
+              {config.data && (
+                <DetailPageNav
+                  key="nav"
+                  currentId={encodeURIComponent(config.data.id)}
+                  path={(id) =>
+                    `/project/${projectId}/evals/configs/${encodeURIComponent(id)}`
+                  }
+                  listKey="evals"
+                />
+              )}
+            </>
           }
           breadcrumb={[
             {
@@ -112,6 +125,7 @@ export const EvalConfigDetail = () => {
                 </div>
                 <div className="flex w-full flex-col items-start justify-between space-y-2 pb-4">
                   <EvalConfigForm
+                    key={existingEvalConfig.id}
                     projectId={projectId}
                     evalTemplates={allTemplates.data?.templates}
                     existingEvalConfig={existingEvalConfig}
