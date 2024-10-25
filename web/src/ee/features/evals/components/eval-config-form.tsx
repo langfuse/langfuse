@@ -42,6 +42,25 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { CheckIcon, ChevronDown, ExternalLink } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/src/components/ui/command";
+import { cn } from "@/src/utils/tailwind";
+import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
+import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 const formSchema = z.object({
   scoreName: z.string(),
@@ -59,43 +78,185 @@ export const EvalConfigForm = (props: {
   existingEvalConfig?: JobConfiguration & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
 }) => {
+  const [open, setOpen] = useState(false);
   const [evalTemplate, setEvalTemplate] = useState<string | undefined>(
     props.existingEvalConfig?.evalTemplate.id,
   );
+  const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
+  const [selectedTemplateName, setSelectedTemplateName] = useState<
+    string | undefined
+  >(props.existingEvalConfig?.evalTemplate.name);
+  const [selectedTemplateVersion, setSelectedTemplateVersion] = useState<
+    number | undefined
+  >(props.existingEvalConfig?.evalTemplate.version);
 
+  const utils = api.useUtils();
   const currentTemplate = props.evalTemplates.find(
     (t) => t.id === evalTemplate,
+  );
+
+  useEffect(() => {
+    if (props.existingEvalConfig?.evalTemplate && !evalTemplate) {
+      setEvalTemplate(props.existingEvalConfig.evalTemplate.id);
+    }
+  }, [props.existingEvalConfig, evalTemplate]);
+
+  // Group templates by name
+  const templatesByName = props.evalTemplates.reduce(
+    (acc, template) => {
+      if (!acc[template.name]) {
+        acc[template.name] = [];
+      }
+      acc[template.name].push(template);
+      return acc;
+    },
+    {} as Record<string, EvalTemplate[]>,
   );
 
   return (
     <>
       {!props.disabled ? (
-        <Select onValueChange={setEvalTemplate} value={evalTemplate}>
-          <SelectTrigger
-            disabled={props.disabled}
-            defaultValue={
-              props.existingEvalConfig?.evalTemplate
-                ? props.existingEvalConfig?.evalTemplate.id
-                : undefined
-            }
-          >
-            <SelectValue placeholder="Select a template to run this eval config" />
-          </SelectTrigger>
-          <SelectContent>
-            {props.evalTemplates
-              .sort(
-                (a, b) => a.name.localeCompare(b.name) || a.version - b.version,
-              )
-              .map((template) => (
-                <SelectItem value={template.id} key={template.id}>
-                  {`${template.name}-v${template.version}`}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
+        <div className="mb-2 flex gap-2">
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                disabled={props.disabled}
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                className="w-2/3 justify-between px-2 font-normal"
+              >
+                {selectedTemplateName || "Select a template"}
+                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[--radix-popover-trigger-width] overflow-auto p-0"
+              align="start"
+            >
+              <Command>
+                <CommandInput
+                  placeholder="Search templates..."
+                  className="h-9"
+                />
+                <CommandList>
+                  <CommandEmpty>No template found.</CommandEmpty>
+                  <CommandGroup>
+                    {Object.entries(templatesByName).map(
+                      ([name, templateData]) => (
+                        <CommandItem
+                          key={name}
+                          onSelect={() => {
+                            setSelectedTemplateName(name);
+                            const latestVersion =
+                              templateData[templateData.length - 1];
+                            setSelectedTemplateVersion(latestVersion.version);
+                            setEvalTemplate(latestVersion.id);
+                          }}
+                        >
+                          {name}
+                          <CheckIcon
+                            className={cn(
+                              "ml-auto h-4 w-4",
+                              name === selectedTemplateName
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                          />
+                        </CommandItem>
+                      ),
+                    )}
+                  </CommandGroup>
+                  <CommandSeparator alwaysRender />
+                  <CommandGroup forceMount>
+                    <CommandItem onSelect={() => setIsCreateTemplateOpen(true)}>
+                      Create new template
+                      <ExternalLink className="ml-auto h-4 w-4" />
+                    </CommandItem>
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                disabled={props.disabled || !selectedTemplateName}
+                variant="outline"
+                role="combobox"
+                className="w-1/3 justify-between px-2 font-normal"
+              >
+                {selectedTemplateVersion
+                  ? `Version ${selectedTemplateVersion}`
+                  : "Version"}
+                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[--radix-popover-trigger-width] overflow-auto p-0"
+              align="start"
+            >
+              <Command>
+                <CommandList>
+                  <CommandEmpty>No version found.</CommandEmpty>
+                  <CommandGroup>
+                    {selectedTemplateName &&
+                    templatesByName[selectedTemplateName] ? (
+                      templatesByName[selectedTemplateName].map((template) => (
+                        <CommandItem
+                          key={template.id}
+                          onSelect={() => {
+                            setSelectedTemplateVersion(template.version);
+                            setEvalTemplate(template.id);
+                          }}
+                        >
+                          Version {template.version}
+                          <CheckIcon
+                            className={cn(
+                              "ml-auto h-4 w-4",
+                              template.version === selectedTemplateVersion
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                          />
+                        </CommandItem>
+                      ))
+                    ) : (
+                      <CommandItem disabled>No versions available</CommandItem>
+                    )}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
       ) : undefined}
+      <Dialog
+        open={isCreateTemplateOpen}
+        onOpenChange={setIsCreateTemplateOpen}
+      >
+        <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+          <DialogTitle>Create new template</DialogTitle>
+          <EvalTemplateForm
+            projectId={props.projectId}
+            preventRedirect={true}
+            isEditing={true}
+            onFormSuccess={() => {
+              setIsCreateTemplateOpen(false);
+              void utils.evals.allTemplates.invalidate();
+              showSuccessToast({
+                title: "Template created successfully",
+                description:
+                  "You can now use this template in a new eval config.",
+              });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
       {evalTemplate && currentTemplate ? (
         <InnerEvalConfigForm
+          key={evalTemplate}
           projectId={props.projectId}
           disabled={props.disabled}
           existingEvalConfig={props.existingEvalConfig}
@@ -323,10 +484,10 @@ export const InnerEvalConfigForm = (props: {
                       json={props.evalTemplate.prompt ?? null}
                       className={"min-h-48 bg-muted lg:w-1/2"}
                     />
-                    <div className=" flex flex-col gap-2 lg:w-1/3">
+                    <div className="flex flex-col gap-2 lg:w-1/3">
                       {fields.map((mappingField, index) => (
                         <Card className="flex flex-col gap-2 p-4" key={index}>
-                          <div className="text-sm font-semibold	">
+                          <div className="text-sm font-semibold">
                             {"{{"}
                             {mappingField.templateVariable}
                             {"}}"}
@@ -344,7 +505,7 @@ export const InnerEvalConfigForm = (props: {
                             key={`${mappingField.id}-langfuseObject`}
                             name={`mapping.${index}.langfuseObject`}
                             render={({ field }) => (
-                              <div className="flex  items-center gap-2">
+                              <div className="flex items-center gap-2">
                                 <VariableMappingDescription
                                   title={"Trace object"}
                                   description={
@@ -532,7 +693,7 @@ export const InnerEvalConfigForm = (props: {
                 <FormItem>
                   <FormLabel>Delay (seconds)</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} type="number" />
                   </FormControl>
                   <FormDescription>
                     Time between first Trace event and evaluation execution to
