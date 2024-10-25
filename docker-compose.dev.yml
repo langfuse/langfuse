@@ -31,10 +31,10 @@ services:
       - langfuse_minio_data:/data
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
+      interval: 1s
       timeout: 5s
       retries: 5
-      start_period: 5s
+      start_period: 1s
 
   miniocreatebucket:
     image: minio/mc
