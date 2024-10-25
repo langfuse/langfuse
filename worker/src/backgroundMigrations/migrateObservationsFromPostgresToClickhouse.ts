@@ -62,6 +62,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
         SELECT id, trace_id, project_id, type, parent_observation_id, start_time, end_time, name, metadata, level, status_message, version, input, output, unit, completion_start_time, internal_model_id, prompt_id, input_cost, output_cost, total_cost, created_at, updated_at
         FROM observations
         WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
+        ORDER BY created_at DESC
         LIMIT ${batchSize};
       `);
       if (observations.length === 0) {

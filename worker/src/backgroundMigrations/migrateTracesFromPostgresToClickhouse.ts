@@ -60,6 +60,7 @@ export default class MigrateTracesFromPostgresToClickhouse
         SELECT id, timestamp, name, user_id, metadata, release, version, project_id, public, bookmarked, tags, input, output, session_id, created_at, updated_at
         FROM traces
         WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
+        ORDER BY created_at DESC
         LIMIT ${batchSize};
       `);
       if (traces.length === 0) {

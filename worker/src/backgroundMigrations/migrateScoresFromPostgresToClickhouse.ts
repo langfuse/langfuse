@@ -60,6 +60,7 @@ export default class MigrateScoresFromPostgresToClickhouse
         SELECT id, timestamp, project_id, trace_id, observation_id, name, value, source, comment, author_user_id, config_id, data_type, string_value, created_at, updated_at
         FROM scores
         WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
+        ORDER BY created_at DESC
         LIMIT ${batchSize};
       `);
       if (scores.length === 0) {
