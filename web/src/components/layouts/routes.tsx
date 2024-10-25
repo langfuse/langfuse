@@ -13,7 +13,6 @@ import {
   Lightbulb,
   Grid2X2,
   Sparkle,
-  ClipboardPen,
   FileJson,
 } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
@@ -29,14 +28,14 @@ export type Route = {
   name: string;
   featureFlag?: Flag;
   label?: string | ReactNode;
-  projectRbacScope?: ProjectScope;
+  projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
   icon?: LucideIcon | typeof LangfuseIcon; // ignored for nested routes
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
-  entitlement?: Entitlement; // entitlement required
+  entitlements?: Entitlement[]; // entitlements required, array treated as OR
   customizableHref?: UiCustomizationOption; // key of useUiCustomization object to use to replace the href
   show?: (p: {
     organization: User["organizations"][number] | undefined;
@@ -88,20 +87,26 @@ export const ROUTES: Route[] = [
     ],
   },
   {
-    name: "Annotate",
-    pathname: `/project/[projectId]/annotation-queues`,
-    icon: ClipboardPen,
-    label: "Beta",
-    projectRbacScope: "annotationQueues:read",
-    entitlement: "annotation-queues",
-  },
-  {
     name: "Evaluation",
     pathname: `/project/[projectId]/evals/configs`,
     icon: Lightbulb,
     label: "Beta",
-    entitlement: "model-based-evaluations",
-    projectRbacScope: "evalJob:read",
+    entitlements: ["annotation-queues", "model-based-evaluations"],
+    projectRbacScopes: ["annotationQueues:read", "evalJob:read"],
+    children: [
+      {
+        name: "Annotation",
+        pathname: `/project/[projectId]/annotation-queues`,
+        projectRbacScopes: ["annotationQueues:read"],
+        entitlements: ["annotation-queues"],
+      },
+      {
+        name: "Model-based",
+        pathname: `/project/[projectId]/evals/configs`,
+        entitlements: ["model-based-evaluations"],
+        projectRbacScopes: ["evalJob:read"],
+      },
+    ],
   },
   {
     name: "Users",
@@ -112,13 +117,13 @@ export const ROUTES: Route[] = [
     name: "Prompts",
     pathname: "/project/[projectId]/prompts",
     icon: FileJson,
-    projectRbacScope: "prompts:read",
+    projectRbacScopes: ["prompts:read"],
   },
   {
     name: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
-    entitlement: "playground",
+    entitlements: ["playground"],
   },
   {
     name: "Datasets",
@@ -130,7 +135,7 @@ export const ROUTES: Route[] = [
     icon: Sparkle,
     pathname: "/project/[projectId]/settings/billing",
     bottom: true,
-    entitlement: "cloud-billing",
+    entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
     show: ({ organization }) => organization?.plan === "cloud:hobby",
     label: <UsageTracker />,
@@ -140,7 +145,7 @@ export const ROUTES: Route[] = [
     icon: Sparkle,
     pathname: "/organization/[organizationId]/settings/billing",
     bottom: true,
-    entitlement: "cloud-billing",
+    entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
     show: ({ organization }) => organization?.plan === "cloud:hobby",
     label: <UsageTracker />,
