@@ -3,9 +3,10 @@ import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Lock } from "lucide-react";
+import { Lock, Plus } from "lucide-react";
 import EvalsTemplateTable from "@/src/ee/features/evals/components/eval-templates-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -15,6 +16,15 @@ export default function TemplatesPage() {
     projectId,
     scope: "evalTemplate:create",
   });
+
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
+
+  if (!hasReadAccess) {
+    return null;
+  }
 
   return (
     <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden md:h-[calc(100vh-2rem)]">
@@ -30,6 +40,7 @@ export default function TemplatesPage() {
             disabled={!hasWriteAccess}
             onClick={() => capture("eval_templates:new_form_open")}
             asChild
+            variant="secondary"
           >
             <Link
               href={
@@ -38,13 +49,32 @@ export default function TemplatesPage() {
                   : "#"
               }
             >
-              {!hasWriteAccess && <Lock size={16} className="mr-2" />}
-              Add eval template
+              {hasWriteAccess ? (
+                <Plus className="mr-2 h-4 w-4" />
+              ) : (
+                <Lock className="mr-2 h-4 w-4" />
+              )}
+              New template
             </Link>
           </Button>
         }
       />
-      <EvalsTemplateTable projectId={projectId} />
+      <EvalsTemplateTable
+        projectId={projectId}
+        menuItems={
+          <Tabs value="templates">
+            <TabsList>
+              <TabsTrigger value="configs" asChild>
+                <Link href={`/project/${projectId}/evals/configs`}>Jobs</Link>
+              </TabsTrigger>
+              <TabsTrigger value="templates">Templates</TabsTrigger>
+              <TabsTrigger value="log" asChild>
+                <Link href={`/project/${projectId}/evals/log`}>Log</Link>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
     </div>
   );
 }

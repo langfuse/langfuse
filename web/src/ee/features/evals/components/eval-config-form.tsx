@@ -435,8 +435,8 @@ export const InnerEvalConfigForm = (props: {
                     <Tabs defaultValue="trace">
                       <TabsList {...field}>
                         <TabsTrigger value="trace">Trace</TabsTrigger>
-                        <TabsTrigger value="observation" disabled={true}>
-                          Observation (coming soon)
+                        <TabsTrigger value="dataset" disabled={true}>
+                          Dataset (coming soon)
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
