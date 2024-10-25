@@ -16,7 +16,11 @@ export type EvalConfigRow = {
   id: string;
   status: string;
   createdAt: string;
-  template?: string;
+  template?: {
+    id: string;
+    name: string;
+    version: number;
+  };
   scoreName: string;
   filter: FilterState;
 };
@@ -74,6 +78,16 @@ export default function EvalConfigTable({
       id: "template",
       header: "Template",
       size: 200,
+      cell: (row) => {
+        const template = row.getValue();
+        if (!template) return "template not found";
+        return (
+          <TableLink
+            path={`/project/${projectId}/evals/templates/${template.id}`}
+            value={`${template.name} (v${template.version})`}
+          />
+        );
+      },
     }),
     columnHelper.accessor("scoreName", {
       id: "scoreName",
@@ -106,7 +120,11 @@ export default function EvalConfigTable({
       status: jobConfig.status,
       createdAt: jobConfig.createdAt.toLocaleString(),
       template: jobConfig.evalTemplate
-        ? `${jobConfig.evalTemplate.name} (v${jobConfig.evalTemplate.version})`
+        ? {
+            id: jobConfig.evalTemplate.id,
+            name: jobConfig.evalTemplate.name,
+            version: jobConfig.evalTemplate.version,
+          }
         : undefined,
       scoreName: jobConfig.scoreName,
       filter: z.array(singleFilter).parse(jobConfig.filter),
