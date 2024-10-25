@@ -158,23 +158,27 @@ export default function Layout(props: PropsWithChildren) {
 
     // check entitlements
     if (
-      route.entitlement !== undefined &&
-      !entitlements.includes(route.entitlement) &&
+      route.entitlements !== undefined &&
+      !route.entitlements.some((entitlement) =>
+        entitlements.includes(entitlement),
+      ) &&
       !cloudAdmin
     )
       return null;
 
     // RBAC
     if (
-      route.projectRbacScope !== undefined &&
+      route.projectRbacScopes !== undefined &&
       !cloudAdmin &&
       (!project ||
         !organization ||
-        !hasProjectAccess({
-          projectId: project.id,
-          scope: route.projectRbacScope,
-          session: session.data,
-        }))
+        !route.projectRbacScopes.some((scope) =>
+          hasProjectAccess({
+            projectId: project.id,
+            scope,
+            session: session.data,
+          }),
+        ))
     )
       return null;
     if (
