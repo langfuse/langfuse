@@ -21,7 +21,7 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import type Decimal from "decimal.js";
+import Decimal from "decimal.js";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { LevelColors } from "@/src/components/level-colors";
@@ -163,6 +163,7 @@ export default function TracesTable({
     {
       projectId,
       traceIds: traces.data?.traces.map((t) => t.id) ?? [],
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: traces.data !== undefined,
@@ -710,20 +711,56 @@ export default function TracesTable({
             sessionId: trace.sessionId ?? undefined,
             latency: trace.latency === null ? undefined : trace.latency,
             tags: trace.tags,
-            usage: {
-              promptTokens: trace.promptTokens,
-              completionTokens: trace.completionTokens,
-              totalTokens: trace.totalTokens,
-            },
+            usage:
+              "usageDetails" in trace
+                ? {
+                    promptTokens: BigInt(trace.usageDetails?.input ?? 0),
+                    completionTokens: BigInt(trace.usageDetails?.output ?? 0),
+                    totalTokens: BigInt(trace.usageDetails?.total ?? 0),
+                  }
+                : "promptTokens" in trace &&
+                    "completionTokens" in trace &&
+                    "totalTokens" in trace
+                  ? {
+                      promptTokens: trace.promptTokens ?? 0,
+                      completionTokens: trace.completionTokens ?? 0,
+                      totalTokens: trace.totalTokens ?? 0,
+                    }
+                  : {
+                      promptTokens: BigInt(0),
+                      completionTokens: BigInt(0),
+                      totalTokens: BigInt(0),
+                    },
             scores: trace.scores
               ? verifyAndPrefixScoreDataAgainstKeys(
                   scoreKeysAndProps,
                   trace.scores,
                 )
               : undefined,
-            inputCost: trace.calculatedInputCost ?? undefined,
-            outputCost: trace.calculatedOutputCost ?? undefined,
-            totalCost: trace.calculatedTotalCost ?? undefined,
+            inputCost:
+              "costDetails" in trace
+                ? trace.costDetails?.input
+                  ? new Decimal(trace.costDetails?.input)
+                  : undefined
+                : "calculatedInputCost" in trace
+                  ? trace.calculatedInputCost
+                  : undefined,
+            outputCost:
+              "costDetails" in trace
+                ? trace.costDetails?.output !== undefined
+                  ? new Decimal(trace.costDetails.output)
+                  : undefined
+                : "calculatedOutputCost" in trace
+                  ? trace.calculatedOutputCost
+                  : undefined,
+            totalCost:
+              "costDetails" in trace
+                ? trace.costDetails?.total
+                  ? new Decimal(trace.costDetails.total)
+                  : undefined
+                : "calculatedTotalCost" in trace
+                  ? trace.calculatedTotalCost
+                  : undefined,
           };
         }) ?? [])
       : [];

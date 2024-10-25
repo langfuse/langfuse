@@ -75,9 +75,9 @@ const prepareProjectsAndApiKeys = async (
 };
 
 async function main() {
-  let numOfProjects = parseInt(process.argv[3], 10);
-  let numberOfDays = parseInt(process.argv[4], 10);
-  let totalObservations = parseInt(process.argv[5], 10);
+  let numOfProjects = parseInt(process.argv[2], 10);
+  let numberOfDays = parseInt(process.argv[3], 10);
+  let totalObservations = parseInt(process.argv[4], 10);
 
   if (isNaN(totalObservations)) {
     logger.warn(

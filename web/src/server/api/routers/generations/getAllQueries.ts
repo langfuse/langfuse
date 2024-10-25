@@ -10,8 +10,8 @@ import {
   getGenerationsTable,
   parseGetAllGenerationsInput,
 } from "@langfuse/shared/src/server";
-import { isClickhouseEligible } from "@/src/server/api/repositories/helper";
 import { TRPCError } from "@trpc/server";
+import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,

@@ -78,10 +78,8 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
-import { addUserToSpan } from "@langfuse/shared/src/server";
-import { getTrace } from "@/src/server/api/repositories/clickhouse";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
-import { isClickhouseEligible } from "@/src/server/api/repositories/helper";
+import { addUserToSpan, getTraceById } from "@langfuse/shared/src/server";
+import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 
 setUpSuperjson();
 
@@ -314,7 +312,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const trace =
     result.data.queryClickhouse &&
     isClickhouseEligible(ctx.session?.user?.admin === true)
-      ? await getTrace(traceId, projectId)
+      ? await getTraceById(traceId, projectId)
       : await prisma.trace.findFirst({
           where: {
             id: traceId,

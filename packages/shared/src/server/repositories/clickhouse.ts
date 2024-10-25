@@ -18,34 +18,27 @@ import { z } from "zod";
 
 export const getObservation = async (
   observationId: string,
-  projectId: string,
+  projectId: string
 ) => {
   const query = `SELECT * FROM observations FINAL WHERE id = '${observationId}' AND project_id = '${projectId}' LIMIT 1`;
-  const records = await queryClickhouse(query);
+  const records = await queryClickhouse({ query });
 
   return records.length ? convertObservations(records)[0] : undefined;
 };
 
 export const getTraceObservations = async (
   traceId: string,
-  projectId: string,
+  projectId: string
 ) => {
   const query = `SELECT * FROM observations FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`;
-  const records = await queryClickhouse(query);
+  const records = await queryClickhouse({ query });
 
   return convertObservations(records);
 };
 
-export const getTrace = async (traceId: string, projectId: string) => {
-  const query = `SELECT * FROM traces FINAL where id = '${traceId}' and project_id = '${projectId}' LIMIT 1`;
-  const records = await queryClickhouse(query);
-
-  return records.length ? convertTraces(records)[0] : undefined;
-};
-
 export const getScores = async (traceId: string, projectId: string) => {
   const query = `SELECT * FROM scores FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`;
-  const records = await queryClickhouse(query);
+  const records = await queryClickhouse({ query });
   const parsedRecords = z.array(scoreRecordReadSchema).parse(records);
 
   return parsedRecords.map((record) => {
@@ -59,7 +52,7 @@ export const getScores = async (traceId: string, projectId: string) => {
 };
 
 export const convertRecordToJsonSchema = (
-  record: Record<string, string>,
+  record: Record<string, string>
 ): JsonNested | undefined => {
   const jsonSchema: JsonNested = {};
 
@@ -79,10 +72,17 @@ export const convertRecordToJsonSchema = (
   return jsonSchema;
 };
 
-async function queryClickhouse(query: string) {
+export async function queryClickhouse<T>(opts: {
+  query: string;
+  params?: Record<string, unknown> | undefined;
+}) {
   return (
-    await clickhouseClient.query({ query, format: "JSONEachRow" })
-  ).json();
+    await clickhouseClient.query({
+      query: opts.query,
+      format: "JSONEachRow",
+      query_params: opts.params,
+    })
+  ).json<T>();
 }
 
 export function convertObservations(jsonRecords: unknown[]): ObservationView[] {
@@ -121,7 +121,7 @@ export function convertObservations(jsonRecords: unknown[]): ObservationView[] {
 
       completionStartTime: record.completion_start_time
         ? new Date(
-            clickhouseStringDateSchema.parse(record.completion_start_time),
+            clickhouseStringDateSchema.parse(record.completion_start_time)
           )
         : null,
 

@@ -73,7 +73,8 @@ export const prepareClickhouse = async (
       concat('session_', toString(rand() % 100)) AS session_id,
       timestamp AS created_at,
       timestamp AS updated_at,
-      timestamp AS event_ts
+      timestamp AS event_ts,
+      0 AS is_deleted
     FROM numbers(${tracesPerProject});
   `;
 
@@ -113,7 +114,8 @@ export const prepareClickhouse = async (
       1000 AS prompt_version,
       start_time AS created_at,
       start_time AS updated_at,
-      start_time AS event_ts
+      start_time AS event_ts,
+      0 AS is_deleted
     FROM numbers(${observationsPerProject});
   `;
 
@@ -134,11 +136,13 @@ export const prepareClickhouse = async (
       'comment' as comment,
       toString(rand() % 100) as author_user_id,
       toString(rand() % 100) as config_id,
-      toString(rand() % 100) as data_type,
+      if (rand() < 0.33, 'NUMERIC', if (rand() < 0.5, 'CATEGORICAL', 'BOOLEAN')) as data_type,
       toString(rand() % 100) as string_value,
+      NULL as queue_id,
       timestamp AS created_at,
       timestamp AS updated_at,
-      timestamp AS event_ts
+      timestamp AS event_ts,
+      0 AS is_deleted
     FROM numbers(${scoresPerProject});
   `;
 

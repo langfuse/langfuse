@@ -1,4 +1,4 @@
-export interface Trace {
+export interface TraceClickhouseRecord {
   id: string;
   timestamp: string; // DateTime64(3)
   name: string;
@@ -18,7 +18,7 @@ export interface Trace {
   event_ts: string; // DateTime64(3)
 }
 
-export interface Observation {
+export interface ObservationClickhouseRecord {
   id: string;
   trace_id: string;
   project_id: string;
@@ -58,7 +58,7 @@ export interface Observation {
   event_ts: string; // DateTime64(3)
 }
 
-export interface Score {
+export interface ScoreClickhouseRecord {
   id: string;
   timestamp: string; // DateTime64(3)
   project_id: string;
