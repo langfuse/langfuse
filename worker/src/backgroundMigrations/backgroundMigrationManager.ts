@@ -59,12 +59,16 @@ export class BackgroundMigrationManager {
               (migration.lockedAt &&
                 migration.lockedAt > new Date(Date.now() - 60 * 1000))
             ) {
-              logger.info("No background migrations to run");
+              logger.info(
+                "[Background Migration] No background migrations to run",
+              );
               migrationToRun = false;
               return;
             }
 
-            logger.info(`Found background migrations ${migration.name} to run`);
+            logger.info(
+              `[Background Migration] Found background migrations ${migration.name} to run`,
+            );
 
             // Acquire lock
             await tx.backgroundMigration.update({
@@ -77,7 +81,7 @@ export class BackgroundMigrationManager {
               },
             });
             logger.info(
-              `Acquired lock for background migration ${migration.name}`,
+              `[Background Migration] Acquired lock for background migration ${migration.name}`,
             );
             BackgroundMigrationManager.activeMigration = {
               id: migration.id,
@@ -103,7 +107,7 @@ export class BackgroundMigrationManager {
         const { valid, invalidReason } = await migration.validate(args);
         if (!valid) {
           logger.error(
-            `Validation failed for background migration ${BackgroundMigrationManager.activeMigration.name}: ${invalidReason}`,
+            `[Background Migration] Validation failed for background migration ${BackgroundMigrationManager.activeMigration.name}: ${invalidReason}`,
           );
           await prisma.backgroundMigration.update({
             where: {
@@ -135,12 +139,12 @@ export class BackgroundMigrationManager {
               },
             });
             logger.info(
-              `Finished background migration ${BackgroundMigrationManager.activeMigration.name}`,
+              `[Background Migration] Finished background migration ${BackgroundMigrationManager.activeMigration.name}`,
             );
           }
         } catch (err) {
           logger.error(
-            `Failed to run background migration ${BackgroundMigrationManager.activeMigration.name}: ${err}`,
+            `[Background Migration] Failed to run background migration ${BackgroundMigrationManager.activeMigration.name}: ${err}`,
           );
           await prisma.backgroundMigration.update({
             where: {
