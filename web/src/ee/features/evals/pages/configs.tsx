@@ -30,10 +30,10 @@ export default function ConfigsPage() {
   return (
     <FullScreenPage>
       <Header
-        title="Eval Configs"
+        title="Evaluation Jobs"
         help={{
           description:
-            "Eval configs let you define how your evaluations templates are applied to incoming traces in Langfuse.",
+            "Eval jobs let you define how your evaluations templates are applied to incoming traces in Langfuse.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
         actionButtons={
@@ -53,7 +53,7 @@ export default function ConfigsPage() {
               ) : (
                 <Lock className="mr-2 h-4 w-4" />
               )}
-              New config
+              Set up new job
             </Link>
           </Button>
         }
@@ -63,7 +63,7 @@ export default function ConfigsPage() {
         menuItems={
           <Tabs value="configs">
             <TabsList>
-              <TabsTrigger value="configs">Configs</TabsTrigger>
+              <TabsTrigger value="configs">Jobs</TabsTrigger>
               <TabsTrigger value="templates" asChild>
                 <Link href={`/project/${projectId}/evals/templates`}>
                   Templates
