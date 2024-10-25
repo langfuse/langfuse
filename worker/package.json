@@ -43,7 +43,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "handlebars": "^4.7.8",
-    "helmet": "^7.1.0",
+    "helmet": "^8.0.0",
     "ioredis": "^5.4.1",
     "js-tiktoken": "^1.0.15",
     "kysely": "^0.27.4",
