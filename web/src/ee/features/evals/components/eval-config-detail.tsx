@@ -12,17 +12,12 @@ import {
 } from "@/src/components/ui/popover";
 import { useState } from "react";
 import { Trash } from "lucide-react";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/src/components/ui/tabs";
-import { Label } from "@/src/components/ui/label";
 import TableLink from "@/src/components/table/table-link";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 
 export const EvalConfigDetail = () => {
   const router = useRouter();
@@ -65,66 +60,71 @@ export const EvalConfigDetail = () => {
       : undefined;
 
   return (
-    <div className="md:container">
-      <Header
-        title={config.data?.id ?? "Loading..."}
-        status={config.data?.status.toLowerCase()}
-        actionButtons={
-          <DeactivateConfig
-            projectId={projectId}
-            config={config.data ?? undefined}
-            isLoading={config.isLoading}
-          />
-        }
-        breadcrumb={[
-          {
-            name: "Eval Configs",
-            href: `/project/${router.query.projectId as string}/evals/configs`,
-          },
-          { name: config.data?.id },
-        ]}
-      />
-      {existingEvalConfig && (
-        <>
-          <div className="my-5 flex items-center gap-4 rounded-md border p-2">
-            <Label>Eval Template</Label>
-            <TableLink
-              path={`/project/${projectId}/evals/templates/${existingEvalConfig.evalTemplateId}`}
-              value={
-                `${existingEvalConfig.evalTemplate.name} (v${existingEvalConfig.evalTemplate.version})` ??
-                ""
-              }
+    <FullScreenPage>
+      <>
+        <Header
+          title={`${config.data?.id}` ?? "Loading..."}
+          actionButtons={
+            <DeactivateConfig
+              projectId={projectId}
+              config={config.data ?? undefined}
+              isLoading={config.isLoading}
             />
-          </div>
-
-          <Tabs defaultValue="logs">
-            <TabsList>
-              <TabsTrigger value="logs">Logs</TabsTrigger>
-              <TabsTrigger value="configuration">Configuration</TabsTrigger>
-            </TabsList>
-            <TabsContent value="configuration">
-              <EvalConfigForm
+          }
+          breadcrumb={[
+            {
+              name: "Evaluation Jobs",
+              href: `/project/${router.query.projectId as string}/evals/configs`,
+            },
+            { name: config.data?.id },
+          ]}
+        />
+        {existingEvalConfig && (
+          <TableWithMetadataWrapper
+            tableComponent={
+              <EvalLogTable
                 projectId={projectId}
-                evalTemplates={allTemplates.data?.templates}
-                existingEvalConfig={existingEvalConfig}
-                disabled={true}
+                jobConfigurationId={existingEvalConfig.id}
               />
-            </TabsContent>
-            <TabsContent value="logs">
-              <FullScreenPage
-                lgHeight="lg:h-[calc(100dvh-13rem)]"
-                mobileHeight="h-[calc(100dvh-17rem)]"
-              >
-                <EvalLogTable
-                  projectId={projectId}
-                  jobConfigurationId={existingEvalConfig.id}
+            }
+            cardTitleChildren={
+              <div className="flex w-full flex-row items-center justify-between">
+                <span>Evaluation Job</span>
+                <StatusBadge
+                  type={config.data?.status.toLowerCase()}
+                  isLive
+                  className="max-h-8"
                 />
-              </FullScreenPage>
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
-    </div>
+              </div>
+            }
+            cardContentChildren={
+              <>
+                <div className="flex w-full flex-col items-start justify-between space-y-2">
+                  <span className="text-sm font-medium">Eval Template</span>
+                  <TableLink
+                    path={`/project/${projectId}/evals/templates/${existingEvalConfig.evalTemplateId}`}
+                    value={
+                      `${existingEvalConfig.evalTemplate.name} (v${existingEvalConfig.evalTemplate.version})` ??
+                      ""
+                    }
+                    className="flex min-h-6 items-center"
+                  />
+                </div>
+                <div className="flex w-full flex-col items-start justify-between space-y-2 pb-4">
+                  <EvalConfigForm
+                    projectId={projectId}
+                    evalTemplates={allTemplates.data?.templates}
+                    existingEvalConfig={existingEvalConfig}
+                    disabled={true}
+                    shouldWrapVariables={true}
+                  />
+                </div>
+              </>
+            }
+          />
+        )}
+      </>
+    </FullScreenPage>
   );
 };
 
@@ -166,8 +166,8 @@ export function DeactivateConfig({
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
       <PopoverTrigger asChild>
         <Button
-          variant="ghost"
-          size={"sm"}
+          variant="outline"
+          size={"icon"}
           disabled={!hasAccess || config?.status !== "ACTIVE"}
           loading={isLoading}
         >
