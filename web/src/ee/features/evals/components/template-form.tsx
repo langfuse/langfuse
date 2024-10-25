@@ -37,6 +37,8 @@ import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -154,6 +156,7 @@ const formSchema = z.object({
   ),
   outputScore: z.string().min(1, "Enter a score function"),
   outputReasoning: z.string().min(1, "Enter a reasoning function"),
+  shouldUpdateEvalJobs: z.boolean(),
 });
 
 export type EvalTemplateFormPreFill = {
@@ -261,15 +264,50 @@ export const InnerEvalTemplateForm = (props: {
     }
   }, [props.preFilledFormValues, form, props.existingEvalTemplateName]);
 
+  useEffect(() => {
+    if (props.isEditing && !props.existingEvalTemplateId) {
+      form.setValue("shouldUpdateEvalJobs", false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.existingEvalTemplateId]);
+
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
     : undefined;
 
   const utils = api.useUtils();
   const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
-    onSuccess: () => utils.models.invalidate(),
+    onSuccess: () => {
+      utils.models.invalidate();
+      if (
+        form.getValues("shouldUpdateEvalJobs") &&
+        props.existingEvalTemplateId
+      ) {
+        showSuccessToast({
+          title: "Updated evaluation jobs",
+          description: "Updated evaluation jobs to use new template.",
+        });
+      }
+    },
     onError: (error) => setFormError(error.message),
   });
+
+  const jobsByTemplateIdQuery = api.evals.jobsByTemplateId.useQuery(
+    {
+      projectId: props.projectId,
+      evalTemplateId: props.existingEvalTemplateId as string,
+    },
+    {
+      enabled: props.isEditing && !!props.existingEvalTemplateId,
+    },
+  );
+
+  if (
+    jobsByTemplateIdQuery.data &&
+    !Boolean(jobsByTemplateIdQuery.data.jobs.length)
+  ) {
+    form.setValue("shouldUpdateEvalJobs", false);
+  }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     capture(
@@ -290,6 +328,8 @@ export const InnerEvalTemplateForm = (props: {
         score: values.outputScore,
         reasoning: values.outputReasoning,
       },
+      shouldUpdateEvalJobs: values.shouldUpdateEvalJobs,
+      existingEvalTemplateId: props.existingEvalTemplateId,
     };
 
     const parsedModel = selectedModelSchema.safeParse(evalTemplate);
@@ -421,6 +461,65 @@ export const InnerEvalTemplateForm = (props: {
               </FormItem>
             )}
           />
+
+          {props.isEditing && (
+            <FormField
+              control={form.control}
+              name="shouldUpdateEvalJobs"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Referenced evaluation jobs</FormLabel>
+                  <FormControl>
+                    <ToggleGroup
+                      value={
+                        field.value === undefined
+                          ? undefined
+                          : field.value
+                            ? "Update"
+                            : "Preserve"
+                      }
+                      onValueChange={(value) => {
+                        if (value === "Update") field.onChange(true);
+                        else if (value === "Preserve") field.onChange(false);
+                        else field.onChange(undefined);
+                      }}
+                      disabled={
+                        !Boolean(jobsByTemplateIdQuery.data?.jobs.length)
+                      }
+                      type="single"
+                      defaultValue={
+                        props.isEditing && props.existingEvalTemplateId
+                          ? undefined
+                          : "Preserve"
+                      }
+                      className="flex justify-start"
+                    >
+                      {[
+                        { label: "Update", value: true },
+                        { label: "Preserve", value: false },
+                      ].map(({ label }) => (
+                        <ToggleGroupItem
+                          key={label}
+                          value={label}
+                          variant="outline"
+                        >
+                          <span>{label}</span>
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  </FormControl>
+                  <FormDescription>
+                    {jobsByTemplateIdQuery.data?.jobs.length ?? 0} evaluation
+                    job(s) are currently using this template.{" "}
+                    {Boolean(jobsByTemplateIdQuery.data?.jobs.length)
+                      ? "Would you like to update them to use this version?"
+                      : "No jobs to update."}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
         <div className="col-span-1 row-span-3">
           <div className="flex flex-col gap-6">
@@ -444,7 +543,7 @@ export const InnerEvalTemplateForm = (props: {
           <Button
             type="submit"
             loading={createEvalTemplateMutation.isLoading}
-            className="col-span-1 mt-3 lg:col-span-3"
+            className="col-span-1 lg:col-span-3"
           >
             Save
           </Button>

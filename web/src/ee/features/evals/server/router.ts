@@ -35,6 +35,8 @@ export const CreateEvalTemplate = z.object({
     score: z.string(),
     reasoning: z.string(),
   }),
+  shouldUpdateEvalJobs: z.boolean(),
+  existingEvalTemplateId: z.string().optional(),
 });
 
 export const evalRouter = createTRPCRouter({
@@ -262,6 +264,39 @@ export const evalRouter = createTRPCRouter({
         totalCount: count,
       };
     }),
+  jobsByTemplateId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoEntitlement({
+          entitlement: "model-based-evaluations",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "evalJob:read",
+        });
+        return {
+          jobs: await ctx.prisma.jobConfiguration.findMany({
+            where: {
+              projectId: input.projectId,
+              evalTemplateId: input.evalTemplateId,
+            },
+          }),
+        };
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching eval jobs for template failed.",
+        });
+      }
+    }),
 
   createJob: protectedProjectProcedure
     .input(
@@ -411,6 +446,17 @@ export const evalRouter = createTRPCRouter({
           provider: input.provider,
         },
       });
+
+      if (input.shouldUpdateEvalJobs && input.existingEvalTemplateId) {
+        await ctx.prisma.jobConfiguration.updateMany({
+          where: {
+            evalTemplateId: input.existingEvalTemplateId,
+          },
+          data: {
+            evalTemplateId: evalTemplate.id,
+          },
+        });
+      }
 
       await auditLog({
         session: ctx.session,
