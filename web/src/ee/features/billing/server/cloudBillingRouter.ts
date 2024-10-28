@@ -279,6 +279,13 @@ export const cloudBillingRouter = createTRPCRouter({
             }
             return acc;
           }, 0);
+
+          // get number of seats
+          const countUsers = stripeInvoice.lines.data.find((line) =>
+            Boolean(line.quantity),
+          )?.quantity;
+
+          // get meter for usage type (events or observations)
           const meterId = stripeInvoice.lines.data.find((line) =>
             Boolean(line.plan?.meter),
           )?.plan?.meter;
@@ -287,9 +294,10 @@ export const cloudBillingRouter = createTRPCRouter({
             : undefined;
           return {
             usageCount: usage,
-            type: meter?.display_name.toLowerCase() ?? "events",
+            usageType: meter?.display_name.toLowerCase() ?? "events",
             billingPeriod,
             upcomingInvoice,
+            countUsers,
           };
         }
       }
@@ -334,7 +342,7 @@ export const cloudBillingRouter = createTRPCRouter({
 
       return {
         usageCount: usageArr.reduce((a, b) => a + b, 0),
-        type: "events",
+        usageType: "events",
       };
     }),
 });

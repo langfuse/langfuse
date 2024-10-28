@@ -68,8 +68,9 @@ const OrganizationUsageChart = () => {
     organization?.cloudConfig?.monthlyObservationLimit ?? MAX_EVENTS_FREE_PLAN;
   const plan: Plan = organization?.plan ?? "cloud:hobby";
   const planLabel = planLabels[plan];
-  const usageType = usage.data?.type
-    ? usage.data.type.charAt(0).toUpperCase() + usage.data.type.slice(1)
+  const usageType = usage.data?.usageType
+    ? usage.data.usageType.charAt(0).toUpperCase() +
+      usage.data.usageType.slice(1)
     : "Events";
 
   return (
@@ -106,7 +107,10 @@ const OrganizationUsageChart = () => {
         )}
       </Card>
       <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
-        <p>Current plan: {planLabel}</p>
+        <p>
+          Current plan: {planLabel}
+          {usage.data?.countUsers && ` (${usage.data.countUsers} users)`}
+        </p>
         {usage.data?.billingPeriod && (
           <p>
             {`Billing period: ${usage.data.billingPeriod.start.toLocaleDateString()} - ${usage.data.billingPeriod.end.toLocaleDateString()}`}
@@ -139,6 +143,9 @@ const BillingPortalOrCheckoutButton = () => {
     },
     {
       enabled: organization !== undefined,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
     },
   );
 
