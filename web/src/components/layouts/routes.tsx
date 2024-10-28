@@ -95,14 +95,14 @@ export const ROUTES: Route[] = [
     projectRbacScopes: ["annotationQueues:read", "evalJob:read"],
     children: [
       {
-        name: "Annotation",
+        name: "Human Annotation",
         pathname: `/project/[projectId]/annotation-queues`,
         projectRbacScopes: ["annotationQueues:read"],
         entitlements: ["annotation-queues"],
       },
       {
-        name: "Model-based",
-        pathname: `/project/[projectId]/evals/configs`,
+        name: "LLM-as-a-Judge",
+        pathname: `/project/[projectId]/evals`,
         entitlements: ["model-based-evaluations"],
         projectRbacScopes: ["evalJob:read"],
       },

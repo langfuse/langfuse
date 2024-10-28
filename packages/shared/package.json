@@ -59,7 +59,7 @@
     "@aws-sdk/client-cloudwatch": "^3.675.0",
     "@aws-sdk/client-s3": "^3.675.0",
     "@aws-sdk/lib-storage": "^3.675.0",
-    "@aws-sdk/s3-request-presigner": "^3.675.0",
+    "@aws-sdk/s3-request-presigner": "^3.679.0",
     "@clickhouse/client": "^1.4.0",
     "@langchain/anthropic": "^0.3.1",
     "@langchain/aws": "^0.1.0",
@@ -84,9 +84,9 @@
     "nodemailer": "^6.9.15",
     "prisma-extension-kysely": "^2.1.0",
     "uuid": "^9.0.1",
-    "winston": "^3.14.2",
+    "winston": "^3.15.0",
     "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.23.2"
+    "zod-to-json-schema": "^3.23.5"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

@@ -21,7 +21,7 @@ export type JobExecutionRow = {
   endTime?: string;
   traceId?: string;
   templateId: string;
-  configId: string;
+  evaluatorId: string;
   error?: string;
 };
 
@@ -140,15 +140,15 @@ export default function EvalLogTable({
 
   if (!jobConfigurationId) {
     columns.push(
-      columnHelper.accessor("configId", {
-        id: "configId",
-        header: "Config",
+      columnHelper.accessor("evaluatorId", {
+        id: "evaluatorId",
+        header: "Evaluator",
         cell: (row) => {
-          const configId = row.getValue();
-          return configId ? (
+          const evaluatorId = row.getValue();
+          return evaluatorId ? (
             <TableLink
-              path={`/project/${projectId}/evals/configs/${encodeURIComponent(configId)}`}
-              value={configId}
+              path={`/project/${projectId}/evals/${encodeURIComponent(evaluatorId)}`}
+              value={evaluatorId}
             />
           ) : undefined;
         },
@@ -176,7 +176,7 @@ export default function EvalLogTable({
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
       templateId: jobConfig.jobConfiguration.evalTemplateId ?? "",
-      configId: jobConfig.jobConfigurationId,
+      evaluatorId: jobConfig.jobConfigurationId,
       error: jobConfig.error ?? undefined,
     };
   };

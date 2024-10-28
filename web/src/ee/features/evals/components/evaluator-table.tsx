@@ -26,7 +26,7 @@ export type EvalConfigRow = {
   filter: FilterState;
 };
 
-export default function EvalConfigTable({
+export default function EvaluatorTable({
   projectId,
   menuItems,
 }: {
@@ -39,22 +39,22 @@ export default function EvalConfigTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const templates = api.evals.allConfigs.useQuery({
+  const evaluators = api.evals.allConfigs.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
   });
-  const totalCount = templates.data?.totalCount ?? null;
+  const totalCount = evaluators.data?.totalCount ?? null;
 
   useEffect(() => {
-    if (templates.isSuccess) {
+    if (evaluators.isSuccess) {
       setDetailPageList(
         "evals",
-        templates.data.configs.map((config) => config.id),
+        evaluators.data.configs.map((evaluator) => evaluator.id),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templates.isSuccess, templates.data]);
+  }, [evaluators.isSuccess, evaluators.data]);
 
   const columnHelper = createColumnHelper<EvalConfigRow>();
   const columns = [
@@ -66,7 +66,7 @@ export default function EvalConfigTable({
         const id = row.getValue();
         return id ? (
           <TableLink
-            path={`/project/${projectId}/evals/configs/${encodeURIComponent(id)}`}
+            path={`/project/${projectId}/evals/${encodeURIComponent(id)}`}
             value={id}
           />
         ) : undefined;
@@ -149,18 +149,20 @@ export default function EvalConfigTable({
       <DataTable
         columns={columns}
         data={
-          templates.isLoading
+          evaluators.isLoading
             ? { isLoading: true, isError: false }
-            : templates.isError
+            : evaluators.isError
               ? {
                   isLoading: false,
                   isError: true,
-                  error: templates.error.message,
+                  error: evaluators.error.message,
                 }
               : {
                   isLoading: false,
                   isError: false,
-                  data: templates.data.configs.map((t) => convertToTableRow(t)),
+                  data: evaluators.data.configs.map((evaluator) =>
+                    convertToTableRow(evaluator),
+                  ),
                 }
         }
         pagination={{
