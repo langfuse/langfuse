@@ -30,10 +30,10 @@ export default function ConfigsPage() {
   return (
     <FullScreenPage>
       <Header
-        title="Evaluation Jobs"
+        title="Evaluators"
         help={{
           description:
-            "Eval jobs let you define how your evaluations templates are applied to incoming traces in Langfuse.",
+            "Use LLM-as-a-judge evaluators as practical addition to human annotation. Configure an evaluation prompt and a model as judge to evaluate incoming traces.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
         actionButtons={
@@ -63,7 +63,7 @@ export default function ConfigsPage() {
         menuItems={
           <Tabs value="configs">
             <TabsList>
-              <TabsTrigger value="configs">Jobs</TabsTrigger>
+              <TabsTrigger value="configs">Evaluators</TabsTrigger>
               <TabsTrigger value="templates" asChild>
                 <Link href={`/project/${projectId}/evals/templates`}>
                   Templates

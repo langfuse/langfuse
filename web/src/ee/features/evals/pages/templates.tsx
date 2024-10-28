@@ -65,7 +65,9 @@ export default function TemplatesPage() {
           <Tabs value="templates">
             <TabsList>
               <TabsTrigger value="configs" asChild>
-                <Link href={`/project/${projectId}/evals/configs`}>Jobs</Link>
+                <Link href={`/project/${projectId}/evals/configs`}>
+                  Evaluators
+                </Link>
               </TabsTrigger>
               <TabsTrigger value="templates">Templates</TabsTrigger>
               <TabsTrigger value="log" asChild>

@@ -17,10 +17,10 @@ export default function NewConfigsPage() {
   return (
     <div>
       <Header
-        title="Set up new evaluation job"
+        title="Set up new evaluator"
         help={{
           description:
-            "Evaluation jobs let you define how your evaluation templates are applied to incoming traces in Langfuse.",
+            "Use LLM-as-a-judge evaluators as practical addition to human annotation. Configure an evaluation prompt and a model as judge to evaluate incoming traces.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
       />

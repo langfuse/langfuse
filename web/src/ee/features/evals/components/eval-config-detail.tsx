@@ -78,7 +78,7 @@ export const EvalConfigDetail = () => {
         }
         breadcrumb={[
           {
-            name: "Evaluation Jobs",
+            name: "Evaluators",
             href: `/project/${router.query.projectId as string}/evals/configs`,
           },
           { name: config.data?.id },

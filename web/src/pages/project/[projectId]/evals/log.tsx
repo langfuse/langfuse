@@ -39,7 +39,9 @@ export default function LogPage() {
           <Tabs value="log">
             <TabsList>
               <TabsTrigger value="configs" asChild>
-                <Link href={`/project/${projectId}/evals/configs`}>Jobs</Link>
+                <Link href={`/project/${projectId}/evals/configs`}>
+                  Evaluators
+                </Link>
               </TabsTrigger>
               <TabsTrigger value="templates" asChild>
                 <Link href={`/project/${projectId}/evals/templates`}>
