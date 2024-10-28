@@ -308,7 +308,7 @@ export const evaluate = async ({
         evalScoreSchema
       ),
     {
-      numOfAttempts: 3,
+      numOfAttempts: 2,
     }
   );
 
