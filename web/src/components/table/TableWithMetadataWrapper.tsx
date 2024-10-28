@@ -44,7 +44,7 @@ export const TableWithMetadataWrapper = ({
             <Separator orientation="vertical" className="ml-4 h-full" />
           </div>
           <div
-            className={`${isCollapsed ? "hidden" : "block"} grid h-full w-full grid-rows-[auto,1fr] gap-2 overflow-hidden p-2`}
+            className={`${isCollapsed ? "hidden" : "block"} grid max-h-full w-full grid-rows-[auto,1fr] overflow-hidden p-2`}
           >
             <div className="my-2 flex h-6 flex-wrap items-center gap-2 @container" />
             <Card className="flex h-full flex-col overflow-hidden">

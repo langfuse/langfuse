@@ -19,6 +19,7 @@ import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { CardDescription } from "@/src/components/ui/card";
 
 export const EvaluatorDetail = () => {
   const router = useRouter();
@@ -112,7 +113,7 @@ export const EvaluatorDetail = () => {
             }
             cardContentChildren={
               <>
-                <div className="flex w-full flex-col items-start justify-between space-y-2">
+                <CardDescription className="flex items-center justify-between text-sm">
                   <span className="text-sm font-medium">Eval Template</span>
                   <TableLink
                     path={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplateId}`}
@@ -122,7 +123,7 @@ export const EvaluatorDetail = () => {
                     }
                     className="flex min-h-6 items-center"
                   />
-                </div>
+                </CardDescription>
                 <div className="flex w-full flex-col items-start justify-between space-y-2 pb-4">
                   <EvaluatorForm
                     key={existingEvaluator.id}
