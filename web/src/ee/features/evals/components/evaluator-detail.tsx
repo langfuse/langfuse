@@ -192,7 +192,7 @@ export function DeactivateEvaluator({
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action permanently deactivates the evaluator. No more traces will
-          be evaluated for this job.
+          be evaluated based on this evaluator.
         </p>
         <div className="flex justify-end space-x-4">
           <Button
@@ -201,7 +201,7 @@ export function DeactivateEvaluator({
             loading={mutEvaluator.isLoading}
             onClick={onClick}
           >
-            Deactivate Eval Job
+            Deactivate evaluator
           </Button>
         </div>
       </PopoverContent>
