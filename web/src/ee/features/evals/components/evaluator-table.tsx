@@ -37,12 +37,12 @@ export default function EvaluatorTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const templates = api.evals.allConfigs.useQuery({
+  const evaluators = api.evals.allConfigs.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
   });
-  const totalCount = templates.data?.totalCount ?? null;
+  const totalCount = evaluators.data?.totalCount ?? null;
 
   const columnHelper = createColumnHelper<EvalConfigRow>();
   const columns = [
@@ -137,18 +137,20 @@ export default function EvaluatorTable({
       <DataTable
         columns={columns}
         data={
-          templates.isLoading
+          evaluators.isLoading
             ? { isLoading: true, isError: false }
-            : templates.isError
+            : evaluators.isError
               ? {
                   isLoading: false,
                   isError: true,
-                  error: templates.error.message,
+                  error: evaluators.error.message,
                 }
               : {
                   isLoading: false,
                   isError: false,
-                  data: templates.data.configs.map((t) => convertToTableRow(t)),
+                  data: evaluators.data.configs.map((evaluator) =>
+                    convertToTableRow(evaluator),
+                  ),
                 }
         }
         pagination={{
