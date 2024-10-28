@@ -1,7 +1,7 @@
 import { ObservationLevel } from "@prisma/client";
 import { ColumnDefinition, OptionsDefinition } from ".";
 
-const tracesOnlyCols: ColumnDefinition[] = [
+export const tracesOnlyCols: ColumnDefinition[] = [
   {
     name: "⭐️",
     id: "bookmarked",

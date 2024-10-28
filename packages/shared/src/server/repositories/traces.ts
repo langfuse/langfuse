@@ -1,11 +1,7 @@
-import {
-  type ObservationLevel,
-  type FilterState,
-  stringFilter,
-} from "@langfuse/shared";
+import { type ObservationLevel, type FilterState } from "@langfuse/shared";
 import { TraceClickhouseRecord } from "../clickhouse/schema";
 import { queryClickhouse } from "./clickhouse";
-import { FilterList, StringFilter } from "../queries/filter/factory";
+import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
 import { logger } from "../logger";
 
 export type TracesTableReturnType = Pick<
@@ -59,38 +55,18 @@ export const getTracesTable = async (
 ) => {
   console.log("getTracesTable");
 
-  const strFilter = new StringFilter({
-    clickhouseTable: "traces",
-    field: "project_id",
-    operator: "=",
-    value: projectId,
-    tablePrefix: "t",
-  });
+  const { tracesFilter, scoresFilter, observationsFilter } =
+    getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
-  const tracesFilter = new FilterList([strFilter]);
-  const res = tracesFilter.apply();
+  const f = createFilterFromFilterState(filter);
 
-  const observationsStatsFilter = new FilterList([
-    new StringFilter({
-      clickhouseTable: "observations",
-      field: "project_id",
-      operator: "=",
-      value: projectId,
-    }),
-  ]);
+  tracesFilter.push(f.find((f) => f.clickhouseTable === "traces"));
+  scoresFilter.push(f.find((f) => f.clickhouseTable === "scores"));
+  observationsFilter.push(f.find((f) => f.clickhouseTable === "observations"));
 
-  const observationsStatsRes = observationsStatsFilter.apply();
-
-  const scoresAvgFilter = new FilterList([
-    new StringFilter({
-      clickhouseTable: "scores",
-      field: "project_id",
-      operator: "=",
-      value: projectId,
-    }),
-  ]);
-
-  const scoresAvgFilterRes = scoresAvgFilter.apply();
+  const tracesFilterRes = tracesFilter.apply();
+  const scoresAvgFilterRes = scoresFilter.apply();
+  const observationsStatsRes = observationsFilter.apply();
 
   const query = `
   WITH observations_stats AS (
@@ -110,7 +86,6 @@ export const getTracesTable = async (
       project_id
     FROM
         observations final
-
     WHERE ${observationsStatsRes.query}
     group by trace_id, project_id
 ),
@@ -123,7 +98,7 @@ export const getTracesTable = async (
                                           trace_id,
                                           name,
                                           avg(value) avg_value
-                                  FROM scores
+                                  FROM scores final
                                   WHERE ${scoresAvgFilterRes.query}
                                   GROUP BY project_id,
                                             trace_id,
@@ -152,19 +127,19 @@ export const getTracesTable = async (
               left join observations_stats os on os.project_id = t.project_id and os.trace_id = t.id
               left join scores_avg s on s.project_id = t.project_id and s.trace_id = t.id
 
-      WHERE ${res.query}
+      WHERE ${tracesFilterRes.query}
       order by t.timestamp desc
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  logger.error("hello", JSON.stringify(res.params));
+  logger.error("hello", JSON.stringify(tracesFilterRes.params));
 
   const rows = await queryClickhouse<TracesTableReturnType>({
     query: query,
     params: {
       limit: limit,
       offset: offset,
-      ...res.params,
+      ...tracesFilterRes.params,
       ...observationsStatsRes.params,
       ...scoresAvgFilterRes.params,
     },
