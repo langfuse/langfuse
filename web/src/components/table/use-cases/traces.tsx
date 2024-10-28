@@ -714,17 +714,22 @@ export default function TracesTable({
             usage:
               "usageDetails" in trace
                 ? {
-                    promptTokens: BigInt(trace.usageDetails?.input ?? 0),
-                    completionTokens: BigInt(trace.usageDetails?.output ?? 0),
-                    totalTokens: BigInt(trace.usageDetails?.total ?? 0),
+                    promptTokens:
+                      BigInt(trace.usageDetails?.input ?? 0) ?? undefined,
+                    completionTokens:
+                      BigInt(trace.usageDetails?.output ?? 0) ?? undefined,
+                    totalTokens:
+                      BigInt(trace.usageDetails?.total ?? 0) ?? undefined,
                   }
                 : "promptTokens" in trace &&
                     "completionTokens" in trace &&
                     "totalTokens" in trace
                   ? {
-                      promptTokens: trace.promptTokens ?? 0,
-                      completionTokens: trace.completionTokens ?? 0,
-                      totalTokens: trace.totalTokens ?? 0,
+                      promptTokens:
+                        BigInt(trace.promptTokens ?? 0) ?? undefined,
+                      completionTokens:
+                        BigInt(trace.completionTokens ?? 0) ?? undefined,
+                      totalTokens: BigInt(trace.totalTokens ?? 0) ?? undefined,
                     }
                   : {
                       promptTokens: BigInt(0),
@@ -739,27 +744,30 @@ export default function TracesTable({
               : undefined,
             inputCost:
               "costDetails" in trace
-                ? trace.costDetails?.input
-                  ? new Decimal(trace.costDetails?.input)
+                ? trace.costDetails?.input !== undefined &&
+                  trace.costDetails?.input !== null
+                  ? new Decimal(trace.costDetails.input)
                   : undefined
                 : "calculatedInputCost" in trace
-                  ? trace.calculatedInputCost
+                  ? (trace.calculatedInputCost ?? undefined)
                   : undefined,
             outputCost:
               "costDetails" in trace
-                ? trace.costDetails?.output !== undefined
+                ? trace.costDetails?.output !== undefined &&
+                  trace.costDetails?.output !== null
                   ? new Decimal(trace.costDetails.output)
                   : undefined
                 : "calculatedOutputCost" in trace
-                  ? trace.calculatedOutputCost
+                  ? (trace.calculatedOutputCost ?? undefined)
                   : undefined,
             totalCost:
               "costDetails" in trace
-                ? trace.costDetails?.total
+                ? trace.costDetails?.total !== undefined &&
+                  trace.costDetails?.total !== null
                   ? new Decimal(trace.costDetails.total)
                   : undefined
                 : "calculatedTotalCost" in trace
-                  ? trace.calculatedTotalCost
+                  ? (trace.calculatedTotalCost ?? undefined)
                   : undefined,
           };
         }) ?? [])

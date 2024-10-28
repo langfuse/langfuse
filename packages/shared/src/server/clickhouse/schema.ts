@@ -1,4 +1,4 @@
-export interface TraceClickhouseRecord {
+export type TraceClickhouseRecord = {
   id: string;
   timestamp: string; // DateTime64(3)
   name: string;
@@ -16,9 +16,9 @@ export interface TraceClickhouseRecord {
   created_at: string; // DateTime64(3)
   updated_at: string; // DateTime64(3)
   event_ts: string; // DateTime64(3)
-}
+};
 
-export interface ObservationClickhouseRecord {
+export type ObservationClickhouseRecord = {
   id: string;
   trace_id: string;
   project_id: string;
@@ -56,9 +56,9 @@ export interface ObservationClickhouseRecord {
   created_at: string; // DateTime64(3)
   updated_at: string; // DateTime64(3)
   event_ts: string; // DateTime64(3)
-}
+};
 
-export interface ScoreClickhouseRecord {
+export type ScoreClickhouseRecord = {
   id: string;
   timestamp: string; // DateTime64(3)
   project_id: string;
@@ -75,9 +75,9 @@ export interface ScoreClickhouseRecord {
   created_at: string; // DateTime64(3)
   updated_at: string; // DateTime64(3)
   event_ts: string; // DateTime64(3)
-}
+};
 
-export interface ObservationWide {
+export type ObservationWide = {
   id: string;
   trace_id?: string;
   name?: string;
@@ -134,4 +134,24 @@ export interface ObservationWide {
   trace_output?: string;
   trace_session_id?: string;
   trace_event_ts: string; // DateTime64(3)
-}
+};
+
+export const ClickhouseTableNames = {
+  traces: "traces",
+  observations: "observations",
+  scores: "scores",
+} as const;
+
+export type ClickhouseTableName = keyof typeof ClickhouseTableNames;
+
+export type ClickhouseTables = {
+  traces: TraceClickhouseRecord;
+  observations: ObservationClickhouseRecord;
+  scores: ScoreClickhouseRecord;
+};
+
+type TraceKeys = keyof TraceClickhouseRecord;
+
+const isTraceColumn = (columnName: string): columnName is TraceKeys => {
+  return columnName in ({} as TraceClickhouseRecord);
+};
