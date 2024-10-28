@@ -344,7 +344,7 @@ export const evaluate = async ({
     .execute();
 
   logger.info(
-    `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.data.score}`
+    `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.score}`
   );
 };
 
@@ -354,8 +354,8 @@ async function callLLM(
   prompt: string,
   modelParams: z.infer<typeof ZodModelConfig>,
   template: EvalTemplate,
-  evalScoreSchema: z.ZodObject<any, any>
-) {
+  evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>
+): Promise<z.infer<typeof evalScoreSchema>> {
   const completion = await fetchLLMCompletion({
     streaming: false,
     apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
