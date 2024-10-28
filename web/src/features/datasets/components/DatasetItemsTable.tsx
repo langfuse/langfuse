@@ -14,7 +14,6 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Archive, ListTree, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect } from "react";
@@ -24,6 +23,8 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type RowData = {
   id: string;
@@ -59,6 +60,8 @@ export function DatasetItemsTable({
     "datasetItems",
     "s",
   );
+
+  const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
 
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
@@ -112,13 +115,13 @@ export function DatasetItemsTable({
         if (!source) return null;
         return source.observationId ? (
           <TableLink
-            path={`/project/${projectId}/traces/${source.traceId}?observation=${source.observationId}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(source.traceId)}?observation=${encodeURIComponent(source.observationId)}`}
             value={source.observationId}
             icon={<ListTree className="h-4 w-4" />}
           />
         ) : (
           <TableLink
-            path={`/project/${projectId}/traces/${source.traceId}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(source.traceId)}`}
             value={source.traceId}
             icon={<ListTree className="h-4 w-4" />}
           />
@@ -133,17 +136,11 @@ export function DatasetItemsTable({
       cell: ({ row }) => {
         const status: DatasetStatus = row.getValue("status");
         return (
-          <div className="flex items-center gap-2">
-            <div
-              className={cn(
-                "h-2 w-2 rounded-full",
-                status === DatasetStatus.ACTIVE
-                  ? "bg-dark-green"
-                  : "bg-dark-yellow",
-              )}
-            />
-            <span>{status}</span>
-          </div>
+          <StatusBadge
+            className="capitalize"
+            type={status.toLowerCase()}
+            isLive={false}
+          />
         );
       },
     },
@@ -218,6 +215,7 @@ export function DatasetItemsTable({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
+                disabled={!hasAccess}
                 onClick={() => {
                   capture("dataset_item:archive_toggle", {
                     status:

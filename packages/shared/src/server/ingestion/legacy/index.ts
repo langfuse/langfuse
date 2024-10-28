@@ -2,23 +2,16 @@ import { env } from "node:process";
 import z from "zod";
 import { ForbiddenError, UnauthorizedError } from "../../../errors";
 import { eventTypes, ingestionApiSchema, ingestionEvent } from "../types";
-import {
-  EventProcessor,
-  TraceProcessor,
-  ObservationProcessor,
-  ScoreProcessor,
-  SdkLogProcessor,
-} from "./EventProcessor";
-import { EventBodyType, EventName, TraceUpsertEventType } from "../../queues";
+import { getProcessorForEvent } from "./EventProcessor";
+import { TraceUpsertEventType } from "../../queues";
 import {
   convertTraceUpsertEventsToRedisEvents,
-  getTraceUpsertQueue,
-} from "../../redis/trace-upsert";
+  TraceUpsertQueue,
+} from "../../redis/traceUpsert";
 import { ApiAccessScope } from "../../auth/types";
 import { redis } from "../../redis/redis";
 import { backOff } from "exponential-backoff";
 import { Model } from "../../..";
-import { enqueueIngestionEvents } from "./enqueueIngestionEvents";
 import { logger } from "../../logger";
 
 export type BatchResult = {
@@ -91,15 +84,6 @@ export const handleBatch = async (
     }
   }
 
-  if (env.CLICKHOUSE_URL) {
-    try {
-      await enqueueIngestionEvents(authCheck.scope.projectId, events);
-      logger.info(`Added ${events.length} ingestion events to queue`);
-    } catch (err) {
-      logger.error("Error adding ingestion events to queue", err);
-    }
-  }
-
   return { results, errors };
 };
 
@@ -144,40 +128,18 @@ const handleSingleEvent = async (
 
   const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
 
-  const { type } = cleanedEvent;
-
-  let processor: EventProcessor;
-  switch (type) {
-    case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(cleanedEvent);
-      break;
-    case eventTypes.OBSERVATION_CREATE:
-    case eventTypes.OBSERVATION_UPDATE:
-    case eventTypes.EVENT_CREATE:
-    case eventTypes.SPAN_CREATE:
-    case eventTypes.SPAN_UPDATE:
-    case eventTypes.GENERATION_CREATE:
-    case eventTypes.GENERATION_UPDATE:
-      processor = new ObservationProcessor(
-        cleanedEvent,
-        calculateTokenDelegate,
-      );
-      break;
-    case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(cleanedEvent);
-      break;
-    }
-    case eventTypes.SDK_LOG:
-      processor = new SdkLogProcessor(cleanedEvent);
-  }
-
   // Deny access to non-score events if the access level is not "all"
   // This is an additional safeguard to auth checks in EventProcessor
-  if (apiScope.accessLevel !== "all" && type !== eventTypes.SCORE_CREATE) {
+  if (
+    apiScope.accessLevel !== "all" &&
+    cleanedEvent.type !== eventTypes.SCORE_CREATE
+  ) {
     throw new ForbiddenError("Access denied. Event type not allowed.");
   }
 
-  return await processor.process(apiScope);
+  return getProcessorForEvent(cleanedEvent, calculateTokenDelegate).process(
+    apiScope,
+  );
 };
 
 // cleans NULL characters from the event
@@ -208,7 +170,7 @@ export const isNotNullOrUndefined = <T>(
 export const isUndefinedOrNull = <T>(val?: T | null): val is undefined | null =>
   val === undefined || val === null;
 
-export const sendToWorkerIfEnvironmentConfigured = async (
+export const addTracesToTraceUpsertQueue = async (
   batchResults: BatchResult[],
   projectId: string,
 ): Promise<void> => {
@@ -228,39 +190,13 @@ export const sendToWorkerIfEnvironmentConfigured = async (
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && redis) {
       logger.info(`Sending ${traceEvents.length} events to worker via Redis`);
 
-      const queue = getTraceUpsertQueue();
+      const queue = TraceUpsertQueue.getInstance();
       if (!queue) {
         logger.error("TraceUpsertQueue not initialized");
         return;
       }
 
       await queue.addBulk(convertTraceUpsertEventsToRedisEvents(traceEvents));
-    } else if (
-      env.LANGFUSE_WORKER_HOST &&
-      env.LANGFUSE_WORKER_PASSWORD &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-    ) {
-      logger.info(`Sending ${traceEvents.length} events to worker via HTTP`);
-      const body: EventBodyType = {
-        name: EventName.TraceUpsert,
-        payload: traceEvents,
-      };
-
-      if (traceEvents.length > 0) {
-        await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:
-              "Basic " +
-              Buffer.from(
-                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
-              ).toString("base64"),
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(8 * 1000),
-        });
-      }
     }
   } catch (error) {
     logger.error("Error sending events to worker", error);

@@ -21,4 +21,5 @@ export const pruneDatabase = async () => {
   await prisma.jobConfiguration.deleteMany();
   await prisma.evalTemplate.deleteMany();
   await prisma.llmApiKeys.deleteMany();
+  await prisma.price.deleteMany();
 };

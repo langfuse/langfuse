@@ -108,14 +108,14 @@ function MarkdownRenderer({
           if (isChecklist(children))
             return <ul className="list-none">{children}</ul>;
 
-          return <ul className="list-outside list-disc pl-4">{children}</ul>;
+          return <ul className="list-inside list-disc">{children}</ul>;
         },
         ol({ children }) {
-          return <ol className="list-outside list-decimal pl-4">{children}</ol>;
+          return <ol className="list-inside list-decimal">{children}</ol>;
         },
         li({ children }) {
           return (
-            <li className="mb-1 list-item">
+            <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
               {transformListItemChildren(children)}
             </li>
           );
@@ -267,7 +267,7 @@ export function MarkdownView({
             <Button
               title="Disable Markdown"
               variant="ghost"
-              size="xs"
+              size="icon-xs"
               type="button"
               onClick={() => {
                 setIsMarkdownEnabled(false);
@@ -282,10 +282,10 @@ export function MarkdownView({
             <Button
               title="Copy to clipboard"
               variant="ghost"
-              size="xs"
+              size="icon-xs"
               type="button"
               onClick={handleCopy}
-              className="hover:bg-border"
+              className="-mr-2 hover:bg-border"
             >
               {isCopied ? (
                 <Check className="h-3 w-3" />

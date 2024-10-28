@@ -1,35 +1,36 @@
+import type { ZodSchema } from "zod";
+
 import { ChatAnthropic } from "@langchain/anthropic";
+import { ChatBedrockConverse } from "@langchain/aws";
 import {
   AIMessage,
   HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
-import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import {
   BytesOutputParser,
   StringOutputParser,
 } from "@langchain/core/output_parsers";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { ChatOpenAI } from "@langchain/openai";
-
 import {
-  ChatMessage,
-  ChatMessageRole,
-  LLMFunctionCall,
-  ModelParams,
-  LLMAdapter,
-} from "./types";
-import zodToJsonSchema from "zod-to-json-schema";
-import { JsonOutputFunctionsParser } from "langchain/output_parsers";
+  BedrockConfigSchema,
+  BedrockCredentialSchema,
+} from "../../interfaces/customLLMProviderConfigSchemas";
+
+import { ChatMessage, ChatMessageRole, LLMAdapter, ModelParams } from "./types";
+
+import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
-  functionCall?: LLMFunctionCall;
+  structuredOutputSchema?: ZodSchema;
   callbacks?: BaseCallbackHandler[];
   baseURL?: string;
-  apiKey?: string;
+  apiKey: string;
   maxRetries?: number;
+  config?: Record<string, string> | null;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -51,7 +52,7 @@ export async function fetchLLMCompletion(
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
-    functionCall: LLMFunctionCall;
+    structuredOutputSchema: ZodSchema;
   }
 ): Promise<unknown>;
 
@@ -67,6 +68,7 @@ export async function fetchLLMCompletion(
     apiKey,
     baseURL,
     maxRetries,
+    config,
   } = params;
 
   const finalMessages = messages.map((message) => {
@@ -78,7 +80,7 @@ export async function fetchLLMCompletion(
     return new AIMessage(message.content);
   });
 
-  let chatModel: ChatOpenAI | ChatAnthropic;
+  let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     chatModel = new ChatAnthropic({
       anthropicApiKey: apiKey,
@@ -115,24 +117,30 @@ export async function fetchLLMCompletion(
       callbacks,
       maxRetries,
     });
+  } else if (modelParams.adapter === LLMAdapter.Bedrock) {
+    const { region } = BedrockConfigSchema.parse(config);
+    const credentials = BedrockCredentialSchema.parse(JSON.parse(apiKey));
+
+    chatModel = new ChatBedrockConverse({
+      model: modelParams.model,
+      region,
+      credentials,
+      temperature: modelParams.temperature,
+      maxTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      callbacks,
+      maxRetries,
+    });
   } else {
     // eslint-disable-next-line no-unused-vars
     const _exhaustiveCheck: never = modelParams.adapter;
     throw new Error("This model provider is not supported.");
   }
 
-  if (params.functionCall) {
-    const functionCallingModel = chatModel.bind({
-      functions: [
-        {
-          ...params.functionCall,
-          parameters: zodToJsonSchema(params.functionCall.parameters),
-        },
-      ],
-      function_call: { name: params.functionCall.name },
-    });
-    const outputParser = new JsonOutputFunctionsParser();
-    return await functionCallingModel.pipe(outputParser).invoke(finalMessages);
+  if (params.structuredOutputSchema) {
+    return await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+      .withStructuredOutput(params.structuredOutputSchema)
+      .invoke(finalMessages);
   }
 
   /*

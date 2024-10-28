@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   BaseError,
+  InternalServerError,
   InvalidRequestError,
-  fetchLLMCompletion,
 } from "@langfuse/shared";
 
 import { PosthogCallbackHandler } from "./analytics/posthogCallback";
@@ -13,6 +13,11 @@ import { validateChatCompletionBody } from "./validateChatCompletionBody";
 
 import { prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
+import {
+  LLMApiKeySchema,
+  logger,
+  fetchLLMCompletion,
+} from "@langfuse/shared/src/server";
 
 export default async function chatCompletionHandler(req: NextRequest) {
   try {
@@ -33,18 +38,26 @@ export default async function chatCompletionHandler(req: NextRequest) {
         `No ${modelParams.provider} API key found in project. Please add one in the project settings.`,
       );
 
+    const parsedKey = LLMApiKeySchema.safeParse(LLMApiKey);
+    if (!parsedKey.success) {
+      throw new InternalServerError(
+        `Could not parse API key for provider ${body.modelParams.provider}: ${parsedKey.error.message}`,
+      );
+    }
+
     const stream = await fetchLLMCompletion({
       messages,
       modelParams,
       streaming: true,
       callbacks: [new PosthogCallbackHandler("playground", body, userId)],
-      apiKey: decrypt(LLMApiKey.secretKey),
-      baseURL: LLMApiKey.baseURL || undefined,
+      apiKey: decrypt(parsedKey.data.secretKey),
+      baseURL: parsedKey.data.baseURL || undefined,
+      config: parsedKey.data.config,
     });
 
     return new StreamingTextResponse(stream);
   } catch (err) {
-    console.error(err);
+    logger.error("Failed to handle chat completion", err);
 
     if (err instanceof BaseError) {
       return NextResponse.json(

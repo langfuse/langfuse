@@ -2,7 +2,7 @@ import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import { type APIScore, type Trace, type $Enums } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { Fragment } from "react";
+import { Fragment, useMemo } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { LevelColors } from "@/src/components/level-colors";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -11,10 +11,13 @@ import { Toggle } from "@/src/components/ui/toggle";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  calculateDisplayTotalCost,
   nestObservations,
   treeItemColors,
 } from "@/src/components/trace/lib/helpers";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
+import { usdFormatter } from "@/src/utils/numbers";
+import Decimal from "decimal.js";
 
 export const ObservationTree = (props: {
   observations: ObservationReturnType[];
@@ -22,17 +25,27 @@ export const ObservationTree = (props: {
   toggleCollapsedObservation: (id: string) => void;
   collapseAll: () => void;
   expandAll: () => void;
-  trace: Trace;
+  trace: Trace & { latency?: number };
   scores: APIScore[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics: boolean;
   showScores: boolean;
+  colorCodeMetrics: boolean;
   observationCommentCounts?: Map<string, number>;
   traceCommentCounts?: Map<string, number>;
   className?: string;
 }) => {
-  const nestedObservations = nestObservations(props.observations);
+  const nestedObservations = useMemo(
+    () => nestObservations(props.observations),
+    [props.observations],
+  );
+  const totalCost = useMemo(() => {
+    return calculateDisplayTotalCost({
+      allObservations: props.observations,
+    });
+  }, [props.observations]);
+
   return (
     <div className={props.className}>
       <ObservationTreeTraceNode
@@ -45,6 +58,7 @@ export const ObservationTree = (props: {
         setCurrentObservationId={props.setCurrentObservationId}
         showMetrics={props.showMetrics}
         showScores={props.showScores}
+        totalCost={totalCost}
       />
       <ObservationTreeNode
         observations={nestedObservations}
@@ -57,6 +71,11 @@ export const ObservationTree = (props: {
         setCurrentObservationId={props.setCurrentObservationId}
         showMetrics={props.showMetrics}
         showScores={props.showScores}
+        colorCodeMetrics={props.colorCodeMetrics}
+        parentTotalCost={totalCost}
+        parentTotalDuration={
+          props.trace.latency ? props.trace.latency * 1000 : undefined
+        }
       />
     </div>
   );
@@ -72,61 +91,72 @@ const ObservationTreeTraceNode = (props: {
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics?: boolean;
   showScores?: boolean;
-}) => (
-  <div
-    className={cn(
-      "group mb-0.5 flex cursor-pointer flex-col gap-1 rounded-sm p-1",
-      props.currentObservationId === undefined ||
-        props.currentObservationId === ""
-        ? "bg-muted"
-        : "hover:bg-primary-foreground",
-    )}
-    onClick={() => props.setCurrentObservationId(undefined)}
-  >
-    <div className="flex gap-2">
-      <span className={cn("rounded-sm bg-input px-1 py-0.5 text-xs")}>
-        TRACE
-      </span>
-      <span className="break-all text-sm">{props.trace.name}</span>
-      {props.comments ? (
-        <CommentCountIcon count={props.comments.get(props.trace.id)} />
-      ) : null}
-      <div className="flex flex-1 justify-end">
-        <Button
-          onClick={(ev) => (ev.stopPropagation(), props.expandAll())}
-          size="xs"
-          variant="ghost"
-          title="Expand all"
-        >
-          <PlusCircleIcon className="h-4 w-4" />
-        </Button>
-        <Button
-          onClick={(ev) => (ev.stopPropagation(), props.collapseAll())}
-          size="xs"
-          variant="ghost"
-          title="Collapse all"
-        >
-          <MinusCircle className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-
-    {props.showMetrics && props.trace.latency ? (
+  totalCost?: Decimal;
+}) => {
+  return (
+    <div
+      className={cn(
+        "group mb-0.5 flex cursor-pointer flex-col gap-1 rounded-sm p-1",
+        props.currentObservationId === undefined ||
+          props.currentObservationId === ""
+          ? "bg-muted"
+          : "hover:bg-primary-foreground",
+      )}
+      onClick={() => props.setCurrentObservationId(undefined)}
+    >
       <div className="flex gap-2">
-        <span className="text-xs text-muted-foreground">
-          {formatIntervalSeconds(props.trace.latency)}
+        <span className={cn("rounded-sm bg-input px-1 py-0.5 text-xs")}>
+          TRACE
         </span>
+        <span className="break-all text-sm">{props.trace.name}</span>
+        {props.comments ? (
+          <CommentCountIcon count={props.comments.get(props.trace.id)} />
+        ) : null}
+        <div className="flex flex-1 justify-end">
+          <Button
+            onClick={(ev) => (ev.stopPropagation(), props.expandAll())}
+            size="xs"
+            variant="ghost"
+            title="Expand all"
+          >
+            <PlusCircleIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={(ev) => (ev.stopPropagation(), props.collapseAll())}
+            size="xs"
+            variant="ghost"
+            title="Collapse all"
+          >
+            <MinusCircle className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
-    ) : null}
-    {props.showScores && props.scores.find((s) => s.observationId === null) ? (
-      <div className="flex flex-wrap gap-1">
-        <GroupedScoreBadges
-          scores={props.scores.filter((s) => s.observationId === null)}
-        />
-      </div>
-    ) : null}
-  </div>
-);
+
+      {props.showMetrics && (
+        <div className="flex gap-2">
+          {props.trace.latency ? (
+            <span className="text-xs text-muted-foreground">
+              {formatIntervalSeconds(props.trace.latency)}
+            </span>
+          ) : null}
+          {props.totalCost ? (
+            <span className="text-xs text-muted-foreground">
+              {usdFormatter(props.totalCost.toNumber())}
+            </span>
+          ) : null}
+        </div>
+      )}
+      {props.showScores &&
+      props.scores.find((s) => s.observationId === null) ? (
+        <div className="flex flex-wrap gap-1">
+          <GroupedScoreBadges
+            scores={props.scores.filter((s) => s.observationId === null)}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 const ObservationTreeNode = (props: {
   observations: NestedObservation[];
@@ -139,6 +169,9 @@ const ObservationTreeNode = (props: {
   setCurrentObservationId: (id: string | undefined) => void;
   showMetrics?: boolean;
   showScores?: boolean;
+  colorCodeMetrics?: boolean;
+  parentTotalCost?: Decimal;
+  parentTotalDuration?: number;
 }) => {
   const capture = usePostHogClientCapture();
   return (
@@ -149,6 +182,13 @@ const ObservationTreeNode = (props: {
           const collapsed = props.collapsedObservations.includes(
             observation.id,
           );
+          const unnestedObservations = unnestObservations(observation);
+          const totalCost = calculateDisplayTotalCost({
+            allObservations: unnestedObservations,
+          });
+          const duration = observation.endTime
+            ? observation.endTime.getTime() - observation.startTime.getTime()
+            : undefined;
           return (
             <Fragment key={observation.id}>
               <div className="flex">
@@ -210,15 +250,22 @@ const ObservationTreeNode = (props: {
                     (observation.promptTokens ||
                       observation.completionTokens ||
                       observation.totalTokens ||
-                      observation.endTime) && (
+                      duration ||
+                      totalCost) && (
                       <div className="flex gap-2">
-                        {observation.endTime ? (
-                          <span className="text-xs text-muted-foreground">
-                            {formatIntervalSeconds(
-                              (observation.endTime.getTime() -
-                                observation.startTime.getTime()) /
-                                1000,
+                        {duration ? (
+                          <span
+                            className={cn(
+                              "text-xs text-muted-foreground",
+                              props.parentTotalDuration &&
+                                props.colorCodeMetrics &&
+                                heatMapTextColor({
+                                  max: props.parentTotalDuration,
+                                  value: duration,
+                                }),
                             )}
+                          >
+                            {formatIntervalSeconds(duration / 1000)}
                           </span>
                         ) : null}
                         {observation.promptTokens ||
@@ -228,6 +275,21 @@ const ObservationTreeNode = (props: {
                             {observation.promptTokens} →{" "}
                             {observation.completionTokens} (∑{" "}
                             {observation.totalTokens})
+                          </span>
+                        ) : null}
+                        {totalCost ? (
+                          <span
+                            className={cn(
+                              "text-xs text-muted-foreground",
+                              props.parentTotalCost &&
+                                props.colorCodeMetrics &&
+                                heatMapTextColor({
+                                  max: props.parentTotalCost,
+                                  value: totalCost,
+                                }),
+                            )}
+                          >
+                            {usdFormatter(totalCost.toNumber())}
                           </span>
                         ) : null}
                       </div>
@@ -271,6 +333,9 @@ const ObservationTreeNode = (props: {
                   setCurrentObservationId={props.setCurrentObservationId}
                   showMetrics={props.showMetrics}
                   showScores={props.showScores}
+                  colorCodeMetrics={props.colorCodeMetrics}
+                  parentTotalCost={props.parentTotalCost}
+                  parentTotalDuration={props.parentTotalDuration}
                 />
               )}
             </Fragment>
@@ -293,4 +358,42 @@ const ColorCodedObservationType = (props: {
       {props.observationType}
     </span>
   );
+};
+
+const unnestObservations = (nestedObservation: NestedObservation) => {
+  const unnestedObservations = [];
+  const { children, ...observation } = nestedObservation;
+  unnestedObservations.push(observation);
+  children.forEach((child) => {
+    unnestedObservations.push(...unnestObservations(child));
+  });
+  return unnestedObservations;
+};
+
+const heatMapTextColor = (p: {
+  min?: Decimal | number;
+  max: Decimal | number;
+  value: Decimal | number;
+}) => {
+  const { min, max, value } = p;
+  const minDecimal = min ? new Decimal(min) : new Decimal(0);
+  const maxDecimal = new Decimal(max);
+  const valueDecimal = new Decimal(value);
+
+  const cutOffs: [number, string][] = [
+    [0.75, "text-dark-red"], // 75%
+    [0.5, "text-dark-yellow"], // 50%
+  ];
+  const standardizedValueOnStartEndScale = valueDecimal
+    .sub(minDecimal)
+    .div(maxDecimal.sub(minDecimal));
+  const ratio = standardizedValueOnStartEndScale.toNumber();
+
+  // pick based on ratio if threshold is exceeded
+  for (const [threshold, color] of cutOffs) {
+    if (ratio >= threshold) {
+      return color;
+    }
+  }
+  return "";
 };

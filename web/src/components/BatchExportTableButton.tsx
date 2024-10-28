@@ -30,7 +30,17 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   props,
 ) => {
   const [isExporting, setIsExporting] = React.useState(false);
-  const createExport = api.batchExport.create.useMutation();
+  const createExport = api.batchExport.create.useMutation({
+    onSettled: () => {
+      setIsExporting(false);
+    },
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Export queued",
+        description: "You will receive an email when the export is ready.",
+      });
+    },
+  });
   const entitled = useHasOrgEntitlement("batch-export");
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
@@ -48,11 +58,6 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
         filter: props.filterState,
         orderBy: props.orderByState,
       },
-    });
-    setIsExporting(false);
-    showSuccessToast({
-      title: "Export queued",
-      description: "You will receive an email when the export is ready.",
     });
   };
 

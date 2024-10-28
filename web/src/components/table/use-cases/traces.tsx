@@ -57,7 +57,7 @@ export type TracesTableRow = {
   name: string;
   userId: string;
   level?: ObservationLevel;
-  observationCount?: number;
+  observationCount?: bigint;
   // scores holds grouped column with individual scores
   scores?: ScoreAggregate;
   latency?: number;
@@ -231,30 +231,32 @@ export default function TracesTable({
       size: 30,
       isPinned: true,
       header: ({ table }) => (
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected()
-              ? true
-              : table.getIsSomePageRowsSelected()
-                ? "indeterminate"
-                : false
-          }
-          onCheckedChange={(value) => {
-            table.toggleAllPageRowsSelected(!!value);
-            if (!value) {
-              setSelectedRows({});
+        <div className="mt-1 h-5">
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected()
+                ? true
+                : table.getIsSomePageRowsSelected()
+                  ? "indeterminate"
+                  : false
             }
-          }}
-          aria-label="Select all"
-          className="mt-1 opacity-60 data-[state=checked]:mt-[6px] data-[state=indeterminate]:mt-[6px]"
-        />
+            onCheckedChange={(value) => {
+              table.toggleAllPageRowsSelected(!!value);
+              if (!value) {
+                setSelectedRows({});
+              }
+            }}
+            aria-label="Select all"
+            className="opacity-60"
+          />
+        </div>
       ),
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
+          className="opacity-60"
         />
       ),
     },
@@ -291,7 +293,7 @@ export default function TracesTable({
         const value: TracesTableRow["id"] = row.getValue("id");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/traces/${value}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
             value={value}
           />
         ) : undefined;
@@ -602,7 +604,7 @@ export default function TracesTable({
         const value: TracesTableRow["observationCount"] =
           row.getValue("observationCount");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return <span>{value}</span>;
+        return <span>{numberFormatter(value, 0)}</span>;
       },
     },
     {
@@ -692,7 +694,7 @@ export default function TracesTable({
 
   const rows = useMemo(() => {
     return traces.isSuccess
-      ? traceRowData?.rows?.map((trace) => {
+      ? (traceRowData?.rows?.map((trace) => {
           return {
             bookmarked: trace.bookmarked,
             id: trace.id,
@@ -721,7 +723,7 @@ export default function TracesTable({
             outputCost: trace.calculatedOutputCost ?? undefined,
             totalCost: trace.calculatedTotalCost ?? undefined,
           };
-        }) ?? []
+        }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
 

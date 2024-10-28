@@ -36,8 +36,8 @@ export const mergeRecords = (
   record2?: Record<string, string>
 ): Record<string, string> | undefined => {
   const merged = mergeJson(
-    record1 ? convertRecordToJsonSchema(record1) ?? undefined : undefined,
-    record2 ? convertRecordToJsonSchema(record2) ?? undefined : undefined
+    record1 ? (convertRecordToJsonSchema(record1) ?? undefined) : undefined,
+    record2 ? (convertRecordToJsonSchema(record2) ?? undefined) : undefined
   );
 
   return merged ? convertJsonSchemaToRecord(merged) : undefined;
@@ -81,7 +81,11 @@ export function overwriteObject(
   nonOverwritableKeys: string[]
 ) {
   const result = _.mergeWith({}, a, b, (objValue, srcValue, key) => {
-    if (nonOverwritableKeys.includes(key) || srcValue == null) {
+    if (
+      nonOverwritableKeys.includes(key) ||
+      srcValue == null ||
+      (typeof srcValue === "object" && Object.keys(srcValue).length === 0) // empty object check for cost / usage details
+    ) {
       return objValue;
     } else {
       return srcValue;
@@ -93,7 +97,7 @@ export function overwriteObject(
       ? b.metadata
       : !b.metadata && a.metadata
         ? a.metadata
-        : mergeRecords(a.metadata, b.metadata) ?? {};
+        : (mergeRecords(a.metadata, b.metadata) ?? {});
 
   if ("tags" in result) {
     result.tags = Array.from(

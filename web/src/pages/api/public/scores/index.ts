@@ -52,6 +52,8 @@ export default withMiddlewares({
         page,
         limit,
         configId,
+        queueId,
+        traceTags,
         userId,
         name,
         fromTimestamp,
@@ -66,6 +68,17 @@ export default withMiddlewares({
       const skipValue = (page - 1) * limit;
       const configCondition = configId
         ? Prisma.sql`AND s."config_id" = ${configId}`
+        : Prisma.empty;
+      const queueCondition = queueId
+        ? Prisma.sql`AND s."queue_id" = ${queueId}`
+        : Prisma.empty;
+      const traceTagsCondition = traceTags
+        ? Prisma.sql`AND ARRAY[${Prisma.join(
+            (Array.isArray(traceTags) ? traceTags : traceTags.split(",")).map(
+              (v) => Prisma.sql`${v}`,
+            ),
+            ", ",
+          )}] <@ t."tags"`
         : Prisma.empty;
       const dataTypeCondition = dataType
         ? Prisma.sql`AND s."data_type" = ${dataType}::"ScoreDataType"`
@@ -108,13 +121,16 @@ export default withMiddlewares({
             s.comment,
             s.data_type as "dataType",
             s.config_id as "configId",
+            s.queue_id as "queueId",
             s.trace_id as "traceId",
             s.observation_id as "observationId",
-            json_build_object('userId', t.user_id) as "trace"
+            json_build_object('userId', t.user_id, 'tags', t.tags) as "trace"
           FROM "scores" AS s
           LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${auth.scope.projectId}
           WHERE s.project_id = ${auth.scope.projectId}
           ${configCondition}
+          ${queueCondition}
+          ${traceTagsCondition}
           ${dataTypeCondition}
           ${userCondition}
           ${nameCondition}
@@ -134,6 +150,8 @@ export default withMiddlewares({
           LEFT JOIN "traces" AS t ON t.id = s.trace_id AND t.project_id = ${auth.scope.projectId}
           WHERE s.project_id = ${auth.scope.projectId}
           ${configCondition}
+          ${queueCondition}
+          ${traceTagsCondition}
           ${dataTypeCondition}
           ${userCondition}
           ${nameCondition}

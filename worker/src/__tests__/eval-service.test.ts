@@ -3,7 +3,7 @@ import {
   createEvalJobs,
   evaluate,
   extractVariablesFromTrace,
-} from "../features/evaluation/eval-service";
+} from "../features/evaluation/evalService";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -485,6 +485,7 @@ describe("execute evals", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       jobExecutionId: jobExecutionId,
+      delay: 1000,
     };
 
     await evaluate({ event: payload });
@@ -587,6 +588,7 @@ describe("execute evals", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       jobExecutionId: jobExecutionId,
+      delay: 1000,
     };
 
     await expect(evaluate({ event: payload })).rejects.toThrowError(
@@ -680,6 +682,7 @@ describe("execute evals", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       jobExecutionId: jobExecutionId,
+      delay: 1000,
     };
 
     await evaluate({ event: payload });
