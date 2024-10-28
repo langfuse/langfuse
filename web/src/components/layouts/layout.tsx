@@ -575,7 +575,7 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
-          <main className="p-3">{props.children}</main>
+          <main className="h-dvh p-3">{props.children}</main>
           <Toaster visibleToasts={1} />
         </div>
       </div>
