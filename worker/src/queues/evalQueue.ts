@@ -98,7 +98,7 @@ export const evalJobExecutorQueueProcessor = async (
           "Please ensure the mapped data exists and consider extending the job delay."
         )
       ) &&
-      !(e instanceof ApiError) // API errors are expected (e.g. wrong API key or rate limit)
+      !(e instanceof ApiError) // API errors are expected (e.g. wrong API key or rate limit or invalid return data)
     ) {
       traceException(e);
       logger.error(
