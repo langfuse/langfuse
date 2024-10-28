@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { type CloudConfigSchema, type Plan } from "@langfuse/shared";
+import { type Plan } from "@langfuse/shared";
 
 type StripeProduct = {
   stripeUsageProductId: string;
@@ -12,6 +12,8 @@ type StripeProduct = {
 // map of planid to plan name
 export const stripeProducts: readonly StripeProduct[] = [
   {
+    mappedPlan: "cloud:pro",
+    checkout: true,
     stripeUsageProductId:
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
@@ -22,10 +24,10 @@ export const stripeProducts: readonly StripeProduct[] = [
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
         ? "prod_R5cUtsHcxJv9dD" // test
         : "xxx", // live
-    mappedPlan: "cloud:pro",
-    checkout: true,
   },
   {
+    mappedPlan: "cloud:team",
+    checkout: false,
     stripeUsageProductId:
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
@@ -34,15 +36,23 @@ export const stripeProducts: readonly StripeProduct[] = [
     stripeSeatsProductId:
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-        ? "prod_QgDOxTD64U6KDv" // test
-        : "prod_QhK9qKGH25BTcS", // live
-    mappedPlan: "cloud:team",
-    checkout: false,
+        ? "xxx" // test
+        : "xxx", // live
   },
 ];
 
-export const mapCloudConfigToPlan = (
-  cloudConfig: CloudConfigSchema,
-): Plan | null =>
-  stripeProducts.find((product) => product.stripeUsageProductId === productId)
-    ?.mappedPlan ?? null;
+export const stripeSeatProductIds = stripeProducts.map(
+  (product) => product.stripeSeatsProductId,
+);
+
+export const mapActiveProductIdsToPlan = (
+  activeProductIds: string[],
+): Plan | null => {
+  return (
+    stripeProducts.find(
+      (product) =>
+        activeProductIds.includes(product.stripeUsageProductId) ||
+        activeProductIds.includes(product.stripeSeatsProductId),
+    )?.mappedPlan ?? null
+  );
+};
