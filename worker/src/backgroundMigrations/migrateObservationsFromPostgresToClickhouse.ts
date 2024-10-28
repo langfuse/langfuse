@@ -57,12 +57,13 @@ export default class MigrateObservationsFromPostgresToClickhouse
     let processedRows = 0;
     while (!this.isAborted && processedRows < maxRowsToProcess) {
       const observations = await prisma.$queryRaw<
-        Array<Observation>
+        Array<Observation> & { prompt_name: string; prompt_version: string }
       >(Prisma.sql`
-        SELECT id, trace_id, project_id, type, parent_observation_id, start_time, end_time, name, metadata, level, status_message, version, input, output, unit, completion_start_time, internal_model_id, prompt_id, input_cost, output_cost, total_cost, created_at, updated_at
-        FROM observations
-        WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
-        ORDER BY created_at DESC
+        SELECT o.id, o.trace_id, o.project_id, o.type, o.parent_observation_id, o.start_time, o.end_time, o.name, o.metadata, o.level, o.status_message, o.version, o.input, o.output, o.unit, o.model, o.internal_model_id, o."modelParameters", o.prompt_tokens, o.completion_tokens, o.total_tokens, o.completion_start_time, o.prompt_id, p.name as prompt_name, p.version as prompt_version, o.input_cost, o.output_cost, o.total_cost, o.created_at, o.updated_at
+        FROM observations o
+        LEFT JOIN prompts p ON o.prompt_id = p.id
+        WHERE o.tmp_migrated_to_clickhouse = FALSE AND o.created_at <= ${maxDate}
+        ORDER BY o.created_at DESC
         LIMIT ${batchSize};
       `);
       if (observations.length === 0) {
@@ -74,6 +75,25 @@ export default class MigrateObservationsFromPostgresToClickhouse
         table: "observations",
         values: observations.map((observation) => ({
           ...observation,
+          totalCost: observation.calculatedTotalCost,
+          usage_details: {
+            input: observation.promptTokens,
+            output: observation.completionTokens,
+            total: observation.totalTokens,
+          },
+          provided_usage_details: {},
+          provided_cost_details: {
+            input: observation.inputCost,
+            output: observation.outputCost,
+            total: observation.totalCost,
+          },
+          cost_details: {
+            input: observation.calculatedInputCost,
+            output: observation.calculatedOutputCost,
+            total: observation.calculatedTotalCost,
+          },
+          provided_model_name: observation.model,
+          model_parameters: observation.modelParameters,
           start_time:
             observation.startTime
               ?.toISOString()
