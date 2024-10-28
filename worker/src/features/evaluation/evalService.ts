@@ -382,7 +382,7 @@ async function callLLM(
     logger.error(
       `Evaluating job ${jeId} failed to call LLM. Eval will fail. ${e}`
     );
-    throw new ApiError(`Failed to call LLM: ${e}`, e);
+    throw new ApiError(`Failed to call LLM: ${e}`);
   }
 }
 
