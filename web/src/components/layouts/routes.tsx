@@ -88,7 +88,6 @@ export const ROUTES: Route[] = [
   },
   {
     name: "Evaluation",
-    pathname: `/project/[projectId]/evals/configs`,
     icon: Lightbulb,
     label: "Beta",
     entitlements: ["annotation-queues", "model-based-evaluations"],
@@ -102,7 +101,7 @@ export const ROUTES: Route[] = [
       },
       {
         name: "LLM-as-a-Judge",
-        pathname: `/project/[projectId]/evals/configs`,
+        pathname: `/project/[projectId]/evals`,
         entitlements: ["model-based-evaluations"],
         projectRbacScopes: ["evalJob:read"],
       },

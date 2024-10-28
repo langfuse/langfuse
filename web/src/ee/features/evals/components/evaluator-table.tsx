@@ -25,7 +25,7 @@ export type EvalConfigRow = {
   filter: FilterState;
 };
 
-export default function EvalConfigTable({
+export default function EvaluatorTable({
   projectId,
   menuItems,
 }: {
@@ -54,7 +54,7 @@ export default function EvalConfigTable({
         const id = row.getValue();
         return id ? (
           <TableLink
-            path={`/project/${projectId}/evals/configs/${encodeURIComponent(id)}`}
+            path={`/project/${projectId}/evals/${encodeURIComponent(id)}`}
             value={id}
           />
         ) : undefined;

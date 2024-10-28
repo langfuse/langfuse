@@ -64,10 +64,8 @@ export default function TemplatesPage() {
         menuItems={
           <Tabs value="templates">
             <TabsList>
-              <TabsTrigger value="configs" asChild>
-                <Link href={`/project/${projectId}/evals/configs`}>
-                  Evaluators
-                </Link>
+              <TabsTrigger value="evaluators" asChild>
+                <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
               </TabsTrigger>
               <TabsTrigger value="templates">Templates</TabsTrigger>
               <TabsTrigger value="log" asChild>

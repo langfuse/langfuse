@@ -1,10 +1,10 @@
 import Header from "@/src/components/layouts/header";
-import { EvalConfigForm } from "@/src/ee/features/evals/components/eval-config-form";
+import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { api } from "@/src/utils/api";
 
 import { useRouter } from "next/router";
 
-export default function NewConfigsPage() {
+export default function NewEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -17,14 +17,14 @@ export default function NewConfigsPage() {
   return (
     <div>
       <Header
-        title="Set up new evaluator"
+        title="New evaluator"
         help={{
           description:
-            "Use LLM-as-a-judge evaluators as practical addition to human annotation. Configure an evaluation prompt and a model as judge to evaluate incoming traces.",
+            "Select a template defining the evaluation prompt and a model as judge to evaluate incoming traces.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
       />
-      <EvalConfigForm
+      <EvaluatorForm
         projectId={projectId}
         evalTemplates={evalTemplates.data?.templates ?? []}
       />

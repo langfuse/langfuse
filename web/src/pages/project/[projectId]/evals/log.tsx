@@ -38,10 +38,8 @@ export default function LogPage() {
         menuItems={
           <Tabs value="log">
             <TabsList>
-              <TabsTrigger value="configs" asChild>
-                <Link href={`/project/${projectId}/evals/configs`}>
-                  Evaluators
-                </Link>
+              <TabsTrigger value="evaluators" asChild>
+                <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
               </TabsTrigger>
               <TabsTrigger value="templates" asChild>
                 <Link href={`/project/${projectId}/evals/templates`}>
