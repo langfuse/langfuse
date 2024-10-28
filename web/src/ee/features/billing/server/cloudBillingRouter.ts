@@ -279,32 +279,62 @@ export const cloudBillingRouter = createTRPCRouter({
             }
             return acc;
           }, 0);
+          const meterId = stripeInvoice.lines.data.find((line) =>
+            Boolean(line.plan?.meter),
+          )?.plan?.meter;
+          const meter = meterId
+            ? await stripeClient.billing.meters.retrieve(meterId)
+            : undefined;
           return {
-            countObservations: usage,
+            usageCount: usage,
+            type: meter?.display_name.toLowerCase() ?? "events",
             billingPeriod,
             upcomingInvoice,
           };
         }
       }
 
-      // For non-Stripe subscriptions, we can only get usage from the LangFuse API
+      // Free plan, usage not tracked on Stripe
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-      const usage = await ctx.prisma.observation.count({
-        where: {
-          project: {
-            orgId: input.orgId,
+      const usageArr = await Promise.all([
+        ctx.prisma.observation.count({
+          where: {
+            project: {
+              orgId: input.orgId,
+            },
+            createdAt: {
+              gte: thirtyDaysAgo,
+            },
           },
-          startTime: {
-            gte: thirtyDaysAgo,
+        }),
+        ctx.prisma.trace.count({
+          where: {
+            project: {
+              orgId: input.orgId,
+            },
+            createdAt: {
+              gte: thirtyDaysAgo,
+            },
           },
-        },
-      });
+        }),
+        ctx.prisma.score.count({
+          where: {
+            project: {
+              orgId: input.orgId,
+            },
+            createdAt: {
+              gte: thirtyDaysAgo,
+            },
+          },
+        }),
+      ]);
 
       return {
-        countObservations: usage,
+        usageCount: usageArr.reduce((a, b) => a + b, 0),
+        type: "events",
       };
     }),
 });

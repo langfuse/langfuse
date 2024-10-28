@@ -8,7 +8,7 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { MAX_OBSERVATIONS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export const UsageTracker = () => {
@@ -40,8 +40,9 @@ export const UsageTracker = () => {
     return null;
   }
 
-  const usage = usageQuery.data.countObservations || 0;
-  const percentage = (usage / MAX_OBSERVATIONS_FREE_PLAN) * 100;
+  const usage = usageQuery.data.usageCount || 0;
+  const usageType = usageQuery.data.type;
+  const percentage = (usage / MAX_EVENTS_FREE_PLAN) * 100;
 
   if (percentage < 80) {
     return null;
@@ -62,7 +63,7 @@ export const UsageTracker = () => {
           <div className="space-y-1">
             <h4 className="text-sm font-semibold">Free Plan Usage Limit</h4>
             <p className="text-sm font-normal">
-              {`You've used ${usage.toLocaleString()} out of ${MAX_OBSERVATIONS_FREE_PLAN.toLocaleString()} included observations (${percentage.toFixed(2)}%) over the last 30 days. Please upgrade your plan to avoid interruptions.`}
+              {`You've used ${usage.toLocaleString()} out of ${MAX_EVENTS_FREE_PLAN.toLocaleString()} included ${usageType} (${percentage.toFixed(2)}%) over the last 30 days. Please upgrade your plan to avoid interruptions.`}
             </p>
           </div>
         </div>

@@ -18,7 +18,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { MAX_OBSERVATIONS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -65,10 +65,12 @@ const OrganizationUsageChart = () => {
     },
   );
   const planLimit =
-    organization?.cloudConfig?.monthlyObservationLimit ??
-    MAX_OBSERVATIONS_FREE_PLAN;
+    organization?.cloudConfig?.monthlyObservationLimit ?? MAX_EVENTS_FREE_PLAN;
   const plan: Plan = organization?.plan ?? "cloud:hobby";
   const planLabel = planLabels[plan];
+  const usageType = usage.data?.type
+    ? usage.data.type.charAt(0).toUpperCase() + usage.data.type.slice(1)
+    : "Events";
 
   return (
     <div>
@@ -77,19 +79,19 @@ const OrganizationUsageChart = () => {
           <>
             <Text>
               {usage.data.billingPeriod
-                ? `Observations in current billing period`
-                : "Observations / last 30d"}
+                ? `${usageType} in current billing period`
+                : `${usageType} / last 30d`}
             </Text>
-            <Metric>{numberFormatter(usage.data.countObservations, 0)}</Metric>
+            <Metric>{numberFormatter(usage.data.usageCount, 0)}</Metric>
             {plan === "cloud:hobby" && (
               <>
                 <Flex className="mt-4">
-                  <Text>{`${numberFormatter((usage.data.countObservations / planLimit) * 100)}%`}</Text>
+                  <Text>{`${numberFormatter((usage.data.usageCount / planLimit) * 100)}%`}</Text>
                   <Text>Plan limit: {compactNumberFormatter(planLimit)}</Text>
                 </Flex>
                 <MarkerBar
                   value={Math.min(
-                    (usage.data.countObservations / planLimit) * 100,
+                    (usage.data.usageCount / planLimit) * 100,
                     100,
                   )}
                   className="mt-3"
