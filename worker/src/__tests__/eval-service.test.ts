@@ -24,7 +24,7 @@ vi.mock("../redis/consumer", () => ({
     add: vi.fn().mockImplementation((jobName, jobData) => {
       logger.info(
         `Mock evalQueue.add called with jobName: ${jobName} and jobData:`,
-        jobData,
+        jobData
       );
       // Simulate the job being processed immediately by calling the job's processing function
       // Note: You would replace `processJobFunction` with the actual function that processes the job
@@ -593,8 +593,8 @@ describe("execute evals", () => {
 
     await expect(evaluate({ event: payload })).rejects.toThrowError(
       new LangfuseNotFoundError(
-        "API key for provider openai and project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a not found.",
-      ),
+        "API key for provider openai and project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a not found."
+      )
     );
 
     const jobs = await kyselyPrisma.$kysely
@@ -730,7 +730,7 @@ describe("test variable extraction", () => {
       "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       ["input", "output"],
       traceId,
-      variableMapping,
+      variableMapping
     );
 
     expect(result).toEqual([
@@ -792,7 +792,7 @@ describe("test variable extraction", () => {
       "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       ["input", "output"],
       traceId,
-      variableMapping,
+      variableMapping
     );
 
     expect(result).toEqual([
@@ -842,12 +842,12 @@ describe("test variable extraction", () => {
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         ["input", "output"],
         traceId,
-        variableMapping,
-      ),
+        variableMapping
+      )
     ).rejects.toThrowError(
       new LangfuseNotFoundError(
-        `Observation great-llm-name for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
-      ),
+        `Observation great-llm-name for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
+      )
     );
   }, 10_000);
 
@@ -897,7 +897,7 @@ describe("test variable extraction", () => {
       "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       ["input", "output"],
       traceId,
-      variableMapping,
+      variableMapping
     );
 
     expect(result).toEqual([
@@ -973,7 +973,7 @@ describe("test variable extraction", () => {
       "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       ["input", "output"],
       traceId,
-      variableMapping,
+      variableMapping
     );
 
     expect(result).toEqual([

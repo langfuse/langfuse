@@ -298,8 +298,8 @@ export const evaluate = async ({
   }
 
   const parsedLLMOutput = await backOff(
-    () =>
-      callLLM(
+    async () =>
+      await callLLM(
         event.jobExecutionId,
         parsedKey.data,
         prompt,
