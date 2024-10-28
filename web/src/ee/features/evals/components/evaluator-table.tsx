@@ -1,5 +1,6 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -7,6 +8,7 @@ import { InlineFilterState } from "@/src/features/filters/components/filter-buil
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
+import { type ReactNode } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { z } from "zod";
 
@@ -14,23 +16,33 @@ export type EvalConfigRow = {
   id: string;
   status: string;
   createdAt: string;
-  template?: string;
+  template?: {
+    id: string;
+    name: string;
+    version: number;
+  };
   scoreName: string;
   filter: FilterState;
 };
 
-export default function EvalConfigTable({ projectId }: { projectId: string }) {
+export default function EvaluatorTable({
+  projectId,
+  menuItems,
+}: {
+  projectId: string;
+  menuItems?: ReactNode;
+}) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const templates = api.evals.allConfigs.useQuery({
+  const evaluators = api.evals.allConfigs.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
   });
-  const totalCount = templates.data?.totalCount ?? null;
+  const totalCount = evaluators.data?.totalCount ?? null;
 
   const columnHelper = createColumnHelper<EvalConfigRow>();
   const columns = [
@@ -42,7 +54,7 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
         const id = row.getValue();
         return id ? (
           <TableLink
-            path={`/project/${projectId}/evals/configs/${encodeURIComponent(id)}`}
+            path={`/project/${projectId}/evals/${encodeURIComponent(id)}`}
             value={id}
           />
         ) : undefined;
@@ -66,6 +78,16 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
       id: "template",
       header: "Template",
       size: 200,
+      cell: (row) => {
+        const template = row.getValue();
+        if (!template) return "template not found";
+        return (
+          <TableLink
+            path={`/project/${projectId}/evals/templates/${template.id}`}
+            value={`${template.name} (v${template.version})`}
+          />
+        );
+      },
     }),
     columnHelper.accessor("scoreName", {
       id: "scoreName",
@@ -98,7 +120,11 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
       status: jobConfig.status,
       createdAt: jobConfig.createdAt.toLocaleString(),
       template: jobConfig.evalTemplate
-        ? `${jobConfig.evalTemplate.name} (v${jobConfig.evalTemplate.version})`
+        ? {
+            id: jobConfig.evalTemplate.id,
+            name: jobConfig.evalTemplate.name,
+            version: jobConfig.evalTemplate.version,
+          }
         : undefined,
       scoreName: jobConfig.scoreName,
       filter: z.array(singleFilter).parse(jobConfig.filter),
@@ -106,30 +132,35 @@ export default function EvalConfigTable({ projectId }: { projectId: string }) {
   };
 
   return (
-    <DataTable
-      columns={columns}
-      data={
-        templates.isLoading
-          ? { isLoading: true, isError: false }
-          : templates.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: templates.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: templates.data.configs.map((t) => convertToTableRow(t)),
-              }
-      }
-      pagination={{
-        totalCount,
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-      columnVisibility={columnVisibility}
-      onColumnVisibilityChange={setColumnVisibility}
-    />
+    <>
+      <DataTableToolbar columns={columns} actionButtons={menuItems} />
+      <DataTable
+        columns={columns}
+        data={
+          evaluators.isLoading
+            ? { isLoading: true, isError: false }
+            : evaluators.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: evaluators.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: evaluators.data.configs.map((evaluator) =>
+                    convertToTableRow(evaluator),
+                  ),
+                }
+        }
+        pagination={{
+          totalCount,
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+      />
+    </>
   );
 }

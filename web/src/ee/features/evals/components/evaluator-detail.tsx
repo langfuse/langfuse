@@ -2,7 +2,7 @@ import * as React from "react";
 import Header from "@/src/components/layouts/header";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { EvalConfigForm } from "@/src/ee/features/evals/components/eval-config-form";
+import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -24,74 +24,74 @@ import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
-export const EvalConfigDetail = () => {
+export const EvaluatorDetail = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const configId = router.query.configId as string;
+  const evaluatorId = router.query.evaluatorId as string;
 
   // get the current template by id
-  const config = api.evals.configById.useQuery({
+  const evaluator = api.evals.configById.useQuery({
     projectId: projectId,
-    id: configId,
+    id: evaluatorId,
   });
 
   // get all templates for the current template name
   const allTemplates = api.evals.allTemplatesForName.useQuery(
     {
       projectId: projectId,
-      name: config.data?.evalTemplate?.name ?? "",
+      name: evaluator.data?.evalTemplate?.name ?? "",
     },
     {
-      enabled: !config.isLoading && !config.isError,
+      enabled: !evaluator.isLoading && !evaluator.isError,
     },
   );
 
   if (
-    config.isLoading ||
-    !config.data ||
+    evaluator.isLoading ||
+    !evaluator.data ||
     allTemplates.isLoading ||
     !allTemplates.data
   ) {
     return <div>Loading...</div>;
   }
 
-  if (config.data && config.data.evalTemplate === null) {
-    return <div>Config not found</div>;
+  if (evaluator.data && evaluator.data.evalTemplate === null) {
+    return <div>Evaluator not found</div>;
   }
 
-  const existingEvalConfig =
-    config.data && config.data.evalTemplate
-      ? { ...config.data, evalTemplate: config.data.evalTemplate }
+  const existingEvaluator =
+    evaluator.data && evaluator.data.evalTemplate
+      ? { ...evaluator.data, evalTemplate: evaluator.data.evalTemplate }
       : undefined;
 
   return (
     <div className="md:container">
       <Header
-        title={config.data?.id ?? "Loading..."}
-        status={config.data?.status.toLowerCase()}
+        title={evaluator.data?.id ?? "Loading..."}
+        status={evaluator.data?.status.toLowerCase()}
         actionButtons={
-          <DeactivateConfig
+          <DeactivateEvaluator
             projectId={projectId}
-            config={config.data ?? undefined}
-            isLoading={config.isLoading}
+            evaluator={evaluator.data ?? undefined}
+            isLoading={evaluator.isLoading}
           />
         }
         breadcrumb={[
           {
-            name: "Eval Configs",
-            href: `/project/${router.query.projectId as string}/evals/configs`,
+            name: "Evaluators",
+            href: `/project/${router.query.projectId as string}/evals`,
           },
-          { name: config.data?.id },
+          { name: evaluator.data?.id },
         ]}
       />
-      {existingEvalConfig && (
+      {existingEvaluator && (
         <>
           <div className="my-5 flex items-center gap-4 rounded-md border p-2">
             <Label>Eval Template</Label>
             <TableLink
-              path={`/project/${projectId}/evals/templates/${existingEvalConfig.evalTemplateId}`}
+              path={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplateId}`}
               value={
-                `${existingEvalConfig.evalTemplate.name} (v${existingEvalConfig.evalTemplate.version})` ??
+                `${existingEvaluator.evalTemplate.name} (v${existingEvaluator.evalTemplate.version})` ??
                 ""
               }
             />
@@ -103,10 +103,10 @@ export const EvalConfigDetail = () => {
               <TabsTrigger value="configuration">Configuration</TabsTrigger>
             </TabsList>
             <TabsContent value="configuration">
-              <EvalConfigForm
+              <EvaluatorForm
                 projectId={projectId}
                 evalTemplates={allTemplates.data?.templates}
-                existingEvalConfig={existingEvalConfig}
+                existingEvaluator={existingEvaluator}
                 disabled={true}
               />
             </TabsContent>
@@ -117,7 +117,7 @@ export const EvalConfigDetail = () => {
               >
                 <EvalLogTable
                   projectId={projectId}
-                  jobConfigurationId={existingEvalConfig.id}
+                  jobConfigurationId={existingEvaluator.id}
                 />
               </FullScreenPage>
             </TabsContent>
@@ -128,13 +128,13 @@ export const EvalConfigDetail = () => {
   );
 };
 
-export function DeactivateConfig({
+export function DeactivateEvaluator({
   projectId,
-  config,
+  evaluator,
   isLoading,
 }: {
   projectId: string;
-  config?: RouterOutputs["evals"]["configById"];
+  evaluator?: RouterOutputs["evals"]["configById"];
   isLoading: boolean;
 }) {
   const utils = api.useUtils();
@@ -142,7 +142,7 @@ export function DeactivateConfig({
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
 
-  const mutEvalConfig = api.evals.updateEvalJob.useMutation({
+  const mutEvaluator = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
       void utils.evals.invalidate();
     },
@@ -153,9 +153,9 @@ export function DeactivateConfig({
       console.error("Project ID is missing");
       return;
     }
-    mutEvalConfig.mutateAsync({
+    mutEvaluator.mutateAsync({
       projectId,
-      evalConfigId: config?.id ?? "",
+      evalConfigId: evaluator?.id ?? "",
       updatedStatus: "INACTIVE",
     });
     capture("eval_config:delete");
@@ -168,7 +168,7 @@ export function DeactivateConfig({
         <Button
           variant="ghost"
           size={"sm"}
-          disabled={!hasAccess || config?.status !== "ACTIVE"}
+          disabled={!hasAccess || evaluator?.status !== "ACTIVE"}
           loading={isLoading}
         >
           <Trash className="h-5 w-5" />
@@ -184,7 +184,7 @@ export function DeactivateConfig({
           <Button
             type="button"
             variant="destructive"
-            loading={mutEvalConfig.isLoading}
+            loading={mutEvaluator.isLoading}
             onClick={onClick}
           >
             Deactivate Eval Job
