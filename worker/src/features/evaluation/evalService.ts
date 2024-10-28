@@ -298,14 +298,15 @@ export const evaluate = async ({
   }
 
   const parsedLLMOutput = await backOff(
-    callLLM(
-      event.jobExecutionId,
-      parsedKey.data,
-      prompt,
-      modelParams,
-      template,
-      evalScoreSchema
-    ),
+    () =>
+      callLLM(
+        event.jobExecutionId,
+        parsedKey.data,
+        prompt,
+        modelParams,
+        template,
+        evalScoreSchema
+      ),
     {
       numOfAttempts: 3,
     }
