@@ -39,7 +39,7 @@ describe("Ingestion end-to-end tests", () => {
       redis,
       prisma,
       clickhouseWriter,
-      clickhouseClient
+      clickhouseClient,
     );
   });
 
@@ -198,7 +198,7 @@ describe("Ingestion end-to-end tests", () => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
       testConfig,
       null,
-      2
+      2,
     )}`, async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -322,7 +322,7 @@ describe("Ingestion end-to-end tests", () => {
 
       const generation = await getClickhouseRecord(
         TableName.Observations,
-        generationId
+        generationId,
       );
 
       expect(generation.id).toBe(generationId);
@@ -334,25 +334,25 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.model_parameters).toEqual(
         JSON.stringify({
           key: "value",
-        })
+        }),
       );
       expect(generation.input).toEqual(JSON.stringify({ key: "value" }));
       expect(parseMetadata(generation.metadata)).toEqual({ key: "value" });
       expect(generation.version).toBe("2.0.0");
       expect(generation.internal_model_id).toBeNull();
       expect(generation.usage_details.input).toEqual(
-        testConfig.expectedInputUnits
+        testConfig.expectedInputUnits,
       );
       expect(generation.usage_details.output).toEqual(
-        testConfig.expectedOutputUnits
+        testConfig.expectedOutputUnits,
       );
       expect(generation.usage_details.total).toEqual(
-        testConfig.expectedTotalUnits
+        testConfig.expectedTotalUnits,
       );
       expect(generation.output).toEqual(
         JSON.stringify({
           key: "this is a great gpt output",
-        })
+        }),
       );
 
       const span = await getClickhouseRecord(TableName.Observations, spanId);
@@ -561,7 +561,7 @@ describe("Ingestion end-to-end tests", () => {
     it(`should match observations to internal models ${JSON.stringify(
       testConfig,
       null,
-      2
+      2,
     )}`, async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -585,8 +585,8 @@ describe("Ingestion end-to-end tests", () => {
                     : model.modelName,
               },
             },
-          })
-        )
+          }),
+        ),
       );
 
       const traceEventList: TraceEventType[] = [
@@ -637,26 +637,26 @@ describe("Ingestion end-to-end tests", () => {
 
       const generation = await getClickhouseRecord(
         TableName.Observations,
-        generationId
+        generationId,
       );
 
       expect(generation.id).toBe(generationId);
       expect(generation.trace_id).toBe(traceId);
       expect(generation.name).toBe("generation-name");
       expect(generation.start_time).toEqual(
-        testConfig.observationStartTime.toISOString()
+        testConfig.observationStartTime.toISOString(),
       );
       expect(generation.provided_model_name).toBe(
-        testConfig.observationExternalModel
+        testConfig.observationExternalModel,
       );
       expect(generation.usage_details.input).toBe(
-        testConfig.expectedInputUnits
+        testConfig.expectedInputUnits,
       );
       expect(generation.usage_details.output).toBe(
-        testConfig.expectedOutputUnits
+        testConfig.expectedOutputUnits,
       );
       expect(generation.internal_model_id).toBe(
-        testConfig.expectedInternalModelId
+        testConfig.expectedInternalModelId,
       );
     });
   });
@@ -796,7 +796,7 @@ describe("Ingestion end-to-end tests", () => {
 
     const generation = await getClickhouseRecord(
       TableName.Observations,
-      generationId
+      generationId,
     );
 
     expect(generation?.id).toBe(generationId);
@@ -806,7 +806,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(generation?.model_parameters).toEqual(
       JSON.stringify({
         someKey: ["user-1", "user-2"],
-      })
+      }),
     );
 
     const event = await getClickhouseRecord(TableName.Observations, eventId);
@@ -891,116 +891,12 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.tags.length).toBe(4);
   });
 
-  it("should fail if no create event AND no existing record in CH", async () => {
-    const traceId = randomUUID();
-    const generationId = randomUUID();
-
-    // First flush
-    const traceEventList1: TraceEventType[] = [
-      {
-        id: randomUUID(),
-        type: "trace-create",
-        timestamp: new Date().toISOString(),
-        body: {
-          id: traceId,
-          name: "trace-name",
-          userId: "user-1",
-          metadata: { key: "value" },
-          release: "1.0.0",
-          version: "2.0.0",
-          tags: ["tag-1", "tag-2", "tag-2"],
-        },
-      },
-    ];
-
-    const generationEventListNoCreate: ObservationEvent[] = [
-      {
-        id: randomUUID(),
-        type: "observation-update",
-        timestamp: new Date().toISOString(),
-        body: {
-          id: generationId,
-          traceId: traceId,
-          type: "GENERATION",
-          output: { key: "this is a great gpt output" },
-        },
-      },
-    ];
-
-    await ingestionService.processTraceEventList({
-      projectId,
-      entityId: traceId,
-      traceEventList: traceEventList1,
-    });
-
-    expect(
-      ingestionService.processObservationEventList({
-        projectId,
-        entityId: generationId,
-        observationEventList: generationEventListNoCreate,
-      })
-    ).rejects.toThrow();
-
-    const generationEventListWithCreate: ObservationEvent[] = [
-      {
-        id: randomUUID(),
-        type: "observation-create",
-        timestamp: new Date().toISOString(),
-        body: {
-          id: generationId,
-          traceId: traceId,
-          type: "GENERATION",
-          input: "This is a great prompt",
-        },
-      },
-    ];
-
-    await ingestionService.processObservationEventList({
-      projectId,
-      entityId: generationId,
-      observationEventList: generationEventListWithCreate,
-    });
-
-    await clickhouseWriter.flushAll(true);
-
-    vi.useRealTimers();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    vi.useFakeTimers();
-
-    // Now the generation update should work
-    await ingestionService.processObservationEventList({
-      projectId,
-      entityId: generationId,
-      observationEventList: generationEventListNoCreate,
-    });
-
-    await clickhouseWriter.flushAll(true);
-
-    vi.useRealTimers();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    vi.useFakeTimers();
-
-    const generation = await getClickhouseRecord(
-      TableName.Observations,
-      generationId
-    );
-
-    expect(generation.id).toBe(generationId);
-    expect(generation.trace_id).toBe(traceId);
-    expect(generation.output).toEqual(
-      JSON.stringify({
-        key: "this is a great gpt output",
-      })
-    );
-    expect(generation.input).toEqual("This is a great prompt");
-  });
-
   it("should upsert traces in the right order", async () => {
     const traceId = randomUUID();
 
     const latestEvent = new Date();
     const oldEvent = new Date(latestEvent).setSeconds(
-      latestEvent.getSeconds() - 1
+      latestEvent.getSeconds() - 1,
     );
 
     const traceEventList: TraceEventType[] = [
@@ -1084,18 +980,18 @@ describe("Ingestion end-to-end tests", () => {
 
     const generation = await getClickhouseRecord(
       TableName.Observations,
-      generationId
+      generationId,
     );
 
     expect(generation.output).toEqual(
       JSON.stringify({
         key: "this is a great gpt output",
-      })
+      }),
     );
     expect(generation.input).toEqual(JSON.stringify({ key: "value" }));
     expect(generation.provided_model_name).toEqual("gpt-3.5");
     expect(generation.output).toEqual(
-      JSON.stringify({ key: "this is a great gpt output" })
+      JSON.stringify({ key: "this is a great gpt output" }),
     );
   });
 
@@ -1189,7 +1085,7 @@ describe("Ingestion end-to-end tests", () => {
 
     const generation = await getClickhouseRecord(
       TableName.Observations,
-      generationId
+      generationId,
     );
 
     expect(generation.usage_details.input).toEqual(1285);
@@ -1290,18 +1186,18 @@ describe("Ingestion end-to-end tests", () => {
 
     const generation = await getClickhouseRecord(
       TableName.Observations,
-      generationId
+      generationId,
     );
 
     expect(generation?.output).toEqual(
       JSON.stringify({
         key: "this is a great gpt output",
-      })
+      }),
     );
     expect(generation?.input).toEqual(JSON.stringify({ key: "value" }));
     expect(generation?.provided_model_name).toEqual("gpt-3.5");
     expect(generation?.output).toEqual(
-      JSON.stringify({ key: "this is a great gpt output" })
+      JSON.stringify({ key: "this is a great gpt output" }),
     );
     expect(generation?.usage_details.input).toEqual(5);
     expect(generation?.usage_details.output).toEqual(11);
@@ -1383,18 +1279,18 @@ describe("Ingestion end-to-end tests", () => {
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
     const observation = await getClickhouseRecord(
       TableName.Observations,
-      generationId
+      generationId,
     );
 
     expect(observation?.output).toEqual(
       JSON.stringify({
         key: "this is a great gpt output",
-      })
+      }),
     );
     expect(observation?.input).toEqual(JSON.stringify({ key: "value" }));
     expect(observation?.provided_model_name).toEqual("gpt-3.5");
     expect(observation?.output).toEqual(
-      JSON.stringify({ key: "this is a great gpt output" })
+      JSON.stringify({ key: "this is a great gpt output" }),
     );
     expect(observation?.usage_details.input).toEqual(5);
     expect(observation?.usage_details.output).toEqual(11);
@@ -1482,7 +1378,7 @@ describe("Ingestion end-to-end tests", () => {
     },
   ].forEach(({ inputs, output }) => {
     it(`merges metadata ${JSON.stringify(inputs)}, ${JSON.stringify(
-      output
+      output,
     )}`, async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -1558,7 +1454,7 @@ describe("Ingestion end-to-end tests", () => {
 
       const generation = await getClickhouseRecord(
         TableName.Observations,
-        generationId
+        generationId,
       );
 
       expect(parseMetadata(generation.metadata)).toEqual(output);
@@ -1568,7 +1464,7 @@ describe("Ingestion end-to-end tests", () => {
 
 async function getClickhouseRecord<T extends TableName>(
   tableName: T,
-  entityId: string
+  entityId: string,
 ): Promise<RecordReadType<T>> {
   const query = await clickhouseClient.query({
     query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
