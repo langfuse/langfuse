@@ -27,6 +27,9 @@ export class IngestionQueue {
               removeOnComplete: true,
               removeOnFail: 100_000,
               attempts: 5,
+              // We delay the processing by 15s to give the client time to upload all events (creates, updates)
+              // to S3 before we process the first batch. This reduces errors due to missing creates for updates.
+              delay: 15000,
               backoff: {
                 type: "exponential",
                 delay: 5000,
