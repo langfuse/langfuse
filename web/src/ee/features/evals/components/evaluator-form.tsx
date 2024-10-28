@@ -424,7 +424,7 @@ export const InnerEvalConfigForm = (props: {
               </FormItem>
             )}
           />
-          <Card className="flex flex-col gap-6 p-4">
+          <Card className="flex max-w-full flex-col gap-6 overflow-y-auto p-4">
             <FormField
               control={form.control}
               name="target"

@@ -102,7 +102,7 @@ export const EvaluatorDetail = () => {
             }
             cardTitleChildren={
               <div className="flex w-full flex-row items-center justify-between">
-                <span>Evaluation Job</span>
+                <span>Evaluator</span>
                 <StatusBadge
                   type={evaluator.data?.status.toLowerCase()}
                   isLive
@@ -191,8 +191,8 @@ export function DeactivateEvaluator({
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
-          This action permanently deactivates the evaluation job. No more traces
-          will be evaluated for this job.
+          This action permanently deactivates the evaluator. No more traces will
+          be evaluated for this job.
         </p>
         <div className="flex justify-end space-x-4">
           <Button
