@@ -356,39 +356,34 @@ async function callLLM(
   template: EvalTemplate,
   evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>
 ): Promise<z.infer<typeof evalScoreSchema>> {
-  const completion = await fetchLLMCompletion({
-    streaming: false,
-    apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
-    baseURL: llmApiKey.baseURL || undefined,
-    messages: [
-      {
-        role: ChatMessageRole.System,
-        content: "You are an expert at evaluating LLM outputs.",
+  try {
+    const completion = await fetchLLMCompletion({
+      streaming: false,
+      apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
+      baseURL: llmApiKey.baseURL || undefined,
+      messages: [
+        {
+          role: ChatMessageRole.System,
+          content: "You are an expert at evaluating LLM outputs.",
+        },
+        { role: ChatMessageRole.User, content: prompt },
+      ],
+      modelParams: {
+        provider: template.provider,
+        model: template.model,
+        adapter: llmApiKey.adapter,
+        ...modelParams,
       },
-      { role: ChatMessageRole.User, content: prompt },
-    ],
-    modelParams: {
-      provider: template.provider,
-      model: template.model,
-      adapter: llmApiKey.adapter,
-      ...modelParams,
-    },
-    structuredOutputSchema: evalScoreSchema,
-    config: llmApiKey.config,
-  });
-  const parsedLLMOutput = evalScoreSchema.safeParse(completion);
-
-  if (!parsedLLMOutput.success) {
+      structuredOutputSchema: evalScoreSchema,
+      config: llmApiKey.config,
+    });
+    return evalScoreSchema.parse(completion);
+  } catch (e) {
     logger.error(
-      `Evaluating job ${jeId} failed to parse LLM output ${completion}. Eval will fail. ${parsedLLMOutput.error}`
+      `Evaluating job ${jeId} failed to call LLM. Eval will fail. ${e}`
     );
-    // this is an API error as these are retried.
-    // Maybe a second call to the LLM will return a valid output.
-    throw new ApiError(
-      `Failed to parse LLM output: ${JSON.stringify(parsedLLMOutput.error)}`
-    );
+    throw new ApiError(`Failed to call LLM: ${e}`);
   }
-  return parsedLLMOutput.data;
 }
 
 export function compileHandlebarString(
