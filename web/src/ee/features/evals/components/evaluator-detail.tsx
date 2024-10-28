@@ -111,10 +111,7 @@ export const EvaluatorDetail = () => {
               />
             </TabsContent>
             <TabsContent value="logs">
-              <FullScreenPage
-                lgHeight="lg:h-[calc(100dvh-13rem)]"
-                mobileHeight="h-[calc(100dvh-17rem)]"
-              >
+              <FullScreenPage>
                 <EvalLogTable
                   projectId={projectId}
                   jobConfigurationId={existingEvaluator.id}
