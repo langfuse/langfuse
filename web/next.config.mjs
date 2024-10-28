@@ -52,6 +52,7 @@ const nextConfig = {
       "dd-trace",
       "@opentelemetry/api",
       "@appsignal/opentelemetry-instrumentation-bullmq",
+      "bullmq",
     ],
   },
   poweredByHeader: false,
