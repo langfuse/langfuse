@@ -23,15 +23,15 @@ export const prepareClickhouse = async (
   opts: {
     numberOfDays: number;
     totalObservations: number;
-  }
+  },
 ) => {
   logger.info(
-    `Preparing Clickhouse for ${projectIds.length} projects and ${opts.numberOfDays} days.`
+    `Preparing Clickhouse for ${projectIds.length} projects and ${opts.numberOfDays} days.`,
   );
 
   const projectData = projectIds.map((projectId) => {
     const observationsPerProject = Math.ceil(
-      randn_bm(0, opts.totalObservations, 2)
+      randn_bm(0, opts.totalObservations, 2),
     ); // Skew the number of observations
 
     const tracesPerProject = Math.floor(observationsPerProject / 6); // On average, one trace should have 6 observations
@@ -52,7 +52,7 @@ export const prepareClickhouse = async (
       scoresPerProject,
     } = data;
     logger.info(
-      `Preparing Clickhouse for ${projectId}: Traces: ${tracesPerProject}, Scores: ${scoresPerProject}, Observations: ${observationsPerProject}`
+      `Preparing Clickhouse for ${projectId}: Traces: ${tracesPerProject}, Scores: ${scoresPerProject}, Observations: ${observationsPerProject}`,
     );
 
     const tracesQuery = `
@@ -88,8 +88,8 @@ export const prepareClickhouse = async (
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS start_time,
       addSeconds(start_time, if(rand() < 0.6, floor(randUniform(0, 20)), floor(randUniform(0, 3600)))) AS end_time,
       concat('name', toString(rand() % 100)) AS name,
-      map('key', 'value') AS metadata,
-      if(rand() < 0.9, 'DEFAULT', if(rand() < 0.5, 'ERROR', if(rand() < 0.5, 'DEBUG', 'WANING'))) AS level,
+      '{"key": "value"}' AS metadata,
+      if(rand() < 0.9, 'DEFAULT', if(rand() < 0.5, 'ERROR', if(rand() < 0.5, 'DEBUG', 'WARNING'))) AS level,
       'status_message' AS status_message,
       'version' AS version,
       repeat('input', toInt64(randExponential(1 / 100))) AS input,
@@ -181,7 +181,7 @@ export const prepareClickhouse = async (
 
     logger.info(
       `${table.charAt(0).toUpperCase() + table.slice(1)} per Project: \n` +
-        (await result.text())
+        (await result.text()),
     );
   }
 
@@ -212,7 +212,7 @@ export const prepareClickhouse = async (
 
     logger.info(
       `${table.charAt(0).toUpperCase() + table.slice(1)} per Date: \n` +
-        (await result.text())
+        (await result.text()),
     );
   }
 };

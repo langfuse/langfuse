@@ -4,22 +4,23 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Lock, Plus } from "lucide-react";
-import EvalsTemplateTable from "@/src/ee/features/evals/components/eval-templates-table";
+import EvaluatorTable from "@/src/ee/features/evals/components/evaluator-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
-export default function TemplatesPage() {
+export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:create",
+    scope: "evalJob:CUD",
   });
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:read",
+    scope: "evalJob:read",
   });
 
   if (!hasReadAccess) {
@@ -27,47 +28,45 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden md:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
-        title="Eval Templates"
+        title="Evaluators"
         help={{
           description:
-            "Create an evaluation template. Choose from one of the pre-defined templates or create your own.",
+            "Use LLM-as-a-judge evaluators as practical addition to human annotation. Configure an evaluation prompt and a model as judge to evaluate incoming traces.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
         actionButtons={
           <Button
             disabled={!hasWriteAccess}
-            onClick={() => capture("eval_templates:new_form_open")}
+            onClick={() => capture("eval_config:new_form_open")}
             asChild
             variant="secondary"
           >
             <Link
-              href={
-                hasWriteAccess
-                  ? `/project/${projectId}/evals/templates/new`
-                  : "#"
-              }
+              href={hasWriteAccess ? `/project/${projectId}/evals/new` : "#"}
             >
               {hasWriteAccess ? (
                 <Plus className="mr-2 h-4 w-4" />
               ) : (
                 <Lock className="mr-2 h-4 w-4" />
               )}
-              New template
+              New evaluator
             </Link>
           </Button>
         }
       />
-      <EvalsTemplateTable
+      <EvaluatorTable
         projectId={projectId}
         menuItems={
-          <Tabs value="templates">
+          <Tabs value="evaluators">
             <TabsList>
-              <TabsTrigger value="evaluators" asChild>
-                <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
+              <TabsTrigger value="evaluators">Evaluators</TabsTrigger>
+              <TabsTrigger value="templates" asChild>
+                <Link href={`/project/${projectId}/evals/templates`}>
+                  Templates
+                </Link>
               </TabsTrigger>
-              <TabsTrigger value="templates">Templates</TabsTrigger>
               <TabsTrigger value="log" asChild>
                 <Link href={`/project/${projectId}/evals/log`}>Log</Link>
               </TabsTrigger>
@@ -75,6 +74,6 @@ export default function TemplatesPage() {
           </Tabs>
         }
       />
-    </div>
+    </FullScreenPage>
   );
 }
