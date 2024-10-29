@@ -44,6 +44,7 @@ export default class MigrateScoresFromPostgresToClickhouse
   }
 
   async run(args: Record<string, unknown>): Promise<void> {
+    const start = Date.now();
     logger.info(
       `Migrating scores from postgres to clickhouse with ${JSON.stringify(args)}`,
     );
@@ -56,6 +57,8 @@ export default class MigrateScoresFromPostgresToClickhouse
 
     let processedRows = 0;
     while (!this.isAborted && processedRows < maxRowsToProcess) {
+      const fetchStart = Date.now();
+
       const scores = await prisma.$queryRaw<
         Array<Record<string, any>>
       >(Prisma.sql`
@@ -70,6 +73,11 @@ export default class MigrateScoresFromPostgresToClickhouse
         break;
       }
 
+      logger.info(
+        `Go ${scores.length} records from Postgres in ${Date.now() - fetchStart}ms`,
+      );
+
+      const insertStart = Date.now();
       await clickhouseClient.insert({
         table: "scores",
         values: scores.map((score) => ({
@@ -98,7 +106,9 @@ export default class MigrateScoresFromPostgresToClickhouse
         format: "JSONEachRow",
       });
 
-      logger.info(`Inserted ${scores.length} scores into Clickhouse`);
+      logger.info(
+        `Inserted ${scores.length} scores into Clickhouse in ${Date.now() - insertStart}ms`,
+      );
 
       await prisma.$executeRaw`
         UPDATE scores
@@ -107,6 +117,7 @@ export default class MigrateScoresFromPostgresToClickhouse
       `;
 
       processedRows += scores.length;
+      logger.info(`Processed batch in ${Date.now() - fetchStart}ms`);
     }
 
     if (this.isAborted) {
@@ -117,7 +128,9 @@ export default class MigrateScoresFromPostgresToClickhouse
     }
 
     await prisma.$executeRaw`ALTER TABLE scores DROP COLUMN IF EXISTS tmp_migrated_to_clickhouse;`;
-    logger.info("Finished migration of scores from Postgres to CLickhouse");
+    logger.info(
+      `Finished migration of scores from Postgres to Clickhouse in ${Date.now() - start}ms`,
+    );
   }
 
   async abort(): Promise<void> {

@@ -44,6 +44,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
   }
 
   async run(args: Record<string, unknown>): Promise<void> {
+    const start = Date.now();
     logger.info(
       `Migrating observations from postgres to clickhouse with ${JSON.stringify(args)}`,
     );
@@ -56,6 +57,8 @@ export default class MigrateObservationsFromPostgresToClickhouse
 
     let processedRows = 0;
     while (!this.isAborted && processedRows < maxRowsToProcess) {
+      const fetchStart = Date.now();
+
       const observations = await prisma.$queryRaw<
         Array<Record<string, any>>
       >(Prisma.sql`
@@ -71,6 +74,11 @@ export default class MigrateObservationsFromPostgresToClickhouse
         break;
       }
 
+      logger.info(
+        `Go ${observations.length} records from Postgres in ${Date.now() - fetchStart}ms`,
+      );
+
+      const insertStart = Date.now();
       await clickhouseClient.insert({
         table: "observations",
         values: observations.map((observation) => ({
@@ -144,7 +152,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
       });
 
       logger.info(
-        `Inserted ${observations.length} observations into Clickhouse`,
+        `Inserted ${observations.length} observations into Clickhouse in ${Date.now() - insertStart}ms`,
       );
 
       await prisma.$executeRaw`
@@ -154,6 +162,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
       `;
 
       processedRows += observations.length;
+      logger.info(`Processed batch in ${Date.now() - fetchStart}ms`);
     }
 
     if (this.isAborted) {
@@ -165,7 +174,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
 
     await prisma.$executeRaw`ALTER TABLE observations DROP COLUMN IF EXISTS tmp_migrated_to_clickhouse;`;
     logger.info(
-      "Finished migration of observations from Postgres to CLickhouse",
+      `Finished migration of observations from Postgres to Clickhouse in ${Date.now() - start}ms`,
     );
   }
 
