@@ -10,6 +10,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreList,
+  jsonSchema,
   orderBy,
   paginationZod,
   singleFilter,
@@ -32,6 +33,7 @@ import {
   getTracesTable,
   getScoresForTraces,
   getTraceById,
+  type TracesTableReturnType,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import type Decimal from "decimal.js";
@@ -51,6 +53,40 @@ export type ObservationReturnType = Omit<
   "input" | "output"
 > & {
   traceId: string;
+};
+
+export type TracesAllReturnType = {
+  id: string;
+  timestamp: Date;
+  name: string | undefined;
+  projectId: string;
+  metadata: z.infer<typeof jsonSchema>;
+  userId: string | undefined;
+  release: string | undefined;
+  version: string | undefined;
+  public: boolean;
+  bookmarked: boolean;
+  sessionId: string | undefined;
+  tags: string[];
+};
+
+export const convertToReturnType = (
+  row: TracesTableReturnType,
+): TracesAllReturnType => {
+  return {
+    id: row.id,
+    name: row.name,
+    timestamp: new Date(row.timestamp),
+    tags: row.tags,
+    bookmarked: row.bookmarked,
+    release: row.release,
+    version: row.version,
+    projectId: row.project_id,
+    userId: row.user_id,
+    sessionId: row.session_id,
+    metadata: jsonSchema.parse(row.metadata),
+    public: row.public,
+  };
 };
 
 export const traceRouter = createTRPCRouter({
@@ -100,10 +136,17 @@ export const traceRouter = createTRPCRouter({
         const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
 
         return {
-          traces: traces.map(
+          traces: traces.map<TracesAllReturnType>(
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             ({ input, output, metadata, ...trace }) => ({
               ...trace,
+              metadata: jsonSchema.parse(metadata),
+              name: trace.name ?? undefined,
+              release: trace.release ?? undefined,
+              version: trace.version ?? undefined,
+              externalId: trace.externalId ?? undefined,
+              userId: trace.userId ?? undefined,
+              sessionId: trace.sessionId ?? undefined,
             }),
           ),
         };
@@ -122,26 +165,8 @@ export const traceRouter = createTRPCRouter({
           input.page,
         );
 
-        const scores = await getScoresForTraces(
-          ctx.session.projectId,
-          res.map((r) => r.id),
-          1000,
-          0,
-        );
-
-        const validatedScores = filterAndValidateDbScoreList(
-          scores,
-          traceException,
-        );
-
         return {
-          traces: res.map((r) => {
-            const score = validatedScores.find((s) => s.traceId === r.id);
-            return {
-              ...r,
-              scores: score,
-            };
-          }),
+          traces: res.map(convertToReturnType),
         };
       }
     }),

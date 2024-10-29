@@ -5,12 +5,6 @@ import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-filter/factory";
-import {
-  Filter,
-  FilterList,
-  StringFilter,
-} from "../queries/clickhouse-filter/clickhouse-filter";
-import { logger } from "../logger";
 
 export type TracesTableReturnType = Pick<
   TraceClickhouseRecord,
@@ -24,6 +18,8 @@ export type TracesTableReturnType = Pick<
   | "user_id"
   | "session_id"
   | "tags"
+  | "metadata"
+  | "public"
 > & {
   level: ObservationLevel;
   observation_count: number | null;
@@ -31,28 +27,6 @@ export type TracesTableReturnType = Pick<
   usage_details: Record<string, number>;
   cost_details: Record<string, number>;
   scores_avg: Array<{ name: string; avg_value: number }>;
-};
-
-export const convertToReturnType = (row: TracesTableReturnType) => {
-  return {
-    id: row.id,
-    name: row.name,
-    timestamp: new Date(row.timestamp),
-    tags: row.tags,
-    bookmarked: row.bookmarked,
-    release: row.release,
-    version: row.version,
-    projectId: row.project_id,
-    userId: row.user_id,
-    sessionId: row.session_id,
-    latency: row.latency,
-    usageDetails: row.usage_details,
-    costDetails: row.cost_details,
-    level: row.level as ObservationLevel,
-    observationCount: row.observation_count
-      ? BigInt(row.observation_count)
-      : undefined,
-  };
 };
 
 export const getTracesTable = async (
@@ -132,7 +106,9 @@ export const getTracesTable = async (
         os.usage_details as usage_details,
         os.level as level,
         os.observation_count as observation_count,
-        s.scores_avg as scores_avg
+        s.scores_avg as scores_avg,
+        t.metadata,
+        t.public
       from traces t final
               left join observations_stats os on os.project_id = t.project_id and os.trace_id = t.id
               left join scores_avg s on s.project_id = t.project_id and s.trace_id = t.id
@@ -153,7 +129,7 @@ export const getTracesTable = async (
     },
   });
 
-  return rows.map(convertToReturnType);
+  return rows;
 };
 
 export const getTraceById = async (traceId: string, projectId: string) => {
