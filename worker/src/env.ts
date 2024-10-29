@@ -48,11 +48,11 @@ const EnvSchema = z.object({
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
-    .default(1000),
+    .default(10000),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce
     .number()
     .positive()
-    .default(3000),
+    .default(10000),
   LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: z.coerce
     .number()
     .positive()
@@ -90,6 +90,10 @@ const EnvSchema = z.object({
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("worker"),
+
+  LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS: z
+    .enum(["true", "false"])
+    .default("false"),
 
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED: z

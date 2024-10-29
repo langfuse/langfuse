@@ -23,15 +23,15 @@ export const prepareClickhouse = async (
   opts: {
     numberOfDays: number;
     totalObservations: number;
-  }
+  },
 ) => {
   logger.info(
-    `Preparing Clickhouse for ${projectIds.length} projects and ${opts.numberOfDays} days.`
+    `Preparing Clickhouse for ${projectIds.length} projects and ${opts.numberOfDays} days.`,
   );
 
   const projectData = projectIds.map((projectId) => {
     const observationsPerProject = Math.ceil(
-      randn_bm(0, opts.totalObservations, 2)
+      randn_bm(0, opts.totalObservations, 2),
     ); // Skew the number of observations
 
     const tracesPerProject = Math.floor(observationsPerProject / 6); // On average, one trace should have 6 observations
@@ -52,7 +52,7 @@ export const prepareClickhouse = async (
       scoresPerProject,
     } = data;
     logger.info(
-      `Preparing Clickhouse for ${projectId}: Traces: ${tracesPerProject}, Scores: ${scoresPerProject}, Observations: ${observationsPerProject}`
+      `Preparing Clickhouse for ${projectId}: Traces: ${tracesPerProject}, Scores: ${scoresPerProject}, Observations: ${observationsPerProject}`,
     );
 
     const tracesQuery = `
@@ -73,7 +73,8 @@ export const prepareClickhouse = async (
       concat('session_', toString(rand() % 100)) AS session_id,
       timestamp AS created_at,
       timestamp AS updated_at,
-      timestamp AS event_ts
+      timestamp AS event_ts,
+      0 AS is_deleted
     FROM numbers(${tracesPerProject});
   `;
 
@@ -87,8 +88,8 @@ export const prepareClickhouse = async (
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS start_time,
       addSeconds(start_time, if(rand() < 0.6, floor(randUniform(0, 20)), floor(randUniform(0, 3600)))) AS end_time,
       concat('name', toString(rand() % 100)) AS name,
-      map('key', 'value') AS metadata,
-      if(rand() < 0.9, 'DEFAULT', if(rand() < 0.5, 'ERROR', if(rand() < 0.5, 'DEBUG', 'WANING'))) AS level,
+      '{"key": "value"}' AS metadata,
+      if(rand() < 0.9, 'DEFAULT', if(rand() < 0.5, 'ERROR', if(rand() < 0.5, 'DEBUG', 'WARNING'))) AS level,
       'status_message' AS status_message,
       'version' AS version,
       repeat('input', toInt64(randExponential(1 / 100))) AS input,
@@ -101,27 +102,20 @@ export const prepareClickhouse = async (
         when number % 2 = 0 then 'cltr0w45b000008k1407o9qv1'
         else 'clrntkjgy000f08jx79v9g1xj'
       end as internal_model_id,
-      'model_parameters' AS model_parameters,
-      toInt32(randUniform(0, 1000)) AS provided_input_usage_units,
-      toInt32(randUniform(0, 1000)) AS provided_output_usage_units,
-      toInt32(randUniform(0, 1000)) AS provided_total_usage_units,
-      toInt32(randUniform(0, 1000)) AS input_usage_units,
-      toInt32(randUniform(0, 1000)) AS output_usage_units,
-      toInt32(randUniform(0, 1000)) AS total_usage_units,
-      toInt32(randUniform(0, 1000)) AS provided_input_cost,
-      toInt32(randUniform(0, 1000)) AS provided_output_cost,
-      toInt32(randUniform(0, 1000)) AS provided_total_cost,
-      'TOKENS' AS unit,
-      toInt32(randUniform(0, 1000)) AS input_cost,
-      toInt32(randUniform(0, 1000)) AS output_cost,
-      toInt32(randUniform(0, 1000)) AS total_cost,
+      '{"temperature": 0.7, "max_tokens": 15d0}' AS model_parameters,
+      map('input', toUInt64(randUniform(0, 1000)), 'output', toUInt64(randUniform(0, 1000)), 'total', toUInt64(randUniform(0, 2000))) AS provided_usage_details,
+      map('input', toUInt64(randUniform(0, 1000)), 'output', toUInt64(randUniform(0, 1000)), 'total', toUInt64(randUniform(0, 2000))) AS usage_details,
+      map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)) AS provided_cost_details,
+      map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)) AS cost_details,
+      toDecimal64(randUniform(0, 2000), 12) AS total_cost,
       start_time AS completion_start_time,
       toString(rand()) AS prompt_id,
       toString(rand()) AS prompt_name,
       1000 AS prompt_version,
       start_time AS created_at,
       start_time AS updated_at,
-      start_time AS event_ts
+      start_time AS event_ts,
+      0 AS is_deleted
     FROM numbers(${observationsPerProject});
   `;
 
@@ -146,7 +140,8 @@ export const prepareClickhouse = async (
       toString(rand() % 100) as string_value,
       timestamp AS created_at,
       timestamp AS updated_at,
-      timestamp AS event_ts
+      timestamp AS event_ts,
+      0 AS is_deleted
     FROM numbers(${scoresPerProject});
   `;
 
@@ -185,7 +180,7 @@ export const prepareClickhouse = async (
 
     logger.info(
       `${table.charAt(0).toUpperCase() + table.slice(1)} per Project: \n` +
-        (await result.text())
+        (await result.text()),
     );
   }
 
@@ -216,7 +211,7 @@ export const prepareClickhouse = async (
 
     logger.info(
       `${table.charAt(0).toUpperCase() + table.slice(1)} per Date: \n` +
-        (await result.text())
+        (await result.text()),
     );
   }
 };

@@ -295,7 +295,7 @@ export function TracePage({ traceId }: { traceId: string }) {
     return <ErrorPage message="You do not have access to this trace." />;
   if (!trace.data) return <div>loading...</div>;
   return (
-    <FullScreenPage mobile={false} className="2xl:container">
+    <FullScreenPage>
       <Header
         title="Trace Detail"
         breadcrumb={[
