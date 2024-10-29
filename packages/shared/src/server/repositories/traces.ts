@@ -1,12 +1,12 @@
 import { type ObservationLevel, type FilterState } from "@langfuse/shared";
 import { TraceClickhouseRecord } from "../clickhouse/schema";
 import { queryClickhouse } from "./clickhouse";
+import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
 import {
-  createFilterFromFilterState,
   Filter,
   FilterList,
   StringFilter,
-} from "../queries/clickhouse-filter/factory";
+} from "../queries/clickhouse-filter/clickhouse-filter";
 import { logger } from "../logger";
 
 export type TracesTableReturnType = Pick<

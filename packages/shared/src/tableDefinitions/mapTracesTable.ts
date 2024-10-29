@@ -1,12 +1,7 @@
-// ID matches the name on the observations clickhouse table
-// internal will be removed from the ColumnDefinition
-// clickhouseTable is used to determine which clickhouse table to query
+// This structure is maintained to relate the frontend table definitions with the clickhouse table definitions.
+// The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
 
-export type UiColumnMapping = {
-  uiTableName: string;
-  clickhouseTableName: string;
-  clickhouseColumnName: string;
-};
+import { UiColumnMapping } from "./types";
 
 export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {

@@ -1,5 +1,3 @@
-import { OptionsDefinition } from "../../tableDefinitions";
-
 export type ClickhouseColumnDefinition = {
   name: string; // column name (camel case)
   clickhouse_mapping: string; // clickhouse column name (snake case)

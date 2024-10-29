@@ -1,5 +1,5 @@
 import { ObservationLevel } from "@prisma/client";
-import { ColumnDefinition, OptionsDefinition } from ".";
+import { ColumnDefinition, OptionsDefinition } from "..";
 
 export const tracesOnlyCols: ColumnDefinition[] = [
   {

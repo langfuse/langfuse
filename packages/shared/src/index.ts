@@ -6,7 +6,7 @@ export * from "./interfaces/parseDbOrg";
 export * from "./interfaces/customLLMProviderConfigSchemas";
 export * from "./tableDefinitions";
 export * from "./types";
-export * from "./tracesTable";
+export * from "./tableDefinitions/tracesTable";
 export * from "./server/auth/apiKeys";
 export * from "./observationsTable";
 export * from "./utils/zod";
