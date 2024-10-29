@@ -76,11 +76,13 @@ export const ClickhouseTableNames = {
 } as const;
 
 export type ClickhouseTableName = keyof typeof ClickhouseTableNames;
+export const ClickhouseEntityTypes = ["score", "observation", "trace"] as const;
+export type ClickhouseEntityType = (typeof ClickhouseEntityTypes)[number];
 
 export type ClickhouseColumnDefinition = {
   name: string; // column name (camel case)
   clickhouse_mapping: string; // clickhouse column name (snake case)
-  type: "number" | "string" | "datetime" | "boolean";
+  type: "number" | "string" | "datetime" | "boolean" | "map";
   nullable?: boolean;
 };
 
@@ -198,70 +200,27 @@ export const ObservationClickhouseColumns: ClickhouseColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "providedInputUsageUnits",
-    clickhouse_mapping: "provided_input_usage_units",
-    type: "number",
+    name: "providedUsageDetails",
+    clickhouse_mapping: "provided_usage_details",
+    type: "map",
     nullable: true,
   },
   {
-    name: "providedOutputUsageUnits",
-    clickhouse_mapping: "provided_output_usage_units",
-    type: "number",
+    name: "usageDetails",
+    clickhouse_mapping: "usage_details",
+    type: "map",
     nullable: true,
   },
   {
-    name: "providedTotalUsageUnits",
-    clickhouse_mapping: "provided_total_usage_units",
-    type: "number",
+    name: "providedCostDetails",
+    clickhouse_mapping: "provided_cost_details",
+    type: "map",
     nullable: true,
   },
   {
-    name: "inputUsageUnits",
-    clickhouse_mapping: "input_usage_units",
-    type: "number",
-    nullable: true,
-  },
-  {
-    name: "outputUsageUnits",
-    clickhouse_mapping: "output_usage_units",
-    type: "number",
-    nullable: true,
-  },
-  {
-    name: "totalUsageUnits",
-    clickhouse_mapping: "total_usage_units",
-    type: "number",
-    nullable: true,
-  },
-  { name: "unit", clickhouse_mapping: "unit", type: "string", nullable: true },
-  {
-    name: "providedInputCost",
-    clickhouse_mapping: "provided_input_cost",
-    type: "number",
-    nullable: true,
-  },
-  {
-    name: "providedOutputCost",
-    clickhouse_mapping: "provided_output_cost",
-    type: "number",
-    nullable: true,
-  },
-  {
-    name: "providedTotalCost",
-    clickhouse_mapping: "provided_total_cost",
-    type: "number",
-    nullable: true,
-  },
-  {
-    name: "inputCost",
-    clickhouse_mapping: "input_cost",
-    type: "number",
-    nullable: true,
-  },
-  {
-    name: "outputCost",
-    clickhouse_mapping: "output_cost",
-    type: "number",
+    name: "costDetails",
+    clickhouse_mapping: "cost_details",
+    type: "map",
     nullable: true,
   },
   {

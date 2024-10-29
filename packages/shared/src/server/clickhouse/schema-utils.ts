@@ -1,3 +1,5 @@
+import { LangfuseNotFoundError } from "../../errors";
+import { eventTypes } from "../ingestion/types";
 import {
   ClickhouseTableName,
   ClickhouseTableNames,
@@ -7,6 +9,7 @@ import {
   TraceClickhouseColumns,
   ObservationClickhouseColumns,
   ScoreClickhouseColumns,
+  ClickhouseEntityType,
 } from "./schema";
 
 export const isValidTableName = (
@@ -51,5 +54,28 @@ export function isKeyOfClickhouseRecord(
       return isKeyOfScoreClickhouseRecord(key);
     default:
       throw new Error(`Unhandled table case: ${tableName}`);
+  }
+}
+
+export function getClickhouseEntityType(
+  eventType: string
+): ClickhouseEntityType | "sdk_log" {
+  switch (eventType) {
+    case eventTypes.TRACE_CREATE:
+      return "trace";
+    case eventTypes.OBSERVATION_CREATE:
+    case eventTypes.OBSERVATION_UPDATE:
+    case eventTypes.EVENT_CREATE:
+    case eventTypes.SPAN_CREATE:
+    case eventTypes.SPAN_UPDATE:
+    case eventTypes.GENERATION_CREATE:
+    case eventTypes.GENERATION_UPDATE:
+      return "observation";
+    case eventTypes.SCORE_CREATE:
+      return "score";
+    case eventTypes.SDK_LOG:
+      return "sdk_log";
+    default:
+      throw new LangfuseNotFoundError(`Unknown event type: ${eventType}`);
   }
 }
