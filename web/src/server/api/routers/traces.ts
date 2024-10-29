@@ -345,15 +345,13 @@ export const traceRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       if (!input.queryClickhouse) {
-        const trace = await ctx.prisma.trace.findFirstOrThrow({
+        return await ctx.prisma.trace.findFirstOrThrow({
           where: {
             id: input.traceId,
             projectId: input.projectId,
           },
         });
-        return trace;
       } else {
-        console.log("querying clickhouse");
         if (!isClickhouseEligible(ctx.session.user?.admin === true)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
