@@ -9,7 +9,6 @@ import {
   TraceClickhouseColumns,
   ObservationClickhouseColumns,
   ScoreClickhouseColumns,
-  ClickhouseEntityType,
 } from "./schema";
 
 export const isValidTableName = (
@@ -57,7 +56,12 @@ export function isKeyOfClickhouseRecord(
   }
 }
 
-export type IngestionEntityTypes = ClickhouseEntityType | "sdk_log";
+export type IngestionEntityTypes =
+  | "trace"
+  | "observation"
+  | "score"
+  | "sdk_log";
+
 export const getClickhouseEntityType = (
   eventType: string
 ): IngestionEntityTypes => {

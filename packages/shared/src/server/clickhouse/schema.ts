@@ -76,8 +76,6 @@ export const ClickhouseTableNames = {
 } as const;
 
 export type ClickhouseTableName = keyof typeof ClickhouseTableNames;
-export const ClickhouseEntityTypes = ["score", "observation", "trace"] as const;
-export type ClickhouseEntityType = (typeof ClickhouseEntityTypes)[number];
 
 export type ClickhouseColumnDefinition = {
   name: string; // column name (camel case)
