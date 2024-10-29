@@ -233,7 +233,16 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
 
 const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   try {
-    return await next({ ctx }); // pass the context to the next middleware
+    const res = await next({ ctx }); // pass the context to the next middleware
+
+    if (!res.ok) {
+      logger.info("middleware intercepted error", res.error);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+      });
+    }
+
+    return res;
   } catch (error) {
     logger.error(error);
     if (error instanceof TRPCError) {
