@@ -35,7 +35,7 @@ export const CreateEvalTemplate = z.object({
     score: z.string(),
     reasoning: z.string(),
   }),
-  shouldUpdateEvalJobs: z.boolean(),
+  referencedEvaluators: z.enum(["update", "persist"]),
   existingEvalTemplateId: z.string().optional(),
 });
 
@@ -264,8 +264,8 @@ export const evalRouter = createTRPCRouter({
         totalCount: count,
       };
     }),
-  jobsByTemplateId: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
+  evaluatorsByTemplateName: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
     .query(async ({ input, ctx }) => {
       try {
         throwIfNoEntitlement({
@@ -278,11 +278,22 @@ export const evalRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "evalJob:read",
         });
+
+        const templates = await ctx.prisma.evalTemplate.findMany({
+          where: {
+            projectId: input.projectId,
+            name: input.evalTemplateName,
+          },
+          select: {
+            id: true,
+          },
+        });
+
         return {
-          jobs: await ctx.prisma.jobConfiguration.findMany({
+          evaluators: await ctx.prisma.jobConfiguration.findMany({
             where: {
               projectId: input.projectId,
-              evalTemplateId: input.evalTemplateId,
+              evalTemplateId: { in: templates.map((t) => t.id) },
             },
           }),
         };
@@ -425,17 +436,21 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
-      const latestTemplate = await ctx.prisma.evalTemplate.findFirst({
+      const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
           projectId: input.projectId,
           name: input.name,
         },
         orderBy: [{ version: "desc" }],
+        select: {
+          id: true,
+          version: true,
+        },
       });
 
       const evalTemplate = await ctx.prisma.evalTemplate.create({
         data: {
-          version: latestTemplate?.version ? latestTemplate.version + 1 : 1,
+          version: Boolean(templates.length) ? templates[0].version + 1 : 1,
           name: input.name,
           projectId: input.projectId,
           prompt: input.prompt,
@@ -447,10 +462,13 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      if (input.shouldUpdateEvalJobs && input.existingEvalTemplateId) {
+      if (
+        input.referencedEvaluators === "update" &&
+        Boolean(templates.length)
+      ) {
         await ctx.prisma.jobConfiguration.updateMany({
           where: {
-            evalTemplateId: input.existingEvalTemplateId,
+            evalTemplateId: { in: templates.map((t) => t.id) },
           },
           data: {
             evalTemplateId: evalTemplate.id,

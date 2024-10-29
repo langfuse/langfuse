@@ -37,8 +37,8 @@ import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
-import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -156,7 +156,10 @@ const formSchema = z.object({
   ),
   outputScore: z.string().min(1, "Enter a score function"),
   outputReasoning: z.string().min(1, "Enter a reasoning function"),
-  shouldUpdateEvalJobs: z.boolean(),
+  referencedEvaluators: z
+    .enum(["update", "persist"])
+    .optional()
+    .default("persist"),
 });
 
 export type EvalTemplateFormPreFill = {
@@ -264,13 +267,6 @@ export const InnerEvalTemplateForm = (props: {
     }
   }, [props.preFilledFormValues, form, props.existingEvalTemplateName]);
 
-  useEffect(() => {
-    if (props.isEditing && !props.existingEvalTemplateId) {
-      form.setValue("shouldUpdateEvalJobs", false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.existingEvalTemplateId]);
-
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
     : undefined;
@@ -280,34 +276,40 @@ export const InnerEvalTemplateForm = (props: {
     onSuccess: () => {
       utils.models.invalidate();
       if (
-        form.getValues("shouldUpdateEvalJobs") &&
+        form.getValues("referencedEvaluators") === "update" &&
         props.existingEvalTemplateId
       ) {
         showSuccessToast({
-          title: "Updated evaluation jobs",
-          description: "Updated evaluation jobs to use new template.",
+          title: "Updated evaluators",
+          description:
+            "Updated referenced evaluators to use new template version.",
         });
       }
     },
     onError: (error) => setFormError(error.message),
   });
 
-  const jobsByTemplateIdQuery = api.evals.jobsByTemplateId.useQuery(
-    {
-      projectId: props.projectId,
-      evalTemplateId: props.existingEvalTemplateId as string,
-    },
-    {
-      enabled: props.isEditing && !!props.existingEvalTemplateId,
-    },
-  );
+  const evaluatorsByTemplateNameQuery =
+    api.evals.evaluatorsByTemplateName.useQuery(
+      {
+        projectId: props.projectId,
+        evalTemplateName: props.existingEvalTemplateName as string,
+      },
+      {
+        enabled: !!props.existingEvalTemplateName,
+      },
+    );
 
-  if (
-    jobsByTemplateIdQuery.data &&
-    !Boolean(jobsByTemplateIdQuery.data.jobs.length)
-  ) {
-    form.setValue("shouldUpdateEvalJobs", false);
-  }
+  useEffect(() => {
+    if (evaluatorsByTemplateNameQuery.data) {
+      form.setValue(
+        "referencedEvaluators",
+        Boolean(evaluatorsByTemplateNameQuery.data.evaluators.length)
+          ? "update"
+          : "persist",
+      );
+    }
+  }, [evaluatorsByTemplateNameQuery.data, form]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     capture(
@@ -328,7 +330,7 @@ export const InnerEvalTemplateForm = (props: {
         score: values.outputScore,
         reasoning: values.outputReasoning,
       },
-      shouldUpdateEvalJobs: values.shouldUpdateEvalJobs,
+      referencedEvaluators: values.referencedEvaluators,
       existingEvalTemplateId: props.existingEvalTemplateId,
     };
 
@@ -462,63 +464,71 @@ export const InnerEvalTemplateForm = (props: {
             )}
           />
 
-          {props.isEditing && (
+          {props.isEditing && props.existingEvalTemplateId && (
             <FormField
               control={form.control}
-              name="shouldUpdateEvalJobs"
+              name="referencedEvaluators"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Referenced evaluation jobs</FormLabel>
+                  <FormLabel>Referenced evaluators</FormLabel>
                   <FormControl>
-                    <ToggleGroup
-                      value={
-                        field.value === undefined
-                          ? undefined
-                          : field.value
-                            ? "Update"
-                            : "Preserve"
-                      }
-                      onValueChange={(value) => {
-                        if (value === "Update") field.onChange(true);
-                        else if (value === "Preserve") field.onChange(false);
-                        else field.onChange(undefined);
-                      }}
-                      disabled={
-                        !Boolean(jobsByTemplateIdQuery.data?.jobs.length)
-                      }
-                      type="single"
+                    <RadioGroup
+                      {...field}
+                      onValueChange={field.onChange}
                       defaultValue={
-                        props.isEditing && props.existingEvalTemplateId
-                          ? undefined
-                          : "Preserve"
+                        Boolean(
+                          evaluatorsByTemplateNameQuery.data?.evaluators.length,
+                        )
+                          ? "update"
+                          : "persist"
                       }
-                      className="flex justify-start"
+                      disabled={
+                        !Boolean(
+                          evaluatorsByTemplateNameQuery.data?.evaluators.length,
+                        )
+                      }
+                      className="flex flex-col space-y-1"
                     >
-                      {[
-                        { label: "Update", value: true },
-                        { label: "Preserve", value: false },
-                      ].map(({ label }) => (
-                        <ToggleGroupItem
-                          key={label}
-                          value={label}
-                          variant="outline"
-                        >
-                          <span>{label}</span>
-                        </ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="update" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Update all to use new template version
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="persist" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Persist existing template version
+                        </FormLabel>
+                      </FormItem>
+                    </RadioGroup>
                   </FormControl>
                   <FormDescription>
-                    {jobsByTemplateIdQuery.data?.jobs.length ?? 0} evaluation
-                    job(s) are currently using this template.{" "}
-                    {Boolean(jobsByTemplateIdQuery.data?.jobs.length)
+                    {evaluatorsByTemplateNameQuery.data?.evaluators.length ?? 0}{" "}
+                    evaluator(s) are currently using this template.{" "}
+                    {Boolean(
+                      evaluatorsByTemplateNameQuery.data?.evaluators.length,
+                    )
                       ? "Would you like to update them to use this version?"
-                      : "No jobs to update."}
+                      : "No evaluators to update."}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+          )}
+          {!props.isEditing && (
+            <>
+              <FormLabel>Referenced evaluators</FormLabel>
+              <FormDescription>
+                {evaluatorsByTemplateNameQuery.data?.evaluators.length ?? 0}{" "}
+                evaluator(s) are currently using this template.
+              </FormDescription>
+            </>
           )}
         </div>
         <div className="col-span-1 row-span-3">
