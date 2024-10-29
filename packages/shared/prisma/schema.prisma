@@ -787,7 +787,6 @@ model Price {
   price     Decimal
 
   @@unique([modelId, usageType])
-  @@index(modelId)
   @@map("prices")
 }
 
