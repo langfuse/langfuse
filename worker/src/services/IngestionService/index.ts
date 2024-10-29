@@ -69,7 +69,7 @@ export class IngestionService {
     private redis: Redis,
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
-    private clickhouseClient: ClickhouseClientType
+    private clickhouseClient: ClickhouseClientType,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -78,10 +78,10 @@ export class IngestionService {
     eventType: IngestionEntityTypes,
     projectId: string,
     eventBodyId: string,
-    events: IngestionEventType[]
+    events: IngestionEventType[],
   ): Promise<void> {
     logger.info(
-      `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`
+      `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
     );
 
     switch (eventType) {
@@ -246,7 +246,7 @@ export class IngestionService {
 
     this.clickHouseWriter.addToQueue(
       TableName.Observations,
-      finalObservationRecord
+      finalObservationRecord,
     );
   }
 
@@ -262,13 +262,13 @@ export class IngestionService {
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
-      immutableEntityKeys[TableName.Scores]
+      immutableEntityKeys[TableName.Scores],
     );
 
     const parsedRecord = scoreRecordInsertSchema.parse(mergedRecord);
     parsedRecord.event_ts = Math.max(
       ...scoreRecords.map((r) => r.event_ts),
-      clickhouseScoreRecord?.event_ts ?? -Infinity
+      clickhouseScoreRecord?.event_ts ?? -Infinity,
     );
     return parsedRecord;
   }
@@ -285,13 +285,13 @@ export class IngestionService {
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
-      immutableEntityKeys[TableName.Traces]
+      immutableEntityKeys[TableName.Traces],
     );
 
     const parsedRecord = traceRecordInsertSchema.parse(mergedRecord);
     parsedRecord.event_ts = Math.max(
       ...traceRecords.map((r) => r.event_ts),
-      clickhouseTraceRecord?.event_ts ?? -Infinity
+      clickhouseTraceRecord?.event_ts ?? -Infinity,
     );
     return parsedRecord;
   }
@@ -310,7 +310,7 @@ export class IngestionService {
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
-      immutableEntityKeys[TableName.Observations]
+      immutableEntityKeys[TableName.Observations],
     );
 
     const parsedObservationRecord =
@@ -334,14 +334,14 @@ export class IngestionService {
       ...generationUsage,
       event_ts: Math.max(
         ...observationRecords.map((r) => r.event_ts),
-        clickhouseObservationRecord?.event_ts ?? -Infinity
+        clickhouseObservationRecord?.event_ts ?? -Infinity,
       ),
     };
   }
 
   private mergeRecords<T extends InsertRecord>(
     records: T[],
-    immutableEntityKeys: string[]
+    immutableEntityKeys: string[],
   ): unknown {
     if (records.length === 0) {
       throw new Error("No records to merge");
@@ -377,7 +377,7 @@ export class IngestionService {
 
   private async getPrompt(
     projectId: string,
-    observationEventList: ObservationEvent[]
+    observationEventList: ObservationEvent[],
   ): Promise<ObservationPrompt | null> {
     const lastObservationWithPromptInfo = observationEventList
       .slice()
@@ -398,7 +398,7 @@ export class IngestionService {
   }
 
   private hasPromptInformation(
-    event: ObservationEvent
+    event: ObservationEvent,
   ): event is ObservationEvent & {
     body: { promptName: string; promptVersion: number };
   } {
@@ -430,13 +430,13 @@ export class IngestionService {
 
     const final_usage_details = this.getUsageUnits(
       observationRecord,
-      internalModel
+      internalModel,
     );
     const modelPrices = await this.getModelPrices(internalModel?.id);
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
       observationRecord,
-      final_usage_details.usage_details ?? {}
+      final_usage_details.usage_details ?? {},
     );
 
     return {
@@ -454,10 +454,10 @@ export class IngestionService {
 
   private getUsageUnits(
     observationRecord: ObservationRecordInsertType,
-    model: Model | null | undefined
+    model: Model | null | undefined,
   ): Pick<ObservationRecordInsertType, "usage_details"> {
     const providedUsageKeys = Object.entries(
-      observationRecord.provided_usage_details ?? {}
+      observationRecord.provided_usage_details ?? {},
     )
       .filter(([_, value]) => value != null)
       .map(([key]) => key);
@@ -498,7 +498,7 @@ export class IngestionService {
   static calculateUsageCosts(
     modelPrices: Price[] | null | undefined,
     observationRecord: ObservationRecordInsertType,
-    usageUnits: UsageCostType
+    usageUnits: UsageCostType,
   ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
     const { provided_cost_details } = observationRecord;
 
@@ -551,7 +551,7 @@ export class IngestionService {
     } else if (finalCostEntries.length > 0) {
       finalTotalCost = finalCostEntries.reduce(
         (acc, [_, cost]) => acc + cost,
-        0
+        0,
       );
 
       finalCostDetails.total = finalTotalCost;
@@ -605,7 +605,7 @@ export class IngestionService {
         : table === TableName.Scores
           ? convertScoreReadToInsert(recordParser[table].parse(result[0]))
           : convertObservationReadToInsert(
-              recordParser[table].parse(result[0])
+              recordParser[table].parse(result[0]),
             );
     });
   }
@@ -623,7 +623,7 @@ export class IngestionService {
         // in the default implementation, we set timestamps server side if not provided.
         // we need to insert timestamps here and change the SDKs to send timestamps client side.
         timestamp: this.getMillisecondTimestamp(
-          trace.body.timestamp ?? trace.timestamp
+          trace.body.timestamp ?? trace.timestamp,
         ),
         name: trace.body.name,
         user_id: trace.body.userId,
@@ -723,7 +723,7 @@ export class IngestionService {
         type: observationType,
         name: obs.body.name,
         start_time: this.getMillisecondTimestamp(
-          obs.body.startTime ?? obs.timestamp
+          obs.body.startTime ?? obs.timestamp,
         ),
         end_time:
           "endTime" in obs.body && obs.body.endTime
@@ -768,7 +768,7 @@ export class IngestionService {
   }
 
   private stringify(
-    obj: string | object | number | boolean | undefined | null
+    obj: string | object | number | boolean | undefined | null,
   ): string | undefined {
     if (obj == null) return; // return undefined on undefined or null
 
