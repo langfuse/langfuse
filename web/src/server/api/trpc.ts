@@ -116,6 +116,10 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
 
   if (!res.ok) {
     logger.error("middleware intercepted error", res.error);
+
+    // Throw a new TRPC error with:
+    // - The same error code as the original error
+    // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
     throw new TRPCError({
       code: res.error.code,
       message:
