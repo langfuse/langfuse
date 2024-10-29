@@ -56,16 +56,6 @@ export default function EvaluatorTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evaluators.isSuccess, evaluators.data]);
 
-  useEffect(() => {
-    if (evaluators.isSuccess) {
-      setDetailPageList(
-        "evals",
-        evaluators.data.configs.map((evaluator) => evaluator.id),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evaluators.isSuccess, evaluators.data]);
-
   const columnHelper = createColumnHelper<EvalConfigRow>();
   const columns = [
     columnHelper.accessor("id", {

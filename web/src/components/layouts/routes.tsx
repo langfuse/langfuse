@@ -88,7 +88,6 @@ export const ROUTES: Route[] = [
   },
   {
     name: "Evaluation",
-    pathname: `/project/[projectId]/evals/configs`,
     icon: Lightbulb,
     label: "Beta",
     entitlements: ["annotation-queues", "model-based-evaluations"],
