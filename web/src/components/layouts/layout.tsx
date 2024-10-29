@@ -321,7 +321,7 @@ export default function Layout(props: PropsWithChildren) {
           href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16.png`}
         />
       </Head>
-      <div>
+      <div className="h-dvh">
         <Transition.Root show={sidebarOpen} as={Fragment}>
           <Dialog
             as="div"
@@ -575,7 +575,9 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
-          <main className="h-dvh p-3">{props.children}</main>
+          <main className="h-[calc(100dvh-64px)] p-3 lg:h-dvh">
+            {props.children}
+          </main>
           <Toaster visibleToasts={1} />
         </div>
       </div>
