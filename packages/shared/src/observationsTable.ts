@@ -52,7 +52,8 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Time To First Token (s)",
     id: "timeToFirstToken",
     type: "number",
-    internal: 'o."completion_start_time" - o."start_time"',
+    internal:
+      'EXTRACT(EPOCH FROM (o."completion_start_time" - o."start_time"))',
     nullable: true,
   },
   {
@@ -62,10 +63,10 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: '"latency"',
   },
   {
-    name: "Time Per Output Token (s)",
-    id: "timePerOutputToken",
+    name: "Tokens per second",
+    id: "tokensPerSecond",
     type: "number",
-    internal: '"latency" / o."completion_tokens"',
+    internal: 'o."completion_tokens" / "latency"',
     nullable: true,
   },
   {

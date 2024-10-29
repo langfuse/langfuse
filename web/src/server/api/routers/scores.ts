@@ -17,18 +17,20 @@ import {
 } from "@/src/server/api/trpc";
 import {
   CreateAnnotationScoreData,
-  datetimeFilterToPrismaSql,
-  datetimeFilterToPrisma,
   orderBy,
-  orderByToPrismaSql,
   paginationZod,
   singleFilter,
-  tableColumnsToSqlFilterAndPrefix,
   timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
 } from "@langfuse/shared";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
+import {
+  datetimeFilterToPrisma,
+  datetimeFilterToPrismaSql,
+  orderByToPrismaSql,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared/src/server";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -211,6 +213,7 @@ export const scoresRouter = createTRPCRouter({
             stringValue: input.stringValue,
             comment: input.comment,
             authorUserId: ctx.session.user.id,
+            queueId: input.queueId,
           },
         });
         await auditLog({
@@ -237,6 +240,7 @@ export const scoresRouter = createTRPCRouter({
           comment: input.comment,
           authorUserId: ctx.session.user.id,
           source: "ANNOTATION",
+          queueId: input.queueId,
         },
       });
 
@@ -277,6 +281,7 @@ export const scoresRouter = createTRPCRouter({
           stringValue: input.stringValue,
           comment: input.comment,
           authorUserId: ctx.session.user.id,
+          queueId: input.queueId,
         },
       });
 

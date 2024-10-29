@@ -22,6 +22,7 @@ import {
   redis,
   recordIncrement,
   traceException,
+  logger,
 } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -111,7 +112,7 @@ export default async function handler(
 
     throw new MethodNotAllowedError();
   } catch (error: unknown) {
-    console.error(error);
+    logger.error(error);
     traceException(error);
 
     if (error instanceof BaseError) {

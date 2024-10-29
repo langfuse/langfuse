@@ -1,6 +1,7 @@
 import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { env } from "../../env";
+import { logger } from "../logger";
 
 export class PromptService {
   private cacheEnabled: boolean;
@@ -11,7 +12,7 @@ export class PromptService {
     private redis: Redis | null,
     private metricIncrementer?: // used for otel metrics
     (name: string, value?: number) => void,
-    cacheEnabled?: boolean // used for testing
+    cacheEnabled?: boolean, // used for testing
   ) {
     this.cacheEnabled =
       Boolean(redis) &&
@@ -25,7 +26,7 @@ export class PromptService {
       const cachedPrompt = await this.getCachedPrompt(params);
 
       this.incrementMetric(
-        cachedPrompt ? Metrics.PromptCacheHit : Metrics.PromptCacheMiss
+        cachedPrompt ? Metrics.PromptCacheHit : Metrics.PromptCacheMiss,
       );
 
       if (cachedPrompt) {
@@ -117,7 +118,7 @@ export class PromptService {
   }
 
   public async lockCache(
-    params: Pick<PromptParams, "projectId" | "promptName">
+    params: Pick<PromptParams, "projectId" | "promptName">,
   ): Promise<void> {
     if (!this.cacheEnabled) return;
 
@@ -133,7 +134,7 @@ export class PromptService {
   }
 
   public async unlockCache(
-    params: Pick<PromptParams, "projectId" | "promptName">
+    params: Pick<PromptParams, "projectId" | "promptName">,
   ): Promise<void> {
     if (!this.cacheEnabled) return;
 
@@ -149,7 +150,7 @@ export class PromptService {
   }
 
   private async isCacheLocked(
-    params: Pick<PromptParams, "projectId" | "promptName">
+    params: Pick<PromptParams, "projectId" | "promptName">,
   ): Promise<boolean> {
     const lockKey = this.getLockKey(params);
 
@@ -163,14 +164,14 @@ export class PromptService {
   }
 
   private getLockKey(
-    params: Pick<PromptParams, "projectId" | "promptName">
+    params: Pick<PromptParams, "projectId" | "promptName">,
   ): string {
     // Important to *pre*fix LOCK as otherwise it would be deleted by deleteKeysByPrefix
     return `LOCK:${this.getCacheKeyPrefix(params)}`;
   }
 
   public async invalidateCache(
-    params: Pick<PromptParams, "projectId" | "promptName">
+    params: Pick<PromptParams, "projectId" | "promptName">,
   ): Promise<void> {
     if (!this.cacheEnabled) return;
 
@@ -187,7 +188,7 @@ export class PromptService {
       await this.redis?.del([...(keys ?? []), keyIndexKey]);
 
       this.logInfo(
-        `Cache invalidated for prefix ${cacheKeyPrefix} in ${Date.now() - startTime}ms`
+        `Cache invalidated for prefix ${cacheKeyPrefix} in ${Date.now() - startTime}ms`,
       );
     } catch (e) {
       this.logError("Error deleting keys for prefix", cacheKeyPrefix, e);
@@ -203,23 +204,23 @@ export class PromptService {
   }
 
   private getCacheKeyPrefix(
-    params: Pick<PromptParams, "projectId" | "promptName">
+    params: Pick<PromptParams, "projectId" | "promptName">,
   ): string {
     return `prompt:${params.projectId}:${params.promptName}`;
   }
 
   private getKeyIndexKey(
-    params: Pick<PromptParams, "projectId" | "promptName">
+    params: Pick<PromptParams, "projectId" | "promptName">,
   ): string {
     return `prompt_key_index:${params.projectId}:${params.promptName}`;
   }
 
   private logError(message: string, ...args: any[]) {
-    console.error(`[PromptService] ${message}`, ...args);
+    logger.error(`[PromptService] ${message}`, ...args);
   }
 
   private logInfo(message: string, ...args: any[]) {
-    console.log(`[PromptService] ${message}`, ...args);
+    logger.info(`[PromptService] ${message}`, ...args);
   }
 
   private incrementMetric(name: Metrics, value: number = 1) {

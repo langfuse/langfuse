@@ -1,16 +1,16 @@
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { WorkerClient } from "@/src/server/api/services/WorkerClient";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { BatchExportStatus, CreateBatchExportSchema } from "@langfuse/shared";
 import {
-  getBatchExportQueue,
+  BatchExportQueue,
   type EventBodyType,
   EventName,
+  logger,
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -73,18 +73,19 @@ export const batchExportRouter = createTRPCRouter({
         };
 
         if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-          await getBatchExportQueue()?.add(event.name, {
+          await BatchExportQueue.getInstance()?.add(event.name, {
             id: event.payload.batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
             name: QueueJobs.BatchExportJob,
             timestamp: new Date(),
             payload: event.payload,
           });
-        } else {
-          await new WorkerClient().sendEvent(event);
         }
         return;
       } catch (e) {
-        console.error(e);
+        logger.error(e);
+        if (e instanceof TRPCError) {
+          throw e;
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Creating export job failed.",

@@ -1,5 +1,4 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { createShaHash, generateKeySet } from "@langfuse/shared/src/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -8,7 +7,7 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 
 export const apiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -56,37 +55,20 @@ export const apiKeysRouter = createTRPCRouter({
         scope: "apiKeys:create",
       });
 
-      const { pk, sk, hashedSk, displaySk } = await generateKeySet();
-
-      const salt = env.SALT;
-      const hashFromProvidedKey = createShaHash(sk, salt);
-
-      const apiKey = await ctx.prisma.apiKey.create({
-        data: {
-          projectId: input.projectId,
-          publicKey: pk,
-          hashedSecretKey: hashedSk,
-          displaySecretKey: displaySk,
-          fastHashedSecretKey: hashFromProvidedKey,
-          note: input.note,
-        },
+      const apiKeyMeta = await createAndAddApiKeysToDb({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        note: input.note,
       });
 
       await auditLog({
         session: ctx.session,
         resourceType: "apiKey",
-        resourceId: apiKey.id,
+        resourceId: apiKeyMeta.id,
         action: "create",
       });
 
-      return {
-        id: apiKey.id,
-        createdAt: apiKey.createdAt,
-        note: input.note,
-        publicKey: apiKey.publicKey,
-        secretKey: sk,
-        displaySecretKey: displaySk,
-      };
+      return apiKeyMeta;
     }),
   delete: protectedProjectProcedure
     .input(

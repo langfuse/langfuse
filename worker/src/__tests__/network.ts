@@ -1,5 +1,6 @@
 import { setupServer } from "msw/node";
 import { HttpResponse, http } from "msw";
+import { logger } from "@langfuse/shared/src/server";
 
 const DEFAULT_RESPONSE = {
   id: "chatcmpl-9MhZ73aGSmhfAtjU9DwoL4om73hJ7",
@@ -12,11 +13,20 @@ const DEFAULT_RESPONSE = {
       message: {
         role: "assistant",
         content: null,
-        function_call: {
-          name: "evaluate",
-          arguments:
-            '{"score":0.2,"reasoning":"The language used in the conversation was respectful and there were no personal attacks. However, there were some sarcastic comments which could be perceived as slightly negative."}',
-        },
+        tool_calls: [
+          {
+            function: {
+              name: "extract",
+              arguments: JSON.stringify({
+                score: 0,
+                reasoning:
+                  "The provided text is a harmless play on words that poses no risk of harm or offense. It is a lighthearted joke that uses wordplay to create humor without targeting or derogating any group of people.",
+              }),
+              type: "tool_call",
+              id: "call_cJ6HLI1gZSIRJVOrFsChO1SI",
+            },
+          },
+        ],
       },
       logprobs: null,
       finish_reason: "stop",
@@ -32,7 +42,7 @@ const DEFAULT_RESPONSE = {
 
 function CompletionHandler(response: HttpResponse) {
   return http.post("https://api.openai.com/v1/chat/completions", async () => {
-    console.log("handler");
+    logger.info("handler");
     return response;
   });
 }
@@ -64,7 +74,7 @@ export class OpenAIServer {
     hasActiveKey?: boolean;
     useDefaultResponse?: boolean;
   }) {
-    console.log("openai", { hasActiveKey, useDefaultResponse });
+    logger.info("openai", { hasActiveKey, useDefaultResponse });
 
     this.hasActiveKey = hasActiveKey;
     this.internalServer = setupServer(
@@ -72,7 +82,7 @@ export class OpenAIServer {
     );
     if (hasActiveKey) {
       this.internalServer.events.on("response:bypass", async ({ response }) => {
-        console.log(response);
+        logger.info(response);
       });
     }
 

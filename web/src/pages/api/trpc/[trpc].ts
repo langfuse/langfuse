@@ -2,7 +2,7 @@ import { createNextApiHandler } from "@trpc/server/adapters/next";
 import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
 import { env } from "@/src/env.mjs";
-import { traceException } from "@langfuse/shared/src/server";
+import { logger, traceException } from "@langfuse/shared/src/server";
 
 export const config = {
   maxDuration: 240,
@@ -13,7 +13,10 @@ export default createNextApiHandler({
   router: appRouter,
   createContext: createTRPCContext,
   onError: ({ path, error }) => {
-    console.error(`❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`);
+    logger.error(
+      `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`,
+      error,
+    );
     traceException(error);
   },
   responseMeta() {

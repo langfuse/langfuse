@@ -9,14 +9,16 @@ import {
 import {
   type ChatMessage,
   LLMApiKeySchema,
-  fetchLLMCompletion,
   ChatMessageRole,
   supportedModels,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 
 export function getDisplaySecretKey(secretKey: string) {
-  return "..." + secretKey.slice(-4);
+  return secretKey.endsWith('"}')
+    ? "..." + secretKey.slice(-6, -2)
+    : "..." + secretKey.slice(-4);
 }
 
 export const llmApiKeyRouter = createTRPCRouter({
@@ -40,6 +42,7 @@ export const llmApiKeyRouter = createTRPCRouter({
             baseURL: input.baseURL,
             withDefaultModels: input.withDefaultModels,
             customModels: input.customModels,
+            config: input.config,
           },
         });
 
@@ -50,7 +53,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -156,11 +159,12 @@ export const llmApiKeyRouter = createTRPCRouter({
           messages: testMessages,
           streaming: false,
           maxRetries: 1,
+          config: input.config,
         });
 
         return { success: true };
       } catch (err) {
-        console.log(err);
+        logger.error(err);
 
         return {
           success: false,

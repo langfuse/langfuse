@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import { ChatMessageRole } from "@langfuse/shared";
+import { ChatMessageDefaultRoleSchema } from "@langfuse/shared";
 
 const ChatMessageSchema = z.object({
-  role: z.nativeEnum(ChatMessageRole),
+  role: z.union([ChatMessageDefaultRoleSchema, z.string()]), // Users may ingest any string as role via API/SDK
   content: z.string(),
 });
 

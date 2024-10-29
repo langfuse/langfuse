@@ -16,11 +16,11 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
@@ -35,27 +35,22 @@ jobs:
         run: pnpm run lint
 
   test-docker-build:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-
+        uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-
       - name: Build and run both images from compose
         run: |
           docker compose -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
-
-      - name: Check server health
-        run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
-
-      - name: Check worker health
-        run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
-
       - name: Ensure no unhealthy status
         run: |
           if docker-compose ps | grep "(unhealthy)"; then
@@ -64,6 +59,12 @@ jobs:
           else
             echo "All services are healthy"
           fi
+      - name: Check worker health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+      - name: Check server health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
 
   tests-web:
     timeout-minutes: 20
@@ -78,27 +79,28 @@ jobs:
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 10
-
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
-
       - name: install dependencies
         run: |
           pnpm install
-
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          grep -v -e '^REDIS_HOST=' .env.dev.example > .env
-
+          grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
@@ -106,22 +108,23 @@ jobs:
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
-
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run db:seed
-
       - name: Build
         run: pnpm run build
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-
       - name: Start Langfuse
         run: (pnpm run start&)
-
+        env:
+          LANGFUSE_INIT_ORG_ID: "seed-org-id"
+          LANGFUSE_INIT_ORG_NAME: "Seed Org"
+          LANGFUSE_INIT_PROJECT_ID: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
+          LANGFUSE_INIT_PROJECT_NAME: "Seed Project"
+          LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "pk-lf-1234567890"
+          LANGFUSE_INIT_PROJECT_SECRET_KEY: "sk-lf-1234567890"
+          LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
+          LANGFUSE_INIT_USER_NAME: "Demo User"
+          LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         run: pnpm --filter=web run test
 
@@ -138,41 +141,39 @@ jobs:
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 10
-
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
-
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
-
       - name: install dependencies
         run: |
           pnpm install
-
       - name: Install golang-migrate for Clickhouse migrations
         run: |
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
-
       - name: Load default env
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
           cp .env.dev.example worker/.env
-
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
-
       - name: Ensure no unhealthy status
         run: |
           if docker compose ps | grep "(unhealthy)"; then
@@ -181,101 +182,95 @@ jobs:
           else
             echo "All services are healthy"
           fi
-
       - name: Seed DB
         run: |
           pnpm run db:migrate
           pnpm run db:seed
           pnpm run --filter=shared ch:up
-
       - name: Build
         run: pnpm --filter=worker... run build
-
       - name: run tests
         run: pnpm --filter=worker run test
+
   e2e-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
-
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: install dependencies
         run: |
           pnpm install
-
       - name: Load default env
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
-
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
           docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
-
       - name: Seed DB
         run: |
           pnpm run db:migrate
           pnpm run db:seed
-
       - name: Build
         run: pnpm run build
-
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps
-
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
 
   e2e-server-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
-
       - name: install dependencies
         run: |
           pnpm install
-
       - name: Load default env
         run: |
           cp .env.dev.example .env
           echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
           echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
-
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
           docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
-
       - name: Seed DB
         run: |
           pnpm run db:migrate
           pnpm run db:seed:examples
-
       - name: Build
         run: pnpm run build
-
       - name: Run server
         run: (pnpm run start&)
-
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
 
@@ -316,38 +311,31 @@ jobs:
         with:
           version: 9.5.0
       - name: Setup node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache-dependency-path: "pnpm-lock.yaml"
-
       - name: Checkout
-        uses: actions/checkout@v3
-
+        uses: actions/checkout@v4
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-
       - name: Log in to the GitHub Container registry
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: network=host
-
       - name: Extract metadata (tags, labels) for Docker
         id: meta-web
         uses: docker/metadata-action@v4
@@ -362,7 +350,6 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-
       - name: Build and push Docker image (web)
         uses: docker/build-push-action@v4
         with:
@@ -374,7 +361,6 @@ jobs:
           platforms: |
             linux/amd64
             ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
-
       - name: Extract metadata (tags, labels) for Docker
         id: meta-worker
         uses: docker/metadata-action@v4
@@ -389,7 +375,6 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-
       - name: Build and push Docker image (worker)
         uses: docker/build-push-action@v4
         with:

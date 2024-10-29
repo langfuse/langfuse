@@ -8,30 +8,38 @@ import {
   type LucideIcon,
   Settings,
   UsersIcon,
-  PenSquareIcon,
   LibraryBig,
   TerminalIcon,
   Lightbulb,
   Grid2X2,
+  Sparkle,
+  FileJson,
 } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { type ReactNode } from "react";
 import { VersionLabel } from "@/src/components/VersionLabel";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { type User } from "next-auth";
+import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
+import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 
 export type Route = {
   name: string;
   featureFlag?: Flag;
   label?: string | ReactNode;
-  projectRbacScope?: ProjectScope;
+  projectRbacScopes?: ProjectScope[]; // array treated as OR
+  organizationRbacScope?: OrganizationScope;
   icon?: LucideIcon | typeof LangfuseIcon; // ignored for nested routes
   pathname?: string; // link, ignored if children
   children?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
-  entitlement?: Entitlement; // entitlement required
+  entitlements?: Entitlement[]; // entitlements required, array treated as OR
   customizableHref?: UiCustomizationOption; // key of useUiCustomization object to use to replace the href
+  show?: (p: {
+    organization: User["organizations"][number] | undefined;
+  }) => boolean;
 };
 
 export const ROUTES: Route[] = [
@@ -40,6 +48,7 @@ export const ROUTES: Route[] = [
     pathname: "/",
     icon: LangfuseIcon,
     label: <VersionLabel className="-ml-3" />,
+    // node is overridden in layout.tsx if uiCustomization.logoLightModeHref and uiCustomization.logoDarkModeHref are set
   },
   {
     name: "Projects",
@@ -80,26 +89,21 @@ export const ROUTES: Route[] = [
   {
     name: "Evaluation",
     icon: Lightbulb,
-    entitlement: "model-based-evaluations",
     label: "Beta",
+    entitlements: ["annotation-queues", "model-based-evaluations"],
+    projectRbacScopes: ["annotationQueues:read", "evalJob:read"],
     children: [
       {
-        name: "Templates",
-        pathname: `/project/[projectId]/evals/templates`,
-        entitlement: "model-based-evaluations",
-        projectRbacScope: "evalTemplate:read",
+        name: "Human Annotation",
+        pathname: `/project/[projectId]/annotation-queues`,
+        projectRbacScopes: ["annotationQueues:read"],
+        entitlements: ["annotation-queues"],
       },
       {
-        name: "Configs",
-        pathname: `/project/[projectId]/evals/configs`,
-        entitlement: "model-based-evaluations",
-        projectRbacScope: "evalJob:read",
-      },
-      {
-        name: "Log",
-        pathname: `/project/[projectId]/evals/log`,
-        entitlement: "model-based-evaluations",
-        projectRbacScope: "evalJobExecution:read",
+        name: "LLM-as-a-Judge",
+        pathname: `/project/[projectId]/evals`,
+        entitlements: ["model-based-evaluations"],
+        projectRbacScopes: ["evalJob:read"],
       },
     ],
   },
@@ -111,19 +115,39 @@ export const ROUTES: Route[] = [
   {
     name: "Prompts",
     pathname: "/project/[projectId]/prompts",
-    icon: PenSquareIcon,
-    projectRbacScope: "prompts:read",
+    icon: FileJson,
+    projectRbacScopes: ["prompts:read"],
   },
   {
     name: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
-    entitlement: "playground",
+    entitlements: ["playground"],
   },
   {
     name: "Datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
+  },
+  {
+    name: "Upgrade",
+    icon: Sparkle,
+    pathname: "/project/[projectId]/settings/billing",
+    bottom: true,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    label: <UsageTracker />,
+  },
+  {
+    name: "Upgrade",
+    icon: Sparkle,
+    pathname: "/organization/[organizationId]/settings/billing",
+    bottom: true,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    label: <UsageTracker />,
   },
   {
     name: "Settings",

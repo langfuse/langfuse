@@ -1,7 +1,4 @@
-import { hash } from "bcryptjs";
-
 import { env } from "@/src/env.mjs";
-import { getDisplaySecretKey, hashSecretKey } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { type z } from "zod";
 
@@ -22,12 +19,10 @@ export const pruneDatabase = async () => {
   await prisma.events.deleteMany();
   await prisma.model.deleteMany();
   await prisma.llmApiKeys.deleteMany();
+  await prisma.comment.deleteMany();
 };
 
-export function createBasicAuthHeader(
-  username: string,
-  password: string,
-): string {
+function createBasicAuthHeader(username: string, password: string): string {
   const base64Credentials = Buffer.from(`${username}:${password}`).toString(
     "base64",
   );
@@ -97,38 +92,3 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
   }
   return { body: resBody, status };
 }
-
-export const setupUserAndProject = async () => {
-  const user = await prisma.user.create({
-    data: {
-      id: "user-1",
-      name: "Demo User",
-      email: "demo@langfuse.com",
-      password: await hash("password", 12),
-    },
-  });
-
-  const project = await prisma.project.create({
-    data: {
-      id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      name: "llm-app",
-      apiKeys: {
-        create: [
-          {
-            note: "seeded key",
-            hashedSecretKey: await hashSecretKey("sk-lf-1234567890"),
-            displaySecretKey: getDisplaySecretKey("sk-lf-1234567890"),
-            publicKey: "pk-lf-1234567890",
-          },
-        ],
-      },
-      projectMembers: {
-        create: {
-          role: "OWNER",
-          userId: user.id,
-        },
-      },
-    },
-  });
-  return { user, project };
-};

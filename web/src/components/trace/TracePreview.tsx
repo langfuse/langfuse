@@ -1,5 +1,10 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { type APIScore, type Trace, type ScoreSource } from "@langfuse/shared";
+import {
+  type APIScore,
+  type Trace,
+  type ScoreSource,
+  AnnotationQueueObjectType,
+} from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -8,12 +13,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
+import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -21,17 +25,29 @@ import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { cn } from "@/src/utils/tailwind";
+import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
+import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useMemo } from "react";
+import { usdFormatter } from "@/src/utils/numbers";
+import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 export const TracePreview = ({
   trace,
   observations,
   scores,
   commentCounts,
+  viewType = "detailed",
+  className,
 }: {
   trace: Trace & { latency?: number };
   observations: ObservationReturnType[];
   scores: APIScore[];
   commentCounts?: Map<string, number>;
+  viewType?: "detailed" | "focused";
+  className?: string;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -40,6 +56,10 @@ export const TracePreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
+  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    trace.projectId,
+  );
 
   const traceScores = scores.filter((s) => s.observationId === null);
   const traceScoresBySource = traceScores.reduce((acc, score) => {
@@ -50,30 +70,47 @@ export const TracePreview = ({
     return acc;
   }, new Map<ScoreSource, APIScore[]>());
 
+  const totalCost = useMemo(
+    () =>
+      calculateDisplayTotalCost({
+        allObservations: observations,
+      }),
+    [observations],
+  );
+
   return (
-    <Card className="col-span-2 flex max-h-full flex-col overflow-hidden">
-      <div className="flex flex-shrink-0 flex-row justify-end gap-2">
-        <Tabs
-          value={selectedTab}
-          onValueChange={setSelectedTab}
-          className="flex w-full justify-end border-b bg-background"
-        >
-          <TabsList className="bg-background py-0">
-            <TabsTrigger
-              value="preview"
-              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-            >
-              Preview
-            </TabsTrigger>
-            <TabsTrigger
-              value="scores"
-              className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-            >
-              Scores
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+    <Card
+      className={cn(
+        "col-span-2 flex max-h-full flex-col overflow-hidden",
+        className,
+      )}
+    >
+      {viewType === "detailed" && (
+        <div className="flex flex-shrink-0 flex-row justify-end gap-2">
+          <Tabs
+            value={selectedTab}
+            onValueChange={setSelectedTab}
+            className="flex w-full justify-end border-b bg-background"
+          >
+            <TabsList className="bg-background py-0">
+              <TabsTrigger
+                value="preview"
+                className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+              >
+                Preview
+              </TabsTrigger>
+              {isAuthenticatedAndProjectMember && (
+                <TabsTrigger
+                  value="scores"
+                  className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
+                >
+                  Scores
+                </TabsTrigger>
+              )}
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
       <div className="flex w-full flex-col overflow-y-auto">
         <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
           <div className="flex flex-col gap-1">
@@ -86,45 +123,64 @@ export const TracePreview = ({
             <CardDescription>
               {trace.timestamp.toLocaleString()}
             </CardDescription>
+            {viewType === "detailed" && (
+              <div className="flex flex-wrap gap-2">
+                {!!trace.latency && (
+                  <Badge variant="outline">
+                    {formatIntervalSeconds(trace.latency)}
+                  </Badge>
+                )}
+                <AggUsageBadge observations={observations} />
+                {!!trace.release && (
+                  <Badge variant="outline">Release: {trace.release}</Badge>
+                )}
+                {!!trace.version && (
+                  <Badge variant="outline">Version: {trace.version}</Badge>
+                )}
+                {totalCost && (
+                  <Badge variant="outline">
+                    ∑ {usdFormatter(totalCost.toNumber())}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+          {viewType === "detailed" && (
             <div className="flex flex-wrap gap-2">
-              {!!trace.latency && (
-                <Badge variant="outline">
-                  {formatIntervalSeconds(trace.latency)}
-                </Badge>
-              )}
-              <TraceAggUsageBadge observations={observations} />
-              {!!trace.release && (
-                <Badge variant="outline">Release: {trace.release}</Badge>
-              )}
-              {!!trace.version && (
-                <Badge variant="outline">Version: {trace.version}</Badge>
-              )}
+              <CommentDrawerButton
+                projectId={trace.projectId}
+                objectId={trace.id}
+                objectType="TRACE"
+                count={commentCounts?.get(trace.id)}
+              />
+              <div className="flex items-start">
+                <AnnotateDrawer
+                  key={"annotation-drawer" + trace.id}
+                  projectId={trace.projectId}
+                  traceId={trace.id}
+                  scores={scores}
+                  emptySelectedConfigIds={emptySelectedConfigIds}
+                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                  hasGroupedButton={hasEntitlement}
+                />
+                {hasEntitlement && (
+                  <CreateNewAnnotationQueueItem
+                    projectId={trace.projectId}
+                    objectId={trace.id}
+                    objectType={AnnotationQueueObjectType.TRACE}
+                  />
+                )}
+              </div>
+              <NewDatasetItemFromTrace
+                traceId={trace.id}
+                projectId={trace.projectId}
+                input={trace.input}
+                output={trace.output}
+                metadata={trace.metadata}
+                key={trace.id}
+              />
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <CommentDrawerButton
-              projectId={trace.projectId}
-              objectId={trace.id}
-              objectType="TRACE"
-              count={commentCounts?.get(trace.id)}
-            />
-            <AnnotateDrawer
-              projectId={trace.projectId}
-              traceId={trace.id}
-              scores={scores}
-              emptySelectedConfigIds={emptySelectedConfigIds}
-              setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-              key={"annotation-drawer" + trace.id}
-            />
-            <NewDatasetItemFromTrace
-              traceId={trace.id}
-              projectId={trace.projectId}
-              input={trace.input}
-              output={trace.output}
-              metadata={trace.metadata}
-              key={trace.id}
-            />
-          </div>
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {selectedTab === "preview" && (
@@ -139,7 +195,9 @@ export const TracePreview = ({
                 title="Metadata"
                 json={trace.metadata}
               />
-              <ScoresPreview itemScoresBySource={traceScoresBySource} />
+              {viewType === "detailed" && (
+                <ScoresPreview itemScoresBySource={traceScoresBySource} />
+              )}
             </>
           )}
           {selectedTab === "scores" && (
@@ -148,7 +206,7 @@ export const TracePreview = ({
               omittedFilter={["Trace ID"]}
               traceId={trace.id}
               hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
-              tableColumnVisibilityName="scoresColumnVisibilityTracePreview"
+              localStorageSuffix="TracePreview"
             />
           )}
         </CardContent>

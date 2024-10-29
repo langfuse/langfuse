@@ -10,7 +10,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { paginationZod } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { redis } from "@langfuse/shared/src/server";
+import { logger, redis } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 const GetUsersSchema = z.object({
@@ -131,11 +131,11 @@ export default async function handler(
         },
       });
     } else {
-      console.error(req.method, req.body);
+      logger.error(`Invalid request method ${req.method}`, req.body);
       return res.status(405).json({ message: "Method not allowed" });
     }
   } catch (error: unknown) {
-    console.error(error);
+    logger.error(error);
     if (isPrismaException(error)) {
       return res.status(500).json({
         errors: ["Internal Server Error"],

@@ -1,10 +1,8 @@
 import { type GetPromptsMetaType } from "@/src/features/prompts/server/utils/validation";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
-import {
-  tableColumnsToSqlFilterAndPrefix,
-  type FilterState,
-} from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 
 export type GetPromptsMetaParams = GetPromptsMetaType & { projectId: string };
 

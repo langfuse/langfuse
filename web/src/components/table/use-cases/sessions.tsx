@@ -28,6 +28,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type SessionTableRow = {
   id: string;
@@ -170,6 +171,7 @@ export default function SessionsTable({
     {
       accessorKey: "bookmarked",
       id: "bookmarked",
+      isPinned: true,
       header: undefined,
       size: 50,
       cell: ({ row }) => {
@@ -194,6 +196,7 @@ export default function SessionsTable({
       id: "id",
       header: "ID",
       size: 200,
+      isPinned: true,
       cell: ({ row }) => {
         const value: SessionTableRow["id"] = row.getValue("id");
         return value && typeof value === "string" ? (
@@ -449,6 +452,11 @@ export default function SessionsTable({
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<SessionTableRow>(
+    "sessionsColumnOrder",
+    columns,
+  );
+
   return (
     <>
       <DataTableToolbar
@@ -458,6 +466,8 @@ export default function SessionsTable({
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         actionButtons={[
           <BatchExportTableButton
             {...{ projectId, filterState, orderByState }}
@@ -511,6 +521,8 @@ export default function SessionsTable({
         orderBy={orderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         help={{
           description:
             "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",

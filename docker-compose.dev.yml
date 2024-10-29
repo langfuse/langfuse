@@ -17,6 +17,27 @@ services:
     depends_on:
       - postgres
 
+  minio:
+    image: minio/minio
+    container_name: minio
+    entrypoint: sh
+    # create the 'langfuse' bucket before starting the service
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: miniosecret
+    ports:
+      - "9090:9000"
+      - "9091:9001"
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+
   redis:
     image: redis:7.2.4
     restart: always
@@ -28,6 +49,11 @@ services:
   postgres:
     image: postgres:${POSTGRES_VERSION:-latest}
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
     command: ["postgres", "-c", "log_statement=all"]
     environment:
       - POSTGRES_USER=postgres
@@ -44,4 +70,6 @@ volumes:
   langfuse_clickhouse_data:
     driver: local
   langfuse_clickhouse_logs:
+    driver: local
+  langfuse_minio_data:
     driver: local

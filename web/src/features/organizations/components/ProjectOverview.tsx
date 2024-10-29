@@ -85,7 +85,7 @@ const SingleOrganizationProjectOverview = ({
         level={level}
         status={orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
         label={
-          isCloudPlan(org.plan)
+          isCloudPlan(org.plan) && level === "h3"
             ? {
                 text: planLabels[org.plan],
                 href: `/organization/${org.id}/settings/billing`,

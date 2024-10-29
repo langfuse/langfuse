@@ -20,6 +20,7 @@ import {
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -119,13 +120,13 @@ export function DatasetRunItemsTable(
         if (!trace) return null;
         return trace.observationId ? (
           <TableLink
-            path={`/project/${props.projectId}/traces/${trace.traceId}?observation=${trace.observationId}`}
+            path={`/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}?observation=${encodeURIComponent(trace.observationId)}`}
             value={`Trace: ${trace.traceId}, Observation: ${trace.observationId}`}
             icon={<ListTree className="h-4 w-4" />}
           />
         ) : (
           <TableLink
-            path={`/project/${props.projectId}/traces/${trace.traceId}`}
+            path={`/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}`}
             value={`Trace: ${trace.traceId}`}
             icon={<ListTree className="h-4 w-4" />}
           />
@@ -222,6 +223,11 @@ export function DatasetRunItemsTable(
       columns,
     );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<DatasetRunItemRowData>(
+    "datasetRunsItemsColumnOrder",
+    columns,
+  );
+
   const rows = useMemo(() => {
     return runItems.isSuccess
       ? runItems.data.runItems.map((item) => {
@@ -241,7 +247,9 @@ export function DatasetRunItemsTable(
             ),
             totalCost: !!item.observation?.calculatedTotalCost
               ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-              : undefined,
+              : !!item.trace?.totalCost
+                ? usdFormatter(item.trace.totalCost)
+                : undefined,
             latency:
               item.observation?.latency ?? item.trace?.duration ?? undefined,
           };
@@ -255,6 +263,8 @@ export function DatasetRunItemsTable(
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
@@ -282,6 +292,8 @@ export function DatasetRunItemsTable(
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

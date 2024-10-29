@@ -116,6 +116,25 @@ describe("/models API Endpoints", () => {
       tokenizerConfig: { tokensPerMessage: 3, tokensPerName: 1 },
       isLangfuseManaged: false,
     });
+
+    const prices = await prisma.price.findMany({
+      where: { modelId: customModel.body.id },
+    });
+
+    expect(prices.length).toBe(2);
+
+    expect(prices.map((p) => ({ ...p, price: Number(p.price) }))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          usageType: "input",
+          price: 0.002,
+        }),
+        expect.objectContaining({
+          usageType: "output",
+          price: 0.004,
+        }),
+      ]),
+    );
   });
 
   it("Post model with invalid matchPattern", async () => {

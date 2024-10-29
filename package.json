@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "2.76.0",
+  "version": "2.86.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -9,15 +9,16 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d",
+    "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d --wait",
     "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",
+    "infra:dev:prune": "docker compose -f ./docker-compose.dev.yml down -v",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",
     "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
-    "dx": "pnpm i && pnpm run infra:dev:up && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
-    "dx-f": "pnpm i && pnpm run infra:dev:up && pnpm --filter=shared run db:reset -f && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset -f && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
     "start": "turbo run start",
@@ -33,7 +34,7 @@
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.2",
     "husky": "^9.0.11",
-    "prettier": "^3.2.5",
+    "prettier": "^3.3.3",
     "release-it": "^17.3.0",
     "turbo": "^1.13.4"
   },
@@ -78,6 +79,11 @@
         "issue": ":rocket: _This issue has been resolved in v${version}. See [${releaseName}](${releaseUrl}) for release notes._",
         "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
       }
+    }
+  },
+  "pnpm": {
+    "overrides": {
+      "jsonpath-plus": "10.0.0"
     }
   },
   "packageManager": "pnpm@9.5.0"

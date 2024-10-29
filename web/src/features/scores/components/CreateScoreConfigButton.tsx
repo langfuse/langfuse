@@ -263,9 +263,20 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                     name="minValue"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Minimum (optional)</FormLabel>
+                        <FormLabel>Minimum (optional) </FormLabel>
                         <FormControl>
-                          <Input {...field} type="number" />
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            // manually manage controlled input state
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(
+                                value === "" ? undefined : Number(value),
+                              );
+                            }}
+                            type="number"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -278,7 +289,18 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                       <FormItem>
                         <FormLabel>Maximum (optional)</FormLabel>
                         <FormControl>
-                          <Input {...field} type="number" />
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            // manually manage controlled input state
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(
+                                value === "" ? undefined : Number(value),
+                              );
+                            }}
+                            type="number"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

@@ -882,13 +882,19 @@ describe("/api/public/scores API Endpoint", () => {
   describe("should Filter scores", () => {
     let configId = "";
     const userId = "user-name";
+    const traceTags = ["prod", "test"];
+    const traceTags_2 = ["staging", "dev"];
     const scoreName = "score-name";
     const queryUserName = `userId=${userId}&name=${scoreName}`;
     const traceId = uuidv4();
+    const traceId_2 = uuidv4();
+    const traceId_3 = uuidv4();
     const generationId = uuidv4();
     const scoreId_1 = uuidv4();
     const scoreId_2 = uuidv4();
     const scoreId_3 = uuidv4();
+    const scoreId_4 = uuidv4();
+    const scoreId_5 = uuidv4();
 
     beforeAll(async () => {
       should_prune_db = false;
@@ -901,6 +907,27 @@ describe("/api/public/scores API Endpoint", () => {
         {
           id: traceId,
           userId: userId,
+          tags: traceTags,
+        },
+      );
+      await makeZodVerifiedAPICall(
+        PostTracesV1Response,
+        "POST",
+        "/api/public/traces",
+        {
+          id: traceId_2,
+          userId: userId,
+          tags: traceTags_2,
+        },
+      );
+      await makeZodVerifiedAPICall(
+        PostTracesV1Response,
+        "POST",
+        "/api/public/traces",
+        {
+          id: traceId_3,
+          userId: userId,
+          tags: ["staging"],
         },
       );
       await makeZodVerifiedAPICall(
@@ -948,6 +975,20 @@ describe("/api/public/scores API Endpoint", () => {
         name: scoreName,
         value: 100.8,
         traceId: traceId,
+        comment: "comment",
+      });
+      await makeAPICall("POST", "/api/public/scores", {
+        id: scoreId_4,
+        name: "other-score-name",
+        value: "best",
+        traceId: traceId_2,
+        comment: "comment",
+      });
+      await makeAPICall("POST", "/api/public/scores", {
+        id: scoreId_5,
+        name: "other-score-name",
+        value: "test",
+        traceId: traceId_3,
         comment: "comment",
       });
     });
@@ -1020,6 +1061,120 @@ describe("/api/public/scores API Endpoint", () => {
           dataType: "NUMERIC",
         });
       }
+    });
+
+    it("get all scores for trace tag 'prod'", async () => {
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?traceTags=${"prod"}`,
+      );
+
+      expect(getAllScore.status).toBe(200);
+      expect(getAllScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
+      });
+      for (const val of getAllScore.body.data) {
+        expect(val).toMatchObject({
+          traceId: traceId,
+          trace: { tags: ["prod", "test"], userId: "user-name" },
+        });
+      }
+    });
+
+    it("get all scores for trace tags 'staging' and 'dev'", async () => {
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?traceTags=${["staging", "dev"]}`,
+      );
+
+      expect(getAllScore.status).toBe(200);
+      expect(getAllScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 1,
+        totalPages: 1,
+      });
+      for (const val of getAllScore.body.data) {
+        expect(val).toMatchObject({
+          traceId: traceId_2,
+          trace: { tags: ["dev", "staging"], userId: "user-name" },
+        });
+      }
+    });
+
+    describe("should Filter scores by queueId", () => {
+      describe("queueId filtering", () => {
+        let queueId: string;
+        const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+        beforeEach(async () => {
+          queueId = uuidv4();
+
+          await Promise.all([
+            prisma.score.create({
+              data: {
+                observationId: generationId,
+                name: "annotation-score-1",
+                value: 100.5,
+                traceId: traceId,
+                comment: "comment 1",
+                queueId,
+                source: "ANNOTATION",
+                project: { connect: { id: projectId } },
+                dataType: "NUMERIC",
+              },
+            }),
+            prisma.score.create({
+              data: {
+                observationId: generationId,
+                name: "annotation-score-2",
+                value: 75.0,
+                traceId: traceId,
+                comment: "comment 2",
+                queueId,
+                source: "ANNOTATION",
+                project: { connect: { id: projectId } },
+                dataType: "NUMERIC",
+              },
+            }),
+          ]);
+        });
+
+        afterEach(async () => {
+          await prisma.score.deleteMany({
+            where: { queueId, projectId },
+          });
+        });
+
+        it("get all scores for queueId", async () => {
+          const getAllScore = await makeZodVerifiedAPICall(
+            GetScoresResponse,
+            "GET",
+            `/api/public/scores?queueId=${queueId}`,
+          );
+
+          expect(getAllScore.status).toBe(200);
+          expect(getAllScore.body.meta).toMatchObject({
+            page: 1,
+            limit: 50,
+            totalItems: 2,
+            totalPages: 1,
+          });
+          for (const val of getAllScore.body.data) {
+            expect(val).toMatchObject({
+              traceId: traceId,
+              observationId: generationId,
+              queueId: queueId,
+              source: "ANNOTATION",
+            });
+          }
+        });
+      });
     });
 
     it("test only operator", async () => {
@@ -1226,10 +1381,10 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScores.body.meta).toMatchObject({
         page: 1,
         limit: 50,
-        totalItems: 4,
+        totalItems: 6,
         totalPages: 1,
       });
-      expect(fetchedScores.body.data.length).toBe(4);
+      expect(fetchedScores.body.data.length).toBe(6);
     });
 
     it("test invalid operator", async () => {

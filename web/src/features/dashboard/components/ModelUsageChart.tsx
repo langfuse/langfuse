@@ -13,7 +13,6 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { NoData } from "@/src/features/dashboard/components/NoData";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 import {
   dashboardDateRangeAggregationSettings,
@@ -21,6 +20,7 @@ import {
 } from "@/src/utils/date-range-utils";
 
 import { env } from "@/src/env.mjs";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export const ModelUsageChart = ({
   className,
@@ -149,16 +149,17 @@ export const ModelUsageChart = ({
                 <TotalMetric
                   metric={item.totalMetric}
                   description={item.metricDescription}
+                  className="mb-4"
                 />
-                {!isEmptyTimeSeries({ data: item.data }) ? (
+                {isEmptyTimeSeries({ data: item.data }) || tokens.isLoading ? (
+                  <NoDataOrLoading isLoading={tokens.isLoading} />
+                ) : (
                   <BaseTimeSeriesChart
                     agg={agg}
                     data={item.data}
                     showLegend={true}
                     valueFormatter={item.formatter}
                   />
-                ) : (
-                  <NoData noDataText="No data available" />
                 )}
               </>
             ),

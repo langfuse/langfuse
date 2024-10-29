@@ -4,6 +4,14 @@ import { type AppRouter } from "@/src/server/api/root";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { type TiktokenModel } from "js-tiktoken";
 
+// primitive type checks
+
+export function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+// non-primitive type checks
+
 export type NestedObservation = ObservationReturnType & {
   children: NestedObservation[];
 };

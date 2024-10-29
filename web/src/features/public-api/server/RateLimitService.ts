@@ -11,6 +11,7 @@ import {
 import {
   recordIncrement,
   type ApiAccessScope,
+  logger,
 } from "@langfuse/shared/src/server";
 import { type NextApiResponse } from "next";
 
@@ -41,7 +42,7 @@ export class RateLimitService {
     }
 
     if (!this.redis) {
-      console.log("Rate limiting not available without Redis");
+      logger.warn("Rate limiting not available without Redis");
       return new RateLimitHelper(undefined);
     }
 
@@ -100,13 +101,13 @@ export class RateLimitService {
         };
       } else {
         // Some other error occurred, rethrow it
-        console.log("Internal Rate limit error", err);
+        logger.error("Internal Rate limit error", err);
         throw err;
       }
     }
 
     if (res.remainingPoints < 1) {
-      recordIncrement("rate_limit_exceeded", 1, {
+      recordIncrement("langfuse.rate_limit.exceeded", 1, {
         orgId: scope.orgId,
         plan: scope.plan,
         resource: resource,
@@ -134,9 +135,7 @@ export class RateLimitHelper {
 
   sendRestResponseIfLimited(nextResponse: NextApiResponse) {
     if (!this.res || !this.isRateLimited()) {
-      console.error(
-        "Trying to send rate limit response without being limited.",
-      );
+      logger.error("Trying to send rate limit response without being limited.");
       throw new Error(
         "Trying to send rate limit response without being limited.",
       );
@@ -186,16 +185,38 @@ const getPlanBasedRateLimitConfig = (
   switch (plan) {
     case "oss":
     case "self-hosted:enterprise":
-      return { resource, points: null, durationInSec: null };
+      return {
+        resource,
+        points: null,
+        durationInSec: null,
+      };
     case "cloud:hobby":
     case "cloud:pro":
       switch (resource) {
         case "ingestion":
-          return { resource: "ingestion", points: 1000, durationInSec: 60 };
+          return {
+            resource: "ingestion",
+            points: 1000,
+            durationInSec: 60,
+          };
+        case "legacy-ingestion":
+          return {
+            resource: "prompts",
+            points: 400,
+            durationInSec: 60,
+          };
         case "prompts":
-          return { resource: "prompts", points: null, durationInSec: null };
+          return {
+            resource: "prompts",
+            points: null,
+            durationInSec: null,
+          };
         case "public-api":
-          return { resource: "public-api", points: 1000, durationInSec: 60 };
+          return {
+            resource: "public-api",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
@@ -209,11 +230,29 @@ const getPlanBasedRateLimitConfig = (
     case "cloud:team":
       switch (resource) {
         case "ingestion":
-          return { resource: "ingestion", points: 5000, durationInSec: 60 };
+          return {
+            resource: "ingestion",
+            points: 5000,
+            durationInSec: 60,
+          };
+        case "legacy-ingestion":
+          return {
+            resource: "prompts",
+            points: 400,
+            durationInSec: 60,
+          };
         case "prompts":
-          return { resource: "prompts", points: null, durationInSec: null };
+          return {
+            resource: "prompts",
+            points: null,
+            durationInSec: null,
+          };
         case "public-api":
-          return { resource: "public-api", points: 1000, durationInSec: 60 };
+          return {
+            resource: "public-api",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",

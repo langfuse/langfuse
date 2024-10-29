@@ -3,7 +3,11 @@ import { v4 as uuidv4 } from "uuid";
 
 import { ChatMessages } from "@/src/components/ChatMessages";
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import { ChatMessageRole, type ChatMessageWithId } from "@langfuse/shared";
+import {
+  ChatMessageRole,
+  ChatMessageDefaultRoleSchema,
+  type ChatMessageWithId,
+} from "@langfuse/shared";
 
 import {
   ChatMessageListSchema,
@@ -23,6 +27,7 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
   initialMessages,
 }) => {
   const [messages, setMessages] = useState<ChatMessageWithId[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
 
   useEffect(() => {
     const parsedMessages = ChatMessageListSchema.safeParse(initialMessages);
@@ -39,6 +44,21 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
         id: uuidv4(),
       })),
     );
+
+    const customRoles = parsedMessages.data.reduce((acc, message) => {
+      const { role } = message;
+      if (ChatMessageDefaultRoleSchema.safeParse(role).error) {
+        acc.add(role);
+      }
+      return acc;
+    }, new Set<string>());
+    if (customRoles.size) {
+      setAvailableRoles([
+        ...customRoles,
+        ChatMessageRole.Assistant,
+        ChatMessageRole.User,
+      ]);
+    }
   }, [initialMessages]);
 
   const addMessage: MessagesContext["addMessage"] = (role, content) => {
@@ -65,6 +85,15 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
   }, [messages, onChange]);
 
   return (
-    <ChatMessages {...{ messages, addMessage, deleteMessage, updateMessage }} />
+    <ChatMessages
+      {...{
+        messages,
+        addMessage,
+        setMessages,
+        deleteMessage,
+        updateMessage,
+        availableRoles,
+      }}
+    />
   );
 };

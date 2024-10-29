@@ -1,15 +1,13 @@
 export * from "./constants";
-export * from "./queries";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";
 export * from "./interfaces/parseDbOrg";
+export * from "./interfaces/customLLMProviderConfigSchemas";
 export * from "./tableDefinitions";
 export * from "./types";
-export * from "./filterToPrisma";
-export * from "./orderByToPrisma";
 export * from "./tracesTable";
-export * from "./server/auth/auth";
+export * from "./server/auth/apiKeys";
 export * from "./observationsTable";
 export * from "./utils/zod";
 export * from "./utils/json";
@@ -21,7 +19,6 @@ export { env } from "./env";
 
 // llm api
 export * from "./server/llm/types";
-export * from "./server/llm/fetchLLMCompletion";
 
 // evals
 export * from "./features/evals/types";
@@ -43,3 +40,5 @@ export { type DB } from "../prisma/generated/types";
 
 // errors
 export * from "./errors/index";
+
+export * from "./utils/environment";

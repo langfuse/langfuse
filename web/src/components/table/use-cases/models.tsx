@@ -20,6 +20,7 @@ import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type ModelTableRow = {
   modelId: string;
@@ -258,6 +259,11 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<ModelTableRow>("modelsColumnVisibility", columns);
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<ModelTableRow>(
+    "modelsColumnOrder",
+    columns,
+  );
+
   const convertToTableRow = (model: Model): ModelTableRow => {
     return {
       modelId: model.id,
@@ -270,7 +276,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         ? new Decimal(model.outputPrice)
         : undefined,
       totalPrice: model.totalPrice ? new Decimal(model.totalPrice) : undefined,
-      unit: model.unit,
+      unit: model.unit ?? "",
       tokenizerId: model.tokenizerId ?? undefined,
       config: model.tokenizerConfig,
     };
@@ -282,6 +288,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
@@ -309,6 +317,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

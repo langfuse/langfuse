@@ -28,6 +28,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -169,6 +170,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       accessorKey: "action",
       header: "Action",
       size: 70,
+      isPinned: true,
       enableHiding: true,
       cell: ({ row }) => {
         const { id: configId, isArchived, name } = row.original;
@@ -231,12 +233,19 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       columns,
     );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<ScoreConfigTableRow>(
+    "scoreConfigsColumnOrder",
+    columns,
+  );
+
   return (
     <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
@@ -278,6 +287,8 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
           }}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
+          columnOrder={columnOrder}
+          onColumnOrderChange={setColumnOrder}
           rowHeight={rowHeight}
           className="gap-2"
           paginationClassName="-mx-2 mb-2"

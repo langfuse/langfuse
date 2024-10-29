@@ -2,6 +2,7 @@ import { VERSION } from "@/src/constants";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
+import { logger } from "@langfuse/shared/src/server";
 
 // Interval between jobs in milliseconds
 const JOB_INTERVAL_MINUTES = Prisma.raw("60");
@@ -45,7 +46,7 @@ export async function telemetry() {
     }
   } catch (error) {
     // Catch all errors to be sure telemetry does not break the application
-    console.error("Telemetry, unexpected error:", error);
+    logger.error("Telemetry, unexpected error:", error);
   }
 }
 
@@ -85,7 +86,7 @@ async function jobScheduler(): Promise<
     ) AS status;`;
   // Return if job should not run
   if (checkNoLock.length !== 1) {
-    console.error("Telemetry failed to check if job should run");
+    logger.error("Telemetry failed to check if job should run");
     return { shouldRunJob: false };
   }
   if (!checkNoLock[0]!.status) return { shouldRunJob: false };
@@ -119,7 +120,7 @@ async function jobScheduler(): Promise<
 
   // Other job was created in the meantime
   if (createJobLocked.length !== 1) {
-    console.error("Telemetry job is locked");
+    logger.error("Telemetry job is locked");
     return { shouldRunJob: false };
   }
 
@@ -127,7 +128,7 @@ async function jobScheduler(): Promise<
 
   // should not happen
   if (!jobStartedAt) {
-    console.error("Telemetry failed to create job_started_at");
+    logger.error("Telemetry failed to create job_started_at");
     return { shouldRunJob: false };
   }
 
@@ -263,6 +264,6 @@ async function posthogTelemetry({
 
     await posthog.shutdownAsync();
   } catch (error) {
-    console.error(error);
+    logger.error(error);
   }
 }

@@ -10,6 +10,12 @@ export const uiCustomizationRouter = createTRPCRouter({
       documentationHref: env.LANGFUSE_UI_DOCUMENTATION_HREF,
       supportHref: env.LANGFUSE_UI_SUPPORT_HREF,
       feedbackHref: env.LANGFUSE_UI_FEEDBACK_HREF,
+      logoLightModeHref: env.LANGFUSE_UI_LOGO_LIGHT_MODE_HREF,
+      logoDarkModeHref: env.LANGFUSE_UI_LOGO_DARK_MODE_HREF,
+      defaultModelAdapter: env.LANGFUSE_UI_DEFAULT_MODEL_ADAPTER,
+      defaultBaseUrlOpenAI: env.LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI,
+      defaultBaseUrlAnthropic: env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
+      defaultBaseUrlAzure: env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
     };
   }),
 });

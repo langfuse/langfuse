@@ -121,7 +121,7 @@ export const SessionPage: React.FC<{
         <Badge variant="outline">Traces: {session.data?.traces.length}</Badge>
         {session.data && (
           <Badge variant="outline">
-            Total cost: {usdFormatter(session.data.totalCost, 2, 2)}
+            Total cost: {usdFormatter(session.data.totalCost, 2)}
           </Badge>
         )}
       </div>
@@ -196,7 +196,7 @@ const SessionIO = ({
     },
   );
   return (
-    <div className="col-span-2 grid grid-flow-row gap-2 p-0">
+    <div className="col-span-2 flex flex-col gap-2 p-0">
       {!trace.data ? (
         <JsonSkeleton
           className="h-full w-full overflow-hidden px-2 py-1"

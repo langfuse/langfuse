@@ -17,6 +17,7 @@ import { type Adapter } from "next-auth/adapters";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
+import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
 import EmailProvider from "next-auth/providers/email";
 import Auth0Provider from "next-auth/providers/auth0";
@@ -35,6 +36,7 @@ import {
   traceException,
   sendResetPasswordVerificationRequest,
   instrumentAsync,
+  logger,
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
@@ -104,8 +106,9 @@ const staticProviders: Provider[] = [
       }
 
       // EE: Check custom SSO enforcement
-      const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
-      if (customSsoProvider) {
+      const multiTenantSsoProvider =
+        await getSsoAuthProviderIdForDomain(domain);
+      if (multiTenantSsoProvider) {
         throw new Error(`You must sign in via SSO for this domain.`);
       }
 
@@ -149,6 +152,7 @@ if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
     EmailProvider({
       server: env.SMTP_CONNECTION_URL,
       from: env.EMAIL_FROM_ADDRESS,
+      maxAge: 60 * 10, // 10 minutes
       sendVerificationRequest: sendResetPasswordVerificationRequest,
     }),
   );
@@ -223,6 +227,17 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     }),
   );
 
+if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
+  staticProviders.push(
+    GitLabProvider({
+      clientId: env.AUTH_GITLAB_CLIENT_ID,
+      clientSecret: env.AUTH_GITLAB_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING === "true",
+      issuer: env.AUTH_GITLAB_ISSUER,
+    }),
+  );
+
 if (
   env.AUTH_AZURE_AD_CLIENT_ID &&
   env.AUTH_AZURE_AD_CLIENT_SECRET &&
@@ -291,7 +306,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
   try {
     dynamicSsoProviders = await loadSsoProviders();
   } catch (e) {
-    console.error("Error loading dynamic SSO providers", e);
+    logger.error("Error loading dynamic SSO providers", e);
     traceException(e);
   }
   const providers = [...staticProviders, ...dynamicSsoProviders];
@@ -405,19 +420,23 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
           if (!email) {
-            console.error("No email found in user object");
+            logger.error("No email found in user object");
             throw new Error("No email found in user object");
           }
           if (z.string().email().safeParse(email).success === false) {
-            console.error("Invalid email found in user object");
+            logger.error("Invalid email found in user object");
             throw new Error("Invalid email found in user object");
           }
 
           // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
           // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
           const domain = email.split("@")[1];
-          const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
-          if (customSsoProvider && account?.provider !== customSsoProvider) {
+          const multiTenantSsoProvider =
+            await getSsoAuthProviderIdForDomain(domain);
+          if (
+            multiTenantSsoProvider &&
+            account?.provider !== multiTenantSsoProvider
+          ) {
             console.log(
               "Custom SSO provider enforced for domain, user signed in with other provider",
             );
@@ -471,11 +490,11 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     adapter: extendedPrismaAdapter,
     providers,
     pages: {
-      signIn: "/auth/sign-in",
-      error: "/auth/error",
+      signIn: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
+      error: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/error`,
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
         ? {
-            newUser: "/onboarding",
+            newUser: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`,
           }
         : {}),
     },

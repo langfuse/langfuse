@@ -32,8 +32,8 @@ import "react18-json-view/src/style.css";
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
-import { shutdown } from "@/src/utils/shutdown";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 
 const setProjectInPosthog = () => {
   // project
@@ -95,6 +95,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
             session={session}
             refetchOnWindowFocus={true}
             refetchInterval={5 * 60} // 5 minutes
+            basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
           >
             <DetailPageListsProvider>
               <MarkdownContextProvider>
@@ -122,8 +123,8 @@ export default api.withTRPC(MyApp);
 
 function UserTracking() {
   const session = useSession();
-
   const sessionUser = session.data?.user;
+  const { organization, project } = useQueryProjectOrOrganization();
 
   useEffect(() => {
     if (sessionUser) {
@@ -159,6 +160,7 @@ function UserTracking() {
       chatSetUser({
         name: sessionUser.name ?? "undefined",
         email: sessionUser.email ?? "undefined",
+        avatar: sessionUser.image ?? undefined,
         data: {
           userId: sessionUser.id ?? "undefined",
           organizations: sessionUser.organizations
@@ -180,10 +182,58 @@ function UserTracking() {
     }
   }, [sessionUser]);
 
+  // update crisp segments
+  const plan = organization?.plan;
+  const currentOrgIsDemoOrg =
+    env.NEXT_PUBLIC_DEMO_ORG_ID &&
+    organization?.id &&
+    organization.id === env.NEXT_PUBLIC_DEMO_ORG_ID;
+  const projectRole = project?.role;
+  const organizationRole = organization?.role;
+  useEffect(() => {
+    let segments = [];
+    if (plan && !currentOrgIsDemoOrg) {
+      console.log("setting chat segments", plan);
+      segments.push("plan:" + plan);
+    }
+    if (currentOrgIsDemoOrg) {
+      segments.push("demo");
+    }
+    if (projectRole) {
+      segments.push("p_role:" + projectRole);
+    }
+    if (organizationRole) {
+      segments.push("o_role:" + organizationRole);
+    }
+    if (segments.length > 0) {
+      chatSetUser({
+        segments,
+      });
+    }
+  }, [plan, currentOrgIsDemoOrg, projectRole, organizationRole]);
+
+  // add stripe link to chat
+  const orgStripeLink = organization?.cloudConfig?.stripe?.customerId
+    ? `https://dashboard.stripe.com/customers/${organization.cloudConfig.stripe.customerId}`
+    : undefined;
+  useEffect(() => {
+    if (orgStripeLink) {
+      chatSetUser({
+        data: {
+          stripe: orgStripeLink,
+        },
+      });
+    }
+  }, [orgStripeLink]);
+
   return null;
 }
 
-if (process.env.NEXT_MANUAL_SIG_HANDLE) {
+if (
+  process.env.NEXT_RUNTIME === "nodejs" &&
+  process.env.NEXT_MANUAL_SIG_HANDLE
+) {
+  const { shutdown } = await import("@/src/utils/shutdown");
   prexit(async (signal) => {
     console.log("Signal: ", signal);
     return await shutdown(signal);

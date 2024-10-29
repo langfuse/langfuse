@@ -13,7 +13,7 @@ import { Input } from "@/src/components/ui/input";
 import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
-import { FaGithub } from "react-icons/fa";
+import { FaGithub, FaGitlab } from "react-icons/fa";
 import { SiOkta, SiAuth0, SiAmazoncognito } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
@@ -46,6 +46,7 @@ export type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    gitlab: boolean;
     okta: boolean;
     azureAd: boolean;
     auth0: boolean;
@@ -73,6 +74,9 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+        gitlab:
+          env.AUTH_GITLAB_CLIENT_ID !== undefined &&
+          env.AUTH_GITLAB_CLIENT_SECRET !== undefined,
         okta:
           env.AUTH_OKTA_CLIENT_ID !== undefined &&
           env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
@@ -159,6 +163,16 @@ export function SSOButtons({
             >
               <FaGithub className="mr-3" size={18} />
               Github
+            </Button>
+          )}
+          {authProviders.gitlab && (
+            <Button
+              onClick={() => handleSignIn("gitlab")}
+              variant="secondary"
+              loading={providerSigningIn === "gitlab"}
+            >
+              <FaGitlab className="mr-3" size={18} />
+              Gitlab
             </Button>
           )}
           {authProviders.azureAd && (
@@ -320,11 +334,14 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
     }
     // current email domain
     const domain = email.data.split("@")[1]?.toLowerCase();
-    const res = await fetch("/api/auth/check-sso", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ domain }),
-    });
+    const res = await fetch(
+      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      },
+    );
 
     if (!res.ok) {
       setCredentialsFormError("SSO is not enabled for this domain.");
@@ -423,8 +440,10 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                     className="w-full"
                     loading={credentialsForm.formState.isSubmitting}
                     disabled={
-                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                      turnstileToken === undefined
+                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                        turnstileToken === undefined) ||
+                      credentialsForm.watch("email") === "" ||
+                      credentialsForm.watch("password") === ""
                     }
                     onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
                     data-testid="submit-email-password-sign-in-form"
@@ -438,8 +457,9 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                     variant="secondary"
                     loading={ssoLoading}
                     disabled={
-                      env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                      turnstileToken === undefined
+                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                        turnstileToken === undefined) ||
+                      credentialsForm.watch("email") === ""
                     }
                     onClick={handleSsoSignIn}
                   >

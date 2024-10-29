@@ -3,6 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { env } from "@/src/env.mjs";
 
 export function RequestResetPasswordEmailButton({
   email,
@@ -33,7 +34,7 @@ export function RequestResetPasswordEmailButton({
     try {
       const res = await signIn("email", {
         email: email,
-        callbackUrl: "/auth/reset-password",
+        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
         redirect: false,
       });
       if (res?.error) {

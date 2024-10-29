@@ -26,6 +26,7 @@ import {
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type ScoresTableRow = {
   id: string;
@@ -76,7 +77,7 @@ export default function ScoresTable({
   observationId,
   omittedFilter = [],
   hiddenColumns = [],
-  tableColumnVisibilityName = "scoresColumnVisibility",
+  localStorageSuffix = "",
 }: {
   projectId: string;
   userId?: string;
@@ -84,7 +85,7 @@ export default function ScoresTable({
   observationId?: string;
   omittedFilter?: string[];
   hiddenColumns?: string[];
-  tableColumnVisibilityName?: string;
+  localStorageSuffix?: string;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -173,7 +174,7 @@ export default function ScoresTable({
         return typeof value === "string" ? (
           <>
             <TableLink
-              path={`/project/${projectId}/traces/${value}`}
+              path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
               value={value}
             />
           </>
@@ -193,7 +194,7 @@ export default function ScoresTable({
         const traceId = row.getValue("traceId") as ScoresTableRow["traceId"];
         return traceId && observationId ? (
           <TableLink
-            path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
             value={observationId}
           />
         ) : undefined;
@@ -235,7 +236,7 @@ export default function ScoresTable({
         return typeof value === "string" ? (
           <>
             <TableLink
-              path={`/project/${projectId}/users/${value}`}
+              path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
               value={value}
             />
           </>
@@ -334,7 +335,7 @@ export default function ScoresTable({
         return typeof value === "string" ? (
           <>
             <TableLink
-              path={`/project/${projectId}/evals/configs/${value}`}
+              path={`/project/${projectId}/evals/${value}`}
               value={value}
             />
           </>
@@ -371,7 +372,15 @@ export default function ScoresTable({
   );
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ScoresTableRow>(tableColumnVisibilityName, columns);
+    useColumnVisibility<ScoresTableRow>(
+      "scoresColumnVisibility" + localStorageSuffix,
+      columns,
+    );
+
+  const [columnOrder, setColumnOrder] = useColumnOrder<ScoresTableRow>(
+    `scoresColumnOrder${localStorageSuffix}`,
+    columns,
+  );
 
   const convertToTableRow = (
     score: RouterOutput["scores"]["all"]["scores"][0],
@@ -387,7 +396,7 @@ export default function ScoresTable({
           ? score.value % 1 === 0
             ? String(score.value)
             : score.value.toFixed(4)
-          : score.stringValue ?? "",
+          : (score.stringValue ?? ""),
       author: {
         userId: score.authorUserId ?? undefined,
         image: score.authorUserImage ?? undefined,
@@ -420,6 +429,8 @@ export default function ScoresTable({
         setFilterState={useDebounce(setUserFilterState)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
@@ -451,6 +462,8 @@ export default function ScoresTable({
         setOrderBy={setOrderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

@@ -34,6 +34,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import Link from "next/link";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type MembersTableRow = {
   user: {
@@ -299,6 +300,11 @@ export function MembersTable({
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<MembersTableRow>("membersColumnVisibility", columns);
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<MembersTableRow>(
+    "membersColumnOrder",
+    columns,
+  );
+
   const convertToTableRow = (
     orgMembership: RouterOutput["members"]["allFromOrg"]["memberships"][0], // type of both queries is the same
   ): MembersTableRow => {
@@ -335,6 +341,8 @@ export function MembersTable({
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         actionButtons={
           <CreateProjectMemberButton orgId={orgId} project={project} />
         }
@@ -365,6 +373,8 @@ export function MembersTable({
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
       />
     </>
   );

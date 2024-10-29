@@ -20,6 +20,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type Prisma } from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 type RowData = {
   key: {
@@ -66,6 +67,7 @@ export function DatasetsTable(props: { projectId: string }) {
       header: "Name",
       id: "key",
       size: 150,
+      isPinned: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
@@ -179,12 +181,19 @@ export function DatasetsTable(props: { projectId: string }) {
     columns,
   );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
+    "datasetsColumnOrder",
+    columns,
+  );
+
   return (
     <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         actionButtons={
           <DatasetActionButton projectId={props.projectId} mode="create" />
         }
@@ -215,6 +224,8 @@ export function DatasetsTable(props: { projectId: string }) {
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

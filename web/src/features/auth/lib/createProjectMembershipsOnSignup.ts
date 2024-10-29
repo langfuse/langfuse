@@ -1,5 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 
 export async function createProjectMembershipsOnSignup(user: {
   id: string;
@@ -81,7 +82,7 @@ export async function createProjectMembershipsOnSignup(user: {
     // Invites do not work for users without emails (some future SSO users)
     if (user.email) await processMembershipInvitations(user.email, user.id);
   } catch (e) {
-    console.error("Error assigning project access to new user", e);
+    logger.error("Error assigning project access to new user", e);
   }
 }
 

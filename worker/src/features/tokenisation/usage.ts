@@ -10,7 +10,11 @@ import {
 } from "tiktoken";
 
 import { z } from "zod";
-import { instrumentSync } from "@langfuse/shared/src/server";
+import {
+  instrumentSync,
+  logger,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
   tokenizerModel: z.string().refine(isTiktokenModel, {
@@ -28,6 +32,8 @@ const OpenAiChatTokenConfig = z.object({
   tokensPerName: z.number(),
 });
 
+const tokenCountMetric = "langfuse.tokenisedTokens";
+
 export function tokenCount(p: {
   model: Model;
   text: unknown;
@@ -36,7 +42,7 @@ export function tokenCount(p: {
     {
       name: "token-count",
     },
-    () => {
+    (span) => {
       if (
         p.text === null ||
         p.text === undefined ||
@@ -46,15 +52,27 @@ export function tokenCount(p: {
       }
 
       if (p.model.tokenizerId === "openai") {
-        return openAiTokenCount({
+        const count = openAiTokenCount({
           model: p.model,
           text: p.text,
         });
+
+        count ? span.setAttribute("token-count", count) : undefined;
+        count ? span.setAttribute("tokenizer", "openai") : undefined;
+        count ? recordIncrement(tokenCountMetric, count) : undefined;
+
+        return count;
       } else if (p.model.tokenizerId === "claude") {
-        return claudeTokenCount(p.text);
+        const count = claudeTokenCount(p.text);
+
+        count ? span.setAttribute("token-count", count) : undefined;
+        count ? span.setAttribute("tokenizer", "claude") : undefined;
+        count ? recordIncrement(tokenCountMetric, count) : undefined;
+
+        return count;
       } else {
         if (p.model.tokenizerId) {
-          console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
+          logger.error(`Unknown tokenizer ${p.model.tokenizerId}`);
         }
 
         return undefined;
@@ -72,7 +90,7 @@ type ChatMessage = {
 function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
-    console.error(
+    logger.error(
       `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
         p.model.tokenizerConfig
       )}, ${JSON.stringify(config.error)}`
@@ -93,7 +111,7 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
       p.model.tokenizerConfig
     );
     if (!parsedConfig.success) {
-      console.error(
+      logger.error(
         `Invalid tokenizer config for chat model ${
           p.model.id
         }: ${JSON.stringify(p.model.tokenizerConfig)}`
@@ -161,7 +179,7 @@ function openAiChatTokenCount(params: {
 }
 
 const getTokensByModel = (model: TiktokenModel, text: string) => {
-  // encoiding should be kept in memory to avoid re-creating it
+  // encoding should be kept in memory to avoid re-creating it
   let encoding: Tiktoken | undefined;
   try {
     cachedTokenizerByModel[model] =
@@ -169,11 +187,14 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
 
     encoding = cachedTokenizerByModel[model];
   } catch (KeyError) {
-    console.log("Warning: model not found. Using cl100k_base encoding.");
+    logger.warn("Model not found. Using cl100k_base encoding.");
 
     encoding = get_encoding("cl100k_base");
   }
   const cleandedText = unicodeToBytesInString(text);
+
+  logger.info(`Tokenized data for model: ${model}`);
+
   return encoding?.encode(cleandedText).length;
 };
 

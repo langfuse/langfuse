@@ -6,6 +6,7 @@ import {
   redis,
   type AuthHeaderValidVerificationResult,
   traceException,
+  logger,
 } from "@langfuse/shared/src/server";
 import { type RateLimitResource } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -20,7 +21,7 @@ type RouteConfig<
   bodySchema?: TBody;
   responseSchema: TResponse;
   successStatusCode?: number;
-  rateLimitRessource?: z.infer<typeof RateLimitResource>; // defaults to public-api
+  rateLimitResource?: z.infer<typeof RateLimitResource>; // defaults to public-api
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -57,22 +58,19 @@ export const createAuthedAPIRoute = <
       redis,
     ).rateLimitRequest(
       auth.scope,
-      routeConfig.rateLimitRessource || "public-api",
+      routeConfig.rateLimitResource || "public-api",
     );
 
     if (rateLimitResponse?.isRateLimited()) {
       return rateLimitResponse.sendRestResponseIfLimited(res);
     }
 
-    console.log(
-      "Request to route ",
-      routeConfig.name,
-      "projectId ",
-      auth.scope.projectId,
-      "with query ",
-      req.query,
-      "and body ",
-      req.body,
+    logger.info(
+      `Request to route ${routeConfig.name} projectId ${auth.scope.projectId}`,
+      {
+        query: req.query,
+        body: req.body,
+      },
     );
 
     const query = routeConfig.querySchema
@@ -93,7 +91,7 @@ export const createAuthedAPIRoute = <
     if (routeConfig.responseSchema) {
       const parsingResult = routeConfig.responseSchema.safeParse(response);
       if (!parsingResult.success) {
-        console.error("Response validation failed:", parsingResult.error);
+        logger.error("Response validation failed:", parsingResult.error);
         traceException(parsingResult.error);
       }
     }

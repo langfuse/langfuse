@@ -3,12 +3,30 @@
 import { useEffect } from "react";
 import { Crisp } from "crisp-sdk-web";
 import { env } from "@/src/env.mjs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const CrispChat = () => {
+  const capture = usePostHogClientCapture();
+
   useEffect(() => {
-    if (env.NEXT_PUBLIC_CRISP_WEBSITE_ID)
+    if (env.NEXT_PUBLIC_CRISP_WEBSITE_ID) {
       Crisp.configure(env.NEXT_PUBLIC_CRISP_WEBSITE_ID);
-  });
+      Crisp.chat.onChatInitiated(() => {
+        capture("support_chat:initiated");
+      });
+      Crisp.chat.onChatOpened(() => {
+        capture("support_chat:opened");
+      });
+      Crisp.message.onMessageSent(() => {
+        capture("support_chat:message_sent");
+      });
+      return () => {
+        Crisp.chat.offChatInitiated();
+        Crisp.chat.offChatOpened();
+        Crisp.message.offMessageSent();
+      };
+    }
+  }, [capture]);
 
   return null;
 };
@@ -18,16 +36,22 @@ export default CrispChat;
 export const chatSetUser = ({
   name,
   email,
+  avatar,
   data,
+  segments,
 }: {
-  name: string;
-  email: string;
-  data: object;
+  name?: string;
+  email?: string;
+  avatar?: string;
+  data?: object;
+  segments?: string[];
 }) => {
   if (chatAvailable) {
-    Crisp.user.setEmail(email);
-    Crisp.user.setNickname(name);
-    Crisp.session.setData(data);
+    if (email) Crisp.user.setEmail(email);
+    if (name) Crisp.user.setNickname(name);
+    if (avatar) Crisp.user.setAvatar(avatar);
+    if (data) Crisp.session.setData(data);
+    if (segments) Crisp.session.setSegments(segments, true);
   }
 };
 

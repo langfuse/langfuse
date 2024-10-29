@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { CreatePromptTRPCSchema } from "@/src/features/prompts/server/utils/validation";
+import {
+  CreatePromptTRPCSchema,
+  PromptType,
+} from "@/src/features/prompts/server/utils/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -10,16 +13,18 @@ import {
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 
 import { createPrompt } from "../actions/createPrompt";
-import { observationsTableCols, orderByToPrismaSql } from "@langfuse/shared";
+import { observationsTableCols } from "@langfuse/shared";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
-import {
-  orderBy,
-  singleFilter,
-  tableColumnsToSqlFilterAndPrefix,
-} from "@langfuse/shared";
+import { orderBy, singleFilter } from "@langfuse/shared";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
-import { PromptService, redis } from "@langfuse/shared/src/server";
+import {
+  orderByToPrismaSql,
+  PromptService,
+  redis,
+  logger,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 
@@ -192,7 +197,7 @@ export const promptRouter = createTRPCRouter({
 
         return prompt;
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -296,7 +301,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -384,7 +389,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -478,7 +483,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -499,6 +504,34 @@ export const promptRouter = createTRPCRouter({
       `;
 
       return labels.map((l) => l.label);
+    }),
+  allNames: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        type: z.nativeEnum(PromptType).optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { session } = ctx;
+      const { projectId, type } = input;
+
+      throwIfNoProjectAccess({
+        session,
+        projectId,
+        scope: "prompts:read",
+      });
+
+      return await ctx.prisma.prompt.findMany({
+        where: {
+          projectId,
+          type,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
     }),
   updateTags: protectedProjectProcedure
     .input(
@@ -546,7 +579,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (error) {
-        console.error(error);
+        logger.error(error);
       }
     }),
   allVersions: protectedProjectProcedure

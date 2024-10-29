@@ -1,3 +1,4 @@
+import { removeEmptyEnvVariables } from "@langfuse/shared";
 import { z } from "zod";
 
 const EnvSchema = z.object({
@@ -13,12 +14,22 @@ const EnvSchema = z.object({
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(3030),
-  LANGFUSE_WORKER_PASSWORD: z.string(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_BUCKET_NAME: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().optional(),
+  S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
+    .enum(["true", "false"])
+    .default("false"),
   BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS: z.coerce
     .number()
@@ -30,21 +41,22 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(100),
+  LANGFUSE_INGESTION_QEUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(100),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
-    .default(1000),
+    .default(10000),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce
     .number()
     .positive()
-    .default(3000),
+    .default(10000),
   LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: z.coerce
     .number()
     .positive()
     .default(3),
-  LANGFUSE_LOG_LEVEL: z
-    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
-    .optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number({
@@ -61,7 +73,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_URL: z.string().url().optional(),
   CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_PASSWORD: z.string().optional(),
-  LANGFUSE_WORKER_BETTERSTACK_TOKEN: z.string().optional(),
   LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -75,9 +86,34 @@ const EnvSchema = z.object({
     .positive()
     .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
+
+  // Otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
+  OTEL_SERVICE_NAME: z.string().default("worker"),
+
+  LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS: z
+    .enum(["true", "false"])
+    .default("false"),
+
+  // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
 });
 
-export const env = EnvSchema.parse(process.env);
+export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));

@@ -115,7 +115,7 @@ export const CreateGenerationBody = CreateSpanBody.extend({
           z.array(z.string()),
           z.record(z.string()),
         ])
-        .nullish()
+        .nullish(),
     )
     .nullish(),
   usage: usage,
@@ -143,7 +143,7 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
           z.array(z.string()),
           z.record(z.string()),
         ])
-        .nullish()
+        .nullish(),
     )
     .nullish(),
   usage: usage,
@@ -174,14 +174,14 @@ export const ScoreBody = z.discriminatedUnion("dataType", [
       value: z.number(),
       dataType: z.literal("NUMERIC"),
       configId: z.string().nullish(),
-    })
+    }),
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.string(),
       dataType: z.literal("CATEGORICAL"),
       configId: z.string().nullish(),
-    })
+    }),
   ),
   BaseScoreBody.merge(
     z.object({
@@ -191,14 +191,14 @@ export const ScoreBody = z.discriminatedUnion("dataType", [
       }),
       dataType: z.literal("BOOLEAN"),
       configId: z.string().nullish(),
-    })
+    }),
   ),
   BaseScoreBody.merge(
     z.object({
       value: z.union([z.string(), z.number()]),
       dataType: z.undefined(),
       configId: z.string().nullish(),
-    })
+    }),
   ),
 ]);
 
@@ -243,7 +243,7 @@ export const LegacyGenerationsCreateSchema = z.object({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish()
+      z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
   prompt: jsonSchema.nullish(),
@@ -267,7 +267,7 @@ export const LegacyGenerationPatchSchema = z.object({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish()
+      z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
   prompt: jsonSchema.nullish(),
@@ -291,7 +291,7 @@ export const LegacyObservationBody = z.object({
   modelParameters: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish()
+      z.union([z.string(), z.number(), z.boolean()]).nullish(),
     )
     .nullish(),
   input: jsonSchema.nullish(),
@@ -306,6 +306,7 @@ export const LegacyObservationBody = z.object({
 
 export const SdkLogEvent = z.object({
   log: jsonSchema,
+  id: z.string().nullish(), // Not used, but makes downstream processing easier.
 });
 
 // definitions for the ingestion API
@@ -402,7 +403,7 @@ export const ingestionBatchEvent = z.array(ingestionEvent);
 export type IngestionBatchEventType = z.infer<typeof ingestionBatchEvent>;
 
 export const ingestionEventWithProjectId = ingestionEvent.and(
-  z.object({ projectId: z.string() })
+  z.object({ projectId: z.string() }),
 );
 export type IngestionEventWithProjectIdType = z.infer<
   typeof ingestionEventWithProjectId

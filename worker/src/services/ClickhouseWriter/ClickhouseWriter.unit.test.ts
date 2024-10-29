@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as serverExports from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
-import logger from "../../logger";
+import { logger } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
 // Mock recordHistogram, recordCount, recordGauge
@@ -17,6 +17,11 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     recordHistogram: vi.fn(),
     recordCount: vi.fn(),
     recordGauge: vi.fn(),
+    logger: {
+      info: vi.fn(),
+      debug: vi.fn(),
+      error: vi.fn(),
+    },
   };
 });
 
@@ -28,16 +33,6 @@ vi.mock("../../env", async (importOriginal) => {
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: 100,
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: 5000,
       LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: 3,
-    },
-  };
-});
-
-vi.mock("../../logger", () => {
-  return {
-    default: {
-      info: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
     },
   };
 });
@@ -69,13 +64,13 @@ describe("ClickhouseWriter", () => {
 
   it("should initialize with correct values", () => {
     expect(writer.batchSize).toBe(
-      env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE
+      env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE,
     );
     expect(writer.writeInterval).toBe(
-      env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS
+      env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS,
     );
     expect(writer.maxAttempts).toBe(
-      env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS
+      env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
     );
   });
 
@@ -148,7 +143,7 @@ describe("ClickhouseWriter", () => {
 
     expect(mockInsert).toHaveBeenCalledTimes(writer.maxAttempts);
     expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Max attempts reached")
+      expect.stringContaining("Max attempts reached"),
     );
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
@@ -164,7 +159,7 @@ describe("ClickhouseWriter", () => {
     expect(mockInsert).toHaveBeenCalledTimes(1);
     expect(writer["intervalId"]).toBeNull();
     expect(logger.info).toHaveBeenCalledWith(
-      "ClickhouseWriter shutdown complete."
+      "ClickhouseWriter shutdown complete.",
     );
   });
 
@@ -204,7 +199,7 @@ describe("ClickhouseWriter", () => {
 
     expect(setIntervalSpy).toHaveBeenCalledWith(
       expect.any(Function),
-      writer.writeInterval
+      writer.writeInterval,
     );
   });
 
@@ -246,17 +241,17 @@ describe("ClickhouseWriter", () => {
     const concurrentWrites = 1000;
 
     const writes = Array.from({ length: concurrentWrites }, (_, i) =>
-      writer.addToQueue(TableName.Traces, { id: `${i}`, name: `test${i}` })
+      writer.addToQueue(TableName.Traces, { id: `${i}`, name: `test${i}` }),
     );
 
     await Promise.all(writes);
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
     expect(mockInsert).toHaveBeenCalledTimes(
-      Math.ceil(concurrentWrites / writer.batchSize)
+      Math.ceil(concurrentWrites / writer.batchSize),
     );
     expect(writer["queue"][TableName.Traces].length).toBeLessThan(
-      writer.batchSize
+      writer.batchSize,
     );
   });
 
@@ -271,15 +266,15 @@ describe("ClickhouseWriter", () => {
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
     expect(metricsDistributionSpy).toHaveBeenCalledWith(
-      "ingestion_clickhouse_insert_wait_time",
+      "langfuse.queue.clickhouse_writer.wait_time",
       expect.any(Number),
-      { unit: "milliseconds" }
+      { unit: "milliseconds" },
     );
 
     expect(metricsDistributionSpy).toHaveBeenCalledWith(
-      "ingestion_clickhouse_insert_processing_time",
+      "langfuse.queue.clickhouse_writer.processing_time",
       expect.any(Number),
-      { unit: "milliseconds" }
+      { unit: "milliseconds" },
     );
   });
 
@@ -294,12 +289,12 @@ describe("ClickhouseWriter", () => {
 
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
     expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Network error")
+      expect.stringContaining("Network error"),
     );
 
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
     expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Timeout")
+      expect.stringContaining("Timeout"),
     );
 
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
@@ -322,9 +317,9 @@ describe("ClickhouseWriter", () => {
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         values: expect.arrayContaining(
-          new Array(partialQueueSize).fill(expect.any(Object))
+          new Array(partialQueueSize).fill(expect.any(Object)),
         ),
-      })
+      }),
     );
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });

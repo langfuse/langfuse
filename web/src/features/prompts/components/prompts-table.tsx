@@ -236,7 +236,7 @@ export function PromptTable() {
   ] as LangfuseColumnDef<PromptTableRow>[];
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={promptColumns}
         filterColumnDefinition={promptsTableColsWithOptions(
@@ -256,7 +256,10 @@ export function PromptTable() {
               }}
             >
               {hasCUDAccess ? (
-                <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+                <PlusIcon
+                  className="-ml-0.5 mr-1.5 h-4 w-4"
+                  aria-hidden="true"
+                />
               ) : (
                 <LockIcon
                   className="-ml-0.5 mr-1.5 h-3 w-3"
@@ -302,6 +305,6 @@ export function PromptTable() {
           state: paginationState,
         }}
       />
-    </div>
+    </>
   );
 }

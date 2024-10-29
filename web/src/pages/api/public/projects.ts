@@ -2,7 +2,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { redis } from "@langfuse/shared/src/server";
+import { logger, redis } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -48,7 +48,7 @@ export default async function handler(
         })),
       });
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       if (isPrismaException(error)) {
         return res.status(500).json({
           error: "Internal Server Error",
@@ -57,7 +57,7 @@ export default async function handler(
       return res.status(500).json({ message: "Internal server error" });
     }
   } else {
-    console.error(
+    logger.error(
       `Method not allowed for ${req.method} on /api/public/projects`,
     );
     return res.status(405).json({ message: "Method not allowed" });

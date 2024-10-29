@@ -32,6 +32,10 @@ updates:
         patterns:
           - "lodash"
           - "@types/lodash"
+      express:
+        patterns:
+          - "express"
+          - "@types/express"
       observability:
         patterns:
           - "dd-trace"

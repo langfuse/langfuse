@@ -5,9 +5,11 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
+import { type ReactNode } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type JobExecutionRow = {
@@ -19,16 +21,18 @@ export type JobExecutionRow = {
   endTime?: string;
   traceId?: string;
   templateId: string;
-  configId: string;
+  evaluatorId: string;
   error?: string;
 };
 
 export default function EvalLogTable({
   projectId,
   jobConfigurationId,
+  menuItems,
 }: {
   projectId: string;
   jobConfigurationId?: string;
+  menuItems?: ReactNode;
 }) {
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("evalLogs", "s");
   const [paginationState, setPaginationState] = useQueryParams({
@@ -136,15 +140,15 @@ export default function EvalLogTable({
 
   if (!jobConfigurationId) {
     columns.push(
-      columnHelper.accessor("configId", {
-        id: "configId",
-        header: "Config",
+      columnHelper.accessor("evaluatorId", {
+        id: "evaluatorId",
+        header: "Evaluator",
         cell: (row) => {
-          const configId = row.getValue();
-          return configId ? (
+          const evaluatorId = row.getValue();
+          return evaluatorId ? (
             <TableLink
-              path={`/project/${projectId}/evals/configs/${encodeURIComponent(configId)}`}
-              value={configId}
+              path={`/project/${projectId}/evals/${encodeURIComponent(evaluatorId)}`}
+              value={evaluatorId}
             />
           ) : undefined;
         },
@@ -154,6 +158,11 @@ export default function EvalLogTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<JobExecutionRow>("evalLogColumnVisibility", columns);
+
+  const [columnOrder, setColumnOrder] = useColumnOrder<JobExecutionRow>(
+    "evalLogColumnOrder",
+    columns,
+  );
 
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["getLogs"]["data"][number],
@@ -167,19 +176,22 @@ export default function EvalLogTable({
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
       templateId: jobConfig.jobConfiguration.evalTemplateId ?? "",
-      configId: jobConfig.jobConfigurationId,
+      evaluatorId: jobConfig.jobConfigurationId,
       error: jobConfig.error ?? undefined,
     };
   };
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={menuItems}
       />
       <DataTable
         columns={columns}
@@ -205,7 +217,9 @@ export default function EvalLogTable({
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
       />
-    </div>
+    </>
   );
 }
