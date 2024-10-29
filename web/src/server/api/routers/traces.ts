@@ -10,7 +10,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreList,
-  jsonSchema,
+  type jsonSchema,
   orderBy,
   paginationZod,
   singleFilter,
@@ -61,7 +61,6 @@ export type TracesAllReturnType = {
   timestamp: Date;
   name: string | undefined;
   projectId: string;
-  metadata: z.infer<typeof jsonSchema> | undefined;
   userId: string | undefined;
   release: string | undefined;
   version: string | undefined;
@@ -85,7 +84,6 @@ export const convertToReturnType = (
     projectId: row.project_id,
     userId: row.user_id,
     sessionId: row.session_id,
-    metadata: row.metadata ? jsonSchema.parse(row.metadata) : undefined,
     public: row.public,
   };
 };
@@ -179,7 +177,6 @@ export const traceRouter = createTRPCRouter({
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             ({ input, output, metadata, ...trace }) => ({
               ...trace,
-              metadata: metadata ? jsonSchema.parse(metadata) : undefined,
               name: trace.name ?? undefined,
               release: trace.release ?? undefined,
               version: trace.version ?? undefined,
