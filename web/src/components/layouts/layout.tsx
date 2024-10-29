@@ -575,8 +575,8 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
-          {/* 64px is the height of the header, remove & refactor when adding shadcn sidebar */}
-          <main className="h-[calc(100dvh-96px)] p-3 lg:h-dvh [@media(min-width:384px)]:h-[calc(100dvh-64px)]">
+          {/* px subtracted is the height of the header, remove & refactor when adding shadcn sidebar */}
+          <main className="h-[calc(100dvh-96px)] p-3 min-[384px]:h-[calc(100dvh-64px)] lg:h-dvh">
             {props.children}
           </main>
           <Toaster visibleToasts={1} />
