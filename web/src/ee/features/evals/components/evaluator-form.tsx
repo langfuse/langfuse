@@ -77,6 +77,7 @@ export const EvaluatorForm = (props: {
   disabled?: boolean;
   existingEvaluator?: JobConfiguration & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
+  shouldWrapVariables?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
   const [evalTemplate, setEvalTemplate] = useState<string | undefined>(
@@ -264,6 +265,7 @@ export const EvaluatorForm = (props: {
             props.existingEvaluator?.evalTemplate ?? currentTemplate
           }
           onFormSuccess={props.onFormSuccess}
+          shouldWrapVariables={props.shouldWrapVariables}
         />
       ) : null}
     </>
@@ -276,6 +278,7 @@ export const InnerEvalConfigForm = (props: {
   disabled?: boolean;
   existingEvaluator?: JobConfiguration;
   onFormSuccess?: () => void;
+  shouldWrapVariables?: boolean;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
@@ -421,7 +424,7 @@ export const InnerEvalConfigForm = (props: {
               </FormItem>
             )}
           />
-          <Card className="flex flex-col gap-6 p-4">
+          <Card className="flex max-w-full flex-col gap-6 overflow-y-auto p-4">
             <FormField
               control={form.control}
               name="target"
@@ -478,13 +481,26 @@ export const InnerEvalConfigForm = (props: {
                   <FormControl>
                     Here will some variable mapping be added.
                   </FormControl>
-                  <div className="my-2 flex flex-col gap-2 lg:flex-row">
+                  <div
+                    className={cn(
+                      "my-2 flex flex-col gap-2",
+                      !props.shouldWrapVariables && "lg:flex-row",
+                    )}
+                  >
                     <JSONView
                       title={"Eval Template"}
                       json={props.evalTemplate.prompt ?? null}
-                      className={"min-h-48 bg-muted lg:w-1/2"}
+                      className={cn(
+                        "min-h-48 bg-muted",
+                        !props.shouldWrapVariables && "lg:w-1/2",
+                      )}
                     />
-                    <div className="flex flex-col gap-2 lg:w-1/3">
+                    <div
+                      className={cn(
+                        "flex flex-col gap-2",
+                        !props.shouldWrapVariables && "lg:w-1/3",
+                      )}
+                    >
                       {fields.map((mappingField, index) => (
                         <Card className="flex flex-col gap-2 p-4" key={index}>
                           <div className="text-sm font-semibold">
