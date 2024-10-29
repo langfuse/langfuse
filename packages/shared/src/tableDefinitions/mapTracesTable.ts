@@ -10,6 +10,11 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseColumnName: "bookmarked",
   },
   {
+    uiTableName: "Level",
+    clickhouseTableName: "observations",
+    clickhouseColumnName: "level",
+  },
+  {
     uiTableName: "ID",
     clickhouseTableName: "traces",
     clickhouseColumnName: "id",
@@ -48,11 +53,6 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Release",
     clickhouseTableName: "traces",
     clickhouseColumnName: "release",
-  },
-  {
-    uiTableName: "Level",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "level",
   },
   {
     uiTableName: "Tags",

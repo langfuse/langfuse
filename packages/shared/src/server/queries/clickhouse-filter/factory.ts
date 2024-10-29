@@ -47,6 +47,9 @@ export const createFilterFromFilterState = (
       tracesTableUiColumnDefinitions,
     );
 
+    const prefix =
+      table === "observations" ? opts?.observationsPrefix : opts?.tracesPrefix;
+
     switch (frontEndFilter.type) {
       case "string":
         return new StringFilter({
@@ -54,7 +57,7 @@ export const createFilterFromFilterState = (
           field: col.clickhouse_mapping,
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
-          tablePrefix: opts?.tracesPrefix,
+          tablePrefix: prefix,
         });
       case "datetime":
         return new DateTimeFilter({
@@ -62,7 +65,7 @@ export const createFilterFromFilterState = (
           field: col.clickhouse_mapping,
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
-          tablePrefix: opts?.tracesPrefix,
+          tablePrefix: prefix,
         });
       case "stringOptions":
         return new StringOptionsFilter({
@@ -70,7 +73,7 @@ export const createFilterFromFilterState = (
           field: col.clickhouse_mapping,
           operator: frontEndFilter.operator,
           values: frontEndFilter.value,
-          tablePrefix: opts?.tracesPrefix,
+          tablePrefix: prefix,
         });
       case "number":
         return new NumberFilter({
@@ -78,7 +81,7 @@ export const createFilterFromFilterState = (
           field: col.clickhouse_mapping,
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
-          tablePrefix: opts?.tracesPrefix,
+          tablePrefix: prefix,
         });
       case "arrayOptions":
         return new ArrayOptionsFilter({
@@ -86,14 +89,14 @@ export const createFilterFromFilterState = (
           field: col.clickhouse_mapping,
           operator: frontEndFilter.operator,
           values: frontEndFilter.value,
-          tablePrefix: opts?.tracesPrefix,
+          tablePrefix: prefix,
         });
       case "boolean":
         return new BooleanFilter({
           clickhouseTable: table,
           field: col.clickhouse_mapping,
           value: frontEndFilter.value,
-          tablePrefix: opts?.tracesPrefix,
+          tablePrefix: prefix,
         });
       default:
         throw new QueryBuilderError(
@@ -116,7 +119,7 @@ const matchAndVerifyTracesUiColumn = (
 
   if (!uiTable) {
     throw new QueryBuilderError(
-      `Column ${filter.column} does not exist in table ${JSON.stringify(uiTable)}.`,
+      `Column ${filter.column} does not match a UI / CH table mapping.`,
     );
   }
 
@@ -136,6 +139,10 @@ const matchAndVerifyTracesUiColumn = (
       `Column ${uiTable.clickhouseColumnName} does not exist in table ${JSON.stringify(uiTable)}.`,
     );
   }
+
+  logger.info(
+    `Matched column: ${JSON.stringify(uiTable)} for filter ${JSON.stringify(filter)}`,
+  );
 
   if (uiTable.clickhouseTableName === "traces") {
     const column = TraceClickhouseColumns.find(

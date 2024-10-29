@@ -43,13 +43,7 @@ export const getTracesTable = async (
 
   const f = createFilterFromFilterState(filter, { tracesPrefix: "t" });
 
-  tracesFilter.push(
-    ...f.filter((filter) => filter.clickhouseTable === "traces"),
-  );
-  scoresFilter.push(...f.filter((f) => f.clickhouseTable === "scores"));
-  observationsFilter.push(
-    ...f.filter((f) => f.clickhouseTable === "observations"),
-  );
+  tracesFilter.push(...f);
 
   logger.info(`Traces filter ${JSON.stringify(f)}`);
 
