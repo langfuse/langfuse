@@ -231,12 +231,13 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
   },
 );
 
-const withErrorHandling = t.middleware(async ({ next }) => {
+const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   try {
-    return next();
+    return await next({ ctx }); // pass the context to the next middleware
   } catch (error) {
     logger.error(error);
     if (error instanceof TRPCError) {
+      console.log("TRPCError", error);
       throw error;
     }
     throw new TRPCError({
@@ -246,8 +247,8 @@ const withErrorHandling = t.middleware(async ({ next }) => {
 });
 
 export const protectedProjectProcedure = withOtelTracingProcedure
-  .use(enforceUserIsAuthedAndProjectMember)
-  .use(withErrorHandling);
+  .use(withErrorHandling)
+  .use(enforceUserIsAuthedAndProjectMember);
 
 const inputOrganizationSchema = z.object({
   orgId: z.string(),
