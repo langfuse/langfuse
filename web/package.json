@@ -18,8 +18,7 @@
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
     "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --testPathPattern='__e2e__'",
-    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
-    "generationCost:backfill": "dotenv -e ../.env -- tsx scripts/observations-backfill-calculated-cost.ts"
+    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
