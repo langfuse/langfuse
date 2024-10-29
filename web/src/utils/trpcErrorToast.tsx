@@ -43,14 +43,14 @@ const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {
   return { errorTitle, httpStatus };
 };
 
-const getErrorDescription = (message: string, httpStatus: number) => {
+const getErrorDescription = (httpStatus: number) => {
   switch (httpStatus) {
     case 429:
       return "Rate limit hit. Please try again later.";
     case 524:
       return "Request took too long to process. Please try again later.";
     default:
-      return message;
+      return "Internal error";
   }
 };
 
@@ -60,7 +60,7 @@ export const trpcErrorToast = (error: unknown) => {
 
     const path = error.data?.path;
     const cause = error.data?.cause;
-    const description = getErrorDescription(error.message, httpStatus);
+    const description = getErrorDescription(httpStatus);
 
     showErrorToast(
       errorTitle,
