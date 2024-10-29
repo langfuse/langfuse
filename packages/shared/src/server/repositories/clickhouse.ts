@@ -23,8 +23,11 @@ export const getObservation = async (
   observationId: string,
   projectId: string
 ) => {
-  const query = `SELECT * FROM observations FINAL WHERE id = '${observationId}' AND project_id = '${projectId}' LIMIT 1`;
-  const records = await queryClickhouse({ query });
+  const query = `SELECT * FROM observations FINAL WHERE id = {observationId: String} AND project_id = {projectId: String} LIMIT 1`;
+  const records = await queryClickhouse({
+    query,
+    params: { observationId, projectId },
+  });
 
   return records.length ? convertObservations(records)[0] : undefined;
 };
@@ -33,15 +36,21 @@ export const getTraceObservations = async (
   traceId: string,
   projectId: string
 ) => {
-  const query = `SELECT * FROM observations FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`;
-  const records = await queryClickhouse({ query });
+  const query = `SELECT * FROM observations FINAL WHERE trace_id = {traceId: String} AND project_id = {projectId: String}`;
+  const records = await queryClickhouse({
+    query,
+    params: { traceId, projectId },
+  });
 
   return convertObservations(records);
 };
 
 export const getScores = async (traceId: string, projectId: string) => {
-  const query = `SELECT * FROM scores FINAL where trace_id = '${traceId}' and project_id = '${projectId}'`;
-  const records = await queryClickhouse({ query });
+  const query = `SELECT * FROM scores FINAL where trace_id = {traceId: String} and project_id = {projectId: String}`;
+  const records = await queryClickhouse({
+    query,
+    params: { traceId, projectId },
+  });
   const parsedRecords = z.array(scoreRecordReadSchema).parse(records);
 
   return parsedRecords.map((record) => {
