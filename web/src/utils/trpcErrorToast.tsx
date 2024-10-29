@@ -59,14 +59,12 @@ export const trpcErrorToast = (error: unknown) => {
     const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
 
     const path = error.data?.path;
-    const cause = error.data?.cause;
     const description = getErrorDescription(httpStatus);
 
     showErrorToast(
       errorTitle,
       description,
       httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
-      cause,
       path,
     );
   } else {
