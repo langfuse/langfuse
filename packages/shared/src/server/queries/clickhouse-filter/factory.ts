@@ -111,7 +111,7 @@ const matchAndVerifyTracesUiColumn = (
   uiTableDefinitions: UiColumnMapping[],
 ) => {
   // tries to match the column name to the clickhouse table name
-  logger.info(`Filter to match: ${JSON.stringify(filter)}`);
+  logger.debug(`Filter to match: ${JSON.stringify(filter)}`);
 
   const uiTable = uiTableDefinitions.find(
     (col) => col.uiTableName === filter.column, // matches on the NAME of the column in the UI.
@@ -139,10 +139,6 @@ const matchAndVerifyTracesUiColumn = (
       `Column ${uiTable.clickhouseColumnName} does not exist in table ${JSON.stringify(uiTable)}.`,
     );
   }
-
-  logger.info(
-    `Matched column: ${JSON.stringify(uiTable)} for filter ${JSON.stringify(filter)}`,
-  );
 
   if (uiTable.clickhouseTableName === "traces") {
     const column = TraceClickhouseColumns.find(
