@@ -3,11 +3,13 @@ import { singleFilter } from "../../../interfaces/filters";
 import { tracesTableUiColumnDefinitions } from "../../../tableDefinitions/mapTracesTable";
 import { FilterCondition } from "../../../types";
 import {
-  isKeyOfClickhouseRecord,
-  isValidTableName,
   ObservationClickhouseColumns,
   TraceClickhouseColumns,
 } from "../../clickhouse/schema";
+import {
+  isKeyOfClickhouseRecord,
+  isValidTableName,
+} from "../../clickhouse/isValidTableName";
 import { logger } from "../../logger";
 import { UiColumnMapping } from "../../../tableDefinitions";
 import { StringFilter, DateTimeFilter } from "./clickhouse-filter";
