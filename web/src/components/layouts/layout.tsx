@@ -575,6 +575,7 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
+          {/* 64px is the height of the header, remove & refactor when adding shadcn sidebar */}
           <main className="h-[calc(100dvh-64px)] p-3 lg:h-dvh">
             {props.children}
           </main>
