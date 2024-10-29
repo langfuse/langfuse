@@ -44,16 +44,10 @@ export const getAllQueries = {
           });
         }
 
-        const res = await getGenerationsTable(
-          ctx.session.projectId,
-          input.filter ?? [],
-          input.limit,
-          input.page,
-        );
-
-        return {
-          generations: res,
-        };
+        throw new TRPCError({
+          code: "NOT_IMPLEMENTED",
+          message: "Clickhouse query not implemented yet",
+        });
       }
     }),
   countAll: protectedProjectProcedure

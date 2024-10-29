@@ -72,7 +72,7 @@ const getCommaArrayParam = (table: TableName) => ({
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
-          column: getColumnId(table, column),
+          column: getColumnName(table, column),
           key: key !== "" ? key : undefined,
           operator,
           value: parsedValue,
