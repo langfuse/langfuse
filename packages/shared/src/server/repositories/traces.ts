@@ -1,10 +1,11 @@
-import { type ObservationLevel, type FilterState } from "@langfuse/shared";
 import { TraceClickhouseRecord } from "../clickhouse/schema";
 import { queryClickhouse } from "./clickhouse";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-filter/factory";
+import { ObservationLevel } from "@prisma/client";
+import { FilterState } from "../../types";
 
 export type TracesTableReturnType = Pick<
   TraceClickhouseRecord,

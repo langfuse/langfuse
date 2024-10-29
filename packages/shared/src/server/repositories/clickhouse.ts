@@ -1,23 +1,23 @@
+import Decimal from "decimal.js";
+import { z } from "zod";
+import { JsonNested } from "../../utils/zod";
 import {
-  parseJsonPrioritised,
-  type JsonNested,
-  type ObservationType,
-  type ObservationLevel,
-  type Trace,
-  type ObservationView,
-  env,
-} from "@langfuse/shared";
+  ObservationLevel,
+  ObservationType,
+  ObservationView,
+  Trace,
+} from "@prisma/client";
+import { parseJsonPrioritised } from "../../utils/json";
+import { env } from "../../env";
 import {
-  clickhouseClient,
   clickhouseStringDateSchema,
-  getCurrentSpan,
-  logger,
   observationRecordReadSchema,
   scoreRecordReadSchema,
   traceRecordReadSchema,
-} from "@langfuse/shared/src/server";
-import Decimal from "decimal.js";
-import { z } from "zod";
+} from "../definitions";
+import { clickhouseClient } from "../clickhouse/client";
+import { logger } from "../logger";
+import { getCurrentSpan } from "../instrumentation";
 
 export const getObservation = async (
   observationId: string,

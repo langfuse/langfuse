@@ -7,7 +7,7 @@ import {
   logger,
 } from "../src/server";
 import { prepareClickhouse } from "./prepareClickhouse";
-import { redis } from "@langfuse/shared/src/server";
+import { redis } from "../src/server";
 
 const createRandomProjectId = () => randomUUID().toString();
 
