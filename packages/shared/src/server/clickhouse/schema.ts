@@ -132,6 +132,7 @@ export const TraceClickhouseColumns: ClickhouseColumnDefinition[] = [
   { name: "createdAt", clickhouse_mapping: "created_at", type: "datetime" },
   { name: "updatedAt", clickhouse_mapping: "updated_at", type: "datetime" },
   { name: "eventTs", clickhouse_mapping: "event_ts", type: "datetime" },
+  { name: "level", clickhouse_mapping: "level", type: "string" },
 ];
 
 export const ObservationClickhouseColumns: ClickhouseColumnDefinition[] = [

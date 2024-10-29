@@ -17,6 +17,9 @@ import {
   DateTimeFilter,
   StringOptionsFilter,
   FilterList,
+  NumberFilter,
+  ArrayOptionsFilter,
+  BooleanFilter,
 } from "./clickhouse-filter";
 
 export class QueryBuilderError extends Error {
@@ -35,43 +38,69 @@ export const createFilterFromFilterState = (
     tracesPrefix?: string;
     observationsPrefix?: string;
     scoresPrefix?: string;
-  }
+  },
 ) => {
   return filter.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
     const { col, table } = matchAndVerifyTracesUiColumn(
       frontEndFilter,
-      tracesTableUiColumnDefinitions
+      tracesTableUiColumnDefinitions,
     );
+
+    const prefix =
+      table === "observations" ? opts?.observationsPrefix : opts?.tracesPrefix;
 
     switch (frontEndFilter.type) {
       case "string":
         return new StringFilter({
           clickhouseTable: table,
-          field: col.name,
+          field: col.clickhouse_mapping,
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
-          tablePrefix: opts?.tracesPrefix,
+          tablePrefix: prefix,
         });
       case "datetime":
         return new DateTimeFilter({
           clickhouseTable: table,
-          field: col.name,
+          field: col.clickhouse_mapping,
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
-          tablePrefix: opts?.tracesPrefix,
+          tablePrefix: prefix,
         });
       case "stringOptions":
         return new StringOptionsFilter({
           clickhouseTable: table,
-          field: col.name,
+          field: col.clickhouse_mapping,
           operator: frontEndFilter.operator,
           values: frontEndFilter.value,
-          tablePrefix: opts?.tracesPrefix,
+          tablePrefix: prefix,
+        });
+      case "number":
+        return new NumberFilter({
+          clickhouseTable: table,
+          field: col.clickhouse_mapping,
+          operator: frontEndFilter.operator,
+          value: frontEndFilter.value,
+          tablePrefix: prefix,
+        });
+      case "arrayOptions":
+        return new ArrayOptionsFilter({
+          clickhouseTable: table,
+          field: col.clickhouse_mapping,
+          operator: frontEndFilter.operator,
+          values: frontEndFilter.value,
+          tablePrefix: prefix,
+        });
+      case "boolean":
+        return new BooleanFilter({
+          clickhouseTable: table,
+          field: col.clickhouse_mapping,
+          value: frontEndFilter.value,
+          tablePrefix: prefix,
         });
       default:
         throw new QueryBuilderError(
-          `Invalid filter type: ${frontEndFilter.type}`
+          `Invalid filter type: ${frontEndFilter.type}`,
         );
     }
   });
@@ -79,45 +108,45 @@ export const createFilterFromFilterState = (
 
 const matchAndVerifyTracesUiColumn = (
   filter: z.infer<typeof singleFilter>,
-  uiTableDefinitions: UiColumnMapping[]
+  uiTableDefinitions: UiColumnMapping[],
 ) => {
   // tries to match the column name to the clickhouse table name
-  logger.info(`Filter to match: ${JSON.stringify(filter)}`);
+  logger.debug(`Filter to match: ${JSON.stringify(filter)}`);
 
   const uiTable = uiTableDefinitions.find(
-    (col) => col.uiTableName === filter.column // matches on the NAME of the column in the UI.
+    (col) => col.uiTableName === filter.column, // matches on the NAME of the column in the UI.
   );
 
   if (!uiTable) {
     throw new QueryBuilderError(
-      `Column ${filter.column} does not exist in table ${uiTable}.`
+      `Column ${filter.column} does not match a UI / CH table mapping.`,
     );
   }
 
   if (!isValidTableName(uiTable.clickhouseTableName)) {
     throw new QueryBuilderError(
-      `Invalid clickhouse table name: ${uiTable.clickhouseTableName}`
+      `Invalid clickhouse table name: ${uiTable.clickhouseTableName}`,
     );
   }
 
   if (
     !isKeyOfClickhouseRecord(
       uiTable.clickhouseTableName,
-      uiTable.clickhouseColumnName
+      uiTable.clickhouseColumnName,
     )
   ) {
     throw new QueryBuilderError(
-      `Column ${uiTable.clickhouseColumnName} does not exist in table ${uiTable}.`
+      `Column ${uiTable.clickhouseColumnName} does not exist in table ${JSON.stringify(uiTable)}.`,
     );
   }
 
   if (uiTable.clickhouseTableName === "traces") {
     const column = TraceClickhouseColumns.find(
-      (col) => col.name === uiTable.clickhouseColumnName
+      (col) => col.name === uiTable.clickhouseColumnName,
     );
     if (!column) {
       throw new QueryBuilderError(
-        `Column ${uiTable.clickhouseColumnName} does not exist in traces table.`
+        `Column ${uiTable.clickhouseColumnName} does not exist in traces table.`,
       );
     }
     return {
@@ -126,11 +155,11 @@ const matchAndVerifyTracesUiColumn = (
     };
   } else if (uiTable.clickhouseTableName === "observations") {
     const column = ObservationClickhouseColumns.find(
-      (col) => col.name === uiTable.clickhouseColumnName
+      (col) => col.name === uiTable.clickhouseColumnName,
     );
     if (!column) {
       throw new QueryBuilderError(
-        `Column ${uiTable.clickhouseColumnName} does not exist in observations table.`
+        `Column ${uiTable.clickhouseColumnName} does not exist in observations table.`,
       );
     }
     return {
@@ -139,13 +168,13 @@ const matchAndVerifyTracesUiColumn = (
     };
   }
   throw new QueryBuilderError(
-    `Unhandled table case: ${uiTable.clickhouseTableName}`
+    `Unhandled table case: ${uiTable.clickhouseTableName}`,
   );
 };
 
 export function getProjectIdDefaultFilter(
   projectId: string,
-  opts: { tracesPrefix: string }
+  opts: { tracesPrefix: string },
 ): {
   tracesFilter: FilterList;
   scoresFilter: FilterList;

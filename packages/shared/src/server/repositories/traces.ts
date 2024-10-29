@@ -6,6 +6,7 @@ import {
 } from "../queries/clickhouse-filter/factory";
 import { ObservationLevel } from "@prisma/client";
 import { FilterState } from "../../types";
+import { logger } from "../logger";
 
 export type TracesTableReturnType = Pick<
   TraceClickhouseRecord,
@@ -34,19 +35,14 @@ export const getTracesTable = async (
   projectId: string,
   filter: FilterState,
   limit?: number,
-  offset?: number
+  offset?: number,
 ) => {
+  logger.info(`input filter ${JSON.stringify(filter)}`);
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
-  const f = createFilterFromFilterState(filter, { tracesPrefix: "t" });
-
   tracesFilter.push(
-    ...f.filter((filter) => filter.clickhouseTable === "traces")
-  );
-  scoresFilter.push(...f.filter((f) => f.clickhouseTable === "scores"));
-  observationsFilter.push(
-    ...f.filter((f) => f.clickhouseTable === "observations")
+    ...createFilterFromFilterState(filter, { tracesPrefix: "t" }),
   );
 
   const tracesFilterRes = tracesFilter.apply();
