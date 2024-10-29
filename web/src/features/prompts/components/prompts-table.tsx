@@ -236,7 +236,7 @@ export function PromptTable() {
   ] as LangfuseColumnDef<PromptTableRow>[];
 
   return (
-    <div>
+    <>
       <DataTableToolbar
         columns={promptColumns}
         filterColumnDefinition={promptsTableColsWithOptions(
@@ -305,6 +305,6 @@ export function PromptTable() {
           state: paginationState,
         }}
       />
-    </div>
+    </>
   );
 }
