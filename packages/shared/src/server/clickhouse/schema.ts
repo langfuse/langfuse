@@ -91,7 +91,7 @@ export const TraceClickhouseColumns: ClickhouseColumnDefinition[] = [
   { name: "timestamp", clickhouse_mapping: "timestamp", type: "datetime" },
   { name: "name", clickhouse_mapping: "name", type: "string" },
   {
-    name: "user_id",
+    name: "userId",
     clickhouse_mapping: "user_id",
     type: "string",
     nullable: true,
@@ -109,7 +109,7 @@ export const TraceClickhouseColumns: ClickhouseColumnDefinition[] = [
     type: "string",
     nullable: true,
   },
-  { name: "project_id", clickhouse_mapping: "project_id", type: "string" },
+  { name: "projectId", clickhouse_mapping: "project_id", type: "string" },
   { name: "public", clickhouse_mapping: "public", type: "boolean" },
   { name: "bookmarked", clickhouse_mapping: "bookmarked", type: "boolean" },
   { name: "tags", clickhouse_mapping: "tags", type: "string" },
@@ -126,14 +126,14 @@ export const TraceClickhouseColumns: ClickhouseColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "session_id",
+    name: "sessionId",
     clickhouse_mapping: "session_id",
     type: "string",
     nullable: true,
   },
-  { name: "created_at", clickhouse_mapping: "created_at", type: "datetime" },
-  { name: "updated_at", clickhouse_mapping: "updated_at", type: "datetime" },
-  { name: "event_ts", clickhouse_mapping: "event_ts", type: "datetime" },
+  { name: "createdAt", clickhouse_mapping: "created_at", type: "datetime" },
+  { name: "updatedAt", clickhouse_mapping: "updated_at", type: "datetime" },
+  { name: "eventTs", clickhouse_mapping: "event_ts", type: "datetime" },
 ];
 
 export const ObservationClickhouseColumns: ClickhouseColumnDefinition[] = [
