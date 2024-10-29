@@ -57,9 +57,10 @@ export function isKeyOfClickhouseRecord(
   }
 }
 
+export type IngestionEntityTypes = ClickhouseEntityType | "sdk_log";
 export const getClickhouseEntityType = (
   eventType: string
-): ClickhouseEntityType | "sdk_log" => {
+): IngestionEntityTypes => {
   switch (eventType) {
     case eventTypes.TRACE_CREATE:
       return "trace";
