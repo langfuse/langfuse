@@ -134,7 +134,6 @@ export const traceRouter = createTRPCRouter({
           traceException,
         );
 
-        console.log(res[4]);
         return {
           traces: res.map((r) => {
             const score = validatedScores.find((s) => s.traceId === r.id);
@@ -263,7 +262,6 @@ export const traceRouter = createTRPCRouter({
           traceException,
         );
 
-        console.log(res[4]);
         return res.map((r) => ({
           ...r,
           scores: aggregateScores(
@@ -346,7 +344,6 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      console.log("huhu", input.queryClickhouse);
       if (!input.queryClickhouse) {
         const trace = await ctx.prisma.trace.findFirstOrThrow({
           where: {

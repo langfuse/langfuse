@@ -345,7 +345,6 @@ export const scoresRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const date = getDateFromOption(input.selectedTimeOption);
 
-      console.log("getScoreKeysAndProps", input);
       if (!input.queryClickhouse) {
         const scores = await ctx.prisma.score.groupBy({
           where: {
@@ -377,7 +376,7 @@ export const scoresRouter = createTRPCRouter({
         }
 
         const res = await getScoresGroupedByNameSourceType(input.projectId);
-        console.log("getScoresGroupedByNameSourceType", res);
+
         return res.map(({ name, source, dataType }) => ({
           key: composeAggregateScoreKey({ name, source, dataType }),
           name: name,
