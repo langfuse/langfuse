@@ -1,10 +1,3 @@
-export type ClickhouseColumnDefinition = {
-  name: string; // column name (camel case)
-  clickhouse_mapping: string; // clickhouse column name (snake case)
-  type: "number" | "string" | "datetime" | "boolean";
-  nullable?: boolean;
-};
-
 export type TraceClickhouseRecord = {
   id: string;
   timestamp: string; // DateTime64(3)
@@ -83,6 +76,13 @@ export const ClickhouseTableNames = {
 } as const;
 
 export type ClickhouseTableName = keyof typeof ClickhouseTableNames;
+
+export type ClickhouseColumnDefinition = {
+  name: string; // column name (camel case)
+  clickhouse_mapping: string; // clickhouse column name (snake case)
+  type: "number" | "string" | "datetime" | "boolean";
+  nullable?: boolean;
+};
 
 export const TraceClickhouseColumns: ClickhouseColumnDefinition[] = [
   { name: "id", clickhouse_mapping: "id", type: "string" },

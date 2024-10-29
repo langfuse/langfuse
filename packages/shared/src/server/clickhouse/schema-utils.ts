@@ -14,12 +14,6 @@ export const isValidTableName = (
 ): tableName is ClickhouseTableName =>
   Object.keys(ClickhouseTableNames).includes(tableName);
 
-export type ClickhouseTables = {
-  traces: keyof TraceClickhouseRecord;
-  observations: keyof ObservationClickhouseRecord;
-  scores: keyof ScoreClickhouseRecord;
-};
-
 export function isKeyOfTraceClickhouseRecord(
   key: string
 ): key is keyof TraceClickhouseRecord {
