@@ -27,12 +27,12 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "User ID",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "user_id",
+    clickhouseColumnName: "userId",
   },
   {
     uiTableName: "Session ID",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "session_id",
+    clickhouseColumnName: "sessionId",
   },
   {
     uiTableName: "Metadata",
