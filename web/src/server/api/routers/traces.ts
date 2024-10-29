@@ -36,8 +36,9 @@ import {
   type TracesTableReturnType,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import type Decimal from "decimal.js";
+import Decimal from "decimal.js";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -86,6 +87,38 @@ export const convertToReturnType = (
     sessionId: row.session_id,
     metadata: jsonSchema.parse(row.metadata),
     public: row.public,
+  };
+};
+
+export type TracesMetricsReturnType = {
+  id: string;
+  promptTokens: bigint;
+  completionTokens: bigint;
+  totalTokens: bigint;
+  latency: number | null;
+  level: ObservationLevel;
+  observationCount: bigint;
+  calculatedTotalCost: Decimal | null;
+  calculatedInputCost: Decimal | null;
+  calculatedOutputCost: Decimal | null;
+  scores: ScoreAggregate;
+};
+
+export const convertMetricsReturnType = (
+  row: TracesTableReturnType & { scores: ScoreAggregate },
+): TracesMetricsReturnType => {
+  return {
+    id: row.id,
+    promptTokens: BigInt(row.usage_details?.input ?? 0),
+    completionTokens: BigInt(row.usage_details?.output ?? 0),
+    totalTokens: BigInt(row.usage_details?.total ?? 0),
+    latency: row.latency,
+    level: row.level,
+    observationCount: BigInt(row.observation_count ?? 0),
+    calculatedTotalCost: new Decimal(row.cost_details?.total) ?? null,
+    calculatedInputCost: new Decimal(row.cost_details?.input) ?? null,
+    calculatedOutputCost: new Decimal(row.cost_details?.output) ?? null,
+    scores: row.scores,
   };
 };
 
@@ -225,20 +258,7 @@ export const traceRouter = createTRPCRouter({
 
         const [traceMetrics, scores] = await Promise.all([
           // traceMetrics
-          ctx.prisma.$queryRaw<
-            Array<{
-              id: string;
-              promptTokens: bigint;
-              completionTokens: bigint;
-              totalTokens: bigint;
-              latency: number | null;
-              level: ObservationLevel;
-              observationCount: bigint;
-              calculatedTotalCost: Decimal | null;
-              calculatedInputCost: Decimal | null;
-              calculatedOutputCost: Decimal | null;
-            }>
-          >(tracesQuery),
+          ctx.prisma.$queryRaw<Array<TracesMetricsReturnType>>(tracesQuery),
           // scores
           ctx.prisma.score.findMany({
             where: {
@@ -287,12 +307,14 @@ export const traceRouter = createTRPCRouter({
           traceException,
         );
 
-        return res.map((r) => ({
-          ...r,
-          scores: aggregateScores(
-            validatedScores.filter((s) => s.traceId === r.id),
-          ),
-        }));
+        return res.map((r) =>
+          convertMetricsReturnType({
+            ...r,
+            scores: aggregateScores(
+              validatedScores.filter((s) => s.traceId === r.id),
+            ),
+          }),
+        );
       }
     }),
   filterOptions: protectedProjectProcedure
