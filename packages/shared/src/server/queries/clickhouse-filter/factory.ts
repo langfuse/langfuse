@@ -16,6 +16,7 @@ import {
   StringFilter,
   DateTimeFilter,
   StringOptionsFilter,
+  FilterList,
 } from "./clickhouse-filter";
 
 export class QueryBuilderError extends Error {
@@ -141,3 +142,40 @@ const matchAndVerifyTracesUiColumn = (
     `Unhandled table case: ${uiTable.clickhouseTableName}`
   );
 };
+
+export function getProjectIdDefaultFilter(
+  projectId: string,
+  opts: { tracesPrefix: string }
+): {
+  tracesFilter: FilterList;
+  scoresFilter: FilterList;
+  observationsFilter: FilterList;
+} {
+  return {
+    tracesFilter: new FilterList([
+      new StringFilter({
+        clickhouseTable: "traces",
+        field: "project_id",
+        operator: "=",
+        value: projectId,
+        tablePrefix: opts.tracesPrefix,
+      }),
+    ]),
+    scoresFilter: new FilterList([
+      new StringFilter({
+        clickhouseTable: "scores",
+        field: "project_id",
+        operator: "=",
+        value: projectId,
+      }),
+    ]),
+    observationsFilter: new FilterList([
+      new StringFilter({
+        clickhouseTable: "observations",
+        field: "project_id",
+        operator: "=",
+        value: projectId,
+      }),
+    ]),
+  };
+}

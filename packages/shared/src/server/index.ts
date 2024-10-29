@@ -9,7 +9,7 @@ export * from "./llm/fetchLLMCompletion";
 export * from "./llm/types";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
-export * from "./clickhouse/clickhouse";
+export * from "./clickhouse/client";
 export * from "./clickhouse/schema-utils";
 export * from "./clickhouse/schema";
 export * from "../server/definitions";

@@ -1,7 +1,10 @@
 import { type ObservationLevel, type FilterState } from "@langfuse/shared";
 import { TraceClickhouseRecord } from "../clickhouse/schema";
 import { queryClickhouse } from "./clickhouse";
-import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
+import {
+  createFilterFromFilterState,
+  getProjectIdDefaultFilter,
+} from "../queries/clickhouse-filter/factory";
 import {
   Filter,
   FilterList,
@@ -61,7 +64,7 @@ export const getTracesTable = async (
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
-  const f = createFilterFromFilterState(filter);
+  const f = createFilterFromFilterState(filter, { tracesPrefix: "t" });
 
   tracesFilter.push(
     ...f.filter((filter) => filter.clickhouseTable === "traces")
@@ -150,8 +153,6 @@ export const getTracesTable = async (
     },
   });
 
-  console.log(rows);
-
   return rows.map(convertToReturnType);
 };
 
@@ -183,40 +184,3 @@ export const getTraceById = async (traceId: string, projectId: string) => {
 
   return res.length ? res[0] : undefined;
 };
-
-function getProjectIdDefaultFilter(
-  projectId: string,
-  opts: { tracesPrefix: string }
-): {
-  tracesFilter: FilterList;
-  scoresFilter: FilterList;
-  observationsFilter: FilterList;
-} {
-  return {
-    tracesFilter: new FilterList([
-      new StringFilter({
-        clickhouseTable: "traces",
-        field: "project_id",
-        operator: "=",
-        value: projectId,
-        tablePrefix: opts.tracesPrefix,
-      }),
-    ]),
-    scoresFilter: new FilterList([
-      new StringFilter({
-        clickhouseTable: "scores",
-        field: "project_id",
-        operator: "=",
-        value: projectId,
-      }),
-    ]),
-    observationsFilter: new FilterList([
-      new StringFilter({
-        clickhouseTable: "observations",
-        field: "project_id",
-        operator: "=",
-        value: projectId,
-      }),
-    ]),
-  };
-}

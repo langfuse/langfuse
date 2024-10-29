@@ -1,5 +1,5 @@
 import { type ScoreDataType, type ScoreSource } from "@langfuse/shared";
-import { clickhouseClient } from "../clickhouse/clickhouse";
+import { clickhouseClient } from "../clickhouse/client";
 import { queryClickhouse } from "./clickhouse";
 
 export type FetchScoresReturnType = {
