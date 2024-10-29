@@ -41,11 +41,9 @@ export const getTracesTable = async (
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
-  const f = createFilterFromFilterState(filter, { tracesPrefix: "t" });
-
-  tracesFilter.push(...f);
-
-  logger.info(`Traces filter ${JSON.stringify(f)}`);
+  tracesFilter.push(
+    ...createFilterFromFilterState(filter, { tracesPrefix: "t" }),
+  );
 
   const tracesFilterRes = tracesFilter.apply();
   const scoresAvgFilterRes = scoresFilter.apply();
