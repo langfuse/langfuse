@@ -36,7 +36,6 @@ export const CreateEvalTemplate = z.object({
     reasoning: z.string(),
   }),
   referencedEvaluators: z.enum(["update", "persist"]),
-  existingEvalTemplateId: z.string().optional(),
 });
 
 export const evalRouter = createTRPCRouter({

@@ -331,7 +331,6 @@ export const InnerEvalTemplateForm = (props: {
         reasoning: values.outputReasoning,
       },
       referencedEvaluators: values.referencedEvaluators,
-      existingEvalTemplateId: props.existingEvalTemplateId,
     };
 
     const parsedModel = selectedModelSchema.safeParse(evalTemplate);
