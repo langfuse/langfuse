@@ -29,6 +29,7 @@ import {
   traceException,
   createTracesQuery,
   parseTraceAllFilters,
+  logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import type Decimal from "decimal.js";
@@ -270,7 +271,7 @@ export const traceRouter = createTRPCRouter({
         });
         return trace;
       } catch (e) {
-        console.error(e);
+        logger.error(e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
         });
