@@ -13,6 +13,7 @@ import {
   TraceClickhouseColumns,
 } from "../../clickhouse/schema";
 import { isColumnOnSchema } from "../../clickhouse/schema-helpers";
+import { logger } from "../../logger";
 
 export class QueryBuilderError extends Error {
   constructor(message: string) {
@@ -146,8 +147,8 @@ export class FilterList {
     this.filters = filters;
   }
 
-  push(filter: Filter) {
-    this.filters.push(filter);
+  push(...filter: Filter[]) {
+    this.filters.push(...filter);
   }
 
   public apply(): ClickhouseFilter {
@@ -208,6 +209,7 @@ const matchAndVerifyTracesUiColumn = (
   uiTableDefinitions: UiColumnMapping[]
 ) => {
   // tries to match the column name to the clickhouse table name
+  logger.info(`Filterr to match: ${JSON.stringify(filter)}`);
 
   const uiTable = uiTableDefinitions.find(
     (col) => col.uiTableId === filter.column
