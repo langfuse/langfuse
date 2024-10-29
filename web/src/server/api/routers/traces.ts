@@ -10,7 +10,6 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreList,
-  type jsonSchema,
   orderBy,
   paginationZod,
   singleFilter,
