@@ -35,7 +35,7 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 };
 
 export const legacyIngestionQueueProcessor: Processor = async (
-  job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>,
+  job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>
 ) => {
   try {
     let ingestionEvents: IngestionEventType[] = [];
@@ -45,18 +45,18 @@ export const legacyIngestionQueueProcessor: Processor = async (
         !env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET
       ) {
         throw new Error(
-          "S3 event store is not enabled but useS3EventStore is true",
+          "S3 event store is not enabled but useS3EventStore is true"
         );
       }
       // If we used the S3 store we need to fetch the ingestionEvents from S3
       const s3Client = getS3StorageServiceClient(
-        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET
       );
       ingestionEvents = (
         await Promise.all(
           job.data.payload.data.map(async (record) => {
             const file = await s3Client.download(
-              `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(record.type)}/${record.eventBodyId}/${record.eventId}.json`,
+              `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(record.type)}/${record.eventBodyId}/${record.eventId}.json`
             );
             const parsedFile = JSON.parse(file);
             const parsed = ingestionBatchEvent.safeParse(parsedFile);
@@ -69,11 +69,11 @@ export const legacyIngestionQueueProcessor: Processor = async (
                 return [parsed.data];
               } else {
                 throw new Error(
-                  `Failed to parse event from S3: ${parsed.error.message}`,
+                  `Failed to parse event from S3: ${parsed.error.message}`
                 );
               }
             }
-          }),
+          })
         )
       ).flat();
     } else {
@@ -105,18 +105,18 @@ export const legacyIngestionQueueProcessor: Processor = async (
     const result = await handleBatch(
       ingestionEvents,
       job.data.payload.authCheck,
-      tokenCount,
+      tokenCount
     );
 
     // send out REDIS requests to worker for all trace types
     await addTracesToTraceUpsertQueue(
       result.results,
-      job.data.payload.authCheck.scope.projectId,
+      job.data.payload.authCheck.scope.projectId
     );
   } catch (e) {
     logger.error(
       `Failed job legacy ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
-      e,
+      e
     );
     traceException(e);
     throw e;

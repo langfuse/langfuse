@@ -57,9 +57,9 @@ export function isKeyOfClickhouseRecord(
   }
 }
 
-export function getClickhouseEntityType(
+export const getClickhouseEntityType = (
   eventType: string
-): ClickhouseEntityType | "sdk_log" {
+): ClickhouseEntityType | "sdk_log" => {
   switch (eventType) {
     case eventTypes.TRACE_CREATE:
       return "trace";
@@ -78,4 +78,4 @@ export function getClickhouseEntityType(
     default:
       throw new LangfuseNotFoundError(`Unknown event type: ${eventType}`);
   }
-}
+};
