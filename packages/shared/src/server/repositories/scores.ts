@@ -1,4 +1,4 @@
-import { ScoreDataType, ScoreSource } from "../../db";
+import { ScoreDataType, ScoreSource } from "@prisma/client";
 import { queryClickhouse } from "./clickhouse";
 
 export type FetchScoresReturnType = {
