@@ -297,8 +297,6 @@ const inputTraceSchema = z.object({
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const result = inputTraceSchema.safeParse(rawInput);
 
-  console.log("enforceTraceAccess", rawInput, result.error);
-
   if (!result.success)
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -310,7 +308,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
 
   // if the user is eligible for clickhouse, and wants to use clickhouse, do so.
   const trace =
-    result.data.queryClickhouse &&
+    result.data.queryClickhouse === true &&
     isClickhouseEligible(ctx.session?.user?.admin === true)
       ? await getTraceById(traceId, projectId)
       : await prisma.trace.findFirst({
