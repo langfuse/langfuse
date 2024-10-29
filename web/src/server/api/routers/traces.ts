@@ -261,13 +261,20 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const trace = await ctx.prisma.trace.findFirstOrThrow({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-      });
-      return trace;
+      try {
+        const trace = await ctx.prisma.trace.findFirstOrThrow({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+        });
+        return trace;
+      } catch (e) {
+        console.error(e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+        });
+      }
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(
