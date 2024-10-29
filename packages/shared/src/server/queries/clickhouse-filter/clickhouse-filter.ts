@@ -95,8 +95,8 @@ export class StringOptionsFilter implements Filter {
     return {
       query:
         this.operator === "any of"
-          ? `has([{${varName}: Array(String)}], ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = True`
-          : `has([{${varName}: Array(String)}], ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = False`,
+          ? `has({${varName}: Array(String)}, ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = True`
+          : `has({${varName}: Array(String)}, ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = False`,
       params: { [varName]: this.values },
     };
   }
