@@ -5,10 +5,11 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { z } from "zod";
 
@@ -32,6 +33,7 @@ export default function EvaluatorTable({
   projectId: string;
   menuItems?: ReactNode;
 }) {
+  const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -43,6 +45,16 @@ export default function EvaluatorTable({
     projectId,
   });
   const totalCount = evaluators.data?.totalCount ?? null;
+
+  useEffect(() => {
+    if (evaluators.isSuccess) {
+      setDetailPageList(
+        "evals",
+        evaluators.data.configs.map((evaluator) => evaluator.id),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evaluators.isSuccess, evaluators.data]);
 
   const columnHelper = createColumnHelper<EvalConfigRow>();
   const columns = [
