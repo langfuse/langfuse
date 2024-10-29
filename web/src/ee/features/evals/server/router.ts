@@ -36,7 +36,10 @@ export const CreateEvalTemplate = z.object({
     score: z.string(),
     reasoning: z.string(),
   }),
-  referencedEvaluators: z.nativeEnum(EvalReferencedEvaluators),
+  referencedEvaluators: z
+    .nativeEnum(EvalReferencedEvaluators)
+    .optional()
+    .default(EvalReferencedEvaluators.PERSIST),
 });
 
 export const evalRouter = createTRPCRouter({
