@@ -87,6 +87,7 @@ export const EvalTemplateForm = (props: {
       ) : null}
       <div className="col-span-1 lg:col-span-3">
         <InnerEvalTemplateForm
+          key={langfuseTemplate ?? props.existingEvalTemplate?.id}
           {...props}
           existingEvalTemplateId={props.existingEvalTemplate?.id}
           existingEvalTemplateName={props.existingEvalTemplate?.name}
