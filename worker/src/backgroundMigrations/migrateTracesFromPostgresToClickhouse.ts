@@ -56,7 +56,9 @@ export default class MigrateTracesFromPostgresToClickhouse
 
     let processedRows = 0;
     while (!this.isAborted && processedRows < maxRowsToProcess) {
-      const traces = await prisma.$queryRaw<Array<Trace>>(Prisma.sql`
+      const traces = await prisma.$queryRaw<
+        Array<Record<string, any>>
+      >(Prisma.sql`
         SELECT id, timestamp, name, user_id, metadata, release, version, project_id, public, bookmarked, tags, input, output, session_id, created_at, updated_at
         FROM traces
         WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
@@ -71,15 +73,27 @@ export default class MigrateTracesFromPostgresToClickhouse
       await clickhouseClient.insert({
         table: "traces",
         values: traces.map((trace) => ({
-          ...trace,
+          id: trace.id,
           timestamp:
             trace.timestamp?.toISOString().replace("T", " ").slice(0, -1) ??
             null,
+          name: trace.name,
+          user_id: trace.user_id,
+          metadata: trace.metadata, // TODO: we may have to apply the same conversion as for observations. Let's try without.
+          release: trace.release,
+          version: trace.version,
+          project_id: trace.project_id,
+          public: trace.public,
+          bookmarked: trace.bookmarked,
+          tags: trace.tags,
+          input: trace.input,
+          output: trace.output,
+          session_id: trace.session_id,
           created_at:
-            trace.createdAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            trace.created_at?.toISOString().replace("T", " ").slice(0, -1) ??
             null,
           updated_at:
-            trace.updatedAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            trace.updated_at?.toISOString().replace("T", " ").slice(0, -1) ??
             null,
         })),
         format: "JSONEachRow",

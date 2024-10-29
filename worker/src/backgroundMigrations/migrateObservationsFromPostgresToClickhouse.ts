@@ -57,9 +57,9 @@ export default class MigrateObservationsFromPostgresToClickhouse
     let processedRows = 0;
     while (!this.isAborted && processedRows < maxRowsToProcess) {
       const observations = await prisma.$queryRaw<
-        Array<Observation> & { prompt_name: string; prompt_version: string }
+        Array<Record<string, any>>
       >(Prisma.sql`
-        SELECT o.id, o.trace_id, o.project_id, o.type, o.parent_observation_id, o.start_time, o.end_time, o.name, o.metadata, o.level, o.status_message, o.version, o.input, o.output, o.unit, o.model, o.internal_model_id, o."modelParameters", o.prompt_tokens, o.completion_tokens, o.total_tokens, o.completion_start_time, o.prompt_id, p.name as prompt_name, p.version as prompt_version, o.input_cost, o.output_cost, o.total_cost, o.created_at, o.updated_at
+        SELECT o.id, o.trace_id, o.project_id, o.type, o.parent_observation_id, o.start_time, o.end_time, o.name, o.metadata, o.level, o.status_message, o.version, o.input, o.output, o.unit, o.model, o.internal_model_id, o."modelParameters" as model_parameters, o.prompt_tokens, o.completion_tokens, o.total_tokens, o.completion_start_time, o.prompt_id, p.name as prompt_name, p.version as prompt_version, o.input_cost, o.output_cost, o.total_cost, o.calculated_input_cost, o.calculated_output_cost, o.calculated_total_cost, o.created_at, o.updated_at
         FROM observations o
         LEFT JOIN prompts p ON o.prompt_id = p.id
         WHERE o.tmp_migrated_to_clickhouse = FALSE AND o.created_at <= ${maxDate}
@@ -74,46 +74,68 @@ export default class MigrateObservationsFromPostgresToClickhouse
       await clickhouseClient.insert({
         table: "observations",
         values: observations.map((observation) => ({
-          ...observation,
-          totalCost: observation.calculatedTotalCost,
-          usage_details: {
-            input: observation.promptTokens,
-            output: observation.completionTokens,
-            total: observation.totalTokens,
-          },
-          provided_usage_details: {},
-          provided_cost_details: {
-            input: observation.inputCost,
-            output: observation.outputCost,
-            total: observation.totalCost,
-          },
-          cost_details: {
-            input: observation.calculatedInputCost,
-            output: observation.calculatedOutputCost,
-            total: observation.calculatedTotalCost,
-          },
-          provided_model_name: observation.model,
-          model_parameters: observation.modelParameters,
+          id: observation.id,
+          trace_id: observation.trace_id,
+          project_id: observation.project_id,
+          type: observation.type,
+          parent_observation_id: observation.parent_observation_id,
           start_time:
-            observation.startTime
+            observation.start_time
               ?.toISOString()
               .replace("T", " ")
               .slice(0, -1) ?? null,
           end_time:
-            observation.endTime?.toISOString().replace("T", " ").slice(0, -1) ??
-            null,
-          created_at:
-            observation.createdAt
+            observation.end_time
               ?.toISOString()
               .replace("T", " ")
               .slice(0, -1) ?? null,
-          updated_at:
-            observation.updatedAt
-              ?.toISOString()
-              .replace("T", " ")
-              .slice(0, -1) ?? null,
+          name: observation.name,
+          metadata:
+            typeof observation.metadata === "string"
+              ? { metadata: observation.metadata }
+              : Array.isArray(observation.metadata)
+                ? { metadata: observation.metadata }
+                : observation.metadata,
+          level: observation.level,
+          status_message: observation.status_message,
+          version: observation.version,
+          input: observation.input,
+          output: observation.output,
+          provided_model_name: observation.model,
+          internal_model_id: observation.internal_model_id,
+          model_parameters: observation.model_parameters,
+          provided_usage_details: {},
+          usage_details: {
+            input: observation.prompt_tokens,
+            output: observation.completion_tokens,
+            total: observation.total_tokens,
+          },
+          provided_cost_details: {
+            input: observation.input_cost,
+            output: observation.output_cost,
+            total: observation.total_cost,
+          },
+          cost_details: {
+            input: observation.calculated_input_cost,
+            output: observation.calculated_output_cost,
+            total: observation.calculated_total_cost,
+          },
+          total_cost: observation.calculated_total_cost,
           completion_start_time:
-            observation.completionStartTime
+            observation.completion_start_time
+              ?.toISOString()
+              .replace("T", " ")
+              .slice(0, -1) ?? null,
+          prompt_id: observation.prompt_id,
+          prompt_name: observation.prompt_name,
+          prompt_version: observation.prompt_version,
+          created_at:
+            observation.created_at
+              ?.toISOString()
+              .replace("T", " ")
+              .slice(0, -1) ?? null,
+          updatedAt:
+            observation.updated_at
               ?.toISOString()
               .replace("T", " ")
               .slice(0, -1) ?? null,
