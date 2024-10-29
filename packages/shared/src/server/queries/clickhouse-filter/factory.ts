@@ -6,13 +6,11 @@ import {
 } from "../../../tableDefinitions/frontend-table-definitions";
 import { FilterCondition } from "../../../types";
 import {
-  ClickhouseTableNames,
   isKeyOfClickhouseRecord,
   isValidTableName,
   ObservationClickhouseColumns,
   TraceClickhouseColumns,
 } from "../../clickhouse/schema";
-import { isColumnOnSchema } from "../../clickhouse/schema-helpers";
 import { logger } from "../../logger";
 
 export class QueryBuilderError extends Error {
@@ -23,9 +21,7 @@ export class QueryBuilderError extends Error {
 }
 
 export interface Filter {
-  toClickhouseQuery(): ClickhouseFilter;
   apply(): ClickhouseFilter;
-  verify(): void;
   clickhouseTable: string;
 }
 
@@ -55,35 +51,12 @@ export class StringFilter implements Filter {
     this.tablePrefix = opts.tablePrefix;
   }
 
-  verify() {
-    if (!(this.clickhouseTable in ClickhouseTableNames)) {
-      throw new QueryBuilderError(
-        `Table ${this.clickhouseTable} does not exist in Clickhouse schema.`
-      );
-    }
-
-    if (!isColumnOnSchema(this.clickhouseTable, this.field)) {
-      throw new QueryBuilderError(
-        `Column ${this.field} does not exist in table ${this.clickhouseTable}.`
-      );
-    }
-
-    if (this.operator !== "=" && this.operator !== "!=") {
-      throw new QueryBuilderError(`Invalid operator: ${this.operator}`);
-    }
-  }
-
-  toClickhouseQuery(): ClickhouseFilter {
+  apply(): ClickhouseFilter {
     const varName = `stringFilter${this.field}`;
     return {
       query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: String}`,
       params: { [varName]: this.value },
     };
-  }
-
-  apply() {
-    // this.verify();
-    return this.toClickhouseQuery();
   }
 }
 
@@ -108,35 +81,12 @@ class DateTimeFilter implements Filter {
     this.tablePrefix = opts.tablePrefix;
   }
 
-  verify() {
-    if (!(this.clickhouseTable in ClickhouseTableNames)) {
-      throw new QueryBuilderError(
-        `Table ${this.clickhouseTable} does not exist in Clickhouse schema.`
-      );
-    }
-
-    if (!isColumnOnSchema(this.clickhouseTable, this.field)) {
-      throw new QueryBuilderError(
-        `Column ${this.field} does not exist in table ${this.clickhouseTable}.`
-      );
-    }
-
-    const validOperators = ["=", "!=", ">", "<", ">=", "<="];
-    if (!validOperators.includes(this.operator)) {
-      throw new QueryBuilderError(`Invalid operator: ${this.operator}`);
-    }
-  }
-
-  toClickhouseQuery(): ClickhouseFilter {
+  apply(): ClickhouseFilter {
     const varName = `timeFilter${this.field}`;
     return {
       query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: DateTime64(3)}`,
       params: { [varName]: new Date(this.value).getTime() },
     };
-  }
-  apply() {
-    this.verify();
-    return this.toClickhouseQuery();
   }
 }
 
@@ -154,7 +104,7 @@ export class FilterList {
   public apply(): ClickhouseFilter {
     const queries = this.filters.map((filter) => filter.apply().query);
     const params = this.filters.reduce((acc, filter) => {
-      return { ...acc, ...filter.toClickhouseQuery().params };
+      return { ...acc, ...filter.apply().params };
     }, {});
 
     return {
@@ -164,6 +114,9 @@ export class FilterList {
   }
 }
 
+// This function ensures that the user only selects valid columns from the clickhouse schema.
+// The filter property in this column needs to be zod verified.
+// User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
 export const createFilterFromFilterState = (
   filter: FilterCondition[],
   opts?: {
@@ -203,13 +156,14 @@ export const createFilterFromFilterState = (
   });
 };
 
-// function only returns valid columns from the clickhouse schema
+
 const matchAndVerifyTracesUiColumn = (
   filter: z.infer<typeof singleFilter>,
   uiTableDefinitions: UiColumnMapping[]
 ) => {
   // tries to match the column name to the clickhouse table name
-  logger.info(`Filterr to match: ${JSON.stringify(filter)}`);
+  logger.info(`Filter to match: ${JSON.stringify(filter)}`);
+
 
   const uiTable = uiTableDefinitions.find(
     (col) => col.uiTableName === filter.column

@@ -83,7 +83,7 @@ export async function queryClickhouse<T>(opts: {
 
   // same logic as for prisma. we want to see queries in development
   if (env.NODE_ENV === "development") {
-    logger.info(`Clickhouse ${opts.query}`);
+    logger.info(`clickhouse:query ${opts.query}`);
   }
 
   return (

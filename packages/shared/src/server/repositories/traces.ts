@@ -58,8 +58,6 @@ export const getTracesTable = async (
   limit?: number,
   offset?: number
 ) => {
-  console.log("getTracesTable");
-
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 

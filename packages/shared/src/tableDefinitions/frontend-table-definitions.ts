@@ -85,22 +85,22 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseColumnName: "totalTokens",
   },
   {
-    uiTableName: "Latency",
+    uiTableName: "Latency (s)",
     clickhouseTableName: "traces",
     clickhouseColumnName: "latency",
   },
   {
-    uiTableName: "Input Cost",
+    uiTableName: "Input Cost ($)",
     clickhouseTableName: "traces",
     clickhouseColumnName: "calculatedInputCost",
   },
   {
-    uiTableName: "Output Cost",
+    uiTableName: "Output Cost ($)",
     clickhouseTableName: "traces",
     clickhouseColumnName: "calculatedOutputCost",
   },
   {
-    uiTableName: "Total Cost",
+    uiTableName: "Total Cost ($)",
     clickhouseTableName: "traces",
     clickhouseColumnName: "calculatedTotalCost",
   },

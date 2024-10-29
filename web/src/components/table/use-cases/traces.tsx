@@ -773,7 +773,7 @@ export default function TracesTable({
         }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
-
+  console.log("traces filter", filterState);
   return (
     <>
       <DataTableToolbar
