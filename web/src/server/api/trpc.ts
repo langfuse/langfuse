@@ -78,7 +78,11 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
-import { addUserToSpan, getTraceById } from "@langfuse/shared/src/server";
+import {
+  addUserToSpan,
+  getTraceById,
+  logger,
+} from "@langfuse/shared/src/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 
 setUpSuperjson();
@@ -111,6 +115,28 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
  */
 export const createTRPCRouter = t.router;
 
+// global error handling
+const withErrorHandling = t.middleware(async ({ ctx, next }) => {
+  const res = await next({ ctx }); // pass the context to the next middleware
+
+  if (!res.ok) {
+    logger.error("middleware intercepted error", res.error);
+
+    // Throw a new TRPC error with:
+    // - The same error code as the original error
+    // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
+    throw new TRPCError({
+      code: res.error.code,
+      message:
+        res.error.code !== "INTERNAL_SERVER_ERROR"
+          ? res.error.message
+          : "Internal error",
+    });
+  }
+
+  return res;
+});
+
 // otel setup
 const withOtelTracingProcedure = t.procedure.use(
   tracing({ collectInput: true, collectResult: true }),
@@ -123,7 +149,7 @@ const withOtelTracingProcedure = t.procedure.use(
  * are logged in.
  */
 
-export const publicProcedure = withOtelTracingProcedure;
+export const publicProcedure = withOtelTracingProcedure.use(withErrorHandling);
 
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
@@ -146,8 +172,9 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
  *
  * @see https://trpc.io/docs/procedures
  */
-export const protectedProcedure =
-  withOtelTracingProcedure.use(enforceUserIsAuthed);
+export const protectedProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceUserIsAuthed);
 
 const inputProjectSchema = z.object({
   projectId: z.string(),
@@ -232,9 +259,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
   },
 );
 
-export const protectedProjectProcedure = withOtelTracingProcedure.use(
-  enforceUserIsAuthedAndProjectMember,
-);
+export const protectedProjectProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceUserIsAuthedAndProjectMember);
 
 const inputOrganizationSchema = z.object({
   orgId: z.string(),
@@ -278,9 +305,9 @@ const enforceIsAuthedAndOrgMember = t.middleware(({ ctx, rawInput, next }) => {
   });
 });
 
-export const protectedOrganizationProcedure = withOtelTracingProcedure.use(
-  enforceIsAuthedAndOrgMember,
-);
+export const protectedOrganizationProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceIsAuthedAndOrgMember);
 
 /*
  * Protect trace-level getter routes.
@@ -349,8 +376,9 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   });
 });
 
-export const protectedGetTraceProcedure =
-  withOtelTracingProcedure.use(enforceTraceAccess);
+export const protectedGetTraceProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceTraceAccess);
 
 /*
  * Protect session-level getter routes.
@@ -417,5 +445,6 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   });
 });
 
-export const protectedGetSessionProcedure =
-  withOtelTracingProcedure.use(enforceSessionAccess);
+export const protectedGetSessionProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceSessionAccess);
