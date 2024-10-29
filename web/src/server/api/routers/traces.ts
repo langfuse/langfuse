@@ -115,9 +115,15 @@ export const convertMetricsReturnType = (
     latency: row.latency,
     level: row.level,
     observationCount: BigInt(row.observation_count ?? 0),
-    calculatedTotalCost: new Decimal(row.cost_details?.total) ?? null,
-    calculatedInputCost: new Decimal(row.cost_details?.input) ?? null,
-    calculatedOutputCost: new Decimal(row.cost_details?.output) ?? null,
+    calculatedTotalCost: row.cost_details?.total
+      ? new Decimal(row.cost_details.total)
+      : null,
+    calculatedInputCost: row.cost_details?.input
+      ? new Decimal(row.cost_details.input)
+      : null,
+    calculatedOutputCost: row.cost_details?.output
+      ? new Decimal(row.cost_details.output)
+      : null,
     scores: row.scores,
   };
 };
