@@ -133,29 +133,35 @@ export const upsertDefaultModelPrices = async (force = false) => {
                 },
               });
 
+              const pricesToUpsert = [];
+
               for (const [usageType, price] of Object.entries(
                 defaultModelPrice.prices
               )) {
-                await tx.price.upsert({
-                  where: {
-                    modelId_usageType: {
+                pricesToUpsert.push(
+                  tx.price.upsert({
+                    where: {
+                      modelId_usageType: {
+                        modelId: defaultModelPrice.id,
+                        usageType,
+                      },
+                    },
+                    update: {
+                      price,
+                      updatedAt: defaultModelPrice.updated_at,
+                    },
+                    create: {
                       modelId: defaultModelPrice.id,
                       usageType,
+                      price,
+                      createdAt: defaultModelPrice.created_at,
+                      updatedAt: defaultModelPrice.updated_at,
                     },
-                  },
-                  update: {
-                    price,
-                    updatedAt: defaultModelPrice.updated_at,
-                  },
-                  create: {
-                    modelId: defaultModelPrice.id,
-                    usageType,
-                    price,
-                    createdAt: defaultModelPrice.created_at,
-                    updatedAt: defaultModelPrice.updated_at,
-                  },
-                });
+                  })
+                );
               }
+
+              await Promise.all(pricesToUpsert);
 
               logger.info(
                 `Upserted default model ${defaultModelPrice.model_name} (${defaultModelPrice.id})`

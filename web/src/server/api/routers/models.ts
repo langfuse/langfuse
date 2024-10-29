@@ -155,17 +155,22 @@ export const modelRouter = createTRPCRouter({
           { usageType: "total", price: input.totalPrice },
         ];
 
+        const pricesToCreate = [];
         for (const { usageType, price } of prices) {
           if (price != null) {
-            await tx.price.create({
-              data: {
-                modelId: createdModel.id,
-                usageType,
-                price,
-              },
-            });
+            pricesToCreate.push(
+              tx.price.create({
+                data: {
+                  modelId: createdModel.id,
+                  usageType,
+                  price,
+                },
+              }),
+            );
           }
         }
+
+        await Promise.all(pricesToCreate);
 
         return createdModel;
       });
