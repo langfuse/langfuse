@@ -82,7 +82,7 @@ export class StringFilter implements Filter {
   }
 
   apply() {
-    this.verify();
+    // this.verify();
     return this.toClickhouseQuery();
   }
 }
@@ -121,7 +121,7 @@ class DateTimeFilter implements Filter {
       );
     }
 
-    const validOperators = ["=", "!=", ">", "<"];
+    const validOperators = ["=", "!=", ">", "<", ">=", "<="];
     if (!validOperators.includes(this.operator)) {
       throw new QueryBuilderError(`Invalid operator: ${this.operator}`);
     }
@@ -212,7 +212,7 @@ const matchAndVerifyTracesUiColumn = (
   logger.info(`Filterr to match: ${JSON.stringify(filter)}`);
 
   const uiTable = uiTableDefinitions.find(
-    (col) => col.uiTableId === filter.column
+    (col) => col.uiTableName === filter.column
   );
 
   if (!uiTable) {

@@ -5,10 +5,13 @@ import {
   type ObservationLevel,
   type Trace,
   type ObservationView,
+  env,
 } from "@langfuse/shared";
 import {
   clickhouseClient,
   clickhouseStringDateSchema,
+  getCurrentSpan,
+  logger,
   observationRecordReadSchema,
   scoreRecordReadSchema,
   traceRecordReadSchema,
@@ -76,6 +79,13 @@ export async function queryClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
 }) {
+  getCurrentSpan()?.setAttribute("db.query.text", opts.query);
+
+  // same logic as for prisma. we want to see queries in development
+  if (env.NODE_ENV === "development") {
+    logger.info(`Clickhouse ${opts.query}`);
+  }
+
   return (
     await clickhouseClient.query({
       query: opts.query,

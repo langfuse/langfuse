@@ -3,109 +3,104 @@
 // clickhouseTable is used to determine which clickhouse table to query
 
 export type UiColumnMapping = {
-  uiTableId: string;
+  uiTableName: string;
   clickhouseTableName: string;
   clickhouseColumnName: string;
 };
 
 export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
-    uiTableId: "bookmarked",
+    uiTableName: "bookmarked",
     clickhouseTableName: "traces",
     clickhouseColumnName: "bookmarked",
   },
   {
-    uiTableId: "id",
+    uiTableName: "ID",
     clickhouseTableName: "traces",
     clickhouseColumnName: "id",
   },
   {
-    uiTableId: "name",
+    uiTableName: "Name",
     clickhouseTableName: "traces",
     clickhouseColumnName: "name",
   },
   {
-    uiTableId: "timestamp",
+    uiTableName: "Timestamp",
     clickhouseTableName: "traces",
     clickhouseColumnName: "timestamp",
   },
   {
-    uiTableId: "userId",
+    uiTableName: "User ID",
     clickhouseTableName: "traces",
     clickhouseColumnName: "user_id",
   },
   {
-    uiTableId: "sessionId",
+    uiTableName: "Session ID",
     clickhouseTableName: "traces",
     clickhouseColumnName: "session_id",
   },
   {
-    uiTableId: "metadata",
+    uiTableName: "Metadata",
     clickhouseTableName: "traces",
     clickhouseColumnName: "metadata",
   },
   {
-    uiTableId: "version",
+    uiTableName: "Version",
     clickhouseTableName: "traces",
     clickhouseColumnName: "version",
   },
   {
-    uiTableId: "release",
+    uiTableName: "Release",
     clickhouseTableName: "traces",
     clickhouseColumnName: "release",
   },
   {
-    uiTableId: "level",
+    uiTableName: "Level",
     clickhouseTableName: "traces",
     clickhouseColumnName: "level",
   },
   {
-    uiTableId: "tags",
+    uiTableName: "Tags",
     clickhouseTableName: "traces",
     clickhouseColumnName: "tags",
   },
   {
-    uiTableId: "inputTokens",
+    uiTableName: "Input Tokens",
     clickhouseTableName: "traces",
     clickhouseColumnName: "promptTokens",
   },
   {
-    uiTableId: "outputTokens",
+    uiTableName: "Output Tokens",
     clickhouseTableName: "traces",
     clickhouseColumnName: "completionTokens",
   },
   {
-    uiTableId: "totalTokens",
+    uiTableName: "Total Tokens",
     clickhouseTableName: "traces",
     clickhouseColumnName: "totalTokens",
   },
   {
-    uiTableId: "usage",
+    uiTableName: "Usage",
     clickhouseTableName: "traces",
     clickhouseColumnName: "totalTokens",
   },
   {
-    uiTableId: "scores_avg",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "scores_avg",
-  },
-  {
-    uiTableId: "latency",
+    uiTableName: "Latency",
     clickhouseTableName: "traces",
     clickhouseColumnName: "latency",
   },
   {
-    uiTableId: "inputCost",
+    uiTableName: "Input Cost",
     clickhouseTableName: "traces",
     clickhouseColumnName: "calculatedInputCost",
   },
   {
-    uiTableId: "outputCost",
+    uiTableName: "Output Cost",
     clickhouseTableName: "traces",
     clickhouseColumnName: "calculatedOutputCost",
   },
   {
-    uiTableId: "totalCost",
+    uiTableName: "Total Cost",
     clickhouseTableName: "traces",
     clickhouseColumnName: "calculatedTotalCost",
   },
