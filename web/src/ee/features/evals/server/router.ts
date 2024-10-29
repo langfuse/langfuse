@@ -22,6 +22,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
@@ -35,7 +36,7 @@ export const CreateEvalTemplate = z.object({
     score: z.string(),
     reasoning: z.string(),
   }),
-  referencedEvaluators: z.enum(["update", "persist"]),
+  referencedEvaluators: z.nativeEnum(EvalReferencedEvaluators),
 });
 
 export const evalRouter = createTRPCRouter({
@@ -446,10 +447,13 @@ export const evalRouter = createTRPCRouter({
           version: true,
         },
       });
+      const latestTemplate = Boolean(templates.length)
+        ? templates[0]
+        : undefined;
 
       const evalTemplate = await ctx.prisma.evalTemplate.create({
         data: {
-          version: Boolean(templates.length) ? templates[0].version + 1 : 1,
+          version: (latestTemplate?.version ?? 0) + 1,
           name: input.name,
           projectId: input.projectId,
           prompt: input.prompt,
@@ -462,7 +466,7 @@ export const evalRouter = createTRPCRouter({
       });
 
       if (
-        input.referencedEvaluators === "update" &&
+        input.referencedEvaluators === EvalReferencedEvaluators.UPDATE &&
         Boolean(templates.length)
       ) {
         await ctx.prisma.jobConfiguration.updateMany({

@@ -39,6 +39,7 @@ import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -157,9 +158,9 @@ const formSchema = z.object({
   outputScore: z.string().min(1, "Enter a score function"),
   outputReasoning: z.string().min(1, "Enter a reasoning function"),
   referencedEvaluators: z
-    .enum(["update", "persist"])
+    .nativeEnum(EvalReferencedEvaluators)
     .optional()
-    .default("persist"),
+    .default(EvalReferencedEvaluators.PERSIST),
 });
 
 export type EvalTemplateFormPreFill = {
@@ -276,7 +277,8 @@ export const InnerEvalTemplateForm = (props: {
     onSuccess: () => {
       utils.models.invalidate();
       if (
-        form.getValues("referencedEvaluators") === "update" &&
+        form.getValues("referencedEvaluators") ===
+          EvalReferencedEvaluators.UPDATE &&
         props.existingEvalTemplateId
       ) {
         showSuccessToast({
@@ -305,8 +307,8 @@ export const InnerEvalTemplateForm = (props: {
       form.setValue(
         "referencedEvaluators",
         Boolean(evaluatorsByTemplateNameQuery.data.evaluators.length)
-          ? "update"
-          : "persist",
+          ? EvalReferencedEvaluators.UPDATE
+          : EvalReferencedEvaluators.PERSIST,
       );
     }
   }, [evaluatorsByTemplateNameQuery.data, form]);
@@ -478,8 +480,8 @@ export const InnerEvalTemplateForm = (props: {
                         Boolean(
                           evaluatorsByTemplateNameQuery.data?.evaluators.length,
                         )
-                          ? "update"
-                          : "persist"
+                          ? EvalReferencedEvaluators.UPDATE
+                          : EvalReferencedEvaluators.PERSIST
                       }
                       disabled={
                         !Boolean(
