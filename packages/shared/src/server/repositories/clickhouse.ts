@@ -79,6 +79,7 @@ export async function queryClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
 }) {
+  // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
   getCurrentSpan()?.setAttribute("db.query.text", opts.query);
 
   // same logic as for prisma. we want to see queries in development
