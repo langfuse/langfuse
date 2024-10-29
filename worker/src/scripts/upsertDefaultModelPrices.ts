@@ -80,16 +80,14 @@ export const upsertDefaultModelPrices = async (force = false) => {
           defaultModelPrice.id
         );
 
-        const toleranceInMs = 1000 * 60 * 60 * 3; // 3 hours. US and EU databases have different update times for when the migration was applied.
-
         if (
           !force &&
           existingModelUpdateDate &&
-          existingModelUpdateDate.getTime() >
-            defaultModelPrice.updated_at.getTime() + toleranceInMs
+          existingModelUpdateDate.getTime() ===
+            defaultModelPrice.updated_at.getTime()
         ) {
-          logger.error(
-            `Model drift detected for default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}). updatedAt ${existingModelUpdateDate} after ${defaultModelPrice.updated_at}.`
+          logger.debug(
+            `Default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}) already up to date. Skipping.`
           );
           continue;
         }
@@ -97,15 +95,12 @@ export const upsertDefaultModelPrices = async (force = false) => {
         if (
           !force &&
           existingModelUpdateDate &&
-          Math.abs(
-            existingModelUpdateDate.getTime() -
-              defaultModelPrice.updated_at.getTime()
-          ) <= toleranceInMs
+          existingModelUpdateDate.getTime() >
+            defaultModelPrice.updated_at.getTime()
         ) {
-          logger.debug(
-            `Default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}) already up to date. Skipping.`
+          logger.error(
+            `Model drift detected for default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}). updatedAt ${existingModelUpdateDate.toISOString()} after ${defaultModelPrice.updated_at.toISOString()}. Upserting model and prices.`
           );
-          continue;
         }
 
         // Upsert model and prices in a transaction
