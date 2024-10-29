@@ -237,7 +237,6 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   } catch (error) {
     logger.error(error);
     if (error instanceof TRPCError) {
-      console.log("TRPCError", error);
       throw error;
     }
     throw new TRPCError({
