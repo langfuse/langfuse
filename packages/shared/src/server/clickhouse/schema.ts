@@ -43,18 +43,10 @@ export type ObservationClickhouseRecord = {
   provided_model_name?: string;
   internal_model_id?: string;
   model_parameters?: string;
-  provided_input_usage_units?: number; // Nullable(Decimal64(12))
-  provided_output_usage_units?: number; // Nullable(Decimal64(12))
-  provided_total_usage_units?: number; // Nullable(Decimal64(12))
-  input_usage_units?: number; // Nullable(Decimal64(12))
-  output_usage_units?: number; // Nullable(Decimal64(12))
-  total_usage_units?: number; // Nullable(Decimal64(12))
-  unit?: string;
-  provided_input_cost?: number; // Nullable(Decimal64(12))
-  provided_output_cost?: number; // Nullable(Decimal64(12))
-  provided_total_cost?: number; // Nullable(Decimal64(12))
-  input_cost?: number; // Nullable(Decimal64(12))
-  output_cost?: number; // Nullable(Decimal64(12))
+  provided_usage_details?: Record<string, number>; // Map(LowCardinality(String), UInt64)
+  usage_details?: Record<string, number>; // Map(LowCardinality(String), UInt64)
+  provided_cost_details?: Record<string, number>; // Map(LowCardinality(String), Decimal64(12))
+  cost_details?: Record<string, number>; // Map(LowCardinality(String), Decimal64(12))
   total_cost?: number; // Nullable(Decimal64(12))
   completion_start_time?: string; // Nullable(DateTime64(3))
   prompt_id?: string;

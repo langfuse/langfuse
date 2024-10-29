@@ -1,10 +1,12 @@
+import { filterOperators } from "../../../interfaces/filters";
+
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
 }
 type ClickhouseFilter = {
   query: string;
-  params: { [x: string]: string | number };
+  params: { [x: string]: any };
 };
 
 export class StringFilter implements Filter {
@@ -36,6 +38,7 @@ export class StringFilter implements Filter {
     };
   }
 }
+
 export class DateTimeFilter implements Filter {
   public clickhouseTable: string;
   protected field: string;
@@ -62,6 +65,39 @@ export class DateTimeFilter implements Filter {
     return {
       query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: DateTime64(3)}`,
       params: { [varName]: new Date(this.value).getTime() },
+    };
+  }
+}
+
+export class StringOptionsFilter implements Filter {
+  public clickhouseTable: string;
+  protected field: string;
+  protected values: string[];
+  protected operator: string;
+  protected tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators.stringOptions)[number];
+    values: string[];
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.values = opts.values;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+  }
+
+  apply(): ClickhouseFilter {
+    const varName = `stringOptionsFilter${this.field}`;
+    return {
+      query:
+        this.operator === "any of"
+          ? `has([{${varName}: Array(String)}], ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = True`
+          : `has([{${varName}: Array(String)}], ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = False`,
+      params: { [varName]: this.values },
     };
   }
 }

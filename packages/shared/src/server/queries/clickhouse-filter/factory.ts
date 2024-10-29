@@ -9,10 +9,14 @@ import {
 import {
   isKeyOfClickhouseRecord,
   isValidTableName,
-} from "../../clickhouse/isValidTableName";
+} from "../../clickhouse/schema-utils";
 import { logger } from "../../logger";
 import { UiColumnMapping } from "../../../tableDefinitions";
-import { StringFilter, DateTimeFilter } from "./clickhouse-filter";
+import {
+  StringFilter,
+  DateTimeFilter,
+  StringOptionsFilter,
+} from "./clickhouse-filter";
 
 export class QueryBuilderError extends Error {
   constructor(message: string) {
@@ -54,6 +58,14 @@ export const createFilterFromFilterState = (
           field: col.name,
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
+          tablePrefix: opts?.tracesPrefix,
+        });
+      case "stringOptions":
+        return new StringOptionsFilter({
+          clickhouseTable: table,
+          field: col.name,
+          operator: frontEndFilter.operator,
+          values: frontEndFilter.value,
           tablePrefix: opts?.tracesPrefix,
         });
       default:

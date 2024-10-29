@@ -80,7 +80,7 @@ export const getTracesTable = async (
   SELECT
     COUNT(*) AS observation_count,
       sumMap(usage_details) as usage_details,
-      SUM(total_cost) AS calculated_output_cost,
+      SUM(total_cost) AS total_cost,
       date_diff('seconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latencyMs,
       multiIf(
         arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
@@ -139,8 +139,6 @@ export const getTracesTable = async (
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  logger.error("hello", JSON.stringify(tracesFilterRes.params));
-
   const rows = await queryClickhouse<TracesTableReturnType>({
     query: query,
     params: {
@@ -151,6 +149,8 @@ export const getTracesTable = async (
       ...scoresAvgFilterRes.params,
     },
   });
+
+  console.log(rows);
 
   return rows.map(convertToReturnType);
 };
