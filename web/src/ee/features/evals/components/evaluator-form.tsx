@@ -71,25 +71,25 @@ const formSchema = z.object({
   delay: z.coerce.number().optional().default(10),
 });
 
-export const EvalConfigForm = (props: {
+export const EvaluatorForm = (props: {
   projectId: string;
   evalTemplates: EvalTemplate[];
   disabled?: boolean;
-  existingEvalConfig?: JobConfiguration & { evalTemplate: EvalTemplate };
+  existingEvaluator?: JobConfiguration & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
   shouldWrapVariables?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
   const [evalTemplate, setEvalTemplate] = useState<string | undefined>(
-    props.existingEvalConfig?.evalTemplate.id,
+    props.existingEvaluator?.evalTemplate.id,
   );
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
   const [selectedTemplateName, setSelectedTemplateName] = useState<
     string | undefined
-  >(props.existingEvalConfig?.evalTemplate.name);
+  >(props.existingEvaluator?.evalTemplate.name);
   const [selectedTemplateVersion, setSelectedTemplateVersion] = useState<
     number | undefined
-  >(props.existingEvalConfig?.evalTemplate.version);
+  >(props.existingEvaluator?.evalTemplate.version);
 
   const utils = api.useUtils();
   const currentTemplate = props.evalTemplates.find(
@@ -97,10 +97,10 @@ export const EvalConfigForm = (props: {
   );
 
   useEffect(() => {
-    if (props.existingEvalConfig?.evalTemplate && !evalTemplate) {
-      setEvalTemplate(props.existingEvalConfig.evalTemplate.id);
+    if (props.existingEvaluator?.evalTemplate && !evalTemplate) {
+      setEvalTemplate(props.existingEvaluator.evalTemplate.id);
     }
-  }, [props.existingEvalConfig, evalTemplate]);
+  }, [props.existingEvaluator, evalTemplate]);
 
   // Group templates by name
   const templatesByName = props.evalTemplates.reduce(
@@ -260,9 +260,9 @@ export const EvalConfigForm = (props: {
           key={evalTemplate}
           projectId={props.projectId}
           disabled={props.disabled}
-          existingEvalConfig={props.existingEvalConfig}
+          existingEvaluator={props.existingEvaluator}
           evalTemplate={
-            props.existingEvalConfig?.evalTemplate ?? currentTemplate
+            props.existingEvaluator?.evalTemplate ?? currentTemplate
           }
           onFormSuccess={props.onFormSuccess}
           shouldWrapVariables={props.shouldWrapVariables}
@@ -276,7 +276,7 @@ export const InnerEvalConfigForm = (props: {
   projectId: string;
   evalTemplate: EvalTemplate;
   disabled?: boolean;
-  existingEvalConfig?: JobConfiguration;
+  existingEvaluator?: JobConfiguration;
   onFormSuccess?: () => void;
   shouldWrapVariables?: boolean;
 }) => {
@@ -288,16 +288,16 @@ export const InnerEvalConfigForm = (props: {
     disabled: props.disabled,
     defaultValues: {
       scoreName:
-        props.existingEvalConfig?.scoreName ??
+        props.existingEvaluator?.scoreName ??
         `${props.evalTemplate.name}-v${props.evalTemplate.version}`,
-      target: props.existingEvalConfig?.targetObject ?? "",
-      filter: props.existingEvalConfig?.filter
-        ? z.array(singleFilter).parse(props.existingEvalConfig.filter)
+      target: props.existingEvaluator?.targetObject ?? "",
+      filter: props.existingEvaluator?.filter
+        ? z.array(singleFilter).parse(props.existingEvaluator.filter)
         : [],
-      mapping: props.existingEvalConfig?.variableMapping
+      mapping: props.existingEvaluator?.variableMapping
         ? z
             .array(variableMapping)
-            .parse(props.existingEvalConfig.variableMapping)
+            .parse(props.existingEvaluator.variableMapping)
         : z.array(variableMapping).parse(
             props.evalTemplate
               ? props.evalTemplate.vars.map((v) => ({
@@ -307,11 +307,11 @@ export const InnerEvalConfigForm = (props: {
                 }))
               : [],
           ),
-      sampling: props.existingEvalConfig?.sampling
-        ? props.existingEvalConfig.sampling.toNumber()
+      sampling: props.existingEvaluator?.sampling
+        ? props.existingEvaluator.sampling.toNumber()
         : 1,
-      delay: props.existingEvalConfig?.delay
-        ? props.existingEvalConfig.delay / 1000
+      delay: props.existingEvaluator?.delay
+        ? props.existingEvaluator.delay / 1000
         : 10,
     },
   });
@@ -388,7 +388,7 @@ export const InnerEvalConfigForm = (props: {
       .then(() => {
         props.onFormSuccess?.();
         form.reset();
-        void router.push(`/project/${props.projectId}/evals/configs/`);
+        void router.push(`/project/${props.projectId}/evals`);
       })
       .catch((error) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -424,7 +424,7 @@ export const InnerEvalConfigForm = (props: {
               </FormItem>
             )}
           />
-          <Card className="flex flex-col gap-6 p-4">
+          <Card className="flex max-w-full flex-col gap-6 overflow-y-auto p-4">
             <FormField
               control={form.control}
               name="target"

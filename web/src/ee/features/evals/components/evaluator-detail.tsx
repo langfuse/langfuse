@@ -2,7 +2,7 @@ import * as React from "react";
 import Header from "@/src/components/layouts/header";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { EvalConfigForm } from "@/src/ee/features/evals/components/eval-config-form";
+import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -19,92 +19,93 @@ import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { CardDescription } from "@/src/components/ui/card";
 
-export const EvalConfigDetail = () => {
+export const EvaluatorDetail = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const configId = router.query.configId as string;
+  const evaluatorId = router.query.evaluatorId as string;
 
   // get the current template by id
-  const config = api.evals.configById.useQuery({
+  const evaluator = api.evals.configById.useQuery({
     projectId: projectId,
-    id: configId,
+    id: evaluatorId,
   });
 
   // get all templates for the current template name
   const allTemplates = api.evals.allTemplatesForName.useQuery(
     {
       projectId: projectId,
-      name: config.data?.evalTemplate?.name ?? "",
+      name: evaluator.data?.evalTemplate?.name ?? "",
     },
     {
-      enabled: !config.isLoading && !config.isError,
+      enabled: !evaluator.isLoading && !evaluator.isError,
     },
   );
 
   if (
-    config.isLoading ||
-    !config.data ||
+    evaluator.isLoading ||
+    !evaluator.data ||
     allTemplates.isLoading ||
     !allTemplates.data
   ) {
     return <div>Loading...</div>;
   }
 
-  if (config.data && config.data.evalTemplate === null) {
-    return <div>Config not found</div>;
+  if (evaluator.data && evaluator.data.evalTemplate === null) {
+    return <div>Evaluator not found</div>;
   }
 
-  const existingEvalConfig =
-    config.data && config.data.evalTemplate
-      ? { ...config.data, evalTemplate: config.data.evalTemplate }
+  const existingEvaluator =
+    evaluator.data && evaluator.data.evalTemplate
+      ? { ...evaluator.data, evalTemplate: evaluator.data.evalTemplate }
       : undefined;
 
   return (
     <FullScreenPage>
       <>
         <Header
-          title={`${config.data?.id}` ?? "Loading..."}
+          title={`${evaluator.data?.id}` ?? "Loading..."}
+          breadcrumb={[
+            {
+              name: "Evaluators",
+              href: `/project/${router.query.projectId as string}/evals`,
+            },
+            { name: evaluator.data?.id },
+          ]}
           actionButtons={
             <>
-              <DeactivateConfig
+              <DeactivateEvaluator
                 projectId={projectId}
-                config={config.data ?? undefined}
-                isLoading={config.isLoading}
+                evaluator={evaluator.data ?? undefined}
+                isLoading={evaluator.isLoading}
               />
-              {config.data && (
+              {evaluator.data && (
                 <DetailPageNav
                   key="nav"
-                  currentId={encodeURIComponent(config.data.id)}
+                  currentId={encodeURIComponent(evaluator.data.id)}
                   path={(id) =>
-                    `/project/${projectId}/evals/configs/${encodeURIComponent(id)}`
+                    `/project/${projectId}/evals/${encodeURIComponent(id)}`
                   }
                   listKey="evals"
                 />
               )}
             </>
           }
-          breadcrumb={[
-            {
-              name: "Evaluation Jobs",
-              href: `/project/${router.query.projectId as string}/evals/configs`,
-            },
-            { name: config.data?.id },
-          ]}
         />
-        {existingEvalConfig && (
+        {existingEvaluator && (
           <TableWithMetadataWrapper
             tableComponent={
               <EvalLogTable
                 projectId={projectId}
-                jobConfigurationId={existingEvalConfig.id}
+                jobConfigurationId={existingEvaluator.id}
               />
             }
             cardTitleChildren={
               <div className="flex w-full flex-row items-center justify-between">
-                <span>Evaluation Job</span>
+                <span>Evaluator</span>
                 <StatusBadge
-                  type={config.data?.status.toLowerCase()}
+                  type={evaluator.data?.status.toLowerCase()}
                   isLive
                   className="max-h-8"
                 />
@@ -112,23 +113,23 @@ export const EvalConfigDetail = () => {
             }
             cardContentChildren={
               <>
-                <div className="flex w-full flex-col items-start justify-between space-y-2">
+                <CardDescription className="flex items-center justify-between text-sm">
                   <span className="text-sm font-medium">Eval Template</span>
                   <TableLink
-                    path={`/project/${projectId}/evals/templates/${existingEvalConfig.evalTemplateId}`}
+                    path={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplateId}`}
                     value={
-                      `${existingEvalConfig.evalTemplate.name} (v${existingEvalConfig.evalTemplate.version})` ??
+                      `${existingEvaluator.evalTemplate.name} (v${existingEvaluator.evalTemplate.version})` ??
                       ""
                     }
                     className="flex min-h-6 items-center"
                   />
-                </div>
+                </CardDescription>
                 <div className="flex w-full flex-col items-start justify-between space-y-2 pb-4">
-                  <EvalConfigForm
-                    key={existingEvalConfig.id}
+                  <EvaluatorForm
+                    key={existingEvaluator.id}
                     projectId={projectId}
                     evalTemplates={allTemplates.data?.templates}
-                    existingEvalConfig={existingEvalConfig}
+                    existingEvaluator={existingEvaluator}
                     disabled={true}
                     shouldWrapVariables={true}
                   />
@@ -142,13 +143,13 @@ export const EvalConfigDetail = () => {
   );
 };
 
-export function DeactivateConfig({
+export function DeactivateEvaluator({
   projectId,
-  config,
+  evaluator,
   isLoading,
 }: {
   projectId: string;
-  config?: RouterOutputs["evals"]["configById"];
+  evaluator?: RouterOutputs["evals"]["configById"];
   isLoading: boolean;
 }) {
   const utils = api.useUtils();
@@ -156,7 +157,7 @@ export function DeactivateConfig({
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
 
-  const mutEvalConfig = api.evals.updateEvalJob.useMutation({
+  const mutEvaluator = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
       void utils.evals.invalidate();
     },
@@ -167,9 +168,9 @@ export function DeactivateConfig({
       console.error("Project ID is missing");
       return;
     }
-    mutEvalConfig.mutateAsync({
+    mutEvaluator.mutateAsync({
       projectId,
-      evalConfigId: config?.id ?? "",
+      evalConfigId: evaluator?.id ?? "",
       updatedStatus: "INACTIVE",
     });
     capture("eval_config:delete");
@@ -182,7 +183,7 @@ export function DeactivateConfig({
         <Button
           variant="outline"
           size={"icon"}
-          disabled={!hasAccess || config?.status !== "ACTIVE"}
+          disabled={!hasAccess || evaluator?.status !== "ACTIVE"}
           loading={isLoading}
         >
           <Trash className="h-5 w-5" />
@@ -191,17 +192,17 @@ export function DeactivateConfig({
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
-          This action permanently deactivates the evaluation job. No more traces
-          will be evaluated for this job.
+          This action permanently deactivates the evaluator. No more traces will
+          be evaluated based on this evaluator.
         </p>
         <div className="flex justify-end space-x-4">
           <Button
             type="button"
             variant="destructive"
-            loading={mutEvalConfig.isLoading}
+            loading={mutEvaluator.isLoading}
             onClick={onClick}
           >
-            Deactivate Eval Job
+            Deactivate evaluator
           </Button>
         </div>
       </PopoverContent>
