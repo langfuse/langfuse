@@ -88,7 +88,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "Output Cost ($)",
     clickhouseTableName: "traces",
-    clickhouseSelect: "arrayElement(cost_details, 'outptu')",
+    clickhouseSelect: "arrayElement(cost_details, 'output')",
   },
   {
     uiTableName: "Total Cost ($)",
