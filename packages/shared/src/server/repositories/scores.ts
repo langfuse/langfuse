@@ -3,7 +3,6 @@ import { queryClickhouse } from "./clickhouse";
 import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
 import { FilterState } from "../../types";
 import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
-import { logger } from "../logger";
 
 export type FetchScoresReturnType = {
   id: string;
@@ -131,7 +130,6 @@ export const getScoresGroupedByName = async (
       LIMIT 1000;
     `;
 
-  logger.info(`${JSON.stringify(timestampFilterRes)}`);
   const rows = await queryClickhouse<{
     name: string;
   }>({

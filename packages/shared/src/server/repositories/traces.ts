@@ -180,7 +180,6 @@ export const getTracesGroupedByName = async (
       LIMIT 1000;
     `;
 
-  logger.info(`getTracesGroupedByName ${JSON.stringify(timestampFilterRes)}`);
   const rows = await queryClickhouse<{
     value: string;
   }>({
