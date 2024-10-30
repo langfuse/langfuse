@@ -1,7 +1,7 @@
 import { env } from "node:process";
 import z from "zod";
 import { ForbiddenError, UnauthorizedError } from "../../../errors";
-import { eventTypes, ingestionApiSchema, ingestionEvent } from "../types";
+import { eventTypes, ingestionApiSchema, IngestionEventType } from "../types";
 import { getProcessorForEvent } from "./EventProcessor";
 import { TraceUpsertEventType } from "../../queues";
 import {
@@ -102,7 +102,7 @@ async function retry<T>(request: () => Promise<T>): Promise<T> {
 }
 
 const handleSingleEvent = async (
-  event: z.infer<typeof ingestionEvent>,
+  event: IngestionEventType,
   apiScope: LegacyIngestionAccessScope,
   calculateTokenDelegate: (p: {
     model: Model;
@@ -126,7 +126,7 @@ const handleSingleEvent = async (
     `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
   );
 
-  const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
+  const cleanedEvent = cleanEvent(event) as IngestionEventType;
 
   // Deny access to non-score events if the access level is not "all"
   // This is an additional safeguard to auth checks in EventProcessor

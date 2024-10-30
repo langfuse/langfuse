@@ -22,6 +22,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
@@ -35,6 +36,10 @@ export const CreateEvalTemplate = z.object({
     score: z.string(),
     reasoning: z.string(),
   }),
+  referencedEvaluators: z
+    .nativeEnum(EvalReferencedEvaluators)
+    .optional()
+    .default(EvalReferencedEvaluators.PERSIST),
 });
 
 export const evalRouter = createTRPCRouter({
@@ -262,6 +267,50 @@ export const evalRouter = createTRPCRouter({
         totalCount: count,
       };
     }),
+  evaluatorsByTemplateName: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoEntitlement({
+          entitlement: "model-based-evaluations",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "evalJob:read",
+        });
+
+        const templates = await ctx.prisma.evalTemplate.findMany({
+          where: {
+            projectId: input.projectId,
+            name: input.evalTemplateName,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        return {
+          evaluators: await ctx.prisma.jobConfiguration.findMany({
+            where: {
+              projectId: input.projectId,
+              evalTemplateId: { in: templates.map((t) => t.id) },
+            },
+          }),
+        };
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching eval jobs for template failed.",
+        });
+      }
+    }),
 
   createJob: protectedProjectProcedure
     .input(
@@ -390,17 +439,24 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
-      const latestTemplate = await ctx.prisma.evalTemplate.findFirst({
+      const templates = await ctx.prisma.evalTemplate.findMany({
         where: {
           projectId: input.projectId,
           name: input.name,
         },
         orderBy: [{ version: "desc" }],
+        select: {
+          id: true,
+          version: true,
+        },
       });
+      const latestTemplate = Boolean(templates.length)
+        ? templates[0]
+        : undefined;
 
       const evalTemplate = await ctx.prisma.evalTemplate.create({
         data: {
-          version: latestTemplate?.version ? latestTemplate.version + 1 : 1,
+          version: (latestTemplate?.version ?? 0) + 1,
           name: input.name,
           projectId: input.projectId,
           prompt: input.prompt,
@@ -411,6 +467,20 @@ export const evalRouter = createTRPCRouter({
           provider: input.provider,
         },
       });
+
+      if (
+        input.referencedEvaluators === EvalReferencedEvaluators.UPDATE &&
+        Boolean(templates.length)
+      ) {
+        await ctx.prisma.jobConfiguration.updateMany({
+          where: {
+            evalTemplateId: { in: templates.map((t) => t.id) },
+          },
+          data: {
+            evalTemplateId: evalTemplate.id,
+          },
+        });
+      }
 
       await auditLog({
         session: ctx.session,
