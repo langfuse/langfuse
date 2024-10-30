@@ -19,9 +19,10 @@ import helmet from "helmet";
 import { legacyIngestionQueueProcessor } from "./queues/legacyIngestionQueue";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { WorkerManager } from "./queues/workerManager";
-import { QueueName } from "@langfuse/shared/src/server";
+import { QueueName, logger } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessor } from "./queues/ingestionQueue";
+import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 
 const app = express();
 
@@ -38,6 +39,13 @@ app.use("/api", api);
 
 app.use(middlewares.notFound);
 app.use(middlewares.errorHandler);
+
+if (env.LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS === "true") {
+  // Will start background migrations without blocking the queue workers
+  BackgroundMigrationManager.run().catch((err) => {
+    logger.error("Error running background migrations", err);
+  });
+}
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.TraceUpsert, evalJobCreatorQueueProcessor, {

@@ -1,9 +1,10 @@
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
 
 export default function Prompts() {
   return (
-    <div>
+    <FullScreenPage>
       <Header
         title="Prompts"
         help={{
@@ -13,6 +14,6 @@ export default function Prompts() {
         }}
       />
       <PromptTable />
-    </div>
+    </FullScreenPage>
   );
 }

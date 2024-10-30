@@ -91,6 +91,10 @@ const EnvSchema = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("worker"),
 
+  LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])

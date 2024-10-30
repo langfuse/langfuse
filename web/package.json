@@ -18,8 +18,7 @@
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
     "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --testPathPattern='__e2e__'",
-    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts",
-    "generationCost:backfill": "dotenv -e ../.env -- tsx scripts/observations-backfill-calculated-cost.ts"
+    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
@@ -69,6 +68,7 @@
     "@radix-ui/react-icons": "^1.3.0",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-popover": "^1.1.2",
+    "@radix-ui/react-radio-group": "^1.2.1",
     "@radix-ui/react-scroll-area": "^1.2.0",
     "@radix-ui/react-select": "^2.1.2",
     "@radix-ui/react-separator": "^1.1.0",
@@ -119,7 +119,7 @@
     "next-auth": "^4.24.7",
     "next-query-params": "^5.0.1",
     "next-themes": "^0.3.0",
-    "posthog-js": "^1.161.3",
+    "posthog-js": "^1.176.0",
     "posthog-node": "^3.6.3",
     "prexit": "^2.2.0",
     "prisma": "^5.20.0",
