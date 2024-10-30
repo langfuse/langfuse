@@ -2,16 +2,10 @@ import { Job, Processor } from "bullmq";
 import {
   traceException,
   QueueName,
-  recordIncrement,
-  recordGauge,
-  recordHistogram,
   TQueueJobTypes,
   logger,
   IngestionEventType,
   S3StorageService,
-  ingestionBatchEvent,
-  ingestionEvent,
-  IngestionQueue,
   redis,
   clickhouseClient,
   getClickhouseEntityType,
@@ -70,20 +64,7 @@ export const ingestionQueueProcessor: Processor = async (
         eventFiles.map(async (key) => {
           const file = await s3Client.download(key);
           const parsedFile = JSON.parse(file);
-
-          const parsed = ingestionBatchEvent.safeParse(parsedFile);
-          if (parsed.success) {
-            return parsed.data;
-          } else {
-            const parsed = ingestionEvent.safeParse(parsedFile);
-            if (parsed.success) {
-              return [parsed.data];
-            } else {
-              throw new Error(
-                `Failed to parse event from S3: ${parsed.error.message}`,
-              );
-            }
-          }
+          return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
         }),
       )
     ).flat();
