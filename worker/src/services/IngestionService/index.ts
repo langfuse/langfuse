@@ -23,10 +23,10 @@ import {
   traceRecordReadSchema,
   ClickhouseClientType,
   validateAndInflateScore,
-  ClickhouseEntityType,
   PromptService,
   IngestionEventType,
   UsageCostType,
+  IngestionEntityTypes,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -75,7 +75,7 @@ export class IngestionService {
   }
 
   public async mergeAndWrite(
-    eventType: ClickhouseEntityType,
+    eventType: IngestionEntityTypes,
     projectId: string,
     eventBodyId: string,
     events: IngestionEventType[],
@@ -85,19 +85,19 @@ export class IngestionService {
     );
 
     switch (eventType) {
-      case ClickhouseEntityType.Trace:
+      case "trace":
         return await this.processTraceEventList({
           projectId,
           entityId: eventBodyId,
           traceEventList: events as TraceEventType[],
         });
-      case ClickhouseEntityType.Observation:
+      case "observation":
         return await this.processObservationEventList({
           projectId,
           entityId: eventBodyId,
           observationEventList: events as ObservationEvent[],
         });
-      case ClickhouseEntityType.Score: {
+      case "score": {
         return await this.processScoreEventList({
           projectId,
           entityId: eventBodyId,

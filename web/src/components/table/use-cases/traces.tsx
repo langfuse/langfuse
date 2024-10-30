@@ -49,6 +49,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -154,6 +155,7 @@ export default function TracesTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
+    queryClickhouse: useClickhouse(),
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter);
@@ -161,6 +163,7 @@ export default function TracesTable({
     {
       projectId,
       traceIds: traces.data?.traces.map((t) => t.id) ?? [],
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: traces.data !== undefined,
@@ -726,7 +729,6 @@ export default function TracesTable({
         }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
-
   return (
     <>
       <DataTableToolbar
@@ -818,7 +820,7 @@ const TracesDynamicCell = ({
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId, projectId, queryClickhouse: useClickhouse() },
     {
       enabled: typeof traceId === "string",
       trpc: {
