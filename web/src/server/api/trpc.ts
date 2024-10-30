@@ -78,7 +78,12 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
-import { addUserToSpan, logger } from "@langfuse/shared/src/server";
+import {
+  addUserToSpan,
+  getTraceById,
+  logger,
+} from "@langfuse/shared/src/server";
+import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 
 setUpSuperjson();
 
@@ -313,10 +318,12 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
 const inputTraceSchema = z.object({
   traceId: z.string(),
   projectId: z.string(),
+  queryClickhouse: z.boolean().nullable(),
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const result = inputTraceSchema.safeParse(rawInput);
+
   if (!result.success)
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -326,15 +333,20 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const traceId = result.data.traceId;
   const projectId = result.data.projectId;
 
-  const trace = await prisma.trace.findFirst({
-    where: {
-      id: traceId,
-      projectId: projectId,
-    },
-    select: {
-      public: true,
-    },
-  });
+  // if the user is eligible for clickhouse, and wants to use clickhouse, do so.
+  const trace =
+    result.data.queryClickhouse === true &&
+    isClickhouseEligible(ctx.session?.user?.admin === true)
+      ? await getTraceById(traceId, projectId)
+      : await prisma.trace.findFirst({
+          where: {
+            id: traceId,
+            projectId: projectId,
+          },
+          select: {
+            public: true,
+          },
+        });
 
   if (!trace)
     throw new TRPCError({

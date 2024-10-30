@@ -29,9 +29,15 @@ import {
   traceException,
   createTracesQuery,
   parseTraceAllFilters,
+  getTracesTable,
+  getScoresForTraces,
+  getTraceById,
+  type TracesTableReturnType,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import type Decimal from "decimal.js";
+import Decimal from "decimal.js";
+import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -49,6 +55,76 @@ export type ObservationReturnType = Omit<
   traceId: string;
 };
 
+export type TracesAllReturnType = {
+  id: string;
+  timestamp: Date;
+  name: string | undefined;
+  projectId: string;
+  userId: string | undefined;
+  release: string | undefined;
+  version: string | undefined;
+  public: boolean;
+  bookmarked: boolean;
+  sessionId: string | undefined;
+  tags: string[];
+};
+
+export const convertToReturnType = (
+  row: TracesTableReturnType,
+): TracesAllReturnType => {
+  return {
+    id: row.id,
+    name: row.name,
+    timestamp: new Date(row.timestamp),
+    tags: row.tags,
+    bookmarked: row.bookmarked,
+    release: row.release,
+    version: row.version,
+    projectId: row.project_id,
+    userId: row.user_id,
+    sessionId: row.session_id,
+    public: row.public,
+  };
+};
+
+export type TracesMetricsReturnType = {
+  id: string;
+  promptTokens: bigint;
+  completionTokens: bigint;
+  totalTokens: bigint;
+  latency: number | null;
+  level: ObservationLevel;
+  observationCount: bigint;
+  calculatedTotalCost: Decimal | null;
+  calculatedInputCost: Decimal | null;
+  calculatedOutputCost: Decimal | null;
+  scores: ScoreAggregate;
+};
+
+export const convertMetricsReturnType = (
+  row: TracesTableReturnType & { scores: ScoreAggregate },
+): TracesMetricsReturnType => {
+  return {
+    id: row.id,
+    promptTokens: BigInt(row.usage_details?.input ?? 0),
+    completionTokens: BigInt(row.usage_details?.output ?? 0),
+    totalTokens: BigInt(row.usage_details?.total ?? 0),
+    latency: row.latency,
+    level: row.level,
+    observationCount: BigInt(row.observation_count ?? 0),
+    calculatedTotalCost: row.cost_details?.total
+      ? new Decimal(row.cost_details.total)
+      : null,
+    calculatedInputCost: row.cost_details?.input
+      ? new Decimal(row.cost_details.input)
+      : null,
+    calculatedOutputCost: row.cost_details?.output
+      ? new Decimal(row.cost_details.output)
+      : null,
+    scores: row.scores,
+  };
+};
+
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -64,40 +140,70 @@ export const traceRouter = createTRPCRouter({
       return hasAny !== null;
     }),
   all: protectedProjectProcedure
-    .input(TraceFilterOptions)
+    .input(
+      TraceFilterOptions.extend({
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      const {
-        filterCondition,
-        orderByCondition,
-        observationTimeseriesFilter,
-        searchCondition,
-      } = parseTraceAllFilters(input);
+      if (!input.queryClickhouse) {
+        const {
+          filterCondition,
+          orderByCondition,
+          observationTimeseriesFilter,
+          searchCondition,
+        } = parseTraceAllFilters(input);
 
-      const tracesQuery = createTracesQuery({
-        select: Prisma.sql`
+        const tracesQuery = createTracesQuery({
+          select: Prisma.sql`
           t.*,
           t."user_id" AS "userId",
           t.session_id AS "sessionId"
           `,
-        projectId: input.projectId,
-        observationTimeseriesFilter,
-        page: input.page,
-        limit: input.limit,
-        searchCondition,
-        filterCondition,
-        orderByCondition,
-      });
+          projectId: input.projectId,
+          observationTimeseriesFilter,
+          page: input.page,
+          limit: input.limit,
+          searchCondition,
+          filterCondition,
+          orderByCondition,
+        });
 
-      const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
+        const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
 
-      return {
-        traces: traces.map(
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          ({ input, output, metadata, ...trace }) => ({
-            ...trace,
-          }),
-        ),
-      };
+        return {
+          traces: traces.map<TracesAllReturnType>(
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            ({ input, output, metadata, ...trace }) => ({
+              ...trace,
+              name: trace.name ?? undefined,
+              release: trace.release ?? undefined,
+              version: trace.version ?? undefined,
+              externalId: trace.externalId ?? undefined,
+              userId: trace.userId ?? undefined,
+              sessionId: trace.sessionId ?? undefined,
+            }),
+          ),
+        };
+      } else {
+        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        const res = await getTracesTable(
+          ctx.session.projectId,
+          input.filter ?? [],
+          input.limit,
+          input.page,
+        );
+
+        return {
+          traces: res.map(convertToReturnType),
+        };
+      }
     }),
   countAll: protectedProjectProcedure
     .input(TraceFilterOptions)
@@ -128,12 +234,15 @@ export const traceRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         traceIds: z.array(z.string()),
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
       if (input.traceIds.length === 0) return [];
-      const tracesQuery = createTracesQuery({
-        select: Prisma.sql`
+
+      if (!input.queryClickhouse) {
+        const tracesQuery = createTracesQuery({
+          select: Prisma.sql`
           t.id,
           COALESCE(generation_metrics."promptTokens", 0)::bigint AS "promptTokens",
           COALESCE(generation_metrics."completionTokens", 0)::bigint AS "completionTokens",
@@ -145,48 +254,70 @@ export const traceRouter = createTRPCRouter({
           COALESCE(generation_metrics."calculatedOutputCost", 0)::numeric AS "calculatedOutputCost",
           observation_metrics."level" AS "level"
         `,
-        projectId: input.projectId,
-        filterCondition: Prisma.sql`AND t.id IN (${Prisma.join(input.traceIds)})`,
-      });
+          projectId: input.projectId,
+          filterCondition: Prisma.sql`AND t.id IN (${Prisma.join(input.traceIds)})`,
+        });
 
-      const [traceMetrics, scores] = await Promise.all([
-        // traceMetrics
-        ctx.prisma.$queryRaw<
-          Array<{
-            id: string;
-            promptTokens: bigint;
-            completionTokens: bigint;
-            totalTokens: bigint;
-            latency: number | null;
-            level: ObservationLevel;
-            observationCount: bigint;
-            calculatedTotalCost: Decimal | null;
-            calculatedInputCost: Decimal | null;
-            calculatedOutputCost: Decimal | null;
-          }>
-        >(tracesQuery),
-        // scores
-        ctx.prisma.score.findMany({
-          where: {
-            projectId: input.projectId,
-            traceId: {
-              in: input.traceIds,
+        const [traceMetrics, scores] = await Promise.all([
+          // traceMetrics
+          ctx.prisma.$queryRaw<Array<TracesMetricsReturnType>>(tracesQuery),
+          // scores
+          ctx.prisma.score.findMany({
+            where: {
+              projectId: input.projectId,
+              traceId: {
+                in: input.traceIds,
+              },
             },
-          },
-        }),
-      ]);
+          }),
+        ]);
 
-      const validatedScores = filterAndValidateDbScoreList(
-        scores,
-        traceException,
-      );
+        const validatedScores = filterAndValidateDbScoreList(
+          scores,
+          traceException,
+        );
 
-      return traceMetrics.map((row) => ({
-        ...row,
-        scores: aggregateScores(
-          validatedScores.filter((s) => s.traceId === row.id),
-        ),
-      }));
+        return traceMetrics.map((row) => ({
+          ...row,
+          scores: aggregateScores(
+            validatedScores.filter((s) => s.traceId === row.id),
+          ),
+        }));
+      } else {
+        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        const res = await getTracesTable(
+          ctx.session.projectId,
+          [],
+          // input.filter
+        );
+
+        const scores = await getScoresForTraces(
+          ctx.session.projectId,
+          res.map((r) => r.id),
+          1000,
+          0,
+        );
+
+        const validatedScores = filterAndValidateDbScoreList(
+          scores,
+          traceException,
+        );
+
+        return res.map((r) =>
+          convertMetricsReturnType({
+            ...r,
+            scores: aggregateScores(
+              validatedScores.filter((s) => s.traceId === r.id),
+            ),
+          }),
+        );
+      }
     }),
   filterOptions: protectedProjectProcedure
     .input(
@@ -258,16 +389,27 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const trace = await ctx.prisma.trace.findFirstOrThrow({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-      });
-      return trace;
+      if (!input.queryClickhouse) {
+        return await ctx.prisma.trace.findFirstOrThrow({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+        });
+      } else {
+        if (!isClickhouseEligible(ctx.session.user?.admin === true)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        return await getTraceById(input.traceId, input.projectId);
+      }
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(

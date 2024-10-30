@@ -1,3 +1,9 @@
+export type UiColumnMapping = {
+  uiTableName: string;
+  clickhouseTableName: string;
+  clickhouseColumnName: string;
+};
+
 export type OptionsDefinition = {
   value: string;
   count?: number;
