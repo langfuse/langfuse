@@ -21,7 +21,7 @@ import { getCurrentSpan } from "../instrumentation";
 
 export const getObservation = async (
   observationId: string,
-  projectId: string
+  projectId: string,
 ) => {
   const query = `SELECT * FROM observations FINAL WHERE id = {observationId: String} AND project_id = {projectId: String} LIMIT 1`;
   const records = await queryClickhouse({
@@ -29,12 +29,12 @@ export const getObservation = async (
     params: { observationId, projectId },
   });
 
-  return records.length ? convertObservations(records)[0] : undefined;
+  return convertObservations(records).shift();
 };
 
 export const getTraceObservations = async (
   traceId: string,
-  projectId: string
+  projectId: string,
 ) => {
   const query = `SELECT * FROM observations FINAL WHERE trace_id = {traceId: String} AND project_id = {projectId: String}`;
   const records = await queryClickhouse({
@@ -64,7 +64,7 @@ export const getScores = async (traceId: string, projectId: string) => {
 };
 
 export const convertRecordToJsonSchema = (
-  record: Record<string, string>
+  record: Record<string, string>,
 ): JsonNested | undefined => {
   const jsonSchema: JsonNested = {};
 
@@ -141,7 +141,7 @@ export function convertObservations(jsonRecords: unknown[]): ObservationView[] {
 
       completionStartTime: record.completion_start_time
         ? new Date(
-            clickhouseStringDateSchema.parse(record.completion_start_time)
+            clickhouseStringDateSchema.parse(record.completion_start_time),
           )
         : null,
 

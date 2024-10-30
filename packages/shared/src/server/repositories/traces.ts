@@ -50,43 +50,42 @@ export const getTracesTable = async (
   const observationsStatsRes = observationsFilter.apply();
 
   const query = `
-  WITH observations_stats AS (
-  SELECT
-    COUNT(*) AS observation_count,
-      sumMap(usage_details) as usage_details,
-      SUM(total_cost) AS total_cost,
-      date_diff('seconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latencyMs,
-      multiIf(
-        arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
-        arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
-        arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
-        'DEBUG'
-      ) AS level,
-      sumMap(cost_details) as cost_details,
-      trace_id,
-      project_id
-    FROM
-        observations final
-    WHERE ${observationsStatsRes.query}
-    group by trace_id, project_id
-),
-
-         scores_avg AS (SELECT project_id,
-                                trace_id,
-                                groupArray(tuple(name, avg_value)) AS "scores_avg"
-                          FROM (
-                                  SELECT project_id,
-                                          trace_id,
-                                          name,
-                                          avg(value) avg_value
-                                  FROM scores final
-                                  WHERE ${scoresAvgFilterRes.query}
-                                  GROUP BY project_id,
-                                            trace_id,
-                                            name
-                                  ) tmp
-                          GROUP BY project_id,
-                                  trace_id)
+      WITH observations_stats AS (
+      SELECT
+        COUNT(*) AS observation_count,
+          sumMap(usage_details) as usage_details,
+          SUM(total_cost) AS total_cost,
+          date_diff('seconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latencyMs,
+          multiIf(
+            arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
+            arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
+            arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
+            'DEBUG'
+          ) AS level,
+          sumMap(cost_details) as cost_details,
+          trace_id,
+          project_id
+        FROM
+            observations final
+        WHERE ${observationsStatsRes.query}
+        group by trace_id, project_id
+      ),
+      scores_avg AS (SELECT project_id,
+                            trace_id,
+                            groupArray(tuple(name, avg_value)) AS "scores_avg"
+                      FROM (
+                              SELECT project_id,
+                                      trace_id,
+                                      name,
+                                      avg(value) avg_value
+                              FROM scores final
+                              WHERE ${scoresAvgFilterRes.query}
+                              GROUP BY project_id,
+                                        trace_id,
+                                        name
+                              ) tmp
+                      GROUP BY project_id,
+                              trace_id)
       select 
         t.id, 
         t.project_id, 

@@ -1,73 +1,83 @@
-export type TraceClickhouseRecord = {
-  id: string;
-  timestamp: string; // DateTime64(3)
-  name: string;
-  user_id?: string;
-  metadata: Record<string, string>;
-  release?: string;
-  version?: string;
-  project_id: string;
-  public: boolean;
-  bookmarked: boolean;
-  tags: string[];
-  input?: string;
-  output?: string;
-  session_id?: string;
-  created_at: string; // DateTime64(3)
-  updated_at: string; // DateTime64(3)
-  event_ts: string; // DateTime64(3)
-};
+import { z } from "zod";
 
-export type ObservationClickhouseRecord = {
-  id: string;
-  trace_id: string;
-  project_id: string;
-  type: string; // LowCardinality(String)
-  parent_observation_id?: string;
-  start_time: string; // DateTime64(3)
-  end_time?: string; // Nullable(DateTime64(3))
-  name: string;
-  metadata: Record<string, string>;
-  level: string; // LowCardinality(String)
-  status_message?: string;
-  version?: string;
-  input?: string;
-  output?: string;
-  provided_model_name?: string;
-  internal_model_id?: string;
-  model_parameters?: string;
-  provided_usage_details?: Record<string, number>; // Map(LowCardinality(String), UInt64)
-  usage_details?: Record<string, number>; // Map(LowCardinality(String), UInt64)
-  provided_cost_details?: Record<string, number>; // Map(LowCardinality(String), Decimal64(12))
-  cost_details?: Record<string, number>; // Map(LowCardinality(String), Decimal64(12))
-  total_cost?: number; // Nullable(Decimal64(12))
-  completion_start_time?: string; // Nullable(DateTime64(3))
-  prompt_id?: string;
-  prompt_name?: string;
-  prompt_version?: number; // Nullable(UInt16)
-  created_at: string; // DateTime64(3)
-  updated_at: string; // DateTime64(3)
-  event_ts: string; // DateTime64(3)
-};
+export const TraceClickhouseRecordSchema = z.object({
+  id: z.string(),
+  timestamp: z.string(), // DateTime64(3)
+  name: z.string(),
+  user_id: z.string().optional(),
+  metadata: z.record(z.string()),
+  release: z.string().optional(),
+  version: z.string().optional(),
+  project_id: z.string(),
+  public: z.boolean(),
+  bookmarked: z.boolean(),
+  tags: z.array(z.string()),
+  input: z.string().optional(),
+  output: z.string().optional(),
+  session_id: z.string().optional(),
+  created_at: z.string(), // DateTime64(3)
+  updated_at: z.string(), // DateTime64(3)
+  event_ts: z.string(), // DateTime64(3)
+});
 
-export type ScoreClickhouseRecord = {
-  id: string;
-  timestamp: string; // DateTime64(3)
-  project_id: string;
-  trace_id: string;
-  observation_id?: string;
-  name: string;
-  value: number;
-  source: string;
-  comment?: string;
-  author_user_id?: string;
-  config_id?: string;
-  data_type: string;
-  string_value?: string;
-  created_at: string; // DateTime64(3)
-  updated_at: string; // DateTime64(3)
-  event_ts: string; // DateTime64(3)
-};
+export type TraceClickhouseRecord = z.infer<typeof TraceClickhouseRecordSchema>;
+
+export const ObservationClickhouseRecordSchema = z.object({
+  id: z.string(),
+  trace_id: z.string(),
+  project_id: z.string(),
+  type: z.string(), // LowCardinality(String)
+  parent_observation_id: z.string().optional(),
+  start_time: z.string(), // DateTime64(3)
+  end_time: z.string().optional(), // Nullable(DateTime64(3))
+  name: z.string(),
+  metadata: z.record(z.string()),
+  level: z.string(), // LowCardinality(String)
+  status_message: z.string().optional(),
+  version: z.string().optional(),
+  input: z.string().optional(),
+  output: z.string().optional(),
+  provided_model_name: z.string().optional(),
+  internal_model_id: z.string().optional(),
+  model_parameters: z.string().optional(),
+  provided_usage_details: z.record(z.number()).optional(), // Map(LowCardinality(String), UInt64)
+  usage_details: z.record(z.number()).optional(), // Map(LowCardinality(String), UInt64)
+  provided_cost_details: z.record(z.number()).optional(), // Map(LowCardinality(String), Decimal64(12))
+  cost_details: z.record(z.number()).optional(), // Map(LowCardinality(String), Decimal64(12))
+  total_cost: z.number().optional(), // Nullable(Decimal64(12))
+  completion_start_time: z.string().optional(), // Nullable(DateTime64(3))
+  prompt_id: z.string().optional(),
+  prompt_name: z.string().optional(),
+  prompt_version: z.number().optional(), // Nullable(UInt16)
+  created_at: z.string(), // DateTime64(3)
+  updated_at: z.string(), // DateTime64(3)
+  event_ts: z.string(), // DateTime64(3)
+});
+
+export type ObservationClickhouseRecord = z.infer<
+  typeof ObservationClickhouseRecordSchema
+>;
+
+export const ScoreClickhouseRecordSchema = z.object({
+  id: z.string(),
+  timestamp: z.string(), // DateTime64(3)
+  project_id: z.string(),
+  trace_id: z.string(),
+  observation_id: z.string().optional(),
+  name: z.string(),
+  value: z.number(),
+  source: z.string(),
+  comment: z.string().optional(),
+  author_user_id: z.string().optional(),
+  config_id: z.string().optional(),
+  data_type: z.string(),
+  string_value: z.string().optional(),
+  created_at: z.string(), // DateTime64(3)
+  updated_at: z.string(), // DateTime64(3)
+  event_ts: z.string(), // DateTime64(3)
+});
+
+export type ScoreClickhouseRecord = z.infer<typeof ScoreClickhouseRecordSchema>;
 
 export const ClickhouseTableNames = {
   traces: "traces",
@@ -77,12 +87,16 @@ export const ClickhouseTableNames = {
 
 export type ClickhouseTableName = keyof typeof ClickhouseTableNames;
 
-export type ClickhouseColumnDefinition = {
-  name: string; // column name (camel case)
-  clickhouse_mapping: string; // clickhouse column name (snake case)
-  type: "number" | "string" | "datetime" | "boolean" | "map";
-  nullable?: boolean;
-};
+export const ClickhouseColumnDefinitionSchema = z.object({
+  name: z.string(), // column name (camel case)
+  clickhouse_mapping: z.string(), // clickhouse column name (snake case)
+  type: z.enum(["number", "string", "datetime", "boolean", "map"]),
+  nullable: z.boolean().optional(),
+});
+
+export type ClickhouseColumnDefinition = z.infer<
+  typeof ClickhouseColumnDefinitionSchema
+>;
 
 export const TraceClickhouseColumns: ClickhouseColumnDefinition[] = [
   { name: "id", clickhouse_mapping: "id", type: "string" },
