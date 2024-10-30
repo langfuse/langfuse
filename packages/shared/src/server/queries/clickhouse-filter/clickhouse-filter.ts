@@ -155,6 +155,7 @@ export class StringOptionsFilter implements Filter {
   }
 }
 
+// this is used when we want to filter multiple values on a clickhouse column which is also an array
 export class ArrayOptionsFilter implements Filter {
   public clickhouseTable: string;
   protected field: string;
@@ -182,10 +183,10 @@ export class ArrayOptionsFilter implements Filter {
 
     switch (this.operator) {
       case "any of":
-        query = `has({${varName}: Array(String)}, ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = True`;
+        query = `hasAny({${varName}: Array(String)}, ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = True`;
         break;
       case "none of":
-        query = `has({${varName}: Array(String)}, ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = False`;
+        query = `hasAny({${varName}: Array(String)}, ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = False`;
         break;
       case "all of":
         query = `arrayAll(x -> has({${varName}: Array(String)}, x), ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = True`;

@@ -33,6 +33,9 @@ import {
   getScoresForTraces,
   getTraceById,
   type TracesTableReturnType,
+  getScoresGroupedByName,
+  getTracesGroupedByName,
+  getTracesGroupedByTags,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -186,7 +189,7 @@ export const traceRouter = createTRPCRouter({
           ),
         };
       } else {
-        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
+        if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",
@@ -284,7 +287,8 @@ export const traceRouter = createTRPCRouter({
           ),
         }));
       } else {
-        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
+        ctx.session.user;
+        if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",
@@ -324,47 +328,49 @@ export const traceRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         timestampFilter: timeFilter.optional(),
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const { timestampFilter } = input;
-      const prismaTimestampFilter = timestampFilter
-        ? datetimeFilterToPrisma(timestampFilter)
-        : {};
+      if (!input.queryClickhouse) {
+        const { timestampFilter } = input;
+        const prismaTimestampFilter = timestampFilter
+          ? datetimeFilterToPrisma(timestampFilter)
+          : {};
 
-      const rawTimestampFilter =
-        timestampFilter && timestampFilter.type === "datetime"
-          ? datetimeFilterToPrismaSql(
-              "timestamp",
-              timestampFilter.operator,
-              timestampFilter.value,
-            )
-          : Prisma.empty;
+        const rawTimestampFilter =
+          timestampFilter && timestampFilter.type === "datetime"
+            ? datetimeFilterToPrismaSql(
+                "timestamp",
+                timestampFilter.operator,
+                timestampFilter.value,
+              )
+            : Prisma.empty;
 
-      const [scores, names, tags] = await Promise.all([
-        ctx.prisma.score.groupBy({
-          where: {
-            projectId: input.projectId,
-            timestamp: prismaTimestampFilter,
-            dataType: { in: ["NUMERIC", "BOOLEAN"] },
-          },
-          take: 1000,
-          orderBy: { name: "asc" },
-          by: ["name"],
-        }),
-        ctx.prisma.trace.groupBy({
-          where: {
-            projectId: input.projectId,
-            timestamp: prismaTimestampFilter,
-          },
-          by: ["name"],
-          // limiting to 1k trace names to avoid performance issues.
-          // some users have unique names for large amounts of traces
-          // sending all trace names to the FE exceeds the cloud function return size limit
-          take: 1000,
-          orderBy: { name: "asc" },
-        }),
-        ctx.prisma.$queryRaw<{ value: string }[]>`
+        const [scores, names, tags] = await Promise.all([
+          ctx.prisma.score.groupBy({
+            where: {
+              projectId: input.projectId,
+              timestamp: prismaTimestampFilter,
+              dataType: { in: ["NUMERIC", "BOOLEAN"] },
+            },
+            take: 1000,
+            orderBy: { name: "asc" },
+            by: ["name"],
+          }),
+          ctx.prisma.trace.groupBy({
+            where: {
+              projectId: input.projectId,
+              timestamp: prismaTimestampFilter,
+            },
+            by: ["name"],
+            // limiting to 1k trace names to avoid performance issues.
+            // some users have unique names for large amounts of traces
+            // sending all trace names to the FE exceeds the cloud function return size limit
+            take: 1000,
+            orderBy: { name: "asc" },
+          }),
+          ctx.prisma.$queryRaw<{ value: string }[]>`
           SELECT tags.tag as value
           FROM traces, UNNEST(traces.tags) AS tags(tag)
           WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
@@ -372,17 +378,49 @@ export const traceRouter = createTRPCRouter({
           ORDER BY tags.tag ASC
           LIMIT 1000
         `,
-      ]);
-      const res: TraceOptions = {
-        scores_avg: scores.map((score) => score.name),
-        name: names
-          .filter((n) => n.name !== null)
-          .map((name) => ({
-            value: name.name ?? "undefined",
-          })),
-        tags: tags,
-      };
-      return res;
+        ]);
+        const res: TraceOptions = {
+          scores_avg: scores.map((score) => score.name),
+          name: names
+            .filter((n) => n.name !== null)
+            .map((name) => ({
+              value: name.name ?? "undefined",
+            })),
+          tags: tags,
+        };
+        return res;
+      } else {
+        if (!isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        const { timestampFilter } = input;
+
+        const [scoreNames, traceNames, tags] = await Promise.all([
+          getScoresGroupedByName(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getTracesGroupedByName(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getTracesGroupedByTags(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+        ]);
+
+        const res: TraceOptions = {
+          name: traceNames,
+          scores_avg: scoreNames.map((s) => s.name),
+          tags: tags,
+        };
+        return res;
+      }
     }),
   byId: protectedGetTraceProcedure
     .input(
@@ -401,7 +439,7 @@ export const traceRouter = createTRPCRouter({
           },
         });
       } else {
-        if (!isClickhouseEligible(ctx.session.user?.admin === true)) {
+        if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",
