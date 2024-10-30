@@ -6,8 +6,6 @@ import {
   logger,
   IngestionEventType,
   S3StorageService,
-  ingestionBatchEvent,
-  ingestionEvent,
   redis,
   clickhouseClient,
   getClickhouseEntityType,
@@ -35,7 +33,7 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 };
 
 export const ingestionQueueProcessor: Processor = async (
-  job: Job<TQueueJobTypes[QueueName.IngestionQueue]>
+  job: Job<TQueueJobTypes[QueueName.IngestionQueue]>,
 ) => {
   try {
     if (
@@ -43,12 +41,12 @@ export const ingestionQueueProcessor: Processor = async (
       !env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET
     ) {
       throw new Error(
-        "S3 event store is not enabled but useS3EventStore is true"
+        "S3 event store is not enabled but useS3EventStore is true",
       );
     }
 
     const s3Client = getS3StorageServiceClient(
-      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
     );
 
     logger.info("Processing ingestion event", {
@@ -58,7 +56,7 @@ export const ingestionQueueProcessor: Processor = async (
 
     // Download all events from folder into a local array
     const eventFiles = await s3Client.listFiles(
-      `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/`
+      `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/`,
     );
 
     const events: IngestionEventType[] = (
@@ -66,27 +64,14 @@ export const ingestionQueueProcessor: Processor = async (
         eventFiles.map(async (key) => {
           const file = await s3Client.download(key);
           const parsedFile = JSON.parse(file);
-
-          const parsed = ingestionBatchEvent.safeParse(parsedFile);
-          if (parsed.success) {
-            return parsed.data;
-          } else {
-            const parsed = ingestionEvent.safeParse(parsedFile);
-            if (parsed.success) {
-              return [parsed.data];
-            } else {
-              throw new Error(
-                `Failed to parse event from S3: ${parsed.error.message}`
-              );
-            }
-          }
-        })
+          return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
+        }),
       )
     ).flat();
 
     if (events.length === 0) {
       logger.warn(
-        `No events found for project ${job.data.payload.authCheck.scope.projectId} and event ${job.data.payload.data.eventBodyId}`
+        `No events found for project ${job.data.payload.authCheck.scope.projectId} and event ${job.data.payload.data.eventBodyId}`,
       );
       return;
     }
@@ -98,17 +83,17 @@ export const ingestionQueueProcessor: Processor = async (
       redis,
       prisma,
       ClickhouseWriter.getInstance(),
-      clickhouseClient
+      clickhouseClient,
     ).mergeAndWrite(
       getClickhouseEntityType(events[0].type),
       job.data.payload.authCheck.scope.projectId,
       job.data.payload.data.eventBodyId,
-      events
+      events,
     );
   } catch (e) {
     logger.error(
       `Failed job ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
-      e
+      e,
     );
     traceException(e);
     throw e;

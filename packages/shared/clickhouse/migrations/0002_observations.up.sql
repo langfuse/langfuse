@@ -7,7 +7,7 @@ CREATE TABLE observations (
     `start_time` DateTime64(3),
     `end_time` Nullable(DateTime64(3)),
     `name` String,
-    `metadata` JSON(max_dynamic_paths=32),
+    `metadata` Map(LowCardinality(String), String),
     `level` LowCardinality(String),
     `status_message` Nullable(String),
     `version` Nullable(String),

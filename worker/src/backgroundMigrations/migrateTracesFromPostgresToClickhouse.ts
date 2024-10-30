@@ -3,7 +3,6 @@ import { clickhouseClient, logger } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
-import { Trace } from "@prisma/client";
 
 async function addTemporaryColumnIfNotExists() {
   const columnExists = await prisma.$queryRaw<{ column_exists: boolean }[]>(
@@ -44,6 +43,7 @@ export default class MigrateTracesFromPostgresToClickhouse
   }
 
   async run(args: Record<string, unknown>): Promise<void> {
+    const start = Date.now();
     logger.info(
       `Migrating traces from postgres to clickhouse with ${JSON.stringify(args)}`,
     );
@@ -56,7 +56,11 @@ export default class MigrateTracesFromPostgresToClickhouse
 
     let processedRows = 0;
     while (!this.isAborted && processedRows < maxRowsToProcess) {
-      const traces = await prisma.$queryRaw<Array<Trace>>(Prisma.sql`
+      const fetchStart = Date.now();
+
+      const traces = await prisma.$queryRaw<
+        Array<Record<string, any>>
+      >(Prisma.sql`
         SELECT id, timestamp, name, user_id, metadata, release, version, project_id, public, bookmarked, tags, input, output, session_id, created_at, updated_at
         FROM traces
         WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
@@ -68,24 +72,43 @@ export default class MigrateTracesFromPostgresToClickhouse
         break;
       }
 
+      logger.info(
+        `Got ${traces.length} records from Postgres in ${Date.now() - fetchStart}ms`,
+      );
+
+      const insertStart = Date.now();
       await clickhouseClient.insert({
         table: "traces",
         values: traces.map((trace) => ({
-          ...trace,
+          id: trace.id,
           timestamp:
             trace.timestamp?.toISOString().replace("T", " ").slice(0, -1) ??
             null,
+          name: trace.name,
+          user_id: trace.user_id,
+          metadata: trace.metadata, // TODO: we may have to apply the same conversion as for observations. Let's try without.
+          release: trace.release,
+          version: trace.version,
+          project_id: trace.project_id,
+          public: trace.public,
+          bookmarked: trace.bookmarked,
+          tags: trace.tags,
+          input: trace.input,
+          output: trace.output,
+          session_id: trace.session_id,
           created_at:
-            trace.createdAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            trace.created_at?.toISOString().replace("T", " ").slice(0, -1) ??
             null,
           updated_at:
-            trace.updatedAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            trace.updated_at?.toISOString().replace("T", " ").slice(0, -1) ??
             null,
         })),
         format: "JSONEachRow",
       });
 
-      logger.info(`Inserted ${traces.length} traces into Clickhouse`);
+      logger.info(
+        `Inserted ${traces.length} traces into Clickhouse in ${Date.now() - insertStart}ms`,
+      );
 
       await prisma.$executeRaw`
         UPDATE traces
@@ -94,6 +117,7 @@ export default class MigrateTracesFromPostgresToClickhouse
       `;
 
       processedRows += traces.length;
+      logger.info(`Processed batch in ${Date.now() - fetchStart}ms`);
     }
 
     if (this.isAborted) {
@@ -104,7 +128,9 @@ export default class MigrateTracesFromPostgresToClickhouse
     }
 
     await prisma.$executeRaw`ALTER TABLE traces DROP COLUMN IF EXISTS tmp_migrated_to_clickhouse;`;
-    logger.info("Finished migration of traces from Postgres to CLickhouse");
+    logger.info(
+      `Finished migration of traces from Postgres to Clickhouse in ${Date.now() - start}ms`,
+    );
   }
 
   async abort(): Promise<void> {
