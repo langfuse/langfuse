@@ -5,7 +5,17 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "@/src/utils/tailwind";
 
-const TabsBar = TabsPrimitive.Root;
+const TabsBar = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Root
+    ref={ref}
+    className={cn("flex h-full w-full flex-col overflow-hidden", className)}
+    {...props}
+  />
+));
+TabsBar.displayName = TabsPrimitive.Root.displayName;
 
 const TabsBarList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
@@ -44,7 +54,7 @@ const TabsBarContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      "mt-2 h-full ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
       className,
     )}
     {...props}
