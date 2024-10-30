@@ -41,7 +41,6 @@ import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
-import { DateTimeFilter } from "../../../../../packages/shared/dist/src/server/queries/clickhouse-filter/clickhouse-filter";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -414,11 +413,12 @@ export const traceRouter = createTRPCRouter({
           ),
         ]);
 
-        return {
+        const res: TraceOptions = {
           name: traceNames,
           scores_avg: scoreNames.map((s) => s.name),
           tags: tags,
         };
+        return res;
       }
     }),
   byId: protectedGetTraceProcedure
