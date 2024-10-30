@@ -397,27 +397,29 @@ export function TracePage({ traceId }: { traceId: string }) {
             Timeline
           </TabsBarTrigger>
         </TabsBarList>
-        <TabsBarContent value="details">
-          <div className="mt-5 flex-1 overflow-hidden">
-            <Trace
-              key={trace.data.id}
-              trace={trace.data}
-              scores={trace.data.scores}
-              projectId={trace.data.projectId}
-              observations={trace.data.observations}
-            />
-          </div>
+        <TabsBarContent
+          value="details"
+          className="mt-5 h-full flex-1 overflow-hidden"
+        >
+          <Trace
+            key={trace.data.id}
+            trace={trace.data}
+            scores={trace.data.scores}
+            projectId={trace.data.projectId}
+            observations={trace.data.observations}
+          />
         </TabsBarContent>
-        <TabsBarContent value="timeline">
-          <div className="mt-5 max-h-[calc(100dvh-16rem)] flex-1 flex-col space-y-5 overflow-hidden">
-            <TraceTimelineView
-              key={trace.data.id}
-              trace={trace.data}
-              scores={trace.data.scores}
-              observations={trace.data.observations}
-              projectId={trace.data.projectId}
-            />
-          </div>
+        <TabsBarContent
+          value="timeline"
+          className="mt-5 h-full flex-1 overflow-hidden"
+        >
+          <TraceTimelineView
+            key={trace.data.id}
+            trace={trace.data}
+            scores={trace.data.scores}
+            observations={trace.data.observations}
+            projectId={trace.data.projectId}
+          />
         </TabsBarContent>
       </TabsBar>
     </FullScreenPage>
