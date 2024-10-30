@@ -55,11 +55,6 @@ export default function Header({
   actionButtons?: React.ReactNode;
   level?: "h2" | "h3";
   className?: string;
-  tabs?: {
-    title: string;
-    href: string;
-    isActive: boolean;
-  }[];
 }) {
   return (
     <div
