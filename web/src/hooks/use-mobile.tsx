@@ -1,5 +1,6 @@
 import * as React from "react";
 
+// tailwind default breakpoint, corresponds to `md`, https://tailwindcss.com/docs/responsive-design
 const MOBILE_BREAKPOINT = 768;
 
 export function useIsMobile() {
