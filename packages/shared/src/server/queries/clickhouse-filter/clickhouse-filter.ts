@@ -240,7 +240,10 @@ export class FilterList {
     this.filters.push(...filter);
   }
 
-  public apply(): ClickhouseFilter {
+  public apply(): ClickhouseFilter | undefined {
+    if (this.filters.length === 0) {
+      return undefined;
+    }
     const queries = this.filters.map((filter) => filter.apply().query);
     const params = this.filters.reduce((acc, filter) => {
       return { ...acc, ...filter.apply().params };
