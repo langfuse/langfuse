@@ -317,7 +317,9 @@ export default function Layout(props: PropsWithChildren) {
             }}
           />
           <SidebarInset className="h-dvh max-w-full">
-            <main className="h-dvh p-3">{props.children}</main>
+            <main className="h-dvh w-[100vw] p-3 md:w-[calc(100vw-var(--effective-sidebar-width))]">
+              {props.children}
+            </main>
             <Toaster visibleToasts={1} />
           </SidebarInset>
         </SidebarProvider>
