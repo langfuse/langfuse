@@ -146,8 +146,6 @@ const SidebarProvider = React.forwardRef<
               {
                 "--sidebar-width": SIDEBAR_WIDTH,
                 "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-                "--effective-sidebar-width":
-                  state === "expanded" ? SIDEBAR_WIDTH : SIDEBAR_WIDTH_ICON,
                 ...style,
               } as React.CSSProperties
             }
