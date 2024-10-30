@@ -350,6 +350,56 @@ export const datasetRouter = createTRPCRouter({
         datasetItems,
       };
     }),
+  runAggregateByDatasetId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        ...paginationZod,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const data = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          input: Prisma.JsonValue;
+          expectedOutput: Prisma.JsonValue;
+          metadata: Prisma.JsonValue;
+          runTraceIds: Record<
+            string,
+            { traceId: string; observationId: string | null }
+          >;
+        }>
+      >(Prisma.sql`
+        SELECT
+          di.id,
+          di.input,
+          di.expected_output AS "expectedOutput",
+          di.metadata,
+          jsonb_object_agg(
+            COALESCE(dri.dataset_run_id, 'null'),
+            jsonb_build_object(
+              'traceId', dri.trace_id,
+              'observationId', dri.observation_id
+            )
+          ) FILTER (WHERE dri.dataset_run_id IS NOT NULL) as "runTraceIds"
+        FROM
+          dataset_items di
+          LEFT JOIN dataset_run_items dri ON dri.dataset_item_id = di.id
+            AND dri.project_id = ${input.projectId}
+        WHERE
+          di.dataset_id = ${input.datasetId}
+          AND di.project_id = ${input.projectId}
+        GROUP BY
+          di.id,
+          di.input,
+          di.expected_output,
+          di.metadata
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `);
+      return data;
+    }),
   updateDatasetItem: protectedProjectProcedure
     .input(
       z.object({
