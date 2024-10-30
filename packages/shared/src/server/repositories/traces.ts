@@ -238,7 +238,6 @@ export const getTracesGroupedByTags = async (
   projectId: string,
   timestampFilter?: FilterState,
 ) => {
-  logger.error(`timestampFilterRes input ${JSON.stringify(timestampFilter)}`);
   const chFilter = timestampFilter
     ? createFilterFromFilterState(timestampFilter, {
         tracesPrefix: "t",
@@ -249,7 +248,6 @@ export const getTracesGroupedByTags = async (
     ? new FilterList(chFilter).apply()
     : undefined;
 
-  logger.error(`timestampFilterRes ${JSON.stringify(timestampFilterRes)}`);
   const query = `
       select 
         distinct(arrayJoin(tags)) as value
