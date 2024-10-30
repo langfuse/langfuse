@@ -22,7 +22,7 @@ export const hasEntitlement = (p: HasEntitlementParams): Boolean => {
         )
       : p.sessionUser.organizations.find((org) => org.id === p.orgId);
   const plan = org?.plan ?? "oss";
-  const availableEntitlements = entitlementAccess[plan];
+  const availableEntitlements = entitlementAccess[plan].entitlements;
   return availableEntitlements.includes(p.entitlement);
 };
 

@@ -1,6 +1,8 @@
 import {
   entitlementAccess,
+  type EntitlementLimits,
   type Entitlement,
+  type EntitlementLimit,
 } from "@/src/features/entitlements/constants/entitlements";
 import { type Plan } from "@langfuse/shared";
 import { useSession } from "next-auth/react";
@@ -39,7 +41,7 @@ export const useOrganizationPlan = (): Plan | undefined => {
  */
 export const useOrgEntitlements = (): Entitlement[] => {
   const plan = useOrganizationPlan();
-  const availableEntitlements = entitlementAccess[plan ?? "oss"];
+  const availableEntitlements = entitlementAccess[plan ?? "oss"].entitlements;
   return availableEntitlements;
 };
 
@@ -53,4 +55,28 @@ export const useHasOrgEntitlement = (entitlement: Entitlement): boolean => {
   if (session.data?.user?.admin) return true;
 
   return orgEntitlements.includes(entitlement);
+};
+
+/**
+ * Hook to get the entitlement limits of the current organization.
+ * @returns the entitlement limits of the current organization, including values of limits and false if unlimited.
+ */
+export const useOrgEntitlementLimits = (): EntitlementLimits => {
+  const plan = useOrganizationPlan();
+  return entitlementAccess[plan ?? "oss"].entitlementLimits;
+};
+
+/**
+ * Hook to use the entitlement limit of the current organization.
+ * @returns the limit value or false if unlimited
+ */
+export const useOrgEntitlementLimit = (
+  limit: EntitlementLimit,
+): number | false => {
+  const limits = useOrgEntitlementLimits();
+
+  const session = useSession();
+  if (session.data?.user?.admin) return false;
+
+  return limits[limit];
 };

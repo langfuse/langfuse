@@ -1,6 +1,6 @@
 import { type Plan } from "@langfuse/shared";
 
-// Binary feature access
+// Entitlements: Binary feature access
 const entitlements = [
   // features
   "playground",
@@ -13,16 +13,6 @@ const entitlements = [
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
-// Limits
-const limits = [
-  "annotation-queue-count",
-  "organization-member-count",
-  "data-access-days",
-  "model-based-evaluations-count-evaluators",
-  "prompt-management-count-prompts",
-] as const;
-export type Limit = (typeof limits)[number];
-
 const cloudAllPlansEntitlements: Entitlement[] = [
   "playground",
   "model-based-evaluations",
@@ -32,20 +22,32 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "annotation-queues",
 ];
 
+// Entitlement Limits: Limits on the number of resources that can be created/used
+const entitlementLimits = [
+  "annotation-queue-count",
+  "organization-member-count",
+  "data-access-days",
+  "model-based-evaluations-count-evaluators",
+  "prompt-management-count-prompts",
+] as const;
+export type EntitlementLimit = (typeof entitlementLimits)[number];
+
+export type EntitlementLimits = Record<
+  EntitlementLimit,
+  | number // if limited
+  | false // unlimited
+>;
+
 export const entitlementAccess: Record<
   Plan,
   {
     entitlements: Entitlement[];
-    limits: Record<
-      Limit,
-      | number // if limited
-      | false // unlimited
-    >;
+    entitlementLimits: EntitlementLimits;
   }
 > = {
   oss: {
     entitlements: [],
-    limits: {
+    entitlementLimits: {
       "annotation-queue-count": 0,
       "organization-member-count": false,
       "data-access-days": false,
@@ -55,7 +57,7 @@ export const entitlementAccess: Record<
   },
   "cloud:hobby": {
     entitlements: [...cloudAllPlansEntitlements],
-    limits: {
+    entitlementLimits: {
       "organization-member-count": 2,
       "data-access-days": 30,
       "annotation-queue-count": 1,
@@ -65,7 +67,7 @@ export const entitlementAccess: Record<
   },
   "cloud:pro": {
     entitlements: [...cloudAllPlansEntitlements],
-    limits: {
+    entitlementLimits: {
       "annotation-queue-count": 3,
       "organization-member-count": false,
       "data-access-days": false,
@@ -75,7 +77,7 @@ export const entitlementAccess: Record<
   },
   "cloud:team": {
     entitlements: [...cloudAllPlansEntitlements, "rbac-project-roles"],
-    limits: {
+    entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
       "data-access-days": false,
@@ -90,7 +92,7 @@ export const entitlementAccess: Record<
       "rbac-project-roles",
       // `LANGFUSE_ALLOWED_ORGANIZATION_CREATORS` -> directly checked on instance level in auth.ts
     ],
-    limits: {
+    entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
       "data-access-days": false,
