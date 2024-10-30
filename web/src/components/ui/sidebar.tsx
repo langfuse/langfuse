@@ -18,6 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Portal } from "@radix-ui/react-tooltip";
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -589,13 +590,17 @@ const SidebarMenuButton = React.forwardRef<
     return (
       <Tooltip>
         <TooltipTrigger asChild>{button}</TooltipTrigger>
-        <TooltipContent
-          side="right"
-          align="center"
-          hidden={state !== "collapsed" || isMobile}
-          className="z-30"
-          {...tooltip}
-        />
+        <Portal>
+          <TooltipContent
+            side="right"
+            align="center"
+            hidden={state !== "collapsed" || isMobile}
+            // relative + isolate create a new stacking context
+            // z-[9999] ensures this appears above other elements, even across different stacking contexts
+            className="relative isolate z-[9999]"
+            {...tooltip}
+          />
+        </Portal>
       </Tooltip>
     );
   },
