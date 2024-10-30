@@ -158,23 +158,27 @@ export default function Layout(props: PropsWithChildren) {
 
     // check entitlements
     if (
-      route.entitlement !== undefined &&
-      !entitlements.includes(route.entitlement) &&
+      route.entitlements !== undefined &&
+      !route.entitlements.some((entitlement) =>
+        entitlements.includes(entitlement),
+      ) &&
       !cloudAdmin
     )
       return null;
 
     // RBAC
     if (
-      route.projectRbacScope !== undefined &&
+      route.projectRbacScopes !== undefined &&
       !cloudAdmin &&
       (!project ||
         !organization ||
-        !hasProjectAccess({
-          projectId: project.id,
-          scope: route.projectRbacScope,
-          session: session.data,
-        }))
+        !route.projectRbacScopes.some((scope) =>
+          hasProjectAccess({
+            projectId: project.id,
+            scope,
+            session: session.data,
+          }),
+        ))
     )
       return null;
     if (
@@ -317,7 +321,7 @@ export default function Layout(props: PropsWithChildren) {
           href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16.png`}
         />
       </Head>
-      <div>
+      <div className="h-dvh">
         <Transition.Root show={sidebarOpen} as={Fragment}>
           <Dialog
             as="div"
@@ -571,7 +575,10 @@ export default function Layout(props: PropsWithChildren) {
               </Button>
             </div>
           ) : null}
-          <main className="p-3">{props.children}</main>
+          {/* px subtracted is the height of the header, remove & refactor when adding shadcn sidebar */}
+          <main className="h-[calc(100dvh-96px)] p-3 min-[384px]:h-[calc(100dvh-64px)] lg:h-dvh">
+            {props.children}
+          </main>
           <Toaster visibleToasts={1} />
         </div>
       </div>
