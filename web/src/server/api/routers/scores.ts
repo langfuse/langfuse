@@ -368,7 +368,7 @@ export const scoresRouter = createTRPCRouter({
           dataType: dataType,
         }));
       } else {
-        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
+        if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",
