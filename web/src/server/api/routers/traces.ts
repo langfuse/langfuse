@@ -189,7 +189,7 @@ export const traceRouter = createTRPCRouter({
           ),
         };
       } else {
-        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
+        if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",
@@ -287,7 +287,8 @@ export const traceRouter = createTRPCRouter({
           ),
         }));
       } else {
-        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
+        ctx.session.user;
+        if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",
@@ -389,7 +390,7 @@ export const traceRouter = createTRPCRouter({
         };
         return res;
       } else {
-        if (!isClickhouseEligible(ctx.session.user.admin === true)) {
+        if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",
@@ -438,7 +439,7 @@ export const traceRouter = createTRPCRouter({
           },
         });
       } else {
-        if (!isClickhouseEligible(ctx.session.user?.admin === true)) {
+        if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",
