@@ -1,9 +1,6 @@
 import { ScoreDataType, ScoreSource } from "@prisma/client";
 import { queryClickhouse } from "./clickhouse";
-import {
-  DateTimeFilter,
-  FilterList,
-} from "../queries/clickhouse-filter/clickhouse-filter";
+import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
 import { FilterState } from "../../types";
 import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
 
@@ -114,9 +111,7 @@ export const getScoresGroupedByName = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, {
-        scoresPrefix: "s",
-      })
+    ? createFilterFromFilterState(timestampFilter)
     : undefined;
 
   const timestampFilterRes = chFilter
