@@ -29,7 +29,7 @@ export const getObservation = async (
     params: { observationId, projectId },
   });
 
-  return records.length ? convertObservations(records)[0] : undefined;
+  return convertObservations(records).shift();
 };
 
 export const getTraceObservations = async (
