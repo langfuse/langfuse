@@ -7,6 +7,7 @@ import {
 import { ObservationLevel } from "@prisma/client";
 import { FilterState } from "../../types";
 import { logger } from "../logger";
+import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
 
 export type TracesTableReturnType = Pick<
   TraceClickhouseRecord,
@@ -156,4 +157,78 @@ export const getTraceById = async (traceId: string, projectId: string) => {
   });
 
   return res.length ? res[0] : undefined;
+};
+
+export const getTracesGroupedByName = async (
+  projectId: string,
+  timestampFilter?: FilterState,
+) => {
+  const chFilter = timestampFilter
+    ? createFilterFromFilterState(timestampFilter, {
+        tracesPrefix: "t",
+      })
+    : undefined;
+
+  const timestampFilterRes = chFilter
+    ? new FilterList(chFilter).apply()
+    : undefined;
+
+  const query = `
+      select 
+        name as value
+      from traces t final
+      WHERE t.project_id = {projectId: String}
+      ${timestampFilterRes ? `AND ${timestampFilterRes.query}` : ""}
+      GROUP BY name
+      ORDER BY name desc
+      LIMIT 1000;
+    `;
+
+  const rows = await queryClickhouse<{
+    name: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+    },
+  });
+
+  return rows;
+};
+
+export const getTracesGroupedByTags = async (
+  projectId: string,
+  timestampFilter?: FilterState,
+) => {
+  const chFilter = timestampFilter
+    ? createFilterFromFilterState(timestampFilter, {
+        tracesPrefix: "t",
+      })
+    : undefined;
+
+  const timestampFilterRes = chFilter
+    ? new FilterList(chFilter).apply()
+    : undefined;
+
+  const query = `
+      select 
+        distinct(arrayJoin(tags)) as value
+      from traces t final
+      WHERE t.project_id = {projectId: String}
+      ${timestampFilterRes ? `AND ${timestampFilterRes.query}` : ""}
+      LIMIT 1000;
+    `;
+
+  const rows = await queryClickhouse<{
+    name: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+    },
+  });
+
+  return rows;
 };

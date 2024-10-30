@@ -1,5 +1,11 @@
 import { ScoreDataType, ScoreSource } from "@prisma/client";
 import { queryClickhouse } from "./clickhouse";
+import {
+  DateTimeFilter,
+  FilterList,
+} from "../queries/clickhouse-filter/clickhouse-filter";
+import { FilterState } from "../../types";
+import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
 
 export type FetchScoresReturnType = {
   id: string;
@@ -48,7 +54,7 @@ export const getScoresForTraces = async (
   projectId: string,
   traceIds: string[],
   limit: number,
-  offset: number
+  offset: number,
 ) => {
   const query = `
       select 
@@ -101,4 +107,43 @@ export const getScoresGroupedByNameSourceType = async (projectId: string) => {
     source: row.source as ScoreSource,
     dataType: row.data_type as ScoreDataType,
   }));
+};
+
+export const getScoresGroupedByName = async (
+  projectId: string,
+  timestampFilter?: FilterState,
+) => {
+  const chFilter = timestampFilter
+    ? createFilterFromFilterState(timestampFilter, {
+        scoresPrefix: "s",
+      })
+    : undefined;
+
+  const timestampFilterRes = chFilter
+    ? new FilterList(chFilter).apply()
+    : undefined;
+
+  const query = `
+      select 
+        name as value
+      from scores s final
+      WHERE s.project_id = {projectId: String}
+      AND has(['NUMERIC', 'BOOLEAN'], s.data_type)
+      ${timestampFilterRes ? `AND ${timestampFilterRes.query}` : ""}
+      GROUP BY name
+      ORDER BY count() desc
+      LIMIT 1000;
+    `;
+
+  const rows = await queryClickhouse<{
+    name: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+    },
+  });
+
+  return rows;
 };

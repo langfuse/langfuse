@@ -21,7 +21,7 @@ import { getCurrentSpan } from "../instrumentation";
 
 export const getObservation = async (
   observationId: string,
-  projectId: string
+  projectId: string,
 ) => {
   const query = `SELECT * FROM observations FINAL WHERE id = {observationId: String} AND project_id = {projectId: String} LIMIT 1`;
   const records = await queryClickhouse({
@@ -34,7 +34,7 @@ export const getObservation = async (
 
 export const getTraceObservations = async (
   traceId: string,
-  projectId: string
+  projectId: string,
 ) => {
   const query = `SELECT * FROM observations FINAL WHERE trace_id = {traceId: String} AND project_id = {projectId: String}`;
   const records = await queryClickhouse({
@@ -64,7 +64,7 @@ export const getScores = async (traceId: string, projectId: string) => {
 };
 
 export const convertRecordToJsonSchema = (
-  record: Record<string, string>
+  record: Record<string, string>,
 ): JsonNested | undefined => {
   const jsonSchema: JsonNested = {};
 
@@ -89,20 +89,40 @@ export async function queryClickhouse<T>(opts: {
   params?: Record<string, unknown> | undefined;
 }) {
   // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
-  getCurrentSpan()?.setAttribute("db.query.text", opts.query);
+  getCurrentSpan()?.setAttribute("ch.query.text", opts.query);
 
   // same logic as for prisma. we want to see queries in development
   if (env.NODE_ENV === "development") {
     logger.info(`clickhouse:query ${opts.query}`);
   }
 
-  return (
-    await clickhouseClient.query({
-      query: opts.query,
-      format: "JSONEachRow",
-      query_params: opts.params,
-    })
-  ).json<T>();
+  const res = await clickhouseClient.query({
+    query: opts.query,
+    format: "JSONEachRow",
+    query_params: opts.params,
+  });
+
+  getCurrentSpan()?.setAttribute("ch.queryId", res.query_id);
+
+  // add summary headers to the span. Helps to tune performance
+  const summaryHeader = res.response_headers["x-clickhouse-summary"];
+  if (summaryHeader) {
+    try {
+      const summary = Array.isArray(summaryHeader)
+        ? JSON.parse(summaryHeader[0])
+        : JSON.parse(summaryHeader);
+      for (const key in summary) {
+        getCurrentSpan()?.setAttribute(`ch.${key}`, summary[key]);
+      }
+    } catch (error) {
+      logger.debug(
+        `Failed to parse clickhouse summary header ${summaryHeader}`,
+        error,
+      );
+    }
+  }
+
+  return res.json<T>();
 }
 
 export function convertObservations(jsonRecords: unknown[]): ObservationView[] {
@@ -141,7 +161,7 @@ export function convertObservations(jsonRecords: unknown[]): ObservationView[] {
 
       completionStartTime: record.completion_start_time
         ? new Date(
-            clickhouseStringDateSchema.parse(record.completion_start_time)
+            clickhouseStringDateSchema.parse(record.completion_start_time),
           )
         : null,
 
