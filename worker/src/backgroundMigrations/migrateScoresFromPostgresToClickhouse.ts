@@ -3,7 +3,6 @@ import { clickhouseClient, logger } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
-import { Score } from "@prisma/client";
 
 async function addTemporaryColumnIfNotExists() {
   const columnExists = await prisma.$queryRaw<{ column_exists: boolean }[]>(
@@ -44,6 +43,7 @@ export default class MigrateScoresFromPostgresToClickhouse
   }
 
   async run(args: Record<string, unknown>): Promise<void> {
+    const start = Date.now();
     logger.info(
       `Migrating scores from postgres to clickhouse with ${JSON.stringify(args)}`,
     );
@@ -56,7 +56,11 @@ export default class MigrateScoresFromPostgresToClickhouse
 
     let processedRows = 0;
     while (!this.isAborted && processedRows < maxRowsToProcess) {
-      const scores = await prisma.$queryRaw<Array<Score>>(Prisma.sql`
+      const fetchStart = Date.now();
+
+      const scores = await prisma.$queryRaw<
+        Array<Record<string, any>>
+      >(Prisma.sql`
         SELECT id, timestamp, project_id, trace_id, observation_id, name, value, source, comment, author_user_id, config_id, data_type, string_value, created_at, updated_at
         FROM scores
         WHERE tmp_migrated_to_clickhouse = FALSE AND created_at <= ${maxDate}
@@ -68,24 +72,42 @@ export default class MigrateScoresFromPostgresToClickhouse
         break;
       }
 
+      logger.info(
+        `Got ${scores.length} records from Postgres in ${Date.now() - fetchStart}ms`,
+      );
+
+      const insertStart = Date.now();
       await clickhouseClient.insert({
         table: "scores",
         values: scores.map((score) => ({
-          ...score,
+          id: score.id,
           timestamp:
             score.timestamp?.toISOString().replace("T", " ").slice(0, -1) ??
             null,
+          project_id: score.project_id,
+          trace_id: score.trace_id,
+          observation_id: score.observation_id,
+          name: score.name,
+          value: score.value,
+          source: score.source,
+          comment: score.comment,
+          author_user_id: score.author_user_id,
+          config_id: score.config_id,
+          data_type: score.data_type,
+          string_value: score.string_value,
           created_at:
-            score.createdAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            score.created_at?.toISOString().replace("T", " ").slice(0, -1) ??
             null,
           updated_at:
-            score.updatedAt?.toISOString().replace("T", " ").slice(0, -1) ??
+            score.updated_at?.toISOString().replace("T", " ").slice(0, -1) ??
             null,
         })),
         format: "JSONEachRow",
       });
 
-      logger.info(`Inserted ${scores.length} scores into Clickhouse`);
+      logger.info(
+        `Inserted ${scores.length} scores into Clickhouse in ${Date.now() - insertStart}ms`,
+      );
 
       await prisma.$executeRaw`
         UPDATE scores
@@ -94,6 +116,7 @@ export default class MigrateScoresFromPostgresToClickhouse
       `;
 
       processedRows += scores.length;
+      logger.info(`Processed batch in ${Date.now() - fetchStart}ms`);
     }
 
     if (this.isAborted) {
@@ -104,7 +127,9 @@ export default class MigrateScoresFromPostgresToClickhouse
     }
 
     await prisma.$executeRaw`ALTER TABLE scores DROP COLUMN IF EXISTS tmp_migrated_to_clickhouse;`;
-    logger.info("Finished migration of scores from Postgres to CLickhouse");
+    logger.info(
+      `Finished migration of scores from Postgres to Clickhouse in ${Date.now() - start}ms`,
+    );
   }
 
   async abort(): Promise<void> {
