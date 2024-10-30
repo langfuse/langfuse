@@ -288,8 +288,7 @@ export const InnerEvalConfigForm = (props: {
     disabled: props.disabled,
     defaultValues: {
       scoreName:
-        props.existingEvaluator?.scoreName ??
-        `${props.evalTemplate.name}-v${props.evalTemplate.version}`,
+        props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
       target: props.existingEvaluator?.targetObject ?? "",
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
