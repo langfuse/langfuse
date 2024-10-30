@@ -88,7 +88,7 @@ export const prepareClickhouse = async (
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS start_time,
       addSeconds(start_time, if(rand() < 0.6, floor(randUniform(0, 20)), floor(randUniform(0, 3600)))) AS end_time,
       concat('name', toString(rand() % 100)) AS name,
-      '{"key": "value"}' AS metadata,
+      map('key', 'value') AS metadata,
       if(rand() < 0.9, 'DEFAULT', if(rand() < 0.5, 'ERROR', if(rand() < 0.5, 'DEBUG', 'WARNING'))) AS level,
       'status_message' AS status_message,
       'version' AS version,

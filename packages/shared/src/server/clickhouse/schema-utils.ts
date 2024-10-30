@@ -12,34 +12,31 @@ import {
 } from "./schema";
 
 export const isValidTableName = (
-  tableName: string
+  tableName: string,
 ): tableName is ClickhouseTableName =>
   Object.keys(ClickhouseTableNames).includes(tableName);
 
 export function isKeyOfTraceClickhouseRecord(
-  key: string
+  key: string,
 ): key is keyof TraceClickhouseRecord {
-  const validKeys = TraceClickhouseColumns.map((column) => column.name);
-  return validKeys.includes(key as keyof TraceClickhouseRecord);
+  return TraceClickhouseColumns.some((column) => key === column.name);
 }
 
 export function isKeyOfObservationClickhouseRecord(
-  key: string
+  key: string,
 ): key is keyof ObservationClickhouseRecord {
-  const validKeys = ObservationClickhouseColumns.map((column) => column.name);
-  return validKeys.includes(key as keyof ObservationClickhouseRecord);
+  return ObservationClickhouseColumns.some((column) => key === column.name);
 }
 
 export function isKeyOfScoreClickhouseRecord(
-  key: string
+  key: string,
 ): key is keyof ScoreClickhouseRecord {
-  const validKeys = ScoreClickhouseColumns.map((column) => column.name);
-  return validKeys.includes(key as keyof ScoreClickhouseRecord);
+  return ScoreClickhouseColumns.some((column) => key === column.name);
 }
 
 export function isKeyOfClickhouseRecord(
   tableName: ClickhouseTableName,
-  key: string
+  key: string,
 ): key is
   | keyof TraceClickhouseRecord
   | keyof ObservationClickhouseRecord
@@ -63,7 +60,7 @@ export type IngestionEntityTypes =
   | "sdk_log";
 
 export const getClickhouseEntityType = (
-  eventType: string
+  eventType: string,
 ): IngestionEntityTypes => {
   switch (eventType) {
     case eventTypes.TRACE_CREATE:
