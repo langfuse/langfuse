@@ -55,11 +55,6 @@ export default class MigrateTracesFromPostgresToClickhouse
     await addTemporaryColumnIfNotExists();
 
     let processedRows = 0;
-
-    const batchFetchTimes = [];
-    const batchInsertTimes = [];
-    const batchProcessTimes = [];
-
     while (!this.isAborted && processedRows < maxRowsToProcess) {
       const fetchStart = Date.now();
 
@@ -77,7 +72,6 @@ export default class MigrateTracesFromPostgresToClickhouse
         break;
       }
 
-      batchFetchTimes.push(Date.now() - fetchStart);
       logger.info(
         `Got ${traces.length} records from Postgres in ${Date.now() - fetchStart}ms`,
       );
@@ -112,7 +106,6 @@ export default class MigrateTracesFromPostgresToClickhouse
         format: "JSONEachRow",
       });
 
-      batchInsertTimes.push(Date.now() - insertStart);
       logger.info(
         `Inserted ${traces.length} traces into Clickhouse in ${Date.now() - insertStart}ms`,
       );
@@ -124,7 +117,6 @@ export default class MigrateTracesFromPostgresToClickhouse
       `;
 
       processedRows += traces.length;
-      batchProcessTimes.push(Date.now() - fetchStart);
       logger.info(`Processed batch in ${Date.now() - fetchStart}ms`);
     }
 
@@ -138,39 +130,6 @@ export default class MigrateTracesFromPostgresToClickhouse
     await prisma.$executeRaw`ALTER TABLE traces DROP COLUMN IF EXISTS tmp_migrated_to_clickhouse;`;
     logger.info(
       `Finished migration of traces from Postgres to Clickhouse in ${Date.now() - start}ms`,
-    );
-
-    const fetchTimeMedian = batchFetchTimes.sort((a, b) => a - b)[
-      Math.floor(batchFetchTimes.length / 2)
-    ];
-    const fetchTimeP95 = batchFetchTimes.sort((a, b) => a - b)[
-      Math.floor(batchFetchTimes.length * 0.95)
-    ];
-    const insertTimeMedian = batchInsertTimes.sort((a, b) => a - b)[
-      Math.floor(batchInsertTimes.length / 2)
-    ];
-    const insertTimeP95 = batchInsertTimes.sort((a, b) => a - b)[
-      Math.floor(batchInsertTimes.length * 0.95)
-    ];
-    const processTimeMedian = batchProcessTimes.sort((a, b) => a - b)[
-      Math.floor(batchProcessTimes.length / 2)
-    ];
-    const processTimeP95 = batchProcessTimes.sort((a, b) => a - b)[
-      Math.floor(batchProcessTimes.length * 0.95)
-    ];
-    const processTimeTotal = Date.now() - start;
-
-    logger.info(
-      `Batch fetch time: median=${fetchTimeMedian}ms, p95=${fetchTimeP95}ms`,
-    );
-    logger.info(
-      `Batch insert time: median=${insertTimeMedian}ms, p95=${insertTimeP95}ms`,
-    );
-    logger.info(
-      `Batch process time: median=${processTimeMedian}ms, p95=${processTimeP95}ms`,
-    );
-    logger.info(
-      `Total processing time: ${processTimeTotal}ms for ${processedRows} rows`,
     );
   }
 
