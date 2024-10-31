@@ -322,7 +322,6 @@ const inputTraceSchema = z.object({
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
-  logger.info(`enforceTraceAccess ${JSON.stringify(rawInput)}`);
   const result = inputTraceSchema.safeParse(rawInput);
 
   if (!result.success) {
