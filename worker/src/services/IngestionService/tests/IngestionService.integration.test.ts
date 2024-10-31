@@ -1069,6 +1069,8 @@ describe("Ingestion end-to-end tests", () => {
         model: "gpt-3.5",
         projectId,
         startTime: new Date(oldEvent),
+        // Validates that numbers are parsed correctly. Since there is no usage, no effect on result
+        calculatedTotalCost: "0.273330000000000000000000000000",
       },
     });
 
@@ -1082,6 +1084,7 @@ describe("Ingestion end-to-end tests", () => {
           traceId: traceId,
           modelParameters: { someKey: ["user-1", "user-2"] },
           output: "overwritten",
+          usage: null,
         },
       },
     ];
