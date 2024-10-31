@@ -96,9 +96,7 @@ const getTracesTableGeneric = async <T>(
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
-  tracesFilter.push(
-    ...createFilterFromFilterState(filter, { tracesPrefix: "t" }),
-  );
+  tracesFilter.push(...createFilterFromFilterState(filter));
 
   const tracesFilterRes = tracesFilter.apply();
   const scoresAvgFilterRes = scoresFilter.apply();
@@ -201,9 +199,7 @@ export const getTracesGroupedByName = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, {
-        tracesPrefix: "t",
-      })
+    ? createFilterFromFilterState(timestampFilter)
     : undefined;
 
   const timestampFilterRes = chFilter
@@ -239,9 +235,7 @@ export const getTracesGroupedByTags = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, {
-        tracesPrefix: "t",
-      })
+    ? createFilterFromFilterState(timestampFilter)
     : undefined;
 
   const timestampFilterRes = chFilter
