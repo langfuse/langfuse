@@ -709,49 +709,20 @@ export class IngestionService {
         const query =
           table === TableName.Observations
             ? Prisma.sql`
-              SELECT o.id,
-                     o.trace_id,
-                     o.project_id,
-                     o.type,
-                     o.parent_observation_id,
-                     o.start_time,
-                     o.end_time,
-                     o.name,
-                     o.metadata,
-                     o.level,
-                     o.status_message,
-                     o.version,
-                     o.input,
-                     o.output,
-                     o.unit,
-                     o.model,
-                     o.internal_model_id,
+              SELECT o.*,
                      o."modelParameters" as model_parameters,
-                     o.prompt_tokens,
-                     o.completion_tokens,
-                     o.total_tokens,
-                     o.completion_start_time,
-                     o.prompt_id,
                      p.name as prompt_name,
-                     p.version as prompt_version,
-                     o.input_cost,
-                     o.output_cost,
-                     o.total_cost,
-                     o.calculated_input_cost,
-                     o.calculated_output_cost,
-                     o.calculated_total_cost,
-                     o.created_at,
-                     o.updated_at
+                     p.version as prompt_version
               FROM observations o
-                       LEFT JOIN prompts p ON o.prompt_id = p.id
+              LEFT JOIN prompts p ON o.prompt_id = p.id
               WHERE o.project_id = ${projectId}
-                AND o.id = ${entityId}
+              AND o.id = ${entityId}
               LIMIT 1;`
             : Prisma.sql`
               SELECT *
               FROM ${Prisma.raw(table)}
               WHERE project_id = ${projectId}
-                AND id = ${entityId}
+              AND id = ${entityId}
               LIMIT 1;`;
 
         const result =

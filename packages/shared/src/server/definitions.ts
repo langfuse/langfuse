@@ -213,11 +213,10 @@ export const convertPostgresTraceToInsert = (
 
 /**
  * Expects a single record from a
- * `select o.id, o.trace_id, o.project_id, o.type, o.parent_observation_id, o.start_time, o.end_time, o.name, o.metadata,
- *         o.level, o.status_message, o.version, o.input, o.output, o.unit, o.model, o.internal_model_id, o."modelParameters" as model_parameters,
- *         o.prompt_tokens, o.completion_tokens, o.total_tokens, o.completion_start_time, o.prompt_id, p.name as prompt_name,
- *         p.version as prompt_version, o.input_cost, o.output_cost, o.total_cost, o.calculated_input_cost, o.calculated_output_cost,
- *         o.calculated_total_cost, o.created_at, o.updated_at
+ * `select o.*,
+ *         o."modelParameters" as model_parameters,
+ *         p.name as prompt_name,
+ *         p.version as prompt_version
  *  from observations o
  *  LEFT JOIN prompts p ON p.id = o.prompt_id`
  * query. Must be a raw query to keep original
