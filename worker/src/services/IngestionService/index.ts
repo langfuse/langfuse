@@ -714,11 +714,20 @@ export class IngestionService {
     const { traceEventList, projectId, entityId } = params;
 
     return traceEventList.map((trace) => {
+      if (!trace.body?.timestamp) {
+        logger.warn(
+          `Trace ${entityId} in project ${projectId} does not have a timestamp, using event time`,
+        );
+      }
+
       const traceRecord: TraceRecordInsertType = {
         id: entityId,
-        timestamp: ("timestamp" in trace.body && trace.body.timestamp
-          ? this.getMillisecondTimestamp(trace.body.timestamp)
-          : undefined) as number, // Casting here is dirty, but our requirement is to have a start_time _after_ the merge
+        timestamp: this.getMillisecondTimestamp(
+          trace.body.timestamp ?? trace.timestamp,
+        ),
+        // timestamp: ("timestamp" in trace.body && trace.body.timestamp
+        //   ? this.getMillisecondTimestamp(trace.body.timestamp)
+        //   : undefined) as number, // Casting here is dirty, but our requirement is to have a start_time _after_ the merge
         name: trace.body.name,
         user_id: trace.body.userId,
         metadata: trace.body.metadata
@@ -803,14 +812,23 @@ export class IngestionService {
         if (totalCost != null) provided_cost_details.total = totalCost;
       }
 
+      if (!obs.body?.startTime) {
+        logger.warn(
+          `Observation ${entityId} in project ${projectId} does not have a startTime, using event time`,
+        );
+      }
+
       const observationRecord: ObservationRecordInsertType = {
         id: entityId,
         trace_id: obs.body.traceId ?? v4(),
         type: observationType,
         name: obs.body.name,
-        start_time: ("startTime" in obs.body && obs.body.startTime
-          ? this.getMillisecondTimestamp(obs.body.startTime)
-          : undefined) as number, // Casting here is dirty, but our requirement is to have a start_time _after_ the merge
+        start_time: this.getMillisecondTimestamp(
+          obs.body.startTime ?? obs.timestamp,
+        ),
+        // start_time: ("startTime" in obs.body && obs.body.startTime
+        //   ? this.getMillisecondTimestamp(obs.body.startTime)
+        //   : undefined) as number, // Casting here is dirty, but our requirement is to have a start_time _after_ the merge
         end_time:
           "endTime" in obs.body && obs.body.endTime
             ? this.getMillisecondTimestamp(obs.body.endTime)
