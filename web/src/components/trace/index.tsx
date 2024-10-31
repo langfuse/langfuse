@@ -399,7 +399,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         </TabsBarList>
         <TabsBarContent
           value="details"
-          className="mt-5 h-full flex-1 overflow-hidden"
+          className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
         >
           <Trace
             key={trace.data.id}
@@ -411,7 +411,7 @@ export function TracePage({ traceId }: { traceId: string }) {
         </TabsBarContent>
         <TabsBarContent
           value="timeline"
-          className="mt-5 h-full flex-1 overflow-hidden"
+          className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
         >
           <TraceTimelineView
             key={trace.data.id}
