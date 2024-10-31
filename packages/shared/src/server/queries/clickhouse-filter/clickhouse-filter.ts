@@ -1,5 +1,16 @@
 import { filterOperators } from "../../../interfaces/filters";
 
+function randomCharacters() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  let result = "";
+  const randomArray = new Uint8Array(5);
+  crypto.getRandomValues(randomArray);
+  randomArray.forEach((number) => {
+    result += chars[number % chars.length];
+  });
+  return result;
+}
+
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
@@ -84,9 +95,10 @@ export class NumberFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const varName = `stringFilter${this.field}`;
+    const uid = randomCharacters();
+    const varName = `numberFilter${uid}`;
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: String}`,
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Decimal}`,
       params: { [varName]: this.value },
     };
   }
@@ -114,7 +126,8 @@ export class DateTimeFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const varName = `timeFilter${this.field}`;
+    const uid = randomCharacters();
+    const varName = `dateTimeFilter${uid}`;
     return {
       query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: DateTime64(3)}`,
       params: { [varName]: new Date(this.value).getTime() },
@@ -144,7 +157,8 @@ export class StringOptionsFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const varName = `stringOptionsFilter${this.field}`;
+    const uid = randomCharacters();
+    const varName = `stringOptionsFilter${uid}`;
     return {
       query:
         this.operator === "any of"
@@ -178,7 +192,8 @@ export class ArrayOptionsFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const varName = `arrayOptionsFilter${this.field}`;
+    const uid = randomCharacters();
+    const varName = `arrayOptionsFilter${uid}`;
     let query: string;
 
     switch (this.operator) {
@@ -221,7 +236,8 @@ export class BooleanFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const varName = `booleanFilter${this.field}`;
+    const uid = randomCharacters();
+    const varName = `booleanFilter${uid}`;
     return {
       query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} = {${varName}: Boolean}`,
       params: { [varName]: this.value },
@@ -241,11 +257,15 @@ export class FilterList {
   }
 
   public apply(): ClickhouseFilter {
-    const queries = this.filters.map((filter) => filter.apply().query);
-    const params = this.filters.reduce((acc, filter) => {
-      return { ...acc, ...filter.apply().params };
-    }, {});
-
+    const compiledQueries = this.filters.map((filter) => filter.apply());
+    const { params, queries } = compiledQueries.reduce(
+      (acc, { params, query }) => {
+        acc.params = { ...acc.params, ...params };
+        acc.queries.push(query);
+        return acc;
+      },
+      { params: {}, queries: [] as string[] },
+    );
     return {
       query: queries.join(" AND "),
       params,
