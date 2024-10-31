@@ -158,9 +158,36 @@ export const env = createEnv({
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
+
+    // Multimodal media upload to S3
+    LANGFUSE_S3_MEDIA_UPLOAD_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
+    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z
+      .string()
+      .default("media/")
+      .refine(
+        (value) => value.endsWith("/"),
+        "LANGFUSE_S3_MEDIA_UPLOAD_PREFIX must end with a slash ('/')",
+      ),
+    LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
+    LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+    LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+    LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS: z.coerce
+      .number()
+      .nonnegative()
+      .default(3600),
+
+    // Ingestion event upload to S3
     LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z
       .enum(["true", "false"])
       .default("false"),
+
     LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
     LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
@@ -327,6 +354,26 @@ export const env = createEnv({
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
     S3_REGION: process.env.S3_REGION,
     S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
+
+    // S3 media upload
+    LANGFUSE_S3_MEDIA_UPLOAD_ENABLED:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_ENABLED,
+    LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+    LANGFUSE_S3_MEDIA_UPLOAD_REGION:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
+    LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
+    LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
+    LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+    LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE,
+    LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS:
+      process.env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS,
     // S3 event upload
     LANGFUSE_S3_EVENT_UPLOAD_ENABLED:
       process.env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED,

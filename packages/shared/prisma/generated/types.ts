@@ -294,6 +294,19 @@ export type LlmApiKeys = {
     config: unknown | null;
     project_id: string;
 };
+export type Media = {
+    id: string;
+    sha_256_hash: string;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    expires_at: Timestamp | null;
+    deleted_at: Timestamp | null;
+    uploaded_at: Timestamp | null;
+    bucket_path: string;
+    bucket_name: string;
+    content_type: string;
+};
 export type MembershipInvitation = {
     id: string;
     email: string;
@@ -515,6 +528,16 @@ export type Trace = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
+export type TraceMedia = {
+    id: string;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    media_id: string;
+    trace_id: string;
+    observation_id: string | null;
+    field: string;
+};
 export type TraceSession = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -579,6 +602,7 @@ export type DB = {
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
+    media: Media;
     membership_invitations: MembershipInvitation;
     models: Model;
     observations: Observation;
@@ -594,6 +618,7 @@ export type DB = {
     scores: Score;
     Session: Session;
     sso_configs: SsoConfig;
+    trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: Trace;
     traces_view: TraceView;

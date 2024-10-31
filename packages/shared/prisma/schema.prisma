@@ -136,6 +136,8 @@ model Project {
   comment             Comment[]
   annotationQueue     AnnotationQueue[]
   annotationQueueItem AnnotationQueueItem[]
+  TraceMedia          TraceMedia[]
+  Media               Media[]
 
   @@index([orgId])
   @@map("projects")
@@ -960,4 +962,41 @@ model BatchExport {
   @@index([projectId, userId])
   @@index([status])
   @@map("batch_exports")
+}
+
+model Media {
+  id          String       @id @default(cuid())
+  sha256Hash  String       @map("sha_256_hash")
+  projectId   String       @map("project_id")
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at")
+  expiresAt   DateTime?    @map("expires_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  uploadedAt  DateTime?    @map("uploaded_at")
+  bucketPath  String       @map("bucket_path")
+  bucketName  String       @map("bucket_name")
+  contentType String       @map("content_type")
+  TraceMedia  TraceMedia[]
+
+  @@unique([projectId, sha256Hash])
+  @@index([expiresAt, deletedAt])
+  @@map("media")
+}
+
+model TraceMedia {
+  id            String   @id @default(cuid())
+  projectId     String   @map("project_id")
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  mediaId       String   @map("media_id")
+  media         Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  traceId       String   @map("trace_id")
+  observationId String?  @map("observation_id")
+  field         String   @map("field")
+
+  @@index([projectId, traceId])
+  @@index([projectId, observationId])
+  @@map("trace_media")
 }
