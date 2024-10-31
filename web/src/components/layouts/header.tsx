@@ -60,7 +60,7 @@ export default function Header({
     <div
       className={cn(
         level === "h2"
-          ? "sticky top-0 z-10 mb-2 border-b bg-background p-3"
+          ? "sticky top-0 z-20 mb-2 border-b bg-background p-3"
           : "mb-2",
         props.className,
       )}
