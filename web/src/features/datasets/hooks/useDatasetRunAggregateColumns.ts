@@ -5,11 +5,13 @@ export function useDatasetRunAggregateColumns({
   projectId,
   runIds,
   runNames,
+  scoreKeyToDisplayName,
   cellsLoading = false,
 }: {
   projectId: string;
   runIds: string[];
   runNames: { name: string; id: string }[];
+  scoreKeyToDisplayName: Map<string, string>;
   cellsLoading?: boolean;
 }) {
   const runAggregateColumnProps = runIds.map((runId) => ({
@@ -22,8 +24,9 @@ export function useDatasetRunAggregateColumns({
       runAggregateColumnProps,
       cellsLoading,
       projectId,
+      scoreKeyToDisplayName,
     });
-  }, [runAggregateColumnProps, cellsLoading, projectId]);
+  }, [runAggregateColumnProps, cellsLoading, projectId, scoreKeyToDisplayName]);
 
   return {
     runAggregateColumns,

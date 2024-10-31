@@ -1,5 +1,4 @@
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -14,6 +13,7 @@ import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
 import { useMemo } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
+import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 
 export type RunMetrics = {
   id: string;
@@ -42,10 +42,7 @@ export function DatasetCompareRunsTable(props: {
   datasetId: string;
   runIds?: string[];
 }) {
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
-    "datasetCompareRuns",
-    "s",
-  );
+  const rowHeight = "l";
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -113,9 +110,9 @@ export function DatasetCompareRunsTable(props: {
     return baseDatasetItems.data?.map(
       (item): DatasetCompareRunRowData => ({
         id: item.id,
-        input: item.input ?? null,
-        expectedOutput: item.expectedOutput ?? null,
-        metadata: item.metadata ?? null,
+        input: item.input ?? "null",
+        expectedOutput: item.expectedOutput ?? "null",
+        metadata: item.metadata ?? "null",
         runs: runData[item.id] || {},
       }),
     );
@@ -126,12 +123,28 @@ export function DatasetCompareRunsTable(props: {
     datasetId: props.datasetId,
   });
 
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery({
+    projectId: props.projectId,
+    selectedTimeOption: { filterSource: "TABLE", option: "All time" },
+  });
+
+  const scoreKeyToDisplayName = useMemo(() => {
+    if (!scoreKeysAndProps.data) return new Map<string, string>();
+    return new Map(
+      scoreKeysAndProps.data.map(({ key, dataType, source, name }) => [
+        key,
+        `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+      ]),
+    );
+  }, [scoreKeysAndProps.data]);
+
   const { runAggregateColumns, isColumnLoading } =
     useDatasetRunAggregateColumns({
       projectId: props.projectId,
       runIds: props.runIds ?? [],
       runNames: runNames.data ?? [],
-      cellsLoading: !runNames.data,
+      scoreKeyToDisplayName,
+      cellsLoading: !runNames.data || !scoreKeysAndProps.data,
     });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
@@ -162,9 +175,7 @@ export function DatasetCompareRunsTable(props: {
         const input = row.getValue(
           "input",
         ) as DatasetCompareRunRowData["input"];
-        return input !== null ? (
-          <IOTableCell data={input} singleLine={rowHeight === "s"} />
-        ) : null;
+        return input !== null ? <IOTableCell data={input} /> : null;
       },
     },
     {
@@ -181,7 +192,6 @@ export function DatasetCompareRunsTable(props: {
           <IOTableCell
             data={expectedOutput}
             className="bg-accent-light-green"
-            singleLine={rowHeight === "s"}
           />
         ) : null;
       },
@@ -196,9 +206,7 @@ export function DatasetCompareRunsTable(props: {
         const metadata = row.getValue(
           "metadata",
         ) as DatasetCompareRunRowData["metadata"];
-        return metadata !== null ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
-        ) : null;
+        return metadata !== null ? <IOTableCell data={metadata} /> : null;
       },
     },
     {
@@ -220,7 +228,6 @@ export function DatasetCompareRunsTable(props: {
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
-        setRowHeight={setRowHeight}
       />
       <DataTable
         columns={columns}

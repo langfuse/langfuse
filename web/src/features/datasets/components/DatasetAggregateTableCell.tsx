@@ -1,16 +1,21 @@
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
+import { Badge } from "@/src/components/ui/badge";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { type RunMetrics } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { api } from "@/src/utils/api";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+import { ClockIcon } from "lucide-react";
 
-const TraceObservationIOCell = ({
+const DatasetAggregateCell = ({
   scores,
   resourceMetrics,
   traceId,
   projectId,
   observationId,
+  scoreKeyToDisplayName,
 }: RunMetrics & {
   projectId: string;
+  scoreKeyToDisplayName: Map<string, string>;
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
@@ -45,9 +50,8 @@ const TraceObservationIOCell = ({
   const data = observationId === undefined ? trace.data : observation.data;
 
   return (
-    <div>
-      <div>
-        <span>Output</span>
+    <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden overflow-y-auto rounded-sm border p-1">
+      <div className="flex flex-row items-center justify-center gap-1">
         <IOTableCell
           isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
           data={data?.output}
@@ -55,22 +59,32 @@ const TraceObservationIOCell = ({
           singleLine={true}
         />
       </div>
-      <div>
-        <span>Resource Metrics</span>
-        <div>
-          <span>Latency</span>
-          <span>{resourceMetrics.latency}</span>
-        </div>
-        <div>
-          <span>Total Cost</span>
-          <span>{resourceMetrics.totalCost}</span>
-        </div>
-      </div>
-      <div>
-        <span>Scores</span>
+
+      <div className="flex w-full flex-row flex-wrap gap-1">
         {Object.entries(scores).map(([key, score]) => (
-          <ScoresTableCell aggregate={score} key={key} />
+          <div key={key}>
+            <Badge variant="outline" className="p-0.5 px-1 font-normal">
+              <span className="mr-0.5 capitalize">
+                {scoreKeyToDisplayName.get(key)}:
+              </span>
+              <ScoresTableCell aggregate={score} />
+            </Badge>
+          </div>
         ))}
+      </div>
+
+      <div className="flex w-full flex-row flex-wrap gap-1">
+        <Badge variant="outline" className="p-0.5 px-1 font-normal">
+          <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
+          <span className="capitalize">
+            {!!resourceMetrics.latency
+              ? formatIntervalSeconds(resourceMetrics.latency)
+              : null}
+          </span>
+        </Badge>
+        <Badge variant="outline" className="p-0.5 px-1 font-normal">
+          <span className="mr-0.5">{resourceMetrics.totalCost}</span>
+        </Badge>
       </div>
     </div>
   );
@@ -79,11 +93,17 @@ const TraceObservationIOCell = ({
 export const DatasetAggregateTableCell = ({
   value,
   projectId,
+  scoreKeyToDisplayName,
 }: {
   value: RunMetrics;
   projectId: string;
+  scoreKeyToDisplayName: Map<string, string>;
 }) => {
   return value ? (
-    <TraceObservationIOCell projectId={projectId} {...value} />
+    <DatasetAggregateCell
+      projectId={projectId}
+      {...value}
+      scoreKeyToDisplayName={scoreKeyToDisplayName}
+    />
   ) : null;
 };

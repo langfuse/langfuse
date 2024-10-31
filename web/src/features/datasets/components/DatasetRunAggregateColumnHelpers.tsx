@@ -18,10 +18,12 @@ export const constructDatasetRunAggregateColumns = ({
   runAggregateColumnProps,
   cellsLoading = false,
   projectId,
+  scoreKeyToDisplayName,
 }: {
   runAggregateColumnProps: RunAggregateColumnProps[];
   cellsLoading?: boolean;
   projectId: string;
+  scoreKeyToDisplayName: Map<string, string>;
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
   return runAggregateColumnProps.map((col) => {
     const { id, name } = col;
@@ -44,7 +46,11 @@ export const constructDatasetRunAggregateColumns = ({
 
         if (!value) return null;
         return (
-          <DatasetAggregateTableCell value={value} projectId={projectId} />
+          <DatasetAggregateTableCell
+            value={value}
+            projectId={projectId}
+            scoreKeyToDisplayName={scoreKeyToDisplayName}
+          />
         );
       },
     };
