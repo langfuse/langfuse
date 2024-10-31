@@ -19,7 +19,7 @@ import { pruneDatabase } from "../../../__tests__/utils";
 
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
-import { ModelUsageUnit } from "@langfuse/shared";
+import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -212,6 +212,7 @@ describe("Ingestion end-to-end tests", () => {
           timestamp: new Date().toISOString(),
           body: {
             id: traceId,
+            timestamp: new Date().toISOString(),
             name: "trace-name",
             userId: "user-1",
             metadata: { key: "value" },
@@ -597,6 +598,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: traceId,
             name: "trace-name",
+            timestamp: new Date().toISOString(),
           },
         },
       ];
@@ -675,6 +677,7 @@ describe("Ingestion end-to-end tests", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: traceId,
+          timestamp: new Date().toISOString(),
         },
       },
     ];
@@ -687,6 +690,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: spanId,
           traceId: traceId,
+          startTime: new Date().toISOString(),
         },
       },
       {
@@ -697,6 +701,7 @@ describe("Ingestion end-to-end tests", () => {
           id: spanId,
           traceId: traceId,
           name: "span-name",
+          startTime: new Date().toISOString(),
         },
       },
     ];
@@ -709,6 +714,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: generationId,
           traceId: traceId,
+          startTime: new Date().toISOString(),
           parentObservationId: spanId,
           modelParameters: { someKey: ["user-1", "user-2"] },
         },
@@ -720,6 +726,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: generationId,
           name: "generation-name",
+          startTime: new Date().toISOString(),
         },
       },
     ];
@@ -733,6 +740,7 @@ describe("Ingestion end-to-end tests", () => {
           id: eventId,
           traceId: traceId,
           name: "event-name",
+          startTime: new Date().toISOString(),
           parentObservationId: generationId,
         },
       },
@@ -836,6 +844,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
+          timestamp: new Date().toISOString(),
           userId: "user-1",
           metadata: { key: "value" },
           release: "1.0.0",
@@ -939,6 +948,163 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
+  it("should upsert traces from event and postgres in right order", async () => {
+    const traceId = randomUUID();
+
+    const latestEvent = new Date();
+    const oldEvent = new Date(latestEvent).setSeconds(
+      latestEvent.getSeconds() - 1,
+    );
+
+    await prisma.trace.create({
+      data: {
+        id: traceId,
+        name: "trace-name",
+        userId: "user-2",
+        projectId,
+        timestamp: new Date(oldEvent),
+      },
+    });
+
+    const traceEventList: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: latestEvent.toISOString(),
+        body: {
+          id: traceId,
+          timestamp: latestEvent.toISOString(),
+          name: "trace-name",
+          userId: "user-1",
+        },
+      },
+    ];
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      traceEventList,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const trace = await getClickhouseRecord(TableName.Traces, traceId);
+
+    expect(trace.name).toBe("trace-name");
+    expect(trace.user_id).toBe("user-1");
+    expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+  });
+
+  it("should merge scores from postgres and event list", async () => {
+    const traceId = randomUUID();
+    const scoreId = randomUUID();
+    const observationId = randomUUID();
+
+    const latestEvent = new Date();
+    const oldEvent = new Date(latestEvent).setSeconds(
+      latestEvent.getSeconds() - 1,
+    );
+
+    await prisma.score.create({
+      data: {
+        id: scoreId,
+        name: "score-name",
+        value: 100.5,
+        observationId,
+        traceId,
+        projectId,
+        source: ScoreSource.API,
+        timestamp: new Date(oldEvent),
+      },
+    });
+
+    const scoreEventList: ScoreEventType[] = [
+      {
+        id: randomUUID(),
+        type: "score-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: scoreId,
+          dataType: "NUMERIC",
+          name: "score-name",
+          traceId: traceId,
+          value: 100.5,
+          observationId,
+        },
+      },
+    ];
+
+    await ingestionService.processScoreEventList({
+      projectId,
+      entityId: scoreId,
+      scoreEventList,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const score = await getClickhouseRecord(TableName.Scores, scoreId);
+
+    expect(score.name).toBe("score-name");
+    expect(score.value).toBe(100.5);
+    expect(score.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+  });
+
+  it("should merge observations from postgres and event list", async () => {
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+
+    const latestEvent = new Date();
+    const oldEvent = new Date(latestEvent).setSeconds(
+      latestEvent.getSeconds() - 1,
+    );
+
+    await prisma.observation.create({
+      data: {
+        id: observationId,
+        type: "GENERATION",
+        traceId,
+        name: "generation-name",
+        input: { key: "value" },
+        output: "should be overwritten",
+        model: "gpt-3.5",
+        projectId,
+        startTime: new Date(oldEvent),
+      },
+    });
+
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "generation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: observationId,
+          traceId: traceId,
+          modelParameters: { someKey: ["user-1", "user-2"] },
+          output: "overwritten",
+        },
+      },
+    ];
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: observationId,
+      observationEventList,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const observation = await getClickhouseRecord(
+      TableName.Observations,
+      observationId,
+    );
+
+    expect(observation.name).toBe("generation-name");
+    expect(observation.input).toBe(JSON.stringify({ key: "value" }));
+    expect(observation.output).toBe("overwritten");
+    expect(observation.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+  });
+
   it("should put observation updates after creates if timestamp is same", async () => {
     const generationId = randomUUID();
 
@@ -952,6 +1118,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: generationId,
           type: "GENERATION",
+          startTime: new Date().toISOString(),
           output: { key: "this is a great gpt output" },
         },
       },
@@ -962,6 +1129,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: generationId,
           type: "GENERATION",
+          startTime: new Date().toISOString(),
           name: "generation-name",
           input: { key: "value" },
           output: "should be overwritten",
@@ -1023,6 +1191,7 @@ describe("Ingestion end-to-end tests", () => {
           type: "GENERATION",
           id: generationId,
           traceId,
+          startTime: new Date().toISOString(),
           name: "LiteLLM.run",
           // usage: null,
         },
@@ -1132,6 +1301,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
+          timestamp: new Date().toISOString(),
           userId: "user-1",
         },
       },
@@ -1146,6 +1316,7 @@ describe("Ingestion end-to-end tests", () => {
           id: generationId,
           traceId: traceId,
           type: "GENERATION",
+          startTime: new Date().toISOString(),
           name: "generation-name",
           input: { key: "value" },
           model: "gpt-3.5",
@@ -1230,6 +1401,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
+          timestamp: new Date().toISOString(),
           userId: "user-1",
         },
       },
@@ -1254,6 +1426,7 @@ describe("Ingestion end-to-end tests", () => {
           id: generationId,
           traceId: traceId,
           type: "GENERATION",
+          startTime: new Date().toISOString(),
           name: "generation-name",
           input: { key: "value" },
           model: "gpt-3.5",
@@ -1308,6 +1481,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
+          timestamp: new Date(timestamp).toISOString(),
           userId: "user-1",
           metadata: { key: "value" },
           release: "1.0.0",
@@ -1391,6 +1565,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: traceId,
             name: "trace-name",
+            timestamp: new Date().toISOString(),
             userId: "user-1",
             metadata: inputs[0],
           },
@@ -1402,6 +1577,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: traceId,
             name: "trace-name",
+            timestamp: new Date().toISOString(),
             metadata: inputs[1],
           },
         },
@@ -1415,6 +1591,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: generationId,
             traceId: traceId,
+            startTime: new Date().toISOString(),
             type: "GENERATION",
             name: "generation-name",
             metadata: inputs[0],
@@ -1427,6 +1604,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: generationId,
             traceId: traceId,
+            startTime: new Date().toISOString(),
             type: "GENERATION",
             metadata: inputs[1],
           },
