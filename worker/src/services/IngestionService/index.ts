@@ -122,46 +122,46 @@ export class IngestionService {
     const timeSortedEvents =
       IngestionService.toTimeSortedEventList(scoreEventList);
 
-    const scoreRecords: ScoreRecordInsertType[] = await Promise.all(
-      timeSortedEvents.map(async (scoreEvent) => {
-        const validatedScore = await validateAndInflateScore({
-          body: scoreEvent.body,
-          scoreId: entityId,
+    const [postgresScoreRecord, clickhouseScoreRecord, scoreRecords] =
+      await Promise.all([
+        this.getPostgresRecord({
           projectId,
-        });
+          entityId,
+          table: TableName.Scores,
+        }),
+        this.getClickhouseRecord({
+          projectId,
+          entityId,
+          table: TableName.Scores,
+        }),
+        Promise.all(
+          timeSortedEvents.map(async (scoreEvent) => {
+            const validatedScore = await validateAndInflateScore({
+              body: scoreEvent.body,
+              scoreId: entityId,
+              projectId,
+            });
 
-        return {
-          id: entityId,
-          project_id: projectId,
-          timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
-          name: validatedScore.name,
-          value: validatedScore.value,
-          source: validatedScore.source,
-          trace_id: validatedScore.traceId,
-          data_type: validatedScore.dataType,
-          observation_id: validatedScore.observationId,
-          comment: validatedScore.comment,
-          string_value: validatedScore.stringValue,
-          created_at: Date.now(),
-          updated_at: Date.now(),
-          event_ts: new Date(scoreEvent.timestamp).getTime(),
-          is_deleted: 0,
-        };
-      }),
-    );
-
-    const [postgresScoreRecord, clickhouseScoreRecord] = await Promise.all([
-      this.getPostgresRecord({
-        projectId,
-        entityId,
-        table: TableName.Scores,
-      }),
-      this.getClickhouseRecord({
-        projectId,
-        entityId,
-        table: TableName.Scores,
-      }),
-    ]);
+            return {
+              id: entityId,
+              project_id: projectId,
+              timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
+              name: validatedScore.name,
+              value: validatedScore.value,
+              source: validatedScore.source,
+              trace_id: validatedScore.traceId,
+              data_type: validatedScore.dataType,
+              observation_id: validatedScore.observationId,
+              comment: validatedScore.comment,
+              string_value: validatedScore.stringValue,
+              created_at: Date.now(),
+              updated_at: Date.now(),
+              event_ts: new Date(scoreEvent.timestamp).getTime(),
+              is_deleted: 0,
+            };
+          }),
+        ),
+      ]);
 
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({
@@ -220,18 +220,10 @@ export class IngestionService {
     const { projectId, entityId, observationEventList } = params;
     if (observationEventList.length === 0) return;
 
-    const prompt = await this.getPrompt(projectId, observationEventList);
     const timeSortedEvents =
       IngestionService.toTimeSortedEventList(observationEventList);
 
-    const observationRecords = this.mapObservationEventsToRecords({
-      observationEventList: timeSortedEvents,
-      projectId,
-      entityId,
-      prompt,
-    });
-
-    const [postgresObservationRecord, clickhouseObservationRecord] =
+    const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
       await Promise.all([
         this.getPostgresRecord({
           projectId,
@@ -243,7 +235,15 @@ export class IngestionService {
           entityId,
           table: TableName.Observations,
         }),
+        this.getPrompt(projectId, observationEventList),
       ]);
+
+    const observationRecords = this.mapObservationEventsToRecords({
+      observationEventList: timeSortedEvents,
+      projectId,
+      entityId,
+      prompt,
+    });
 
     const finalObservationRecord = await this.mergeObservationRecords({
       projectId,
