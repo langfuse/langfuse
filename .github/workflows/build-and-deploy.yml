@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - "main"
-    paths:
-      - .pulumi/**
-      - config/**
-      - src/**
 
   workflow_dispatch:
     inputs:
@@ -36,4 +32,3 @@ jobs:
       docker-file: ./web/Dockerfile
     secrets:
       gcp-credentials-json: "${{ github.event.inputs.environment == 'prod' && secrets.GCP_CREDENTIALS_JSON ||  github.event.inputs.environment == 'prod-ru' && secrets.GCP_CREDENTIALS_PRODRU_JSON || secrets.GCP_CREDENTIALS_STAGING_JSON }}"
-      pat-github: "${{ secrets.TOKEN_FOR_SUB }}"

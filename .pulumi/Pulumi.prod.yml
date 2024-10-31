@@ -1,5 +1,5 @@
 secretsprovider: gcpkms://projects/ai-asia-382012/locations/global/keyRings/ai-wayz-pulumi-2002051/cryptoKeys/ai-wayz-pulumi-e9ef33c
-encryptedkey: CiQAZ+DZAbQNpVa9VXZr2+XmOiUXO3hlSqs5Oj7z6vi7z0/coDkSSQDNyZebkHARbmkg0u9vZaJ/78UH35n1by9dGE9gnqy+ffKLcnr0+73mQZN+WT0NYlUvIDYvPI04M1lcVKaIi+27xy9r8e08bkM=
+encryptedkey: CiQAZ+DZAUxl/1KmHcJ/Fut+PWipnMovpawp+xlX9vj6OgfN+uwSSQDNyZebdPu77Ckwe4SELEi4sCY47ZZYQxVwGjFliaxUe5uLnvB/v7umPaYDZdPeu6QJjoEG/aRnrW2X3VhomkYAL9PlUW1b6+s=
 config:
   ai-stats:base-stack:
     stackName: organization/ai-wayz-infrastructure/dev
@@ -18,7 +18,7 @@ config:
         LANGFUSE_INIT_ORG_NAME: Fulldive
         LANGFUSE_INIT_USER_EMAIL: admin@fulldive.com
         LANGFUSE_INIT_USER_NAME: Admin
-      image: asia.gcr.io/ai-east/ai-stats:latest
+      image: asia.gcr.io/ai-asia-382012/ai-stats:latest
       port: 3000
       readinessProbe:
         initialDelaySeconds: 5
@@ -36,10 +36,10 @@ config:
           ephemeral-storage: "4Gi"
           memory: "400Mi"
       secretEnv:
-        DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
-        NEXTAUTH_SECRET: TNxTpEpIzenp9OLQ3t9XM6NHDH5hU5tjBnCZKO51jOs=
-        SALT: sL4bYIV5TkXS7recy4npmqFjQe6IqxS00I9A3+f2Pnw=
-        ENCRYPTION_KEY: 6cc06cb699caa82d5847bba0f43656bd6e4dd577d5adc5c78d035042af923b92
+        DATABASE_URL: postgresql://postgres:postgres@db:5432/ai-stats
+        NEXTAUTH_SECRET: nextauth-secret
+        SALT: salt
+        ENCRYPTION_KEY: encryption-key
         LANGFUSE_INIT_USER_PASSWORD: password
     name: ai-stats
     postgres:
