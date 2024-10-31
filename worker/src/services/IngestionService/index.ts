@@ -649,14 +649,14 @@ export class IngestionService {
       async () => {
         const queryResult = await this.clickhouseClient.query({
           query: `
-                        SELECT *
-                        FROM {table: String}
-                            FINAL
-                        WHERE project_id = {projectId: String}
-                          AND id = {entityId: String}
-                        ORDER BY event_ts DESC
-                        LIMIT 1 BY id, project_id SETTINGS use_query_cache = false;
-                    `,
+            SELECT *
+            FROM {table: String}
+            FINAL
+            WHERE project_id = {projectId: String}
+            AND id = {entityId: String}
+            ORDER BY event_ts DESC
+            LIMIT 1 BY id, project_id SETTINGS use_query_cache = false;
+          `,
           format: "JSONEachRow",
           query_params: { table, projectId, entityId },
         });
