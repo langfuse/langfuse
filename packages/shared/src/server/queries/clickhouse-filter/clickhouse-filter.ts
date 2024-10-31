@@ -17,7 +17,7 @@ export interface Filter {
 }
 type ClickhouseFilter = {
   query: string;
-  params: { [x: string]: any };
+  params: { [x: string]: any } | {};
 };
 
 export class StringFilter implements Filter {
@@ -256,9 +256,12 @@ export class FilterList {
     this.filters.push(...filter);
   }
 
-  public apply(): ClickhouseFilter | undefined {
+  public apply(): ClickhouseFilter {
     if (this.filters.length === 0) {
-      return undefined;
+      return {
+        query: "",
+        params: {},
+      };
     }
     const compiledQueries = this.filters.map((filter) => filter.apply());
     const { params, queries } = compiledQueries.reduce(
