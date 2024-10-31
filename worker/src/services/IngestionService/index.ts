@@ -650,7 +650,7 @@ export class IngestionService {
         const queryResult = await this.clickhouseClient.query({
           query: `
             SELECT *
-            FROM {table: String}
+            FROM ${table}
             FINAL
             WHERE project_id = {projectId: String}
             AND id = {entityId: String}
@@ -658,7 +658,7 @@ export class IngestionService {
             LIMIT 1 BY id, project_id SETTINGS use_query_cache = false;
           `,
           format: "JSONEachRow",
-          query_params: { table, projectId, entityId },
+          query_params: { projectId, entityId },
         });
 
         const result = await queryResult.json();

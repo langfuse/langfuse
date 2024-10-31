@@ -182,8 +182,7 @@ export const convertPostgresTraceToInsert = (
 ): TraceRecordInsertType => {
   return {
     id: trace.id,
-    timestamp:
-      trace.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    timestamp: trace.timestamp?.getTime(),
     name: trace.name,
     user_id: trace.user_id,
     metadata:
@@ -198,15 +197,12 @@ export const convertPostgresTraceToInsert = (
     public: trace.public,
     bookmarked: trace.bookmarked,
     tags: trace.tags,
-    input: trace.input,
-    output: trace.output,
+    input: trace.input ? JSON.stringify(trace.input) : null,
+    output: trace.output ? JSON.stringify(trace.output) : null,
     session_id: trace.session_id,
-    created_at:
-      trace.created_at?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-    updated_at:
-      trace.updated_at?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-    event_ts:
-      trace.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    created_at: trace.created_at?.getTime(),
+    updated_at: trace.updated_at?.getTime(),
+    event_ts: trace.timestamp?.getTime(),
     is_deleted: 0,
   };
 };
@@ -231,12 +227,8 @@ export const convertPostgresObservationToInsert = (
     project_id: observation.project_id,
     type: observation.type,
     parent_observation_id: observation.parent_observation_id,
-    start_time:
-      observation.start_time?.toISOString().replace("T", " ").slice(0, -1) ??
-      null,
-    end_time:
-      observation.end_time?.toISOString().replace("T", " ").slice(0, -1) ??
-      null,
+    start_time: observation.start_time?.getTime(),
+    end_time: observation.end_time?.getTime(),
     name: observation.name,
     metadata:
       typeof observation.metadata === "string"
@@ -247,8 +239,8 @@ export const convertPostgresObservationToInsert = (
     level: observation.level,
     status_message: observation.status_message,
     version: observation.version,
-    input: observation.input,
-    output: observation.output,
+    input: observation.input ? JSON.stringify(observation.input) : null,
+    output: observation.output ? JSON.stringify(observation.output) : null,
     provided_model_name: observation.model,
     internal_model_id: observation.internal_model_id,
     model_parameters: observation.model_parameters,
@@ -269,23 +261,13 @@ export const convertPostgresObservationToInsert = (
       total: observation.calculated_total_cost,
     },
     total_cost: observation.calculated_total_cost,
-    completion_start_time:
-      observation.completion_start_time
-        ?.toISOString()
-        .replace("T", " ")
-        .slice(0, -1) ?? null,
+    completion_start_time: observation.completion_start_time?.getTime(),
     prompt_id: observation.prompt_id,
     prompt_name: observation.prompt_name,
     prompt_version: observation.prompt_version,
-    created_at:
-      observation.created_at?.toISOString().replace("T", " ").slice(0, -1) ??
-      null,
-    updated_at:
-      observation.updated_at?.toISOString().replace("T", " ").slice(0, -1) ??
-      null,
-    event_ts:
-      observation.start_time?.toISOString().replace("T", " ").slice(0, -1) ??
-      null,
+    created_at: observation.created_at?.getTime(),
+    updated_at: observation.updated_at?.getTime(),
+    event_ts: observation.start_time?.getTime(),
     is_deleted: 0,
   };
 };
@@ -299,8 +281,7 @@ export const convertPostgresScoreToInsert = (
 ): ScoreRecordInsertType => {
   return {
     id: score.id,
-    timestamp:
-      score.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    timestamp: score.timestamp?.getTime(),
     project_id: score.project_id,
     trace_id: score.trace_id,
     observation_id: score.observation_id,
@@ -312,12 +293,9 @@ export const convertPostgresScoreToInsert = (
     config_id: score.config_id,
     data_type: score.data_type,
     string_value: score.string_value,
-    created_at:
-      score.created_at?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-    updated_at:
-      score.updated_at?.toISOString().replace("T", " ").slice(0, -1) ?? null,
-    event_ts:
-      score.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    created_at: score.created_at?.getTime(),
+    updated_at: score.updated_at?.getTime(),
+    event_ts: score.timestamp?.getTime(),
     is_deleted: 0,
   };
 };

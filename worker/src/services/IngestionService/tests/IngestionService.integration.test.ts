@@ -19,7 +19,7 @@ import { pruneDatabase } from "../../../__tests__/utils";
 
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
-import { ModelUsageUnit } from "@langfuse/shared";
+import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -1004,6 +1004,7 @@ describe("Ingestion end-to-end tests", () => {
         observationId,
         traceId,
         projectId,
+        source: ScoreSource.API,
         timestamp: new Date(oldEvent),
       },
     });
