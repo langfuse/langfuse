@@ -244,7 +244,9 @@ export const convertPostgresObservationToInsert = (
     output: observation.output ? JSON.stringify(observation.output) : null,
     provided_model_name: observation.model,
     internal_model_id: observation.internal_model_id,
-    model_parameters: observation.model_parameters,
+    model_parameters: observation.model_parameters
+      ? JSON.stringify(observation.model_parameters)
+      : null,
     provided_usage_details: {},
     usage_details: {
       input: observation.prompt_tokens,
