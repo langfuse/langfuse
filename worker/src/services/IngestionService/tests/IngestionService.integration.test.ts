@@ -212,6 +212,7 @@ describe("Ingestion end-to-end tests", () => {
           timestamp: new Date().toISOString(),
           body: {
             id: traceId,
+            timestamp: new Date().toISOString(),
             name: "trace-name",
             userId: "user-1",
             metadata: { key: "value" },
@@ -597,6 +598,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: traceId,
             name: "trace-name",
+            timestamp: new Date().toISOString(),
           },
         },
       ];
@@ -675,6 +677,7 @@ describe("Ingestion end-to-end tests", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: traceId,
+          timestamp: new Date().toISOString(),
         },
       },
     ];
@@ -687,6 +690,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: spanId,
           traceId: traceId,
+          startTime: new Date().toISOString(),
         },
       },
       {
@@ -697,6 +701,7 @@ describe("Ingestion end-to-end tests", () => {
           id: spanId,
           traceId: traceId,
           name: "span-name",
+          startTime: new Date().toISOString(),
         },
       },
     ];
@@ -709,6 +714,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: generationId,
           traceId: traceId,
+          startTime: new Date().toISOString(),
           parentObservationId: spanId,
           modelParameters: { someKey: ["user-1", "user-2"] },
         },
@@ -720,6 +726,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: generationId,
           name: "generation-name",
+          startTime: new Date().toISOString(),
         },
       },
     ];
@@ -733,6 +740,7 @@ describe("Ingestion end-to-end tests", () => {
           id: eventId,
           traceId: traceId,
           name: "event-name",
+          startTime: new Date().toISOString(),
           parentObservationId: generationId,
         },
       },
@@ -836,6 +844,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
+          timestamp: new Date().toISOString(),
           userId: "user-1",
           metadata: { key: "value" },
           release: "1.0.0",
@@ -1109,6 +1118,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: generationId,
           type: "GENERATION",
+          startTime: new Date().toISOString(),
           output: { key: "this is a great gpt output" },
         },
       },
@@ -1119,6 +1129,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: generationId,
           type: "GENERATION",
+          startTime: new Date().toISOString(),
           name: "generation-name",
           input: { key: "value" },
           output: "should be overwritten",
@@ -1180,6 +1191,7 @@ describe("Ingestion end-to-end tests", () => {
           type: "GENERATION",
           id: generationId,
           traceId,
+          startTime: new Date().toISOString(),
           name: "LiteLLM.run",
           // usage: null,
         },
@@ -1289,6 +1301,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
+          timestamp: new Date().toISOString(),
           userId: "user-1",
         },
       },
@@ -1303,6 +1316,7 @@ describe("Ingestion end-to-end tests", () => {
           id: generationId,
           traceId: traceId,
           type: "GENERATION",
+          startTime: new Date().toISOString(),
           name: "generation-name",
           input: { key: "value" },
           model: "gpt-3.5",
@@ -1387,6 +1401,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
+          timestamp: new Date().toISOString(),
           userId: "user-1",
         },
       },
@@ -1411,6 +1426,7 @@ describe("Ingestion end-to-end tests", () => {
           id: generationId,
           traceId: traceId,
           type: "GENERATION",
+          startTime: new Date().toISOString(),
           name: "generation-name",
           input: { key: "value" },
           model: "gpt-3.5",
@@ -1465,6 +1481,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
+          timestamp: new Date(timestamp).toISOString(),
           userId: "user-1",
           metadata: { key: "value" },
           release: "1.0.0",
@@ -1548,6 +1565,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: traceId,
             name: "trace-name",
+            timestamp: new Date().toISOString(),
             userId: "user-1",
             metadata: inputs[0],
           },
@@ -1559,6 +1577,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: traceId,
             name: "trace-name",
+            timestamp: new Date().toISOString(),
             metadata: inputs[1],
           },
         },
@@ -1572,6 +1591,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: generationId,
             traceId: traceId,
+            startTime: new Date().toISOString(),
             type: "GENERATION",
             name: "generation-name",
             metadata: inputs[0],
@@ -1584,6 +1604,7 @@ describe("Ingestion end-to-end tests", () => {
           body: {
             id: generationId,
             traceId: traceId,
+            startTime: new Date().toISOString(),
             type: "GENERATION",
             metadata: inputs[1],
           },
