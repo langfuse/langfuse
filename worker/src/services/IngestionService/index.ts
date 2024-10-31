@@ -681,34 +681,29 @@ export class IngestionService {
     };
     const { projectId, entityId, table } = params;
 
-    return await instrumentAsync(
-      { name: `get-postgres-${table}` },
-      async () => {
-        const query =
-          table === TableName.Observations
-            ? Prisma.sql`
-              SELECT o.*,
-                     o."modelParameters" as model_parameters,
-                     p.name as prompt_name,
-                     p.version as prompt_version
-              FROM observations o
-              LEFT JOIN prompts p ON o.prompt_id = p.id
-              WHERE o.project_id = ${projectId}
-              AND o.id = ${entityId}
-              LIMIT 1;`
-            : Prisma.sql`
-              SELECT *
-              FROM ${Prisma.raw(table)}
-              WHERE project_id = ${projectId}
-              AND id = ${entityId}
-              LIMIT 1;`;
+    const query =
+      table === TableName.Observations
+        ? Prisma.sql`
+          SELECT o.*,
+                 o."modelParameters" as model_parameters,
+                 p.name as prompt_name,
+                 p.version as prompt_version
+          FROM observations o
+          LEFT JOIN prompts p ON o.prompt_id = p.id
+          WHERE o.project_id = ${projectId}
+          AND o.id = ${entityId}
+          LIMIT 1;`
+        : Prisma.sql`
+          SELECT *
+          FROM ${Prisma.raw(table)}
+          WHERE project_id = ${projectId}
+          AND id = ${entityId}
+          LIMIT 1;`;
 
-        const result =
-          await this.prisma.$queryRaw<Array<Record<string, unknown>>>(query);
+    const result =
+      await this.prisma.$queryRaw<Array<Record<string, unknown>>>(query);
 
-        return result.length === 0 ? null : recordParser[table](result[0]);
-      },
-    );
+    return result.length === 0 ? null : recordParser[table](result[0]);
   }
 
   private mapTraceEventsToRecords(params: {
