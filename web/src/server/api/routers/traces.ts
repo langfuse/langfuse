@@ -36,6 +36,8 @@ import {
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
+  getObservationsForTrace,
+  convertObservation,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -454,62 +456,141 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const [trace, observations, scores] = await Promise.all([
-        ctx.prisma.trace.findFirstOrThrow({
-          where: {
-            id: input.traceId,
-            projectId: input.projectId,
-          },
-        }),
-        ctx.prisma.observationView.findMany({
-          select: {
-            id: true,
-            traceId: true,
-            projectId: true,
-            type: true,
-            startTime: true,
-            endTime: true,
-            name: true,
-            parentObservationId: true,
-            level: true,
-            statusMessage: true,
-            version: true,
-            createdAt: true,
-            model: true,
-            modelParameters: true,
-            promptTokens: true,
-            completionTokens: true,
-            totalTokens: true,
-            unit: true,
-            completionStartTime: true,
-            timeToFirstToken: true,
-            promptId: true,
-            modelId: true,
-            inputPrice: true,
-            outputPrice: true,
-            totalPrice: true,
-            calculatedInputCost: true,
-            calculatedOutputCost: true,
-            calculatedTotalCost: true,
-          },
-          where: {
-            traceId: {
-              equals: input.traceId,
-              not: null,
+      if (!input.queryClickhouse) {
+        const [trace, observations, scores] = await Promise.all([
+          ctx.prisma.trace.findFirstOrThrow({
+            where: {
+              id: input.traceId,
+              projectId: input.projectId,
             },
-            projectId: input.projectId,
-          },
-        }),
-        ctx.prisma.score.findMany({
-          where: {
-            traceId: input.traceId,
-            projectId: input.projectId,
-          },
-        }),
+          }),
+          ctx.prisma.observationView.findMany({
+            select: {
+              id: true,
+              traceId: true,
+              projectId: true,
+              type: true,
+              startTime: true,
+              endTime: true,
+              name: true,
+              parentObservationId: true,
+              level: true,
+              statusMessage: true,
+              version: true,
+              createdAt: true,
+              model: true,
+              modelParameters: true,
+              promptTokens: true,
+              completionTokens: true,
+              totalTokens: true,
+              unit: true,
+              completionStartTime: true,
+              timeToFirstToken: true,
+              promptId: true,
+              modelId: true,
+              inputPrice: true,
+              outputPrice: true,
+              totalPrice: true,
+              calculatedInputCost: true,
+              calculatedOutputCost: true,
+              calculatedTotalCost: true,
+            },
+            where: {
+              traceId: {
+                equals: input.traceId,
+                not: null,
+              },
+              projectId: input.projectId,
+            },
+          }),
+          ctx.prisma.score.findMany({
+            where: {
+              traceId: input.traceId,
+              projectId: input.projectId,
+            },
+          }),
+        ]);
+        const validatedScores = filterAndValidateDbScoreList(
+          scores,
+          traceException,
+        );
+
+        const obsStartTimes = observations
+          .map((o) => o.startTime)
+          .sort((a, b) => a.getTime() - b.getTime());
+        const obsEndTimes = observations
+          .map((o) => o.endTime)
+          .filter((t) => t)
+          .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
+        const latencyMs =
+          obsStartTimes.length > 0
+            ? obsEndTimes.length > 0
+              ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+                obsStartTimes[0]!.getTime()
+              : obsStartTimes.length > 1
+                ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+                  obsStartTimes[0]!.getTime()
+                : undefined
+            : undefined;
+
+        return {
+          ...trace,
+          scores: validatedScores,
+          latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
+          observations: observations as ObservationReturnType[],
+        };
+      }
+
+      if (!isClickhouseEligible(ctx.session.user)) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Not eligible to query clickhouse",
+        });
+      }
+
+      const [trace, observations, scores] = await Promise.all([
+        getTraceById(input.traceId, input.projectId),
+        (await getObservationsForTrace(input.traceId, input.projectId))
+          .map(convertObservation)
+          .map((o) => ({
+            ...o,
+            promptTokens: o.usageDetails?.input ?? undefined,
+            completionTokens: o.usageDetails?.output ?? undefined,
+            totalTokens: o.usageDetails?.total ?? undefined,
+            calculatedInputCost: o.costDetails?.input
+              ? new Decimal(o.costDetails.input)
+              : undefined,
+            calculatedOutputCost: o.costDetails?.output
+              ? new Decimal(o.costDetails.output)
+              : undefined,
+            calculatedTotalCost: o.costDetails?.total
+              ? new Decimal(o.costDetails.total)
+              : undefined,
+            modelId: o.internalModelId,
+            unit: "some",
+            inputPrice: new Decimal(0),
+            outputPrice: new Decimal(0),
+            totalPrice: new Decimal(0),
+            latency: o.endTime
+              ? o.endTime.getTime() - o.startTime.getTime()
+              : undefined,
+            timeToFirstToken: o.completionStartTime
+              ? o.startTime.getTime() - o.completionStartTime.getTime()
+              : undefined,
+            model: o.providedModelName,
+          })),
+        getScoresForTraces(
+          input.projectId,
+          [input.traceId],
+          undefined,
+          undefined,
+        ),
       ]);
+
       const validatedScores = filterAndValidateDbScoreList(
         scores,
         traceException,
@@ -540,6 +621,7 @@ export const traceRouter = createTRPCRouter({
         observations: observations as ObservationReturnType[],
       };
     }),
+
   deleteMany: protectedProjectProcedure
     .input(
       z.object({
