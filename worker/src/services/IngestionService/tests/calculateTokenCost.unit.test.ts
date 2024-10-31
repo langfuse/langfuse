@@ -30,7 +30,7 @@ const mockIngestionService = new IngestionService(
   null as any,
   prisma,
   clickhouseWriteExports.ClickhouseWriter.getInstance() as any,
-  mockClickhouseClient as any
+  mockClickhouseClient as any,
 );
 
 describe("Token Cost Calculation", () => {
@@ -113,7 +113,7 @@ describe("Token Cost Calculation", () => {
     const costs = (IngestionService as any).calculateUsageCosts(
       prices as any,
       userProvidedCosts,
-      usageUnits
+      usageUnits,
     );
 
     expect(costs.cost_details.input).toBe(1.0); // 100 tokens * 0.01
@@ -144,7 +144,7 @@ describe("Token Cost Calculation", () => {
     const costs = (IngestionService as any).calculateUsageCosts(
       prices as any,
       { provided_cost_details: userProvidedCosts },
-      usageUnits
+      usageUnits,
     );
 
     expect(costs.cost_details.input).toBe(2.0); // Overridden by user provided cost
@@ -240,7 +240,7 @@ describe("Token Cost Calculation", () => {
       const costs = (IngestionService as any).calculateUsageCosts(
         prices as any,
         { provided_cost_details: userProvidedCosts } as any,
-        usageUnits
+        usageUnits,
       );
 
       expect(costs.cost_details.input).toBe(expectedCost.input_cost);
@@ -266,7 +266,7 @@ describe("Token Cost Calculation", () => {
     const costs = (IngestionService as any).calculateUsageCosts(
       null,
       userProvidedCosts,
-      usageUnits
+      usageUnits,
     );
 
     expect(costs.cost_details.input).toBeUndefined();
@@ -297,7 +297,7 @@ describe("Token Cost Calculation", () => {
     const costs = (IngestionService as any).calculateUsageCosts(
       prices as any,
       userProvidedCosts,
-      usageUnits
+      usageUnits,
     );
 
     expect(costs.cost_details.input).toBe(0); // 0 tokens * 0.01
@@ -328,7 +328,7 @@ describe("Token Cost Calculation", () => {
     const costs = (IngestionService as any).calculateUsageCosts(
       prices as any,
       userProvidedCosts,
-      usageUnits
+      usageUnits,
     );
 
     expect(costs.cost_details.input).toBeUndefined();
@@ -359,7 +359,7 @@ describe("Token Cost Calculation", () => {
     const costs = (IngestionService as any).calculateUsageCosts(
       prices as any,
       userProvidedCosts,
-      usageUnits
+      usageUnits,
     );
 
     expect(costs.cost_details.input).toBeCloseTo(1.505); // 150.5 tokens * 0.01
@@ -390,7 +390,7 @@ describe("Token Cost Calculation", () => {
     const costs = (IngestionService as any).calculateUsageCosts(
       prices as any,
       userProvidedCosts,
-      usageUnits
+      usageUnits,
     );
 
     expect(costs.cost_details.input).toBe(10000); // 1e6 tokens * 0.01
@@ -418,6 +418,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage,
         },
       },
@@ -448,13 +449,13 @@ describe("Token Cost Calculation", () => {
 
     // Calculated cost
     expect(generation.cost_details.input).toBe(
-      generationUsage.usage.input * modelPrices[0].price.toNumber()
+      generationUsage.usage.input * modelPrices[0].price.toNumber(),
     );
     expect(generation.cost_details.output).toBe(
-      generationUsage.usage.output * modelPrices[1].price.toNumber()
+      generationUsage.usage.output * modelPrices[1].price.toNumber(),
     );
     expect(generation.cost_details.total).toBe(
-      generationUsage.usage.total * modelPrices[2].price.toNumber()
+      generationUsage.usage.total * modelPrices[2].price.toNumber(),
     );
     expect(generation.usage_details.input).toBe(generationUsage.usage.input);
     expect(generation.usage_details.output).toBe(generationUsage.usage.output);
@@ -487,6 +488,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage1,
         },
       },
@@ -496,6 +498,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage2,
         },
       },
@@ -526,13 +529,13 @@ describe("Token Cost Calculation", () => {
 
     // Calculated cost
     expect(generation.cost_details.input).toBe(
-      generationUsage2.usage.input * modelPrices[0].price.toNumber()
+      generationUsage2.usage.input * modelPrices[0].price.toNumber(),
     );
     expect(generation.cost_details.output).toBe(
-      generationUsage2.usage.output * modelPrices[1].price.toNumber()
+      generationUsage2.usage.output * modelPrices[1].price.toNumber(),
     );
     expect(generation.cost_details.total).toBe(
-      generationUsage2.usage.total * modelPrices[2].price.toNumber()
+      generationUsage2.usage.total * modelPrices[2].price.toNumber(),
     );
     expect(generation.usage_details.input).toBe(generationUsage2.usage.input);
     expect(generation.usage_details.output).toBe(generationUsage2.usage.output);
@@ -563,6 +566,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage1,
         },
       },
@@ -572,6 +576,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage2,
         },
       },
@@ -602,13 +607,13 @@ describe("Token Cost Calculation", () => {
 
     // Calculated cost
     expect(generation.cost_details.input).toBe(
-      generationUsage2.usage.input * modelPrices[0].price.toNumber()
+      generationUsage2.usage.input * modelPrices[0].price.toNumber(),
     );
     expect(generation.cost_details.output).toBe(
-      generationUsage2.usage.output * modelPrices[1].price.toNumber()
+      generationUsage2.usage.output * modelPrices[1].price.toNumber(),
     );
     expect(generation.cost_details.total).toBe(
-      generationUsage2.usage.total * modelPrices[2].price.toNumber()
+      generationUsage2.usage.total * modelPrices[2].price.toNumber(),
     );
     expect(generation.usage_details.input).toBe(generationUsage2.usage.input);
     expect(generation.usage_details.output).toBe(generationUsage2.usage.output);
@@ -641,6 +646,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage1,
         },
       },
@@ -650,6 +656,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage2,
         },
       },
@@ -680,13 +687,13 @@ describe("Token Cost Calculation", () => {
 
     // Calculated cost
     expect(generation.cost_details.input).toBe(
-      generationUsage2.usage.input * modelPrices[0].price.toNumber()
+      generationUsage2.usage.input * modelPrices[0].price.toNumber(),
     );
     expect(generation.cost_details.output).toBe(
-      generationUsage2.usage.output * modelPrices[1].price.toNumber()
+      generationUsage2.usage.output * modelPrices[1].price.toNumber(),
     );
     expect(generation.cost_details.total).toBe(
-      generationUsage2.usage.total * modelPrices[2].price.toNumber()
+      generationUsage2.usage.total * modelPrices[2].price.toNumber(),
     );
     expect(generation.usage_details.input).toBe(generationUsage2.usage.input);
     expect(generation.usage_details.output).toBe(generationUsage2.usage.output);
@@ -722,6 +729,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage1,
         },
       },
@@ -731,6 +739,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage2,
         },
       },
@@ -756,24 +765,24 @@ describe("Token Cost Calculation", () => {
 
     // User provided cost
     expect(generation.provided_cost_details.input).toBe(
-      generationUsage2.usage.inputCost
+      generationUsage2.usage.inputCost,
     );
     expect(generation.provided_cost_details.output).toBe(
-      generationUsage2.usage.outputCost
+      generationUsage2.usage.outputCost,
     );
     expect(generation.provided_cost_details.total).toBe(
-      generationUsage2.usage.totalCost
+      generationUsage2.usage.totalCost,
     );
 
     // Calculated cost
     expect(generation.cost_details.input).toBe(
-      generationUsage2.usage.inputCost
+      generationUsage2.usage.inputCost,
     );
     expect(generation.cost_details.output).toBe(
-      generationUsage2.usage.outputCost
+      generationUsage2.usage.outputCost,
     );
     expect(generation.cost_details.total).toBe(
-      generationUsage2.usage.totalCost
+      generationUsage2.usage.totalCost,
     );
     expect(generation.usage_details.input).toBe(generationUsage2.usage.input);
     expect(generation.usage_details.output).toBe(generationUsage2.usage.output);
@@ -809,6 +818,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage1,
         },
       },
@@ -818,6 +828,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage2,
         },
       },
@@ -843,24 +854,24 @@ describe("Token Cost Calculation", () => {
 
     // User provided cost
     expect(generation.provided_cost_details.input).toBe(
-      generationUsage2.usage.inputCost
+      generationUsage2.usage.inputCost,
     );
     expect(generation.provided_cost_details.output).toBe(
-      generationUsage2.usage.outputCost
+      generationUsage2.usage.outputCost,
     );
     expect(generation.provided_cost_details.total).toBe(
-      generationUsage2.usage.totalCost
+      generationUsage2.usage.totalCost,
     );
 
     // Calculated cost
     expect(generation.cost_details.input).toBe(
-      generationUsage2.usage.inputCost
+      generationUsage2.usage.inputCost,
     );
     expect(generation.cost_details.output).toBe(
-      generationUsage2.usage.outputCost
+      generationUsage2.usage.outputCost,
     );
     expect(generation.cost_details.total).toBe(
-      generationUsage2.usage.totalCost
+      generationUsage2.usage.totalCost,
     );
     expect(generation.usage_details.input).toBe(generationUsage2.usage.input);
     expect(generation.usage_details.output).toBe(generationUsage2.usage.output);
@@ -891,6 +902,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage1,
         },
       },
@@ -900,6 +912,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage2,
         },
       },
@@ -926,14 +939,14 @@ describe("Token Cost Calculation", () => {
     // User provided cost
     expect(generation.provided_cost_details.input).toBe(undefined);
     expect(generation.provided_cost_details.output).toBe(
-      generationUsage2.usage.outputCost
+      generationUsage2.usage.outputCost,
     );
     expect(generation.provided_cost_details.total).toBe(undefined);
 
     // Calculated cost
     expect(generation.cost_details.input).toBe(undefined);
     expect(generation.cost_details.output).toBe(
-      generationUsage2.usage.outputCost
+      generationUsage2.usage.outputCost,
     );
     expect(generation.cost_details.total).toBe(1);
     expect(generation.usage_details.input).toBe(generationUsage1.usage.input);
@@ -970,6 +983,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage1,
         },
       },
@@ -979,6 +993,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage2,
         },
       },
@@ -1004,24 +1019,24 @@ describe("Token Cost Calculation", () => {
 
     // User provided cost
     expect(generation.provided_cost_details.input).toBe(
-      generationUsage1.usage.inputCost
+      generationUsage1.usage.inputCost,
     );
     expect(generation.provided_cost_details.output).toBe(
-      generationUsage1.usage.outputCost
+      generationUsage1.usage.outputCost,
     );
     expect(generation.provided_cost_details.total).toBe(
-      generationUsage1.usage.totalCost
+      generationUsage1.usage.totalCost,
     );
 
     // Calculated cost
     expect(generation.cost_details.input).toBe(
-      generationUsage1.usage.inputCost
+      generationUsage1.usage.inputCost,
     );
     expect(generation.cost_details.output).toBe(
-      generationUsage1.usage.outputCost
+      generationUsage1.usage.outputCost,
     );
     expect(generation.cost_details.total).toBe(
-      generationUsage1.usage.totalCost
+      generationUsage1.usage.totalCost,
     );
     expect(generation.usage_details.input).toBe(generationUsage2.usage.input);
     expect(generation.usage_details.output).toBe(generationUsage2.usage.output);
@@ -1054,6 +1069,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage1,
         },
       },
@@ -1063,6 +1079,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage2,
         },
       },
@@ -1123,6 +1140,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage1,
         },
       },
@@ -1132,6 +1150,7 @@ describe("Token Cost Calculation", () => {
         timestamp: new Date().toISOString(),
         body: {
           id: generationId,
+          startTime: new Date().toISOString(),
           ...generationUsage2,
         },
       },
@@ -1161,13 +1180,13 @@ describe("Token Cost Calculation", () => {
 
     // Calculated cost
     expect(generation.cost_details.input).toBe(
-      generationUsage1.usage.input * modelPrices[0].price.toNumber()
+      generationUsage1.usage.input * modelPrices[0].price.toNumber(),
     );
     expect(generation.cost_details.output).toBe(
-      generationUsage1.usage.output * modelPrices[1].price.toNumber()
+      generationUsage1.usage.output * modelPrices[1].price.toNumber(),
     );
     expect(generation.cost_details.total).toBe(
-      generationUsage1.usage.total * modelPrices[2].price.toNumber()
+      generationUsage1.usage.total * modelPrices[2].price.toNumber(),
     );
     expect(generation.usage_details.input).toBe(generationUsage1.usage.input);
     expect(generation.usage_details.output).toBe(generationUsage1.usage.output);
