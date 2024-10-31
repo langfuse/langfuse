@@ -1,10 +1,11 @@
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
+import TableLink from "@/src/components/table/table-link";
 import { Badge } from "@/src/components/ui/badge";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { type RunMetrics } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { ClockIcon } from "lucide-react";
+import { ClockIcon, ListTree } from "lucide-react";
 
 const DatasetAggregateCell = ({
   scores,
@@ -50,7 +51,7 @@ const DatasetAggregateCell = ({
   const data = observationId === undefined ? trace.data : observation.data;
 
   return (
-    <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden overflow-y-auto rounded-sm border p-1">
+    <div className="group flex h-full w-full flex-col gap-1.5 overflow-hidden overflow-y-auto rounded-sm border p-1">
       <div className="flex flex-row items-center justify-center gap-1">
         <IOTableCell
           isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
@@ -86,6 +87,24 @@ const DatasetAggregateCell = ({
           <span className="mr-0.5">{resourceMetrics.totalCost}</span>
         </Badge>
       </div>
+
+      <div className="flex-grow" />
+
+      {observationId ? (
+        <TableLink
+          path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
+          value={`Trace: ${traceId}, Observation: ${observationId}`}
+          icon={<ListTree className="h-4 w-4" />}
+          className="hidden w-fit self-end group-hover:block"
+        />
+      ) : (
+        <TableLink
+          path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}`}
+          value={`Trace: ${traceId}`}
+          icon={<ListTree className="h-4 w-4" />}
+          className="hidden w-fit self-end group-hover:block"
+        />
+      )}
     </div>
   );
 };
