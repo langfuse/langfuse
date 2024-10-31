@@ -336,19 +336,15 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const projectId = result.data.projectId;
 
   // if the user is eligible for clickhouse, and wants to use clickhouse, do so.
-  const trace =
-    result.data.queryClickhouse === true &&
-    isClickhouseEligible(ctx.session?.user)
-      ? await getTraceById(traceId, projectId)
-      : await prisma.trace.findFirst({
-          where: {
-            id: traceId,
-            projectId: projectId,
-          },
-          select: {
-            public: true,
-          },
-        });
+  const trace = await prisma.trace.findFirst({
+    where: {
+      id: traceId,
+      projectId: projectId,
+    },
+    select: {
+      public: true,
+    },
+  });
 
   if (!trace)
     throw new TRPCError({
