@@ -1,8 +1,7 @@
 import { filterOperators } from "../../../interfaces/filters";
 
 function randomCharacters() {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   let result = "";
   const randomArray = new Uint8Array(5);
   crypto.getRandomValues(randomArray);
@@ -259,11 +258,14 @@ export class FilterList {
 
   public apply(): ClickhouseFilter {
     const compiledQueries = this.filters.map((filter) => filter.apply());
-    const params = compiledQueries
-      .map((q) => q.params)
-      .reduce((acc, val) => ({ ...acc, ...val }), {});
-
-    const queries = compiledQueries.map((q) => q.query);
+    const { params, queries } = compiledQueries.reduce(
+      (acc, { params, query }) => {
+        acc.params = { ...acc.params, ...params };
+        acc.queries.push(query);
+        return acc;
+      },
+      { params: {}, queries: [] as string[] },
+    );
     return {
       query: queries.join(" AND "),
       params,
