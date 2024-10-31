@@ -716,11 +716,9 @@ export class IngestionService {
     return traceEventList.map((trace) => {
       const traceRecord: TraceRecordInsertType = {
         id: entityId,
-        // in the default implementation, we set timestamps server side if not provided.
-        // we need to insert timestamps here and change the SDKs to send timestamps client side.
-        timestamp: this.getMillisecondTimestamp(
-          trace.body.timestamp ?? trace.timestamp,
-        ),
+        timestamp: ("timestamp" in trace.body && trace.body.timestamp
+          ? this.getMillisecondTimestamp(trace.body.timestamp)
+          : undefined) as number, // Casting here is dirty, but our requirement is to have a start_time _after_ the merge
         name: trace.body.name,
         user_id: trace.body.userId,
         metadata: trace.body.metadata
