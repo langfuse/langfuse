@@ -810,9 +810,9 @@ export class IngestionService {
         trace_id: obs.body.traceId ?? v4(),
         type: observationType,
         name: obs.body.name,
-        start_time: this.getMillisecondTimestamp(
-          obs.body.startTime ?? obs.timestamp,
-        ),
+        start_time: ("startTime" in obs.body && obs.body.startTime
+          ? this.getMillisecondTimestamp(obs.body.startTime)
+          : undefined) as number, // Casting here is dirty, but our requirement is to have a start_time _after_ the merge
         end_time:
           "endTime" in obs.body && obs.body.endTime
             ? this.getMillisecondTimestamp(obs.body.endTime)
@@ -847,7 +847,7 @@ export class IngestionService {
         prompt_version: prompt?.version,
         created_at: Date.now(),
         updated_at: Date.now(),
-        event_ts: new Date(obs.body?.startTime ?? obs.timestamp).getTime(),
+        event_ts: new Date(obs.timestamp).getTime(),
         is_deleted: 0,
       };
 
