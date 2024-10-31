@@ -277,7 +277,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                     </FormDescription>
                     <FormControl>
                       <MultiSelectKeyValues
-                        title="Value"
+                        emptyPlaceholder="Value"
                         align="end"
                         className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
                         onValueChange={handleOnValueChange}

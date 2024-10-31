@@ -7,13 +7,13 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
-import { api } from "@/src/utils/api";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
 import { useMemo } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { api } from "@/src/utils/api";
 
 export type RunMetrics = {
   id: string;
@@ -40,7 +40,11 @@ export type DatasetCompareRunRowData = {
 export function DatasetCompareRunsTable(props: {
   projectId: string;
   datasetId: string;
-  runIds?: string[];
+  runIds: string[];
+  runIdsAndNames?: {
+    id: string;
+    name: string;
+  }[];
 }) {
   const rowHeight = "l";
 
@@ -113,15 +117,10 @@ export function DatasetCompareRunsTable(props: {
         input: item.input ?? "null",
         expectedOutput: item.expectedOutput ?? "null",
         metadata: item.metadata ?? "null",
-        runs: runData[item.id] || {},
+        runs: runData?.[item.id] || {},
       }),
     );
   }, [baseDatasetItems.data, runs]);
-
-  const runNames = api.datasets.runNamesByDatasetId.useQuery({
-    projectId: props.projectId,
-    datasetId: props.datasetId,
-  });
 
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery({
     projectId: props.projectId,
@@ -141,10 +140,10 @@ export function DatasetCompareRunsTable(props: {
   const { runAggregateColumns, isColumnLoading } =
     useDatasetRunAggregateColumns({
       projectId: props.projectId,
-      runIds: props.runIds ?? [],
-      runNames: runNames.data ?? [],
+      runIds: props.runIds,
+      runNames: props.runIdsAndNames ?? [],
       scoreKeyToDisplayName,
-      cellsLoading: !runNames.data || !scoreKeysAndProps.data,
+      cellsLoading: !scoreKeysAndProps.data,
     });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
