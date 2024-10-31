@@ -29,6 +29,7 @@ import { Lock, Plus } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -91,7 +92,7 @@ export const PromptDetail = () => {
   }
 
   return (
-    <div className="flex flex-col xl:container md:h-[calc(100vh-2rem)]">
+    <ScrollScreenPage>
       <Header
         title={prompt.name}
         help={{
@@ -257,6 +258,6 @@ export const PromptDetail = () => {
           </div>
         </div>
       </div>
-    </div>
+    </ScrollScreenPage>
   );
 };

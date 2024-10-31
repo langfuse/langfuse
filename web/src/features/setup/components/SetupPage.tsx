@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -70,7 +71,7 @@ export function SetupPage() {
   }, [hasAnyTrace, capture]);
 
   return (
-    <div className="mb-12 md:container">
+    <ScrollScreenPage>
       <Header
         title="Setup"
         help={{
@@ -205,7 +206,7 @@ export function SetupPage() {
           </Button>
         )
       }
-    </div>
+    </ScrollScreenPage>
   );
 }
 
