@@ -318,17 +318,19 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
 const inputTraceSchema = z.object({
   traceId: z.string(),
   projectId: z.string(),
-  queryClickhouse: z.boolean().nullable(),
+  queryClickhouse: z.boolean().nullish(),
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const result = inputTraceSchema.safeParse(rawInput);
 
-  if (!result.success)
+  if (!result.success) {
+    logger.error("Invalid input when parsing request body", result.error);
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Invalid input, traceId is required",
     });
+  }
 
   const traceId = result.data.traceId;
   const projectId = result.data.projectId;
