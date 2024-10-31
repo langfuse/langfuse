@@ -1,0 +1,55 @@
+secretsprovider: gcpkms://projects/ai-asia-382012/locations/global/keyRings/ai-wayz-pulumi-2002051/cryptoKeys/ai-wayz-pulumi-e9ef33c
+encryptedkey: CiQAZ+DZAbQNpVa9VXZr2+XmOiUXO3hlSqs5Oj7z6vi7z0/coDkSSQDNyZebkHARbmkg0u9vZaJ/78UH35n1by9dGE9gnqy+ffKLcnr0+73mQZN+WT0NYlUvIDYvPI04M1lcVKaIi+27xy9r8e08bkM=
+config:
+  ai-stats:base-stack:
+    cfStackName: organization/ai-wayz-infrastructure/dev
+    stackName: organization/ai-wayz-infrastructure/staging
+  ai-stats:buckets: {}
+  ai-stats:discord-alerts:
+    webhookId: "1106571237037191309"
+  ai-stats:discord-alerts-token:
+    secure: v1:DPRaIiYHoZOliyBb:IlTzJnGZ8gEcx7A/ukRPciN4JFI1xEhfZq6oRJoiDxGUqWGdZw3vtSravxyWow5qxHcdfbid5b6Rd0f0NILDSRxpwl9sNEJB303fFlM3TKwif8FY
+  ai-stats:service:
+    k8s:
+      domain: ai-stats.aiwayz.com
+      env:
+        NEXTAUTH_URL: https://ai-stats.aiwayz.com
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: STAGING
+        TELEMETRY_ENABLED: false
+        LANGFUSE_INIT_ORG_ID: fulldive
+        LANGFUSE_INIT_ORG_NAME: Fulldive
+        LANGFUSE_INIT_USER_EMAIL: admin@fulldive.com
+        LANGFUSE_INIT_USER_NAME: Admin
+      image: asia.gcr.io/ai-east/ai-stats:latest
+      port: 3000
+      readinessProbe:
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        tcpSocket:
+          port: 3000
+      replicas: 1
+      resources:
+        limits:
+          cpu: "100m"
+          ephemeral-storage: "8Gi"
+          memory: "1Gi"
+        requests:
+          cpu: "5m"
+          ephemeral-storage: "4Gi"
+          memory: "400Mi"
+      secretEnv:
+        DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+        NEXTAUTH_SECRET: TNxTpEpIzenp9OLQ3t9XM6NHDH5hU5tjBnCZKO51jOs=
+        SALT: sL4bYIV5TkXS7recy4npmqFjQe6IqxS00I9A3+f2Pnw=
+        ENCRYPTION_KEY: 6cc06cb699caa82d5847bba0f43656bd6e4dd577d5adc5c78d035042af923b92
+        LANGFUSE_INIT_USER_PASSWORD: password
+    name: ai-stats
+    postgres:
+      databases:
+        - dbName: ai-stats
+          dbOwner: true
+          username: ai-stats
+  ai-stats:telegram:
+    defaultChatId: "-985701161"
+  ai-stats:telegram-bot-token:
+    secure: v1:whZorSlPCJNi+THw:zx6R5vfYrlN6LqOLJSzAi1PvGhfkL3knGfThCSBJWolXeNbtiaihFXFBT+MZh3RMh3gWn+jAtf4esQ+6qdA=
