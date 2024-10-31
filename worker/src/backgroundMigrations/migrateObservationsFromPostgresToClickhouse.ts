@@ -1,5 +1,9 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
-import { clickhouseClient, logger } from "@langfuse/shared/src/server";
+import {
+  clickhouseClient,
+  convertPostgresObservationToInsert,
+  logger,
+} from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
@@ -80,73 +84,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
       const insertStart = Date.now();
       await clickhouseClient.insert({
         table: "observations",
-        values: observations.map((observation) => ({
-          id: observation.id,
-          trace_id: observation.trace_id,
-          project_id: observation.project_id,
-          type: observation.type,
-          parent_observation_id: observation.parent_observation_id,
-          start_time:
-            observation.start_time
-              ?.toISOString()
-              .replace("T", " ")
-              .slice(0, -1) ?? null,
-          end_time:
-            observation.end_time
-              ?.toISOString()
-              .replace("T", " ")
-              .slice(0, -1) ?? null,
-          name: observation.name,
-          metadata:
-            typeof observation.metadata === "string"
-              ? { metadata: observation.metadata }
-              : Array.isArray(observation.metadata)
-                ? { metadata: observation.metadata }
-                : observation.metadata,
-          level: observation.level,
-          status_message: observation.status_message,
-          version: observation.version,
-          input: observation.input,
-          output: observation.output,
-          provided_model_name: observation.model,
-          internal_model_id: observation.internal_model_id,
-          model_parameters: observation.model_parameters,
-          provided_usage_details: {},
-          usage_details: {
-            input: observation.prompt_tokens,
-            output: observation.completion_tokens,
-            total: observation.total_tokens,
-          },
-          provided_cost_details: {
-            input: observation.input_cost,
-            output: observation.output_cost,
-            total: observation.total_cost,
-          },
-          cost_details: {
-            input: observation.calculated_input_cost,
-            output: observation.calculated_output_cost,
-            total: observation.calculated_total_cost,
-          },
-          total_cost: observation.calculated_total_cost,
-          completion_start_time:
-            observation.completion_start_time
-              ?.toISOString()
-              .replace("T", " ")
-              .slice(0, -1) ?? null,
-          prompt_id: observation.prompt_id,
-          prompt_name: observation.prompt_name,
-          prompt_version: observation.prompt_version,
-          created_at:
-            observation.created_at
-              ?.toISOString()
-              .replace("T", " ")
-              .slice(0, -1) ?? null,
-          updatedAt:
-            observation.updated_at
-              ?.toISOString()
-              .replace("T", " ")
-              .slice(0, -1) ?? null,
-        })),
+        values: observations.map(convertPostgresObservationToInsert),
         format: "JSONEachRow",
       });
 
