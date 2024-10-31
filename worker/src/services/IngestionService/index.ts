@@ -285,6 +285,7 @@ export class IngestionService {
   }): Promise<ScoreRecordInsertType> {
     const { scoreRecords, postgresScoreRecord, clickhouseScoreRecord } = params;
 
+    // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
       clickhouseScoreRecord,
       postgresScoreRecord,
@@ -296,12 +297,7 @@ export class IngestionService {
       immutableEntityKeys[TableName.Scores],
     );
 
-    const parsedRecord = scoreRecordInsertSchema.parse(mergedRecord);
-    parsedRecord.event_ts = this.getEventTimestamp(
-      clickhouseScoreRecord?.event_ts,
-      recordsToMerge.map((r) => r.event_ts ?? -Infinity),
-    );
-    return parsedRecord;
+    return scoreRecordInsertSchema.parse(mergedRecord);
   }
 
   private async mergeTraceRecords(params: {
@@ -311,6 +307,7 @@ export class IngestionService {
   }): Promise<TraceRecordInsertType> {
     const { traceRecords, postgresTraceRecord, clickhouseTraceRecord } = params;
 
+    // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
       clickhouseTraceRecord,
       postgresTraceRecord,
@@ -322,12 +319,7 @@ export class IngestionService {
       immutableEntityKeys[TableName.Traces],
     );
 
-    const parsedRecord = traceRecordInsertSchema.parse(mergedRecord);
-    parsedRecord.event_ts = this.getEventTimestamp(
-      clickhouseTraceRecord?.event_ts,
-      recordsToMerge.map((r) => r.event_ts ?? -Infinity),
-    );
-    return parsedRecord;
+    return traceRecordInsertSchema.parse(mergedRecord);
   }
 
   private async mergeObservationRecords(params: {
@@ -343,6 +335,7 @@ export class IngestionService {
       clickhouseObservationRecord,
     } = params;
 
+    // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
       clickhouseObservationRecord,
       postgresObservationRecord,
@@ -373,30 +366,13 @@ export class IngestionService {
     return {
       ...parsedObservationRecord,
       ...generationUsage,
-      event_ts: this.getEventTimestamp(
-        clickhouseObservationRecord?.event_ts,
-        recordsToMerge.map((r) => r.event_ts ?? -Infinity),
-      ),
     };
-  }
-
-  /**
-   * Generates the event_ts from a list of events. If a clickhouse timestamp is provided, it will always be preferred
-   * as it's not mutable on the clickhouse side.
-   * Otherwise, we use the maximum timestamp. Either it should be provided, or always be the same, and using the
-   * max has the nice property, that we overwrite the default date of 1970-01-01.
-   */
-  private getEventTimestamp(
-    clickhouseTimestamp: number | undefined,
-    otherTimestamps: number[],
-  ): number {
-    return clickhouseTimestamp ?? Math.max(...otherTimestamps);
   }
 
   private mergeRecords<T extends InsertRecord>(
     records: T[],
     immutableEntityKeys: string[],
-  ): unknown {
+  ): Record<string, unknown> {
     if (records.length === 0) {
       throw new Error("No records to merge");
     }
@@ -410,6 +386,8 @@ export class IngestionService {
     for (const record of records) {
       result = overwriteObject(result, record, immutableEntityKeys);
     }
+
+    result.event_ts = Math.max(...records.map((r) => r.event_ts ?? -Infinity));
 
     return result;
   }
