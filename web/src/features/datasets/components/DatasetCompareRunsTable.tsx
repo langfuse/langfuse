@@ -8,20 +8,22 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
+import { useMemo } from "react";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export type RunMetrics = {
-  // scores: ScoreAggregate;
-  // output: Prisma.JsonValue;
-  // resourceMetrics: {
-  //   latency: number;
-  //   totalCost: Prisma.Decimal;
-  // };
+  id: string;
+  scores: ScoreAggregate;
+  resourceMetrics: {
+    latency?: number;
+    totalCost?: string;
+  };
   traceId: string;
-  observationId: string | null;
+  observationId: string | undefined;
 };
 
 export type RunAggregate = Record<string, RunMetrics>;
@@ -50,18 +52,87 @@ export function DatasetCompareRunsTable(props: {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const runAggregateData = api.datasets.runAggregateByDatasetId.useQuery({
+  const baseDatasetItems = api.datasets.baseDatasetItemByDatasetId.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
 
-  const { runAggregateColumns } = useDatasetRunAggregateColumns({
+  // Individual queries for each run
+  const runs = (props.runIds ?? []).map((runId) => ({
+    runId,
+    items: api.datasets.runitemsByRunIdOrItemId.useQuery(
+      {
+        projectId: props.projectId,
+        datasetRunId: runId,
+        page: paginationState.pageIndex,
+        limit: paginationState.pageSize,
+      },
+      {
+        staleTime: 5 * 60 * 1000,
+        enabled: baseDatasetItems.isSuccess,
+      },
+    ),
+  }));
+
+  const combinedData = useMemo(() => {
+    if (!baseDatasetItems.data) return null;
+
+    const runData = runs.reduce<Record<string, RunAggregate>>(
+      (itemsAcc, { runId, items }) => {
+        if (!items.data) return itemsAcc;
+
+        items.data.runItems.forEach(
+          ({ datasetItemId, trace, observation, scores }) => {
+            if (!itemsAcc[datasetItemId]) itemsAcc[datasetItemId] = {};
+
+            itemsAcc[datasetItemId][runId] = {
+              id: runId,
+              traceId: trace?.id ?? "",
+              observationId: observation?.id ?? undefined,
+              resourceMetrics: {
+                latency:
+                  (!!observation ? observation.latency : trace?.duration) ??
+                  undefined,
+                totalCost:
+                  (!!observation?.calculatedTotalCost
+                    ? usdFormatter(observation.calculatedTotalCost.toNumber())
+                    : usdFormatter(trace?.totalCost)) ?? undefined,
+              },
+              scores,
+            };
+          },
+        );
+
+        return itemsAcc;
+      },
+      {},
+    );
+
+    return baseDatasetItems.data?.map(
+      (item): DatasetCompareRunRowData => ({
+        id: item.id,
+        input: item.input ?? null,
+        expectedOutput: item.expectedOutput ?? null,
+        metadata: item.metadata ?? null,
+        runs: runData[item.id] || {},
+      }),
+    );
+  }, [baseDatasetItems.data, runs]);
+
+  const runNames = api.datasets.runNamesByDatasetId.useQuery({
     projectId: props.projectId,
-    runIds: props.runIds ?? [],
-    cellsLoading: false, // !runs.data
+    datasetId: props.datasetId,
   });
+
+  const { runAggregateColumns, isColumnLoading } =
+    useDatasetRunAggregateColumns({
+      projectId: props.projectId,
+      runIds: props.runIds ?? [],
+      runNames: runNames.data ?? [],
+      cellsLoading: !runNames.data,
+    });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
     {
@@ -131,8 +202,7 @@ export function DatasetCompareRunsTable(props: {
       },
     },
     {
-      ...getDatasetRunAggregateColumnProps(false),
-      // ...getDatasetRunAggregateColumnProps(isColumnLoading),
+      ...getDatasetRunAggregateColumnProps(isColumnLoading),
       columns: runAggregateColumns,
     },
   ];
@@ -142,18 +212,6 @@ export function DatasetCompareRunsTable(props: {
       "datasetCompareRunsColumnVisibility",
       columns,
     );
-
-  const convertToTableRow = (
-    data: RouterOutputs["datasets"]["runAggregateByDatasetId"][number],
-  ): DatasetCompareRunRowData => {
-    return {
-      id: data.id,
-      input: data.input ?? "",
-      expectedOutput: data.expectedOutput ?? "",
-      metadata: data.metadata ?? "",
-      runs: data.runTraceIds,
-    };
-  };
 
   return (
     <>
@@ -169,24 +227,22 @@ export function DatasetCompareRunsTable(props: {
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         data={
-          runAggregateData.isLoading
+          baseDatasetItems.isLoading
             ? { isLoading: true, isError: false }
-            : runAggregateData.isError
+            : baseDatasetItems.isError
               ? {
                   isLoading: false,
                   isError: true,
-                  error: runAggregateData.error.message,
+                  error: baseDatasetItems.error.message,
                 }
               : {
                   isLoading: false,
                   isError: false,
-                  data: runAggregateData.data.map((run) =>
-                    convertToTableRow(run),
-                  ),
+                  data: combinedData ?? [],
                 }
         }
         pagination={{
-          totalCount: runAggregateData.data?.length ?? null,
+          totalCount: baseDatasetItems.data?.length ?? null,
           onChange: setPaginationState,
           state: paginationState,
         }}

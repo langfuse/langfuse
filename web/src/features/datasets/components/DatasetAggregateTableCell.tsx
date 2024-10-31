@@ -1,17 +1,16 @@
+import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { type RunMetrics } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { api } from "@/src/utils/api";
 
 const TraceObservationIOCell = ({
+  scores,
+  resourceMetrics,
   traceId,
   projectId,
   observationId,
-  singleLine = false,
-}: {
-  traceId: string;
+}: RunMetrics & {
   projectId: string;
-  observationId?: string;
-  singleLine?: boolean;
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
@@ -46,12 +45,34 @@ const TraceObservationIOCell = ({
   const data = observationId === undefined ? trace.data : observation.data;
 
   return (
-    <IOTableCell
-      isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
-      data={data?.output}
-      className={"bg-accent-light-green"}
-      singleLine={singleLine}
-    />
+    <div>
+      <div>
+        <span>Output</span>
+        <IOTableCell
+          isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
+          data={data?.output}
+          className={"bg-accent-light-green"}
+          singleLine={true}
+        />
+      </div>
+      <div>
+        <span>Resource Metrics</span>
+        <div>
+          <span>Latency</span>
+          <span>{resourceMetrics.latency}</span>
+        </div>
+        <div>
+          <span>Total Cost</span>
+          <span>{resourceMetrics.totalCost}</span>
+        </div>
+      </div>
+      <div>
+        <span>Scores</span>
+        {Object.entries(scores).map(([key, score]) => (
+          <ScoresTableCell aggregate={score} key={key} />
+        ))}
+      </div>
+    </div>
   );
 };
 
@@ -63,12 +84,6 @@ export const DatasetAggregateTableCell = ({
   projectId: string;
 }) => {
   return value ? (
-    <TraceObservationIOCell
-      traceId={value.traceId}
-      projectId={projectId}
-      observationId={value.observationId ?? undefined}
-      // singleLine={rowHeight === "s"}
-      singleLine={true}
-    />
+    <TraceObservationIOCell projectId={projectId} {...value} />
   ) : null;
 };

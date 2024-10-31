@@ -4,16 +4,18 @@ import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/com
 export function useDatasetRunAggregateColumns({
   projectId,
   runIds,
+  runNames,
   cellsLoading = false,
 }: {
   projectId: string;
   runIds: string[];
+  runNames: { name: string; id: string }[];
   cellsLoading?: boolean;
 }) {
   const runAggregateColumnProps = runIds.map((runId) => ({
-    name: `run${runId}`,
+    name: runNames.find((name) => name.id === runId)?.name ?? `run${runId}`,
     id: runId,
-  })); // TODO: get from backend
+  }));
 
   const runAggregateColumns = useMemo(() => {
     return constructDatasetRunAggregateColumns({
@@ -25,5 +27,6 @@ export function useDatasetRunAggregateColumns({
 
   return {
     runAggregateColumns,
+    isColumnLoading: cellsLoading,
   };
 }
