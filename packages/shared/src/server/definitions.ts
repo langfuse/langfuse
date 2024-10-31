@@ -60,7 +60,7 @@ export const observationRecordInsertSchema = observationRecordBaseSchema.extend(
     end_time: z.number().nullish(),
     completion_start_time: z.number().nullish(),
     event_ts: z.number(),
-  }
+  },
 );
 export type ObservationRecordInsertType = z.infer<
   typeof observationRecordInsertSchema
@@ -134,7 +134,7 @@ export const scoreRecordInsertSchema = scoreRecordBaseSchema.extend({
 export type ScoreRecordInsertType = z.infer<typeof scoreRecordInsertSchema>;
 
 export const convertTraceReadToInsert = (
-  record: TraceRecordReadType
+  record: TraceRecordReadType,
 ): TraceRecordInsertType => {
   return {
     ...record,
@@ -146,7 +146,7 @@ export const convertTraceReadToInsert = (
 };
 
 export const convertObservationReadToInsert = (
-  record: ObservationRecordReadType
+  record: ObservationRecordReadType,
 ): ObservationRecordInsertType => {
   return {
     ...record,
@@ -162,7 +162,7 @@ export const convertObservationReadToInsert = (
 };
 
 export const convertScoreReadToInsert = (
-  record: ScoreRecordReadType
+  record: ScoreRecordReadType,
 ): ScoreRecordInsertType => {
   return {
     ...record,
@@ -170,5 +170,155 @@ export const convertScoreReadToInsert = (
     updated_at: new Date(record.updated_at).getTime(),
     timestamp: new Date(record.timestamp).getTime(),
     event_ts: new Date(record.event_ts).getTime(),
+  };
+};
+
+/**
+ * Expects a single record from a `select * from traces` query. Must be a raw query to keep original
+ * column names, not the Prisma mapped names.
+ */
+export const convertPostgresTraceToInsert = (
+  trace: Record<string, any>,
+): TraceRecordInsertType => {
+  return {
+    id: trace.id,
+    timestamp:
+      trace.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    name: trace.name,
+    user_id: trace.user_id,
+    metadata:
+      typeof trace.metadata === "string"
+        ? { metadata: trace.metadata }
+        : Array.isArray(trace.metadata)
+          ? { metadata: trace.metadata }
+          : trace.metadata,
+    release: trace.release,
+    version: trace.version,
+    project_id: trace.project_id,
+    public: trace.public,
+    bookmarked: trace.bookmarked,
+    tags: trace.tags,
+    input: trace.input,
+    output: trace.output,
+    session_id: trace.session_id,
+    created_at:
+      trace.created_at?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    updated_at:
+      trace.updated_at?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    event_ts:
+      trace.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    is_deleted: 0,
+  };
+};
+
+/**
+ * Expects a single record from a
+ * `select o.id, o.trace_id, o.project_id, o.type, o.parent_observation_id, o.start_time, o.end_time, o.name, o.metadata,
+ *         o.level, o.status_message, o.version, o.input, o.output, o.unit, o.model, o.internal_model_id, o."modelParameters" as model_parameters,
+ *         o.prompt_tokens, o.completion_tokens, o.total_tokens, o.completion_start_time, o.prompt_id, p.name as prompt_name,
+ *         p.version as prompt_version, o.input_cost, o.output_cost, o.total_cost, o.calculated_input_cost, o.calculated_output_cost,
+ *         o.calculated_total_cost, o.created_at, o.updated_at
+ *  from observations o
+ *  LEFT JOIN prompts p ON p.id = o.prompt_id`
+ * query. Must be a raw query to keep original
+ * column names, not the Prisma mapped names.
+ */
+export const convertPostgresObservationToInsert = (
+  observation: Record<string, any>,
+): ObservationRecordInsertType => {
+  return {
+    id: observation.id,
+    trace_id: observation.trace_id,
+    project_id: observation.project_id,
+    type: observation.type,
+    parent_observation_id: observation.parent_observation_id,
+    start_time:
+      observation.start_time?.toISOString().replace("T", " ").slice(0, -1) ??
+      null,
+    end_time:
+      observation.end_time?.toISOString().replace("T", " ").slice(0, -1) ??
+      null,
+    name: observation.name,
+    metadata:
+      typeof observation.metadata === "string"
+        ? { metadata: observation.metadata }
+        : Array.isArray(observation.metadata)
+          ? { metadata: observation.metadata }
+          : observation.metadata,
+    level: observation.level,
+    status_message: observation.status_message,
+    version: observation.version,
+    input: observation.input,
+    output: observation.output,
+    provided_model_name: observation.model,
+    internal_model_id: observation.internal_model_id,
+    model_parameters: observation.model_parameters,
+    provided_usage_details: {},
+    usage_details: {
+      input: observation.prompt_tokens,
+      output: observation.completion_tokens,
+      total: observation.total_tokens,
+    },
+    provided_cost_details: {
+      input: observation.input_cost,
+      output: observation.output_cost,
+      total: observation.total_cost,
+    },
+    cost_details: {
+      input: observation.calculated_input_cost,
+      output: observation.calculated_output_cost,
+      total: observation.calculated_total_cost,
+    },
+    total_cost: observation.calculated_total_cost,
+    completion_start_time:
+      observation.completion_start_time
+        ?.toISOString()
+        .replace("T", " ")
+        .slice(0, -1) ?? null,
+    prompt_id: observation.prompt_id,
+    prompt_name: observation.prompt_name,
+    prompt_version: observation.prompt_version,
+    created_at:
+      observation.created_at?.toISOString().replace("T", " ").slice(0, -1) ??
+      null,
+    updated_at:
+      observation.updated_at?.toISOString().replace("T", " ").slice(0, -1) ??
+      null,
+    event_ts:
+      observation.start_time?.toISOString().replace("T", " ").slice(0, -1) ??
+      null,
+    is_deleted: 0,
+  };
+};
+
+/**
+ * Expects a single record from a `select * from scores` query. Must be a raw query to keep original
+ * column names, not the Prisma mapped names.
+ */
+export const convertPostgresScoreToInsert = (
+  score: Record<string, any>,
+): ScoreRecordInsertType => {
+  return {
+    id: score.id,
+    timestamp:
+      score.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    project_id: score.project_id,
+    trace_id: score.trace_id,
+    observation_id: score.observation_id,
+    name: score.name,
+    value: score.value,
+    source: score.source,
+    comment: score.comment,
+    author_user_id: score.author_user_id,
+    config_id: score.config_id,
+    data_type: score.data_type,
+    string_value: score.string_value,
+    created_at:
+      score.created_at?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    updated_at:
+      score.updated_at?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    event_ts:
+      score.timestamp?.toISOString().replace("T", " ").slice(0, -1) ?? null,
+    is_deleted: 0,
   };
 };

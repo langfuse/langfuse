@@ -1,5 +1,9 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
-import { clickhouseClient, logger } from "@langfuse/shared/src/server";
+import {
+  clickhouseClient,
+  convertPostgresScoreToInsert,
+  logger,
+} from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
@@ -79,29 +83,7 @@ export default class MigrateScoresFromPostgresToClickhouse
       const insertStart = Date.now();
       await clickhouseClient.insert({
         table: "scores",
-        values: scores.map((score) => ({
-          id: score.id,
-          timestamp:
-            score.timestamp?.toISOString().replace("T", " ").slice(0, -1) ??
-            null,
-          project_id: score.project_id,
-          trace_id: score.trace_id,
-          observation_id: score.observation_id,
-          name: score.name,
-          value: score.value,
-          source: score.source,
-          comment: score.comment,
-          author_user_id: score.author_user_id,
-          config_id: score.config_id,
-          data_type: score.data_type,
-          string_value: score.string_value,
-          created_at:
-            score.created_at?.toISOString().replace("T", " ").slice(0, -1) ??
-            null,
-          updated_at:
-            score.updated_at?.toISOString().replace("T", " ").slice(0, -1) ??
-            null,
-        })),
+        values: scores.map(convertPostgresScoreToInsert),
         format: "JSONEachRow",
       });
 

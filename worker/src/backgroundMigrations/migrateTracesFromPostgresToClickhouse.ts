@@ -1,5 +1,9 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
-import { clickhouseClient, logger } from "@langfuse/shared/src/server";
+import {
+  clickhouseClient,
+  convertPostgresTraceToInsert,
+  logger,
+} from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
@@ -79,30 +83,7 @@ export default class MigrateTracesFromPostgresToClickhouse
       const insertStart = Date.now();
       await clickhouseClient.insert({
         table: "traces",
-        values: traces.map((trace) => ({
-          id: trace.id,
-          timestamp:
-            trace.timestamp?.toISOString().replace("T", " ").slice(0, -1) ??
-            null,
-          name: trace.name,
-          user_id: trace.user_id,
-          metadata: trace.metadata, // TODO: we may have to apply the same conversion as for observations. Let's try without.
-          release: trace.release,
-          version: trace.version,
-          project_id: trace.project_id,
-          public: trace.public,
-          bookmarked: trace.bookmarked,
-          tags: trace.tags,
-          input: trace.input,
-          output: trace.output,
-          session_id: trace.session_id,
-          created_at:
-            trace.created_at?.toISOString().replace("T", " ").slice(0, -1) ??
-            null,
-          updated_at:
-            trace.updated_at?.toISOString().replace("T", " ").slice(0, -1) ??
-            null,
-        })),
+        values: traces.map(convertPostgresTraceToInsert),
         format: "JSONEachRow",
       });
 
