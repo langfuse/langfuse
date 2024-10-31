@@ -288,8 +288,8 @@ export class IngestionService {
     // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
       clickhouseScoreRecord,
-      ...scoreRecords,
       postgresScoreRecord,
+      ...scoreRecords,
     ].filter(Boolean) as ScoreRecordInsertType[];
 
     const mergedRecord = this.mergeRecords(
@@ -310,8 +310,8 @@ export class IngestionService {
     // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
       clickhouseTraceRecord,
-      ...traceRecords,
       postgresTraceRecord,
+      ...traceRecords,
     ].filter(Boolean) as TraceRecordInsertType[];
 
     const mergedRecord = this.mergeRecords(
@@ -338,8 +338,8 @@ export class IngestionService {
     // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
       clickhouseObservationRecord,
-      ...observationRecords,
       postgresObservationRecord,
+      ...observationRecords,
     ].filter(Boolean) as ObservationRecordInsertType[];
 
     const mergedRecord = this.mergeRecords(
