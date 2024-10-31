@@ -63,17 +63,20 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "Input Tokens",
     clickhouseTableName: "traces",
-    clickhouseSelect: "arrayElement(usage_details, 'input')",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'input'), usage_details), usage_details['input'], NULL)",
   },
   {
     uiTableName: "Output Tokens",
     clickhouseTableName: "traces",
-    clickhouseSelect: "arrayElement(usage_details, 'output')",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'output'), usage_details), usage_details['output'], NULL)",
   },
   {
     uiTableName: "Total Tokens",
     clickhouseTableName: "traces",
-    clickhouseSelect: "arrayElement(usage_details, 'total')",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
   },
   {
     uiTableName: "Latency (s)",
@@ -83,16 +86,19 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "Input Cost ($)",
     clickhouseTableName: "traces",
-    clickhouseSelect: "arrayElement(cost_details, 'input')",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'input'), cost_details), usage_details['input'], NULL)",
   },
   {
     uiTableName: "Output Cost ($)",
     clickhouseTableName: "traces",
-    clickhouseSelect: "arrayElement(cost_details, 'output')",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'output'), cost_details), usage_details['output'], NULL)",
   },
   {
     uiTableName: "Total Cost ($)",
     clickhouseTableName: "traces",
-    clickhouseSelect: "arrayElement(cost_details, 'total')",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), cost_details), usage_details['total'], NULL)",
   },
 ];
