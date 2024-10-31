@@ -4,7 +4,7 @@ import {
   datetimeFilterToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
 } from "../filterToPrisma";
-import { tracesTableCols } from "../../tracesTable";
+import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { orderByToPrismaSql } from "../orderByToPrisma";
 
 export function parseTraceAllFilters(input: TableFilters) {

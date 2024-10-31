@@ -1,4 +1,4 @@
-import { type z } from "zod";
+import { z } from "zod";
 
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared";
@@ -7,28 +7,48 @@ import { Prisma } from "@langfuse/shared/src/db";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
 import { parseGetAllGenerationsInput } from "@langfuse/shared/src/server";
+import { TRPCError } from "@trpc/server";
+import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 
-const getAllGenerationsInput = GenerationTableOptions.extend({
+const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
 });
 
-export type GetAllGenerationsInput = z.infer<typeof getAllGenerationsInput>;
+export type GetAllGenerationsInput = z.infer<typeof GetAllGenerationsInput>;
 
 export const getAllQueries = {
   all: protectedProjectProcedure
-    .input(getAllGenerationsInput)
-    .query(async ({ input }) => {
-      const { generations } = await getAllGenerations({
-        input,
-        selectIOAndMetadata: false,
-      });
+    .input(
+      GetAllGenerationsInput.extend({
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (!input.queryClickhouse) {
+        const { generations } = await getAllGenerations({
+          input,
+          selectIOAndMetadata: false,
+        });
 
-      return {
-        generations: generations,
-      };
+        return {
+          generations: generations,
+        };
+      } else {
+        if (!isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        throw new TRPCError({
+          code: "NOT_IMPLEMENTED",
+          message: "Clickhouse query not implemented yet",
+        });
+      }
     }),
   countAll: protectedProjectProcedure
-    .input(getAllGenerationsInput)
+    .input(GetAllGenerationsInput)
     .query(async ({ input, ctx }) => {
       const { searchCondition, filterCondition, datetimeFilter } =
         parseGetAllGenerationsInput(input);

@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
 import {
   ClickhouseClientType,
-  ClickhouseEntityType,
+  IngestionEntityTypes,
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
@@ -79,7 +79,7 @@ export class IngestionService {
   }
 
   public async mergeAndWrite(
-    eventType: ClickhouseEntityType,
+    eventType: IngestionEntityTypes,
     projectId: string,
     eventBodyId: string,
     events: IngestionEventType[],
@@ -89,19 +89,19 @@ export class IngestionService {
     );
 
     switch (eventType) {
-      case ClickhouseEntityType.Trace:
+      case "trace":
         return await this.processTraceEventList({
           projectId,
           entityId: eventBodyId,
           traceEventList: events as TraceEventType[],
         });
-      case ClickhouseEntityType.Observation:
+      case "observation":
         return await this.processObservationEventList({
           projectId,
           entityId: eventBodyId,
           observationEventList: events as ObservationEvent[],
         });
-      case ClickhouseEntityType.Score: {
+      case "score": {
         return await this.processScoreEventList({
           projectId,
           entityId: eventBodyId,
@@ -649,15 +649,14 @@ export class IngestionService {
       async () => {
         const queryResult = await this.clickhouseClient.query({
           query: `
-            SELECT *
-            FROM {table: String}
-            FINAL
-            WHERE project_id = {projectId: String}
-            AND id = {entityId: String}
-            ORDER BY event_ts DESC
-            LIMIT 1 BY id, project_id 
-            SETTINGS use_query_cache = false;
-          `,
+                        SELECT *
+                        FROM {table: String}
+                            FINAL
+                        WHERE project_id = {projectId: String}
+                          AND id = {entityId: String}
+                        ORDER BY event_ts DESC
+                        LIMIT 1 BY id, project_id SETTINGS use_query_cache = false;
+                    `,
           format: "JSONEachRow",
           query_params: { table, projectId, entityId },
         });
@@ -710,17 +709,50 @@ export class IngestionService {
         const query =
           table === TableName.Observations
             ? Prisma.sql`
-                SELECT o.id, o.trace_id, o.project_id, o.type, o.parent_observation_id, o.start_time, o.end_time, o.name, o.metadata, o.level, o.status_message, o.version, o.input, o.output, o.unit, o.model, o.internal_model_id, o."modelParameters" as model_parameters, o.prompt_tokens, o.completion_tokens, o.total_tokens, o.completion_start_time, o.prompt_id, p.name as prompt_name, p.version as prompt_version, o.input_cost, o.output_cost, o.total_cost, o.calculated_input_cost, o.calculated_output_cost, o.calculated_total_cost, o.created_at, o.updated_at
-                FROM observations o
-                LEFT JOIN prompts p ON o.prompt_id = p.id
-                WHERE o.project_id = ${projectId}
-                AND o.id = ${entityId}
-                LIMIT 1;`
+                                SELECT o.id,
+                                       o.trace_id,
+                                       o.project_id,
+                                       o.type,
+                                       o.parent_observation_id,
+                                       o.start_time,
+                                       o.end_time,
+                                       o.name,
+                                       o.metadata,
+                                       o.level,
+                                       o.status_message,
+                                       o.version,
+                                       o.input,
+                                       o.output,
+                                       o.unit,
+                                       o.model,
+                                       o.internal_model_id,
+                                       o."modelParameters" as model_parameters,
+                                       o.prompt_tokens,
+                                       o.completion_tokens,
+                                       o.total_tokens,
+                                       o.completion_start_time,
+                                       o.prompt_id,
+                                       p.name as prompt_name,
+                                       p.version as prompt_version,
+                                       o.input_cost,
+                                       o.output_cost,
+                                       o.total_cost,
+                                       o.calculated_input_cost,
+                                       o.calculated_output_cost,
+                                       o.calculated_total_cost,
+                                       o.created_at,
+                                       o.updated_at
+                                FROM observations o
+                                         LEFT JOIN prompts p ON o.prompt_id = p.id
+                                WHERE o.project_id = ${projectId}
+                                  AND o.id = ${entityId}
+                                LIMIT 1;`
             : Prisma.sql`
-                SELECT * FROM ${Prisma.raw(table)}
-                WHERE project_id = ${projectId}
-                AND id = ${entityId}
-                LIMIT 1;`;
+                                SELECT *
+                                FROM ${Prisma.raw(table)}
+                                WHERE project_id = ${projectId}
+                                  AND id = ${entityId}
+                                LIMIT 1;`;
 
         const result =
           await this.prisma.$queryRaw<Array<Record<string, unknown>>>(query);
