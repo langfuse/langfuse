@@ -46,7 +46,7 @@ export default withMiddlewares({
 
           return {
             mediaId: existingMedia.id,
-            presignedUrl: null,
+            uploadUrl: null,
           };
         }
 
