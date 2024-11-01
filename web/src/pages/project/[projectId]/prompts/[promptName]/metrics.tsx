@@ -11,7 +11,7 @@ import { type RouterOutput } from "@/src/utils/types";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -30,7 +30,7 @@ export type PromptVersionTableRow = {
   medianInputTokens?: number | null;
   medianOutputTokens?: number | null;
   medianCost?: number | null;
-  generationCount?: number | null;
+  generationCount?: bigint | null;
   traceScores?: ScoreAggregate;
   generationScores?: ScoreAggregate;
   lastUsed?: string | null;
@@ -269,13 +269,13 @@ export default function PromptVersionTable() {
       size: 150,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: number | undefined | null =
+        const value: bigint | undefined | null =
           row.getValue("generationCount");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
         return value === undefined || value === null ? null : (
-          <span>{String(value)}</span>
+          <span>{numberFormatter(value, 0)}</span>
         );
       },
     },
@@ -369,6 +369,7 @@ export default function PromptVersionTable() {
             medianInputTokens: prompt.medianInputTokens,
             medianOutputTokens: prompt.medianOutputTokens,
             medianCost: prompt.medianTotalCost,
+            generationCount: prompt.observationCount,
             traceScores: verifyAndPrefixScoreDataAgainstKeys(
               scoreKeysAndProps,
               prompt.traceScores ?? {},
