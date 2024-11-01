@@ -40,8 +40,8 @@ export const GetMediaUploadUrlQuerySchema = z.object({
   sha256Hash: z
     .string()
     .regex(
-      /^[a-f0-9]{64}$/,
-      "Must be a 64 character hex representation of a SHA-256 hash",
+      /^[A-Za-z0-9+/=]{44}$/,
+      "Must be a 44 character base64 encoded SHA-256 hash",
     ),
   field: z.nativeEnum(MediaEnabledFields),
 });

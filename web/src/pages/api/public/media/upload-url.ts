@@ -74,6 +74,8 @@ export default withMiddlewares({
         const uploadUrl = await s3Client.getSignedUploadUrl({
           path: bucketPath,
           ttlSeconds: 60 * 60, // 1 hour
+          sha256Hash,
+          contentType,
         });
 
         await Promise.all([

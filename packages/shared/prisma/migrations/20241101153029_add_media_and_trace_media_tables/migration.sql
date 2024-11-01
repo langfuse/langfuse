@@ -1,7 +1,7 @@
 -- CreateTable
 CREATE TABLE "media" (
     "id" TEXT NOT NULL,
-    "sha_256_hash" TEXT NOT NULL,
+    "sha_256_hash" CHAR(44) NOT NULL,
     "project_id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

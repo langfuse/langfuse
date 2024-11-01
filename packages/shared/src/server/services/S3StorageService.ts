@@ -23,6 +23,7 @@ export class S3StorageService {
   constructor(params: {
     accessKeyId: string | undefined;
     secretAccessKey: string | undefined;
+    sessionToken?: string;
     bucketName: string;
     endpoint: string | undefined;
     region: string | undefined;
@@ -35,6 +36,7 @@ export class S3StorageService {
         ? {
             accessKeyId,
             secretAccessKey,
+            sessionToken: params.sessionToken,
           }
         : undefined;
 
@@ -144,16 +146,24 @@ export class S3StorageService {
   public async getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
+    sha256Hash: string;
+    contentType: string;
   }): Promise<string> {
-    const { path, ttlSeconds } = params;
+    const { path, ttlSeconds, contentType, sha256Hash } = params;
 
     return await getSignedUrl(
       this.client,
       new PutObjectCommand({
         Bucket: this.bucketName,
         Key: path,
+        ContentType: contentType,
+        ChecksumSHA256: sha256Hash,
       }),
-      { expiresIn: ttlSeconds }
+      {
+        expiresIn: ttlSeconds,
+        signableHeaders: new Set(["content-type"]),
+        unhoistableHeaders: new Set(["x-amz-checksum-sha256"]), // This is not supported by the SDK: https://github.com/aws/aws-sdk/issues/480#issuecomment-2246917170
+      }
     );
   }
 }
