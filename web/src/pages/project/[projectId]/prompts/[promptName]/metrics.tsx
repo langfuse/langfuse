@@ -283,6 +283,7 @@ export default function PromptVersionTable() {
       accessorKey: "traceScores",
       header: "Trace Scores",
       id: "traceScores",
+      enableHiding: true,
       columns: traceScoreColumns,
       cell: () => {
         return isTraceColumnLoading ? (
@@ -294,6 +295,7 @@ export default function PromptVersionTable() {
       accessorKey: "generationScores",
       header: "Generation Scores",
       id: "generationScores",
+      enableHiding: true,
       columns: generationScoreColumns,
       cell: () => {
         return isGenerationColumnLoading ? (
