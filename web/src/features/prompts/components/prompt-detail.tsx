@@ -83,6 +83,15 @@ export const PromptDetail = () => {
       },
       {
         enabled: Boolean(projectId),
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
       },
     ).data?.tags ?? []
   ).map((t) => t.value);
