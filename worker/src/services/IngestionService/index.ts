@@ -629,7 +629,6 @@ export class IngestionService {
           query: `
             SELECT *
             FROM ${table}
-            FINAL
             WHERE project_id = {projectId: String}
             AND id = {entityId: String}
             ORDER BY event_ts DESC
