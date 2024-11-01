@@ -13,6 +13,8 @@ import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import Decimal from "decimal.js";
 import { prisma } from "../../db";
 import { jsonSchema } from "../../utils/zod";
+import { z } from "zod";
+import { FilterState } from "../../types";
 
 export const convertObservation = async (
   record: ObservationClickhouseRecord,
@@ -219,3 +221,18 @@ export const getObservationById = async (
   }
   return mapped.shift();
 };
+
+// type a = z.infer<typeof z.array(singleFilter)>;
+
+type GetObservationsForTableInput = {
+  projectId: string;
+  filter: FilterState;
+  searchQuery: string | undefined;
+  limit: number;
+  offset: number;
+  selectIOAndMetadata: boolean;
+};
+// export const getObservationsForTable = async ({
+//   projectId, filter, searchQuery, orderBy, limit, offset, selectIOAndMetadata
+// }: ) => {
+// }
